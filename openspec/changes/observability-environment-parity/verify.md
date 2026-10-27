@@ -2489,55 +2489,55 @@ Meaningful original RED/setup evidence is retained. Schema/default/classificatio
 
 Each following fault was injected individually through `readRehearsalNativeCosts`, observed failing, and immediately restored in `finally`; no old proof matrix was replayed and no mutation framework was added. Adjacent `Proof:` comments name the observed dependencies/tests. Exact fault descriptions, commands, failing-test counts, timings and restored source hashes are in `/tmp/puni-task25c3e/proofs.json`; individual `fault-<name>.log`/`.json` files preserve the output. All 47 targeted commands exited1 with failed assertions. The shared command prefix is `bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/observability-native-job.test.ts -t`; table entries are its exact final filter argument. The range fault ran only backoff 256 (257 slots), never hostile MaxInt32 with the guard removed. Expression grammar and success-index grammar controls isolate their checks from later matching/numeric refusals.
 
-| Fault                | Exact test filter                             | Failed tests                                  | Process seconds       |
-| -------------------- | --------------------------------------------- | --------------------------------------------- | --------------------- |
-| arrays               | `Job malformed (selector array                | selector labels array                         | failure shape)`       | 3              | 0.584                |
-| attempt-count        | `Job backoff (0                               | 4                                             | 6                     | 10) retains`   | 4                    | 0.601               |
-| backoff-default      | `Job defaults preserve`                       | 1                                             | 0.571                 |
-| claim-obligation     | `Job external claim`                          | 1                                             | 0.590                 |
-| completion-default   | `Job valid unsupported workqueue`             | 1                                             | 0.573                 |
-| condition-key        | `Job malformed condition type`                | 1                                             | 0.579                 |
-| conditions           | `Job conditions and whole`                    | 1                                             | 0.604                 |
-| deadline             | `Job malformed deadline`                      | 2                                             | 0.584                 |
-| exit-codes           | `Job malformed failure exit codes (zero       | duplicate                                     | unordered)`           | 3              | 0.596                |
-| exit-container       | `Job malformed failure container unknown`     | 1                                             | 0.580                 |
-| expansion-range      | `Job valid unsupported range above bound`     | 1                                             | 0.574                 |
-| fail-index           | `Job malformed failure index contradiction`   | 1                                             | 0.585                 |
-| failure-matchers     | `Job malformed failure (rule neither          | both matchers)`                               | 2                     | 0.573          |
-| failure-replacement  | `Job (failure policy cannot                   | malformed failure replacement contradiction)` | 2                     | 0.580          |
-| foreign              | `Job malformed foreign`                       | 3                                             | 0.653                 |
-| full-retention       | `Job backoff 4 retains`                       | 1                                             | 0.568                 |
-| history-forgery      | `Job conditions and whole`                    | 1                                             | 0.579                 |
-| indexed              | `Job malformed indexed (work queue            | parallel cap)`                                | 2                     | 0.583          |
-| large-indexes        | `Job malformed indexed large`                 | 1                                             | 0.561                 |
-| managed-by           | `Job malformed managed controller domain`     | 1                                             | 0.585                 |
-| managed-domain-label | `empty domain label`                          | 1                                             | 0.588                 |
-| max-indexes          | `Job malformed (max failed without index      | indexed max failures)`                        | 2                     | 0.564          |
-| namespace            | `Job namespace and provider`                  | 1                                             | 0.566                 |
-| nonindexed-policy    | `Job malformed (per index nonindexed          | success nonindexed)`                          | 2                     | 0.573          |
-| prepass              | `all-native prepass`                          | 1                                             | 0.612                 |
-| resource-obligation  | `Job broad resource absence`                  | 4                                             | 0.591                 |
-| runtime-forgery      | `Job conditions and whole`                    | 1                                             | 0.571                 |
-| runtime-obligation   | `Job conditions and whole`                    | 1                                             | 0.573                 |
-| schema               | `Job malformed (mode                          | suspend                                       | manual selector       | replacement    | restart absent value | failure rule action | failure exit codes empty | failure conditions status)` | 8               | 0.607                    |
-| selector-grammar     | `Job selector In.*bad value`                  | 1                                             | 0.576                 |
-| selector-labels      | `Job malformed selector (invalid key          | invalid value                                 | mismatched template)` | 3              | 0.578                |
-| selector-match       | `Job selector (In.*wrong                      | NotIn                                         | Exists.*\[\]          | DoesNotExist)` | 4                    | 0.605               |
-| selector-values      | `Job selector Exists.*setup`                  | 1                                             | 0.582                 |
-| serial-policy        | `Job (valid unsupported (workqueue            | parallel                                      | indexed               | suspended      | manual selection     | selector            | foreign controller       | replacement Failed          | failure policy) | namespace and provider)` | 10  | 0.616 |
-| slot                 | `Job backoff 4 retains`                       | 1                                             | 0.575                 |
-| source-frame         | `Job backoff 4 retains`                       | 1                                             | 0.574                 |
-| source-identity      | `Job runtime`                                 | 5                                             | 0.592                 |
-| source-pointer       | `Job backoff 4 retains`                       | 1                                             | 0.570                 |
-| success-count        | `Job malformed success count exceeds indexes` | 1                                             | 0.583                 |
-| success-grammar      | `Job malformed success index exponent`        | 1                                             | 0.568                 |
-| success-range        | `Job malformed success indexes (overlap       | bound)`                                       | 2                     | 0.596          |
-| success-required     | `Job malformed success empty rule`            | 1                                             | 0.574                 |
-| template             | `Job conditions and whole`                    | 1                                             | 0.573                 |
-| total                | `Job charges share`                           | 1                                             | 0.571                 |
-| unbounded-obligation | `Job unbounded bucket`                        | 1                                             | 0.573                 |
-| whole-attempt        | `Job (conditions and whole                    | unbounded bucket)`                            | 2                     | 0.581          |
-| writer-obligation    | `Job absent ephemeral`                        | 1                                             | 0.580                 |
+| Fault                | Exact test filter                                                                                                                                                               | Failed tests | Process seconds |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | --------------- |
+| arrays               | `Job malformed (selector array\|selector labels array\|failure shape)`                                                                                                          | 3            | 0.584           |
+| attempt-count        | `Job backoff (0\|4\|6\|10) retains`                                                                                                                                             | 4            | 0.601           |
+| backoff-default      | `Job defaults preserve`                                                                                                                                                         | 1            | 0.571           |
+| claim-obligation     | `Job external claim`                                                                                                                                                            | 1            | 0.590           |
+| completion-default   | `Job valid unsupported workqueue`                                                                                                                                               | 1            | 0.573           |
+| condition-key        | `Job malformed condition type`                                                                                                                                                  | 1            | 0.579           |
+| conditions           | `Job conditions and whole`                                                                                                                                                      | 1            | 0.604           |
+| deadline             | `Job malformed deadline`                                                                                                                                                        | 2            | 0.584           |
+| exit-codes           | `Job malformed failure exit codes (zero\|duplicate\|unordered)`                                                                                                                 | 3            | 0.596           |
+| exit-container       | `Job malformed failure container unknown`                                                                                                                                       | 1            | 0.580           |
+| expansion-range      | `Job valid unsupported range above bound`                                                                                                                                       | 1            | 0.574           |
+| fail-index           | `Job malformed failure index contradiction`                                                                                                                                     | 1            | 0.585           |
+| failure-matchers     | `Job malformed failure (rule neither\|both matchers)`                                                                                                                           | 2            | 0.573           |
+| failure-replacement  | `Job (failure policy cannot\|malformed failure replacement contradiction)`                                                                                                      | 2            | 0.580           |
+| foreign              | `Job malformed foreign`                                                                                                                                                         | 3            | 0.653           |
+| full-retention       | `Job backoff 4 retains`                                                                                                                                                         | 1            | 0.568           |
+| history-forgery      | `Job conditions and whole`                                                                                                                                                      | 1            | 0.579           |
+| indexed              | `Job malformed indexed (work queue\|parallel cap)`                                                                                                                              | 2            | 0.583           |
+| large-indexes        | `Job malformed indexed large`                                                                                                                                                   | 1            | 0.561           |
+| managed-by           | `Job malformed managed controller domain`                                                                                                                                       | 1            | 0.585           |
+| managed-domain-label | `empty domain label`                                                                                                                                                            | 1            | 0.588           |
+| max-indexes          | `Job malformed (max failed without index\|indexed max failures)`                                                                                                                | 2            | 0.564           |
+| namespace            | `Job namespace and provider`                                                                                                                                                    | 1            | 0.566           |
+| nonindexed-policy    | `Job malformed (per index nonindexed\|success nonindexed)`                                                                                                                      | 2            | 0.573           |
+| prepass              | `all-native prepass`                                                                                                                                                            | 1            | 0.612           |
+| resource-obligation  | `Job broad resource absence`                                                                                                                                                    | 4            | 0.591           |
+| runtime-forgery      | `Job conditions and whole`                                                                                                                                                      | 1            | 0.571           |
+| runtime-obligation   | `Job conditions and whole`                                                                                                                                                      | 1            | 0.573           |
+| schema               | `Job malformed (mode\|suspend\|manual selector\|replacement\|restart absent value\|failure rule action\|failure exit codes empty\|failure conditions status)`                   | 8            | 0.607           |
+| selector-grammar     | `Job selector In.*bad value`                                                                                                                                                    | 1            | 0.576           |
+| selector-labels      | `Job malformed selector (invalid key\|invalid value\|mismatched template)`                                                                                                      | 3            | 0.578           |
+| selector-match       | `Job selector (In.*wrong\|NotIn\|Exists.*\[\]\|DoesNotExist)`                                                                                                                   | 4            | 0.605           |
+| selector-values      | `Job selector Exists.*setup`                                                                                                                                                    | 1            | 0.582           |
+| serial-policy        | `Job (valid unsupported (workqueue\|parallel\|indexed\|suspended\|manual selection\|selector\|foreign controller\|replacement Failed\|failure policy)\|namespace and provider)` | 10           | 0.616           |
+| slot                 | `Job backoff 4 retains`                                                                                                                                                         | 1            | 0.575           |
+| source-frame         | `Job backoff 4 retains`                                                                                                                                                         | 1            | 0.574           |
+| source-identity      | `Job runtime`                                                                                                                                                                   | 5            | 0.592           |
+| source-pointer       | `Job backoff 4 retains`                                                                                                                                                         | 1            | 0.570           |
+| success-count        | `Job malformed success count exceeds indexes`                                                                                                                                   | 1            | 0.583           |
+| success-grammar      | `Job malformed success index exponent`                                                                                                                                          | 1            | 0.568           |
+| success-range        | `Job malformed success indexes (overlap\|bound)`                                                                                                                                | 2            | 0.596           |
+| success-required     | `Job malformed success empty rule`                                                                                                                                              | 1            | 0.574           |
+| template             | `Job conditions and whole`                                                                                                                                                      | 1            | 0.573           |
+| total                | `Job charges share`                                                                                                                                                             | 1            | 0.571           |
+| unbounded-obligation | `Job unbounded bucket`                                                                                                                                                          | 1            | 0.573           |
+| whole-attempt        | `Job (conditions and whole\|unbounded bucket)`                                                                                                                                  | 2            | 0.581           |
+| writer-obligation    | `Job absent ephemeral`                                                                                                                                                          | 1            | 0.580           |
 
 ### One clean retained-source control
 
@@ -2566,7 +2566,7 @@ Artifact hashes and final source hashes are in `/tmp/puni-task25c3e/source-ident
 
 ### Remaining acceptance
 
-This is source-only Task33 implementation evidence, awaiting root-owned scoped review. Task 3.1/full admission and runtime acceptance remain open: CronJob/manual recovery, generated/native remainder, writers, system/helpers/transients/host contributors, whole-attempt generations and retained histories, actual provider/features/effective Pods/UIDs/node/enforcement and retained storage. The canonical 4/11 contract is unmodified; the retained control checks 11 source stages, not a new runtime rehearsal. Full Nx gates, h2/h4 gates, full Fleet suite, build, cluster/runtime checks, CI reruns, publication, deployment and Secret actions were deliberately not run in this scoped task. Root owns the unrelated ec8 Infra cache/fixture failure; no CI repair was attempted here.
+Independent scoped review approved the Task33 source and task quality with no Critical or Important findings. The proof-table formatting minor was corrected directly from the retained proof JSON; no tests or fault proofs were replayed. This remains source-only evidence. Task 3.1/full admission and runtime acceptance remain open: CronJob/manual recovery, generated/native remainder, writers, system/helpers/transients/host contributors, whole-attempt generations and retained histories, actual provider/features/effective Pods/UIDs/node/enforcement and retained storage. The canonical 4/11 contract is unmodified; the retained control checks 11 source stages, not a new runtime rehearsal. Full Nx gates, h2/h4 gates, full Fleet suite, build, cluster/runtime checks, CI reruns, publication, deployment and Secret actions were deliberately not run in this scoped task. Root owns the unrelated ec8 Infra cache/fixture failure; no CI repair was attempted here.
 
 ## Task32 CI fix1 — canonical prepared Helm archive (2026-10-27)
 
