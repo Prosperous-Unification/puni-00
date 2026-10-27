@@ -2567,3 +2567,47 @@ Artifact hashes and final source hashes are in `/tmp/puni-task25c3e/source-ident
 ### Remaining acceptance
 
 This is source-only Task33 implementation evidence, awaiting root-owned scoped review. Task 3.1/full admission and runtime acceptance remain open: CronJob/manual recovery, generated/native remainder, writers, system/helpers/transients/host contributors, whole-attempt generations and retained histories, actual provider/features/effective Pods/UIDs/node/enforcement and retained storage. The canonical 4/11 contract is unmodified; the retained control checks 11 source stages, not a new runtime rehearsal. Full Nx gates, h2/h4 gates, full Fleet suite, build, cluster/runtime checks, CI reruns, publication, deployment and Secret actions were deliberately not run in this scoped task. Root owns the unrelated ec8 Infra cache/fixture failure; no CI repair was attempted here.
+
+## Task32 CI fix1 — canonical prepared Helm archive (2026-10-27)
+
+Source/test commit: `fe7892af1391cfa5b49c3d76f4adad72ac4bf585`, based on clean Task33 source `ad14c5c3b9fa2e9517a8c05f083d801459b336b8`. This fixture-only restoration uses the R4 precise-contract exemption. Task33 implementation and its evidence above were not edited or rerun.
+
+### Failure and repair boundary
+
+Published ec8 Infra 40571238525 / Fleet 122425678800 failed: **2079 pass, 7 skip, 31 fail / 2117 tests / 91 files / 401.44s**. The 561360-byte raw `/tmp/puni-pr760-fleet-ec8.log` hashes to `bf068eb6bd89c03fee7b7ede2cc4f31a8324205c41940011ca16da52d0a5ab66`. K3s was skipped and deploy checks were not reached. These failures are distinct from the earlier TDZ and timeout issues. No rerun has established repaired CI.
+
+The fixture installed verified Helm bytes only in private scratch; renderer default authentication read the unpopulated canonical cache. `observability-tools.fixture.ts` now copies the installer-verified private Helm archive into a unique directory created **inside the selected canonical artifact directory**, atomically renames the complete file to the required archive path, and removes only its owned staging directory. Archive publication is required; unreadable seeds and failed output I/O propagate. Shared executable extraction remains untouched; selected executables and extraction remain private. Production authentication, hashes/provenance, explicit archive refusals, wrappers, CLI arguments/defaults and pins are unchanged. Only the required Helm archive is published.
+
+### Exact focused commands and outcomes
+
+All commands below ran in `/home/df/.codex/worktrees/aa39/puni-00`. Fixture command prefix:
+
+```sh
+bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 tools/tool-fleet/src/observability-tools.test.ts -t
+```
+
+- Initial new RED filter `'locked fixture (publishes verified Helm|concurrent preparations|refuses an unwritable)'`: exit1, **0 pass / 3 fail / 4 filtered**, 88 assertions, 21.16s. Failures were missing canonical archive, no canonical replacement, and unwritable required output incorrectly succeeding.
+- Initial GREEN filter `'locked fixture (publishes verified Helm|concurrent preparations|refuses an unwritable|refuses unreadable|reuses one)'`: exit0, **6 pass / 0 fail / 1 filtered**, 119 assertions, 19.18s. Includes both kubectl/Helm mode-000 seed refusals, private symlink paths, two real child preparations, complete archive reads throughout publication, distinct private executable directories, and preserved shared extraction sentinel.
+- Additional `'malformed Helm publication'` control: exit0, **1 pass / 0 fail / 7 filtered**, 2 assertions, 1.82s. A real version probe completes before its observer replaces the canonical archive with a directory; publication reports EISDIR and leaves no staging files.
+- Publication-omission fault filter `'locked fixture (publishes verified Helm|concurrent preparations|refuses an unwritable|refuses malformed Helm publication)'`: exit1, **0 pass / 4 fail / 4 filtered**, 76 assertions, 22.24s. Exact source restored in `finally`; before/restored SHA-256 both `a90ba79c862ad05fc8149d9328d25e607d70747c2e8aebbf37ee51d48bff04d7`. Adjacent `Proof:` names these observed failures.
+- Same four controls after restoration: exit0, **4 pass / 0 fail / 4 filtered**, 96 assertions, 23.49s.
+
+Original exact empty-cache RED remains `/tmp/task32-ci-fix1-repro-4tjajr6z/{receipt.json,stdout.log,stderr.log}`: selected no-op negative expected `/Velero patch/`, received archive ENOENT, exit1, **0 pass / 1 fail / 33 filtered**, 22.09s, cache empty before/after.
+
+Corrected default-auth/CLI command used fresh empty `PUNI_TOOL_CACHE=/tmp/puni-task32-ci-fix1-20261027/default-cache-kpddqux4` and owned `TMPDIR=/tmp/puni-task32-ci-fix1-20261027/default-scratch-fhby4b6j`:
+
+```sh
+bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 tools/tool-fleet/src/observability-velero-render.test.ts tools/tool-fleet/src/observability-source-cli.test.ts -t '^Task25c3d direct renderer no-op output refuses before accepting output$|^full source CLI actual pinned positive returns source policy receipt and no effective readiness$'
+```
+
+Exit0: **2 pass / 0 fail / 41 filtered**, 5 assertions, 24.80s. No-op negative reached its patch refusal (721.61ms); unchanged public source CLI positive returned its source-policy receipt (8052.95ms). The selected cache retained only `helm-v4.3.0/helm-v4.3.0-linux-amd64.tar.gz`: **20321063 bytes**, SHA-256 `86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb`, mode0664 under owned mode0700 cache, inode14525053. Private scratch was empty after ordinary cleanup. Exact argv/environment/paths/statistics are in `default-controls.json`.
+
+Statics exited0: `bunx eslint tools/tool-fleet/src/observability-tools.fixture.ts tools/tool-fleet/src/observability-tools.test.ts`; `bunx tsc --project tools/tool-fleet/tsconfig.spec.json --noEmit --incremental false`; `bunx prettier --check tools/tool-fleet/src/observability-tools.fixture.ts tools/tool-fleet/src/observability-tools.test.ts`; `git diff --check`. Initial lint found only import ordering; autofix preceded the final clean lint/types. Standalone static timings were not captured. Normal source commit hooks passed in 2.90s, including secret/private-nesting checks, formatting/lint and the visible inactive external Tool Wiki outcome.
+
+### Evidence and limits
+
+Canonical evidence formatting and `git diff --check` passed. `bunx openspec validate observability-environment-parity --strict --json` exited0: one valid change, zero issues (reported validation 16ms). Fresh `stat` confirmed both the retained cache and its Helm artifact directory are mode0700, with the archive mode0664/20321063 bytes/inode14525053; fresh `sha256sum` matched the locked archive digest above.
+
+Raw focused logs, `publication-omission.json` and `default-controls.json` live in `/tmp/puni-task32-ci-fix1-20261027/`. Final fixture SHA-256: `d884dafca1fb04e0fab5ab92f523f1dec3d9aab93c490717c76b096a91751b91`; test: `3780662fc289471c1c4cc855becb410e9cbbfe685083d201c5aba474efeaf749`.
+
+The unrelated existing changed-kubectl repair test, historical selected-archive/tool mutation matrices, old passing captures, full canonical 11-stage rendering, Job tests, full Fleet/Nx gates, host gates, CI reruns and runtime/cluster/deploy actions were deliberately not run. Existing explicit archive absent/unreadable/changed tests are preserved without edits. This is source-only CI repair evidence awaiting root review/publication; full admission, runtime acceptance and canonical 4/11 status remain unchanged.
