@@ -526,3 +526,39 @@ Current platform candidates SHALL declare explicit ephemeral-storage requests an
 - **AND** other unbounded receiver, Flux, node-agent, hostPath, lifecycle, system/helper/transient and retained-storage facts remain explicit
 - **AND** actual startup/load/log/eviction/recovery and effective enforcement remain required before live activation
 - **AND** source-only inventory and false creation/runtime authority do not become deployment permission
+
+### Requirement: Conditional DaemonSet costs bind the selected source topology
+
+The native capacity companion SHALL derive supported DaemonSet initial and first-replacement contributions through the existing source traversal and normalizer, bound to the same selected source's candidate-node population. No source condition or caller-provided count may establish runtime or creation authority.
+
+#### Scenario: The source topology supports a conditional wave
+
+- **WHEN** independently captured source/packet/bootstrap coordinates match exact retained topology bytes and the supported DaemonSet policy
+- **THEN** N is the entire source-declared server-plus-agent population, without eligibility or scheduling discounts
+- **AND** the companion retains N full initial plus N full first-replacement Pod charges, including failed and terminating demand
+- **AND** source/template/namespace, declared/defaulted policy, topology provenance and synthetic candidate-slot identities are retained without inventing Node UIDs
+- **AND** validated topology provenance is snapshotted so subsequent caller-input mutation cannot change the accepted record
+
+#### Scenario: Topology evidence is missing, invalid or computationally unsupported
+
+- **WHEN** legacy callers omit optional topology evidence
+- **THEN** their existing native contributions remain usable and DaemonSet topology remains explicitly incomplete, without a default N
+- **WHEN** supplied topology bytes, source coordinates, selected revision or artifact identity are malformed or mismatched
+- **THEN** the native boundary refuses rather than trusting the evidence object's own count or hash
+- **WHEN** a valid decoded candidate population falls outside the supported one-to-128 materialization range
+- **THEN** the adapter reports an explicit computational limitation before allocating slots, without truncation or a physical-capacity claim
+
+#### Scenario: Known policy validation precedes incomplete classification
+
+- **WHEN** supplied known DaemonSet strategy, counts, placement, selector/template, toleration, affinity, restart, deadline or foreign-controller fields are malformed
+- **THEN** the complete native prepass refuses before provider, missing topology, missing resources or unsupported-policy shortcuts
+- **AND** valid unsupported policies remain named incomplete without inventing API contradictions or widening legacy contracts
+- **AND** independent missing map, claim, volume, hostPath, log/runtime and generation/history obligations cannot be concealed by the first unsupported contributor
+
+#### Scenario: The first-wave condition cannot certify the whole attempt
+
+- **WHEN** conditional DaemonSet contributions are returned
+- **THEN** one unchanged controller/template and fixed reachable Node UID set, complete reconciled creation histories, no prior/adopted work and at most one first replacement remain unobserved requirements
+- **AND** rollout, repeated replacement/eviction, force/loss, node/placement changes, controller recreation and foreign mutation remain outside the bound
+- **AND** grace, history, surge and cleanup policies provide no physical reclamation credit
+- **AND** other native families and all system/helper/writer/transient/host obligations remain intact, with source-only inventory, incomplete state and false creation/runtime authority
