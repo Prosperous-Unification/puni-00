@@ -31,6 +31,43 @@ const Claim = type({
   },
 });
 const ContainerInput = type({ name: 'string>0', 'image?': 'string>0', resources: 'unknown' });
+/** The pinned CRD/model permits zero; selected-source counts remain nonnegative int32. */
+const ShardCount = type('number.integer>=0').atMost(2147483647);
+// Proof: Task25b2 fix1 pod-resource-map-kind removal admitted array requirement bodies and request/limit maps.
+const ResourceList = type('Record<string,string|number>').narrow(
+  (quantities) => !Array.isArray(quantities),
+);
+const PodResources = type({ 'requests?': ResourceList, 'limits?': ResourceList }).narrow(
+  (resources) => !Array.isArray(resources),
+);
+/** Validate only supplied Pod resource maps and bounds before leaving the policy unsupported.
+ * Optional maps stay absent; this derives no Pod charge or default limit.
+ */
+function assertPodResources(input: unknown): void {
+  const resources = PodResources(input);
+  // Proof: Task25b2 fix1 pod-requirements-shape removal admitted malformed maps and quantity types.
+  if (resources instanceof type.errors) refuse('pod-resources-malformed');
+  const readAmounts = (quantities: typeof ResourceList.infer | undefined) => {
+    const amounts = new Map<string, number>();
+    if (quantities === undefined) return amounts;
+    // Proof: Task25b2 fix1 pod-cpu/memory-quantity-reader substitutions admitted malformed quantities.
+    for (const [name, quantity] of Object.entries(quantities))
+      amounts.set(
+        name,
+        name === 'cpu'
+          ? readCPUMilli(String(quantity), refuse)
+          : readMemoryMiB(String(quantity), refuse),
+      );
+    return amounts;
+  };
+  const limits = readAmounts(resources.limits);
+  for (const [name, request] of readAmounts(resources.requests)) {
+    const limit = limits.get(name);
+    // Proof: Task25b2 fix1 pod-request-limit-bounds removal admitted selected/extra-template contradictions.
+    if (limit !== undefined && request > limit) refuse('pod-resources-contradiction');
+  }
+}
+
 class UnsupportedGeneratedWorkload extends Error {}
 function refuse(reason: string): never {
   throw new Error(`Generated capacity ${reason}`);
@@ -165,6 +202,16 @@ export function deriveSelectedCapacityInputs(
       for (const key of Object.keys(input)) if (!keys.includes(key)) unsupported(`${path}/${key}`);
     };
     const pod = readRecord(role.pod);
+    // Proof: Task25b2 fix1 selected-pod-policy-boundary removal hid malformed selected ECK quantities.
+    if (eck && Object.hasOwn(pod, 'resources')) assertPodResources(pod['resources']);
+    if (!eck && Object.hasOwn(spec, 'podTemplate')) {
+      const template = readRecord(spec['podTemplate']);
+      if (Object.hasOwn(template, 'spec')) {
+        const templatePod = readRecord(template['spec']);
+        // Proof: Task25b2 fix1 unsupported-template-policy-boundary removal hid malformed Prometheus/Alertmanager template quantities.
+        if (Object.hasOwn(templatePod, 'resources')) assertPodResources(templatePod['resources']);
+      }
+    }
     const origins: { name: string; image: string; origin: string; pointer: string }[] = [];
     const readContainers = (containers: SelectedRole['containers'], phase: string) =>
       containers.map((container) => {
@@ -337,6 +384,11 @@ export function deriveSelectedCapacityInputs(
         .array()
         .atLeastLength(1)
         .assert(spec['nodeSets']);
+      for (const node of nodes.slice(1)) {
+        const extra = readRecord(node.podTemplate.spec);
+        // Proof: Task25b2 fix1 extra-node-policy-boundary removal hid malformed quantities/bounds behind an extra-nodeSet CSI branch.
+        if (Object.hasOwn(extra, 'resources')) assertPodResources(extra['resources']);
+      }
       replicas = nodes[0].count;
       // Proof: Task25b2 nodeset-shape removal hid extra nodeSets and changed ES count/name.
       if (nodes.length !== 1 || nodes[0].name !== 'default' || replicas !== 1)
@@ -466,7 +518,12 @@ export function deriveSelectedCapacityInputs(
       // Proof: Task25b2 monitoring-replica-shape removal hid multiple replicas.
       if (replicas !== 1) unsupported('/spec/replicas');
       // Proof: Task25b2 prometheus-shard-shape removal hid multiple shards.
-      if (role.kind === 'Prometheus' && spec['shards'] !== 1) unsupported('/spec/shards');
+      if (role.kind === 'Prometheus') {
+        const shards = spec['shards'] === undefined ? undefined : ShardCount(spec['shards']);
+        // Proof: Task25b2 fix1 shard-count-validation removal downgraded string/negative/fraction/int32-overflow/null shards to partial.
+        if (shards instanceof type.errors) refuse('shards-malformed');
+        if (shards !== 1) unsupported('/spec/shards');
+      }
       // Proof: Task25b2 primary-resource-map removal admitted contradictory primary resource overrides.
       if (!isDeepStrictEqual(role.containers[0].resources, spec['resources']))
         refuse('primary-resource-map');

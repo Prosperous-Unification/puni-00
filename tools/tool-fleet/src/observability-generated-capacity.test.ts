@@ -1147,3 +1147,246 @@ test('selected first nodeSet cannot hide an additional claim template', async ()
     ),
   ).toThrow(/claim-count/);
 });
+
+const podPolicyTargets: {
+  name: string;
+  owner: string;
+  kind: string;
+  path: (string | number)[];
+  extra?: boolean;
+}[] = [
+  {
+    name: 'selected ES',
+    owner: 'observability-dev/elasticsearch',
+    kind: 'Elasticsearch',
+    path: ['spec', 'nodeSets', 0, 'podTemplate', 'spec'],
+  },
+  {
+    name: 'Kibana',
+    owner: 'observability-dev/kibana',
+    kind: 'Kibana',
+    path: ['spec', 'podTemplate', 'spec'],
+  },
+  {
+    name: 'extra ES',
+    owner: 'observability-dev/elasticsearch',
+    kind: 'Elasticsearch',
+    path: ['spec', 'nodeSets', 1, 'podTemplate', 'spec'],
+    extra: true,
+  },
+  {
+    name: 'Prometheus template',
+    owner: 'observability-dev/kube-prometheus-stack',
+    kind: 'Prometheus',
+    path: ['spec', 'podTemplate', 'spec'],
+  },
+  {
+    name: 'Alertmanager template',
+    owner: 'observability-dev/kube-prometheus-stack',
+    kind: 'Alertmanager',
+    path: ['spec', 'podTemplate', 'spec'],
+  },
+];
+test.each(['invalid', -1, 1.5, 2147483648, null])(
+  'fix1 malformed shards %j throws before unsupported classification',
+  async (shards) => {
+    const { deriveSelectedCapacityTraits } = await import('./observability-generated-capacity');
+    const packet = fixture();
+    edit(packet.frames, 'observability-dev/kube-prometheus-stack', 'Prometheus', (document) => {
+      document.setIn(['spec', 'shards'], shards);
+    });
+    expect(() =>
+      deriveSelectedCapacityTraits(
+        packet.source,
+        packet.frames,
+        inventory(packet.frames),
+        packet.lock,
+      ),
+    ).toThrow(/shards-malformed/);
+  },
+);
+test.each([0, 2])(
+  'fix1 valid unsupported shards %i stays partial without a nominal bound',
+  async (shards) => {
+    const { deriveSelectedCapacityTraits } = await import('./observability-generated-capacity');
+    const packet = fixture();
+    edit(packet.frames, 'observability-dev/kube-prometheus-stack', 'Prometheus', (document) => {
+      document.setIn(['spec', 'shards'], shards);
+    });
+    const trait = deriveSelectedCapacityTraits(
+      packet.source,
+      packet.frames,
+      inventory(packet.frames),
+      packet.lock,
+    ).find((trait) => trait.identity === 'Prometheus:observability-dev:kps-prometheus');
+    expect(trait?.perReplica).toBeNull();
+    expect(trait?.missingFacts).toContain(
+      'unsupported-source:Prometheus:observability-dev:kps-prometheus/spec/shards',
+    );
+  },
+);
+const malformedPodPolicies: {
+  target: number;
+  name: string;
+  resources: unknown;
+  reason: RegExp;
+  csi?: boolean;
+}[] = [
+  {
+    target: 0,
+    name: 'selected CPU quantity',
+    resources: { requests: { cpu: '1Mi' } },
+    reason: /cpu-unknown/,
+  },
+  {
+    target: 1,
+    name: 'Kibana memory quantity',
+    resources: { limits: { memory: 'invalid' } },
+    reason: /memory-unknown/,
+  },
+  {
+    target: 2,
+    name: 'extra ES memory quantity behind CSI',
+    resources: { limits: { memory: 'invalid' } },
+    reason: /memory-unknown/,
+    csi: true,
+  },
+  {
+    target: 3,
+    name: 'Prometheus template memory quantity',
+    resources: { limits: { memory: '1m' } },
+    reason: /memory-unknown/,
+  },
+  {
+    target: 4,
+    name: 'Alertmanager template CPU quantity',
+    resources: { requests: { cpu: 'invalid' } },
+    reason: /cpu-unknown/,
+  },
+  {
+    target: 0,
+    name: 'selected CPU contradiction',
+    resources: { requests: { cpu: '200m' }, limits: { cpu: '100m' } },
+    reason: /pod-resources-contradiction/,
+  },
+  {
+    target: 1,
+    name: 'Kibana memory contradiction',
+    resources: { requests: { memory: '2Gi' }, limits: { memory: '1Gi' } },
+    reason: /pod-resources-contradiction/,
+  },
+  {
+    target: 2,
+    name: 'extra ES contradiction behind CSI',
+    resources: { requests: { memory: '2Gi' }, limits: { memory: '1Gi' } },
+    reason: /pod-resources-contradiction/,
+    csi: true,
+  },
+  {
+    target: 1,
+    name: 'malformed resource map',
+    resources: { limits: 'invalid' },
+    reason: /pod-resources-malformed/,
+  },
+  {
+    target: 1,
+    name: 'malformed quantity type',
+    resources: { limits: { memory: { value: '1Gi' } } },
+    reason: /pod-resources-malformed/,
+  },
+  {
+    target: 1,
+    name: 'negative Pod quantity',
+    resources: { requests: { memory: '-1Mi' } },
+    reason: /memory-unknown/,
+  },
+];
+test.each(malformedPodPolicies)(
+  'fix1 malformed Pod policy $name throws before unsupported classification',
+  async ({ target, resources, reason, csi }) => {
+    const { deriveSelectedCapacityTraits } = await import('./observability-generated-capacity');
+    const packet = fixture();
+    const policy = podPolicyTargets[target];
+    edit(packet.frames, policy.owner, policy.kind, (document) => {
+      const change = (target: ReturnType<typeof parseDocument>, path: (string | number)[]) => {
+        target.setIn([...path, 'resources'], resources);
+        if (csi)
+          target.addIn([...path, 'volumes'], { name: 'external', csi: { driver: 'example.test' } });
+      };
+      if (policy.extra)
+        appendNode(document, (node) => {
+          change(node, ['podTemplate', 'spec']);
+        });
+      else change(document, policy.path);
+    });
+    expect(() =>
+      deriveSelectedCapacityTraits(
+        packet.source,
+        packet.frames,
+        inventory(packet.frames),
+        packet.lock,
+      ),
+    ).toThrow(reason);
+  },
+);
+test.each(podPolicyTargets)('fix1 valid Pod policy remains partial for $name', async (policy) => {
+  const { deriveSelectedCapacityTraits } = await import('./observability-generated-capacity');
+  const packet = fixture();
+  edit(packet.frames, policy.owner, policy.kind, (document) => {
+    const resources = {
+      requests: { cpu: '100m', memory: '512Mi' },
+      limits: { cpu: '1', memory: '1Gi' },
+    };
+    if (policy.extra)
+      appendNode(document, (node) => {
+        node.setIn(['podTemplate', 'spec', 'resources'], resources);
+      });
+    else document.setIn([...policy.path, 'resources'], resources);
+  });
+  const trait = deriveSelectedCapacityTraits(
+    packet.source,
+    packet.frames,
+    inventory(packet.frames),
+    packet.lock,
+  ).find((trait) => trait.kind === policy.kind && trait.namespace === 'observability-dev');
+  expect(trait?.state).toBe('partial');
+  expect(trait?.perReplica).toBeNull();
+});
+
+test.each([{ limits: { memory: '2Gi' } }, { requests: { cpu: '100m' } }, {}])(
+  'fix1 valid optional Pod resource maps %j remain partial',
+  async (resources) => {
+    const { deriveSelectedCapacityTraits } = await import('./observability-generated-capacity');
+    const packet = fixture();
+    edit(packet.frames, 'observability-dev/kibana', 'Kibana', (document) => {
+      document.setIn(['spec', 'podTemplate', 'spec', 'resources'], resources);
+    });
+    const trait = deriveSelectedCapacityTraits(
+      packet.source,
+      packet.frames,
+      inventory(packet.frames),
+      packet.lock,
+    ).find((trait) => trait.kind === 'Kibana' && trait.namespace === 'observability-dev');
+    expect(trait?.perReplica).toBeNull();
+    expect(trait?.state).toBe('partial');
+  },
+);
+
+test.each([{ resources: [] }, { resources: { limits: [] } }, { resources: { requests: [] } }])(
+  'fix1 malformed Pod requirements array $resources throws',
+  async ({ resources }) => {
+    const { deriveSelectedCapacityTraits } = await import('./observability-generated-capacity');
+    const packet = fixture();
+    edit(packet.frames, 'observability-dev/kibana', 'Kibana', (document) => {
+      document.setIn(['spec', 'podTemplate', 'spec', 'resources'], resources);
+    });
+    expect(() =>
+      deriveSelectedCapacityTraits(
+        packet.source,
+        packet.frames,
+        inventory(packet.frames),
+        packet.lock,
+      ),
+    ).toThrow(/pod-resources-malformed/);
+  },
+);
