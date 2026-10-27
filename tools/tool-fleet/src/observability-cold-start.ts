@@ -140,7 +140,152 @@ function refuseSourceShape(
   );
 }
 
-class UnsupportedWorkload extends Error {}
+/** A valid native shape outside the shared normalizer contract remains an explicit source obligation. */
+export class UnsupportedNativeWorkload extends Error {}
+
+/** Expand only declared claim-template volume identities; duplicate names and foreign claim-template kinds refuse. */
+export function expandNativeVolumes<Volume extends { name: string }>(
+  declared: readonly Volume[],
+  templates: readonly { metadata: { name: string } }[],
+  kind: string,
+) {
+  // Proof: Task25a claim-kind removal lost the Deployment claim-template refusal.
+  if (templates.length !== 0 && kind !== 'StatefulSet') refuse('claim-template-kind');
+  // Proof: Task25a claim-template-duplicate removal lost the duplicate-template refusal.
+  // Proof: Task25c3a claim-template-duplicate removal replaced the required early duplicate refusal with a later collision; the diagnostic control failed.
+  if (new Set(templates.map((template) => template.metadata.name)).size !== templates.length)
+    refuse('claim-template-duplicate');
+  const volumes: (Volume | { name: string; persistentVolumeClaim: { claimName: string } })[] = [
+    ...declared,
+  ];
+  for (const template of templates) {
+    // Proof: Task25a claim-volume-collision removal lost the explicit/template volume collision refusal.
+    if (volumes.some((volume) => volume.name === template.metadata.name))
+      refuse('claim-template-volume-collision');
+    volumes.push({
+      name: template.metadata.name,
+      persistentVolumeClaim: { claimName: template.metadata.name },
+    });
+  }
+  return volumes;
+}
+
+/** Normalize one already validated native owner using the shared workload arithmetic.
+ * The broad inventory caller classifies missing bounds only after validating all supplied fields;
+ * omitted refusal policy preserves selected-input strictness. Malformed source throws with safe context. */
+export function normalizeNativeOwner(
+  pod: typeof NativeWorkloadSpec.infer,
+  templates: readonly (typeof Claim.infer)[],
+  kind: string,
+  frame: string,
+  identity: string,
+  refuseUnbounded?: (reason: string) => never,
+) {
+  const volumes = expandNativeVolumes(pod.volumes ?? [], templates, kind);
+  return normalizeWorkload(
+    { ...pod, volumes },
+    {
+      memory: (quantity) => readMemoryMiB(quantity, refuse),
+      cpu: (quantity) => readCPUMilli(quantity, refuse),
+      // Proof: fix1-malformed-callback bypass downgraded contradictory source volumes to incomplete.
+      refuseMalformed: () =>
+        refuseSourceShape('workload-contradiction', frame, identity, '/spec/template/spec'),
+      refuse: (reason) => {
+        if (
+          // Proof: Task25c3a missing-bound-policy removal made valid writable-root/emptyDir omissions throw instead of remain named incomplete.
+          refuseUnbounded !== undefined &&
+          [
+            'candidate-ephemeral-unbounded',
+            'candidate-emptydir-unbounded',
+            'memory-unknown',
+            'cpu-unknown',
+          ].includes(reason)
+        )
+          return refuseUnbounded(reason);
+        if (reason === 'workload-volume-unsupported' || reason === 'workload-shape-unsupported')
+          throw new UnsupportedNativeWorkload(reason);
+        return refuse(reason);
+      },
+    },
+  );
+}
+
+/** Expand full Pod and namespace/controller/template/ordinal claim charges once; source pointers belong to the caller's validated traversal. */
+export function expandNativeOwner({
+  identity,
+  namespace,
+  name,
+  pods,
+  templates,
+  model,
+  source,
+  claimPointer,
+}: {
+  identity: string;
+  namespace: string;
+  name: string;
+  pods: number;
+  templates: readonly (typeof Claim.infer)[];
+  model: ReturnType<typeof normalizeWorkload>;
+  source: NativeCharge['source'];
+  claimPointer: (template: typeof Claim.infer, index: number) => string;
+}): NativeCharge[] {
+  const entries: NativeCharge[] = [];
+  for (let ordinal = 0; ordinal < pods; ordinal++) {
+    entries.push({
+      identity: `${identity}/pod/${String(ordinal)}`,
+      owner: identity,
+      kind: 'pod',
+      // Proof: Task25c3a pod-zero mutation failed the full per-ordinal normalized charge assertion.
+      memoryMiB: model.memoryMiB,
+      cpuMilli: model.cpuMilli,
+      diskMiB: model.ephemeralMiB,
+      source,
+      concurrency: { phase: 'cold-create', pods, ordinal },
+    });
+    for (const [index, template] of templates.entries()) {
+      const sizeMiB = readMemoryMiB(template.spec.resources.requests.storage, refuse);
+      // Proof: Task25a claim-bound removal admitted the zero claim request fixture.
+      if (sizeMiB <= 0) refuse('claim-size-unbounded');
+      appendNativeClaim(
+        entries,
+        `PersistentVolumeClaim:${namespace}:${template.metadata.name}-${name}-${String(ordinal)}`,
+        sizeMiB,
+        {
+          ...source,
+          pointer: claimPointer(template, index),
+        },
+        identity,
+        // Proof: Task25c3a claim-ordinal substitution changed second ordinals to zero and failed identity metadata assertions.
+        ordinal,
+      );
+    }
+  }
+  return entries;
+}
+
+function appendNativeClaim(
+  entries: NativeCharge[],
+  identity: string,
+  sizeMiB: number,
+  source: NativeCharge['source'],
+  owner: string,
+  ordinal = 0,
+) {
+  // Proof: Task25a claim-collision removal admitted a conflicting expanded StatefulSet claim.
+  if (entries.some((entry) => entry.identity === identity)) refuse('claim-identity-collision');
+  entries.push({
+    identity,
+    owner,
+    kind: 'claim',
+    memoryMiB: 0,
+    cpuMilli: 0,
+    // Proof: Task25c3a claim-zero mutation failed unique ordinal claim byte totals.
+    diskMiB: sizeMiB,
+    source,
+    concurrency: { phase: 'cold-create', pods: 0, ordinal },
+  });
+}
 
 /** Derive only one cold-create generation, with no deletion, restart, upgrade or recovery authority.
  * Inventory must come from the validated source contract, not caller JSON or filtered workload lists.
@@ -195,19 +340,9 @@ function deriveNativeCosts(
     source: NativeCharge['source'],
     owner: string,
   ) => {
-    // Proof: Task25a claim-collision removal admitted a conflicting expanded StatefulSet claim.
-    if (entries.some((entry) => entry.identity === identity)) refuse('claim-identity-collision');
-    entries.push({
-      identity,
-      owner,
-      kind: 'claim',
-      memoryMiB: 0,
-      cpuMilli: 0,
-      diskMiB: sizeMiB,
-      source,
-      concurrency: { phase: 'cold-create', pods: 0, ordinal: 0 },
-    });
+    appendNativeClaim(entries, identity, sizeMiB, source, owner);
   };
+
   for (const expected of inventory)
     for (const [identity, manifest] of Object.entries(indexed[expected.owner])) {
       const [kind, namespace, name] = identity.split(':');
@@ -241,48 +376,11 @@ function deriveNativeCosts(
       const pod = spec.template.spec;
       // Proof: fix1-ordering-before-concurrency early return let rolling behavior hide malformed volumes.
       const templates = spec.volumeClaimTemplates ?? [];
-      // Proof: Task25a claim-kind removal lost the Deployment claim-template refusal.
-      if (templates.length !== 0 && kind !== 'StatefulSet') refuse('claim-template-kind');
-      // Proof: Task25a claim-template-duplicate removal lost the duplicate-template refusal.
-      if (new Set(templates.map((template) => template.metadata.name)).size !== templates.length)
-        refuse('claim-template-duplicate');
-      const volumes = [...(pod.volumes ?? [])];
-      for (const template of templates) {
-        // Proof: Task25a claim-volume-collision removal lost the explicit/template volume collision refusal.
-        if (volumes.some((volume) => volume.name === template.metadata.name))
-          refuse('claim-template-volume-collision');
-        volumes.push({
-          name: template.metadata.name,
-          persistentVolumeClaim: { claimName: template.metadata.name },
-        });
-      }
       let model: ReturnType<typeof normalizeWorkload>;
       try {
-        model = normalizeWorkload(
-          { ...pod, volumes },
-          {
-            memory: (quantity) => readMemoryMiB(quantity, refuse),
-            cpu: (quantity) => readCPUMilli(quantity, refuse),
-            // Proof: fix1-malformed-callback bypass downgraded contradictory source volumes to incomplete.
-            refuseMalformed: () =>
-              refuseSourceShape(
-                'workload-contradiction',
-                expected.owner,
-                identity,
-                '/spec/template/spec',
-              ),
-            refuse: (reason) => {
-              if (
-                reason === 'workload-volume-unsupported' ||
-                reason === 'workload-shape-unsupported'
-              )
-                throw new UnsupportedWorkload(reason);
-              return refuse(reason);
-            },
-          },
-        );
+        model = normalizeNativeOwner(pod, templates, kind, expected.owner, identity);
       } catch (failure) {
-        if (!(failure instanceof UnsupportedWorkload)) throw failure;
+        if (!(failure instanceof UnsupportedNativeWorkload)) throw failure;
         missing(identity, failure.message);
         continue;
       }
@@ -378,31 +476,20 @@ function deriveNativeCosts(
         sha256: expected.sha256,
         pointer: `${identity}/spec/template/spec`,
       };
-      for (let ordinal = 0; ordinal < pods; ordinal++) {
-        entries.push({
-          identity: `${identity}/pod/${String(ordinal)}`,
-          owner: identity,
-          kind: 'pod',
-          memoryMiB: model.memoryMiB,
-          cpuMilli: model.cpuMilli,
-          diskMiB: model.ephemeralMiB,
-          source,
-          concurrency: { phase: 'cold-create', pods, ordinal },
-        });
-        for (const template of templates) {
-          const sizeMiB = readMemoryMiB(template.spec.resources.requests.storage, refuse);
-          // Proof: Task25a claim-bound removal admitted the zero claim request fixture.
-          if (sizeMiB <= 0) refuse('claim-size-unbounded');
-          chargeClaim(
-            `PersistentVolumeClaim:${namespace}:${template.metadata.name}-${name}-${String(ordinal)}`,
-            sizeMiB,
-            {
-              ...source,
-              pointer: `${identity}/spec/volumeClaimTemplates/${template.metadata.name}`,
-            },
-            identity,
-          );
-        }
+      for (const charge of expandNativeOwner({
+        identity,
+        namespace,
+        name,
+        pods,
+        templates,
+        model,
+        source,
+        claimPointer: (template) =>
+          `${identity}/spec/volumeClaimTemplates/${template.metadata.name}`,
+      })) {
+        if (charge.kind === 'claim')
+          chargeClaim(charge.identity, charge.diskMiB, charge.source, identity);
+        else entries.push(charge);
       }
       for (const volume of model.volumes.filter((volume) => volume.kind === 'claim')) {
         if (templates.some((template) => template.metadata.name === volume.name)) continue;

@@ -104,7 +104,7 @@ type SourceFrame = {
   | { stage: RehearsalStageBuild; bootstrap: null }
   | { stage: null; bootstrap: RehearsalBootstrapBuild }
 );
-interface FrameContract {
+export interface FrameContract {
   owner: string;
   sha256: string;
   resources: string[];
@@ -359,8 +359,8 @@ function resolveNamespace(
   return { scope: 'unresolved', namespace: null, namespaceOrigin: 'unresolved' };
 }
 
-/** Consume all validated stage and chart frames; facts never aggregate into capacity or runtime claims. */
-export function readRehearsalInventory(
+/** Internal views retain the decoded manifests from the same validated traversal; never serialize them as an inventory receipt. */
+export function readRehearsalSource(
   stages: readonly RehearsalStageBuild[],
   expansions: Readonly<Record<string, string>>,
   contract: RehearsalFrameContract,
@@ -769,7 +769,7 @@ export function readRehearsalInventory(
   for (const frame of frames.filter((frame) => frame.releaseOwner !== null))
     if (!entries.some((entry) => entry.owner === frame.owner))
       throw new Error('Rehearsal empty required expansion');
-  return {
+  const inventory = {
     scope: 'rehearsal-source-contributor-inventory' as const,
     entries,
     stages: contract.stages,
@@ -782,6 +782,17 @@ export function readRehearsalInventory(
     runtimeRehearsal: false as const,
     transportObserved: 'not-evaluated' as const,
   };
+  return {
+    inventory,
+    native: [...seen.values()].filter(
+      ({ entry }) => entry.category === 'native-template' || entry.category === 'claim',
+    ),
+  };
+}
+
+/** Consume all validated stage and chart frames; facts never aggregate into capacity or runtime claims. */
+export function readRehearsalInventory(...input: Parameters<typeof readRehearsalSource>) {
+  return readRehearsalSource(...input).inventory;
 }
 
 /** Verify a prepared archive privately through the existing installer, then bind selected executable bytes before invocation. Missing preparation never downloads. */
@@ -825,7 +836,7 @@ export async function authenticateRehearsalHelm(root: string, tools: string, arc
  * canonical tool cache. Missing, unreadable or invalid selected input throws without fallback/download.
  * No runtime, capacity or transport observation follows from this inventory.
  */
-export async function inventoryObservabilityRehearsal(
+export async function prepareRehearsalInventory(
   root: string,
   tools: string,
   input: unknown,
@@ -844,7 +855,13 @@ export async function inventoryObservabilityRehearsal(
   const bootstrapFrames = buildRehearsalBootstrap(bootstrap, bootstrap.policyBytes);
   const contract = captureRehearsalFrames(stages, expansions, bootstrapFrames);
   const lock = await readToolchain(join(directory, 'infra/versions/toolchain.json'));
-  const inventory = readRehearsalInventory(stages, expansions, contract, lock, bootstrapFrames);
+  const { inventory, native } = readRehearsalSource(
+    stages,
+    expansions,
+    contract,
+    lock,
+    bootstrapFrames,
+  );
   const obligations = readRehearsalObligations(lock, receipt);
   const provenance = {
     sourceRevision: receipt.sourceRevision,
@@ -854,7 +871,7 @@ export async function inventoryObservabilityRehearsal(
     kubectl: lock.binaries.kubectl,
     capabilities: observabilityRenderCapabilities,
   };
-  return {
+  const receiptInventory = {
     ...inventory,
     obligations,
     bootstrapSources: bootstrap.sources,
@@ -872,4 +889,12 @@ export async function inventoryObservabilityRehearsal(
       }),
     ),
   };
+  return { inventory: receiptInventory, native, lock };
+}
+
+/** Produce the existing source-only receipt through the shared canonical producer. */
+export async function inventoryObservabilityRehearsal(
+  ...input: Parameters<typeof prepareRehearsalInventory>
+) {
+  return (await prepareRehearsalInventory(...input)).inventory;
 }

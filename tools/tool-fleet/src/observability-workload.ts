@@ -194,6 +194,20 @@ export const ObservedWorkloadSpec = type({
 const SourceVolume = Volume.merge({ 'downwardAPI?': 'unknown' });
 /** Source-policy input keeps the full standalone body until normalization validates it; cutover decoders remain unchanged. */
 export const SourceWorkloadSpec = NativeWorkloadSpec.merge({ 'volumes?': SourceVolume.array() });
+// Proof: Task25c3a context-null/context-malformed faults respectively rejected valid null and admitted a supplied malformed security context.
+const InventoryContainer = NativeContainer.omit('resources', 'securityContext').merge({
+  'resources?': 'unknown',
+  'securityContext?': type({ 'readOnlyRootFilesystem?': 'boolean' }).or('null'),
+});
+const InventoryVolume = SourceVolume.merge({ 'image?': 'unknown' });
+/** Broad source declarations preserve absent/null resource maps; strict normalization and cutover schemas stay unchanged. */
+export const InventoryWorkloadSpec = SourceWorkloadSpec.merge({
+  containers: InventoryContainer.array().atLeastLength(1),
+  'initContainers?': InventoryContainer.array(),
+  'ephemeralContainers?': InventoryContainer.array(),
+  'volumes?': InventoryVolume.array(),
+});
+
 const StandaloneDownwardAPI = type({
   items: type({
     path: 'string>0',
@@ -226,6 +240,118 @@ interface WorkloadReaders {
   readonly refuse: (reason: string) => never;
   /** Distinguish malformed trusted structure from supported-shape limitations; legacy callers keep the same refusal category. */
   readonly refuseMalformed?: (reason: string) => never;
+}
+
+function requireProjectionStructure(
+  source: typeof Projection.infer,
+  refuseMalformed: (reason: string) => never,
+): void {
+  const count = [
+    source.secret,
+    source.configMap,
+    source.downwardAPI,
+    source.serviceAccountToken,
+  ].filter((variant) => variant !== undefined).length;
+  // Proof: fix1-ordering-projection-cardinality downgrade failed the contradictory-projection negative.
+  if (count > 1 || (count === 0 && !source.unsupportedKind))
+    refuseMalformed('workload-volume-unsupported');
+  // Proof: fix1-ordering-downward-cardinality downgrade failed missing/both selector negatives.
+  if (
+    source.downwardAPI?.items.some(
+      (entry) =>
+        [entry.fieldRef, entry.resourceFieldRef].filter((selector) => selector !== undefined)
+          .length !== 1,
+    )
+  )
+    refuseMalformed('workload-volume-unsupported');
+}
+function requireVolumeStructure(
+  volume: typeof InventoryVolume.infer,
+  refuseMalformed: (reason: string) => never,
+): void {
+  const count = [
+    volume.persistentVolumeClaim,
+    volume.emptyDir,
+    volume.configMap,
+    volume.secret,
+    volume.projected,
+    volume.ephemeral,
+    volume.csi,
+    volume.hostPath,
+    volume.downwardAPI,
+    volume.image,
+  ].filter((variant) => variant !== undefined).length;
+  // Proof: fix1-ordering-volume-cardinality downgrade failed supported/supported and hostPath/supported contradiction negatives.
+  if (count > 1) refuseMalformed('workload-volume-unsupported');
+  // Proof: fix1-ordering-missing-source downgrade failed the missing-source native negative.
+  if (count === 0 && !volume.unsupportedKind) refuseMalformed('workload-volume-unsupported');
+  // Proof: fix1-ordering-projection-traversal truncation hid a contradiction after an unsupported projection.
+  for (const source of volume.projected?.sources ?? [])
+    requireProjectionStructure(source, refuseMalformed);
+}
+function requireUniqueVolumes(
+  volumes: readonly { readonly name: string }[],
+  refuseMalformed: (reason: string) => never,
+): void {
+  // Proof: fix1-ordering-volume-uniqueness downgrade failed the duplicate-name native negative.
+  if (new Set(volumes.map((volume) => volume.name)).size !== volumes.length)
+    refuseMalformed('workload-volume-unsupported');
+}
+function readWorkloadMetadata(
+  volume: { downwardAPI?: unknown },
+  refuseMalformed: (reason: string) => never,
+) {
+  // Proof: metadata-decoder substituted empty items for the actual body; malformed items lost its early refusal and its assertion failed.
+  const projection = StandaloneDownwardAPI(volume.downwardAPI);
+  if (projection instanceof type.errors) return refuseMalformed('workload-volume-unsupported');
+  // Proof: metadata-selectors skipped this shared dependency; missing/both selector malformed-first negatives failed.
+  requireProjectionStructure({ downwardAPI: projection }, refuseMalformed);
+  if (
+    // Proof: metadata-path-safety removal hid unsafe/absolute/empty/dot/reserved/NUL paths behind unsupported recovery; all six negatives failed.
+    projection.items.some(
+      (entry) =>
+        entry.path.includes('\0') ||
+        entry.path
+          .split('/')
+          .some((segment) => segment === '' || segment === '.' || segment.startsWith('..')),
+    ) ||
+    // Proof: metadata-path-uniqueness removal hid duplicate path behind unsupported recovery; its negative failed.
+    new Set(projection.items.map((entry) => entry.path)).size !== projection.items.length
+  )
+    refuseMalformed('workload-volume-unsupported');
+  return projection;
+}
+
+/** Validate supplied structure/quantities even when absent bounds or unsupported lifecycle prevent normalization. Does not fill resource maps or derive demand. */
+export function assertInventoryWorkload(
+  spec: typeof InventoryWorkloadSpec.infer,
+  readers: WorkloadReaders,
+) {
+  const refuseMalformed = readers.refuseMalformed ?? readers.refuse;
+  for (const volume of spec.volumes ?? []) {
+    requireVolumeStructure(volume, refuseMalformed);
+    // Proof: Task25c3a volume-quantity bypass admitted negative supplied size behind unsupported management.
+    if (volume.emptyDir?.sizeLimit !== undefined) readers.memory(volume.emptyDir.sizeLimit);
+    // Proof: Task25c3a metadata-shape/metadata-complete bypasses hid malformed standalone bodies, both selectors and unsafe paths behind unsupported policy.
+    if (volume.downwardAPI !== undefined) readWorkloadMetadata(volume, refuseMalformed);
+  }
+  requireUniqueVolumes(spec.volumes ?? [], refuseMalformed);
+  // Proof: Task25c3a overhead-memory/overhead-quantity reader faults admitted malformed supplied memory/CPU overhead.
+  if (spec.overhead?.memory !== undefined) readers.memory(spec.overhead.memory);
+  if (spec.overhead?.cpu !== undefined) readers.cpu(spec.overhead.cpu);
+  const containers = [
+    ...spec.containers,
+    ...(spec.initContainers ?? []),
+    ...(spec.ephemeralContainers ?? []),
+  ];
+  // Proof: Task25c3a container-identity removal hid duplicate names behind unsupported policy.
+  if (new Set(containers.map((container) => container.name)).size !== containers.length)
+    refuseMalformed('workload-container-duplicate');
+  for (const container of containers)
+    for (const mount of container.volumeMounts ?? [])
+      // Proof: Task25c3a mount-identity removal hid an absent mounted volume behind unsupported policy.
+      if (!spec.volumes?.some((volume) => volume.name === mount.name))
+        refuseMalformed('workload-mount-unknown');
 }
 
 /**
@@ -264,80 +390,19 @@ export function normalizeWorkload(
     refuseMalformed('source-volume-policy-malformed');
   const metadata = new Map<string, typeof StandaloneDownwardAPI.infer>();
   function readMetadata(volume: NonNullable<Spec['volumes']>[number]) {
-    // Proof: metadata-decoder substituted empty items for the actual body; malformed items lost its early refusal and its assertion failed.
-    const projection = StandaloneDownwardAPI(volume.downwardAPI);
-    if (projection instanceof type.errors) return refuseMalformed('workload-volume-unsupported');
-    // Proof: metadata-selectors skipped this shared dependency; missing/both selector malformed-first negatives failed.
-    requireProjectionStructure({ downwardAPI: projection });
-    if (
-      // Proof: metadata-path-safety removal hid unsafe/absolute/empty/dot/reserved/NUL paths behind unsupported recovery; all six negatives failed.
-      projection.items.some(
-        (entry) =>
-          entry.path.includes('\0') ||
-          entry.path
-            .split('/')
-            .some((segment) => segment === '' || segment === '.' || segment.startsWith('..')),
-      ) ||
-      // Proof: metadata-path-uniqueness removal hid duplicate path behind unsupported recovery; its negative failed.
-      new Set(projection.items.map((entry) => entry.path)).size !== projection.items.length
-    )
-      refuseMalformed('workload-volume-unsupported');
+    const projection = readWorkloadMetadata(volume, refuseMalformed);
     metadata.set(volume.name, projection);
     return projection;
-  }
-  function requireProjectionStructure(source: typeof Projection.infer): void {
-    const count = [
-      source.secret,
-      source.configMap,
-      source.downwardAPI,
-      source.serviceAccountToken,
-    ].filter((variant) => variant !== undefined).length;
-    // Proof: fix1-ordering-projection-cardinality downgrade failed the contradictory-projection negative.
-    if (count > 1 || (count === 0 && !source.unsupportedKind))
-      refuseMalformed('workload-volume-unsupported');
-    // Proof: fix1-ordering-downward-cardinality downgrade failed missing/both selector negatives.
-    if (
-      source.downwardAPI?.items.some(
-        (entry) =>
-          [entry.fieldRef, entry.resourceFieldRef].filter((selector) => selector !== undefined)
-            .length !== 1,
-      )
-    )
-      refuseMalformed('workload-volume-unsupported');
-  }
-  function requireVolumeStructure(volume: NonNullable<Spec['volumes']>[number]): void {
-    const count = [
-      volume.persistentVolumeClaim,
-      volume.emptyDir,
-      volume.configMap,
-      volume.secret,
-      volume.projected,
-      volume.ephemeral,
-      volume.csi,
-      volume.hostPath,
-      volume.downwardAPI,
-    ].filter((variant) => variant !== undefined).length;
-    // Proof: fix1-ordering-volume-cardinality downgrade failed supported/supported and hostPath/supported contradiction negatives.
-    if (count > 1) refuseMalformed('workload-volume-unsupported');
-    // Proof: fix1-ordering-missing-source downgrade failed the missing-source native negative.
-    if (count === 0 && !volume.unsupportedKind) refuseMalformed('workload-volume-unsupported');
-    // Proof: fix1-ordering-projection-traversal truncation hid a contradiction after an unsupported projection.
-    for (const source of volume.projected?.sources ?? []) requireProjectionStructure(source);
-  }
-  function requireUniqueVolumes(volumes: readonly { readonly name: string }[]): void {
-    // Proof: fix1-ordering-volume-uniqueness downgrade failed the duplicate-name native negative.
-    if (new Set(volumes.map((volume) => volume.name)).size !== volumes.length)
-      refuseMalformed('workload-volume-unsupported');
   }
   // Proof: fix1-ordering-native-prepass bypass hid a later contradiction; enabling it for legacy changed the first quantity refusal.
   const checksStructureFirst = readers.refuseMalformed !== undefined;
   if (checksStructureFirst) {
     for (const volume of sourceVolumes) {
-      requireVolumeStructure(volume);
+      requireVolumeStructure(volume, refuseMalformed);
       // Proof: metadata-malformed-prepass removal hid selector/mode/path faults behind unrelated unsupported; all three assertions failed.
       if (policy !== undefined && volume.downwardAPI !== undefined) readMetadata(volume);
     }
-    requireUniqueVolumes(sourceVolumes);
+    requireUniqueVolumes(sourceVolumes, refuseMalformed);
   }
   if (
     spec.unsupported ||
@@ -378,7 +443,7 @@ export function normalizeWorkload(
   // Proof: `bad-projection` removal/broken dependency failed `fix1 source malformed projection variants are explicitly refused` with an assertion.
   // Proof: `resource-field-projection` removal/broken dependency failed `fix1 source resource-field projection is explicitly refused` with an assertion.
   const volumes = sourceVolumes.map((volume) => {
-    if (!checksStructureFirst) requireVolumeStructure(volume);
+    if (!checksStructureFirst) requireVolumeStructure(volume, refuseMalformed);
     if (
       volume.unsupportedKind ||
       volume.ephemeral !== undefined ||
@@ -537,7 +602,7 @@ export function normalizeWorkload(
     }
     return refuse('workload-volume-unsupported');
   });
-  if (!checksStructureFirst) requireUniqueVolumes(volumes);
+  if (!checksStructureFirst) requireUniqueVolumes(volumes, refuseMalformed);
   const admitted = new Set<string>();
   if (spec.automountServiceAccountToken !== false) {
     for (const volume of spec.volumes ?? []) {
