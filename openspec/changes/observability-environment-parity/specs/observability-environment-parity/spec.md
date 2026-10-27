@@ -262,3 +262,38 @@ The existing verified archive boundary SHALL provide digest-bound layer byte fac
 - **WHEN** deterministic byte facts are available
 - **THEN** complete device, filesystem, memory, concurrency and runtime accounting remain separately required
 - **AND** no declared claim capacity, decoded byte sum or measured peak is relabeled as a physical quota or total process-memory bound
+
+### Requirement: Rehearsal source inventory retains closure and uncertainty
+
+The rehearsal inventory SHALL consume the existing validated packet's actual stage builds and pinned Helm expansions, retaining source, tool, archive, namespace and object provenance. It MUST distinguish source declarations from provider/bootstrap/runtime obligations and MUST NOT infer capacity, creation authority or runtime acceptance from source inventory.
+
+#### Scenario: Selected sources produce an inventory
+
+- **WHEN** a complete validated packet is inventoried
+- **THEN** its required stage outputs and discovered release expansions retain exact byte hashes, object identities, native images, claim references and hook phases
+- **AND** enabled objects come from actual rendered output while disabled values alone produce no runnable entry
+- **AND** release declarations stay linked to their expansions without double counting the same owner
+
+#### Scenario: A required source or tool identity is not established
+
+- **WHEN** a required stage or expansion is omitted, bytes or chart identities drift, or a matching-version Helm executable differs from the verified locked artifact
+- **THEN** inventory refuses instead of accepting a narrowed or substituted source view
+- **AND** archive and extracted executable digests remain distinct provenance facts
+
+#### Scenario: Namespace or provider scope is unresolved
+
+- **WHEN** an object has an unfamiliar API, scope or provider-produced behavior
+- **THEN** its known declaration and concrete unresolved facts remain visible without a guessed namespace or zero-demand classification
+- **AND** known malformed shapes, duplicate ownership and contradictory identities refuse
+
+#### Scenario: Existing source contracts are preserved
+
+- **WHEN** shared structural decoding is reused by inventory
+- **THEN** existing prepare/validate outputs and observability API/default namespace policy remain unchanged
+- **AND** no smaller test graph bypasses the production packet contract
+
+#### Scenario: Source inventory is not runtime acceptance
+
+- **WHEN** stage and chart inventory succeeds
+- **THEN** bootstrap/helper/provider closure, lifecycle accounting, host observations and runtime acceptance remain separately required
+- **AND** inventory grants no creation authority and records transport as not evaluated in its own scope without relabeling the existing authenticated binding implementation
