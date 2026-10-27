@@ -1,0 +1,23 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-resource-caller.test.ts:
+(pass) Task37 authentic baseline sealed receipt still tears down with volumes and history retained [1130.41ms]
+764 |   const state = join(lab.directory, '.puni/fleet-labs/k3d', captured.labId);
+765 |   await writeFile(join(state, 'creation-complete.json'), JSON.stringify({
+766 |     schemaVersion: 1, sha256: createHash('sha256').update(seal).digest('hex'),
+767 |   }));
+768 |   const execution = await lab.invoke(['down', '--profile', 'app', '--id', captured.labId, '--resource-evidence', 'creation-v1']);
+769 |   expect(execution.exit).not.toBe(0);
+                                   ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:769:30)
+(fail) Task37 historical cohort rejects effective observation records before teardown [1163.81ms]
+
+ 1 pass
+ 68 filtered out
+ 1 fail
+ 36 expect() calls
+Ran 2 tests across 1 file. [2.50s]

@@ -1,0 +1,14 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-resource-caller.test.ts:
+(pass) Task37 authentic baseline sealed receipt still tears down with volumes and history retained [1200.85ms]
+(pass) Task37 sealed reader refuses inputs-version before teardown [2347.05ms]
+(pass) Task37 sealed reader refuses observation-cohort before teardown [2185.62ms]
+(pass) Task37 sealed reader refuses observation-missing before teardown [2103.30ms]
+(pass) Task37 historical cohort rejects effective observation records before teardown [574.22ms]
+
+ 5 pass
+ 65 filtered out
+ 0 fail
+ 71 expect() calls
+Ran 5 tests across 1 file. [8.73s]

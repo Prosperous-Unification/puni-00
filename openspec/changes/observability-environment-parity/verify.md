@@ -3017,3 +3017,23 @@ Final scoped [strict validation](evidence/task25c4a/final-strict.log) passed one
 The staged diff check caught diagnostic-log trailing whitespace. Task37 log copies normalize only trailing whitespace/excess final blank lines; [raw and retained hashes](evidence/task25c4a/log-normalization.json) record that transformation. Original `/tmp/task37-*` logs and the authentic historical receipt bytes are unchanged.
 
 Implementation commit `b312fca6b2a4155b4464f7c5e337044ffc3416ca` completed normal pre-commit hooks in 4.64s: lint, format, plaintext-secrets and private-nesting passed. Tool Wiki explicitly reported inactive / uncertified because its external activation root is absent. Migration/doc-cap hooks had no matching files. Both commit-message hooks passed. The post-commit worktree was clean and every retained final source/test/fixture SHA256 matched; no source was changed after those checks.
+
+## Task37 fix round 1 — historical record-kind closure
+
+Fix BASE `9f4bb094d2430440d3007da06d6ac24fc22828b2`. Fresh root review found that the historical cohort branch returned after validating inputs, while the shared record decoder already accepted effective-only `observation-<full-id>` records. A valid extra observation plus recomputed seal/completion hashes therefore reached historical teardown. This violated mixed-cohort refusal without bypassing the existing attachment checks.
+
+`requireCreationCohort` now rejects observation records in the historical branch before returning. The correction adds no historical transient requirement, changes no old creator/event semantics, and grants no cleanup authority. The new real-down negative copies the authentic fixture, adds one schema-valid observation from its existing snapshot, recomputes both seals, and requires refusal before a teardown marker, container/network mutation or inventory change. The untouched historical positive remains unchanged. The original fixture matches BASE byte-for-byte: SHA256 `db977f285b4397a9e8a9b55844f7d2c88a193e787dd3e245f333d16270ef46a4`.
+
+[RED](evidence/task25c4a/fix1/red.log): one historical positive passed and the new negative failed because down exited0 (2.50s). [GREEN](evidence/task25c4a/fix1/green.log): both passed, 44 assertions, 1.78s. Removing only the new guard made the same real-down negative fail again; [proof receipt](evidence/task25c4a/fix1/proof.json) records exit1, 1.398s and exact restored source hash. Restoration ran in `finally`; the adjacent Proof comment records the observation. No prior mutation batch was replayed.
+
+```sh
+bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 tools/tool-fleet/src/k3d-resource-caller.test.ts --test-name-pattern 'Task37 (historical cohort rejects effective|authentic baseline|sealed reader refuses (inputs-version|observation-cohort|observation-missing))'
+bunx eslint tools/tool-fleet/src/creation-resources.ts tools/tool-fleet/src/k3d-resource-caller.test.ts
+bunx tsc --project tools/tool-fleet/tsconfig.spec.json --noEmit --incremental false
+```
+
+The [restored five-case run](evidence/task25c4a/fix1/focused-restored.log) passed5 / filtered65 / failed0, 71 assertions, 8.73s. Its first invocation omitted the Fleet target's configured `--timeout=30000`; the inputs-version case hit Bun's default5000ms budget and its fixture child was terminated (exit143): four pass / one fail / one between-test error, 17.60s. That [failed run](evidence/task25c4a/fix1/focused.log) is retained. Only the same five cases were rerun with the existing project budget, without source changes. Scoped lint passed without diagnostics; scoped TypeScript passed without diagnostics (command wall time5.897s). Lint completed after the initial10s yield; its total duration was not measured.
+
+[Final source/test/fixture hashes and raw/retained log hashes](evidence/task25c4a/fix1/hashes.json) identify the fix. New diagnostic log copies trim trailing whitespace/excess final blank lines only; original scratch logs and prior evidence are unchanged. No old144-test/21-fault replay, full Fleet/Nx/build/host gate, render, CI, network, image/layer, Docker/cluster/SSH/host/runtime operation, push or publication ran. Root owns scoped re-review and publication. All prior full admission/runtime/live limitations and overall3.1/canonical4of11 remain open.
+
+Fix-round final strict validation passed one change / zero issues in18ms (command wall time0.452s); scoped formatting passed in0.808s and `git diff --check` passed without diagnostics. Their outputs are retained beside the fix logs. Normal commit hooks and final clean HEAD are recorded in the appended private Task37 report after committing.

@@ -7,7 +7,7 @@ import { type } from 'arktype';
 import { expect, it } from 'bun:test';
 
 import { EffectiveCreationInputs } from './creation-resources';
-import { EffectiveCreationClosure } from './k3d-creation';
+import { EffectiveCreationClosure, HistoricalCreationClosure } from './k3d-creation';
 import { archiveFixture } from './object-store-archive.fixture.test';
 
 const root = join(import.meta.dir, '../../..');
@@ -735,3 +735,64 @@ for (const fault of [
       expect(calls).not.toContain(JSON.stringify(mutation));
   });
 }
+
+it('Task37 historical cohort rejects effective observation records before teardown', async () => {
+  const lab = await fixture();
+  const fixturePath = join(import.meta.dir, 'fixtures/k3d-creation-v1.json');
+  const fixtureBytes = await readFile(fixturePath, 'utf8');
+  const captured = type({
+    labId: 'string',
+    files: 'Record<string,string>',
+    inventory: { containers: 'unknown[]', volumes: 'string[]' },
+  }).assert(JSON.parse(fixtureBytes));
+  for (const [name, bytes] of Object.entries(captured.files)) {
+    await mkdir(join(lab.directory, name, '..'), { recursive: true, mode: 0o700 });
+    await writeFile(join(lab.directory, name), bytes, { mode: 0o600 });
+  }
+  const inventoryBytes = JSON.stringify(captured.inventory);
+  await writeFile(join(lab.directory, 'docker.json'), inventoryBytes);
+  const closureName = Object.keys(captured.files).find((name) =>
+    name.endsWith('.resources/closure.json'),
+  )!;
+  const path = join(lab.directory, closureName, '..');
+  const closure = HistoricalCreationClosure.assert(JSON.parse(captured.files[closureName]));
+  const observation = closure.snapshots[0];
+  await writeFile(join(path, `observation-${observation.id}.json`), JSON.stringify(observation), {
+    mode: 0o600,
+  });
+  const files = [];
+  for (const name of (await readdir(path)).filter((name) => name !== 'complete.json').sort())
+    files.push({
+      name,
+      sha256: createHash('sha256')
+        .update(await readFile(join(path, name)))
+        .digest('hex'),
+    });
+  const seal = JSON.stringify({ schemaVersion: 1, files }) + '\n';
+  await writeFile(join(path, 'complete.json'), seal);
+  const state = join(lab.directory, '.puni/fleet-labs/k3d', captured.labId);
+  await writeFile(
+    join(state, 'creation-complete.json'),
+    JSON.stringify({
+      schemaVersion: 1,
+      sha256: createHash('sha256').update(seal).digest('hex'),
+    }),
+  );
+  const execution = await lab.invoke([
+    'down',
+    '--profile',
+    'app',
+    '--id',
+    captured.labId,
+    '--resource-evidence',
+    'creation-v1',
+  ]);
+  expect(execution.exit).not.toBe(0);
+  expect(execution.stderr).toContain('Historical creation cohort contains effective observations');
+  expect(await Bun.file(join(state, 'creation-teardown.json')).exists()).toBe(false);
+  expect(await readFile(join(lab.directory, 'docker.json'), 'utf8')).toBe(inventoryBytes);
+  const calls = await readFile(join(lab.directory, 'calls'), 'utf8');
+  for (const mutation of ['kill', 'stop', 'rm', 'delete'])
+    expect(calls).not.toContain(JSON.stringify(mutation));
+  expect(await readFile(fixturePath, 'utf8')).toBe(fixtureBytes);
+});

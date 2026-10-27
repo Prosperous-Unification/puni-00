@@ -239,6 +239,9 @@ export async function requireCreationCohort(
   const input = await read('inputs');
   if (!('schemaVersion' in closure)) {
     HistoricalCreationInputs.assert(input);
+    if ((await readdir(directory)).some((name) => name.startsWith('observation-')))
+      // Proof: Task37 fix1 removing this guard let a resealed historical fixture with an effective observation reach teardown; the real-down negative failed.
+      throw new Error('Historical creation cohort contains effective observations');
     return;
   }
   const inputs = EffectiveCreationInputs.assert(input);
