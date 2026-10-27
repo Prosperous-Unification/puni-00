@@ -414,3 +414,29 @@ Native Deployment accounting SHALL reuse the existing validated native source tr
 - **AND** terminating Pods are never budgeted as zero and grace is not a reclamation deadline
 - **AND** existing StatefulSet charges and unrelated native/operator/writer/system/helper obligations remain visible
 - **AND** creation and runtime authority remain false and whole-attempt admission stays incomplete
+
+### Requirement: Shared networking workloads declare bounded resources
+
+Shared cert-manager and Traefik source definitions SHALL declare explicit container CPU, memory and ephemeral-storage requests and limits. Their validated source and locked rendered workloads MUST agree. Workload limits are candidate policy inputs, not measured consumption or proven runtime enforcement.
+
+#### Scenario: Common networking candidates have complete maps
+
+- **WHEN** the shared cert-manager and Traefik releases are prepared
+- **THEN** all three cert-manager controllers, its startup API-check Job and the Traefik container have explicit CPU, memory and ephemeral-storage requests and limits
+- **AND** requests are nonnegative, limits are positive, quantities are valid and requests do not exceed limits
+- **AND** Traefik's existing data and temporary emptyDirs have positive size limits while persistence remains disabled
+- **AND** versions, images, workload identity, replicas, ingress/TLS/redirect behavior and supported environment parity remain unchanged
+
+#### Scenario: A required source bound is missing or malformed
+
+- **WHEN** a networking candidate omits a required map or field, supplies null or malformed quantities, contradicts request/limit relationships or loses a required emptyDir bound
+- **THEN** its production source validation refuses before rendering or claiming a bounded candidate
+- **AND** structural image-reference decoding remains distinct from the stricter current-candidate budget policy
+- **AND** broad native source inventory still represents valid historical absent bounds as incomplete rather than inventing maps
+
+#### Scenario: Limits activate resource-aware runtime settings
+
+- **WHEN** the pinned Traefik chart derives Go runtime settings from explicit resource limits
+- **THEN** the locked render retains the chart's resource-aware CPU and memory settings and their declared/defaulted provenance
+- **AND** actual ingress, TLS, readiness, garbage collection and throttling under those limits remain required rehearsal checks
+- **AND** source success cannot complete host admission, actual enforcement or runtime acceptance
