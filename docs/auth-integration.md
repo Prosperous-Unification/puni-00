@@ -308,8 +308,8 @@ Cut over in this order:
 
 1. Before merging, seed `/home/puni1/wbs-dev/src/apps/wbs/mcp-01/.env` with the
    four settings above plus `MCP_SIGNING_KEY_CURRENT`, `MCP_STORE_KEY_CURRENT`,
-   `MCP_STORE_PATH=/data/mcp-session.sqlite`, and `MCP_ACCESS_TOKEN_TTL=3600`,
-   and set mode 600. The store path is inside `wbs-dev-src` and is backed by
+   `MCP_STORE_PATH=/data/mcp-session.sqlite`, `MCP_ACCESS_TOKEN_TTL=3600` and
+   `MCP_TRUSTED_PROXY_HOPS=1` (one Caddy in front), and set mode 600. The store path is inside `wbs-dev-src` and is backed by
    `/home/puni1/wbs-dev/data` on the host. Both manual deploy and the automatic
    poller block before moving the checkout when this durable path is absent.
 2. Merge the reviewed PR and let devsync start `mcp-01`; verify port 3300.

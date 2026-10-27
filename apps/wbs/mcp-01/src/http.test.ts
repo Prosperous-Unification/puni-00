@@ -21,6 +21,7 @@ const CONFIG: McpConfig = {
   MCP_AUTH_MODE: 'standalone',
   WBS_API_URL: 'https://dev.wbs.bulletpoints.club',
   MCP_PUBLIC_URL: 'https://dev.wbs.bulletpoints.club/mcp',
+  MCP_TRUSTED_PROXY_HOPS: 1,
 };
 
 const unusedUnexpectedToolFailureReporter = () => ({

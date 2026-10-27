@@ -7,7 +7,8 @@ import fc from 'fast-check';
 import type { McpConfig } from './config';
 import { mcpFetchHandler } from './http';
 import { machineGrantClient } from './machine-grant-client';
-import { McpOAuthServer, NO_TOKEN_ENDPOINT_LIMITS } from './oauth';
+import { NO_MACHINE_LIMITS } from './machine-limits';
+import { McpOAuthServer } from './oauth';
 import { readDocument, toolsFromDocument } from './openapi-tools';
 import { createServer } from './server';
 import { CLIENT_CREDENTIALS_GRANT } from './token-request';
@@ -39,6 +40,7 @@ const TTL = 12 * 60 * 60;
 const CONFIG = {
   MCP_AUTH_MODE: 'standalone',
   MCP_PUBLIC_URL: MCP_URL,
+  MCP_TRUSTED_PROXY_HOPS: 1,
   WBS_API_URL: 'https://be.example',
   MCP_BE_INTERNAL_SECRET: SECRET,
 } satisfies McpConfig;
@@ -133,7 +135,7 @@ async function world(): Promise<World> {
           secret: SECRET,
           tokenTtlSeconds: TTL,
           jitter: () => 0,
-          limit: NO_TOKEN_ENDPOINT_LIMITS,
+          limit: NO_MACHINE_LIMITS,
           reportFault: () => undefined,
         },
       },

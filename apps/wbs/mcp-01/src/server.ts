@@ -197,8 +197,27 @@ export function createServer(deps: ServerDeps): Server {
     // Proof: with this branch removed, `presents the grant with the secret, and never the access
     // token` (machine-admission.test.ts) saw be-01 asked with no secret, and five more tests
     // there failed; watched 2026-10-27.
-    if (machine !== null)
-      return await callAsMachine(tool, request.params.arguments ?? {}, machine, authInfo.token);
+    if (machine !== null) {
+      // Counted per message, so a JSON-RPC batch of 30 calls counts 30 (M10), and the slot is
+      // held until the call returns, whatever it answered.
+      // Proof: counting HTTP requests (`MachineCaller.admitCall` asking the limits for a
+      // request's first call only), and ignoring a limited admission here, each failed `a batch
+      // of 30 calls runs 20 and limits 10` and two more (machine-limits.test.ts); releasing
+      // before the call, or only after a call that did not fail, failed the model in
+      // in-flight-counter.model.test.ts; watched 2026-10-27.
+      const admission = machine.admitCall();
+      if (admission.kind === 'limited')
+        return asCallToolResult(
+          errorText(
+            `${tool.name} could not be called: ${admission.reason} (429). Retry after ${String(admission.retryAfterSeconds)} s.`,
+          ),
+        );
+      try {
+        return await callAsMachine(tool, request.params.arguments ?? {}, machine, authInfo.token);
+      } finally {
+        admission.release();
+      }
+    }
     const sessionOfCall = extraSessionId(authInfo);
     // One be-01 call with the credential `upstreamToken` stands behind: asked
     // afresh each time, because a delegation is good for exactly one call.

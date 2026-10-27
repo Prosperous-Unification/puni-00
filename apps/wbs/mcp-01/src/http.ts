@@ -117,7 +117,13 @@ interface HttpTransport {
 }
 
 export interface McpOAuthHandler {
-  response(request: Request): Promise<Response | undefined>;
+  /** `peer` is the socket's remote address, which `MCP_TRUSTED_PROXY_HOPS=0` reads. */
+  response(request: Request, peer: string | null): Promise<Response | undefined>;
+}
+
+/** What Bun's server tells about a request's socket. */
+export interface RequestPeer {
+  requestIP(request: Request): { readonly address: string } | null;
 }
 
 /** Handles one public mcp-01 HTTP request before Bun owns the socket. */
@@ -128,13 +134,14 @@ export async function mcpHttpResponse(
   transport: HttpTransport,
   env: Readonly<Record<string, string | undefined>> = process.env,
   oauth?: McpOAuthHandler,
+  peer: string | null = null,
 ): Promise<Response> {
   const url = new URL(request.url);
   const metadata = oauthMetadataResponse(url, config);
   if (metadata !== undefined) return metadata;
   const health = healthResponse(url);
   if (health !== undefined) return health;
-  const oauthResponse = await oauth?.response(request);
+  const oauthResponse = await oauth?.response(request, peer);
   if (oauthResponse !== undefined) return oauthResponse;
   if (url.pathname !== '/mcp') return new Response('Not found', { status: 404 });
 
@@ -173,6 +180,18 @@ export async function mcpHttpResponse(
       ? SERVER_ERROR()
       : invalidTokenResponse(config, true);
   }
+  // A request that ran no call because M10 limited its calls is HTTP 429 when its one answer is
+  // such a call; a batch keeps its JSON-RPC array, the limited calls as tool errors beside the
+  // rest (`wbs-mcp-agent-surface` M10). The SDK answers one message as an object, a batch of
+  // several as an array.
+  // Proof: with this removed, `answers a single limited call 429 with Retry-After, and asks
+  // be-01 nothing` (machine-limits.test.ts) saw 200; watched 2026-10-27.
+  const retryAfter = machine instanceof MachineCaller ? machine.unadmittedRetryAfter : null;
+  if (retryAfter !== null && !Array.isArray(await answered.clone().json()))
+    return Response.json(
+      { error: 'rate_limited' },
+      { status: 429, headers: { 'retry-after': String(retryAfter) } },
+    );
   return answered;
 }
 
@@ -206,7 +225,7 @@ export function mcpFetchHandler(
   verifier: TokenVerifier,
   env: Readonly<Record<string, string | undefined>> = process.env,
   oauth?: McpOAuthHandler,
-): (request: Request) => Promise<Response> {
+): (request: Request, server?: RequestPeer) => Promise<Response> {
   const perRequest: HttpTransport = {
     async handleRequest(request, options) {
       const server = createServer();
@@ -222,7 +241,16 @@ export function mcpFetchHandler(
       }
     },
   };
-  return (request) => mcpHttpResponse(request, config, verifier, perRequest, env, oauth);
+  return (request, server) =>
+    mcpHttpResponse(
+      request,
+      config,
+      verifier,
+      perRequest,
+      env,
+      oauth,
+      server?.requestIP(request)?.address ?? null,
+    );
 }
 
 /** Serves the stateless Streamable HTTP endpoint on `PORT`. */

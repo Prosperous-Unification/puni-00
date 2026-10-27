@@ -10,7 +10,8 @@ import type { McpDeploymentFault } from './deployment-fault';
 import { groupPrefixOf, mcpFetchHandler } from './http';
 import { machineIdentityOf, RefusedMachineTokens } from './machine-admission';
 import { machineGrantClient } from './machine-grant-client';
-import { McpOAuthServer, NO_TOKEN_ENDPOINT_LIMITS } from './oauth';
+import { NO_MACHINE_LIMITS } from './machine-limits';
+import { McpOAuthServer } from './oauth';
 import { readDocument, toolsFromDocument } from './openapi-tools';
 import { organizationAuthority } from './organization-authority';
 import { createServer } from './server';
@@ -33,6 +34,7 @@ const TTL = 12 * 60 * 60;
 const CONFIG = {
   MCP_AUTH_MODE: 'standalone',
   MCP_PUBLIC_URL: MCP_URL,
+  MCP_TRUSTED_PROXY_HOPS: 1,
   WBS_API_URL: BE,
   MCP_BE_INTERNAL_SECRET: SECRET,
 } satisfies McpConfig;
@@ -117,7 +119,7 @@ function replica(
         secret,
         tokenTtlSeconds: TTL,
         jitter: () => 0,
-        limit: NO_TOKEN_ENDPOINT_LIMITS,
+        limit: NO_MACHINE_LIMITS,
         reportFault: (fault) => faults.push(fault),
       },
     },

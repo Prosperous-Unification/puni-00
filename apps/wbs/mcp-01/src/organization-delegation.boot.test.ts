@@ -100,6 +100,7 @@ beforeAll(async () => {
   config = {
     MCP_AUTH_MODE: 'standalone',
     MCP_PUBLIC_URL: MCP_URL,
+    MCP_TRUSTED_PROXY_HOPS: 1,
     WBS_API_URL: beUrl,
     INTERNAL_AUTH_SECRET: BOOTED_INTERNAL_SECRET,
   };

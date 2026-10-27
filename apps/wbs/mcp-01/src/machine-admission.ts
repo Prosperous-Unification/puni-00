@@ -2,6 +2,7 @@ import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
 import type { JWTPayload } from 'jose';
 
 import type { DeploymentFaultReporter, McpDeploymentFault } from './deployment-fault';
+import type { CallAdmission, MachineLimits } from './machine-limits';
 
 /** Who a verified machine token acts as (`wbs-mcp-agent-surface` M6), from its signed claims. */
 export interface MachineIdentity {
@@ -97,19 +98,46 @@ export type MachineHttpRefusal = 'invalid_token' | 'server_error';
  * `502 server_error`, which wins over the first. The calls of one JSON-RPC batch run
  * concurrently and share this caller.
  *
+ * Each `tools/call` message is admitted by M10's per-credential rate and per-organization
+ * in-flight limits ({@link admitCall}); the caller counts what was admitted and what was
+ * limited, so a request whose only answer is a limited call can be answered `429`
+ * (`mcpHttpResponse`).
+ *
  * The secret is a private field, so no printer of the caller reaches it.
  */
 export class MachineCaller {
   readonly #secret: string;
   #httpRefusal: MachineHttpRefusal | null = null;
+  #admittedCalls = 0;
+  #longestLimit: number | null = null;
 
   constructor(
     readonly identity: MachineIdentity,
     secret: string,
     private readonly refused: RefusedMachineTokens,
     private readonly reportFault: DeploymentFaultReporter,
+    private readonly limits: MachineLimits,
   ) {
     this.#secret = secret;
+  }
+
+  /**
+   * One `tools/call` message against M10's limits: admitted with a release the caller runs when
+   * the call ends, or limited, which this caller remembers with its wait.
+   */
+  admitCall(): CallAdmission {
+    const admission = this.limits.admitCall(this.identity);
+    if (admission.kind === 'admitted') this.#admittedCalls += 1;
+    else this.#longestLimit = Math.max(this.#longestLimit ?? 0, admission.retryAfterSeconds);
+    return admission;
+  }
+
+  /**
+   * The longest wait of this request's limited calls when none of its calls was admitted, else
+   * null: the request then ran nothing, and a single such call is answered `429`.
+   */
+  get unadmittedRetryAfter(): number | null {
+    return this.#admittedCalls === 0 ? this.#longestLimit : null;
   }
 
   /** mcp-01's own header beside the grant on every be-01 call. */

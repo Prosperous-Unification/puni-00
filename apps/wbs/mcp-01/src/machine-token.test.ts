@@ -11,13 +11,12 @@ import { decodeJwt, SignJWT } from 'jose';
 import { loadConfig, type McpConfig, offersMachineGrants } from './config';
 import { oauthMetadataResponse } from './http';
 import { machineGrantClient, MachineGrantDefect } from './machine-grant-client';
+import { type MachineLimits, NO_MACHINE_LIMITS } from './machine-limits';
 import {
   machineTokenTtlOf,
   mcpOAuthFromEnv,
   McpOAuthServer,
-  NO_TOKEN_ENDPOINT_LIMITS,
   type OAuthRouteEvidence,
-  type TokenEndpointLimit,
 } from './oauth';
 import { CLIENT_CREDENTIALS_GRANT, Concealed, JWT_BEARER_GRANT } from './token-request';
 
@@ -29,6 +28,7 @@ const NOW = 1_793_000_000_000;
 const CONFIG = {
   MCP_AUTH_MODE: 'standalone',
   MCP_PUBLIC_URL: MCP_URL,
+  MCP_TRUSTED_PROXY_HOPS: 1,
   WBS_API_URL: BE,
   MCP_BE_INTERNAL_SECRET: SECRET,
 } satisfies McpConfig;
@@ -74,7 +74,7 @@ function server(
   answer: () => Response | Promise<Response>,
   options: {
     jitter?: () => number;
-    limit?: TokenEndpointLimit;
+    limit?: MachineLimits;
     config?: McpConfig;
     secret?: string;
   } = {},
@@ -106,7 +106,7 @@ function server(
         secret: options.secret ?? SECRET,
         tokenTtlSeconds: TTL,
         jitter: options.jitter ?? (() => 0),
-        limit: options.limit ?? NO_TOKEN_ENDPOINT_LIMITS,
+        limit: options.limit ?? NO_MACHINE_LIMITS,
         reportFault: (fault) => faults.push(fault),
       },
     },
@@ -346,7 +346,7 @@ describe('be-01’s answers', () => {
           ),
           secret,
           tokenTtlSeconds: TTL,
-          limit: NO_TOKEN_ENDPOINT_LIMITS,
+          limit: NO_MACHINE_LIMITS,
           reportFault: (fault) => faults.push(fault),
         },
       },
@@ -415,7 +415,7 @@ describe('redirects', () => {
 describe('the endpoint around the grants', () => {
   it('answers 429 invalid_request with Retry-After when the limit refuses, asking nobody', async () => {
     const { oauth, be } = server(() => issued(), {
-      limit: () => ({ retryAfterSeconds: 7 }),
+      limit: { ...NO_MACHINE_LIMITS, admitIssuance: () => ({ retryAfterSeconds: 7 }) },
     });
     const answer = await keyRequest(oauth);
     expect(answer.status).toBe(429);
@@ -507,7 +507,7 @@ describe('the endpoint around the grants', () => {
 
   it('answers unsupported_grant_type without the machine grant settings', async () => {
     const oauth = new McpOAuthServer(
-      { MCP_PUBLIC_URL: MCP_URL },
+      { MCP_PUBLIC_URL: MCP_URL, MCP_TRUSTED_PROXY_HOPS: 1 },
       {
         authorizationUrl: () => Promise.reject(new Error('unused')),
         exchange: () => Promise.reject(new Error('unused')),
@@ -617,6 +617,7 @@ describe('metadata and configuration', () => {
       MCP_AUTH_MODE: 'standalone',
       WBS_API_URL: BE,
       MCP_PUBLIC_URL: MCP_URL,
+      MCP_TRUSTED_PROXY_HOPS: '1',
       MCP_BE_INTERNAL_SECRET: 'short-secret',
     };
     expect(() => loadConfig(env)).toThrow('MCP_BE_INTERNAL_SECRET is set but invalid');
