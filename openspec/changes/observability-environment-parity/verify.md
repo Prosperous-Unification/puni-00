@@ -2084,3 +2084,29 @@ PUNI_REHEARSAL_INVENTORY_EXPORT=/tmp/puni-task25c2b-evidence/public-final-receip
 Normal source hooks passed (commit processes 9.20s and 3.33s), including staged format/lint, plaintext-secrets, private-nesting and author trailers. Tool Wiki remained explicitly inactive/uncertified because its external activation root is absent; this is not certification. Migration/doc-cap routes were inapplicable. Bounded self-review checked source collection, the original graph-derived receipt scope, immutable origin contracts, shared identity equality, helper provenance, the exact CRD exception, and the unchanged runner helper names/order. [Source hashes](/tmp/puni-task25c2b-evidence/source-hashes.json) and focused/static logs retain the evidence.
 
 No full Fleet suite, old 191/eight-trait wrapper render, old fault matrix, full Nx/build/host gate, backend/browser checks, CI rerun, runtime/cluster/Docker/image/store/secret action, push or deployment was performed. Those broader checks are not claimed. Root owns scoped independent review/publication and current CI handles. Runtime/creation remain false, transport is not evaluated, runnable closure is incomplete, and actual runner-root input equality is unobserved. Capacity arithmetic, lifecycle/writer accounting, process/image allowances, admitted host measurements, reconciliation, stored signals, UI/history/recovery and live acceptance remain required.
+
+### Task25c2b fix1 — structural CRD schema boundary
+
+Independent review identified I1 (Important): an unescaped sibling key `spec['versions/0/schema/openAPIV3Schema']` collided with the genuine CRD schema path and suppressed its undeclared Secret reference or malformed embedded-resource checks. This fix addresses only I1 from clean FIXBASE `9fc88bcdaddf44944ccf75d30bcc57c7cb6b4b6d`. Source commit: `8628f97e5836f372ad4ad419f5e3da2afd5cb950`.
+
+The scanner now carries typed structural segments (string property names and numeric array positions) separately from its unchanged diagnostic path strings. Only equal-length, segment-equal paths select the existing exact top-level v1 CRD schema subtree. Whole-document material, conversion/nonschema, ordinary-resource and malformed-boundary checks retain their previous scope; no schema framework or wider exemption was added.
+
+Both same-production-path regressions first failed with missing expected rejection: **0 pass / 2 fail, 562ms Bun / 0.57s process**. The focused covering set then passed **12 / 0, 10 filtered, 561ms Bun / 0.57s process**, including genuine schema vocabulary, material, conversion, malformed embedded resources, foreign API/ordinary resource, null/array boundary shapes and both slash-bearing siblings. These use one Bun expectation plus awaited Node refusal assertions.
+
+```bash
+bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/observability-rehearsal-bootstrap.test.ts -t 'fix1 slash-bearing' --timeout=30000
+bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/observability-rehearsal-bootstrap.test.ts -t 'fix1 slash-bearing|CRD schema vocabulary|CRD still inspects|schema boundary refuses' --timeout=30000
+python /tmp/puni-task25c2b-fix1/prove.py
+bunx --no-install tsc --build --force tools/tool-fleet/tsconfig.json
+bunx --no-install eslint tools/tool-fleet/src/observability-rehearsal-secrets.ts tools/tool-fleet/src/observability-rehearsal-bootstrap.test.ts
+bunx --no-install prettier --check tools/tool-fleet/src/observability-rehearsal-secrets.ts tools/tool-fleet/src/observability-rehearsal-bootstrap.test.ts
+bun /tmp/puni-task25c2b-fix1/retained-flux.ts
+```
+
+One new watched fault replaced structural equality with slash-joined raw segments. Both I1 negatives failed again; the source was restored, then the focused covering set passed. [Proof receipt](/tmp/puni-task25c2b-fix1/proof.json) retains the exact command, UTC start, source hash, exit 1, 0.576s process and restored status; [fault log](/tmp/puni-task25c2b-fix1/fault.log), [RED](/tmp/puni-task25c2b-fix1/red.log), [restored control](/tmp/puni-task25c2b-fix1/restored.log). The adjacent Proof comment names that actual fault. No prior proof batch was repeated.
+
+Final-source **nonrender** control: committed scanner 8628 consumed the immutable retained 5bd Flux bytes through `inspectRehearsalKubernetesSources`, after verifying the capture hash, Flux hash and same-source external declaration hash. It passed with zero actual Secret references, 161.101ms scan / 0.59s process. [Receipt](/tmp/puni-task25c2b-fix1/retained-flux-receipt.json), [log](/tmp/puni-task25c2b-fix1/retained-flux.log). The existing full public-entry PASS remains bound to **5bd1104**; it was not rerun or relabeled as 8628 evidence. No chart/stage rendering occurred.
+
+Scoped type/lint/format passed with exits 0 in 1.45s/3.73s/0.41s; normal source hooks passed in 3.57s process. Tool Wiki remained inactive/uncertified; migration/doc-cap hooks were inapplicable. `git diff --check` passed. Both changed source/test files match committed 8628: scanner SHA256 `4ddffcc9332ec16ebf5605ef12e8a51211fb32f0b7116c5e3302c94c49ca632a`; test SHA256 `fc8bdc346bc99cbecedea01d02b70729cea331087df045eb7b0ebecfad15e4ac`. [Source identities](/tmp/puni-task25c2b-fix1/source-hashes.json).
+
+The prior 38-proof/48-case batches, full public entry, old matrices, full suites/build/host gates, CI and runtime/Docker/image/store/secret actions were deliberately not replayed. No source values/pins, publication, deployment or additional scope changed. Root owns scoped re-review; full capacity, actual runner-input equality, helper/runtime realization and live acceptance remain open.
