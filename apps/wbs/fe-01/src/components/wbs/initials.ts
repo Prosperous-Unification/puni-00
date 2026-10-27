@@ -100,6 +100,11 @@ function lettersOf(word: string, count: number): string {
  * The answer depends on the set of names and never on their order. Equal
  * names are one person to this rule; the cell's card names them in full.
  *
+ * **Marks are per plan**: the caller passes the people one plan prints
+ * (`planInitialsOf`), never the organization's directory, so a collision is
+ * local and on screen, and a namesake added to another project does not
+ * change a mark here (review of PR #763, B1).
+ *
  * Proof: answering {@link initialsOf} for every name made `gives distinct
  * names distinct marks` fail on the counterexample `["aa","aaa"]` and `tells
  * claude-code from claude-code-worker` on `expected 'CC' to be 'CW'`; with the
@@ -164,6 +169,10 @@ function* alternativeMarksOf(name: string): Generator<string, never> {
  * @throws If `marks` was built without `name`: every surface builds its marks
  * from the people it can print, so a name outside them is a caller that skipped
  * one, never a person to invent a mark for.
+ *
+ * Proof: the throw replaced by `return initialsOf(name)` made `refuses a name
+ * outside the marks rather than inventing one` fail on `expected [Function]
+ * to throw an error`; watched 2026-10-27.
  */
 export function initialsIn(marks: ReadonlyMap<string, string>, name: string): string {
   const mark = marks.get(name);

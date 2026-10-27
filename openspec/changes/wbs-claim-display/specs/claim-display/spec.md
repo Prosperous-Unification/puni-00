@@ -210,15 +210,21 @@ claim's chip in the card's header, with the same text rules as the table.
 
 fe-01 SHALL print each person in a folded assignee slot and a claim chip by a mark of at most
 two characters that differs from every other person's whenever their names differ, among the
-directory's people and the claims read's holders. A person whose initials nobody else shares
-SHALL keep them; of names sharing initials the shortest SHALL keep them. The chip's accessible
-name and the cell's card SHALL still name the person in full.
+people the plan prints, its rows' assignees and the claims read's holders, and per plan: a
+person the plan does not print SHALL NOT change them. Uncontested initials SHALL be kept; of
+names sharing initials the shortest SHALL keep them.
 
 #### Scenario: Two agents of one swarm
 
 - **WHEN** `claude-code` and `claude-code-worker` each hold a step of `020`
 - **THEN** their chips read `CC` and `CW`, and `claude-code-worker` assigned to `020` reads
   `· CW`
+
+#### Scenario: A namesake elsewhere changes nothing
+
+- **WHEN** `Walter White` is the only `WW` this plan prints and the organization's directory holds
+  other `WW`s
+- **THEN** the plan prints `Walter White` as `WW`
 
 #### Scenario: Nobody collides
 
@@ -238,6 +244,12 @@ place where that person holds a step or subtree claim drawn on the row. Claim SH
 - **WHEN** `dany` is bound to the signed-in account and chooses Claim on unclaimed leaf `010`
 - **THEN** `claimWorkItem { workItemId: 010's id, personId: dany }` is sent, and after the
   reread `010`'s steps show `DA` chips with no lease text
+
+#### Scenario: Releasing a subtree claim names what goes with it
+
+- **WHEN** `dany` holds a subtree claim on `010` with two claims delegated under it
+- **THEN** the menu offers `Release my claim and 2 under it`, and after it lands the toast reads
+  `Released your claim and 2 under it.`
 
 #### Scenario: A human releases their own claim
 
@@ -281,3 +293,29 @@ organization admin makes. A table drawn for no account SHALL offer no claim item
 - **THEN** Claim is `aria-disabled` and reads `Your account is not bound to a person — an
 organization admin binds it in the Directory before you can claim`, and choosing it sends
   nothing
+
+### Requirement: An organization admin binds a person to an account in the Directory
+
+In an organization, each person row of the Directory SHALL say which account the person is
+bound to. An admin or super-admin SHALL be offered the organization's members and `Not bound`,
+and SHALL bind or unbind with `patchPerson { accountId }` (null unbinds); the control SHALL be
+enabled only for a change. A member or viewer SHALL see the binding read-only. A refused binding
+SHALL be worded.
+
+#### Scenario: An admin binds a person
+
+- **WHEN** an admin chooses `eve-account` for `finn` and chooses Bind
+- **THEN** `patchPerson { accountId: eve's account }` is sent and the row reads `Bound to
+eve-account`
+
+#### Scenario: A member reads the binding
+
+- **WHEN** a member opens the Directory
+- **THEN** a person bound to them reads `Bound to your account`, another bound person `Bound to
+another account`, and no picker is drawn
+
+#### Scenario: The account left the organization
+
+- **WHEN** be-01 refuses the binding `unknown_account`
+- **THEN** the Directory says `That account is no longer a member of this organization. Nothing
+was bound.`

@@ -47,15 +47,38 @@ export function claimantOf(people: readonly PersonView[], accountId: string): Cl
  * drawn for no account (`WbsTable`'s optional `viewerAccountId`).
  *
  * - `release`: the claimant holds a claim on this row (a step claim or its
- *   subtree claim); Release lets go of every one of them.
+ *   subtree claim); Release lets go of every one of them, and be-01 releases
+ *   every claim delegated under a subtree claim with it (`wbs-team-claims`
+ *   D8), which `delegated` counts so the menu can say so (review of PR #763,
+ *   S2).
  * - `claim`: anything else the claimant could take — unclaimed, or held by
  *   somebody else, in which case be-01's `already_claimed` names the holders.
  * - `refused`: Claim drawn but not taken, with the reason (C24: never hidden).
  */
 export type ClaimOffer =
-  | { kind: 'release'; personId: string }
+  | { kind: 'release'; personId: string; delegated: number }
   | { kind: 'claim'; personId: string }
   | { kind: 'refused'; because: string };
+
+/** A row's claims as the menu reads them. */
+export interface RowClaims {
+  /** The person ids holding a claim drawn on the row. */
+  holders: readonly string[];
+  /** How many claims of the read sit under `personId`'s subtree claim on the row, at any depth. */
+  delegatedUnder: (personId: string) => number;
+}
+
+/** What a release lets go of, in the toast's words: `your claim and 2 under it`. */
+export function releaseWords(delegated: number): string {
+  return delegated === 0 ? 'your claim' : `your claim and ${String(delegated)} under it`;
+}
+
+/** What Release says it lets go of: `Release my claim and 2 under it`. */
+export function releaseLabel(delegated: number): string {
+  return delegated === 0
+    ? 'Release my claim'
+    : `Release my claim and ${String(delegated)} under it`;
+}
 
 /** Where an admin binds an account to a person, which every refusal points at. */
 const BIND_IN_DIRECTORY = 'an organization admin binds it in the Directory';
@@ -64,7 +87,8 @@ const BIND_IN_DIRECTORY = 'an organization admin binds it in the Directory';
  * The row's {@link ClaimOffer}.
  *
  * @param claimant Who the signed-in account claims as.
- * @param holders The person ids holding a claim drawn on this row.
+ * @param onRow Who holds a claim drawn on this row, and how many claims of
+ *   the read are delegated under a person's subtree claim on it.
  * @param isDone Whether the row is done, which leaves nothing to claim.
  *
  * Proof: offering Claim whatever the row holds made `offers Release on a row
@@ -73,11 +97,7 @@ const BIND_IN_DIRECTORY = 'an organization admin binds it in the Directory';
  * 'claim', personId: 'dany' } to deeply equal { kind: 'refused', …(1) }`;
  * watched 2026-10-27.
  */
-export function claimOfferOf(
-  claimant: Claimant,
-  holders: readonly string[],
-  isDone: boolean,
-): ClaimOffer {
+export function claimOfferOf(claimant: Claimant, onRow: RowClaims, isDone: boolean): ClaimOffer {
   switch (claimant.kind) {
     case 'unknown':
       return {
@@ -95,8 +115,12 @@ export function claimOfferOf(
         because: `Your account is bound to ${claimant.names.join(', ')} — ${BIND_IN_DIRECTORY} to one person`,
       };
     case 'bound':
-      if (holders.includes(claimant.personId)) {
-        return { kind: 'release', personId: claimant.personId };
+      if (onRow.holders.includes(claimant.personId)) {
+        return {
+          kind: 'release',
+          personId: claimant.personId,
+          delegated: onRow.delegatedUnder(claimant.personId),
+        };
       }
       if (isDone) return { kind: 'refused', because: 'Done — there is nothing left to claim' };
       return { kind: 'claim', personId: claimant.personId };
@@ -110,7 +134,10 @@ export function claimOfferOf(
  */
 export function claimActions(
   offer: ClaimOffer | null,
-  take: { claim: (personId: string) => void; release: (personId: string) => void },
+  take: {
+    claim: (personId: string) => void;
+    release: (personId: string, delegated: number) => void;
+  },
 ): MenuAction[] {
   if (offer === null) return [];
   switch (offer.kind) {
@@ -128,9 +155,12 @@ export function claimActions(
       return [
         {
           id: 'release',
-          label: 'Release my claim',
+          // Proof: the plain label whatever `delegated` says made `says how many
+          // delegated claims Release takes with it` fail on `expected [ 'Set status
+          // to Draft', …(11) ] to include 'Release my claim and 2 under it'`; watched 2026-10-27.
+          label: releaseLabel(offer.delegated),
           run: () => {
-            take.release(offer.personId);
+            take.release(offer.personId, offer.delegated);
           },
         },
       ];

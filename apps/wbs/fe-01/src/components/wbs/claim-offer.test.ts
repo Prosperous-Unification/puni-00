@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { PersonView } from '@/lib/wbs-api';
 
-import { claimActions, claimantOf, claimOfferOf } from './claim-offer';
+import { claimActions, claimantOf, claimOfferOf, type RowClaims } from './claim-offer';
 
 const person = (
   id: string,
@@ -49,44 +49,66 @@ describe('who the account claims as (wbs-claim-display C23)', () => {
   });
 });
 
+/** A row whose claims `holders` hold, with `delegated` under each subtree claim. */
+const rowWith = (holders: readonly string[], delegated = 0): RowClaims => ({
+  holders,
+  delegatedUnder: () => delegated,
+});
+
 describe('what a row offers (wbs-claim-display C23, C24)', () => {
   const me = { kind: 'bound', personId: 'dany', name: 'dany' } as const;
 
   it('offers Claim on an unclaimed row and on one somebody else holds', () => {
-    expect(claimOfferOf(me, [], false)).toEqual({ kind: 'claim', personId: 'dany' });
+    expect(claimOfferOf(me, rowWith([]), false)).toEqual({ kind: 'claim', personId: 'dany' });
     // be-01 answers `already_claimed` with the holders; the menu does not
     // second-guess it.
-    expect(claimOfferOf(me, ['claude-code'], false)).toEqual({ kind: 'claim', personId: 'dany' });
+    expect(claimOfferOf(me, rowWith(['claude-code']), false)).toEqual({
+      kind: 'claim',
+      personId: 'dany',
+    });
   });
 
   it('offers Release on a row the claimant holds', () => {
     // Proof: offering Claim whatever the row holds failed on `expected
     // 'claim' to be 'release'`; watched 2026-10-27.
-    expect(claimOfferOf(me, ['claude-code', 'dany'], false).kind).toBe('release');
-    expect(claimOfferOf(me, ['dany'], true).kind).toBe('release');
+    expect(claimOfferOf(me, rowWith(['claude-code', 'dany']), false).kind).toBe('release');
+    expect(claimOfferOf(me, rowWith(['dany']), true).kind).toBe('release');
+  });
+
+  it('counts what Release takes with it under a subtree claim (review of PR #763, S2)', () => {
+    expect(claimOfferOf(me, rowWith(['dany'], 2), false)).toEqual({
+      kind: 'release',
+      personId: 'dany',
+      delegated: 2,
+    });
+    const [item] = claimActions(
+      { kind: 'release', personId: 'dany', delegated: 2 },
+      { claim: vi.fn(), release: vi.fn() },
+    );
+    expect(item.label).toBe('Release my claim and 2 under it');
   });
 
   it('refuses Claim on a done row', () => {
     // Proof: dropping the done arm failed on `expected { kind: 'claim', …(1) }
     // to deeply equal { kind: 'refused', …(1) }`; watched 2026-10-27.
-    expect(claimOfferOf(me, [], true)).toEqual({
+    expect(claimOfferOf(me, rowWith([]), true)).toEqual({
       kind: 'refused',
       because: 'Done — there is nothing left to claim',
     });
   });
 
   it('says where the binding is made when there is none, or several', () => {
-    expect(claimOfferOf({ kind: 'unbound' }, [], false)).toEqual({
+    expect(claimOfferOf({ kind: 'unbound' }, rowWith([]), false)).toEqual({
       kind: 'refused',
       because:
         'Your account is not bound to a person — an organization admin binds it in the Directory before you can claim',
     });
-    expect(claimOfferOf({ kind: 'several', names: ['ada', 'bea'] }, [], false)).toEqual({
+    expect(claimOfferOf({ kind: 'several', names: ['ada', 'bea'] }, rowWith([]), false)).toEqual({
       kind: 'refused',
       because:
         'Your account is bound to ada, bea — an organization admin binds it in the Directory to one person',
     });
-    expect(claimOfferOf({ kind: 'unknown' }, [], false).kind).toBe('refused');
+    expect(claimOfferOf({ kind: 'unknown' }, rowWith([]), false).kind).toBe('refused');
   });
 });
 
@@ -98,12 +120,12 @@ describe('the menu item', () => {
   it('claims and releases for the offer’s person', () => {
     const take = { claim: vi.fn(), release: vi.fn() };
     const [claim] = claimActions({ kind: 'claim', personId: 'dany' }, take);
-    const [release] = claimActions({ kind: 'release', personId: 'dany' }, take);
+    const [release] = claimActions({ kind: 'release', personId: 'dany', delegated: 0 }, take);
     expect([claim.label, release.label]).toEqual(['Claim', 'Release my claim']);
     claim.run();
     release.run();
     expect(take.claim).toHaveBeenCalledWith('dany');
-    expect(take.release).toHaveBeenCalledWith('dany');
+    expect(take.release).toHaveBeenCalledWith('dany', 0);
   });
 
   it('draws a refused Claim with its reason rather than leaving it out', () => {

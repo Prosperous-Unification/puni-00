@@ -494,7 +494,7 @@ export interface CardRowActionHandlers {
   claims?: {
     offerOf: (row: TreeRow) => ClaimOffer | null;
     claim: (rowId: string, personId: string) => void;
-    release: (rowId: string, personId: string) => void;
+    release: (rowId: string, personId: string, delegated: number) => void;
   };
 }
 
@@ -521,8 +521,8 @@ const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): MenuActi
           claim: (personId) => {
             claims.claim(row.id, personId);
           },
-          release: (personId) => {
-            claims.release(row.id, personId);
+          release: (personId, delegated) => {
+            claims.release(row.id, personId, delegated);
           },
         });
       })()),

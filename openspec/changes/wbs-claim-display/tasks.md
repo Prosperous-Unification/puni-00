@@ -164,5 +164,15 @@ reached `main` and deployed (C5), and gw-01 with the optional `seq` deploys no l
 - [x] 11.3 Red: `claim-refusal-words.test.ts`: holders, runs and the short resource named from
       the refusal body; every bare claim code worded. R5 faults: body sentence returning null;
       bare entries struck; watched.
-- [ ] 11.4 Dany confirms C22 to C24; the 10.1 dev by-eye rerun includes a human Claim and
+- [x] 11.5 Review of PR #763 (Fable): B1 marks per plan (the seeded `Walter White` read `WE`
+      beside the directory's other `WW`s); S1 the Directory binding control (C25); S2 `Release my
+claim and N under it` with its toast; S3 negatives for `initialsIn`, the `(unknown)`
+      assignee and the phone card with no account. Faults watched; `verify.md` "Review of PR #763".
+- [ ] 11.6 Follow-up (N2, pre-existing): a refused item's fact card in an open row menu overlaps
+      the items below it (`1-unbound-claim-refused.png`); place it beside the menu, not over it.
+- [ ] 11.7 Follow-up (N4): on a leaf where the viewer holds some steps and others are free, offer
+      `Claim the rest` beside Release. Not built: it needs the steps not done and unclaimed per row
+      in the readings, and be-01's answer to a repeat claim with no steps when some are held
+      (`alreadyHeld` or the rest) confirmed first.
+- [ ] 11.4 Dany confirms C22 to C25; the 10.1 dev by-eye rerun includes a human Claim and
       Release from the row menu, with an account bound in the Directory.

@@ -447,6 +447,39 @@ describe('the directory page', () => {
     expect(screen.getByText('credentials of p1 (person)')).toBeDefined();
   });
 
+  itDom('binds a person through the binding slot, and reads the directory again', async () => {
+    // `wbs-claim-display` 11.5. Proof: the row handing the slot a `bind` that
+    // sends nothing failed on `expected [] to deeply equal [ { id: 'p1', …(1) } ]`;
+    // dropping `bindingOf?.(…)` from the row failed on finding the button;
+    // watched 2026-10-27.
+    const api = fakeDirectory([KAT], [PLATFORM]);
+    render(
+      <DirectoryPageOverClient
+        api={api}
+        nav={null}
+        account={null}
+        bindingOf={(person, bind) => (
+          <button
+            type="button"
+            onClick={() => {
+              bind('account-kat');
+            }}
+          >{`bind ${person.id}`}</button>
+        )}
+      />,
+    );
+    await drawn('Kat');
+    const reads = api.reads;
+    fireEvent.click(screen.getByRole('button', { name: 'bind p1' }));
+
+    await waitFor(() => {
+      expect(api.patched).toEqual([{ id: 'p1', patch: { accountId: 'account-kat' } }]);
+    });
+    await waitFor(() => {
+      expect(api.reads).toBeGreaterThan(reads);
+    });
+  });
+
   itDom('carries the navigation and the account, and no project controls', async () => {
     pageWith(fakeDirectory([], []));
     await waitFor(() => {

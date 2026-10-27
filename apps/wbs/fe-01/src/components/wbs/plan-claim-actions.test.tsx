@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { AppFaultBoundary } from '@/components/chrome/app-fault';
 import { type WbsProblem, WbsRequestError } from '@/lib/wbs-api';
-import { claimedPlan } from '@/testing/claims-fixture';
+import { CLAIMED_AT, claimedPlan } from '@/testing/claims-fixture';
 import { fakeProjectApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { projectServicesOf } from '@/testing/project-services-of';
@@ -168,6 +168,65 @@ describe('claiming from the row menu (wbs-claim-display 11.2)', () => {
     });
   });
 
+  itDom(
+    'says how many delegated claims Release takes with it (review of PR #763, S2)',
+    async () => {
+      // be-01 releases a subtree claim with every claim delegated under it
+      // (`wbs-team-claims` D8), agents' included; the menu and the toast say so.
+      // Proof: the plain label made this fail on `expected [ 'Set status to Draft',
+      // …(11) ] to include 'Release my claim and 2 under it'`; a toast that ignored `delegated`
+      // failed on `expected [ 'Released your claim.' ] to include …`; watched
+      // 2026-10-27.
+      const { api, ids, extra } = await claimedPlan(['c-dany-sub', 'c-w1', 'c-w2']);
+      const dany = await api.addPerson('dany', []);
+      api.bindAccount(dany.id, ACCOUNT);
+      const step = (claimId: string, stepId: string, name: string) => ({
+        claimId,
+        workItemId: ids.paint,
+        stepId,
+        holder: { personId: `person-${name}`, name },
+        runId: `run-${name}`,
+        parentClaimId: 'c-dany-sub',
+        claimedAt: CLAIMED_AT,
+        leaseExpiresAt: null,
+        leaseRevokedAt: null,
+      });
+      extra.push(
+        {
+          claimId: 'c-dany-sub',
+          workItemId: ids.strip,
+          stepId: null,
+          holder: { personId: dany.id, name: 'dany' },
+          runId: null,
+          parentClaimId: null,
+          claimedAt: CLAIMED_AT,
+          leaseExpiresAt: null,
+          leaseRevokedAt: null,
+        },
+        step('c-w1', 'step-dev', 'w1'),
+        step('c-w2', 'step-qa', 'w2'),
+      );
+      const released: string[] = [];
+      api.releaseWorkItem = (workItemId, personId) => {
+        released.push(`${workItemId}:${personId}`);
+        return Promise.resolve();
+      };
+      drawTable(api);
+
+      await waitFor(() => {
+        expect(rowFor('010').querySelectorAll('[data-claim-chip]')).toHaveLength(1);
+      });
+      await openRowMenu('010');
+      expect(itemLabels()).toContain('Release my claim and 2 under it');
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Release my claim and 2 under it' }));
+
+      await waitFor(() => {
+        expect(toastTexts()).toContain('Released your claim and 2 under it.');
+      });
+      expect(released).toEqual([`${ids.strip}:${dany.id}`]);
+    },
+  );
+
   itDom('names the short resource and its holders when the claim cannot be held', async () => {
     const { api } = await twoRows();
     const gpu = {
@@ -237,6 +296,20 @@ describe('claiming from the row menu (wbs-claim-display 11.2)', () => {
     await openRowMenu('010');
     expect(itemLabels()).not.toContain('Claim');
     expect(itemLabels()).not.toContain('Release my claim');
+  });
+
+  itDom('offers no claim item on a phone card drawn for no account', async () => {
+    // Review of PR #763, S3. Proof: the card's no-handlers arm answering a
+    // refused Claim instead of nothing failed on `expected [ 'Set status to
+    // Draft', …(12) ] to not include 'Claim'`; watched 2026-10-27.
+    const { api } = await twoRows();
+    widthIs(PHONE);
+    drawTable(api, null);
+
+    await screen.findByRole('article', { name: 'Work item 010' });
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
+    expect(itemLabels()).not.toContain('Claim');
+    expect(itemLabels()).toContain('Add child');
   });
 
   itDom('offers the same Claim on a phone card', async () => {

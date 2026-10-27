@@ -40,7 +40,7 @@ export interface PlanLiveValues {
   /** Claims the row for a person, from the row menu (`wbs-claim-display` 11.2). */
   claimRow: (rowId: string, personId: string) => void;
   /** Releases every claim the person holds on the row. */
-  releaseRow: (rowId: string, personId: string) => void;
+  releaseRow: (rowId: string, personId: string, delegated: number) => void;
   deleteRow: (row: TreeRow) => Promise<CommitOutcome>;
   commitNameCell: (rowId: string, typed: string, baseline: string) => Promise<CommitOutcome>;
   onKeyDown: (event: React.KeyboardEvent, row: TreeRow) => void;

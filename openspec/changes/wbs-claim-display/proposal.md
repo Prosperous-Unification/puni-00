@@ -83,9 +83,10 @@ Claim chip, Releasing claim, Claim history (in `CONTEXT.md`).
 | C19 | A batch's renewal announces `claims_changed` to each project it moved, after the commit, except its own when it announces the tree. |
 | C20 | Claims obligations never hold the stream acknowledgment.                                                                            |
 | C21 | `claims_changed` is transient: pushed live unsequenced, never logged or replayed; fe-01 rereads claims on every resume.             |
-| C22 | Two-character marks distinct among the directory and the claim holders; the shortest of a colliding group keeps plain initials.     |
+| C22 | Two-character marks distinct among the people one plan prints (per plan); the shortest of a colliding group keeps plain initials.   |
 | C23 | The row ⋯ (table and card) offers Claim, or Release my claim where the account's one bound human person holds a claim on the row.   |
 | C24 | No bound person, several, or a read without `accountId`: Claim is drawn refused with the reason, pointing at the Directory binding. |
+| C25 | The Directory shows each person's binding; an organization admin binds and unbinds it from the organization's members.              |
 
 C22–C24 come from the dev by-eye check of 10.1 on 2026-10-26: `claude-code` and
 `claude-code-worker` both drew `CC`, and a human could not claim from the plan.

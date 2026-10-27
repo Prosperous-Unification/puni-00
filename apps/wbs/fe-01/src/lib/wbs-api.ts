@@ -1230,6 +1230,13 @@ export interface PersonPatch {
    */
   kind?: PersonKindView;
   teamIds?: readonly string[];
+  /**
+   * Binds the person to the account that may act as them, or unbinds them
+   * with null (`wbs-team-claims` D5). be-01 lets only an organization admin
+   * send it (`forbidden` otherwise) and refuses an account that is not a
+   * member as `unknown_account`.
+   */
+  accountId?: string | null;
 }
 
 /**
@@ -2642,6 +2649,13 @@ const DIRECTORY_REFUSALS: RefusalWords = {
     unknown_team: 'One of those teams is no longer in the directory — somebody else removed it.',
     not_found: 'That entry is no longer in the directory — somebody else removed it.',
     nothing_to_change: 'That change asked for nothing, so nothing was sent.',
+    // Binding a person to an account (`wbs-claim-display` 11.5). The control
+    // is drawn for admins only, so each is reachable when the role or the
+    // membership moved under an open page.
+    // Proof: with both entries struck, `words a binding be-01 refuses` read
+    // `The directory could not be changed (unknown_account).`; watched 2026-10-27.
+    forbidden: 'Only an organization admin can bind a person to an account. Nothing was changed.',
+    unknown_account: 'That account is no longer a member of this organization. Nothing was bound.',
     unexpected_response: 'The server replied with something this page could not read.',
   },
   // No 5xx arm, for {@link STEP_REFUSALS}'s reason.

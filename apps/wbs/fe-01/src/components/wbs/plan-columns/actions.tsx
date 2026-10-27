@@ -48,8 +48,8 @@ export function createActionsColumn({ live }: { live: PlanLive }) {
             claim: (personId) => {
               live.current.claimRow(row.original.id, personId);
             },
-            release: (personId) => {
-              live.current.releaseRow(row.original.id, personId);
+            release: (personId, delegated) => {
+              live.current.releaseRow(row.original.id, personId, delegated);
             },
           }),
           {

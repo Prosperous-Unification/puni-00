@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { assignInitials, initialsOf } from './initials';
+import { assignInitials, initialsIn, initialsOf } from './initials';
 
 describe('an assignee is named in two characters', () => {
   it('names a one-word assignee by its first two letters', () => {
@@ -183,5 +183,16 @@ describe('everyone a plan names reads differently (wbs-claim-display C22)', () =
 
   it('refuses a blank name, as initialsOf does', () => {
     expect(() => assignInitials(['ada', '  '])).toThrow();
+  });
+});
+
+describe('a mark the caller never assigned', () => {
+  it('refuses a name outside the marks rather than inventing one', () => {
+    // Review of PR #763, S3. Proof: the throw replaced by `return
+    // initialsOf(name)` failed on `expected [Function] to throw an error`;
+    // watched 2026-10-27.
+    const marks = assignInitials(['ada']);
+    expect(initialsIn(marks, 'ada')).toBe('AD');
+    expect(() => initialsIn(marks, 'eve')).toThrow('no initials were assigned for "eve"');
   });
 });

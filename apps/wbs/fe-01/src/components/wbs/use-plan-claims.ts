@@ -1,9 +1,10 @@
 import { useCallback, useMemo } from 'react';
 
 import type { InstalledClaims } from '@/lib/plan-refresh';
-import type { ClaimView, StepView } from '@/lib/wbs-api';
+import type { ClaimView, StepView, WorkItemView } from '@/lib/wbs-api';
 
 import type { DrawnClaim } from './claim-chip';
+import type { RowClaims } from './claim-offer';
 import { assignInitials, initialsIn } from './initials';
 import type { LeaseClock } from './lease-clock';
 import { UNKNOWN_ASSIGNEE } from './use-reference-sets';
@@ -19,10 +20,11 @@ export interface PlanClaims {
   anyClaimOn: (stepId: string) => boolean;
   /**
    * Who holds a claim drawn on this row, by person id — its step claims on
-   * every step, hidden columns included, and its subtree claim — for the row
-   * menu's Claim or Release (`wbs-claim-display` C23).
+   * every step, hidden columns included, and its subtree claim — and how many
+   * claims sit under a person's subtree claim here, for the row menu's Claim
+   * or Release (`wbs-claim-display` C23).
    */
-  holdersOn: (rowId: string) => string[];
+  claimsOn: (rowId: string) => RowClaims;
   /**
    * The monotonic instant the plan's one ticker must run until: the latest
    * lease end among the claims drawn on `rows` (the rows on screen, not the
@@ -111,21 +113,66 @@ export function indexClaims(
 }
 
 /**
- * The marks the plan prints people by (`wbs-claim-display` C22): one
- * {@link assignInitials} over everyone the directory holds, every claim
- * holder (a holder the directory read has not caught up with included) and
- * {@link UNKNOWN_ASSIGNEE}, so a chip and an assignee slot never read alike
- * for two people. The directory rather than only the people on screen, so a
- * mark does not move when somebody is assigned elsewhere in the plan.
+ * How many claims of the read sit under each claim, at any depth: what a
+ * release of that claim also releases (`wbs-team-claims` D8). Counted over
+ * the whole read, rows the tree lacks included, because be-01 releases them
+ * all the same. A read is acyclic (`checkClaimsRead`), and a claim whose
+ * parent is missing counts under nobody.
+ *
+ * Proof: counting direct children only made `counts every claim under a
+ * subtree claim, at any depth` fail on `expected 1 to be 2`; watched 2026-10-27.
+ */
+export function delegatedCounts(installed: InstalledClaims | null): ReadonlyMap<string, number> {
+  const counts = new Map<string, number>();
+  const byId = new Map((installed?.claims ?? []).map((claim) => [claim.claimId, claim]));
+  for (const claim of byId.values()) {
+    const seen = new Set<string>();
+    for (
+      let parent = claim.parentClaimId;
+      parent !== null && !seen.has(parent);
+      parent = byId.get(parent)?.parentClaimId ?? null
+    ) {
+      seen.add(parent);
+      counts.set(parent, (counts.get(parent) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
+/**
+ * The marks this plan prints people by (`wbs-claim-display` C22): one
+ * {@link assignInitials} over the people **the plan prints** — every row's
+ * assignees and assumed assignee (by the directory's name, or
+ * {@link UNKNOWN_ASSIGNEE} for an id it has not got) and every claim holder —
+ * so a chip and an assignee slot never read
+ * alike for two people on this plan.
+ *
+ * Per plan, not per organization: a mark here changes only when somebody this
+ * plan prints shares its initials, never because a namesake was added to
+ * the directory elsewhere. Scoped to the whole directory first, the seeded
+ * `Walter White` of `plan-table-review.spec.ts` read `WE` beside the
+ * organization's other `WW`s (review of PR #763, B1).
+ *
+ * Proof: the directory's every name passed beside the plan's made `marks only
+ * the people this plan prints` fail on `expected 'W0' to be 'WW'`; resolving
+ * an unknown id to nothing (no {@link UNKNOWN_ASSIGNEE}) made `prints an
+ * assignee the directory has not got as (unknown)` fail; watched 2026-10-27.
  */
 export function planInitialsOf(
-  people: readonly { name: string }[],
+  rows: readonly Pick<WorkItemView, 'assignees' | 'doesEveryStep'>[],
+  peopleById: ReadonlyMap<string, { name: string }>,
   claims: InstalledClaims | null,
 ): ReadonlyMap<string, string> {
+  const assigned = new Set<string>();
+  for (const row of rows) {
+    for (const personId of Object.values(row.assignees)) {
+      if (personId !== undefined) assigned.add(personId);
+    }
+    if (row.doesEveryStep !== null) assigned.add(row.doesEveryStep);
+  }
   return assignInitials([
-    ...people.map((person) => person.name),
+    ...[...assigned].map((personId) => peopleById.get(personId)?.name ?? UNKNOWN_ASSIGNEE),
     ...(claims?.claims ?? []).map((claim) => claim.holder.name),
-    UNKNOWN_ASSIGNEE,
   ]);
 }
 
@@ -200,17 +247,27 @@ export function usePlanClaims({
   // Proof: answering nobody here made `offers Release my claim on a row the
   // person holds` fail on `expected [ 'Set status to Draft', …(12) ] to include
   // 'Release my claim'`; watched 2026-10-27.
-  const holdersOn = useCallback(
-    (rowId: string) =>
-      [...(index.steps.get(rowId)?.values() ?? []), index.subtrees.get(rowId) ?? null].flatMap(
-        (drawn) => (drawn === null ? [] : [drawn.claim.holder.personId]),
-      ),
-    [index],
+  const delegated = useMemo(() => delegatedCounts(claims), [claims]);
+  const claimsOn = useCallback(
+    (rowId: string): RowClaims => {
+      const subtree = index.subtrees.get(rowId) ?? null;
+      return {
+        holders: [...(index.steps.get(rowId)?.values() ?? []), subtree].flatMap((drawn) =>
+          drawn === null ? [] : [drawn.claim.holder.personId],
+        ),
+        // A claim nothing is delegated under is absent from the counts: 0.
+        delegatedUnder: (personId) =>
+          subtree?.claim.holder.personId === personId
+            ? (delegated.get(subtree.claim.claimId) ?? 0)
+            : 0,
+      };
+    },
+    [index, delegated],
   );
   const leaseDeadlineOn = useCallback(
     (rows: ReadonlySet<string>, steps: ReadonlySet<string>) =>
       leaseDeadline(index.leased, rows, steps),
     [index],
   );
-  return { stepClaimOn, subtreeClaimOn, anyClaimOn, holdersOn, leaseDeadlineOn };
+  return { stepClaimOn, subtreeClaimOn, anyClaimOn, claimsOn, leaseDeadlineOn };
 }

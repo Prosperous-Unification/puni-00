@@ -21,7 +21,7 @@ import type { DemandStatement } from '@/lib/wbs-api';
 
 import { type CellCards, createCellCards } from './cell-card-store';
 import type { CellRef } from './cell-navigation';
-import { claimantOf, claimOfferOf } from './claim-offer';
+import { claimantOf, claimOfferOf, releaseWords } from './claim-offer';
 import { ClaimsSheet, useClaimsOffered } from './claims-sheet';
 import { type ColumnHintState, hintFor } from './column-hints';
 import { CompletionPrompt, type PromptedStatus } from './completion-prompt';
@@ -1518,16 +1518,33 @@ export function WbsTable({
     },
     [commands, run],
   );
+  /**
+   * Releases the person's claims on the row and says what went, the delegated
+   * claims be-01 releases with a subtree claim included (review of PR #763, S2).
+   *
+   * Proof: the toast saying only `Released your claim.` whatever `delegated`
+   * says made `says how many delegated claims Release takes with it` fail on
+   * `expected [ 'Released your claim.' ] to include 'Released your claim and 2
+   * under it.'`; watched 2026-10-27.
+   */
   const releaseRow = useCallback(
-    (rowId: string, personId: string) => {
-      void run((write) =>
-        write.perform(['tree', 'claims'], () => commands.releaseWorkItem(rowId, personId)),
-      );
+    (rowId: string, personId: string, delegated: number) => {
+      void (async () => {
+        const outcome = await run((write) =>
+          write.perform(['tree', 'claims'], () => commands.releaseWorkItem(rowId, personId)),
+        );
+        if (!didLand(outcome)) return;
+        pushToast({ kind: 'info', text: `Released ${releaseWords(delegated)}.` });
+      })();
     },
-    [commands, run],
+    [commands, run, pushToast],
   );
   /** One mark per person the plan prints (C22), shared by the assignee slot and every chip. */
-  const initials = useMemo(() => planInitialsOf(people, claims), [people, claims]);
+  const initials = useMemo(
+    // `flat`: every row of the tree, nested ones included, whatever is collapsed.
+    () => planInitialsOf(flat, indexById(people), claims),
+    [flat, people, claims],
+  );
   const { nonOwnerNoteOf, assigneeOn, anyAssigneeOn } = usePlanAssignments({
     effectiveTeams,
     teams,
@@ -1539,7 +1556,7 @@ export function WbsTable({
   });
   /** The plan's one lease clock (C6), which every chip reads; no chip owns a timer. */
   const leaseClock = useLeaseClock();
-  const { stepClaimOn, subtreeClaimOn, anyClaimOn, holdersOn, leaseDeadlineOn } = usePlanClaims({
+  const { stepClaimOn, subtreeClaimOn, anyClaimOn, claimsOn, leaseDeadlineOn } = usePlanClaims({
     claims,
     rows: flat,
     steps,
@@ -1706,7 +1723,7 @@ export function WbsTable({
         claimOffer:
           claimant === null
             ? null
-            : claimOfferOf(claimant, holdersOn(row.id), row.status === 'done'),
+            : claimOfferOf(claimant, claimsOn(row.id), row.status === 'done'),
         hasSchedule: hasSchedule(),
         finish: span.finish,
         nonOwnerNote: nonOwnerNoteOf(row),
@@ -1729,7 +1746,7 @@ export function WbsTable({
     assigneeOn,
     busy,
     claimant,
-    holdersOn,
+    claimsOn,
     causeLabels,
     chartRead.timezone,
     combinedProblem,
@@ -3082,7 +3099,7 @@ export function WbsTable({
                   : {
                       claims: {
                         offerOf: (row) =>
-                          claimOfferOf(claimant, holdersOn(row.id), row.status === 'done'),
+                          claimOfferOf(claimant, claimsOn(row.id), row.status === 'done'),
                         claim: claimRow,
                         release: releaseRow,
                       },
