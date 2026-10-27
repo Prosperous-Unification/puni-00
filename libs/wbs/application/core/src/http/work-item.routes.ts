@@ -433,6 +433,8 @@ function answerBatch(
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
     case 'missing_id':
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
+    case 'person_required':
+      return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
     case 'duplicate_ref':
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
     case 'name_required':

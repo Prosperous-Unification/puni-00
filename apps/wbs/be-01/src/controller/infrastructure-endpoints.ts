@@ -9,6 +9,7 @@ export interface InfrastructureEndpointOptions {
   migrationsApplied: boolean;
   probeDatabase: () => DatabaseHealth;
   deployedCommit?: () => string | null;
+  bootCommit?: string | null;
   logger: Pick<Logger, 'error'>;
   scrapeMetrics: () => Promise<MetricsScrape>;
 }
@@ -22,13 +23,14 @@ export function infrastructureEndpoints(options: InfrastructureEndpointOptions) 
     ),
     bind(health, () => {
       const commit = options.deployedCommit?.() ?? null;
+      const bootCommit = options.bootCommit ?? null;
       if (!options.migrationsApplied) {
         // Proof: returning the healthy 200 branch here made the production app
         // test expect 503 and receive 200 while migrations were still pending.
         return Promise.resolve({
           ok: false,
           status: 503,
-          body: { error: 'dependency_unavailable', status: 'migrating', commit },
+          body: { error: 'dependency_unavailable', status: 'migrating', commit, bootCommit },
         });
       }
       let schema: DatabaseHealth;
@@ -41,7 +43,12 @@ export function infrastructureEndpoints(options: InfrastructureEndpointOptions) 
         return Promise.resolve({
           ok: false,
           status: 503,
-          body: { error: 'dependency_unavailable', status: 'database_unreachable', commit },
+          body: {
+            error: 'dependency_unavailable',
+            status: 'database_unreachable',
+            commit,
+            bootCommit,
+          },
         });
       }
       if (schema !== 'ok') {
@@ -50,10 +57,10 @@ export function infrastructureEndpoints(options: InfrastructureEndpointOptions) 
         return Promise.resolve({
           ok: false,
           status: 503,
-          body: { error: 'dependency_unavailable', status: schema, commit },
+          body: { error: 'dependency_unavailable', status: schema, commit, bootCommit },
         });
       }
-      return Promise.resolve({ ok: true, status: 200, body: { status: 'ok', commit } });
+      return Promise.resolve({ ok: true, status: 200, body: { status: 'ok', commit, bootCommit } });
     }),
     bind(metrics, async () => {
       const scrape = await options.scrapeMetrics();

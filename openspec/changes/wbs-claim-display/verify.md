@@ -1158,3 +1158,87 @@ released lead's `020 Build farm` subtree with w3's and w2's delegated claims, an
 `A lease expired: released 5 items of w3, w2 and lead` (`claims-sheet-*-post`), which names no
 one as the lease's owner; under the possessive form it would have said w3's lease expired while
 w3 was renewing. `card-build-farm-375-*-pre`: the chip on its own line, every card total 20 px.
+
+### Slice 11: human claims and distinct marks (fe-01), 2026-10-27
+
+Branch `feat/wbs-claim-ui-humans` from `origin/main` (67773f97a). From the dev by-eye check of
+10.1 on 2026-10-26: `claude-code` and `claude-code-worker` both drew `CC`, and the plan offered
+no way for a human to claim. Commands ran with `env -u CLAUDECODE` from the worktree.
+
+Read, not run: `refuseIdentity` in `@wbs/domain` `claim.ts` (a caller claims for a person whose
+`boundAccountId` is its account, or as an admin); `claimLeaseExpiry` in `claim-lease.ts` (a lease
+only when the caller's pinned person is the claimant, so a session claim has none);
+`patchPersonWithin` (only an organization admin binds `accountId`); the people read carries
+`accountId` per person. fe-01 already holds the session's `userId` and the people read, so no
+new read was added (C23).
+
+| Fault injected (watched 2026-10-27)              | Observed failing test                                                                                   |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `assignInitials` answering `initialsOf` per name | `tells claude-code from claude-code-worker`: `'CC'` for `'CW'`; property: counterexample `["aa","aaa"]` |
+| second loop's `taken` check removed              | property: counterexample `["aöa","aöA"]`                                                                |
+| chip printing `initialsOf(holder.name)`          | `draws claude-code and claude-code-worker as two marks…`: `[ 'CC', 'CC' ]` for `[ 'CC', 'CW' ]`         |
+| folded slot printing `initialsOf(doing.name)`    | same case: `'· CC'` for `'· CW'`                                                                        |
+| agent persons counted as the account             | `claims as the human, not the account’s agent`: `several` for `bound`                                   |
+| missing-`accountId` arm dropped                  | `cannot say from a person row without accountId`: `bound` for `unknown`                                 |
+| Release never offered                            | `offers Release on a row the claimant holds`: `'claim'` for `'release'`                                 |
+| done arm dropped                                 | `refuses Claim on a done row`: `claim` for `refused`                                                    |
+| `claimRow` rereading only the tree               | `offers Claim after the statuses…`: `expected to have a length of 2 but got +0`                         |
+| actions column handed no offer                   | six cases of `plan-claim-actions.test.tsx`                                                              |
+| `holdersOn` answering nobody                     | `offers Release my claim…`: menu lacks `Release my claim`                                               |
+| phone card claim arm dropped                     | `offers the same Claim on a phone card`: no `Claim` menu item                                           |
+| `ProjectPage` not passing `viewerAccountId`      | `offers Claim for the person bound to the signed-in account`: no `Claim` menu item                      |
+| `claimRefusalSentence` returning null            | holders, resource and subtree cases read the bare sentences                                             |
+| bare claim entries struck from `PLAN_REFUSALS`   | `words every claim refusal…`: `That change could not be completed (already_claimed)`                    |
+
+Eye review (ordinary local stack, `E2E_PORT_SHIFT=2000`, a scratch Playwright spec not
+committed; the people read and the claims read rewritten in the browser so `dany` is bound to
+`local-dev` and `claude-code`/`claude-code-worker` hold `020`): the unbound Claim drawn grey with
+its Directory reason as its fact; `DA`, `CC` and `CW` chips; `Release my claim` on `010`; `Claim`
+on `020`, which the real be-01 refused `person_not_bound` (the binding was only in the browser),
+toasted as `Your account is not bound to that person — an organization admin binds it in the
+Directory. Nothing was changed.`; `dany`'s card line `Claimed by dany since 27 Oct 07:44` with no
+lease text; the phone card's menu with `Claim` after the statuses. A real bound human claim on an
+organization stack is the 10.1 dev rerun (11.4).
+
+### Review of PR #763, 2026-10-27
+
+Fable's review: B1 (CI red), S1–S3, N1, N2, N4. fe-01 tests ran with Bun's runner
+(`bun ../../../node_modules/vitest/vitest.mjs run`, from `apps/wbs/fe-01`), not `bunx vitest`,
+which runs under volta Node 24 on this laptop.
+
+- **B1.** `planInitialsOf` now takes the plan's rows (every assignee and assumed assignee,
+  `(unknown)` for an id the directory lacks) and the claims read, never the directory. C22 and
+  `assignInitials` say marks are per plan and the shortest name keeps the plain initials.
+- **S1.** The Directory binding control (C25): `usePersonBindings` in
+  `components/organization/person-binding.tsx`, the `bindingOf` slot on `DirectoryPage`,
+  `DirectoryManagement.bindAccount`, `patchPerson { accountId }`; `forbidden` and
+  `unknown_account` worded.
+- **S2.** `delegatedCounts` over the claims read; `Release my claim and N under it` and the toast
+  `Released your claim and N under it.`
+- **N1, not changed:** `CardAssignee.initials` is read by the folded slot
+  (`estimate-presentation.tsx`, `· ${doing.initials}`); removing it breaks the B1 fix.
+- **N2, N4:** recorded as tasks 11.6 and 11.7.
+
+| Fault injected (watched 2026-10-27)                                | Observed failing test                                                                                       |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| every directory name passed to `planInitialsOf` beside the plan's  | `marks only the people this plan prints`: `'W0'` for `'WW'`                                                 |
+| an unknown assignee id skipped instead of `(unknown)`              | `prints an assignee the directory has not got as (unknown)`: the table's fault, `no initials … "(unknown)"` |
+| `initialsIn` answering `initialsOf(name)` instead of throwing      | `refuses a name outside the marks…`: `expected [Function] to throw an error`                                |
+| card's no-handlers arm answering a refused Claim                   | `offers no claim item on a phone card drawn for no account`: menu includes `Claim`                          |
+| Release label ignoring `delegated`                                 | `says how many delegated claims Release takes with it`: lacks `Release my claim and 2 under it`             |
+| release toast ignoring `delegated`                                 | same case: `[ 'Released your claim.' ]`                                                                     |
+| `delegatedCounts` counting direct children only                    | `counts every claim under a subtree claim, at any depth`: `1` for `2`                                       |
+| `bindAccount` without its equality guard                           | `sends nothing when the person is already bound there`: one `patchPerson` sent                              |
+| `forbidden` and `unknown_account` struck from `DIRECTORY_REFUSALS` | `words a binding be-01 refuses`: `The directory could not be changed (unknown_account).`                    |
+| binding control drawn for every role                               | `shows a member the binding read-only`: `Bound to your account` not found                                   |
+| Bind enabled whatever is chosen                                    | `offers Bind only once another account is chosen`: `disabled` not `true`                                    |
+| the row's `bind` sending nothing                                   | `binds a person through the binding slot…`: `expected [] to deeply equal [ { id: 'p1', …(1) } ]`            |
+| `bindingOf?.(…)` dropped from the Directory row                    | same case: no `bind p1` button                                                                              |
+
+Eye review on the real organization fixture (`organization-browser-server.ts`, Vite on 7400; a
+scratch Playwright spec and config, not committed): `ada` (super-admin of `org-a`) bound the
+person `Ada Lovelace` to `ada (you)` in the Directory, then claimed `010` from the row menu; the
+real be-01 took the session claim with no lease (`AL` chips on Dev and QA, the row in progress,
+no countdown), then `Release my claim` removed both chips. Shots in
+`/tmp/claude-1000/claim-shots-r2/` (1–8, the Directory also at 390 px): the binding line, picker
+and button sit on one row at 1280 and wrap to two at 390, no overflow.

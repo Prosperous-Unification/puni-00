@@ -18,6 +18,7 @@ it('refuses an endpoint conflict missing its relationship ids at the command bou
     new Map(),
     LEGACY_ACCESS,
     null,
+    null,
   );
   for (const reason of ['node_on_parent', 'descendant_step_on_leaf'] as const) {
     expect(() => {
@@ -77,6 +78,7 @@ it('binds local aliases to the owner and preserves explicit endpoint projects', 
     'addTypedDependency',
     new Map([['named', 'minted']]),
     LEGACY_ACCESS,
+    null,
     null,
   );
   expect(bindTypedEndpoint({ scope: 'whole', workItemRef: 'named' }, context)).toEqual({

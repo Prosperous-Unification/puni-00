@@ -1,3 +1,4 @@
+import type { AuthenticatedUser } from '@wbs/contracts';
 import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
 
@@ -520,6 +521,50 @@ describe('claimWorkItem in a batch', () => {
       });
       // The account's own session carries no pair, so nothing pins it.
       expect(await claimAs('codex-fleet', null)).toMatchObject({ ok: true });
+    } finally {
+      await source.close();
+    }
+  });
+
+  // `wbs-claim-own-person`, through the binding itself: legacy access skips the
+  // scoped reference check that resolves the claimant first.
+  // Proof: with `claimant`'s acting-person default removed, the agent claim
+  // answered person_required; with it falling back to the actor id, the account
+  // claim answered unknown_person; watched 2026-10-26.
+  it('claims and releases as the acting agent person when none is named; an account must name one', async () => {
+    const { source, runner, projectId, claims, steps } = await seeded();
+    try {
+      const firstStep = steps.at(0);
+      if (firstStep === undefined) throw new Error('claim fixture omitted its first workflow step');
+      const agent: AuthenticatedUser = {
+        id: F,
+        username: F,
+        scopes: ['write'],
+        authentication: {
+          kind: 'machine',
+          credentialId: 'claim-command-fixture',
+          personId: 'claire',
+        },
+      };
+      const asAgent = (command: Parameters<typeof runner.run>[2][number]) =>
+        runner.runWithin(projectId, agent, [command], LEGACY_ACCESS);
+      expect(
+        await asAgent({ kind: 'claimWorkItem', workItemId: '090', steps: [firstStep] }),
+      ).toMatchObject({ ok: true });
+      expect((await claims()).map(({ personId }) => personId)).toEqual(['claire']);
+      expect(await asAgent({ kind: 'releaseWorkItem', workItemId: '090' })).toMatchObject({
+        ok: true,
+      });
+      expect(await claims()).toEqual([]);
+      for (const kind of ['claimWorkItem', 'releaseWorkItem'] as const) {
+        expect(await runner.run(projectId, F, [{ kind, workItemId: '090' }])).toMatchObject({
+          ok: false,
+          at: 0,
+          kind,
+          reason: 'person_required',
+        });
+      }
+      expect(await claims()).toEqual([]);
     } finally {
       await source.close();
     }

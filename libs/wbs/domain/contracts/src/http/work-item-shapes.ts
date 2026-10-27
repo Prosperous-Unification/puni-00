@@ -189,6 +189,7 @@ const batchRefusals = [
           'project_required',
           'unknown_ref',
           'missing_id',
+          'person_required',
           'duplicate_ref',
           'name_required',
           'strategy_required',

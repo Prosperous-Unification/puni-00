@@ -1256,6 +1256,13 @@ export interface PersonPatch {
    */
   kind?: PersonKindView;
   teamIds?: readonly string[];
+  /**
+   * Binds the person to the account that may act as them, or unbinds them
+   * with null (`wbs-team-claims` D5). be-01 lets only an organization admin
+   * send it (`forbidden` otherwise) and refuses an account that is not a
+   * member as `unknown_account`.
+   */
+  accountId?: string | null;
 }
 
 /**
@@ -2305,6 +2312,15 @@ export interface ProjectApi {
   unfreezeProject(projectId: string): Promise<void>;
   unfreezeWorkItem(id: string): Promise<void>;
   /**
+   * Claims a work item for a person (`wbs-claim-display` 11.2): every step not
+   * done on a leaf, the subtree on a parent. Sent from a session, so the claim
+   * carries no lease; be-01 refuses `person_not_bound` unless `personId` is
+   * bound to the signed-in account, and names the holders of `already_claimed`.
+   */
+  claimWorkItem(workItemId: string, personId: string): Promise<void>;
+  /** Releases every claim `personId` holds on the work item (`wbs-claim-display` 11.2). */
+  releaseWorkItem(workItemId: string, personId: string): Promise<void>;
+  /**
    * Records "`predecessorId`'s **anchor** must finish before this starts" —
    * its first step somebody estimated, not the whole of it. The steps behind
    * that anchor run alongside this work item. Since `dep-waits-on-first-role`
@@ -2708,6 +2724,13 @@ const DIRECTORY_REFUSALS: RefusalWords = {
     unknown_team: 'One of those teams is no longer in the directory — somebody else removed it.',
     not_found: 'That entry is no longer in the directory — somebody else removed it.',
     nothing_to_change: 'That change asked for nothing, so nothing was sent.',
+    // Binding a person to an account (`wbs-claim-display` 11.5). The control
+    // is drawn for admins only, so each is reachable when the role or the
+    // membership moved under an open page.
+    // Proof: with both entries struck, `words a binding be-01 refuses` read
+    // `The directory could not be changed (unknown_account).`; watched 2026-10-27.
+    forbidden: 'Only an organization admin can bind a person to an account. Nothing was changed.',
+    unknown_account: 'That account is no longer a member of this organization. Nothing was bound.',
     unexpected_response: 'The server replied with something this page could not read.',
   },
   // No 5xx arm, for {@link STEP_REFUSALS}'s reason.
@@ -3552,6 +3575,12 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
     },
     async unfreezeWorkItem(id) {
       await onRow(id, { kind: 'unfreezeWorkItem', workItemId: id });
+    },
+    async claimWorkItem(workItemId, personId) {
+      await onRow(workItemId, { kind: 'claimWorkItem', workItemId, personId });
+    },
+    async releaseWorkItem(workItemId, personId) {
+      await onRow(workItemId, { kind: 'releaseWorkItem', workItemId, personId });
     },
     async addDependency(id, predecessorId) {
       await onRow(id, { kind: 'addDependency', workItemId: id, predecessorId });

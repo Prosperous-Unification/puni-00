@@ -60,6 +60,9 @@ for (const inherited of [false, true]) {
       expect(await child.exited).toBe(1);
       expect(stderr).toContain('seed the gitignored mcp-01 environment before deploying');
       expect(stderr).not.toMatch(/EBADF|does not name|shared edge lock held/);
+      // Proof: process.exit inside CLI admission left the holder record populated,
+      // failing the standalone case here (watched 2026-10-27).
+      if (!inherited) expect(await Bun.file(join(state, 'edge.lock')).text()).toBe('');
     } finally {
       await rm(state, { recursive: true });
     }

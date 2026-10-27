@@ -24,6 +24,7 @@ export type PlainReason =
   | 'project_required'
   | 'unknown_ref'
   | 'missing_id'
+  | 'person_required'
   | 'duplicate_ref';
 /**
  * Refuses a command naming a row or step outside the project, for the
@@ -165,6 +166,8 @@ function directoryReferencesOf(
     return [['people', person === null ? [] : [person], 'unknown_person']];
   }
   if (command.kind === 'claimWorkItem' || command.kind === 'releaseWorkItem') {
+    // A defaulted claimant (`CommandContext.claimant`) is not checked here: it is the
+    // credential's own agent, in the organization by issuance and the immutable-ownership trigger.
     const person = context.id(command.personId, command.personRef);
     return [['people', person === null ? [] : [person], 'unknown_person']];
   }

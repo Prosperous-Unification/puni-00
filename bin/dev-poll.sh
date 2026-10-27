@@ -17,9 +17,17 @@ LOCK="$STATE/poll.lock"
 LAST_PROVEN="$STATE/last-proven"
 LAST_SYNCED="$STATE/last-synced"
 AWAITING_RECREATE="$STATE/awaiting-recreate"
+# sync.ts's STALE_BOOT_EXIT_CODE: the reset landed, the restart was spent, and
+# be-01 still runs another commit. poller.test.ts pins the two equal.
+STALE_BOOT_EXIT=76
+
+# Prints be-01's bootCommit, the commit the running process booted with. Not
+# `commit`, which follows the checkout on every request and so proved a reset
+# under a watcher that never reloaded it (2026-10-26). An absent, null or
+# abbreviated bootCommit is unproven.
 
 read_served_commit() {
-  local response body http_status status_count commit_count
+  local response body http_status status_count boot_count
   response=$(docker exec "$CONTAINER" curl -sS -m 5 -w '\n%{http_code}' \
     http://127.0.0.1:3100/health 2>/dev/null) || return 1
   http_status=${response##*$'\n'}
@@ -27,10 +35,10 @@ read_served_commit() {
   [ "$http_status" = 200 ] || return 1
 
   status_count=$(printf '%s' "$body" | grep -oE '"status"[[:space:]]*:[[:space:]]*"ok"' | wc -l)
-  commit_count=$(printf '%s' "$body" | grep -oE '"commit"[[:space:]]*:[[:space:]]*"[0-9a-f]{40}"' | wc -l)
-  [ "$status_count" -eq 1 ] && [ "$commit_count" -eq 1 ] || return 1
+  boot_count=$(printf '%s' "$body" | grep -oE '"bootCommit"[[:space:]]*:[[:space:]]*"[0-9a-f]{40}"' | wc -l)
+  [ "$status_count" -eq 1 ] && [ "$boot_count" -eq 1 ] || return 1
   printf '%s' "$body" |
-    sed -nE 's/.*"commit"[[:space:]]*:[[:space:]]*"([0-9a-f]{40})".*/\1/p'
+    sed -nE 's/.*"bootCommit"[[:space:]]*:[[:space:]]*"([0-9a-f]{40})".*/\1/p'
 }
 
 poll_main() {
@@ -113,6 +121,17 @@ poll_main() {
       sync_rc=$?
       set -e
       if [ "$sync_rc" -ne 0 ]; then
+        # Synced but unproven: recording last-synced keeps later ticks from
+        # resetting back and re-running the restart; they retry only the proof.
+        # Proof: with this branch removed, `retries only the proof after a stale
+        # boot` saw a backward reset and a second sync on the next tick.
+        if [ "$sync_rc" -eq "$STALE_BOOT_EXIT" ] && [ "$(git rev-parse HEAD)" = "$remote_sha" ]; then
+          synced_tmp="$LAST_SYNCED.tmp.$$"
+          printf '%s\n' "$remote_sha" > "$synced_tmp"
+          mv "$synced_tmp" "$LAST_SYNCED"
+          echo "!!! checkout is at ${remote_sha:0:7} but be-01 never booted it; later ticks retry only the bootCommit proof"
+          return "$sync_rc"
+        fi
         if [ "$(git rev-parse HEAD)" = "$remote_sha" ] &&
           git diff --name-only "$last_synced" "$remote_sha" -- deploy/dev-src/compose.yml deploy/dev-src/Dockerfile | grep -q .; then
           printf '%s\n' "$remote_sha" > "$AWAITING_RECREATE.tmp.$$"
@@ -131,7 +150,7 @@ poll_main() {
     for attempt in 1 2 3 4 5 6; do
       served=$(read_served_commit || true)
       if [ "$served" = "$remote_sha" ]; then
-        echo "--- serving ${remote_sha:0:7} (health, attempt ${attempt})"
+        echo "--- serving ${remote_sha:0:7} (bootCommit, attempt ${attempt})"
         proven_tmp="$LAST_PROVEN.tmp.$$"
         printf '%s\n' "$remote_sha" > "$proven_tmp"
         mv "$proven_tmp" "$LAST_PROVEN"
@@ -140,7 +159,7 @@ poll_main() {
       sleep "${WBS_DEV_PROOF_RETRY_SECONDS:-10}"
     done
     if [ "${served:-}" != "$remote_sha" ]; then
-      echo "!!! checkout is at ${remote_sha:0:7}, /health still says '${served:-<unreadable>}'"
+      echo "!!! checkout is at ${remote_sha:0:7}, /health bootCommit still says '${served:-<unreadable>}'"
       return 1
     fi
   } >> "$LOG" 2>&1

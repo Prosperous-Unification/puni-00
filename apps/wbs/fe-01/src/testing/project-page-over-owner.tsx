@@ -12,6 +12,9 @@ import type { SessionProjects } from '@/runtime/session-runtime';
 import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
 import { createRefusingAddressApi } from '@/testing/refusing-address-api';
 
+/** The account every page suite is signed in as; bind a person to it to claim. */
+export const VIEWER_ACCOUNT_ID = 'account-viewer';
+
 /**
  * The catalog and the project owner a session would hand the page, over one
  * client the suite holds and an owner of the suite's own: the session's wiring
@@ -27,9 +30,10 @@ export function pageWiring(
   api: ProjectApi,
   streamDeps?: ProjectStreamDeps,
   savedPlanRoutes: SavedPlanRoutes = NO_SAVED_PLANS,
-): { catalog: ProjectCatalog; projects: SessionProjects } {
+): { catalog: ProjectCatalog; projects: SessionProjects; viewerAccountId: string } {
   const source = projectSourceOver(api, createRefusingAddressApi(), streamDeps, savedPlanRoutes);
   return {
+    viewerAccountId: VIEWER_ACCOUNT_ID,
     catalog: createProjectCatalog({ routes: api, isCurrent: () => true }),
     projects: {
       subscribe: owner.subscribe,
@@ -41,7 +45,11 @@ export function pageWiring(
 }
 
 /** The page's own props, with the client and the socket a session would hold instead. */
-export type ProjectPageOverOwnerProps = Omit<ProjectPageProps, 'catalog' | 'projects'> & {
+export type ProjectPageOverOwnerProps = Omit<
+  ProjectPageProps,
+  'catalog' | 'projects' | 'viewerAccountId'
+> & {
+  viewerAccountId?: string;
   api: ProjectApi;
   streamDeps?: ProjectStreamDeps;
   savedPlanRoutes?: SavedPlanRoutes;

@@ -3,6 +3,7 @@ import '@/styles.css';
 import { createRoot } from 'react-dom/client';
 
 import { ProjectPage } from '@/components/wbs/project-page';
+import { me } from '@/lib/api';
 import { httpProjectAddressApi, httpProjectApi } from '@/lib/wbs-api';
 import { projectSourceOver } from '@/modules/project/composition';
 import { createProjectCatalog } from '@/modules/project/project-catalog.feature';
@@ -13,6 +14,9 @@ import { createProjectOwner } from '@/runtime/project-runtime';
 import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
 
 await applicationSlot.replace(acquireApplicationRuntime);
+const session = await me();
+if (session.kind !== 'success') throw new Error('Browser fixture session could not be read');
+if (session.body.user === null) throw new Error('Browser fixture has no signed-in account');
 const owner = createProjectOwner();
 const organizationId = new URLSearchParams(window.location.search).get('organization');
 const scope =
@@ -64,7 +68,7 @@ createRoot(root).render(
         }
       }
     >
-      <ProjectPage {...wiring} />
+      <ProjectPage {...wiring} viewerAccountId={session.body.user.id} />
     </OrganizationResourcesProvider>
   </ApplicationServicesProvider>,
 );

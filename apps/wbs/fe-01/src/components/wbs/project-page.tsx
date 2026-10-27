@@ -185,6 +185,13 @@ export interface ProjectPageProps {
    */
   projects: SessionProjects;
   /**
+   * The signed-in account's id, which the plan's row menu claims for the
+   * person bound to it (`wbs-claim-display` 11.2). Required here, so the page
+   * the router draws always offers Claim; only a suite drawing the table alone
+   * leaves it out.
+   */
+  viewerAccountId: string;
+  /**
    * Who else is in the project, for the right-hand end of the header bar.
    *
    * A function of the roster rather than the panel itself, because what the
@@ -597,6 +604,7 @@ export function ProjectPage({
   presence,
   account,
   nav,
+  viewerAccountId,
 }: ProjectPageProps) {
   /**
    * The picker's own box, for the one thing state cannot say: give up the
@@ -1499,6 +1507,10 @@ export function ProjectPage({
               <Profiler id="wbs-table" onRender={recordWbsScrollCommit}>
                 <WbsTable
                   project={projectState.services}
+                  // Proof: leaving this out made `offers Claim for the person bound
+                  // to the signed-in account` fail on `Unable to find … "menuitem"
+                  // and name "Claim"`; watched 2026-10-27.
+                  viewerAccountId={viewerAccountId}
                   viewControls={viewControls}
                   planActive={view === 'plan'}
                   // The name the export's header and filename carry. Read from the

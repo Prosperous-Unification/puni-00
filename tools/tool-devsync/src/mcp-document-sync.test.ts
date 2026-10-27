@@ -111,6 +111,10 @@ const args = process.argv.slice(2);
 appendFileSync(${JSON.stringify(commands)}, args.join(' ') + '\\n');
 if (args[0] === 'restart' && args[1] === 'mcp-document-rehearsal') {
   execFileSync(${JSON.stringify(process.execPath)}, ['./node_modules/.bin/nx', 'run', 'wbs-mcp-01:prepare'], { cwd: ${JSON.stringify(source)}, env: { ...process.env, NX_DAEMON: 'false', NX_ISOLATE_PLUGINS: 'false' }, stdio: 'inherit' });
+} else if (args.join(' ') === 'exec mcp-document-rehearsal curl -sS -m 5 http://127.0.0.1:3100/health') {
+  // Model healthy backend convergence independently of MCP restart/preparation.
+  const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ${JSON.stringify(source)}, encoding: 'utf8' }).trim();
+  console.log(JSON.stringify({ status: 'ok', commit, bootCommit: commit }));
 } else if (args.join(' ') !== 'exec mcp-document-rehearsal bun install --frozen-lockfile') {
   throw new Error('unexpected Docker operation');
 }
@@ -164,7 +168,7 @@ test.each(changes)(
     });
     expect(execution).toContain('nx run wbs-mcp-01:prepare');
     expect(await readFile(commands, 'utf8')).toBe(
-      'exec mcp-document-rehearsal bun install --frozen-lockfile\nrestart mcp-document-rehearsal\n',
+      'exec mcp-document-rehearsal bun install --frozen-lockfile\nrestart mcp-document-rehearsal\nexec mcp-document-rehearsal curl -sS -m 5 http://127.0.0.1:3100/health\n',
     );
     const artifactAfter = await readFile(join(source, 'apps/wbs/mcp-01/src/openapi.json'), 'utf8');
     if (path.endsWith('definitions.ts')) {
@@ -199,7 +203,9 @@ test('ordinary application source still uses watchers without a supervisor resta
     ...process.env,
     PATH: executablePath,
   });
-  expect(execution).toContain('watchers pick it up');
-  expect(await readFile(commands, 'utf8')).toBe('');
+  expect(execution).toContain('code only: nothing restarted; waiting for the watchers');
+  expect(await readFile(commands, 'utf8')).toBe(
+    'exec mcp-document-rehearsal curl -sS -m 5 http://127.0.0.1:3100/health\n',
+  );
   expect(await readFile(join(source, path), 'utf8')).toContain('watchable = true');
 }, 30000);

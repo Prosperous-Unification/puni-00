@@ -3,6 +3,7 @@ import {
   agentPersonLimitSentence,
   capacityLimitSentence,
   claimLimitSentence,
+  resourceLabel,
 } from '@/lib/organization-limit-words';
 import { type RefusalWords, sentenceForRefusal } from '@/lib/refusal';
 import {
@@ -558,14 +559,15 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     // throw at unreachable instead of reporting refusal (2026-10-22).
     case 'referenced_by_external_dependency':
       return refusal.error;
-    // `claimWorkItem` and `releaseWorkItem` (`wbs-team-claims`): the table sends
-    // neither yet, so these arrive only from a batch another client wrote.
+    // `claimWorkItem` and `releaseWorkItem` (`wbs-team-claims`): the row menu
+    // sends both for the signed-in account's person (`wbs-claim-display` 11.2).
     case 'runId_must_be_1_to_256_characters':
     case 'parentClaim_must_be_an_id':
     case 'steps_must_be_a_list_of_ids':
     case 'steps_must_be_at_most_50':
     case 'steps_must_name_a_step':
     case 'steps_on_subtree':
+    case 'person_required':
     case 'person_not_bound':
     case 'credential_not_for_person':
     case 'parent_claim_unknown':
@@ -586,7 +588,8 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     // A delete that would hand two rows' claims up to one leaf.
     case 'children_claimed':
       return refusal.error;
-    // Claim occupancy (`wbs-resources` R3, R4): the table claims nothing yet.
+    // Claim occupancy (`wbs-resources` R3, R4): the row menu's Claim names no
+    // resources, so only `resources_exhausted` is reachable from it.
     case 'resources_must_be_a_list':
     case 'resources_must_name_a_resource':
     case 'resources_must_be_at_most_50':
@@ -947,6 +950,27 @@ export const PLAN_REFUSALS: RefusalWords = {
     // Proof: deleting this sentence failed all three sparse writer refusal cases (2026-10-17).
     referenced_by_step_parallel:
       'That change cannot be made while the affected steps have individual parallelism overrides.',
+    // Claiming from the row menu (`wbs-claim-display` 11.3). The holders and the
+    // short resource are named from the body by `claimRefusalSentence`; these
+    // are what a bare code reads.
+    // Proof: with these entries struck, `words every claim refusal the menu can
+    // reach` read `That change could not be completed (already_claimed)`;
+    // watched 2026-10-27.
+    already_claimed: 'Somebody else already holds a claim on this row. Nothing was changed.',
+    person_required: 'A claim from here names a person, and none was named. Nothing was changed.',
+    person_not_bound:
+      'Your account is not bound to that person — an organization admin binds it in the Directory. Nothing was changed.',
+    credential_not_for_person: 'This credential may not act for that person. Nothing was changed.',
+    item_done: 'This row is done — there is nothing left to claim. Nothing was changed.',
+    not_startable:
+      'This row cannot be started yet (blocked, on hold or waiting on a blocked row), so it cannot be claimed. Nothing was changed.',
+    step_done: 'A step named in the claim is already done. Nothing was changed.',
+    inside_subtree_claim:
+      'This row is inside somebody else’s claim on a row above it. Nothing was changed.',
+    overlaps_subtree_claim: 'Somebody holds a claim on a row under this one. Nothing was changed.',
+    resources_exhausted:
+      'Not enough of a resource this row needs is free right now. Nothing was changed.',
+    not_claimed_by: 'You hold no claim on this row any more. Nothing was changed.',
     destination_claimed:
       'That row is being worked on: its steps are claimed. Release the claims before moving work under it. Nothing was changed.',
     // The organization's cap on concurrent claims (`wbs-organization-limits`
@@ -1097,7 +1121,11 @@ export const refusalSentence = (thrown: unknown): string => {
     }
   }
   // Proof: dropping the organization limit sentence made five limit-word cases read the code-only fallback.
-  return limitSentence(thrown) ?? sentenceForRefusal(PLAN_REFUSALS, failureText(thrown, 'unknown'));
+  return (
+    limitSentence(thrown) ??
+    claimRefusalSentence(thrown) ??
+    sentenceForRefusal(PLAN_REFUSALS, failureText(thrown, 'unknown'))
+  );
 };
 
 /**
@@ -1115,6 +1143,69 @@ export function limitSentence(thrown: unknown): string | null {
   )
     return null;
   return batchLimitSentence(problem.refusal);
+}
+
+/**
+ * The sentence for a claim refused with its holders or its short resource
+ * (`wbs-claim-display` 11.3), naming who holds it from the refusal body, or
+ * null for any other failure. A bare code (from a domain claim or an older
+ * be-01) falls through to {@link PLAN_REFUSALS}.
+ *
+ * Proof: returning null here made `names the holders of an already claimed
+ * row`, the resource case and the subtree case fail on the bare sentences,
+ * which name nobody; watched 2026-10-27.
+ */
+export function claimRefusalSentence(thrown: unknown): string | null {
+  if (!(thrown instanceof WbsRequestError) || thrown.problem.kind !== 'refusal') return null;
+  const problem = thrown.problem;
+  if (problem.operation !== 'postApiProjectsByIdCommands') return null;
+  return claimDetailSentence(problem.refusal);
+}
+
+/** `claude-code (run r-1)`, or the name alone for a holder with no run (a human). */
+function holderWords(holder: { name: string; runId: string | null }): string {
+  return holder.runId === null ? holder.name : `${holder.name} (run ${holder.runId})`;
+}
+
+/** Each distinct holder once, in the body's order, joined as a reader lists them. */
+function holdersWords(holders: readonly { name: string; runId: string | null }[]): string {
+  return listed([...new Set(holders.map(holderWords))]);
+}
+
+/** `a`, `a and b`, `a, b and c`. */
+function listed(words: readonly string[]): string {
+  if (words.length <= 1) return words.join('');
+  return `${words.slice(0, -1).join(', ')} and ${words.at(-1) ?? ''}`;
+}
+
+function claimDetailSentence(refusal: BatchRefusal): string | null {
+  switch (refusal.error) {
+    case 'already_claimed':
+      return 'holders' in refusal && refusal.holders.length > 0
+        ? `Already claimed by ${holdersWords(refusal.holders)}. Nothing was changed.`
+        : null;
+    case 'inside_subtree_claim':
+      return 'holder' in refusal
+        ? `This row is inside ${holderWords(refusal.holder)}’s claim on a row above it. Nothing was changed.`
+        : null;
+    case 'overlaps_subtree_claim':
+      return 'holder' in refusal
+        ? `${holderWords(refusal.holder)} holds a claim on a row under this one. Nothing was changed.`
+        : null;
+    case 'resources_exhausted':
+      return 'resources' in refusal
+        ? `Not enough free: ${refusal.resources
+            .map(
+              (short) =>
+                `${resourceLabel(short.resourceId, undefined)} needs ${String(short.asked)}, ${String(short.free)} free${
+                  short.holders.length === 0 ? '' : `, held by ${holdersWords(short.holders)}`
+                }`,
+            )
+            .join('; ')}. Nothing was changed.`
+        : null;
+    default:
+      return null;
+  }
 }
 
 /**
@@ -1149,7 +1240,9 @@ function batchLimitSentence(refusal: BatchRefusal, resourceName?: string): strin
  */
 export function batchRefusalSentence(refusal: BatchRefusal, resourceName?: string): string {
   return (
-    batchLimitSentence(refusal, resourceName) ?? sentenceForRefusal(PLAN_REFUSALS, refusal.error)
+    batchLimitSentence(refusal, resourceName) ??
+    claimDetailSentence(refusal) ??
+    sentenceForRefusal(PLAN_REFUSALS, refusal.error)
   );
 }
 

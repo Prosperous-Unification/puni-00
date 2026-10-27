@@ -1083,8 +1083,11 @@ describe('teams and assignees', () => {
     });
     const people = await api.listPeople();
     // `kind` is on the wire and was missing from the fixture until 2026-09-02,
-    // so these three assertions described a person be-01 never sends.
-    expect(people).toEqual([{ id: 'person1', kind: 'person', name: 'Ada', teamIds: [] }]);
+    // so these three assertions described a person be-01 never sends. So was
+    // `accountId` (null while unbound) until `wbs-claim-display` 11.2.
+    expect(people).toEqual([
+      { id: 'person1', kind: 'person', name: 'Ada', teamIds: [], accountId: null },
+    ]);
   });
 
   itDom('joins a new person to the work item’s team', async () => {
@@ -1112,6 +1115,7 @@ describe('teams and assignees', () => {
         kind: 'person',
         name: 'Grace',
         teamIds: [team.id],
+        accountId: null,
       });
     });
   });

@@ -93,6 +93,10 @@ export function fakeProjectApi(): ProjectApi & {
   markers: CalendarMarkerView[];
   /** The claims this fake answers `readClaims` with; a test pushes what it needs. */
   claims: ClaimView[];
+  /** Every claim and release sent, as `claim:<row>:<person>` / `release:<row>:<person>`. */
+  claimCalls: string[];
+  /** Binds a person to the account that may act as them (`patchPerson.accountId`). */
+  bindAccount: (personId: string, accountId: string | null) => void;
   /** The claim history this fake answers `readClaimHistory` with, newest first. */
   claimHistory: ClaimHistoryEventView[];
   stack: { undoable: boolean; redoable: boolean };
@@ -221,6 +225,10 @@ export function fakeProjectApi(): ProjectApi & {
   /** Ref ids are minted by the store and never taken from a caller, as be-01's are. */
   let nextRefId = 0;
   const people: { id: string; name: string; teamIds: string[] }[] = [];
+  /** Who each person is bound to; every person reads `accountId: null` until bound. */
+  const accounts = new Map<string, string | null>();
+  const claimCalls: string[] = [];
+  let claimsMinted = 0;
   const assigned = new Map<string, string>();
   /**
    * The project's steps, which this fake can now be asked to change.
@@ -810,8 +818,65 @@ export function fakeProjectApi(): ProjectApi & {
     // an `undefined` it cannot see in production.
     listPeople: () =>
       Promise.resolve(
-        people.map((p) => ({ ...p, kind: 'person' as const, teamIds: [...p.teamIds] })),
+        people.map((p) => ({
+          ...p,
+          kind: 'person' as const,
+          teamIds: [...p.teamIds],
+          accountId: accounts.get(p.id) ?? null,
+        })),
       ),
+    bindAccount(personId: string, accountId: string | null) {
+      accounts.set(personId, accountId);
+    },
+    claimCalls,
+    /**
+     * be-01's human claim, small: all or none, every step of a leaf or the
+     * subtree of a parent, no lease, refused `already_claimed` (bare) when
+     * somebody else holds any of it.
+     */
+    claimWorkItem(workItemId: string, personId: string) {
+      claimCalls.push(`claim:${workItemId}:${personId}`);
+      const row = rows.find((each) => each.id === workItemId);
+      const person = people.find((each) => each.id === personId);
+      if (row === undefined) return Promise.reject(new Error('not_found'));
+      if (person === undefined) return Promise.reject(new Error('unknown_person'));
+      const isParent = rows.some((each) => each.parentId === workItemId);
+      const stepIds = isParent ? [null] : stepList.map((step) => step.id);
+      const held = claims.filter((claim) => claim.workItemId === workItemId);
+      if (held.some((claim) => claim.holder.personId !== personId)) {
+        return Promise.reject(new Error('already_claimed'));
+      }
+      for (const stepId of stepIds) {
+        if (held.some((claim) => claim.stepId === stepId)) continue;
+        claimsMinted += 1;
+        claims.push({
+          claimId: `claim-${String(claimsMinted)}`,
+          workItemId,
+          number: row.number,
+          numberIsFrozen: row.frozenNumber !== null,
+          name: row.name,
+          stepId,
+          holder: { personId, name: person.name },
+          runId: null,
+          parentClaimId: null,
+          claimedAt: Date.now(),
+          leaseExpiresAt: null,
+          leaseRevokedAt: null,
+        });
+      }
+      return Promise.resolve();
+    },
+    releaseWorkItem(workItemId: string, personId: string) {
+      claimCalls.push(`release:${workItemId}:${personId}`);
+      const before = claims.length;
+      const kept = claims.filter(
+        (claim) => claim.workItemId !== workItemId || claim.holder.personId !== personId,
+      );
+      claims.splice(0, claims.length, ...kept);
+      return claims.length === before
+        ? Promise.reject(new Error('not_claimed_by'))
+        : Promise.resolve();
+    },
     addPerson(name: string, teamIds: readonly string[]) {
       const already = people.find((p) => p.name === name);
       if (already !== undefined) {

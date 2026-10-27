@@ -17,7 +17,14 @@ const inputRefusal = {
   schema: responseSchema(type({ error: "'invalid_body' | 'invalid_query'" })),
 } as const;
 
-/** Process readiness and its dependency state, including deploy commit identity. */
+/**
+ * Process readiness and its dependency state, including deploy commit identity.
+ *
+ * `commit` is the commit the checkout on disk is at, read on every request;
+ * `bootCommit` is the one the process read once when it booted, so it names
+ * the code running. They differ after a reset no watcher reloaded, which is
+ * what `tools/tool-devsync` waits out. Both are null where no `.git` exists.
+ */
 export const health = defineEndpointShape({
   method: 'GET',
   path: '/health',
@@ -27,7 +34,9 @@ export const health = defineEndpointShape({
     {
       kind: 'json',
       status: 200,
-      schema: responseSchema(type({ status: "'ok'", commit: 'string | null' })),
+      schema: responseSchema(
+        type({ status: "'ok'", commit: 'string | null', bootCommit: 'string | null' }),
+      ),
     },
   ],
   refusals: [
@@ -38,6 +47,7 @@ export const health = defineEndpointShape({
           error: "'dependency_unavailable'",
           status: "'migrating' | 'database_unreachable' | 'schema_missing'",
           commit: 'string | null',
+          bootCommit: 'string | null',
         }),
       ),
     },

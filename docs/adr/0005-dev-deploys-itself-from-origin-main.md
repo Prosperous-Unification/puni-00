@@ -29,6 +29,11 @@ commit that touches no watched module moves the tree and restarts nothing, so a 
 captured at boot would report the previous deploy for as long as the process happened to
 live, and a docs-only commit's landing would otherwise be invisible.
 
+Amended 2026-10-27: `commit` proves the disk, never the running code; a watcher that missed
+a reset served the previous commit for hours under a matching `commit`. `/health` now also
+reports `bootCommit`, read once at boot, and `tool-devsync` converges on it after every reset
+([runbook](../runbook-dev-deploy.md#which-commit-dev-runs)).
+
 The poller reads `/health` from inside the container, so it goes to be-01 directly rather
 than through the basic auth at the edge, and it reads repeatedly until the served commit
 matches or a minute of attempts is out. A checkout that moved but a process that has not

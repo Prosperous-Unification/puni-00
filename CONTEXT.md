@@ -7,8 +7,13 @@ a thing IS. Design decisions live in `docs/adr/`, behaviour lives in `openspec/`
 
 ### Checkout commit
 
-The commit the dev source tree on disk is at. It describes the checkout being served,
-not the commit captured when a process or container first started.
+The commit the dev source tree on disk is at. It describes the checkout, not the code a
+running process loaded; that is its boot commit.
+
+### Boot commit
+
+The checkout commit a process read once when it booted: the code it is running. It lags
+the checkout commit until a watcher reload or a restart boots the process again.
 
 ### MCP authentication
 
@@ -1842,7 +1847,9 @@ _Avoid_: history, audit log, activity, event log
 **Acting person**:
 Whom a request's undo stack belongs to besides its account: the agent person a machine or
 consent credential is pinned to, or none when the account acts as itself (a browser session, an
-upstream token). Two credentials pinned to one agent person share its stack.
+upstream token). Two credentials pinned to one agent person share its stack. It is also the
+person a claim or release naming no person is for
+([wbs-claim-own-person](openspec/changes/wbs-claim-own-person/proposal.md)).
 _Avoid_: actor, principal, pin
 
 **Plan history**:
