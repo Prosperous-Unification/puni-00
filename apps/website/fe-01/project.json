@@ -23,7 +23,15 @@
   },
   "targets": {
     "test": {
-      "inputs": ["default", "^production", "{workspaceRoot}/docs/website/walkthrough.md"],
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/docs/website/walkthrough.md",
+        "{workspaceRoot}/apps/website/be-01/src/**/*",
+        "{workspaceRoot}/libs/website/adapters/store-sqlite/**/*",
+        "{workspaceRoot}/openspec/changes/conversion-scoping/system-prompt.md",
+        "{workspaceRoot}/openspec/changes/build-ai-chat-harness/system-prompt.md"
+      ],
       "executor": "nx:run-commands",
       "options": {
         "command": "bun test ./apps/website/fe-01/src --timeout=30000"

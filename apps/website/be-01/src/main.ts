@@ -1,5 +1,6 @@
 import { S3JournalRemote } from '@website/store-sqlite';
 
+import { requestBodyByteLimit } from './body-capacity';
 import { replyHttpIdleSeconds } from './conversation/stream';
 import { describeAlertWebhook } from './guardrail-alerts';
 import { readRetentionJournalSetting, readWebsiteApiConfig } from './runtime-config';
@@ -35,7 +36,8 @@ await api.openRetentionJournal();
 Bun.serve({
   hostname: config.apiBindHost,
   port,
-  maxRequestBodySize: 12_000,
+  // Proof: raising only this cap to 128 KiB changed source-main over-bound refusal from 413 to 400.
+  maxRequestBodySize: requestBodyByteLimit,
   // Proof: omitting this setting reset the delayed source-main HTTP test before provider completion.
   idleTimeout: replyHttpIdleSeconds,
   fetch: (request, server) => api.fetch(request, server.requestIP(request)?.address),

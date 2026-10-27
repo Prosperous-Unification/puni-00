@@ -264,3 +264,30 @@ Failing-first evidence was retained: the old formatter failed the shared v7 iden
 One affected contracts/store/API Nx test, lint, typecheck and build closure passed 85/85 contracts, 253/253 store and 367/367 API tests with zero test failures. Typecheck and build completed; only API lint failed on a test-only Bun assertion style. After that assertion was corrected, the focused meter test passed 8/8 and an uncached API lint target passed. The Nx closure used 1/11 cache hits; the final lint used 0/1. Raw outputs and SHA-256 manifest are in `.superpowers/sdd/site-revamp-plan/scoping-quality-v7-evidence/`; the sibling `scoping-quality-v7-report.md` records commands and preservation checks.
 
 `httpStatus` records only the actual numeric response status in evaluation operation/session receipts; it remains null if transport throws. HTTP503 keeps the response body/status for the caller and full unknown reservation without logging that body, headers or raw error. This cannot explain the archived c45 operation retroactively. No paid provider operation, source selection, host gate, private build, release or activation occurred. Tasks 5.1l, 5.2 and 5.3 stay open for source review, actual quality evaluation and release verification.
+
+## 2026-10-27 final review restoration
+
+I1 restores the advertised 8,000-character request and editor contract across the bounded
+reader and actual Bun entry point. The shared 64 KiB wire ceiling accommodates six-byte
+JSON escaping per UTF-16 unit, maximum email/key/version overhead, independent 4,000-character
+reference saves and native intake encoding. Schema, claim, CSRF and accounting checks remain.
+I2 reconciles a stream without finish only when the refreshed authoritative initial/latest
+operation has the exact attempted key and completed state. Historical replay framing and
+prompt presentation remain unchanged. M1 models SecurityError during optional editor-cache
+removal, allowing successful durable Start over to navigate; programmer errors still throw.
+
+The mounted API and real source-main body regression first failed 400/413, then passed for
+maximum multibyte and escaped brief/reference/proposal payloads, receipt replay and over-bound
+refusal. Mounted real API/DefaultChatTransport/harness regressions first failed for a lost
+completed reply and stale second tab, then showed one reply, visible choices, one provider
+call and one 100-microUSD settlement. Unknown/mismatched/unavailable durable confirmation
+retains Retry. The mounted Build-page storage-denial regression first observed zero
+navigations after successful discard, then one navigation and no failure.
+
+Raw evidence: `/tmp/puni-launch-final-fix-evidence/`. `mutation-summary.log` records seven
+production-path fault exits 1 and paired restored exits 0: streaming/declaration body limits,
+Bun outer capacity, replay state/key/authority, and storage error classification. Adjacent
+Proof comments identify the observed failures. Red logs remain alongside green logs.
+No paid provider, live store, Browser Use, image publication, fleet operation or deployment
+was used. Full canonical host verification is delegated to the controller at the frozen
+public commit; local covering checks are recorded in the final fix report.

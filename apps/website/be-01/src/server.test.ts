@@ -7,6 +7,7 @@ import { WebsiteStore } from '@website/store-sqlite';
 import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
+import { requestBodyByteLimit } from './body-capacity';
 import { createWebsiteApi, type WebsiteApiConfig } from './server';
 
 const directories: string[] = [];
@@ -701,7 +702,8 @@ test('chunked intake body stops reading after its byte cap', async () => {
     {
       pull(controller) {
         pulls += 1;
-        if (pulls === 1) controller.enqueue(new TextEncoder().encode('x'.repeat(12_001)));
+        if (pulls === 1)
+          controller.enqueue(new TextEncoder().encode('x'.repeat(requestBodyByteLimit + 1)));
         else throw new Error('body should not be read beyond the cap');
       },
     },
@@ -2000,4 +2002,17 @@ test('legacy pending proposals retain normalized hashing across the versioned bo
     ).status,
   ).toBe(409);
   api.close();
+});
+
+test('declared body above byte cap is refused before parsing a valid intake', async () => {
+  const { api, config } = fixture();
+  try {
+    const intake = request('/intakes', 'POST', config.publicOrigin, {
+      description: 'Valid intake',
+    });
+    intake.headers.set('content-length', String(requestBodyByteLimit + 1));
+    expect((await api.fetch(intake)).status).toBe(400);
+  } finally {
+    api.close();
+  }
 });

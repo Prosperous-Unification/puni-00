@@ -120,9 +120,21 @@ function readFields(draft: EditableDraft): { fields: Fields; failure: string; ex
   }
 }
 
-/** Removes only this browser claim's unsent fields after explicit discard or successful submission. */
-export function clearRequestEditor(csrfToken: string): void {
-  sessionStorage.removeItem(`puni_editor:${csrfToken}`);
+/**
+ * Removes this claim's optional browser recovery after durable discard/submission. Storage
+ * denial cannot undo that server outcome. Unexpected storage adapter errors still throw.
+ */
+export function clearRequestEditor(csrfToken: string): { kind: 'cleared' | 'unavailable' } {
+  try {
+    sessionStorage.removeItem(`puni_editor:${csrfToken}`);
+    return { kind: 'cleared' };
+  } catch (error) {
+    // Proof: removing SecurityError recovery blocked navigation in the mounted Start over test;
+    // broadening it to TypeError failed the programmer-error cleanup test.
+    if (error instanceof DOMException && error.name === 'SecurityError')
+      return { kind: 'unavailable' };
+    throw error;
+  }
 }
 
 /**

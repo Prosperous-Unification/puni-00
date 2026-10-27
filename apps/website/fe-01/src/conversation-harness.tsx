@@ -239,12 +239,15 @@ export function LiveHarness({
     if (viewport) viewport.scrollTop = viewport.scrollHeight;
   }, [conversation.turns.length, live?.text, live?.phase, receipt, stopped?.idempotencyKey]);
 
-  async function refresh(): Promise<void> {
+  async function refresh(): Promise<Conversation | null> {
     try {
-      setConversation(parseConversation(await requestJson<unknown>('/conversation')));
+      const refreshed = parseConversation(await requestJson<unknown>('/conversation'));
+      setConversation(refreshed);
+      return refreshed;
     } catch (error) {
       if (error instanceof ApiFailure && error.status === 401) onReload();
       else setNotice(`The conversation could not be refreshed. ${describeFailure(error)}`);
+      return null;
     }
   }
 
@@ -381,17 +384,23 @@ export function LiveHarness({
       isSending.current = false;
     }
     if (isStopRequested()) return;
-    if (isFinished) {
-      await refresh();
+    const refreshed = await refresh();
+    // A saved replay has no provider finish. Only the exact attempted operation's durable
+    // completion can confirm it; text-end/EOF alone never confirms an unknown live reply.
+    const operation = attempt.initial ? refreshed?.initialOperation : refreshed?.latestOperation;
+    // Proof: removing the state/key fences accepted unknown/different-operation replay fixtures;
+    // unconditional success accepted the unavailable-authority fixture in replay-recovery.test.tsx.
+    const isReconciled =
+      operation?.state === 'completed' && operation.idempotencyKey === attempt.idempotencyKey;
+    if (isFinished || isReconciled) {
       if (attempt.answer)
         setDraft((current) => (current === (attempt.answer?.message ?? '') ? '' : current));
       setLive(null);
       return;
     }
     milestones?.failure(new Error('Interrupted reply'));
-    // A stream that ends without `finish` was settled at its reservation by the server.
+    // Neither the stream nor its exact durable operation confirmed completion.
     setLive({ attempt, text, phase: 'failed', failure: errorText || interruptedText });
-    await refresh();
   }
 
   async function stop(): Promise<void> {
@@ -605,7 +614,9 @@ export function LiveHarness({
                 onClose={() => {
                   setReviewOpen(false);
                 }}
-                onRefresh={refresh}
+                onRefresh={async () => {
+                  await refresh();
+                }}
                 onSubmitted={() => {
                   setReceipt('saved');
                   onHandedOff();

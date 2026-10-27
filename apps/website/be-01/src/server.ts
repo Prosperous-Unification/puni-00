@@ -29,6 +29,7 @@ import {
   WebsiteStore,
 } from '@website/store-sqlite';
 
+import { requestBodyByteLimit } from './body-capacity';
 import { mintBrowserCheck, verifyBrowserCheck } from './conversation/browser-check';
 import {
   composeConversationRequest,
@@ -207,7 +208,8 @@ function emailField(value: unknown): string | null {
 
 async function readBody(request: Request): Promise<Record<string, unknown> | null> {
   const contentLength = Number(request.headers.get('content-length'));
-  if (Number.isFinite(contentLength) && contentLength > 12_000) return null;
+  // Proof: removing this check accepted the declared-over-cap valid intake in server.test.ts.
+  if (Number.isFinite(contentLength) && contentLength > requestBodyByteLimit) return null;
   const reader = request.body?.getReader();
   if (reader === undefined) return null;
   const decoder = new TextDecoder('utf-8', { fatal: true });
@@ -219,7 +221,7 @@ async function readBody(request: Request): Promise<Record<string, unknown> | nul
       if (chunk.done) break;
       receivedBytes += chunk.value.byteLength;
       // Proof: removing this limit causes the chunked-body test to read the injected second chunk and fail.
-      if (receivedBytes > 12_000) {
+      if (receivedBytes > requestBodyByteLimit) {
         await reader.cancel();
         return null;
       }
