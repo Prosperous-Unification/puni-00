@@ -499,3 +499,30 @@ The native capacity companion SHALL derive supported serial Job attempt charges 
 - **AND** missing Helm invocation/retry/remediation, hook Job generations, Flux forced-recreation and predecessor-history bindings remain explicit whole-attempt obligations
 - **AND** actual provider features, effective Pods, UIDs, mounts, logs and enforcement still require runtime evidence
 - **AND** inventory remains source-only and creation/runtime authority remain false
+
+### Requirement: Common container candidates declare ephemeral storage bounds
+
+Current platform candidates SHALL declare explicit ephemeral-storage requests and limits for the registered registry, signal, exporter, object-store and setup/snapshot container roles. The bucket initializer MUST also bound its existing temporary emptyDir. These are candidate policy inputs, not measurements or a host admission verdict.
+
+#### Scenario: The registered role is prepared from common source
+
+- **WHEN** registry, signal metrics proxy/collector/gateway, blackbox exporter, kube-state-metrics, node exporter, local MinIO or setup/snapshot/bucket containers are prepared
+- **THEN** each role has explicit nonnegative ephemeral requests and positive ephemeral limits with requests not exceeding limits
+- **AND** its existing CPU/memory policy, images, versions, replicas, security, endpoints, storage identities and functional configuration remain unchanged
+- **AND** common generated instances and actual locked outputs retain the declared bounds
+- **AND** the bucket initializer's existing temporary emptyDir has a positive size limit without introducing a duplicate mount
+
+#### Scenario: A required current bound is absent or invalid
+
+- **WHEN** a current registered candidate lacks its required map, field or scratch size, supplies null or malformed quantities, or contradicts request/limit relationships
+- **THEN** production candidate validation refuses before claiming bounded source readiness
+- **AND** missing, unreadable or malformed required source files cannot be ignored
+- **AND** structural/image reading still accepts valid historical absence as incomplete, without weakening existing supplied-value, image or ownership checks
+
+#### Scenario: Source bounds preserve unrelated obligations
+
+- **WHEN** a clean committed candidate is captured and normalized through the canonical source path
+- **THEN** exact new resource/scratch values and source/generator identities are retained while unrelated source semantics and prior captures remain unchanged
+- **AND** other unbounded receiver, Flux, node-agent, hostPath, lifecycle, system/helper/transient and retained-storage facts remain explicit
+- **AND** actual startup/load/log/eviction/recovery and effective enforcement remain required before live activation
+- **AND** source-only inventory and false creation/runtime authority do not become deployment permission
