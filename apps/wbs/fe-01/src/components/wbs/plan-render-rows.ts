@@ -10,6 +10,7 @@ import type {
 import type { PlanRead } from '@/lib/wbs-api';
 
 import type { DrawnClaim } from './claim-chip';
+import type { ClaimOffer } from './claim-offer';
 import { type PickableEntry, type PickerOption } from './creatable-picker';
 import { type PickerEntry } from './dep-picker';
 import type { DependsEntry } from './depends-card';
@@ -80,6 +81,8 @@ export interface PlanRowReadings {
   stepNodes: ReadonlyMap<string, NonNullable<PlanRead['stepNodes']>[number]> | null;
   /** The subtree claim the Name cell draws a chip for, or null. */
   subtreeClaim: DrawnClaim | null;
+  /** What the row's ⋯ offers for claiming, or null for a table drawn for no account. */
+  claimOffer: ClaimOffer | null;
   hasSchedule: boolean;
   finish: PrintedDay;
   nonOwnerNote: string | null;

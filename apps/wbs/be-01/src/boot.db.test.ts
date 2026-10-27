@@ -34,6 +34,7 @@ import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-
 interface HealthAnswer {
   status: string;
   commit: string | null;
+  bootCommit: string | null;
 }
 
 const FOLDER = new URL('../drizzle', import.meta.url).pathname;
@@ -1400,7 +1401,11 @@ describe('bootBe01', () => {
     const res = await fetch(`http://localhost:${String(be.port)}/health`);
 
     expect(res.status).toBe(200);
-    expect((await res.json()) as HealthAnswer).toEqual({ status: 'ok', commit: null });
+    expect((await res.json()) as HealthAnswer).toEqual({
+      status: 'ok',
+      commit: null,
+      bootCommit: null,
+    });
   });
 
   it('names the commit its checkout is at, not one captured at startup', async () => {
@@ -1418,14 +1423,27 @@ describe('bootBe01', () => {
     const be = await boot(repo);
 
     const first = await fetch(`http://localhost:${String(be.port)}/health`);
-    expect((await first.json()) as HealthAnswer).toEqual({ status: 'ok', commit: sha });
+    expect((await first.json()) as HealthAnswer).toEqual({
+      status: 'ok',
+      commit: sha,
+      bootCommit: sha,
+    });
 
     // The deploy this exists for moves the checkout under a process that is
     // never restarted, so the second read has to see the move.
     const moved = 'd'.repeat(39) + '4';
     writeFileSync(join(repo, '.git', 'refs', 'heads', 'main'), moved + '\n');
     const second = await fetch(`http://localhost:${String(be.port)}/health`);
-    expect((await second.json()) as HealthAnswer).toEqual({ status: 'ok', commit: moved });
+    // `bootCommit` stays where the process started: this is the stale watcher
+    // of 2026-10-26, a moved checkout under code that never reloaded, and the
+    // only field that can tell `tools/tool-devsync` so. Proof: striking
+    // `bootCommit,` from `boot.ts` failed the first read (`null` for c…3); making
+    // the endpoint answer `bootCommit = commit` failed this one (d…4 for c…3).
+    expect((await second.json()) as HealthAnswer).toEqual({
+      status: 'ok',
+      commit: moved,
+      bootCommit: sha,
+    });
   });
 
   it('holds a command batch out while the write coordinator is taken', async () => {

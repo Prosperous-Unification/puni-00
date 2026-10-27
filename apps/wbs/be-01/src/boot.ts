@@ -393,6 +393,11 @@ export async function bootBe01(
   opts: BootOptions,
   dependencies: BootDependencies = { openSource: openSqliteSource },
 ): Promise<RunningBe> {
+  // Read once, first: the modules already loaded are the commit this process
+  // runs, whatever the checkout moves to later. `/health` reports it beside
+  // the per-request `commit` so a deploy can tell a stale watcher from a
+  // landed reset (`tools/tool-devsync/src/sync.ts`, `convergeBootCommits`).
+  const bootCommit = readDeployedCommit(opts.commitDir);
   // Keys are parsed before storage opens, so a broken configured pair cannot
   // hide until a later activation.
   const delegationKeys =
@@ -741,6 +746,7 @@ export async function bootBe01(
               // under live watchers, so this process outlives the commit it
               // started on.
               deployedCommit: () => readDeployedCommit(opts.commitDir),
+              bootCommit,
               internalAuthSecret: opts.internalAuthSecret,
               ...mcpDelegationComposition(db, services, delegationKeys),
               // Proof: omitting this binding made `issues a grant once activated

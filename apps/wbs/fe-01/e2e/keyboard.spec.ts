@@ -500,11 +500,11 @@ test.describe('the command chords, in a browser', () => {
 
     await page.getByRole('button', { name: 'Actions for 010' }).click();
     // The six status entries head the menu for a silent row since
-    // `add-work-item-statuses` (Draft … Done), then Add child and Move under…;
-    // Duplicate is eight steps down, and it is the item whose plain Enter this
-    // case proves.
+    // `add-work-item-statuses` (Draft … Done), then Claim (`wbs-claim-display`
+    // 11.2), Add child and Move under…; Duplicate is nine steps down, and it is
+    // the item whose plain Enter this case proves.
     await expect(page.getByRole('menuitem', { name: 'Set status to Draft' })).toBeFocused();
-    for (let step = 0; step < 8; step += 1) await page.keyboard.press('ArrowDown');
+    for (let step = 0; step < 9; step += 1) await page.keyboard.press('ArrowDown');
     const duplicate = page.getByRole('menuitem', { name: 'Duplicate' });
     await expect(duplicate).toBeFocused();
 

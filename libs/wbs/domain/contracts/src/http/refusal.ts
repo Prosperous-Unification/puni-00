@@ -235,6 +235,11 @@ export type CommandRefusalCode =
   | 'taken'
   | 'in_use'
   // `claimWorkItem` and `releaseWorkItem` (`wbs-team-claims`), in the spec's order.
+  /**
+   * Naming no person from a request that acts as its account, which has no
+   * agent person to stand for (`wbs-claim-own-person`).
+   */
+  | 'person_required'
   | 'person_not_bound'
   | 'credential_not_for_person'
   | 'parent_claim_unknown'
@@ -726,7 +731,7 @@ type SharedCommandCode =
  * Approved translations preserve statuses: bodiless callback 400 becomes
  * invalid_oidc_callback; callback/refresh 401 becomes invalid_oidc_session;
  * unresolved OIDC account 409 becomes oidc_identity_conflict. Health 503 becomes
- * dependency_unavailable and retains status/commit. Malformed JSON 400 becomes
+ * dependency_unavailable and retains status/commit/bootCommit. Malformed JSON 400 becomes
  * invalid_json; freeform smoke/internal validation 400 becomes invalid_body
  * (existing invalid_body 422 arms stay 422). Cookies, logs and timing stay local
  * to their endpoint; RefusalStatus does not infer a status from a code.
@@ -822,6 +827,7 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     dependency_unavailable: {
       status: 'migrating' | 'database_unreachable' | 'schema_missing';
       commit: string | null;
+      bootCommit: string | null;
     };
     /** Enforced SSO refused this credential in this organization only (`organization-sso`). */
     sso_required: { organizationId: string; login: string; link: true };

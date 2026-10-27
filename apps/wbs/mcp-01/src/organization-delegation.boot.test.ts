@@ -549,6 +549,29 @@ describe('MCP organization delegation against a booted be-01', () => {
     expect(members.text).toContain('insufficient_scope');
   });
 
+  // `wbs-claim-own-person`: a claim naming no person is the consent's agent's.
+  // Proof: with `CommandContext.claimant`'s acting-person default removed, this
+  // claim answered HTTP 400 person_required; watched 2026-10-26.
+  test("a consent session's claim naming no person claims as its agent", async () => {
+    const created = await tool(sessions['dany'] ?? '', 'postApiProjectsByIdCommands', {
+      id: ids.launch,
+      commands: [{ kind: 'createWorkItem', parentId: null, afterId: null, name: 'Own' }],
+    });
+    const own = (JSON.parse(created.text) as { results: { id: string }[] }).results[0]?.id;
+    const before = (await (await fetch(`${beUrl}/__fixture/claims`)).json()) as unknown[];
+    const claimed = await tool(claire.access, 'postApiProjectsByIdCommands', {
+      id: ids.launch,
+      commands: [{ kind: 'claimWorkItem', workItemId: own }],
+    });
+    expect(claimed.text).not.toContain('person_required');
+    expect(claimed.isError).toBe(false);
+    const after = (await (await fetch(`${beUrl}/__fixture/claims`)).json()) as {
+      personId: string;
+    }[];
+    expect(after.length).toBeGreaterThan(before.length);
+    expect(new Set(after.map((row) => row.personId))).toEqual(new Set(['claire']));
+  });
+
   test('refresh keeps the agent alive as the agent', async () => {
     const refreshed = await refreshWith(claire.refresh, claire.clientId);
     expect(refreshed.status).toBe(200);
@@ -573,6 +596,16 @@ describe('MCP organization delegation against a booted be-01', () => {
       commands: [{ kind: 'claimWorkItem', workItemId: human, personId: 'codex' }],
     });
     expect(asCodex.isError).toBe(false);
+    // `wbs-claim-own-person`: the human session acts as its account, so it names a person.
+    // Proof: with `claimant` falling back to the actor id, this answered HTTP 404
+    // unknown_person instead of 400 person_required; watched 2026-10-26.
+    const unnamed = await tool(dany.access, 'postApiProjectsByIdCommands', {
+      id: ids.launch,
+      commands: [{ kind: 'releaseWorkItem', workItemId: human }],
+    });
+    expect(unnamed.isError).toBe(true);
+    expect(unnamed.text).toContain('HTTP 400');
+    expect(unnamed.text).toContain('person_required');
   });
 
   test('a second consent for the same agent mints a second credential', async () => {

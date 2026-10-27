@@ -115,6 +115,9 @@ Tasks 6a.1–6a.2 are expanded in [storage tasks](storage-tasks.md), implementin
 
 - [ ] 6a.5 Red/green: persist admission/launch intent, exact claim receipts and operation-key
       locators; commit outcomes and outbox atomically, reconcile WBS acceptance before successors.
+      The next production connection is [preparation dispatch](preparation-dispatch-tasks.md):
+      verified intent precedes session creation and committed locator precedes live-session
+      publication. This slice leaves claim transport, turn dispatch and exact outcome delivery open.
 - [ ] 6a.6 Red: coordinator-only crash with worker surviving, effect-before-result-save,
       progress-before-ack/outcome-before-reply, duplicate signals, stale local owner, stale WBS
       claim and unresolved worker/effect state. Fault injection must catch bypassed local
