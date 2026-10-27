@@ -2224,3 +2224,57 @@ The validated selection artifact 12746096447 compares base `e3a973aabd2d912981a7
 Reviewed bootstrap checkpoint `7638305a70b0f65cde4cefc997a0e5bac74a594e` was normally pushed to `feat/observability-parity-implementation`, PR #760 OPEN/draft, while later native source work stayed local. Its completed Fleet job 122338480877 passed 2200 tests, skipped the same seven opt-in Elastic lab cases as 0ea, failed 0 (2,207 tests across 85 files, 724.62s). Deploy passed 828 tests with zero failures across 32 files in 65.25s. Stable pixels 122351149202 and CodeQL 40546507925 succeeded. At 17:27:49 UTC its own main 40546519578 workspace/Twilight and Infra 40546519843 generic K3s job 122347688020 were still live; their final outcomes remain unverified here. Old 0ea success cannot certify 7638 or later native commits. Trusted-wiki 40546509129 skipped.
 
 Evidence was obtained with `gh run view <run> --repo Prosperous-Unification/puni-00 --json databaseId,headSha,status,conclusion,jobs`; the completed Fleet log used `gh api --allow-escape-sequences repos/Prosperous-Unification/puni-00/actions/jobs/122338480877/logs`. Retained workspace log SHA-256: 0d5380195b911fe0907a0ccbad1e2e6f9b1142c194fee9a2557a81e9babdc5f0. Retained 7638 Fleet log SHA-256: 4cd7b2e3d073ae69f55163f9ccb312dc7836b9989f82982b3e52d4d3f329cd20 (664,141 bytes). These are existing CI observations, not a new test execution or full observability rehearsal. Actual source/capacity admission, Kubernetes observability acceptance, operator views, history/recovery and live convergence remain open.
+
+## Task25c3b — conditional native Deployment first replacement wave
+
+Approved four-artifact intent and implementation BASE: `89323516a9424f2dd58ea936f14e6afd805c5b65`. Source commit: `adfc22f5f9c036d8466a319ab220480712962cb4`. This completes the bounded Deployment source slice for scoped review, not full task 3.1 or runtime admission. No values, resource caps, replicas, pins, CI, rendered graph or runtime inputs changed.
+
+The existing validated traversal now checks known Deployment strategy/count/deadline fields before incomplete shortcuts. Recreate plus rolling fields, foreign StatefulSet fields, malformed integer/percentage values, both rolling quantities zero and deadline/readiness contradictions refuse. MaxSurge percentages may exceed 100%; maxUnavailable percentages may not. These rules and defaults are bound to [Kubernetes v1.36.4 validation](https://raw.githubusercontent.com/kubernetes/kubernetes/v1.36.4/pkg/apis/apps/validation/validation.go) and [defaulting](https://raw.githubusercontent.com/kubernetes/kubernetes/v1.36.4/pkg/apis/apps/v1/defaults.go), not observed runtime behavior.
+
+Supported source gets R full initial plus R full first-replacement Pod charges through existing normalization, expansion and summation. Initial/replacement cohort slots are accounting coordinates, not live Pod names, UIDs or ordinals. The fixed same-template/single-ReplicaSet scenario requires complete successful/uncertain creation history, reconciled creation observations, no prior/adopted work, unchanged identity/template/scale, no unaccounted create retries and no replacement of a replacement. Force deletion, lost nodes, foreign mutation, rollout and controller recreation remain excluded. Every supported owner retains `deployment-replacement-wave-runtime-binding`; independently establishing and enforcing the event constraints remains required before admission. Neither policy, historical snapshot, grace nor a caller boolean establishes that future bound.
+
+Task29 lifecycle records, scope, nine charges and unrelated obligations remain exact. The output adds separate `deploymentScope`/`deploymentLifecycles` and Deployment entries. Two existing inventory metadata interfaces are exported solely to name the inferred public return type; no raw manifests entered public inventory. One existing ordinal assertion narrows the additive concurrency union without changing its expected values. Selected/cutover production code is untouched.
+
+### Retained-source control
+
+The single retained control ran against **clean adapter adfc22f5f9c036d8466a319ab220480712962cb4**, independently preserving **captured source 5bd1104bf76e0a36c5d34ddcc2a4ba6f4b4e6b57**. It verified the original three capture hashes/modes (unchanged from Task25c3a), selected toolchain bytes, all 25 frames/11 stages, exact receipt inventory and all 80 original unresolved facts. It passed **1 test / 79 assertions / 0 failures**, Bun 4.07s, process 4.115s. No graph/chart/public-entry rerender occurred.
+
+Six actual positive owners: registry, kps-operator, both namespace-specific signal-metrics, blackbox-exporter and kube-state-metrics. Twelve new Pod slots contribute **2688Mi memory, 590m CPU requests and 512Mi known ephemeral declaration**. The complete conditional ledger is **6272Mi / 1090m / 8960Mi known disk**, with **21 charges and 106 blockers**. These are source reservations/contributions, not hardware sizing, observed usage, enforced storage quotas or a complete fit.
+
+Ten Deployments retain independent blockers: three cert-manager resource-map omissions; Velero's init resource omission; alert-receiver and all four Flux controllers' unbounded emptyDirs; object-store's unbounded writable root. Velero additionally declares unbounded scratch/plugins and writable roots; this decoder retains the missing-resource primary obligation rather than fabricating a complete Pod. Registry's external claim and five positive owners' missing ephemeral-limit/writer obligations remain explicit. The retained control compared every old StatefulSet entry/lifecycle and every non-Deployment blocker exactly to the prior receipt, including all nine Jobs, four DaemonSets and one CronJob.
+
+### RED, watched faults and restored checks
+
+Decoder RED: 23 expected failures; GREEN: 24 passing cases after explicit array-shape refusal. First-wave RED: 22 expected failures with 24 prior decoder cases passing. Final restored focused suite: **56 pass / 148 assertions / 0 failures**, Bun 662ms, process 0.679s. Two touched ordinal compatibility controls passed **2/2, 16 assertions**, Bun 537ms/process 0.549s.
+
+Setup/expectation corrections were recorded rather than counted as behavioral failures: an initial test write used the wrong project-relative path and created no file; an initial decoder command used the repository root with project-relative arguments; the first schema allowed arrays for optional-only objects; two expected values were corrected to the existing unresolved-namespace identity and max-based ephemeral normalization; one quantity diagnostic already came from the earlier inventory boundary. Scoped typing required the two metadata type exports and an ordinal-only assertion narrowing; lint required block arrows and a typed expected-array construction. No source contract was weakened to make these pass.
+
+**41 new safety faults** were individually observed failing production-path controls and restored, total process 23.982s. They cover schema/array shapes; four foreign-field omissions; Recreate contradiction; surge/unavailable inputs, numeric/percent domains, percentage bound, zero relationship and deadline; early prepass ordering; source defaults/template identity; runtime history/replacement/observation conditions; omitted or zeroed cohorts and duplicate slot identities; source identity/namespace/provider/paused/count/resource blockers; frame/pointer provenance; exact claim namespace/reference; app/init writer obligations; runtime-wave blocker and combined totals. Adjacent `Proof:` comments name the injected faults. The before/after restoration hash matches; `/tmp/puni-task25c3b/source-before-proofs.ts` preserves that exact input. Final changes after the faults were Proof comments and helper naming, followed by the restored suite and statics.
+
+Commands ran from the repository root unless marked project directory. Exact command arrays, UTC starts, exits and timings are retained in `checks.json`, `proofs.json` and `retained-control.json` under `/tmp/puni-task25c3b/`.
+
+```bash
+# tools/tool-fleet
+bun test --preload ../test/scratch/preload.ts src/observability-native-deployment.test.ts
+bun test --preload ../test/scratch/preload.ts src/observability-native-ordinal.test.ts -t 'default StatefulSet lifecycle|claim concurrency metadata'
+bun test /tmp/puni-task25c3b/retained.test.ts
+# repository root
+python3 /tmp/puni-task25c3b/prove.py
+bunx tsc --project tools/tool-fleet/tsconfig.lib.json --noEmit --incremental false
+bunx tsc --project tools/tool-fleet/tsconfig.spec.json --noEmit --incremental false
+bunx eslint tools/tool-fleet/src/observability-native-ordinal.ts tools/tool-fleet/src/observability-native-deployment.test.ts tools/tool-fleet/src/observability-native-ordinal.test.ts tools/tool-fleet/src/observability-rehearsal-inventory.ts
+bunx prettier --check tools/tool-fleet/src/observability-native-ordinal.ts tools/tool-fleet/src/observability-native-deployment.test.ts tools/tool-fleet/src/observability-native-ordinal.test.ts tools/tool-fleet/src/observability-rehearsal-inventory.ts
+git diff --check
+```
+
+Final source/test typechecks, scoped lint, format and whitespace exited 0 in **1.028s / 1.213s / 4.188s / 0.466s / 0.010s**. `bunx openspec validate observability-environment-parity --strict --json` passed one change with zero issues in 16ms (0.118s process); canonical artifact format/whitespace passed. Normal source pre-commit hooks passed in 4.29s; Tool Wiki explicitly remained inactive/uncertified (external activation root unprovisioned), and migration/doc-cap hooks were inapplicable.
+
+Evidence SHA-256:
+
+- Source adapter: `23045269d5b1dbec1ce23caacca38260fcac673c1a7041da7813da41684fdc33`.
+- New Deployment tests: `e3b6345359aa8eae15894e7d121e131dad459efd2b9b8f26ab5a41727801d292`.
+- Proof receipt: `e49010773f712c202b53d9c3fece01b16ae639e725c490f1673750104445bee0`.
+- Retained test: `f4c4420663ee0489cee53c6e41d85bb9253f8084665712ad59cd601b817e0b85`.
+- Retained ledger: `59c1d554ce3972d2a01cca4ba06ecf0c9a6cf6ed8990af1aa908b68636704aa6`.
+
+Not run: historical Task29 test/fault batches, full suites/build/host gates, unchanged rendering, Kubernetes/Docker/image/store/credential/host actions, CI reruns, push/merge or deploy. These are outside this bounded source slice; root owns review/publication/CI. Full source/measurement/host admission, actual runtime ownership/enforcement, Flux, stored signals/views/history/recovery and live acceptance remain required. Creation/runtime authority remains false.
