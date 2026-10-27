@@ -185,13 +185,14 @@ test.each(['extra-file', 'altered-bytes', 'missing-file'])(
   },
 );
 
-test('stale source revision is rejected even with valid source-shaped packet', () => {
-  const prior = Bun.spawnSync(['git', 'rev-parse', 'HEAD^'], { cwd: root })
-    .stdout.toString()
-    .trim();
-  expect(
-    validateObservabilityRehearsal(root, tools, { ...request, sourceRevision: prior }, packet),
-  ).rejects.toThrow(/provenance/);
+test('altered receipt source revision is rejected as provenance mismatch', async () => {
+  const copy = await mkdtemp(join(directory, 'provenance-'));
+  await cp(packet, copy, { recursive: true });
+  const receiptPath = join(copy, 'rehearsal.json');
+  const receipt = parseDocument(await readFile(receiptPath, 'utf8'));
+  receipt.set('sourceRevision', `${revision.startsWith('0') ? '1' : '0'}${revision.slice(1)}`);
+  await writeFile(receiptPath, JSON.stringify(receipt.toJSON()));
+  expect(validateObservabilityRehearsal(root, tools, request, copy)).rejects.toThrow(/provenance/);
 });
 
 test('unknown source revision cannot generate a packet', () => {

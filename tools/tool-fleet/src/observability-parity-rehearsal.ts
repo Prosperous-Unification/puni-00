@@ -685,7 +685,7 @@ export async function validateObservabilityRehearsal(
 ): Promise<ObservabilityRehearsalReceipt> {
   const expected = await buildPacket(root, input);
   const recorded: unknown = JSON.parse(await readFile(join(directory, receiptName), 'utf8'));
-  // Proof: removing equality accepted the stale-revision packet; stale-source negative failed.
+  // Proof: removing equality accepted the altered receipt sourceRevision; the provenance-mismatch negative failed.
   if (!isDeepStrictEqual(recorded, expected.receipt))
     throw new Error('Rehearsal provenance differs');
   // Inspect symlinks before kubectl reads any local reference.
