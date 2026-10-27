@@ -1,3 +1,4 @@
+import { rejects } from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -223,4 +224,98 @@ test('bootstrap duplicate application frame refuses at origin closure', () => {
       bootstrap,
     ),
   ).toThrow(/frame closure/);
+});
+
+async function inspectCRD(change: (manifest: Record<string, unknown>) => void = () => undefined) {
+  const manifest: Record<string, unknown> = {
+    apiVersion: 'apiextensions.k8s.io/v1',
+    kind: 'CustomResourceDefinition',
+    metadata: { name: 'examples.example.invalid' },
+    spec: {
+      versions: [
+        {
+          name: 'v1',
+          schema: {
+            openAPIV3Schema: {
+              type: 'object',
+              properties: {
+                apiVersion: { type: 'string' },
+                kind: { type: 'string' },
+                metadata: { type: 'object' },
+                secretRef: { type: 'object', properties: { name: { type: 'string' } } },
+              },
+            },
+          },
+        },
+      ],
+    },
+  };
+  change(manifest);
+  const declarations = await readFile(
+    join(root, 'infra/platform/secrets/platform-local/externally-provided.json'),
+  );
+  return inspectRehearsalKubernetesSources(
+    new Map([
+      ['infra/platform/secrets/platform-local/externally-provided.json', declarations],
+      ['infra/platform/flux/install.yaml', Buffer.from(encode(manifest))],
+    ]),
+    [],
+  );
+}
+test('bootstrap CRD schema vocabulary is not a realized resource or Secret reference', async () => {
+  const inspected = await inspectCRD();
+  expect(inspected.secretReferences).toEqual([]);
+});
+test.each(['conversion-reference', 'malformed-embedded', 'material'] as const)(
+  'bootstrap CRD still inspects %s outside reference-schema interpretation',
+  async (fault) => {
+    const failure = inspectCRD((manifest) => {
+      const spec = manifest['spec'] as Record<string, unknown>;
+      if (fault === 'conversion-reference')
+        spec['conversion'] = { webhook: { clientConfig: { secretRef: { name: 'undeclared' } } } };
+      if (fault === 'malformed-embedded')
+        spec['outside'] = { apiVersion: 'v1', kind: {}, metadata: {} };
+      if (fault === 'material')
+        spec['versions'] = [
+          {
+            name: 'v1',
+            schema: {
+              openAPIV3Schema: {
+                type: 'object',
+                description: '-----BEGIN PRIVATE KEY----- fixture',
+              },
+            },
+          },
+        ];
+    });
+    await rejects(
+      failure,
+      fault === 'material'
+        ? /Secret material/
+        : fault === 'conversion-reference'
+          ? /Secret reference/
+          : /kind/,
+    );
+  },
+);
+test.each([
+  'foreign-api',
+  'ordinary-resource',
+  'schema-array',
+  'schema-null',
+  'schema-root-array',
+  'versions-object',
+] as const)('bootstrap schema boundary refuses %s', async (fault) => {
+  await rejects(
+    inspectCRD((manifest) => {
+      if (fault === 'foreign-api') manifest['apiVersion'] = 'example.invalid/v1';
+      if (fault === 'ordinary-resource') manifest['kind'] = 'ConfigMap';
+      const spec = manifest['spec'] as Record<string, unknown>;
+      if (fault === 'schema-array') spec['versions'] = [{ name: 'v1', schema: [] }];
+      if (fault === 'schema-null') spec['versions'] = [{ name: 'v1', schema: null }];
+      if (fault === 'schema-root-array')
+        spec['versions'] = [{ name: 'v1', schema: { openAPIV3Schema: [] } }];
+      if (fault === 'versions-object') spec['versions'] = {};
+    }),
+  );
 });

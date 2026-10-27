@@ -278,10 +278,13 @@ export function inspectRehearsalSecrets(
     namespace: string | undefined,
     consumer: string,
     path: string,
+    schemaRoots: ReadonlySet<string>,
   ): void {
+    // Proof: Task25c2b crd-schema-distinction omission misread schema vocabulary; whole-CRD skipping hid conversion/embedded-object faults.
+    if (schemaRoots.has(path)) return;
     if (Array.isArray(value)) {
       value.forEach((entry: unknown, index) => {
-        scan(entry, namespace, consumer, `${path}/${String(index)}`);
+        scan(entry, namespace, consumer, `${path}/${String(index)}`, schemaRoots);
       });
       return;
     }
@@ -330,17 +333,37 @@ export function inspectRehearsalSecrets(
           consumer,
           next,
         );
-      } else scan(child, namespace, consumer, next);
+      } else scan(child, namespace, consumer, next, schemaRoots);
     }
   }
   for (const { path, document, identity } of manifests) {
     if (identity.kind === 'Certificate') continue;
     const consumer = `${identity.kind}/${identity.metadata.namespace ?? '_'}/${identity.metadata.name}`;
+    const schemaRoots = new Set<string>();
+    // Proof: Task25c2b crd-api-scope weakening exempted foreign APIs and ordinary resources.
+    if (
+      identity.kind === 'CustomResourceDefinition' &&
+      document.get('apiVersion') === 'apiextensions.k8s.io/v1'
+    ) {
+      // Proof: Task25c2b crd-known-shape bypass accepted a null schema boundary.
+      const definition = type({
+        spec: {
+          versions: type({ 'schema?': { 'openAPIV3Schema?': 'Record<string,unknown>' } }).array(),
+        },
+      }).assert(document.toJSON());
+      definition.spec.versions.forEach((version, index) => {
+        // Proof: Task25c2b crd-map-shape removal accepted schema/root arrays as maps.
+        if (Array.isArray(version.schema) || Array.isArray(version.schema?.openAPIV3Schema))
+          throw new Error('Rehearsal malformed CRD schema boundary');
+        schemaRoots.add(`${path}/spec/versions/${String(index)}/schema/openAPIV3Schema`);
+      });
+    }
     scan(
       type({ 'spec?': 'unknown' }).assert(document.toJSON()).spec,
       identity.metadata.namespace,
       consumer,
       path + '/spec',
+      schemaRoots,
     );
     if (
       identity.kind === 'HelmRelease' &&
