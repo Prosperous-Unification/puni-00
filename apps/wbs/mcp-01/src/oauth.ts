@@ -49,6 +49,11 @@ import {
   MachineGrantDefect,
 } from './machine-grant-client';
 import {
+  type IssuanceReservation,
+  type MachineLimits,
+  MachineTrafficLimits,
+} from './machine-limits';
+import {
   type ConsentOrganizations,
   type OrganizationAuthority,
   organizationAuthority,
@@ -66,6 +71,7 @@ import {
   McpSessionStore,
   type RegisteredClient,
 } from './session-store';
+import { sourceAddressOf } from './source-address';
 import { ACTIVATED_CREDENTIAL_EPOCH, SUPPORTED_CREDENTIAL_EPOCH } from './store-migrations';
 import {
   CLIENT_CREDENTIALS_GRANT,
@@ -207,19 +213,6 @@ const MACHINE_TOKEN_EARLY_SECONDS = 60;
 /** The largest share of the TTL the uniform jitter takes off (M4). */
 const MACHINE_TOKEN_JITTER = 0.1;
 
-/**
- * The per-replica fence a token request passes before be-01 is asked: null to
- * admit it, or how many seconds the client should wait. M10's limits arrive
- * with task 4.2 (`wbs-mcp-agent-surface` tasks.md); until then production
- * composes {@link NO_TOKEN_ENDPOINT_LIMITS}.
- */
-export type TokenEndpointLimit = (attempt: {
-  readonly source: string;
-}) => { readonly retryAfterSeconds: number } | null;
-
-/** Admits every token request: the composition until M10's limits land (task 4.2). */
-export const NO_TOKEN_ENDPOINT_LIMITS: TokenEndpointLimit = () => null;
-
 /** What the token endpoint needs to answer the machine grants (`wbs-mcp-agent-surface` M2–M4). */
 export interface MachineGrantSettings {
   /** be-01's grant route, the only verifier of a key or an assertion. */
@@ -233,7 +226,11 @@ export interface MachineGrantSettings {
   readonly tokenTtlSeconds: number;
   /** A uniform draw from [0, 1) for the jitter; `Math.random` when absent. */
   readonly jitter?: () => number;
-  readonly limit: TokenEndpointLimit;
+  /**
+   * M10's per-replica limits, shared by the token endpoint and every machine caller's
+   * `tools/call`; production composes {@link MachineTrafficLimits}.
+   */
+  readonly limit: MachineLimits;
   /**
    * Reports a fault be-01's answer revealed ({@link MachineGrantDefect}),
    * redacting the deployment's secrets, as `main.ts` composes it; the client
@@ -354,6 +351,8 @@ export class McpOAuthServer implements McpOAuthHandler {
   private readonly refusedMachineTokens: RefusedMachineTokens;
   /** Absent, as for a server built without it, machine grants are refused like gateway mode. */
   private readonly authMode: McpConfig['MCP_AUTH_MODE'] | undefined;
+  /** `MCP_TRUSTED_PROXY_HOPS`: how a request's source address is read (M10). */
+  private readonly trustedProxyHops: number;
 
   private readonly clientLimit: number;
   private readonly clientSourceLimit: number;
@@ -365,7 +364,8 @@ export class McpOAuthServer implements McpOAuthHandler {
   private readonly routeEvidence: Options['routeEvidence'];
   private readonly readRefreshAuthority: McpRefreshAuthorityReader | undefined;
   constructor(
-    config: Pick<McpConfig, 'MCP_PUBLIC_URL'> & Partial<Pick<McpConfig, 'MCP_AUTH_MODE'>>,
+    config: Pick<McpConfig, 'MCP_PUBLIC_URL' | 'MCP_TRUSTED_PROXY_HOPS'> &
+      Partial<Pick<McpConfig, 'MCP_AUTH_MODE'>>,
     private readonly upstream: UpstreamClient,
     options: Options = {},
   ) {
@@ -406,6 +406,7 @@ export class McpOAuthServer implements McpOAuthHandler {
     this.reportFault = options.reportFault;
     this.refusedMachineTokens = new RefusedMachineTokens(this.now);
     this.authMode = config.MCP_AUTH_MODE;
+    this.trustedProxyHops = config.MCP_TRUSTED_PROXY_HOPS;
     if (this.organizations !== undefined && this.reportFault === undefined)
       throw new Error('organization authority needs a deployment fault reporter');
     // Proof: 2026-10-21, without this refusal `refuses to start at the activated epoch without
@@ -427,17 +428,29 @@ export class McpOAuthServer implements McpOAuthHandler {
     });
   }
 
-  async response(request: Request): Promise<Response | undefined> {
+  /**
+   * Answers an OAuth route, or undefined for any other path.
+   *
+   * @param request the HTTP request.
+   * @param peer the socket's remote address, read only with `MCP_TRUSTED_PROXY_HOPS=0`; null
+   *   where no socket is known, as for a test's request, which then counts as unattributed.
+   */
+  async response(request: Request, peer: string | null = null): Promise<Response | undefined> {
     const url = new URL(request.url);
+    const source = sourceAddressOf(
+      request.headers.get('x-forwarded-for'),
+      peer,
+      this.trustedProxyHops,
+    );
     const evidenceRequest = this.routeEvidence === undefined ? undefined : request.clone();
     let response: Response | undefined;
     if (url.pathname === new URL(`${this.issuer}/register`).pathname && request.method === 'POST') {
-      response = await this.register(request);
+      response = await this.register(request, source);
     } else if (
       url.pathname === new URL(`${this.issuer}/authorize`).pathname &&
       request.method === 'GET'
     ) {
-      response = await this.authorize(request, url);
+      response = await this.authorize(request, url, source);
     } else if (url.pathname === new URL(this.callbackUrl).pathname && request.method === 'GET') {
       response = await this.callback(request, url);
     } else if (
@@ -449,7 +462,7 @@ export class McpOAuthServer implements McpOAuthHandler {
       url.pathname === new URL(`${this.issuer}/token`).pathname &&
       request.method === 'POST'
     ) {
-      response = await this.token(request);
+      response = await this.token(request, source);
     } else if (
       url.pathname === new URL(`${this.issuer}/revoke`).pathname &&
       request.method === 'POST'
@@ -582,6 +595,7 @@ export class McpOAuthServer implements McpOAuthHandler {
         settings.secret,
         this.refusedMachineTokens,
         settings.reportFault,
+        settings.limit,
       ),
     };
   }
@@ -805,7 +819,7 @@ export class McpOAuthServer implements McpOAuthHandler {
     return grant;
   }
 
-  private async register(request: Request): Promise<Response> {
+  private async register(request: Request, source: string): Promise<Response> {
     let body: unknown;
     try {
       body = await request.json();
@@ -845,7 +859,6 @@ export class McpOAuthServer implements McpOAuthHandler {
       return protocolError('invalid_redirect_uri');
     }
     this.cleanup();
-    const source = sourceOf(request);
     const issuedAt = this.now();
     const client = this.store.admitClient(
       source,
@@ -930,7 +943,7 @@ export class McpOAuthServer implements McpOAuthHandler {
    * not qualify.
    */
   private readmitClient(
-    request: Request,
+    source: string,
     clientId: string,
     redirectUri: string,
   ): RegisteredClient | 'refused' | null {
@@ -949,7 +962,6 @@ export class McpOAuthServer implements McpOAuthHandler {
     // answered 302 for the planted-query and oversized loopbacks and invalid_request for the rest.
     if (isMalformedRedirect(redirectUri) || !isListedRedirect(redirectUri)) return null;
     const now = this.now();
-    const source = sourceOf(request);
     // Proof: 2026-10-25, admitting with `() => true` made `re-admits a swept client only within
     // the per-source unproven cap` (oauth.test.ts) answer 302 instead of 429.
     const client = this.store.readmitClient(
@@ -960,7 +972,7 @@ export class McpOAuthServer implements McpOAuthHandler {
     return client ?? 'refused';
   }
 
-  private async authorize(request: Request, url: URL): Promise<Response> {
+  private async authorize(request: Request, url: URL, source: string): Promise<Response> {
     const params = url.searchParams;
     const clientId = params.get('client_id') ?? '';
     const redirectUri = params.get('redirect_uri') ?? '';
@@ -992,7 +1004,7 @@ export class McpOAuthServer implements McpOAuthHandler {
     // directly. `invalid_client` is the token-endpoint code (RFC 6749 §5.2), reused here because
     // no redirect is allowed; Claude Code does not re-register on seeing it, which is why an
     // absent id that qualifies is re-admitted first.
-    const client = stored ?? this.readmitClient(request, clientId, redirectUri);
+    const client = stored ?? this.readmitClient(source, clientId, redirectUri);
     if (client === 'refused') return protocolError('temporarily_unavailable', undefined, 429);
     if (client === null) {
       return protocolError(
@@ -1419,12 +1431,13 @@ export class McpOAuthServer implements McpOAuthHandler {
     return { markerId, expiresAt };
   }
 
-  private async token(request: Request): Promise<Response> {
+  private async token(request: Request, source: string): Promise<Response> {
     const form = await request.formData();
     if (form.get('grant_type') === 'refresh_token') return await this.refreshGrant(form);
     // Proof: without this dispatch every grant test in machine-token.boot.test.ts failed
     // (invalid_grant); watched 2026-10-27.
-    if (isMachineGrantType(form.get('grant_type'))) return await this.machineToken(request, form);
+    if (isMachineGrantType(form.get('grant_type')))
+      return await this.machineToken(request, form, source);
 
     const code = stringField(form, 'code');
     this.cleanup();
@@ -1629,7 +1642,7 @@ export class McpOAuthServer implements McpOAuthHandler {
    * @throws {MachineGrantDefect} when be-01 answers what this release does not
    *   model, its `internal_unauthorized` included: a server fault, not a refusal.
    */
-  private async machineToken(request: Request, form: FormData): Promise<Response> {
+  private async machineToken(request: Request, form: FormData, source: string): Promise<Response> {
     const settings = this.machineGrants;
     // Gateway mode admits no machine (M11), whatever was composed.
     // Proof: without the mode test, `answers unsupported_grant_type in gateway mode, even with
@@ -1637,7 +1650,7 @@ export class McpOAuthServer implements McpOAuthHandler {
     if (settings === undefined || this.authMode !== 'standalone')
       return machineRefusal('unsupported_grant_type');
     try {
-      return await this.answerMachineGrant(request, form, settings);
+      return await this.answerMachineGrant(request, form, source, settings);
     } catch (cause) {
       if (!(cause instanceof MachineGrantDefect)) throw cause;
       // Proof: rethrowing here made `answers a be-01 fault 502 server_error and reports it`
@@ -1647,29 +1660,76 @@ export class McpOAuthServer implements McpOAuthHandler {
     }
   }
 
+  /**
+   * {@link machineToken} past the mode check. M10's limits are asked after the request is
+   * parsed, which reads nothing, so the `client_id` it names is known. The request reserves its
+   * failure and per-source issuance tokens before be-01 is asked, and its outcome settles the
+   * reservation: every `invalid_client` and `invalid_grant` answered, the parser's included, is
+   * a failed authentication; a grant signed is an issuance; anything else gives every token
+   * back, a thrown defect included.
+   */
   private async answerMachineGrant(
     request: Request,
     form: FormData,
+    source: string,
     settings: MachineGrantSettings,
   ): Promise<Response> {
-    const limited = settings.limit({ source: sourceOf(request) });
-    // RFC 6749 §5.2 has no rate-limit error, so none is invented (M10).
-    // Proof: with this removed, `answers 429 invalid_request with Retry-After when the limit
-    // refuses, asking nobody` (machine-token.test.ts) answered 200; watched 2026-10-27.
-    if (limited !== null)
-      return machineRefusal('invalid_request', 'rate_limited', limited.retryAfterSeconds);
     const parsed = parseMachineTokenRequest(
       form,
       request.headers.get('authorization'),
       this.audience,
     );
-    if (parsed.kind === 'refused') return machineRefusal(parsed.error, parsed.description);
-    // The one answer for every refusal of this request's credential.
+    const admission = settings.limit.reserveIssuance({
+      source,
+      clientId:
+        parsed.kind === 'refused'
+          ? null
+          : parsed.grant === 'client_credentials'
+            ? parsed.keyCredentialId
+            : parsed.clientId,
+    });
+    // RFC 6749 §5.2 has no rate-limit error, so none is invented (M10).
+    // Proof: with this removed, `answers 429 invalid_request with Retry-After when the limit
+    // refuses, asking nobody` (machine-token.test.ts) answered 200; watched 2026-10-27.
+    if (admission.kind === 'limited') return rateLimited(admission.retryAfterSeconds);
+    const { reservation } = admission;
+    try {
+      if (parsed.kind === 'refused') {
+        // Proof: with this count removed, `counts a secret the parser refuses, never asking
+        // be-01, as a failure too` (machine-limits.test.ts) answered the 31st 401; watched
+        // 2026-10-27.
+        if (parsed.error === 'invalid_client' || parsed.error === 'invalid_grant')
+          reservation.failed();
+        return machineRefusal(parsed.error, parsed.description);
+      }
+      return await this.answerParsedMachineGrant(parsed, settings, reservation);
+    } finally {
+      // Every path that did not settle (another refusal, be-01 unavailable, a defect) gives the
+      // tokens back; a settled reservation ignores it.
+      // Proof: without this, `gives every token back when be-01 is unavailable`
+      // (machine-limits.test.ts) answered 429 after 30 outages; watched 2026-10-27.
+      reservation.release();
+    }
+  }
+
+  private async answerParsedMachineGrant(
+    parsed: MachineTokenRequest,
+    settings: MachineGrantSettings,
+    reservation: IssuanceReservation,
+  ): Promise<Response> {
+    // The one answer for every refusal of this request's credential, each a failed
+    // authentication (M10).
     // Proof: answering invalid_grant for a key failed `an unknown id, a revoked key and a wrong
     // secret answer one invalid_client` and the pre-activation test (machine-token.boot.test.ts);
     // watched 2026-10-27.
-    const credentialRefused =
-      parsed.grant === 'client_credentials' ? 'invalid_client' : 'invalid_grant';
+    // Proof: with the count removed, `counts a rotating spoofed first entry…` and three more
+    // (machine-limits.test.ts) never answered 429; watched 2026-10-27.
+    const refuseCredential = (): Response => {
+      reservation.failed();
+      return machineRefusal(
+        parsed.grant === 'client_credentials' ? 'invalid_client' : 'invalid_grant',
+      );
+    };
     const nowSeconds = Math.floor(this.now() / 1_000);
     const ttl = settings.tokenTtlSeconds;
     // Proof: no jitter failed `lowers the lifetime by at most 10 %, uniformly`
@@ -1690,7 +1750,7 @@ export class McpOAuthServer implements McpOAuthHandler {
     const issued = issuedGrantOf(answer, parsed, requestedExpiresAt);
     if (issued.kind !== 'issued')
       return issued.kind === 'refused'
-        ? machineRefusal(credentialRefused)
+        ? refuseCredential()
         : machineRefusal(issued.error, issued.description, issued.retryAfterSeconds);
     // A client_id names the credential and is never looked up (M2).
     // Proof: with this removed, `a client_id the registered-client store has never seen is carried,
@@ -1698,7 +1758,7 @@ export class McpOAuthServer implements McpOAuthHandler {
     // up in the registered-client store instead failed it and four more there (401); watched
     // 2026-10-27.
     if (parsed.clientId !== null && parsed.clientId !== issued.credentialId)
-      return machineRefusal(credentialRefused);
+      return refuseCredential();
     const granted = new Set(issued.scopes.map((scope) => `wbs:${scope}`));
     // Proof: keeping the requested scopes failed `a key bound to a viewer gets wbs:read only`
     // (machine-token.boot.test.ts); watched 2026-10-27.
@@ -1712,7 +1772,11 @@ export class McpOAuthServer implements McpOAuthHandler {
     // An assertion or a rotated secret about to expire leaves no lifetime to sign.
     // Proof: with this removed, `refuses a grant that leaves no lifetime after the 60 s margin`
     // (machine-token.test.ts) signed it; watched 2026-10-27.
-    if (expiresAt <= nowSeconds) return machineRefusal(credentialRefused);
+    if (expiresAt <= nowSeconds) return refuseCredential();
+    // Per credential, now that be-01 verified it (M10); refused, be-01's grant is dropped
+    // unsigned after be-01 did its work.
+    const issuance = reservation.issued(issued.credentialId);
+    if (issuance !== null) return rateLimited(issuance.retryAfterSeconds);
     const token = await this.issueMachineToken(issued, scopes, nowSeconds, expiresAt);
     return Response.json(
       {
@@ -2186,7 +2250,10 @@ export function mcpOAuthFromEnv(
               ),
               secret: machineSecret,
               tokenTtlSeconds,
-              limit: NO_TOKEN_ENDPOINT_LIMITS,
+              // Proof: composing NO_MACHINE_LIMITS here made `composes M10's limits from the
+              // environment` (machine-limits.test.ts) answer the 31st failure 401; watched
+              // 2026-10-27.
+              limit: new MachineTrafficLimits(Date.now),
               reportFault: requiredFaultReporter(reportFault, 'machine grants are offered'),
             },
           }),
@@ -2423,6 +2490,11 @@ type MachineTokenError =
   | 'temporarily_unavailable'
   | 'server_error';
 
+/** M10's token-endpoint refusal: `429 invalid_request`, `rate_limited`, with `Retry-After`. */
+function rateLimited(retryAfterSeconds: number): Response {
+  return machineRefusal('invalid_request', 'rate_limited', retryAfterSeconds);
+}
+
 /**
  * A machine grant refusal (RFC 6749 §5.2), never cached: `invalid_client` is
  * 401 with a Basic challenge (RFC 6749 §5.2, RFC 7617), an `invalid_request`
@@ -2575,11 +2647,6 @@ function isListedRedirect(value: unknown): value is string {
 
 function bytes(value: string): number {
   return new TextEncoder().encode(value).byteLength;
-}
-
-function sourceOf(request: Request): string {
-  const source = request.headers.get('x-forwarded-for')?.split(',', 1)[0]?.trim();
-  return source === undefined || source === '' ? 'unknown' : source;
 }
 
 function cookieOf(request: Request, name: string): string | undefined {

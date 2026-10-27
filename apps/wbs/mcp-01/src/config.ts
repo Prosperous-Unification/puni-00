@@ -32,6 +32,14 @@ export const McpConfig = type({
   // Proof: with 'string' here, `refuses a short MCP_BE_INTERNAL_SECRET, naming it and not its
   // value` (machine-token.test.ts) loaded it; watched 2026-10-27.
   'MCP_BE_INTERNAL_SECRET?': 'string>=32',
+  // How many trusted proxies stand between the client and mcp-01: the source address is the
+  // `X-Forwarded-For` entry this far from the right, or with 0 the socket address
+  // (`wbs-mcp-agent-surface` M10). Required, because a wrong guess either trusts a header the
+  // client wrote or counts every client as the proxy.
+  // Proof: with this key optional and unset, `refuses a missing or invalid
+  // MCP_TRUSTED_PROXY_HOPS, naming it` (config.test.ts) loaded the configuration; watched
+  // 2026-10-27.
+  MCP_TRUSTED_PROXY_HOPS: type(/^[0-9]$/).pipe((hops) => Number(hops)),
 });
 export type McpConfig = typeof McpConfig.infer;
 
@@ -43,6 +51,7 @@ const NAMES = [
   'WBS_BASIC_AUTH',
   'INTERNAL_AUTH_SECRET',
   'MCP_BE_INTERNAL_SECRET',
+  'MCP_TRUSTED_PROXY_HOPS',
 ] as const;
 
 const EXPECTATIONS: Record<(typeof NAMES)[number], string> = {
@@ -54,6 +63,8 @@ const EXPECTATIONS: Record<(typeof NAMES)[number], string> = {
   WBS_BASIC_AUTH: 'user:pass for the deployment’s basic auth, or unset',
   INTERNAL_AUTH_SECRET: "be-01's INTERNAL_AUTH_SECRET, at least 32 characters, or unset",
   MCP_BE_INTERNAL_SECRET: "be-01's MCP_BE_INTERNAL_SECRET, at least 32 characters, or unset",
+  MCP_TRUSTED_PROXY_HOPS:
+    'the number of trusted proxies in front of mcp-01, 0 to 9 (1 behind one Caddy or Traefik)',
 };
 
 /**

@@ -14,6 +14,7 @@ const VALID_ENV = [
   'MCP_STORE_KEY_CURRENT=base64-store-key',
   'MCP_STORE_PATH=/data/mcp-session.sqlite',
   'MCP_ACCESS_TOKEN_TTL=3600',
+  'MCP_TRUSTED_PROXY_HOPS=1',
 ].join('\n');
 
 async function runPreflight(
@@ -54,6 +55,14 @@ describe('dev MCP preflight', () => {
     expect(missing.output).toContain('missing MCP environment');
     expect(incomplete.exitCode).not.toBe(0);
     expect(incomplete.output).toContain('exactly one non-empty MCP_PUBLIC_URL');
+  });
+
+  // Proof: with MCP_TRUSTED_PROXY_HOPS dropped from the script's key list, this exited 0; watched
+  // 2026-10-27.
+  it('refuses an MCP environment without MCP_TRUSTED_PROXY_HOPS', async () => {
+    const missing = await runPreflight(VALID_ENV.replace('MCP_TRUSTED_PROXY_HOPS=1', ''));
+    expect(missing.exitCode).not.toBe(0);
+    expect(missing.output).toContain('exactly one non-empty MCP_TRUSTED_PROXY_HOPS');
   });
 
   it('refuses an MCP environment whose permissions expose deployment settings', async () => {

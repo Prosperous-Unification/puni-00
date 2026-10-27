@@ -15,11 +15,13 @@ import type { DerivedTool } from './openapi-tools';
 import type { McpRefreshAuthority, McpRefreshAuthorityReader } from './refresh-authority';
 import { createServer } from './server';
 import { McpSessionStore } from './session-store';
+import { UNATTRIBUTED_SOURCE } from './source-address';
 import { EdgeGate, SessionRefreshRefused } from './wbs-client';
 
 const CONFIG: McpConfig = {
   MCP_AUTH_MODE: 'standalone',
   MCP_PUBLIC_URL: 'https://dev.wbs.bulletpoints.club/mcp',
+  MCP_TRUSTED_PROXY_HOPS: 1,
   WBS_API_URL: 'https://dev.wbs.bulletpoints.club',
 };
 const CALLBACK = 'https://claude.ai/api/mcp/auth_callback';
@@ -3260,12 +3262,12 @@ describe('registered clients across a restart', () => {
     const { oauth } = fixture({ store });
     const planted = 'http://127.0.0.1:33418/callback?code=planted';
     store.admitClient(
-      'unknown',
+      UNATTRIBUTED_SOURCE,
       1_700_000_000_000,
       () => true,
       () => ({
         clientId: 'planted-client',
-        source: 'unknown',
+        source: UNATTRIBUTED_SOURCE,
         redirectUris: [planted],
         proven: true,
         expiresAt: 1_700_000_000_000 + 60_000,
@@ -3286,9 +3288,9 @@ describe('registered clients across a restart', () => {
     advance(1_001);
     await register(oauth);
 
-    expect(store.clientsFromSource('unknown', 0).map(({ clientId }) => clientId)).toEqual([
-      'random-2',
-    ]);
+    expect(store.clientsFromSource(UNATTRIBUTED_SOURCE, 0).map(({ clientId }) => clientId)).toEqual(
+      ['random-2'],
+    );
     store.close();
   });
 
@@ -3422,7 +3424,7 @@ describe('registered clients across a restart', () => {
     const response = await server.oauth.response(new Request(authorizeUrl(clientId)));
     expect(response?.status).toBe(400);
     expect(await response?.json()).toEqual(INVALID_CLIENT);
-    expect(server.store.clientsFromSource('unknown', 0)).toEqual([]);
+    expect(server.store.clientsFromSource(UNATTRIBUTED_SOURCE, 0)).toEqual([]);
     server.close();
   });
 
@@ -3543,12 +3545,12 @@ describe('registered clients across a restart', () => {
       now = START,
     ): void {
       store.admitClient(
-        'unknown',
+        UNATTRIBUTED_SOURCE,
         now,
         () => true,
         () => ({
           clientId,
-          source: 'unknown',
+          source: UNATTRIBUTED_SOURCE,
           redirectUris,
           proven: true,
           expiresAt: now + 1_000,
@@ -3637,7 +3639,7 @@ describe('registered clients across a restart', () => {
         clientId,
         proven: false,
         redirectUris: [LOOPBACK],
-        source: 'unknown',
+        source: UNATTRIBUTED_SOURCE,
         unprovenExpiresAt: readmittedAt + 1_200_000,
       });
       const exchanged = await exchangeAt(server.oauth, clientId, code, verifier, LOOPBACK);
@@ -3790,7 +3792,7 @@ describe('registered clients across a restart', () => {
         now,
         () => true,
       );
-      expect(continued).toMatchObject({ redirectUris: [LOOPBACK], source: 'unknown' });
+      expect(continued).toMatchObject({ redirectUris: [LOOPBACK], source: UNATTRIBUTED_SOURCE });
       expect(storedRow(server.path, clientId)).toEqual(first);
       other.close();
       server.close();
@@ -3801,12 +3803,12 @@ describe('registered clients across a restart', () => {
       const server = restartable(refreshable);
       const clientId = issuedId();
       server.store.admitClient(
-        'unknown',
+        UNATTRIBUTED_SOURCE,
         START,
         () => true,
         () => ({
           clientId,
-          source: 'unknown',
+          source: UNATTRIBUTED_SOURCE,
           redirectUris: [CALLBACK],
           proven: true,
           expiresAt: START + 30 * DAY,
@@ -3841,7 +3843,7 @@ describe('registered clients across a restart', () => {
       expect(server.store.client(clientId, START + HOUR + DAY)).toMatchObject({
         proven: false,
         redirectUris: [CALLBACK],
-        source: 'unknown',
+        source: UNATTRIBUTED_SOURCE,
       });
       server.close();
     });

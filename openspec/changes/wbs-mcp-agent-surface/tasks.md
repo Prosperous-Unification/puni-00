@@ -261,13 +261,16 @@
 
 ## 4. Limits and the source address
 
-- [ ] 4.1 A pure token bucket and in-flight counter with fake-clock properties.
-- [ ] 4.2 `sourceOf` uses `MCP_TRUSTED_PROXY_HOPS`, and M10's six limits apply. Tests: the
+- [x] 4.1 A pure token bucket and in-flight counter with fake-clock properties.
+- [x] 4.2 `sourceOf` uses `MCP_TRUSTED_PROXY_HOPS`, and M10's six limits apply. Tests: the
       four limit scenarios. Negatives:
   - leftmost XFF;
   - one bucket for successes and failures;
   - counting HTTP requests.
 - [ ] 4.3 Load evidence on h2puni under the heavy lock, recorded in verify.md.
+- [ ] 4.4 Bound mcp-01's grant-client fetch to be-01 at the token endpoint with a timeout (it
+      holds a pending slot while it waits; review of PR #765). Negative: a never-answering be-01
+      frees the slot.
 
 ## 5. Human-only tools by policy
 

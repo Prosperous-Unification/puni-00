@@ -460,7 +460,7 @@ _Alternative:_ a 1 h cap, which breaks any orchestrator that hands out a token p
   - a raw-key grant lives 60 s (be-01 caps it);
   - a replica caches it under `SHA-256(key)` for at most that long, and the cache is never
     the authority, because be-01's reread is;
-  - raw-key failures count in M10's failure buckets;
+  - raw-key failures on `/mcp` count in M10's failure buckets, per `(client_id, IP)` and per IP;
   - a raw-key grant writes **no** `machine_token_issued` row. One per cache miss would be
     about 144,000 rows a day per replica for 100 agents, which is the event-log bloat shape
     this repo has already had. `last_used_at` is its trace.
@@ -531,10 +531,25 @@ _Alternatives:_ keep accepting (two surfaces in fact); a deprecation header peri
 
 - _Source address._ It is the `X-Forwarded-For` entry `MCP_TRUSTED_PROXY_HOPS` from the right
   (1 behind Caddy); with 0, the socket address. A spoofed leftmost entry changes nothing.
-- _Failures and successes are counted apart._ Failed authentications, at the token endpoint
-  and for any raw key on `/mcp`, are counted per `(client_id, IP)` and per IP. Successful
-  issuances are limited per credential, separately, so a stranger who knows a public id cannot
-  lock it out.
+  A request the proxies did not write (too few entries, no IP address) counts under one shared
+  `unattributed` source; a missing or invalid setting refuses boot (section 4 note 1).
+- _Failures and successes are counted apart._ Failed authentications at the token endpoint
+  are counted per `(client_id, IP)` and per IP. Successful issuances are limited per
+  credential, separately, so a stranger who knows a public id cannot lock it out.
+- _Read, reserved and settled._ Before be-01 is asked a token request reads the failure buckets
+  (per IP, and per `(client_id, IP)` when it names a credential), then takes one of its IP's
+  100 pending slots and one issuance per IP. Its outcome ends the slot: a failure spends the
+  failure buckets and gives the issuance back; a success takes one issuance of the credential
+  be-01 verified; anything else gives the issuance back. The failure buckets are read, not
+  reserved, so a source's legitimate concurrency is its 100 pending slots, not its failure
+  burst. The cost is that concurrent failures can overshoot the failure fence: at most 30 + 100
+  failed requests per IP once per drain. A failure is spent into debt down to the pending cap
+  (never floored at zero, which would lose the overshoot), so afterwards the fence holds the
+  design rate on average, reopening in bursts of at most the pending cap: over any window T,
+  at most 30 + 100 + 30/min × T failures per IP reach be-01. The per-credential issuance is counted only after be-01 verified the credential, so
+  a claimed public id answers `429` only to its holder. A grant be-01 issued that this limit
+  then refuses is dropped unsigned: be-01 has written or found the day's audit row and touched
+  `last_used_at`, and no token exists for it (section 4 note 4).
 
 | Limit                                 | Default per replica  | Sized for                                                                                                                     |
 | ------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
@@ -547,7 +562,9 @@ _Alternatives:_ keep accepting (two surfaces in fact); a deprecation header peri
 
 - With R replicas, the effective organization in-flight limit is 128 × R. These are
   per-replica fences; the authoritative fences are be-01's transactional caps.
-- `/mcp` refusals are HTTP `429` with `Retry-After`. A token-endpoint refusal is HTTP `429`
+- `/mcp` refusals are HTTP `429` with `Retry-After` when the request ran no call and its one
+  answer is a limited call; in a batch each limited call is a tool error naming its wait, and
+  the rest run (section 4 note 6). A token-endpoint refusal is HTTP `429`
   with error `invalid_request` and `error_description: "rate_limited"`, plus `Retry-After`.
   RFC 6749 §5.2 has no rate-limit error, so WBS invents no error code.
 

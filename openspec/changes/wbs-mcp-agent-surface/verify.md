@@ -789,3 +789,277 @@ Slice 1 rows. Each check was watched failing with the fault injected, then resto
 | activation preflight                            | grant settings left out of `unready`                           | `organization-activation-cli.db.test.ts`: both machine-grant-settings cases                                                                                 | exit 0, not 8                          |
 | previous key needs current                      | guard disabled                                                 | `config.test.ts`: `refuses a previous grant key without a current one`                                                                                      | loaded                                 |
 | canonical authorization server                  | reproduction check dropped                                     | `mcp-authorization-server.test.ts`, `config.test.ts`                                                                                                        | uppercase host admitted                |
+
+## Section 4: limits and the source address (tasks 4.1 and 4.2)
+
+Built on branch `feat/wbs-mcp-limits-4` from the plan branch at d652a4cfa (slices 1 to 3
+merged), 2026-10-27, on the assumed M10 as slices 1 to 3 amended it. Every test below ran
+under `env -u CLAUDECODE` on the laptop; nothing ran on h2puni, and no host was touched. Task
+4.3 (load evidence) is not part of this branch.
+
+What landed:
+
+- **4.1** `src/token-bucket.ts`: a pure bucket level (`levelAt`, `retryAfterOf`) and
+  `TokenBuckets`, one bucket per key on an injected clock, with `take` (refuses when empty),
+  `give` (a reservation not used; `spend` was replaced after the review of PR #765), `takeEach`
+  (all or none) and a sweep of full buckets. `src/in-flight-counter.ts`: `InFlightCounter`, a per-key ceiling with an
+  idempotent release. Fake-clock properties in `token-bucket.test.ts`; the counter is shared
+  across async requests, so `in-flight-counter.model.test.ts` drives it through `/mcp` with
+  `fc.asyncModelRun`.
+- **4.2** `src/source-address.ts`: `sourceAddressOf`, the `X-Forwarded-For` entry
+  `MCP_TRUSTED_PROXY_HOPS` from the right, or the socket address with 0. The variable is
+  required by `loadConfig` (0 to 9) in both modes; `oauth.ts` reads the source once per request
+  for registration, authorization and the token endpoint, and the leftmost-entry `sourceOf` is
+  gone. `src/machine-limits.ts`: `MachineTrafficLimits` with M10's six limits
+  (`M10_LIMITS`), composed by `mcpOAuthFromEnv`; `NO_MACHINE_LIMITS` replaces
+  `NO_TOKEN_ENDPOINT_LIMITS` for tests that are not about M10. `MachineCaller.admitCall`
+  (`machine-admission.ts`) counts each `tools/call` message (`server.ts`), and `http.ts` answers
+  a request whose only answer is a limited call `429`.
+- **Deployments.** `MCP_TRUSTED_PROXY_HOPS` is set where the repository shows the topology
+  (note 12), and `assertMcpEnv` (`tools/tool-devsync/src/sync.ts`) and
+  `bin/dev-mcp-preflight.sh` now require it in dev's `.env`.
+
+### Section 4 notes (assumptions taken, and gaps in the design)
+
+1. **A source the proxies did not write.** Fewer `X-Forwarded-For` entries than the hops, an
+   entry at that position that is no IP address, or 0 hops with no socket address: the request
+   counts under one shared source, `unattributed`, rather than being refused or attributed to a
+   guess. It is limited more tightly, never trusted more. The registration census reads the
+   same source, so the old `unknown` source is now `unattributed`. The configuration itself is
+   never defaulted: a missing or invalid `MCP_TRUSTED_PROXY_HOPS` refuses boot, in gateway mode
+   too, because the OAuth routes count by source there as well.
+2. **What a failed authentication is.** Every machine-grant answer `invalid_client` or
+   `invalid_grant`: be-01's credential refusals, a `client_id` that is not the grant's
+   credential, a grant left with no lifetime, and the parser's own (`not-a-key` secrets,
+   malformed Basic, a `client_assertion`, a refused `typ`). Other refusals (`invalid_request`,
+   `invalid_scope`, `invalid_target`, 5xx) are not counted.
+3. **The `client_id` of the pair.** For `client_credentials` it is the key's own credential id,
+   so a stranger sending wrong secrets for a public id fills the pair bucket of that id and
+   their own address. For the JWT-bearer grant it is the `client_id` when one is sent; without
+   one, and for a request the parser refused, only the per-source buckets count.
+4. **The order at the token endpoint** (rewritten after the review of PR #765, S1, and its
+   re-review, B1). The request is parsed first (it reads nothing), so the `client_id` is known.
+   Then, before be-01 is asked:
+   - the failure buckets are **read**: per source, and per `(client_id, source)` when it names a
+     credential;
+   - one of the source's **pending slots** is taken (`pendingIssuancesPerSource`, 100, the
+     per-source issuance burst; refused `429` with `Retry-After: 1`);
+   - one **issuance per source** is taken.
+     The outcome settles the reservation once, from a `finally` for every path that did not, and
+     always ends the pending slot. A signed grant takes one issuance of the credential be-01
+     verified; a failed authentication spends the failure buckets (floored at zero) and gives the
+     issuance back; anything else gives the issuance back.
+   - _Why read, not reserve, the failures._ Reserving them (fa37fa65a) capped a source's
+     legitimate concurrency at the failure burst: 5 concurrent requests per credential and
+     source, 30 per source, so a 100-pod rollout behind one egress address got 95 `429`s with a
+     12 s wait the helper's 10 s budget cannot absorb. Reading them lets concurrent failures pass
+     one check together; the pending cap bounds that: **at most 30 + 100 failed requests per
+     source (5 + 100 per credential and source) reach be-01 once per drain; afterwards the
+     design rate**. A failure is spent into debt down to `-pendingIssuancesPerSource` (re-review
+     S5): flooring at zero lost all but one of the spends of requests that passed the read
+     together, so each refilled token reopened the fence for another pending cap (6000 in ten
+     minutes in the test, against 30 a minute). With the debt, every passed failure is counted,
+     the bucket refills from below zero, and its `Retry-After` includes the repayment. The fence
+     still reopens in bursts: once a token is back, up to the pending cap can pass the read
+     together, and their debt then holds it shut for about the cap over the rate (200 s per
+     source). Over any window T, at most 30 + 100 + 30/min × T failures per source reach be-01
+     (400 in the test's ten minutes, bound 430). Within one reopening the burst is the pending
+     cap, not one token: holding it to one would mean reserving, which B1 removed. The pending
+     cap is not the issuance bucket: that refills while be-01 is slow. A negative level only
+     enters `levelAt` (which refills from it and caps at the burst), `retryAfterOf` (a longer
+     wait) and the sweep (which drops only full buckets); `give` is never used on a failure
+     bucket.
+   - _N1._ The per-credential issuance is taken only after be-01 verified the credential, so a
+     claimed public id answers `429` only to the key's holder; a stranger sees `401`.
+   - _Dropped grants._ Requests for one credential from many sources at once can reach be-01
+     beyond its burst, and the grants the per-credential limit then refuses are dropped
+     unsigned. Each has had be-01's work done: the day's `machine_token_issued` row written or
+     found (M3) and `last_used_at` touched; no token exists for it, so the row records an
+     issuance asked, not a token held. Each source contributes at most its 100 pending slots.
+5. **Bucket shapes.** "5 / min" and "30 / min" are bursts of 5 and 30 refilled over a minute;
+   "300 / min, burst 100" refills 5 a second; `tools/call` "10 / s, burst 20" refills 10 a
+   second. A `Retry-After` is the whole seconds until one token, at least 1.
+6. **The `/mcp` refusal form.** M10 says `/mcp` refusals are HTTP `429`; the spec's batch
+   scenario says the calls beyond the burst answer 429-shaped tool errors while the rest run.
+   Both hold: a limited call is the tool error `<tool> could not be called: rate_limited (429).
+Retry after N s.` (or `too_many_in_flight`), and a request that ran no call and whose one
+   JSON-RPC answer is a limited call is HTTP `429` with `Retry-After` and `{"error":
+"rate_limited"}`. A batch keeps its 200 and its array. A message limited by the rate, or
+   by the in-flight limit after it, still spends a rate token: the bucket bounds messages sent
+   (review N2).
+7. **In-flight waits** have no rate to compute from; the wait asked is 1 s.
+8. **Who is limited on `/mcp`.** Machine callers only (the requirement bounds machine traffic);
+   consent sessions are not counted.
+9. **Raw keys on `/mcp`.** M10 counts "any raw key on `/mcp`" as a failure, but no raw-key
+   admission exists (Dany's option (ii) was not taken; a `wbs_mk_` bearer stays `401` through
+   the JWT decode, M11), so nothing there is counted.
+10. **No knobs.** The six values are `M10_LIMITS`, constants; tests pass other rates to the
+    constructor. Making them environment settings waits for a need.
+11. **Memory and slice 3's note 10.** A full bucket is dropped by a sweep that runs at most once
+    per full-refill interval, so the maps hold only keys touched within about two intervals; an
+    in-flight key is dropped when its count returns to zero. The refused set is now bounded:
+    one replica signs at most 100 + 5 × lifetime tokens per credential, so with the default 12 h
+    TTL at most 216,100 refused tokens per credential are alive on a replica. That bound is
+    real but loose; the per-source success limit binds the same number per address.
+12. **Hop counts per environment**, counting only what the repository proves:
+    - prod and staging (`deploy/k8s/wbs/overlays/{prod,staging}`): **1**, the Traefik Ingress.
+      Whatever stands in front of Traefik (a load balancer, a CDN) is not in the repository and
+      is not counted; if it exists, its address is what mcp-01 counts, which is tighter, not
+      looser.
+    - the dev-environment Pod (`overlays/dev/pod.yaml`): **1**, the lab's Ingress.
+    - the local lab (`overlays/local`): **0**. No Ingress there reaches mcp-01, so the socket
+      address is read.
+    - dev on h2puni (`deploy/dev-src/compose.yml`): its mcp-01 reads the host's gitignored
+      `apps/wbs/mcp-01/.env`, which this branch cannot change. The value is **1**:
+      `deploy/compose/site-dev.caddy.candidate` writes `X-Forwarded-For {remote_host}` on both
+      MCP handles, one Caddy hop. **Before merging, `MCP_TRUSTED_PROXY_HOPS=1` must be seeded in
+      `/home/puni1/wbs-dev/src/apps/wbs/mcp-01/.env`**: devsync's `assertMcpEnv` and the
+      preflight now refuse a deploy without it, and mcp-01 refuses to boot. The cutover list in
+      `docs/auth-integration.md` names it. Whether the live `site-dev.caddy` is the candidate was
+      not checked (no host was touched); any Caddy in front is one hop either way.
+    - a laptop (`.env.example`, copied by `bun run dev:setup`): **0**.
+    - Hop counting cannot judge a request that bypasses the proxies (a Pod port reached inside
+      the cluster): its header is the client's own words. That is the design's limit, not
+      changed here.
+    - A shared source is one source (review N3). Clients behind one NAT or carrier-grade NAT,
+      and every client if dev's Caddy ever sees a Docker or IPv6-to-IPv4 SNAT address rather
+      than the client's, share one address's buckets: 30 failures a minute and 100 issuances at
+      once among them. An IPv6 client is counted per full address, so a host with a /64 can
+      spread across addresses; no prefix grouping is done.
+13. **The in-flight model** (concurrency rule): states are, per organization, the calls be-01
+    holds; events are a request of one to four concurrent calls and a held call ending with a
+    success, a 500 or a thrown fetch, in any order; the invariants are in the test's comment.
+    Its five sabotages and the unit test's sixth are in the table below.
+14. **`client_id` length** (review S2). It becomes a bucket key, so the parser refuses one over
+    256 characters `invalid_request` (`client_id must have at most 256 characters`), in Basic or
+    the body, for both grants.
+15. **A be-01 call that never answers** (review S3). Each tool call's be-01 fetch, body
+    included, is bounded by `BE_CALL_TIMEOUT_MS` (35 s) combined with the MCP request's
+    `extra.signal` (`AbortSignal.any`), and raced against that signal so a fetch that ignores
+    its signal cannot hold the slot. 35 s is above be-01's own bound: Elysia's Bun server closes
+    a connection idle for 30 s (`idleTimeout: 30`, read in `node_modules/elysia`; be-01 sets
+    none), and be-01's solver and optimization work runs in the background, not inside a
+    request. A timeout is `BeCallTimedOut`: neither the caller's credential (never a 401) nor a
+    network error (a `TimeoutError` has no system error code, slice 2's N7), so it is reported
+    through the unexpected tool failure reporter and answered as that call's tool error with a
+    reference; the batch's other answers stand. A cancelled request is `ToolCallCancelled`, a
+    plain tool error, not reported. In stateless mode it is effectively unreachable: the SDK
+    does not abort a handler when the HTTP connection drops, and an MCP cancellation would
+    arrive on another request and transport, so the timeout is the operative bound (review D2).
+    A timed-out or cancelled call may already have been applied by be-01; the client cannot
+    tell, so the rule for a 401 or 502 that replaced a batch's answers applies: writes must be
+    idempotent under retry (review D1). The grant client's own fetch at the token endpoint has
+    no timeout yet; it holds a pending slot and a reservation, and is task 4.4.
+
+### Commands and results, section 4
+
+All on 2026-10-27, code as at the head of this branch, with
+`env -u CLAUDECODE` and `--skip-nx-cache`:
+
+| Command                                                                                     | Result                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bunx nx run-many -t typecheck lint -p wbs-mcp-01 tool-devsync --parallel=1`                | exit 0                                                                                                                                                                               |
+| `bunx nx run wbs-mcp-01:test`                                                               | 709 pass, 0 fail (32 files) after S5 and its pair negative (705 after B1, 700 after the review, 692 before); the model, limits and bucket files 39 pass, 0 fail in each of five runs |
+| `bunx nx run tool-devsync:test`                                                             | 941 pass, 0 fail (49 files, 707.7 s), exit 0; no port 9100 clash (before the review fixes, which touch no tool-devsync file)                                                         |
+| `bunx openspec validate --all --json`                                                       | exit 0; 297 items, 297 passed                                                                                                                                                        |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` | exit 0                                                                                                                                                                               |
+| `bunx prettier --check` on every changed file but `.env.example`                            | "All matched files use Prettier code style!"; `shellcheck bin/dev-mcp-preflight.sh` exit 0                                                                                           |
+
+Not run: the h2puni gate, wbs-be-01's and wbs-contracts' tests (neither changed), fe-01 and its
+e2e, gw-01, task 4.3's load evidence, and anything on a host. No migration and no
+`libs/**/service/` file changed, so no pin test or `kinds.json` entry was due.
+
+### Failure-proof table, section 4
+
+Each check was watched failing with the fault injected, then restored; the `Proof:` comment
+sits beside it. "Limits" is `machine-limits.test.ts`, "model" `in-flight-counter.model.test.ts`
+(seed 20261027), "bucket" `token-bucket.test.ts`.
+
+| Task | Check                                        | Fault injected                                                                                                                             | Test that observed it failing                                                                                                                                                                                       |
+| ---- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 4.2  | source from the right (4.2's negative)       | leftmost entry, `entries[0]`                                                                                                               | limits `counts a rotating spoofed first entry…, and refuses after 30`; three `source-address.test.ts` cases                                                                                                         |
+| 4.2  | separate buckets (4.2's negative)            | (first commit) failures spent in the issuance buckets; after S1: failure tokens kept on a success, or the issuance token kept on a failure | limits `a stranger's wrong secrets…` and four more; after S1 `one address issues 100 tokens for a pool of 100…` and `one credential issues 100 staggered…`, and `a failure gives the address's issuance token back` |
+| 4.2  | per message (4.2's negative)                 | `admitCall` asks the limits for a request's first call only: counting HTTP requests                                                        | limits `a batch of 30 calls runs 20 and limits 10`, `answers a single limited call 429…`, the in-flight test                                                                                                        |
+| 4.2  | a limited call is refused                    | the limited branch in `server.ts` ignored                                                                                                  | the same three                                                                                                                                                                                                      |
+| 4.2  | single limited call is HTTP 429              | mapping removed (`http.ts`)                                                                                                                | limits `answers a single limited call 429 with Retry-After, and asks be-01 nothing` (200)                                                                                                                           |
+| 4.2  | admission before be-01                       | check removed (rewatched after S1)                                                                                                         | `machine-token.test.ts` `answers 429 invalid_request with Retry-After…`; eight limits tests                                                                                                                         |
+| 4.2  | per-credential issuance after be-01 verified | take removed (rewatched after S1)                                                                                                          | limits `refuses the 101st issuance of one credential at once, from any address`, `answers a stranger 401, never 429…`                                                                                               |
+| 4.2  | be-01 refusals count                         | count removed (rewatched after S1)                                                                                                         | limits: four tests                                                                                                                                                                                                  |
+| 4.2  | parser refusals count                        | count removed (rewatched after S1)                                                                                                         | limits `counts a secret the parser refuses, never asking be-01, as a failure too`                                                                                                                                   |
+| 4.2  | production composes the limits               | `NO_MACHINE_LIMITS`-shaped object in `mcpOAuthFromEnv`                                                                                     | limits `composes M10's limits from the environment`                                                                                                                                                                 |
+| 4.2  | the socket address reaches the OAuth routes  | `null` passed for the peer in `mcpFetchHandler`                                                                                            | `http.test.ts` `hands the OAuth routes the socket's address, which MCP_TRUSTED_PROXY_HOPS=0 reads`                                                                                                                  |
+| 4.2  | `MCP_TRUSTED_PROXY_HOPS` required            | key optional                                                                                                                               | `config.test.ts` `refuses a missing or invalid MCP_TRUSTED_PROXY_HOPS, naming it`                                                                                                                                   |
+| 4.2  | dev `.env` needs the key (devsync)           | key dropped from `MCP_REQUIRED_ENV`                                                                                                        | `sync.test.ts` `requires exactly one durable in-container MCP store path`                                                                                                                                           |
+| 4.2  | dev `.env` needs the key (preflight)         | key dropped from the script's list                                                                                                         | `mcp-preflight.test.ts` `refuses an MCP environment without MCP_TRUSTED_PROXY_HOPS`                                                                                                                                 |
+| 4.1  | in-flight ceiling                            | `count > limit`                                                                                                                            | model, `[Send(org-a, 1), Send(org-a, 3)]`: be-01 held four                                                                                                                                                          |
+| 4.1  | release decrements                           | release deletes the key's whole count                                                                                                      | model, `[Send(org-a, 1), Send(org-a, 1)]`: the second release threw                                                                                                                                                 |
+| 4.1  | per organization                             | one counter for every organization (`machine-limits.ts`)                                                                                   | model, `[Send(org-b, 1), Send(org-a, 3)]`                                                                                                                                                                           |
+| 4.1  | slot held for the call                       | release before the call (`server.ts`)                                                                                                      | model, `[Send(org-a, 1), Send(org-a, 3)]`                                                                                                                                                                           |
+| 4.1  | slot freed however the call ends             | release only after a call that did not fail                                                                                                | model, `[Send(org-b, 3), End(org-b, throw), Send(org-b, 1)]`                                                                                                                                                        |
+| 4.1  | idempotent release                           | guard removed                                                                                                                              | `in-flight-counter.test.ts` `admits up to the limit per key, and a second release frees nothing`                                                                                                                    |
+| 4.1  | burst cap                                    | cap removed                                                                                                                                | bucket `admits at most the burst at once, however long the bucket sat idle`                                                                                                                                         |
+| 4.1  | Retry-After suffices                         | `Math.floor`                                                                                                                               | bucket `admits a fresh key its whole burst at once, then refuses with a wait that suffices`                                                                                                                         |
+| 4.1  | clock stepping back                          | floor at 0 removed                                                                                                                         | bucket `gains nothing from a clock that steps back`                                                                                                                                                                 |
+| 4.1  | sweep                                        | never sweeps                                                                                                                               | bucket `holds only the keys touched within two full-refill intervals`                                                                                                                                               |
+| 4.1  | (withdrawn) all or none                      | `takeEach` removed with the failure reservation (re-review B1)                                                                             | —                                                                                                                                                                                                                   |
+| 4.1  | a spend spends a part-filled bucket          | `spend` restored after the re-review (B1); stored only with a whole token                                                                  | bucket `counts a spend on a part-filled bucket, so the part is spent too`                                                                                                                                           |
+
+Two first drafts proved nothing and were fixed before the proofs above: the bucket's
+total-admissions bound passed with the burst cap removed (an idle bucket's excess only shows in
+one instant), and the part-filled spend test waited too little to tell the two apart.
+
+### Review of PR #765 (Fable, high), how each item is addressed
+
+Each fix's negative was watched failing with its fault injected, then restored; the `Proof:`
+comment sits beside it.
+
+| Item        | Fix                                                                                                                                         | Fault injected                                                                                                        | Test that observed it failing                                                                                                                                                                           |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S1 failures | pessimistic reservation before be-01 (`reserveIssuance`), note 4 and design M10 rewritten                                                   | the first commit's read-then-spend order (`oauth.ts`, `machine-limits.ts`, `token-bucket.ts` restored from db1709542) | limits `lets at most 30 of 100 concurrent wrong keys from one source reach be-01`: 100 reached                                                                                                          |
+| S1 issuance | the per-source issuance is reserved too                                                                                                     | the same                                                                                                              | limits `lets at most the burst of 300 concurrent issuances for one credential from one source reach be-01`: 300 reached                                                                                 |
+| S1 refunds  | success gives failures back; failure gives the issuance back; anything else gives all back (`finally`)                                      | each give removed in turn; the `finally` removed                                                                      | `one address issues 100 tokens…` and `one credential issues 100 staggered…`; `a failure gives the address's issuance token back`; `gives every token back when be-01 is unavailable`                    |
+| S2          | parser refuses a `client_id` over 256 characters `invalid_request`                                                                          | check removed                                                                                                         | `token-request.test.ts` `refuses a client_id over 256 characters invalid_request`                                                                                                                       |
+| S3          | 35 s `AbortSignal.timeout` with `extra.signal`, raced (note 15); `BeCallTimedOut` reported as a tool error, `ToolCallCancelled` a plain one | race removed; the timeout rethrown raw; the cancel left unmapped                                                      | limits `frees the in-flight slot of a call be-01 never answers, after the timeout` and `wbs-client.test.ts` `throws BeCallTimedOut… and ToolCallCancelled once cancelled` (hung, then failed the class) |
+| S4          | design M10 drops "any raw key on `/mcp`"; the raw-key count lives under "If Dany chooses (ii)"                                              | — (text)                                                                                                              | —                                                                                                                                                                                                       |
+| N1          | fixed: the per-credential issuance is counted only after be-01 verified the credential                                                      | the per-credential bucket reserved at admission                                                                       | limits `answers a stranger 401, never 429, for a credential whose issuances are spent`                                                                                                                  |
+| N2          | note 6 and the `admitCall` comment: an in-flight-limited message still spends a rate token                                                  | — (text)                                                                                                              | —                                                                                                                                                                                                       |
+| N3          | note 12: the SNAT, NAT and IPv6 shared-source caveat                                                                                        | — (text)                                                                                                              | —                                                                                                                                                                                                       |
+
+One added check proved nothing and was removed rather than kept: a cap in `TokenBuckets.give`
+passed with the cap removed, because `levelAt` already caps every read.
+
+### Re-review of PR #765 at fa37fa65a (Fable, high), how each item is addressed
+
+Each negative was watched failing with its fault injected, then restored; the `Proof:` comment
+sits beside it. The lower-bound tests were also run against fa37fa65a's `oauth.ts`,
+`machine-limits.ts` and `token-bucket.ts`, restored for the run.
+
+| Item                   | Fix                                                                                                                                                   | Fault injected                             | Test that observed it failing                                                                                                                                                                                       |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1                     | failure buckets read, not reserved; spent on a failure (`spend` back, floored at 0); a per-source pending cap of 100; note 4 and design M10 rewritten | fa37fa65a's code (failure tokens reserved) | limits `admits 100 concurrent issuances of one credential from one source` (5 × 200, 95 × 429) and `…of distinct credentials from one source` (30 × 200, 70 × 429)                                                  |
+| B1 lower bounds        | the wrong-key tests assert asked ≥ 30 and ≤ 30 + 100 (D3); the 300-issuance test asserts exactly 100 asked                                            | fa37fa65a's code                           | the 100- and 500-wrong-key tests and the 300-issuance test                                                                                                                                                          |
+| B1 pending cap         | `InFlightCounter` per source, `Retry-After: 1`                                                                                                        | cap removed                                | limits `holds a source to the pending cap while be-01 is slow, even once its issuances refill` (200 asked; the 500-key test alone passed without it, since the issuance bucket bounds a burst that does not refill) |
+| B1 failure read        | refused when a failure bucket is empty                                                                                                                | read removed                               | limits: six tests, the spoofed-header scenario among them                                                                                                                                                           |
+| B1 failure spend       | a failure spends both failure buckets                                                                                                                 | spend removed                              | the same six                                                                                                                                                                                                        |
+| B1 refunds (rewatched) | issuance given back on a failure; per-credential take after be-01; `finally` release                                                                  | each removed in turn                       | `a failure gives the address's issuance token back`; `refuses the 101st issuance…` and `answers a stranger 401…`; `gives every token back when be-01 is unavailable`                                                |
+| B1 spend               | part-filled spend spends the part                                                                                                                     | stored only with a whole token             | bucket `counts a spend on a part-filled bucket, so the part is spent too`                                                                                                                                           |
+| D1                     | note 15 and the README: a timed-out or cancelled call may have been applied; writes idempotent under retry                                            | — (text)                                   | —                                                                                                                                                                                                                   |
+| D2                     | note 15: cancellation is effectively unreachable in stateless mode; the timeout is the bound                                                          | — (text)                                   | —                                                                                                                                                                                                                   |
+| grant-client timeout   | recorded as task 4.4                                                                                                                                  | —                                          | —                                                                                                                                                                                                                   |
+
+`takeEach` went with the failure reservation; its proof row above is withdrawn. The bucket's
+admissions bound now counts what was given back.
+
+### Re-review of PR #765 at 36bd6ee5b, S5
+
+| Item     | Fix                                                                                                                                                                     | Fault injected                                                                                                                         | Test that observed it failing                                                                                                                                                                                  |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S5       | `spend` floors at `-debt`; the failure buckets carry `pendingIssuancesPerSource` of debt; note 4 and design M10 reworded ("once per drain; afterwards the design rate") | 36bd6ee5b's `token-bucket.ts` and `machine-limits.ts` (floor at 0); the floor alone set to 0; the per-source bucket built without debt | limits `holds a source to the design failure rate over ten minutes of concurrent wrong keys`: 6000 asked on 36bd6ee5b (400 now, bound 430); bucket `carries a spend below zero down to its debt…`              |
+| S5 pair  | the `(client_id, source)` bucket carries the same debt                                                                                                                  | pair bucket built without debt                                                                                                         | limits `holds one credential id and source to the pair failure rate over ten minutes of concurrent wrong secrets`: 400 asked (100 now; bounds at least 50, the pair rate over 600 s, and at most 5 + 50 + 100) |
+| S5 guard | a negative or non-finite debt is refused at construction                                                                                                                | check removed                                                                                                                          | bucket `refuses a negative or unbounded debt`                                                                                                                                                                  |
+
+The reviewer's proposed negative, "20 s of refill after the first overshoot admits at least 1 and
+at most 10", cannot hold with the failure fence read rather than reserved: right after the
+overshoot the debt admits 0 for about 140 s, and when a token is back the pending cap passes the
+read together (100 in one instant). The test asserts the long-window bound instead, with a lower
+bound (at least the design rate over the window), and was watched failing on 36bd6ee5b's code.

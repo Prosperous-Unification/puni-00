@@ -135,6 +135,15 @@ verified the token. It refuses to boot unless `MCP_TRUSTED_GATEWAY=true` is
 also set. be-01 still verifies the forwarded token, so the gateway must pass
 the upstream token for the issuer and audience be-01 trusts.
 
+Both modes require `MCP_TRUSTED_PROXY_HOPS`, the number of trusted proxies in
+front of mcp-01 (0 to 9). A request's source address, which registration,
+authorization and the machine limits count by, is the `X-Forwarded-For` entry
+that many from the right; with 0 it is the socket address. A request with fewer
+entries, or one that is no IP address, counts under one shared `unattributed`
+source (`src/source-address.ts`). Count only the proxies you can prove: one too
+many trusts a header the client wrote; one too few counts every client as the
+proxy, which limits more tightly and trusts nothing.
+
 Both modes require `WBS_API_URL` and canonical `MCP_PUBLIC_URL`; OAuth metadata
 derives its resource, issuer, and endpoints from the latter rather than trusting
 the inbound Host. There is no `WBS_TOKEN`: caller authority is
@@ -242,6 +251,26 @@ token at `/revoke` is `400 unsupported_token_type`, at refresh `invalid_grant`.
 In gateway mode a token carrying `token_use: machine` is `401` and never
 forwarded (M11). Path values that are empty, `.` or `..`, or that would change
 the route once the URL is parsed, are refused before any be-01 request (M14).
+
+### Machine limits
+
+Each replica applies M10's limits in memory (`src/machine-limits.ts`): failed
+authentications at the token endpoint, 5 a minute per `client_id` and source
+and 30 a minute per source; successful issuances, 300 a minute with a burst of
+100, per credential and per source, in buckets apart from the failures, so a
+stranger's wrong secrets never lock out a credential (a request reads the failure buckets,
+holds one of its source's 100 pending slots and one per-source issuance while be-01 is
+asked, and its outcome spends the failures or gives the issuance back; the per-credential
+issuance counts once be-01 verified the credential); `tools/call` messages, 10
+a second with a burst of 20, per credential, counted per message, so a batch of
+30 runs 20; and 128 tool calls in flight per organization. A token-endpoint
+refusal is `429 invalid_request` with `error_description: "rate_limited"` and
+`Retry-After`. On `/mcp` a limited call is a tool error naming `rate_limited` or
+`too_many_in_flight` and its wait; a request whose only answer is such a call is
+HTTP `429` with `Retry-After`. With R replicas each limit is R times as wide.
+A tool call waits at most 35 s for be-01 (`BE_CALL_TIMEOUT_MS`), then answers a
+reported tool error and frees its slot. be-01 may already have applied a call that timed out, so writes
+must be idempotent under retry, as after a 401 or 502.
 
 ## Durable sessions and key rotation
 

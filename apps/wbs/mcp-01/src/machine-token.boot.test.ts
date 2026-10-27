@@ -13,7 +13,8 @@ import { decodeJwt } from 'jose';
 import type { McpConfig } from './config';
 import { mcpFetchHandler } from './http';
 import { machineGrantClient } from './machine-grant-client';
-import { McpOAuthServer, NO_TOKEN_ENDPOINT_LIMITS, type OAuthRouteEvidence } from './oauth';
+import { NO_MACHINE_LIMITS } from './machine-limits';
+import { McpOAuthServer, type OAuthRouteEvidence } from './oauth';
 import { readDocument, toolsFromDocument } from './openapi-tools';
 import { createServer } from './server';
 import { McpSessionStore } from './session-store';
@@ -94,6 +95,7 @@ beforeAll(async () => {
   const config = {
     MCP_AUTH_MODE: 'standalone',
     MCP_PUBLIC_URL: MCP_URL,
+    MCP_TRUSTED_PROXY_HOPS: 1,
     WBS_API_URL: beUrl,
     MCP_BE_INTERNAL_SECRET: BE_SECRET,
   } satisfies McpConfig;
@@ -125,7 +127,7 @@ beforeAll(async () => {
         }),
         secret: BE_SECRET,
         tokenTtlSeconds: 12 * 60 * 60,
-        limit: NO_TOKEN_ENDPOINT_LIMITS,
+        limit: NO_MACHINE_LIMITS,
         reportFault: (fault) => {
           throw fault;
         },

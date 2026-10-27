@@ -32,6 +32,8 @@ configMapGenerator:
     literals:
       - MCP_AUTH_MODE=gateway
       - MCP_TRUSTED_GATEWAY=true
+      # No Ingress in this overlay reaches mcp-01, so no proxy is proven: the socket address.
+      - MCP_TRUSTED_PROXY_HOPS=0
       - WBS_API_URL=http://wbs-backend.wbs-solver.svc.cluster.local:3100
       - MCP_PUBLIC_URL=http://localhost:8080/mcp
 secretGenerator:

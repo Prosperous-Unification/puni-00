@@ -857,10 +857,18 @@ describe('MCP environment prerequisite', () => {
       'MCP_STORE_KEY_CURRENT=store-key',
       'MCP_STORE_PATH=/data/mcp-session.sqlite',
       'MCP_ACCESS_TOKEN_TTL=3600',
+      'MCP_TRUSTED_PROXY_HOPS=1',
     ].join('\n');
     await writeFile(envPath, `${valid}\n`);
     await chmod(envPath, 0o600);
     await assertMcpEnv(envPath);
+    // Proof: with MCP_TRUSTED_PROXY_HOPS dropped from MCP_REQUIRED_ENV, this resolved; watched
+    // 2026-10-27.
+    await writeFile(envPath, `${valid.replace('MCP_TRUSTED_PROXY_HOPS=1', '')}\n`);
+    expect(await rejection(assertMcpEnv(envPath))).toContain(
+      'exactly one non-empty MCP_TRUSTED_PROXY_HOPS',
+    );
+    await writeFile(envPath, `${valid}\n`);
 
     for (const replacement of [
       'MCP_STORE_PATH=/home/puni1/wbs-dev/state/mcp-session.sqlite',
@@ -952,6 +960,7 @@ describe('be-01 environment prerequisite', () => {
     'MCP_STORE_KEY_CURRENT=store-key',
     'MCP_STORE_PATH=/data/mcp-session.sqlite',
     'MCP_ACCESS_TOKEN_TTL=3600',
+    'MCP_TRUSTED_PROXY_HOPS=1',
   ].join('\n');
   const validBe = (): string => BE_REQUIRED_ENV.map((key) => `${key}=value`).join('\n');
 

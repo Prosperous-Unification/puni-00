@@ -17,6 +17,7 @@ import {
   DelegationRefused,
   EdgeGate,
   SessionRefreshRefused,
+  ToolCallCancelled,
   ToolInputRefused,
   UpstreamRejected,
 } from './wbs-client';
@@ -88,6 +89,8 @@ export interface ServerDeps {
     scopes: readonly string[],
   ) => Promise<string>;
   readonly reportUnexpectedToolFailure: UnexpectedToolFailureReporter;
+  /** How long a be-01 call may take; `BE_CALL_TIMEOUT_MS` when absent. A test shortens it. */
+  readonly beCallTimeoutMs?: number;
 }
 
 const errorText = (message: string): ToolTextResult => ({
@@ -136,6 +139,7 @@ export function createServer(deps: ServerDeps): Server {
     refreshSession,
     bearerFor,
     reportUnexpectedToolFailure,
+    beCallTimeoutMs,
   } = deps;
   const byName = new Map(tools.map((tool) => [tool.name, tool]));
 
@@ -197,8 +201,33 @@ export function createServer(deps: ServerDeps): Server {
     // Proof: with this branch removed, `presents the grant with the secret, and never the access
     // token` (machine-admission.test.ts) saw be-01 asked with no secret, and five more tests
     // there failed; watched 2026-10-27.
-    if (machine !== null)
-      return await callAsMachine(tool, request.params.arguments ?? {}, machine, authInfo.token);
+    if (machine !== null) {
+      // Counted per message, so a JSON-RPC batch of 30 calls counts 30 (M10), and the slot is
+      // held until the call returns, whatever it answered.
+      // Proof: counting HTTP requests (`MachineCaller.admitCall` asking the limits for a
+      // request's first call only), and ignoring a limited admission here, each failed `a batch
+      // of 30 calls runs 20 and limits 10` and two more (machine-limits.test.ts); releasing
+      // before the call, or only after a call that did not fail, failed the model in
+      // in-flight-counter.model.test.ts; watched 2026-10-27.
+      const admission = machine.admitCall();
+      if (admission.kind === 'limited')
+        return asCallToolResult(
+          errorText(
+            `${tool.name} could not be called: ${admission.reason} (429). Retry after ${String(admission.retryAfterSeconds)} s.`,
+          ),
+        );
+      try {
+        return await callAsMachine(
+          tool,
+          request.params.arguments ?? {},
+          machine,
+          authInfo.token,
+          extra.signal,
+        );
+      } finally {
+        admission.release();
+      }
+    }
     const sessionOfCall = extraSessionId(authInfo);
     // One be-01 call with the credential `upstreamToken` stands behind: asked
     // afresh each time, because a delegation is good for exactly one call.
@@ -211,6 +240,8 @@ export function createServer(deps: ServerDeps): Server {
         bearerFor === undefined
           ? upstreamToken
           : await bearerFor(sessionOfCall, upstreamToken, authInfo.scopes),
+        {},
+        { cancel: extra.signal, timeoutMs: beCallTimeoutMs },
       );
     try {
       return asCallToolResult(
@@ -285,7 +316,8 @@ export function createServer(deps: ServerDeps): Server {
         }
         return asCallToolResult(errorText(`${tool.name} could not be called: ${cause.message}`));
       }
-      if (cause instanceof EdgeGate) return asCallToolResult(errorText(cause.message));
+      if (cause instanceof EdgeGate || cause instanceof ToolCallCancelled)
+        return asCallToolResult(errorText(cause.message));
       // Deliberately not a throw. A modeled input refusal names what the caller can correct — as
       // tool content a model reads it and tries again, as a protocol exception it mostly sees
       // "the call failed". be-01's own refusals already arrive this way (D7).
@@ -310,10 +342,14 @@ export function createServer(deps: ServerDeps): Server {
     input: Readonly<Record<string, unknown>>,
     machine: MachineCaller,
     grant: string,
+    cancel: AbortSignal,
   ): Promise<ReturnType<typeof asCallToolResult>> {
     try {
       return asCallToolResult(
-        await callTool(tool, input, config, fetchImpl, grant, machine.serviceHeaders()),
+        await callTool(tool, input, config, fetchImpl, grant, machine.serviceHeaders(), {
+          cancel,
+          timeoutMs: beCallTimeoutMs,
+        }),
       );
     } catch (cause) {
       if (cause instanceof UpstreamRejected) {
@@ -346,7 +382,8 @@ export function createServer(deps: ServerDeps): Server {
         );
         return asCallToolResult(errorText(`${tool.name} could not be called: server_error.`));
       }
-      if (cause instanceof EdgeGate) return asCallToolResult(errorText(cause.message));
+      if (cause instanceof EdgeGate || cause instanceof ToolCallCancelled)
+        return asCallToolResult(errorText(cause.message));
       if (cause instanceof ToolInputRefused)
         return asCallToolResult(errorText(`${tool.name} could not be called: ${cause.message}`));
       return reportToolFailure(tool.name, cause);

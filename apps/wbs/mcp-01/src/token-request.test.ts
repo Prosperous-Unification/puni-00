@@ -350,6 +350,42 @@ describe('resource, scope, run and repetition', () => {
     });
   });
 
+  it('refuses a client_id over 256 characters invalid_request', async () => {
+    const long = 'c'.repeat(257);
+    expect(
+      parseMachineTokenRequest(
+        form([...credentialsBase, ['client_id', long], ['client_secret', KEY]]),
+        null,
+        RESOURCE,
+      ),
+    ).toMatchObject({ kind: 'refused', error: 'invalid_request' });
+    expect(
+      parseMachineTokenRequest(
+        form([
+          ['grant_type', JWT_BEARER_GRANT],
+          ['resource', RESOURCE],
+          ['client_id', long],
+          ['assertion', await assertionTyped(undefined)],
+        ]),
+        null,
+        RESOURCE,
+      ),
+    ).toMatchObject({ kind: 'refused', error: 'invalid_request' });
+    // 256 is still read, and judged as any other id.
+    expect(
+      parseMachineTokenRequest(
+        form([
+          ['grant_type', JWT_BEARER_GRANT],
+          ['resource', RESOURCE],
+          ['client_id', 'c'.repeat(256)],
+          ['assertion', await assertionTyped(undefined)],
+        ]),
+        null,
+        RESOURCE,
+      ),
+    ).toMatchObject({ kind: 'request', clientId: 'c'.repeat(256) });
+  });
+
   it('refuses an empty or over-long run invalid_request', () => {
     for (const run of ['', 'r'.repeat(257)])
       expect(withKey([...credentialsBase, ['wbs_run', run]])).toMatchObject({

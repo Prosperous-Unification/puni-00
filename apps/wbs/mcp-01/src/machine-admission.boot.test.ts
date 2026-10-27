@@ -14,7 +14,8 @@ import type { McpConfig } from './config';
 import type { McpDeploymentFault } from './deployment-fault';
 import { mcpFetchHandler } from './http';
 import { machineGrantClient } from './machine-grant-client';
-import { McpOAuthServer, NO_TOKEN_ENDPOINT_LIMITS } from './oauth';
+import { NO_MACHINE_LIMITS } from './machine-limits';
+import { McpOAuthServer } from './oauth';
 import { readDocument, toolsFromDocument } from './openapi-tools';
 import { organizationAuthority } from './organization-authority';
 import { createServer } from './server';
@@ -94,6 +95,7 @@ function replica(name: string, secret: string): Replica {
   const config = {
     MCP_AUTH_MODE: 'standalone',
     MCP_PUBLIC_URL: MCP_URL,
+    MCP_TRUSTED_PROXY_HOPS: 1,
     WBS_API_URL: beUrl,
     MCP_BE_INTERNAL_SECRET: secret,
   } satisfies McpConfig;
@@ -117,7 +119,7 @@ function replica(name: string, secret: string): Replica {
         client: machineGrantClient(config),
         secret,
         tokenTtlSeconds: 12 * 60 * 60,
-        limit: NO_TOKEN_ENDPOINT_LIMITS,
+        limit: NO_MACHINE_LIMITS,
         reportFault: (fault) => faults.push(fault),
       },
     },
