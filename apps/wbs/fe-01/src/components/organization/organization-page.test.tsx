@@ -454,7 +454,9 @@ describe('machine credentials on the organization page', () => {
       'GET /api/organization/invitations': [() => answer(200, { invitations: [] })],
       'GET /api/organization/active': [() => answer(200, { organizationId, name: 'Acme', role })],
       'GET /api/organization/machine-credentials': [() => answer(200, { credentials: [] })],
-      'GET /api/organization/trusted-issuers': [() => answer(200, { trustedIssuers: [] })],
+      'GET /api/organization/trusted-issuers': [
+        () => answer(200, { trustedIssuers: [], audienceRoot: 'https://wbs.example/mcp/oauth' }),
+      ],
       'GET /api/people': [() => answer(200, { people: [] })],
     });
   }
@@ -505,7 +507,9 @@ describe('machine credentials on the organization page', () => {
         () => answer(200, { organizationId: 'org-a', name: 'Acme', role: 'admin' }),
       ],
       'GET /api/organization/machine-credentials': [() => answer(200, { credentials: [] })],
-      'GET /api/organization/trusted-issuers': [() => answer(200, { trustedIssuers: [] })],
+      'GET /api/organization/trusted-issuers': [
+        () => answer(200, { trustedIssuers: [], audienceRoot: 'https://wbs.example/mcp/oauth' }),
+      ],
       'GET /api/people': [() => answer(200, { people: [] })],
       'GET /api/organization/limits': [
         () =>

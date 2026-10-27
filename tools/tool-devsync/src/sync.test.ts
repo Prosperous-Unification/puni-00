@@ -1038,6 +1038,7 @@ describe('boot-commit convergence after reset', () => {
     'MCP_STORE_KEY_CURRENT=store-key',
     'MCP_STORE_PATH=/data/mcp-session.sqlite',
     'MCP_ACCESS_TOKEN_TTL=3600',
+    'MCP_TRUSTED_PROXY_HOPS=1',
   ].join('\n');
   const GIT = ['-c', 'user.name=devsync-test', '-c', 'user.email=devsync@example.invalid'];
   const INSTANT = { watchMs: 0, restartMs: 0, pollMs: 0 };
