@@ -1738,3 +1738,40 @@ is unchanged: actual tag500, strict pre-API partial census and matching-pair ver
 recovery must finish at a fenced handoff. This preparation proves neither native
 recovery nor activation. Source remains frozen through execution and both cleanup
 audits; a further run requires a separately reviewed concrete change or disposition.
+
+## Native partial-state recovery reached a verified fenced handoff
+
+HOST56 returned0 without timeout in145.176seconds. Managed publication and explicit
+index protection succeeded. The real manifest DELETE returned500 after revision
+unlink; original tag bytes remained, and mode0600 was restored only after the actual
+server exited137/SIGKILL and its group was absent. The same retirement's strict
+census returned1 with the exact missing-revision refusal and zero HTTP events.
+Frozen frame22223:24 maps directly to that inventory check, independently of the
+generic diagnostic stage label.
+
+The existing held-authority recovery then returned0. Actual restic restored the
+matching registry/journal pair on independently verified target filesystems; the
+restored server produced20 successful GET observations while production census and
+content verification checked required digests. The controller checked the matching
+offline journal hash, unchanged current protections/history/bundles, canonical lock
+inode/device, restored revision and preserved damaged original store. Recovery
+ended at a restored, fenced handoff. No post-failure GC or serving restoration ran.
+Desired-state activation and ordinary CLI/permit continuation remain unverified.
+
+The drill used four real bounded filesystems, pinned Distribution/restic, actual
+privilege transport and canonical authority. Kubernetes/readers/provider admission
+were synthetic and the post-publication authority clock advanced eight days between
+terminal commands. Explicit protection does not establish deployed-environment
+history; no Docker replay, actual ten-second expiry or ESRCH occurrence in this run
+is claimed.
+
+All278 periodic host root/cgroup comparisons and final host/UTS comparisons matched.
+Normal teardown unmounted cgroup before proc and root last, detached four loops,
+removed the exact fixture and released the canonical lock. Both independent audits
+returned0 with empty stderr. They found the owned path, three namespaces, references
+and outside PID/start identities absent; worker all-process mount/queue checks and
+controller descriptor/backing/mount checks completed, with over20GiB host reserve.
+All100 registry/nine payload/262 build-input hashes still matched at closure, and
+executed registry sources were preserved before edits. This closes the scoped
+recovery proof. Process-kill recovery, physical ENOSPC, serving activation, complete
+R5/lint/gates/review and Tasks9–11 remain required.
