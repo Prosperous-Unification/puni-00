@@ -1590,3 +1590,30 @@ is released for the next local strict partial-census/recovery slice. This closes
 only the scoped failure witness; successful recovery, GC/restore process kills,
 physical registry ENOSPC with healthy journal, installed continuation, complete
 R5 bindings, lint and all remaining Task8/9–11 validation/activation remain required.
+
+## Local strict partial-state census and recovery regression
+
+The first new regression runs existing production maintenance and recovery flows
+against actual journal/flock and physically seeded image trees. A modeled DELETE
+physically unlinks the expired revision then returns500. The subsequent production
+census refuses the dangling current tag before any registry API request. Removing
+only the current-tag/revision membership loop causes eight requests where zero is
+required; the negative fails on that observable boundary. Restoring exact source
+passes the focused test with12 assertions. This is not proof that the mutated
+census succeeds: a later check may still refuse it.
+
+The initial two-test run passed51 assertions. Its recovery case invokes
+`stageRegistryRecovery` and the existing server verifier through the actual held
+maintenance session. It checks canonical-lock contention/inode preservation,
+matching staged journal bytes, current protections and publication provenance,
+rebind to the recovered target, unchanged damaged original store and a fenced
+activation handoff. The existing flow already passes, so no behavioral RED or
+production recovery fix is claimed. An earlier socket denial prevented the local
+HTTP listener; the same test then ran through normal tool review.
+
+These are local regressions with copying backup, modeled device/capacity/runtime
+and consumer ports, and HTTP bodies supplied from a contents map. They establish
+neither actual Distribution restore serving, independent mounted storage, installed
+activation nor ordinary CLI/permit continuation. Newer-obligation cases, final
+scoped lint/types/format and the native recovery packet remain pending. The earlier
+closed HOST54 failure proof is preserved independently.
