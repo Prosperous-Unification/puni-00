@@ -171,8 +171,36 @@ name } | null`. `null` means deleted since: history outlives people and rows. Th
 is decoded with the journal's own decoder; an entry it cannot decode is corrupt trusted state
 and throws. Undo and redo entries are not listed: the claims held now are the current answer.
 
-**C15. No control.** Release stays an MCP or batch command, admin-bypassed as D5 of
-`wbs-team-claims` says. A release button is a follow-up with its own refusal design.
+**C15. No control in the Claims sheet.** Amended 2026-10-27 by C23: the row menu claims and
+releases for the signed-in account's own person. The sheet stays a reading surface, and nobody
+releases another holder's claim from fe-01; the admin bypass of `wbs-team-claims` D5 stays an MCP
+or batch command.
+
+**C22. Distinct marks.** `assignInitials` over every directory name, every claim holder and
+`(unknown)` keeps each uncontested `initialsOf`; of a colliding group the shortest name (then
+code-unit order) keeps it and each other takes the first free of: its first letter with each later
+word's first letter, with each later letter, then with 2, 3, …. Still two characters, because
+`ASSIGNEE_SLOT_PX` and `CLAIM_SLOT_PX` hold two capitals (F-034); a mark depends on the set of
+names, not their order. The directory rather than the people on screen, so a mark does not move
+when someone is assigned elsewhere. Rejected: `CCW` (overflows the slot), `CC1`/`CC2` (both lose
+the plain mark although one name owns it). The Gantt bars keep `initialsOf`.
+
+**C23. Claim from the row menu.** The account is `session.userId`; its person is the one directory
+person of kind `person` whose `accountId` names it (the people read already carries the
+binding; no new read). Agents bound to the account are not the account. The ⋯ offers `Claim`
+right after the status entries, or `Release my claim` where that person holds a step or subtree
+claim drawn on the row. Claim sends `claimWorkItem { workItemId, personId }` (every step not
+done; the subtree on a parent) and Release `releaseWorkItem` for the same person; both reread
+tree and claims. A session claim carries no lease (`claimLeaseExpiry` leases only an agent's own
+credential), so the chip shows no time (C10). Refusals are the writer's toast: `already_claimed`,
+`inside_subtree_claim` and `overlaps_subtree_claim` name their holders and runs, and
+`resources_exhausted` names each short resource with asked, free and holders, from the body.
+`ProjectPage` requires the account id; a table drawn without one offers no claim item.
+
+**C24. A Claim that cannot be taken says why.** No bound person, several bound persons, or a
+person row without `accountId` draws `Claim` refused (`aria-disabled`, its reason as the item's
+fact) pointing at the Directory binding an organization admin makes; a done row reads `Done —
+there is nothing left to claim`. Never hidden.
 
 **C16. Where the sheet opens.** A `Claims` toolbar button with the held count (no count at
 zero), and an entry in the phone `Plan actions` sheet. Held claims are grouped by holder, then

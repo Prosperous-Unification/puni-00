@@ -68,6 +68,7 @@ const projectRoute = createRoute({
         presence={presence}
         account={account}
         nav={nav}
+        viewerAccountId={session.userId}
       />
     );
   },

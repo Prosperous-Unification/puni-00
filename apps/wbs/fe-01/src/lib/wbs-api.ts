@@ -2232,6 +2232,15 @@ export interface ProjectApi {
   unfreezeProject(projectId: string): Promise<void>;
   unfreezeWorkItem(id: string): Promise<void>;
   /**
+   * Claims a work item for a person (`wbs-claim-display` 11.2): every step not
+   * done on a leaf, the subtree on a parent. Sent from a session, so the claim
+   * carries no lease; be-01 refuses `person_not_bound` unless `personId` is
+   * bound to the signed-in account, and names the holders of `already_claimed`.
+   */
+  claimWorkItem(workItemId: string, personId: string): Promise<void>;
+  /** Releases every claim `personId` holds on the work item (`wbs-claim-display` 11.2). */
+  releaseWorkItem(workItemId: string, personId: string): Promise<void>;
+  /**
    * Records "`predecessorId`'s **anchor** must finish before this starts" —
    * its first step somebody estimated, not the whole of it. The steps behind
    * that anchor run alongside this work item. Since `dep-waits-on-first-role`
@@ -3455,6 +3464,12 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
     },
     async unfreezeWorkItem(id) {
       await onRow(id, { kind: 'unfreezeWorkItem', workItemId: id });
+    },
+    async claimWorkItem(workItemId, personId) {
+      await onRow(workItemId, { kind: 'claimWorkItem', workItemId, personId });
+    },
+    async releaseWorkItem(workItemId, personId) {
+      await onRow(workItemId, { kind: 'releaseWorkItem', workItemId, personId });
     },
     async addDependency(id, predecessorId) {
       await onRow(id, { kind: 'addDependency', workItemId: id, predecessorId });

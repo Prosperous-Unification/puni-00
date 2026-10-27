@@ -146,3 +146,23 @@ reached `main` and deployed (C5), and gw-01 with the optional `seq` deploys no l
 - [x] 10.2 `CONTEXT.md` terms (already added), module indexes for the new reads, the fe-01
       claims resource JSDoc; `verify.md` with commands, results and proofs; mark
       `wbs-team-claims` 1.7 and `wbs-claim-leases` 2.1 superseded by this change.
+
+## 11. Human claims and distinct marks (fe-01; from the 10.1 dev check, 2026-10-26)
+
+- [x] 11.1 Red: `initials.test.ts`: `claude-code`/`claude-code-worker` read `CC`/`CW`; a
+      property that distinct names give distinct marks; uncontested initials kept; order
+      independence. Table: chips and the assignee slot use the plan's marks (C22). R5 faults:
+      `initialsOf` per name; the second loop's `taken` check removed; the chip and the slot
+      printing `initialsOf`; watched.
+- [x] 11.2 Red: `claim-offer.test.ts` (claimant and offer, pure) and
+      `plan-claim-actions.test.tsx` (table and phone card): Claim after the statuses, claimed for
+      the bound person with no lease, Release on a held row, refused for an unbound account and a
+      done row, absent with no account; `project-page.test.tsx`: the routed page offers it
+      (C23, C24). R5 faults: agents counted; missing `accountId` read as unbound; Release never
+      offered; done arm dropped; claims not reread; no claim items in the column; `holdersOn`
+      empty; card arm dropped; page not passing the account; watched.
+- [x] 11.3 Red: `claim-refusal-words.test.ts`: holders, runs and the short resource named from
+      the refusal body; every bare claim code worded. R5 faults: body sentence returning null;
+      bare entries struck; watched.
+- [ ] 11.4 Dany confirms C22 to C24; the 10.1 dev by-eye rerun includes a human Claim and
+      Release from the row menu, with an account bound in the Directory.

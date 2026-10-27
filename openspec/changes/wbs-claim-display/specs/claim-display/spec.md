@@ -205,3 +205,79 @@ claim's chip in the card's header, with the same text rules as the table.
 
 - **WHEN** the plan renders as cards and `codex` holds `Impl` of `080.25`
 - **THEN** `080.25`'s card shows `codex`'s chip beside the `Impl` assignee
+
+### Requirement: Every person the plan prints reads differently
+
+fe-01 SHALL print each person in a folded assignee slot and a claim chip by a mark of at most
+two characters that differs from every other person's whenever their names differ, among the
+directory's people and the claims read's holders. A person whose initials nobody else shares
+SHALL keep them; of names sharing initials the shortest SHALL keep them. The chip's accessible
+name and the cell's card SHALL still name the person in full.
+
+#### Scenario: Two agents of one swarm
+
+- **WHEN** `claude-code` and `claude-code-worker` each hold a step of `020`
+- **THEN** their chips read `CC` and `CW`, and `claude-code-worker` assigned to `020` reads
+  `· CW`
+
+#### Scenario: Nobody collides
+
+- **WHEN** the plan's people are `vadym`, `Kat Nowak` and `codex`
+- **THEN** they read `VA`, `KN` and `CO`, as before
+
+### Requirement: A signed-in person claims and releases from the row menu
+
+The row ⋯ menu, in the table and on a phone card, SHALL offer `Claim` after the status entries
+when the signed-in account is bound to exactly one human person, and `Release my claim` in its
+place where that person holds a step or subtree claim drawn on the row. Claim SHALL send
+`claimWorkItem` naming that person and no steps, run or resources; Release SHALL send
+`releaseWorkItem` naming that person. Both SHALL reread tree and claims.
+
+#### Scenario: A human claims an unclaimed row
+
+- **WHEN** `dany` is bound to the signed-in account and chooses Claim on unclaimed leaf `010`
+- **THEN** `claimWorkItem { workItemId: 010's id, personId: dany }` is sent, and after the
+  reread `010`'s steps show `DA` chips with no lease text
+
+#### Scenario: A human releases their own claim
+
+- **WHEN** `dany` holds `010` and chooses Release my claim
+- **THEN** `releaseWorkItem` for `dany` is sent and `010` shows no chip
+
+#### Scenario: An agent bound to the account is not the account
+
+- **WHEN** `dany` and the agent `claude-code` are both bound to the signed-in account
+- **THEN** Claim names `dany`
+
+### Requirement: A refused claim names who holds what
+
+A claim or release refused by be-01 SHALL be shown as a toast that names, from the refusal
+body, the holders and runs of `already_claimed`, `inside_subtree_claim` and
+`overlaps_subtree_claim`, and each short resource of `resources_exhausted` with the units asked
+and free and its holders; every other claim refusal SHALL be worded rather than shown as its
+code.
+
+#### Scenario: Somebody else holds the row
+
+- **WHEN** `eve` holds `020` under run `r-9` and `dany` chooses Claim
+- **THEN** the toast reads `Already claimed by eve (run r-9). Nothing was changed.`
+
+#### Scenario: A resource is short
+
+- **WHEN** be-01 refuses `resources_exhausted` for `res-gpu`, asked 1, free 0, held by
+  `claude-code-worker` under run `r-2`
+- **THEN** the toast names `res-gpu`, 1 asked, 0 free and `claude-code-worker (run r-2)`
+
+### Requirement: A Claim that cannot be taken says why
+
+When the signed-in account is bound to no human person, to more than one, or the people read
+does not say who is bound, or the row is done, the row menu SHALL draw `Claim` unavailable with
+its reason rather than leave it out; the reason SHALL point at the Directory binding an
+organization admin makes. A table drawn for no account SHALL offer no claim item.
+
+#### Scenario: An unbound account
+
+- **WHEN** no person is bound to the signed-in account
+- **THEN** Claim is `aria-disabled` and reads `Your account is not bound to a person — an
+organization admin binds it in the Directory before you can claim`, and choosing it sends
+  nothing

@@ -21,6 +21,7 @@ import type { DemandStatement } from '@/lib/wbs-api';
 
 import { type CellCards, createCellCards } from './cell-card-store';
 import type { CellRef } from './cell-navigation';
+import { claimantOf, claimOfferOf } from './claim-offer';
 import { ClaimsSheet, useClaimsOffered } from './claims-sheet';
 import { type ColumnHintState, hintFor } from './column-hints';
 import { CompletionPrompt, type PromptedStatus } from './completion-prompt';
@@ -684,6 +685,7 @@ export function WbsTable({
   planImport,
   toastApi: toastApiOverride,
   savedPlansShelf,
+  viewerAccountId,
 }: WbsTableProps) {
   const interaction = usePlanInteractionScope();
   const isPlanActive = useCallback(() => interaction?.isPlanActive() ?? true, [interaction]);
@@ -1493,6 +1495,37 @@ export function WbsTable({
       createPersonFor,
     });
   const { hasSchedule, spanOf } = usePlanSchedule({ scheduleError });
+  /** Who this account claims as (C23), or null for a table drawn for no account. */
+  const claimant = useMemo(
+    () => (viewerAccountId === undefined ? null : claimantOf(people, viewerAccountId)),
+    [people, viewerAccountId],
+  );
+  /**
+   * A human claim or release from the row menu (`wbs-claim-display` 11.2):
+   * one command naming the bound person, which a session sends with no lease.
+   * It moves claims and, for a claim, the leaf's progress, so both are read
+   * again; a refusal is the writer's toast, worded by `claimRefusalSentence`.
+   *
+   * Proof: `perform(['tree'], …)` here made `offers Claim after the statuses,
+   * and claims for the bound person` fail on `expected to have a length of 2
+   * but got +0` (no chip drawn); watched 2026-10-27.
+   */
+  const claimRow = useCallback(
+    (rowId: string, personId: string) => {
+      void run((write) =>
+        write.perform(['tree', 'claims'], () => commands.claimWorkItem(rowId, personId)),
+      );
+    },
+    [commands, run],
+  );
+  const releaseRow = useCallback(
+    (rowId: string, personId: string) => {
+      void run((write) =>
+        write.perform(['tree', 'claims'], () => commands.releaseWorkItem(rowId, personId)),
+      );
+    },
+    [commands, run],
+  );
   /** One mark per person the plan prints (C22), shared by the assignee slot and every chip. */
   const initials = useMemo(() => planInitialsOf(people, claims), [people, claims]);
   const { nonOwnerNoteOf, assigneeOn, anyAssigneeOn } = usePlanAssignments({
@@ -1506,7 +1539,7 @@ export function WbsTable({
   });
   /** The plan's one lease clock (C6), which every chip reads; no chip owns a timer. */
   const leaseClock = useLeaseClock();
-  const { stepClaimOn, subtreeClaimOn, anyClaimOn, leaseDeadlineOn } = usePlanClaims({
+  const { stepClaimOn, subtreeClaimOn, anyClaimOn, holdersOn, leaseDeadlineOn } = usePlanClaims({
     claims,
     rows: flat,
     steps,
@@ -1670,6 +1703,10 @@ export function WbsTable({
         // it` fail on `expected [ 'CL14m' ] to deeply equal []`; watched
         // 2026-10-24.
         subtreeClaim: subtreeClaimOn(row.id),
+        claimOffer:
+          claimant === null
+            ? null
+            : claimOfferOf(claimant, holdersOn(row.id), row.status === 'done'),
         hasSchedule: hasSchedule(),
         finish: span.finish,
         nonOwnerNote: nonOwnerNoteOf(row),
@@ -1691,6 +1728,8 @@ export function WbsTable({
     anyClaimOn,
     assigneeOn,
     busy,
+    claimant,
+    holdersOn,
     causeLabels,
     chartRead.timezone,
     combinedProblem,
@@ -1760,6 +1799,8 @@ export function WbsTable({
     openMoveUnder: setMoveUnderFor,
     openMeasures: setMeasuresFor,
     openDemands: setDemandsFor,
+    claimRow,
+    releaseRow,
     deleteRow,
     commitNameCell,
     onKeyDown,
@@ -3036,6 +3077,16 @@ export function WbsTable({
                 },
                 chooseStatus,
                 statusOffers,
+                ...(claimant === null
+                  ? {}
+                  : {
+                      claims: {
+                        offerOf: (row) =>
+                          claimOfferOf(claimant, holdersOn(row.id), row.status === 'done'),
+                        claim: claimRow,
+                        release: releaseRow,
+                      },
+                    }),
               }}
             />
           ) : (

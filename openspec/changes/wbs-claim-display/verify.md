@@ -1158,3 +1158,44 @@ released lead's `020 Build farm` subtree with w3's and w2's delegated claims, an
 `A lease expired: released 5 items of w3, w2 and lead` (`claims-sheet-*-post`), which names no
 one as the lease's owner; under the possessive form it would have said w3's lease expired while
 w3 was renewing. `card-build-farm-375-*-pre`: the chip on its own line, every card total 20 px.
+
+### Slice 11: human claims and distinct marks (fe-01), 2026-10-27
+
+Branch `feat/wbs-claim-ui-humans` from `origin/main` (67773f97a). From the dev by-eye check of
+10.1 on 2026-10-26: `claude-code` and `claude-code-worker` both drew `CC`, and the plan offered
+no way for a human to claim. Commands ran with `env -u CLAUDECODE` from the worktree.
+
+Read, not run: `refuseIdentity` in `@wbs/domain` `claim.ts` (a caller claims for a person whose
+`boundAccountId` is its account, or as an admin); `claimLeaseExpiry` in `claim-lease.ts` (a lease
+only when the caller's pinned person is the claimant, so a session claim has none);
+`patchPersonWithin` (only an organization admin binds `accountId`); the people read carries
+`accountId` per person. fe-01 already holds the session's `userId` and the people read, so no
+new read was added (C23).
+
+| Fault injected (watched 2026-10-27)              | Observed failing test                                                                                   |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `assignInitials` answering `initialsOf` per name | `tells claude-code from claude-code-worker`: `'CC'` for `'CW'`; property: counterexample `["aa","aaa"]` |
+| second loop's `taken` check removed              | property: counterexample `["aöa","aöA"]`                                                                |
+| chip printing `initialsOf(holder.name)`          | `draws claude-code and claude-code-worker as two marks…`: `[ 'CC', 'CC' ]` for `[ 'CC', 'CW' ]`         |
+| folded slot printing `initialsOf(doing.name)`    | same case: `'· CC'` for `'· CW'`                                                                        |
+| agent persons counted as the account             | `claims as the human, not the account’s agent`: `several` for `bound`                                   |
+| missing-`accountId` arm dropped                  | `cannot say from a person row without accountId`: `bound` for `unknown`                                 |
+| Release never offered                            | `offers Release on a row the claimant holds`: `'claim'` for `'release'`                                 |
+| done arm dropped                                 | `refuses Claim on a done row`: `claim` for `refused`                                                    |
+| `claimRow` rereading only the tree               | `offers Claim after the statuses…`: `expected to have a length of 2 but got +0`                         |
+| actions column handed no offer                   | six cases of `plan-claim-actions.test.tsx`                                                              |
+| `holdersOn` answering nobody                     | `offers Release my claim…`: menu lacks `Release my claim`                                               |
+| phone card claim arm dropped                     | `offers the same Claim on a phone card`: no `Claim` menu item                                           |
+| `ProjectPage` not passing `viewerAccountId`      | `offers Claim for the person bound to the signed-in account`: no `Claim` menu item                      |
+| `claimRefusalSentence` returning null            | holders, resource and subtree cases read the bare sentences                                             |
+| bare claim entries struck from `PLAN_REFUSALS`   | `words every claim refusal…`: `That change could not be completed (already_claimed)`                    |
+
+Eye review (ordinary local stack, `E2E_PORT_SHIFT=2000`, a scratch Playwright spec not
+committed; the people read and the claims read rewritten in the browser so `dany` is bound to
+`local-dev` and `claude-code`/`claude-code-worker` hold `020`): the unbound Claim drawn grey with
+its Directory reason as its fact; `DA`, `CC` and `CW` chips; `Release my claim` on `010`; `Claim`
+on `020`, which the real be-01 refused `person_not_bound` (the binding was only in the browser),
+toasted as `Your account is not bound to that person — an organization admin binds it in the
+Directory. Nothing was changed.`; `dany`'s card line `Claimed by dany since 27 Oct 07:44` with no
+lease text; the phone card's menu with `Claim` after the statuses. A real bound human claim on an
+organization stack is the 10.1 dev rerun (11.4).

@@ -18,6 +18,12 @@ export interface PlanClaims {
   /** Whether some drawn row holds a claim on this step, so its folded column keeps the slot. */
   anyClaimOn: (stepId: string) => boolean;
   /**
+   * Who holds a claim drawn on this row, by person id — its step claims on
+   * every step, hidden columns included, and its subtree claim — for the row
+   * menu's Claim or Release (`wbs-claim-display` C23).
+   */
+  holdersOn: (rowId: string) => string[];
+  /**
    * The monotonic instant the plan's one ticker must run until: the latest
    * lease end among the claims drawn on `rows` (the rows on screen, not the
    * collapsed or filtered ones) and `steps` (the step columns not hidden), or
@@ -191,10 +197,20 @@ export function usePlanClaims({
   );
   const subtreeClaimOn = useCallback((rowId: string) => index.subtrees.get(rowId) ?? null, [index]);
   const anyClaimOn = useCallback((stepId: string) => index.claimedSteps.has(stepId), [index]);
+  // Proof: answering nobody here made `offers Release my claim on a row the
+  // person holds` fail on `expected [ 'Set status to Draft', …(12) ] to include
+  // 'Release my claim'`; watched 2026-10-27.
+  const holdersOn = useCallback(
+    (rowId: string) =>
+      [...(index.steps.get(rowId)?.values() ?? []), index.subtrees.get(rowId) ?? null].flatMap(
+        (drawn) => (drawn === null ? [] : [drawn.claim.holder.personId]),
+      ),
+    [index],
+  );
   const leaseDeadlineOn = useCallback(
     (rows: ReadonlySet<string>, steps: ReadonlySet<string>) =>
       leaseDeadline(index.leased, rows, steps),
     [index],
   );
-  return { stepClaimOn, subtreeClaimOn, anyClaimOn, leaseDeadlineOn };
+  return { stepClaimOn, subtreeClaimOn, anyClaimOn, holdersOn, leaseDeadlineOn };
 }

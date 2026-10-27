@@ -2260,6 +2260,11 @@ test.describe('the table, measured by a browser', () => {
     }
     expect(await focusedText()).toBe('Set status to Done');
     await page.keyboard.press('ArrowDown');
+    // `wbs-claim-display` 11.2: Claim after the statuses. The local stack's
+    // account is bound to nobody, so it is drawn refused, and a refused item
+    // still takes the focus so its reason is read out.
+    expect(await focusedText()).toBe('Claim');
+    await page.keyboard.press('ArrowDown');
     expect(await focusedText()).toBe('Add child');
     await page.keyboard.press('ArrowDown');
     expect(await focusedText()).toBe('Move under…');
