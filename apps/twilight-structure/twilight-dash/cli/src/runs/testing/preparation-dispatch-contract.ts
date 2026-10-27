@@ -17,7 +17,7 @@ async function scenario(
   try {
     await check(await dispatchFixture(stores));
   } finally {
-    stores.close();
+    await stores.close();
   }
 }
 async function dispatchFixture(stores: OutcomeFixture) {
@@ -702,7 +702,7 @@ export function preparationDispatchContract(
             .executions,
         ).toHaveLength(2);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
   });

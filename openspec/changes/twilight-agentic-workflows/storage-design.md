@@ -178,6 +178,8 @@ not an external API call. All expected conflicts return the union above; operati
 failures (unreadability, corrupt records, exhausted database contention) throw named errors.
 No connection, table, SQL fragment, filesystem path, generic transaction or arbitrary JSON
 patch crosses either port. Construction and close remain provider lifecycle concerns.
+The [provider lifecycle contract](provider-lifecycle-design.md) specifies observed close
+completion, immediate admission fencing and ownership of cleanup.
 
 ## Operation rules
 

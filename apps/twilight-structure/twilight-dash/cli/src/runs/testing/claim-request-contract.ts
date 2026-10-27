@@ -34,7 +34,7 @@ async function scenario(
     );
     await check(await prepareSession(stores, { ownership, suffix: '-builder' }));
   } finally {
-    stores.close();
+    await stores.close();
   }
 }
 
@@ -205,7 +205,7 @@ export function claimRequestContract(name: string, create: () => Promise<Outcome
           },
         });
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
 
@@ -565,7 +565,7 @@ export function claimRequestContract(name: string, create: () => Promise<Outcome
             ),
           ).toEqual({ kind: 'refused', reason: 'state_conflict' });
         } finally {
-          stores.close();
+          await stores.close();
         }
       });
 

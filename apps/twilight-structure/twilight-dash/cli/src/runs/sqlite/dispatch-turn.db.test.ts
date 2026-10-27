@@ -22,12 +22,17 @@ turnDispatchContract('sqlite turn dispatch', async () => {
       maxBusyAttempts: 20,
       busyDelayMilliseconds: 1,
     });
+    let closing: Promise<void> | undefined;
     return {
       ...connection,
       clock,
-      close() {
-        connection.close();
-        rmSync(directory, { recursive: true, force: true });
+      close(): Promise<void> {
+        if (closing !== undefined) return closing;
+        closing = (async () => {
+          await connection.close();
+          rmSync(directory, { recursive: true, force: true });
+        })();
+        return closing;
       },
     };
   } catch (cause) {
@@ -85,14 +90,14 @@ test('second SQLite reader sees durable turn intent before executor entry and ex
     );
     expect(reply.kind).toBe('observed');
     if (reply.kind !== 'observed') throw new Error('observed turn missing');
-    reader.close();
+    await reader.close();
     reader = await openSqliteStores(options);
     expect(
       (await reader.runs.readExecutionHistory(setup.run.runId, setup.attempt.attemptId)).attempt,
     ).toEqual(reply.attempt);
   } finally {
-    reader?.close();
-    writer.close();
+    await reader?.close();
+    await writer.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });

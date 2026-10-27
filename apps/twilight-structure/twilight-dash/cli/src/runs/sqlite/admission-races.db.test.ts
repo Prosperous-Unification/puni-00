@@ -40,7 +40,7 @@ if(packet.mode==='before') {
 const reply=await stores.runs.admitAttempt(packet.guard,packet.admission);
 writeSync(1,JSON.stringify({phase:'committed',reply})+'\\n');
 if(packet.mode==='after') {const deadline=Date.now()+10000;while(Date.now()<deadline) await Bun.sleep(5);throw new Error('after-commit kill barrier timed out');}
-stores.close();
+await stores.close();
 `;
 async function fixture() {
   const directory = mkdtempSync(join(tmpdir(), 'run-store-process-'));
@@ -79,28 +79,39 @@ async function fixture() {
       },
       ordinal: 1,
     });
+    let closing: Promise<void> | undefined;
     return {
       directory,
       options,
       stores,
       guard: { ownership, runId: run.runId, expectedRevision: 0 },
       admission,
-      close() {
-        stores.close();
-        rmSync(directory, { recursive: true, force: true });
+      close(): Promise<void> {
+        if (closing !== undefined) return closing;
+        closing = (async () => {
+          await stores.close();
+          rmSync(directory, { recursive: true, force: true });
+        })();
+        return closing;
       },
     };
   } catch (cause) {
-    stores.close();
-    rmSync(directory, { recursive: true, force: true });
-    console.log(
-      JSON.stringify({
-        event: 'admission-fixture-closed',
-        directory,
-        exists: existsSync(directory),
-        at: new Date().toISOString(),
-      }),
-    );
+    try {
+      await stores.close();
+      rmSync(directory, { recursive: true, force: true });
+      console.log(
+        JSON.stringify({
+          event: 'admission-fixture-closed',
+          directory,
+          exists: existsSync(directory),
+          at: new Date().toISOString(),
+        }),
+      );
+    } catch (cleanupCause) {
+      throw new AggregateError([cause, cleanupCause], 'store setup and cleanup failed', {
+        cause: cleanupCause,
+      });
+    }
     throw cause;
   }
 }
@@ -298,18 +309,18 @@ async function closeAdmissionProcess(
     .filter((entry) => entry.status === 'rejected')
     .map((entry): unknown => entry.reason);
   try {
-    setup.close();
+    await setup.close();
+    console.log(
+      JSON.stringify({
+        event: 'admission-fixture-closed',
+        directory: setup.directory,
+        exists: existsSync(setup.directory),
+        at: new Date().toISOString(),
+      }),
+    );
   } catch (cause) {
     failures.push(cause);
   }
-  console.log(
-    JSON.stringify({
-      event: 'admission-fixture-closed',
-      directory: setup.directory,
-      exists: existsSync(setup.directory),
-      at: new Date().toISOString(),
-    }),
-  );
   if (failures.length > 0)
     throw new AggregateError(failures, 'admission owned-resource cleanup failed');
 }
@@ -374,7 +385,7 @@ for (const mode of ['before', 'after'] as const)
       await child.child.exited;
       expect(child.child.signalCode).toBe('SIGKILL');
       expect(await child.stderr).toBe('');
-      setup.stores.close();
+      await setup.stores.close();
       const reopened = await openSqliteStores(setup.options);
       try {
         const snapshot = await reopened.runs.readRun(setup.guard.runId);
@@ -386,7 +397,7 @@ for (const mode of ['before', 'after'] as const)
           expect(snapshot.attempts[0]?.holdsCapacity).toBe(true);
         }
       } finally {
-        reopened.close();
+        await reopened.close();
       }
     });
   });

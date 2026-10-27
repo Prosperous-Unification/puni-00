@@ -7,7 +7,7 @@ import { artifactDigest } from '../record-codecs';
 
 export function artifactStoreContract(
   name: string,
-  create: () => Promise<{ artifacts: ArtifactStore; close(): void }>,
+  create: () => Promise<{ artifacts: ArtifactStore; close(): Promise<void> }>,
 ) {
   describe(name, () => {
     test('retains immutable bytes and refuses metadata collisions', async () => {
@@ -61,11 +61,12 @@ export function artifactStoreContract(
             stores.artifacts.retainArtifact(content as unknown as Uint8Array, 'text/plain'),
             /artifact content must be bytes/,
           );
-        stores.close();
+        const closing = stores.close();
         await rejects(stores.artifacts.readArtifact(retained.reference));
         await rejects(stores.artifacts.retainArtifact(bytes, 'text/plain'));
+        await closing;
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
   });

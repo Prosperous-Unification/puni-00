@@ -34,14 +34,19 @@ async function createFixture(capacity = 3) {
     busyDelayMilliseconds: 1,
   });
   const database = new Database(path);
+  let closing: Promise<void> | undefined;
   return {
     ...stores,
     clock,
     database,
-    close() {
-      database.close();
-      stores.close();
-      rmSync(directory, { recursive: true, force: true });
+    close(): Promise<void> {
+      if (closing !== undefined) return closing;
+      closing = (async () => {
+        database.close();
+        await stores.close();
+        rmSync(directory, { recursive: true, force: true });
+      })();
+      return closing;
     },
   };
 }
@@ -184,7 +189,7 @@ for (const route of [
           expect(snapshot.consumedDecisionIds.map(String)).toEqual(['decision']);
         }
       } finally {
-        fixture.close();
+        await fixture.close();
       }
     });
   }
@@ -213,7 +218,7 @@ test('capacity one rejects cross-run admission after a live reservation disappea
     });
     expect((await fixture.runs.readRun(target.runId)).attempts).toEqual([]);
   } finally {
-    fixture.close();
+    await fixture.close();
   }
 });
 
@@ -258,7 +263,7 @@ for (const route of ['execution', 'outcome', 'receipt'] as const) {
       expect(snapshot.capacity.reserved).toBe(0);
       expect(snapshot.attempts[0]?.holdsCapacity).toBe(false);
     } finally {
-      fixture.close();
+      await fixture.close();
     }
   });
 }

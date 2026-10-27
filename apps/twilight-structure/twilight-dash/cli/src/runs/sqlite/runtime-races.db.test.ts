@@ -45,7 +45,7 @@ if(packet.mode==='before') {
 const reply=packet.operation==='stage'?await stores.runs.stageRuntimeRequest(packet.guard,packet.request):await stores.runs.recordRuntimeAcceptance(packet.guard,packet.acceptance);
 writeSync(1,JSON.stringify({phase:'committed',reply})+'\\n');
 if(packet.mode==='after'){const stop=Date.now()+10000;while(Date.now()<stop)await Bun.sleep(5);throw new Error('kill barrier timeout');}
-stores.close();
+await stores.close();
 `;
 
 async function fixture() {
@@ -63,14 +63,19 @@ async function fixture() {
   const ownership = unwrapReply(await stores.runs.acquireOwnership(ownerId('local-A'), 0));
   unwrapReply(await stores.runs.pinRuntimeScope(ownership, runtimePin));
   const guard = { ownership, scope: runtimeScope, expectedRevision: 0 };
+  let closing: Promise<void> | undefined;
   return {
     stores,
     options,
     directory,
     guard,
-    close() {
-      stores.close();
-      rmSync(directory, { recursive: true, force: true });
+    close(): Promise<void> {
+      if (closing !== undefined) return closing;
+      closing = (async () => {
+        await stores.close();
+        rmSync(directory, { recursive: true, force: true });
+      })();
+      return closing;
     },
   };
 }
@@ -169,7 +174,7 @@ for (const operation of ['stage', 'accept'] as const)
       });
     } finally {
       for (const child of children) await child.close();
-      setup.close();
+      await setup.close();
     }
   }, 20000);
 
@@ -206,7 +211,7 @@ for (const operation of ['stage', 'accept'] as const)
         await child.child.exited;
         expect(child.child.signalCode).toBe('SIGKILL');
         expect(await child.stderr).toBe('');
-        setup.stores.close();
+        await setup.stores.close();
         const reopened = await openSqliteStores(setup.options);
         const database = new Database(setup.options.path, { readonly: true, create: false });
         try {
@@ -227,10 +232,10 @@ for (const operation of ['stage', 'accept'] as const)
           });
         } finally {
           database.close();
-          reopened.close();
+          await reopened.close();
         }
       } finally {
         await child.close();
-        setup.close();
+        await setup.close();
       }
     }, 20000);

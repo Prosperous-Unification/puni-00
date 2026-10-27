@@ -8,6 +8,7 @@ import type { RunStore } from '../run-store';
 import { RuntimeDispatchError } from '../runtime-dispatch-error';
 import { readRuntimeHistory } from '../runtime-history';
 import type { RuntimeGuard, RuntimeIntent } from '../runtime-records';
+import { closeFixtures } from './close-fixtures';
 import { unwrapReply } from './fixtures';
 import type { StoreFixture } from './run-store-contract';
 import {
@@ -100,8 +101,8 @@ export function authorityDispatchContract(
 ): void {
   describe(name, () => {
     const opened: StoreFixture[] = [];
-    afterEach(() => {
-      for (const stores of opened.splice(0)) stores.close();
+    afterEach(async () => {
+      await closeFixtures(opened.splice(0));
     });
     async function fixture(): Promise<AuthorityFixture> {
       const stores = await create();

@@ -403,7 +403,7 @@ try {
       retainedBytes,
     );
   } finally {
-    reopenedBefore.close();
+    await reopenedBefore.close();
   }
   sendPhase({
     phase: 'claimed',
@@ -447,7 +447,7 @@ try {
   assert.equal(observed.completion, null);
   assert.equal(observed.receipt, null);
   assert.equal((await writer.runs.readRun(run.runId)).attempts.length, 1);
-  observer.close();
+  await observer.close();
   observer = await openSqliteStores(options);
   assert.deepEqual(
     (await observer.runs.readExecutionHistory(run.runId, attempt.attemptId)).attempt,
@@ -462,10 +462,10 @@ try {
   });
 } finally {
   try {
-    observer?.close();
+    await observer?.close();
   } finally {
     try {
-      writer.close();
+      await writer.close();
     } finally {
       disconnectWorker();
     }

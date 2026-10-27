@@ -91,7 +91,7 @@ test('verified receipt retains actual matching artifact and verified history rer
     );
     expect(await stores.runs.readRuntimeScope(runtimeScope)).toMatchObject({ revision: 2 });
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -136,7 +136,7 @@ test('verified receipt rejects absent unreadable and corrupt bytes before accept
     );
     expect(await stores.runs.readRuntimeScope(runtimeScope)).toEqual(before);
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -188,7 +188,7 @@ for (const fault of [
       );
       expect(await stores.runs.readRuntimeScope(runtimeScope)).toEqual(before);
     } finally {
-      stores.close();
+      await stores.close();
     }
   });
 
@@ -215,7 +215,7 @@ test('verified receipt rejects strict UTF8 JSON and wrong media before retaining
       expect(await stores.runs.readRuntimeScope(runtimeScope)).toEqual(before);
     }
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -245,7 +245,7 @@ test('verified operation snapshots guard intent and evidence before artifact awa
       acceptances: [{ evidence }],
     });
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -271,7 +271,7 @@ test('verified receipt follows public response compatibility for extra fields', 
       revision: 2,
     });
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -321,7 +321,7 @@ test('verified history checks an older artifact even after a newer acceptance su
       /historical artifact unreadability/,
     );
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -337,7 +337,7 @@ test('verified receipt consumes the complete dependent applied-order schema', as
     );
     expect(await stores.runs.readRuntimeScope(runtimeScope)).toEqual(before);
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -365,7 +365,7 @@ test('verified receipt refuses invalid UTF8 inside an otherwise valid ignored ac
       acceptances: [],
     });
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -389,6 +389,6 @@ test('memory count audit diagnoses lost retained pin before reporting absence', 
     await rejects(stores.runs.readRuntimeScope(scope), /memory runtime counts/);
   } finally {
     Map.prototype.set = originalSet;
-    stores.close();
+    await stores.close();
   }
 });

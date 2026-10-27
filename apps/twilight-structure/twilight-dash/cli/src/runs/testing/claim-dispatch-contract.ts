@@ -13,6 +13,7 @@ import type { RunStore } from '../run-store';
 import { readRuntimeRequest } from '../runtime-codecs';
 import { RuntimeDispatchError } from '../runtime-dispatch-error';
 import type { RuntimeIntent } from '../runtime-records';
+import { closeFixtures } from './close-fixtures';
 import {
   createExecutionCommand,
   type OutcomeFixture,
@@ -118,8 +119,8 @@ async function correlated(pending: Promise<unknown>, setup: Prepared, message?: 
 export function claimDispatchContract(name: string, create: () => Promise<OutcomeFixture>) {
   describe(name, () => {
     const opened: OutcomeFixture[] = [];
-    afterEach(() => {
-      for (const stores of opened.splice(0)) stores.close();
+    afterEach(async () => {
+      await closeFixtures(opened.splice(0));
     });
     async function fixture() {
       const stores = await create();

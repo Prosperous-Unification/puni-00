@@ -149,7 +149,7 @@ export function executionCommandContract(name: string, create: () => Promise<Out
           reason: 'owner_stale',
         });
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
   });

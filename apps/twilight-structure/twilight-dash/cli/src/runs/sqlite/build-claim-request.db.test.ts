@@ -20,12 +20,17 @@ claimRequestContract('sqlite claim request', async () => {
       maxBusyAttempts: 20,
       busyDelayMilliseconds: 1,
     });
+    let closing: Promise<void> | undefined;
     return {
       ...connection,
       clock,
-      close() {
-        connection.close();
-        rmSync(directory, { recursive: true, force: true });
+      close(): Promise<void> {
+        if (closing !== undefined) return closing;
+        closing = (async () => {
+          await connection.close();
+          rmSync(directory, { recursive: true, force: true });
+        })();
+        return closing;
       },
     };
   } catch (cause) {

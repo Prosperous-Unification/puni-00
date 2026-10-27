@@ -11,6 +11,7 @@ import { executionCommandId, ownerId } from '../record-codecs';
 import type { StoreRefusal } from '../run-store';
 import { TurnDispatchError } from '../turn-dispatch-error';
 import { claimDispatchBytes, claimDispatchFixture } from './claim-dispatch-contract';
+import { closeFixtures } from './close-fixtures';
 import { createExecutionCommand, unwrapReply } from './fixtures';
 import { type OutcomeFixture } from './fixtures';
 export async function turnDispatchFixture(stores: OutcomeFixture) {
@@ -174,8 +175,8 @@ const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
 export function turnDispatchContract(name: string, create: () => Promise<OutcomeFixture>) {
   describe(name, () => {
     const opened: OutcomeFixture[] = [];
-    afterEach(() => {
-      for (const store of opened.splice(0)) store.close();
+    afterEach(async () => {
+      await closeFixtures(opened.splice(0));
     });
     async function fixture() {
       const stores = await create();

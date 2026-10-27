@@ -102,7 +102,7 @@ for (const fault of [
           .executions,
       ).toEqual([]);
     } finally {
-      stores.close();
+      await stores.close();
     }
   });
 
@@ -126,7 +126,7 @@ for (const executorVersions of executorPins)
         );
         expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
       } finally {
-        stores.close();
+        await stores.close();
       }
     },
   );
@@ -164,7 +164,7 @@ test('preparation validates target and canonical bytes independently of artifact
       );
     expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -218,7 +218,7 @@ test('preparation snapshots caller before awaits and accepts forward readable wi
       /recordPreparation/,
     );
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -245,7 +245,7 @@ test('preparation embedded invalid UTF8 remains parseable JSON under a permissiv
     );
     expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 test('preparation requires JSON media type on otherwise valid retained state bytes', async () => {
@@ -265,7 +265,7 @@ test('preparation requires JSON media type on otherwise valid retained state byt
     );
     expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 test('preparation verifies returned run identity before invoking the actual provider', async () => {
@@ -286,7 +286,7 @@ test('preparation verifies returned run identity before invoking the actual prov
     );
     expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 test('preparation rejects a coherent different attempt identity at its helper boundary', async () => {
@@ -306,7 +306,7 @@ test('preparation rejects a coherent different attempt identity at its helper bo
     );
     expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 test('preparation rejects a coherent foreign organization observation at its helper boundary', async () => {
@@ -330,6 +330,6 @@ test('preparation rejects a coherent foreign organization observation at its hel
     );
     expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
   } finally {
-    stores.close();
+    await stores.close();
   }
 });

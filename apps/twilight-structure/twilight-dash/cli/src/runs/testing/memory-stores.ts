@@ -100,7 +100,7 @@ export function createMemoryStores(options: MemoryOptions): {
   runs: RunStore;
   artifacts: ArtifactStore;
   ownership: OwnershipStatus;
-  close(): void;
+  close(): Promise<void>;
 } {
   const organization = organizationId(options.organizationId);
   const capacity = options.capacity;
@@ -841,8 +841,11 @@ export function createMemoryStores(options: MemoryOptions): {
     runs: port,
     artifacts,
     ownership: structuredClone(status),
-    close: () => {
+    /** Fences both ports immediately; repeated calls observe successful completion. */
+    close(): Promise<void> {
       isClosed = true;
+      // Proof: M1 removed this Promise return; the public memory lifecycle test failed MEMORY-LIFECYCLE-01. Exact restoration passed.
+      return Promise.resolve();
     },
   };
 }

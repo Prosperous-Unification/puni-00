@@ -516,3 +516,58 @@ Exact replay SHALL preserve context without comparing it to current retry revisi
 - **WHEN** a turn's retained scope prefix has a pending command, precedes its exact claim acceptance or moves backward from its attempt's prior scoped observation
 - **THEN** complete history reconstruction throws
 - **AND** coherent rewriting of context and all independent contradictory history remains outside this local consistency guarantee
+
+### Requirement: Provider bundle close has observed completion
+
+Provider bundles SHALL expose close(): Promise<void> outside semantic ports. Close SHALL fence new/queued work immediately, drain admitted work under existing rules, then release resources before fulfilling. Repeats SHALL share one disposal/outcome. Failure SHALL keep ports fenced and reject with its original cause on every close call without retry. Callers SHALL await completion before reopening, deleting storage or reporting graceful shutdown.
+
+#### Scenario: Close starts while a writer executes and another operation waits
+
+- **GIVEN** a real SQLite writer has passed the close fence and is blocked by an independent write lock, with another operation queued behind it
+- **WHEN** close is invoked and the independent writer releases its lock
+- **THEN** the executing operation may commit, the queued operation rejects as closed without starting a transaction, and close fulfills after drain and native disposal
+
+#### Scenario: Calls arrive immediately after close invocation
+
+- **WHEN** valid run and artifact operations are invoked after close starts but before it settles
+- **THEN** they reject through existing lifecycle checks and publish no changes
+
+#### Scenario: An admitted operation exhausts its contention budget
+
+- **WHEN** the independent write lock remains held after close begins until the existing retry budget is exhausted
+- **THEN** the operation preserves its contention failure, queued operations reject as closed and close disposes after drain
+
+#### Scenario: Repeated close overlaps delayed completion
+
+- **WHEN** close is called twice while admitted work is settling
+- **THEN** both calls share pending completion, native disposal happens once and fixture storage remains until successful completion
+
+#### Scenario: Native disposal fails
+
+- **WHEN** production adapter disposal throws a particular native error
+- **THEN** close rejects with that same error, both ports remain fenced, later close retains that rejection without another native attempt, and fixture storage is not removed
+
+#### Scenario: Memory owns no physical resource
+
+- **WHEN** a memory bundle closes
+- **THEN** synchronous publication and immediate fencing remain and every close returns successful Promise completion without requiring Promise object identity or claiming durability
+
+#### Scenario: Semantic ports stay independent
+
+- **WHEN** lifecycle-aware callers compile and portable-port import checks run
+- **THEN** RunStore and ArtifactStore gain no connection management method or vendor type
+
+#### Scenario: Existing guards remain effective throughout admitted drain
+
+- **WHEN** close starts during an already-admitted operation's busy wait
+- **THEN** that operation may finish before physical disposal under unchanged current-owner, fresh-clock and transaction checks, replacing the former immediate physical-close behavior without authorizing queued work
+
+#### Scenario: Close wrappers return different Promise objects
+
+- **WHEN** repeated close calls return different Promise objects representing the same disposal
+- **THEN** conformance depends on shared disposal and completion/failure outcome, not Promise object identity
+
+#### Scenario: A fixture close throws synchronously
+
+- **WHEN** a Promise-typed fixture close throws before returning and other fixtures remain open
+- **THEN** cleanup attempts every peer, awaits every settlement and reports all original causes without reporting failed disposal as successful release

@@ -100,9 +100,10 @@ function rollback(database: Database, cause: unknown): void {
 export function createSqliteRunStore(
   database: Database,
   options: TransactionOptions,
-): { runs: RunStore; artifacts: ArtifactStore; close(): void } {
+): { runs: RunStore; artifacts: ArtifactStore; close(): Promise<void> } {
   let queue = Promise.resolve();
   let closed = false;
+  let closing: Promise<void> | undefined;
 
   async function transact<T>(write: boolean, operation: () => T): Promise<T> {
     const previous = queue;
@@ -884,11 +885,20 @@ export function createSqliteRunStore(
   return {
     runs,
     artifacts: createSqliteArtifactStore(database, transact),
-    close() {
-      // Proof: bypassing idempotence called the retained connection's close twice in the public close test.
-      if (closed) return;
-      database.close();
+    /** Fences both ports immediately, rejects queued work and drains admitted work before one native disposal. Repeated calls share completion; disposal failure preserves its original cause and never retries. */
+    close(): Promise<void> {
+      // Proof: L3 removed cached completion reuse; the real held-writer lifecycle test failed SQLITE-LIFECYCLE-11 on repeated native disposal. Exact restoration passed.
+      if (closing !== undefined) return closing;
+      // Proof: L1 omitted only this flag; queued-before-close failed SQLITE-LIFECYCLE-03 and the retained all-method test failed SQLITE-LIFECYCLE-43, with the original transaction guard installed. Exact restoration passed.
       closed = true;
+      const accepted = queue;
+      closing = (async () => {
+        // Proof: L2 omitted this await; the real held-writer lifecycle test failed SQLITE-LIFECYCLE-08 on premature completion. Exact restoration passed.
+        await accepted;
+        // Proof: L4 swallowed this disposal rejection; the native-failure lifecycle test failed SQLITE-LIFECYCLE-19 on missing original-cause rejection. Exact restoration passed.
+        database.close();
+      })();
+      return closing;
     },
   };
 }

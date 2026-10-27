@@ -31,16 +31,19 @@ async function createStores() {
     busyDelayMilliseconds: 1,
   };
   const stores = await bootstrapSqliteStores(options);
+  let closing: Promise<void> | undefined;
   return {
     ...stores,
     clock,
     options,
-    disconnect: () => {
-      stores.close();
-    },
-    close() {
-      stores.close();
-      rmSync(directory, { recursive: true, force: true });
+    disconnect: (): Promise<void> => stores.close(),
+    close(): Promise<void> {
+      if (closing !== undefined) return closing;
+      closing = (async () => {
+        await stores.close();
+        rmSync(directory, { recursive: true, force: true });
+      })();
+      return closing;
     },
   };
 }
@@ -77,7 +80,7 @@ test('SQLite close/reopen preserves pending bytes for lookup under original live
     );
     expect(first.kind).toBe('pending');
     const before = await stores.runs.readRuntimeScope(runtimeScope);
-    stores.disconnect();
+    await stores.disconnect();
     reopened = await openSqliteStores(stores.options);
     expect(await reopened.runs.readRuntimeScope(runtimeScope)).toEqual(before);
     const reply = await dispatchAuthority(
@@ -95,7 +98,7 @@ test('SQLite close/reopen preserves pending bytes for lookup under original live
     );
     // Close/reopen tests retained provider state; it does not simulate process-kill, power loss or fencing recovery.
   } finally {
-    reopened?.close();
-    stores.close();
+    await reopened?.close();
+    await stores.close();
   }
 });

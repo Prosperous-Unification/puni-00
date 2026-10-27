@@ -56,7 +56,7 @@ export function signalsContract(name: string, create: () => Promise<OutcomeFixtu
         expect(typeof stores.runs.receiveDecision).toBe('function');
         expect(typeof stores.runs.consumeDecision).toBe('function');
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     test('decisions retain complete identity and consume only the exact wait once', async () => {
@@ -142,7 +142,7 @@ export function signalsContract(name: string, create: () => Promise<OutcomeFixtu
         ).toEqual({ kind: 'refused', reason: 'decision_conflict' });
         expect(await runs.readRun(setup.run.runId)).toEqual(after);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     test('old consumption preserves its original reply through later waits and owner takeover', async () => {
@@ -201,7 +201,7 @@ export function signalsContract(name: string, create: () => Promise<OutcomeFixtu
         ).toEqual({ kind: 'duplicate', value: original });
         expect(await runs.readRun(setup.run.runId)).toEqual(before);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     test('capacity refusal leaves decision unconsumed until another run settles', async () => {
@@ -251,7 +251,7 @@ export function signalsContract(name: string, create: () => Promise<OutcomeFixtu
         expect((await runs.consumeDecision(guard, decision.decisionId)).kind).toBe('applied');
         expect((await runs.readRun(setup.run.runId)).capacity.reserved).toBe(1);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
   });

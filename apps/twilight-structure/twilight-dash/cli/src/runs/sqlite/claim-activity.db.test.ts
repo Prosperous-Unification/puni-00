@@ -29,12 +29,17 @@ claimDispatchContract('sqlite claim dispatch', async () => {
       maxBusyAttempts: 20,
       busyDelayMilliseconds: 1,
     });
+    let closing: Promise<void> | undefined;
     return {
       ...connection,
       clock,
-      close() {
-        connection.close();
-        rmSync(directory, { recursive: true, force: true });
+      close(): Promise<void> {
+        if (closing !== undefined) return closing;
+        closing = (async () => {
+          await connection.close();
+          rmSync(directory, { recursive: true, force: true });
+        })();
+        return closing;
       },
     };
   } catch (cause) {
@@ -91,7 +96,7 @@ test('SQLite close/reopen retains exact pending claim and reconciles only with e
       expectedAttemptRevision: before.attempt.revision,
       expectedScopeRevision: scope.revision,
     };
-    connection.close();
+    await connection.close();
     reopened = await openSqliteStores(options);
     expect(
       await reopened.runs.readExecutionHistory(setup.run.runId, setup.attempt.attemptId),
@@ -130,8 +135,8 @@ test('SQLite close/reopen retains exact pending claim and reconciles only with e
     expect(history.completion).toBeNull();
     // Close/reopen checks persisted provider state; it does not simulate process-kill, power loss, receiver authenticity or physical fencing.
   } finally {
-    reopened?.close();
-    connection.close();
+    await reopened?.close();
+    await connection.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });
