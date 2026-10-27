@@ -24,6 +24,14 @@
     },
     "test": {
       "executor": "nx:run-commands",
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/docs/runbook-dev-observability-runtime.md",
+        "{workspaceRoot}/infra/platform/observability/elastic/settings/failure-fields.json",
+        "{workspaceRoot}/infra/platform/observability/otel/collector.yaml",
+        "{workspaceRoot}/infra/platform/telemetry/agent/agent.yaml"
+      ],
       "options": {
         "command": "bun test --timeout=10000",
         "cwd": "tools/tool-observability-stack"

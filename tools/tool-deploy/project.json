@@ -65,6 +65,7 @@
         "{workspaceRoot}/.github/workflows/infra-check.yml",
         "{workspaceRoot}/tools/tool-devsync/src/burokrat-consumer.ts",
         "{workspaceRoot}/tools/tool-fleet/src/backup-sqlite.ts",
+        "{workspaceRoot}/tools/tool-fleet/src/backup-identity.ts",
         "{workspaceRoot}/infra/ci/deploy-runner/**/*"
       ],
       "options": {

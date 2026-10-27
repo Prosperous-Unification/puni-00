@@ -51,7 +51,11 @@ function prepare() {
       options.lockText ?? JSON.stringify(lock),
     );
     writeFileSync(join(root, 'manifest.yaml'), options.rendered ?? stringify(manifest));
-    return Bun.spawnSync([process.execPath, cli, root, join(root, 'bin')]);
+    // Proof: inherited FORCE_COLOR=1 made malformed lock JSON syntax fail raw stderr equality
+    // with ANSI bytes; selecting plain presentation here restores that exact refusal.
+    return Bun.spawnSync([process.execPath, cli, root, join(root, 'bin')], {
+      env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1' },
+    });
   }
   return { root, lock, manifest, run, kubectl, helm };
 }

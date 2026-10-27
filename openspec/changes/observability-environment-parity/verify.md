@@ -1080,3 +1080,82 @@ cluster, remote, credential, route, volume, push or merge operations. Canonical 
 remains 4/11, full 3.1 runtime/platform accounting and live migration remain open. This
 slice restores source verification portability; it does not certify runtime or CI success.
 Fresh scoped source review remains required after the normal-hook commit.
+
+## Task22 — workspace CI integration closure (2026-10-27)
+
+Base `cf9ed1d5b754ea09751a9d940ed988529fd2c025`, isolated aa39 worktree on
+`feat/observability-parity`; sole implementer. This bounded source/docs repair is
+separate from queued Task21 OCI transport. No production code or CI policy changed.
+Canonical completion remains 4/11; full 3.1 runtime/platform/resource/import and live
+migration acceptance remain incomplete.
+
+Actual failed lineage: PR760 run40415555168/job121897014120, artifact12699121863;
+retained full log `/tmp/puni-pr760-workspace-full.log`. Workspace CI failed after
+68m20s across 52 projects/137 tasks with zero cache hits. Lines4237–4326 show five
+parity-render exact stderr failures from inherited color; the same run found the
+removed historical Elasticsearch link and five undeclared outside reads. This
+receipt closes those observed source failures locally, not the complete CI run.
+
+Focused REDs against unchanged existing oracles:
+
+```sh
+FORCE_COLOR=1 bun test --timeout=30000 --preload ./tools/test/scratch/preload.ts tools/tool-observability-stack/src/configuration/parity-render.test.ts --test-name-pattern 'malformed lock JSON syntax'
+bun test --timeout=30000 --preload ./tools/test/scratch/preload.ts tools/tool-devsync/src/workspace-targets.test.ts --test-name-pattern 'names every file a suite reads'
+bun test --timeout=30000 --preload ./tools/test/scratch/preload.ts tools/tool-devsync/src/repo-namespacing-handoff.test.ts --test-name-pattern 'every routed current document resolves'
+```
+
+Each exited1 for its intended assertion: color 0pass/1fail/249ms with raw ANSI
+bytes; inputs 0pass/1fail/2.19s naming exactly backup-identity plus four
+observability paths; documents 0pass/1fail/663ms naming the absent
+`elastic/production/elasticsearch.yaml`. Logs `/tmp/puni-task22-{color,inputs,doc}-red.log`.
+These restored failing dependencies prove the unchanged existing guards can fail.
+No new production safety guard was introduced; no assertions or oracle policy were weakened.
+
+Changes: the parity-render fixture sets `FORCE_COLOR=0, NO_COLOR=1` at its only
+child boundary, preserving other environment fields and raw stderr/status assertions;
+no reverse Fleet test dependency or output transformation. The dated assessment now
+separates its October21 production description from the current shared
+`elastic/base/elasticsearch.yaml` definition retaining the same values. Exact
+observability:test inputs name its runbook, failure fields, collector and agent;
+`default`/`^production` remain present. Deploy:test now explicitly names its backup
+identity subprocess while preserving namedInputs.default's production dependency.
+
+Native Nx proof: `NX_DAEMON=false bun /tmp/puni-task22-hash.ts` uses
+`createProjectGraphAsync`, `InProcessTaskHasher.hashTask(...,true)` and actual
+`hash.inputs.files` for both test targets. Before: all four observability paths
+absent; deploy backup-identity already present via namedInputs.default. After:
+all five present. Thus four actual cache-input gaps were repaired; deploy's change
+repairs the existing explicit-reader oracle contract, not a previously missing hash.
+Logs `/tmp/puni-task22-hash-{before,after}.log`; final probe exit0,0.51s before /
+0.52s after. Initial disposable probe failed module resolution because Nx places
+exports under `dist/src`; corrected the probe import, without changing repo source.
+
+One coherent covering GREEN:
+
+```sh
+FORCE_COLOR=1 bun test --timeout=30000 --preload ./tools/test/scratch/preload.ts tools/tool-observability-stack/src/configuration/parity-render.test.ts tools/tool-devsync/src/workspace-targets.test.ts tools/tool-devsync/src/repo-namespacing-handoff.test.ts --test-name-pattern 'actual renderer adapter|names every file a suite reads|every routed current document resolves'
+```
+
+Observed13pass/0fail/39filtered/25assertions/5.17s;
+`/tmp/puni-task22-covering.log`. Includes all11 renderer refusals (all five exact
+stderr assertions) plus the existing complete outside-read and routed-link oracles.
+No private fixture values were printed and no refusal/privacy assertions changed.
+
+Static checks: `NX_DAEMON=false bunx nx run tool-observability-stack:lint` exit0,
+7.90s wall/6.6s Nx; owning typecheck with the same prefix exit0,1.30s wall/495ms Nx.
+Logs `/tmp/puni-task22-{lint,types}.log`. Lint printed Node's existing
+FORCE_COLOR/NO_COLOR precedence warning, no lint failures.
+`bunx openspec validate --all --json`: exit0,294/294,1.01s wall;
+`bunx openspec validate observability-environment-parity --strict --json`:
+exit0,1/1,noissues,0.44s wall/22ms artifact. Logs
+`/tmp/puni-task22-openspec-{all,scoped}.json`. Five-file `bunx prettier --check`
+passed,0.39s wall; `git diff --check` passed, no diagnostics. Format log
+`/tmp/puni-task22-format.log`. Normal-hook commit receipts are recorded in ignored
+`task-22-report.md`; this entry and canonical tasks/spec were reviewed without
+marking runtime obligations complete.
+
+Deliberately unrun: prior passing417Fleet/102creation suites, full Nx/host gates,
+full application/browser/component-runtime suites, real Helm/kubectl reconciliation,
+CI rerun and runtime/live acceptance. No Docker/cluster/remote, persistent credential,
+route, volume, push, merge or deployment operations occurred. Fresh scoped review
+remains required after SOURCESTOP.
