@@ -283,6 +283,7 @@ describe('20260927130000_add_organization_ownership', () => {
     // The previous release's schema, populated the way it populates it, then
     // this migration applied, used by both releases, and reversed.
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
+      '20261026130000_widen_organization_audit_machine_tokens',
       '20261026120000_add_command_journal_person',
       '20261025130000_add_resource_runtime',
       '20261025120000_add_resource_use',
@@ -352,6 +353,7 @@ describe('20260927130000_add_organization_ownership', () => {
       "DELETE FROM tag WHERE id = 't-old'",
     ]);
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
+      '20261026130000_widen_organization_audit_machine_tokens',
       '20261026120000_add_command_journal_person',
       '20261025130000_add_resource_runtime',
       '20261025120000_add_resource_use',

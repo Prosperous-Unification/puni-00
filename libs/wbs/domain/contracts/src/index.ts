@@ -60,6 +60,7 @@ export * from './http/work-item-response';
 export * from './http/work-item-shapes';
 export * from './internal';
 export * from './logger';
+export * from './mcp-authorization-server';
 export * from './oidc-identity';
 export * from './plan-command-values';
 export * from './principal';

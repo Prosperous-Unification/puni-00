@@ -30,7 +30,12 @@ export interface TrustedIssuerExpectation {
  * reported.
  */
 export type TrustedIssuerVerdict =
-  | { readonly kind: 'verified'; readonly subject: string }
+  | {
+      readonly kind: 'verified';
+      readonly subject: string;
+      /** The token's `exp` in seconds, which caps a machine grant issued for it. */
+      readonly expiresAt: number;
+    }
   | { readonly kind: 'invalid' }
   | { readonly kind: 'key_set_unavailable' };
 

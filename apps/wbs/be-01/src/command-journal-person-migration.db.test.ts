@@ -10,6 +10,8 @@ import { afterEach, describe, expect, it } from 'bun:test';
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const JOURNAL_PERSON = '20261026120000_add_command_journal_person';
+/** The newer migration a rollback to the baseline reverses first. */
+const MACHINE_TOKENS = '20261026130000_widen_organization_audit_machine_tokens';
 const roots: string[] = [];
 
 afterEach(() => {
@@ -143,7 +145,7 @@ describe('the command journal person migration', () => {
     const down = await rollBack(root, dbPath, baseline());
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${JOURNAL_PERSON}`);
+    expect(down.stdout).toContain(`rolled back: ${MACHINE_TOKENS}, ${JOURNAL_PERSON}`);
     expect(columnsOf(dbPath)).not.toContain('person_id');
     expect(entryIds(dbPath)).toEqual(['human']);
     expect(newestApplied(dbPath)).toBe(baseline());
@@ -175,7 +177,7 @@ describe('the command journal person migration', () => {
     const down = await rollBack(root, dbPath, baseline());
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${JOURNAL_PERSON}`);
+    expect(down.stdout).toContain(`rolled back: ${MACHINE_TOKENS}, ${JOURNAL_PERSON}`);
     expect(columnsOf(dbPath)).not.toContain('person_id');
     expect(newestApplied(dbPath)).toBe(baseline());
     // The outgoing release's own stack read: by the pair alone.

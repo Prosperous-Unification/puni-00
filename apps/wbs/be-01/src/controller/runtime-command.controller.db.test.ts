@@ -303,6 +303,7 @@ test('commit then lose only reply, reopen and lookup or replay the exact immutab
         internalAuthSecret: 's'.repeat(32),
         browserSessionAuthority: 'disabled',
         organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
+        mcpService: TEST_MCP_SERVICE_SETTINGS,
       },
       {
         openSource: (options) => {
@@ -421,6 +422,7 @@ test('unused rollback and valid reinstall change the pin before replay or absenc
   const old = await readState();
   const folder = new URL('../../drizzle', import.meta.url).pathname;
   expect(rollbackTo(h.databasePath(), folder, '20261020130000_add_claim_occupancy')).toEqual([
+    '20261026130000_widen_organization_audit_machine_tokens',
     '20261026120000_add_command_journal_person',
     '20261025130000_add_resource_runtime',
     '20261025120000_add_resource_use',
@@ -737,6 +739,8 @@ test('all four runtime routes enforce authentication before revealing scope or r
 
 import { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
 import * as normalizers from '@wbs/core/service/command-normalizers';
+
+import { TEST_MCP_SERVICE_SETTINGS } from '../testing/machine-grant-fixture';
 
 test('malformed trusted command refusal throws its producer diagnostic', async () => {
   const request = await createClaimRequest();

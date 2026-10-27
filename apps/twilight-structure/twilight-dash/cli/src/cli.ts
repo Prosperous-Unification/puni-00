@@ -58,7 +58,8 @@ export async function runFleetPlan(argv: readonly string[]): Promise<void> {
  * through the stateless check runner, which spawns each check with {@link spawnCheck}.
  * `record-progress` and `record-progress-v2` record explicit operator assertions;
  * `account-outcomes` writes the period's efficiency breakdown; `report-capacity` runs the compute
- * providers' capacity reporter until it exits. Every other command refuses before any effect.
+ * providers' capacity reporter until it exits. Every other command refuses before any effect;
+ * `mcp` never reaches here, because `entrypoint.ts` dispatches it before loading this module.
  */
 export async function runDash(argv: readonly string[], deps: DashDependencies): Promise<void> {
   // A JavaScript caller can omit what the type requires; refuse rather than reach for a default.

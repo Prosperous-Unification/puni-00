@@ -202,6 +202,7 @@ describe('the project settings migration', () => {
       // cannot make: a migration that also dropped a column would still pass
       // every line above.
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261026130000_widen_organization_audit_machine_tokens',
         '20261026120000_add_command_journal_person',
         '20261025130000_add_resource_runtime',
         '20261025120000_add_resource_use',
@@ -299,6 +300,7 @@ describe('the project settings migration', () => {
     try {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261026130000_widen_organization_audit_machine_tokens',
         '20261026120000_add_command_journal_person',
         '20261025130000_add_resource_runtime',
         '20261025120000_add_resource_use',
@@ -432,6 +434,7 @@ describe('the project settings migration', () => {
       const migratedDdl = projectDdl(db.path);
 
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261026130000_widen_organization_audit_machine_tokens',
         '20261026120000_add_command_journal_person',
         '20261025130000_add_resource_runtime',
         '20261025120000_add_resource_use',

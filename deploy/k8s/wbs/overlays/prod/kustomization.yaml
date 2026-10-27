@@ -33,6 +33,9 @@ configMapGenerator:
     namespace: wbs
     literals:
       - MCP_AUTH_MODE=standalone
+      # One hop: the Traefik Ingress (ingress.yaml). Whatever stands in front of Traefik is not
+      # in this repository, so it is not counted (wbs-mcp-agent-surface M10).
+      - MCP_TRUSTED_PROXY_HOPS=1
       - WBS_API_URL=http://wbs-backend.wbs-solver.svc.cluster.local:3100
       - MCP_PUBLIC_URL=https://wbs.bulletpoints.club/mcp
 patches:

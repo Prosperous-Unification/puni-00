@@ -442,6 +442,7 @@ function answerBatch(
     // The caller may not act as the person, or under the parent claim, named.
     case 'person_not_bound':
     case 'credential_not_for_person':
+    case 'run_mismatch':
     case 'parent_claim_foreign':
       return { ok: false, status: 403, body: { ...context, error: outcome.reason } };
     case 'parent_claim_unknown':

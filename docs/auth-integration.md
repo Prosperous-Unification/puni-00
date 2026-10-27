@@ -308,8 +308,8 @@ Cut over in this order:
 
 1. Before merging, seed `/home/puni1/wbs-dev/src/apps/wbs/mcp-01/.env` with the
    four settings above plus `MCP_SIGNING_KEY_CURRENT`, `MCP_STORE_KEY_CURRENT`,
-   `MCP_STORE_PATH=/data/mcp-session.sqlite`, and `MCP_ACCESS_TOKEN_TTL=3600`,
-   and set mode 600. The store path is inside `wbs-dev-src` and is backed by
+   `MCP_STORE_PATH=/data/mcp-session.sqlite`, `MCP_ACCESS_TOKEN_TTL=3600` and
+   `MCP_TRUSTED_PROXY_HOPS=1` (one Caddy in front), and set mode 600. The store path is inside `wbs-dev-src` and is backed by
    `/home/puni1/wbs-dev/data` on the host. Both manual deploy and the automatic
    poller block before moving the checkout when this durable path is absent.
 2. Merge the reviewed PR and let devsync start `mcp-01`; verify port 3300.
@@ -333,7 +333,11 @@ organization. mcp-01 therefore binds every consent to one organization and
 calls be-01 with a WBS-signed delegation instead
 (`openspec/changes/organization-ownership-and-access`, tasks 2.5, 6.4, 6.6).
 
-- mcp-01 needs be-01's `INTERNAL_AUTH_SECRET` in its own environment, and be-01
+- mcp-01 needs be-01's `MCP_BE_INTERNAL_SECRET` (sent alone, in
+  `x-mcp-internal-auth`, whenever it is set) or, until the secret cutover's
+  second release, its `INTERNAL_AUTH_SECRET` in its own environment
+  (`wbs-mcp-agent-surface` M14: be-01 admits either on `/internal/mcp/*`, so
+  be-01 swaps first, then mcp-01). be-01
   needs the dedicated RSA pair `WBS_DELEGATION_SIGNING_KEY` (PKCS#8 PEM) and
   `WBS_DELEGATION_VERIFY_KEY` (SPKI PEM). Without the secret mcp-01 keeps
   forwarding the upstream token; without the pair be-01 answers

@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import type { BrowserOidcClient, JwtClaims } from '@wbs/auth';
 import { Database } from 'bun:sqlite';
 import { describe, expect, it } from 'bun:test';
+import { decodeJwt, decodeProtectedHeader, SignJWT } from 'jose';
 
 import type { McpConfig } from './config';
 import { mcpFetchHandler, mcpHttpResponse } from './http';
@@ -14,11 +15,13 @@ import type { DerivedTool } from './openapi-tools';
 import type { McpRefreshAuthority, McpRefreshAuthorityReader } from './refresh-authority';
 import { createServer } from './server';
 import { McpSessionStore } from './session-store';
+import { UNATTRIBUTED_SOURCE } from './source-address';
 import { EdgeGate, SessionRefreshRefused } from './wbs-client';
 
 const CONFIG: McpConfig = {
   MCP_AUTH_MODE: 'standalone',
   MCP_PUBLIC_URL: 'https://dev.wbs.bulletpoints.club/mcp',
+  MCP_TRUSTED_PROXY_HOPS: 1,
   WBS_API_URL: 'https://dev.wbs.bulletpoints.club',
 };
 const CALLBACK = 'https://claude.ai/api/mcp/auth_callback';
@@ -644,6 +647,34 @@ describe('McpOAuthServer', () => {
     expect((await tokenResponse(oauth, 'random-1', firstCode, verifier)).status).toBe(200);
   });
 
+  // `wbs-mcp-agent-surface` M5: the consent path admits `token_use: consent`, or none for a
+  // token issued before the claim existed, and nothing else, even with a live session.
+  it('refuses a consent session token of any use but consent', async () => {
+    const signingKeys = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const { oauth } = fixture({ signingKeys });
+    const verifier = 'v'.repeat(43);
+    const code = await authorizationCode(oauth, verifier);
+    const issued = await tokenResponse(oauth, 'random-1', code, verifier);
+    const consent = ((await issued.json()) as { access_token: string }).access_token;
+    expect(decodeJwt(consent)['token_use']).toBe('consent');
+    const resigned = (use: string | undefined) => {
+      const { token_use: _dropped, ...claims } = decodeJwt(consent);
+      return new SignJWT(use === undefined ? claims : { ...claims, token_use: use })
+        .setProtectedHeader(decodeProtectedHeader(consent) as { alg: string })
+        .sign(signingKeys.privateKey);
+    };
+    const settled = (token: string) =>
+      oauth.admitCaller(token).then(
+        () => 'admitted',
+        (cause: unknown) => String(cause),
+      );
+    expect(await settled(consent)).toBe('admitted');
+    expect(await settled(await resigned(undefined))).toBe('admitted');
+    expect(await settled(await resigned('other'))).toContain('unknown use');
+    // A machine use without a grant is refused by the machine path, never the session's.
+    expect(await settled(await resigned('machine'))).not.toBe('admitted');
+  });
+
   // Proof: allowing token exchanges to append sessions without a bound keeps
   // arbitrary upstream access tokens live until every local token expires.
   it('refuses token exchange at session capacity and preserves the retryable grant', async () => {
@@ -663,7 +694,9 @@ describe('McpOAuthServer', () => {
         method: 'POST',
       }),
     );
-    expect(oauth.verify(firstToken)).rejects.toThrow(/not an upstream token/);
+    expect(oauth.verify(firstToken)).rejects.toThrow(
+      /MCP OAuth session is missing, expired, or revoked/,
+    );
     const store = oauth as unknown as { store: { sessionCount(now: number): number } };
     expect(store.store.sessionCount(1_700_000_000_000)).toBe(0);
     expect((await tokenResponse(oauth, 'random-7', secondCode, verifier)).status).toBe(200);
@@ -962,6 +995,7 @@ describe('McpOAuthServer', () => {
       iss: 'https://dev.wbs.bulletpoints.club/mcp/oauth',
       jti: 'random-8',
       sub: 'person-1',
+      token_use: 'consent',
     });
     expect(oauth.upstreamTokenFor(body.access_token)).resolves.toBe('upstream-okta-token');
     expect((await exchange())?.status).toBe(400);
@@ -1199,7 +1233,9 @@ describe('McpOAuthServer', () => {
       }),
     );
     expect(replay?.status).toBe(400);
-    expect(oauth.verify(refreshedBody.access_token)).rejects.toThrow(/not an upstream token/);
+    expect(oauth.verify(refreshedBody.access_token)).rejects.toThrow(
+      /MCP OAuth session is missing, expired, or revoked/,
+    );
   });
 
   for (const path of ['automatic', 'forced', 'grant'] as const) {
@@ -3226,12 +3262,12 @@ describe('registered clients across a restart', () => {
     const { oauth } = fixture({ store });
     const planted = 'http://127.0.0.1:33418/callback?code=planted';
     store.admitClient(
-      'unknown',
+      UNATTRIBUTED_SOURCE,
       1_700_000_000_000,
       () => true,
       () => ({
         clientId: 'planted-client',
-        source: 'unknown',
+        source: UNATTRIBUTED_SOURCE,
         redirectUris: [planted],
         proven: true,
         expiresAt: 1_700_000_000_000 + 60_000,
@@ -3252,9 +3288,9 @@ describe('registered clients across a restart', () => {
     advance(1_001);
     await register(oauth);
 
-    expect(store.clientsFromSource('unknown', 0).map(({ clientId }) => clientId)).toEqual([
-      'random-2',
-    ]);
+    expect(store.clientsFromSource(UNATTRIBUTED_SOURCE, 0).map(({ clientId }) => clientId)).toEqual(
+      ['random-2'],
+    );
     store.close();
   });
 
@@ -3388,7 +3424,7 @@ describe('registered clients across a restart', () => {
     const response = await server.oauth.response(new Request(authorizeUrl(clientId)));
     expect(response?.status).toBe(400);
     expect(await response?.json()).toEqual(INVALID_CLIENT);
-    expect(server.store.clientsFromSource('unknown', 0)).toEqual([]);
+    expect(server.store.clientsFromSource(UNATTRIBUTED_SOURCE, 0)).toEqual([]);
     server.close();
   });
 
@@ -3509,12 +3545,12 @@ describe('registered clients across a restart', () => {
       now = START,
     ): void {
       store.admitClient(
-        'unknown',
+        UNATTRIBUTED_SOURCE,
         now,
         () => true,
         () => ({
           clientId,
-          source: 'unknown',
+          source: UNATTRIBUTED_SOURCE,
           redirectUris,
           proven: true,
           expiresAt: now + 1_000,
@@ -3603,7 +3639,7 @@ describe('registered clients across a restart', () => {
         clientId,
         proven: false,
         redirectUris: [LOOPBACK],
-        source: 'unknown',
+        source: UNATTRIBUTED_SOURCE,
         unprovenExpiresAt: readmittedAt + 1_200_000,
       });
       const exchanged = await exchangeAt(server.oauth, clientId, code, verifier, LOOPBACK);
@@ -3756,7 +3792,7 @@ describe('registered clients across a restart', () => {
         now,
         () => true,
       );
-      expect(continued).toMatchObject({ redirectUris: [LOOPBACK], source: 'unknown' });
+      expect(continued).toMatchObject({ redirectUris: [LOOPBACK], source: UNATTRIBUTED_SOURCE });
       expect(storedRow(server.path, clientId)).toEqual(first);
       other.close();
       server.close();
@@ -3767,12 +3803,12 @@ describe('registered clients across a restart', () => {
       const server = restartable(refreshable);
       const clientId = issuedId();
       server.store.admitClient(
-        'unknown',
+        UNATTRIBUTED_SOURCE,
         START,
         () => true,
         () => ({
           clientId,
-          source: 'unknown',
+          source: UNATTRIBUTED_SOURCE,
           redirectUris: [CALLBACK],
           proven: true,
           expiresAt: START + 30 * DAY,
@@ -3807,7 +3843,7 @@ describe('registered clients across a restart', () => {
       expect(server.store.client(clientId, START + HOUR + DAY)).toMatchObject({
         proven: false,
         redirectUris: [CALLBACK],
-        source: 'unknown',
+        source: UNATTRIBUTED_SOURCE,
       });
       server.close();
     });

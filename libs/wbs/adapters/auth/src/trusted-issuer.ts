@@ -226,7 +226,7 @@ export class TrustedIssuerKeySets implements TrustedIssuerTokens {
         payload.exp - Math.floor(now / 1000) > MAX_TOKEN_LIFETIME_SECONDS
       )
         return { kind: 'invalid' };
-      return { kind: 'verified', subject: payload.sub };
+      return { kind: 'verified', subject: payload.sub, expiresAt: payload.exp };
     } catch (cause) {
       // Proof: with this branch rethrowing, `refuses invalid_token when the
       // key set answers 503` in `oidc-credential.controller.db.test.ts`
