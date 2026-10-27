@@ -10,6 +10,8 @@ import { parseDocument } from 'yaml';
 import { runChecked } from './check-cli';
 import { installLockedTool, toolCacheDirectory } from './check-provision';
 import { readToolchain, type Toolchain } from './contracts';
+import { readMemoryMiB } from './observability-capacity';
+import { assertPodResources } from './observability-generated-capacity';
 import {
   type RehearsalStageBuild,
   validateObservabilityRehearsalBuilds,
@@ -28,7 +30,8 @@ const Text = type('string>0');
 const Container = type({
   name: 'string>0',
   image: 'string>0',
-  'resources?': { 'requests?': 'Record<string,string|number>' },
+  // Optional absence/null stay source facts; supplied maps enter the shared strict boundary.
+  'resources?': 'unknown',
 });
 // Proof: Task25c2a pod-required weakening admitted the missing native containers negative.
 const Pod = type({
@@ -37,7 +40,8 @@ const Pod = type({
   'ephemeralContainers?': Container.array(),
   'volumes?': 'unknown[]',
 });
-// Proof: Task25c2a claim-template weakening admitted the empty storage request negative.
+// Proof: Task25c2a claim-template weakening originally admitted empty storage;
+// after adding quantity validation, combined claim-shape-reader faults admitted that same negative.
 const Claim = type({ resources: { requests: { storage: 'string>0' } } });
 const nativeAPIs: Partial<Record<string, string>> = {
   Pod: 'v1',
@@ -105,7 +109,7 @@ export interface RehearsalFrameContract {
   }[];
   frames: FrameContract[];
 }
-function sourceFrames(
+function collectSourceFrames(
   stages: readonly RehearsalStageBuild[],
   expansions: Readonly<Record<string, string>>,
 ): SourceFrame[] {
@@ -146,7 +150,7 @@ function sourceFrames(
   }
   return frames;
 }
-function resourceKeys(bytes: string): string[] {
+function readResourceKeys(bytes: string): string[] {
   return decodeRenderedResources(bytes).map(
     ({ identity, pointer }) =>
       `${pointer}:${identity.apiVersion}:${identity.kind}:${identity.metadata.namespace ?? '_'}:${identity.metadata.name}`,
@@ -165,12 +169,23 @@ export function captureRehearsalFrames(
       sourceSHA256,
       sha256,
     })),
-    frames: sourceFrames(stages, expansions).map(({ owner, bytes }) => ({
+    frames: collectSourceFrames(stages, expansions).map(({ owner, bytes }) => ({
       owner,
       sha256: hash(bytes),
-      resources: resourceKeys(bytes),
+      resources: readResourceKeys(bytes),
     })),
   };
+}
+/** Validate the known claim quantity through the shared reader, retaining its exact source string. */
+function readClaimStorage(input: unknown): string {
+  const storage = Claim.assert(input).resources.requests.storage;
+  // Proof: Task25c2a claim-quantity-reader substitution admitted invalid, negative and overflowing source strings.
+  const amount = readMemoryMiB(storage, () => {
+    throw new Error('Rehearsal claim storage differs');
+  });
+  // Proof: Task25c2a claim-positive removal admitted the zero-size claim negative.
+  if (amount <= 0) throw new Error('Rehearsal claim storage differs');
+  return storage;
 }
 interface ImageReference {
   pointer: string;
@@ -178,6 +193,9 @@ interface ImageReference {
   image: string;
   role: string;
   pin: 'locked' | 'unresolved';
+  resourceSource: 'absent' | 'null' | 'map';
+  requestSource: 'absent' | 'map';
+  limitSource: 'absent' | 'map';
 }
 interface ClaimReference {
   pointer: string;
@@ -220,11 +238,13 @@ type Entry = Namespace & {
   images: ImageReference[];
   claims: ClaimReference[];
   sourceRequests: { pointer: string; quantities: Record<string, string | number> }[];
+  sourceLimits: { pointer: string; quantities: Record<string, string | number> }[];
+  annotationSource: 'absent' | 'null' | 'map';
   hooks: string[];
   schedulingObserved: false;
   cardinality: Record<string, unknown>;
 };
-function childAt(
+function readChild(
   manifest: Record<string, unknown>,
   path: readonly string[],
 ): Record<string, unknown> {
@@ -273,7 +293,7 @@ export function readRehearsalInventory(
   contract: RehearsalFrameContract,
   lock: Toolchain,
 ) {
-  const frames = sourceFrames(stages, expansions);
+  const frames = collectSourceFrames(stages, expansions);
   // Proof: Task25c2a stage-contract removal admitted an altered immutable stage source identity.
   if (
     stages.length === 0 ||
@@ -308,7 +328,7 @@ export function readRehearsalInventory(
     )
       throw new Error('Rehearsal frame hash differs');
     // Proof: Task25c2a resource-closure removal admitted an omitted hook after frame hash recomputation.
-    if (!isDeepStrictEqual(resourceKeys(frame.bytes), expected.resources))
+    if (!isDeepStrictEqual(readResourceKeys(frame.bytes), expected.resources))
       throw new Error('Rehearsal frame resource closure differs');
   }
   for (const stage of stages) {
@@ -398,6 +418,14 @@ export function readRehearsalInventory(
               : scopes.has(`${identity.apiVersion}:${identity.kind}`)
                 ? 'provider-input'
                 : 'unclassified';
+    // Proof: Task25c2a nullable-annotations removal rejected declared null source metadata;
+    // annotation-maptype widening admitted number maps and null annotation values.
+    const metadata = type({ metadata: { 'annotations?': 'Record<string,string>|null' } }).assert(
+      manifest,
+    ).metadata;
+    // ArkType records accept arrays structurally at this external YAML boundary.
+    // Proof: Task25c2a annotation-array removal admitted the malformed annotation array.
+    if (Array.isArray(metadata.annotations)) throw new Error('Rehearsal annotation map differs');
     const entry: Entry = {
       owner: frame.owner,
       pointer,
@@ -423,6 +451,14 @@ export function readRehearsalInventory(
       images: [],
       claims: [],
       sourceRequests: [],
+      sourceLimits: [],
+      // Proof: Task25c2a annotation-state collapsing null to absent lost the declared metadata state.
+      annotationSource:
+        metadata.annotations === undefined
+          ? 'absent'
+          : metadata.annotations === null
+            ? 'null'
+            : 'map',
       hooks: [],
       schedulingObserved: false,
       cardinality: {},
@@ -455,9 +491,6 @@ export function readRehearsalInventory(
         declarationSHA256: hash(origin.manifest),
       };
     }
-    const metadata = type({ metadata: { 'annotations?': 'Record<string,string>' } }).assert(
-      manifest,
-    ).metadata;
     const hook = metadata.annotations?.['helm.sh/hook'];
     // Proof: Task25c2a hook-required removal admitted a quoted empty hook annotation.
     if (hook !== undefined)
@@ -483,11 +516,25 @@ export function readRehearsalInventory(
           : identity.kind === 'CronJob'
             ? ['spec', 'jobTemplate', 'spec', 'template', 'spec']
             : ['spec', 'template', 'spec'];
-      const pod = Pod.assert(podSpecOf({ kind: identity.kind, spec: childAt(manifest, ['spec']) }));
+      const pod = Pod.assert(
+        podSpecOf({ kind: identity.kind, spec: readChild(manifest, ['spec']) }),
+      );
       const prefix = '/' + path.join('/');
       for (const role of ['containers', 'initContainers', 'ephemeralContainers'] as const) {
         for (const [index, container] of (pod[role] ?? []).entries()) {
           const at = `${prefix}/${role}/${String(index)}`;
+          // Proof: Task25c2a nullable-resources removal rejected declared null; native-resource-validator bypass admitted malformed maps, quantities and contradictions.
+          const resources =
+            container.resources === undefined || container.resources === null
+              ? null
+              : assertPodResources(container.resources);
+          // Proof: Task25c2a resource-state collapsing null to absent lost the declared source state.
+          const resourceSource =
+            container.resources === undefined
+              ? 'absent'
+              : container.resources === null
+                ? 'null'
+                : 'map';
           const pin = approved.has(container.image) ? 'locked' : 'unresolved';
           entry.images.push({
             pointer: `${at}/image`,
@@ -495,16 +542,28 @@ export function readRehearsalInventory(
             name: container.name,
             image: container.image,
             pin,
+            resourceSource,
+            requestSource: resources?.requests === undefined ? 'absent' : 'map',
+            limitSource: resources?.limits === undefined ? 'absent' : 'map',
           });
           if (pin === 'unresolved')
             unresolved.add(
               `${frame.owner}${pointer}${at}: image ${container.image} not mapped to a locked role`,
             );
-          if (container.resources?.requests !== undefined)
-            entry.sourceRequests.push({
-              pointer: `${at}/resources/requests`,
-              quantities: container.resources.requests,
-            });
+          for (const field of ['requests', 'limits'] as const) {
+            // Proof: Task25c2a resource-map-fabrication substituted an empty map for missing declarations;
+            // missing-resource-maps removal hid their named request/limit obligations.
+            const quantities = resources?.[field];
+            if (quantities === undefined)
+              unresolved.add(
+                `${frame.owner}${pointer}${at}/resources/${field}: ${role}/${container.name} declaration absent (resources:${resourceSource})`,
+              );
+            else
+              (field === 'requests' ? entry.sourceRequests : entry.sourceLimits).push({
+                pointer: `${at}/resources/${field}`,
+                quantities,
+              });
+          }
         }
       }
       for (const [index, volume] of (pod.volumes ?? []).entries()) {
@@ -522,7 +581,7 @@ export function readRehearsalInventory(
             `${frame.owner}${pointer}${prefix}/volumes/${String(index)}: image-volume helper demand unresolved`,
           );
       }
-      const spec = childAt(manifest, ['spec']);
+      const spec = readChild(manifest, ['spec']);
       for (const name of [
         'replicas',
         'parallelism',
@@ -544,7 +603,7 @@ export function readRehearsalInventory(
             pointer: `/spec/volumeClaimTemplates/${String(index)}`,
             kind: 'template',
             name: selected.metadata.name,
-            storage: Claim.assert(selected.spec).resources.requests.storage,
+            storage: readClaimStorage(selected.spec),
           });
         }
       }
@@ -554,7 +613,7 @@ export function readRehearsalInventory(
         pointer: '/spec',
         kind: 'claim',
         name: identity.metadata.name,
-        storage: Claim.assert(manifest['spec']).resources.requests.storage,
+        storage: readClaimStorage(manifest['spec']),
       });
     entries.push(entry);
   }

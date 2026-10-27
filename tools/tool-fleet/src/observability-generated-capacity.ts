@@ -41,9 +41,10 @@ const PodResources = type({ 'requests?': ResourceList, 'limits?': ResourceList }
   (resources) => !Array.isArray(resources),
 );
 /** Validate only supplied Pod resource maps and bounds before leaving the policy unsupported.
- * Optional maps stay absent; this derives no Pod charge or default limit.
+ * Returns detached validated supplied maps for source inventory. Optional maps stay absent;
+ * this derives no Pod charge or default limit. Existing accounting callers discard the maps.
  */
-function assertPodResources(input: unknown): void {
+export function assertPodResources(input: unknown) {
   const resources = PodResources(input);
   // Proof: Task25b2 fix1 pod-requirements-shape removal admitted malformed maps and quantity types.
   if (resources instanceof type.errors) refuse('pod-resources-malformed');
@@ -66,6 +67,11 @@ function assertPodResources(input: unknown): void {
     // Proof: Task25b2 fix1 pod-request-limit-bounds removal admitted selected/extra-template contradictions.
     if (limit !== undefined && request > limit) refuse('pod-resources-contradiction');
   }
+  // Proof: Task25c2a resource-alias returning the input let returned facts mutate original request/limit maps.
+  return {
+    ...(resources.requests === undefined ? {} : { requests: { ...resources.requests } }),
+    ...(resources.limits === undefined ? {} : { limits: { ...resources.limits } }),
+  };
 }
 
 class UnsupportedGeneratedWorkload extends Error {}

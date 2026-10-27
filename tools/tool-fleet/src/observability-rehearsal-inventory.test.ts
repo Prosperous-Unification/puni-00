@@ -7,6 +7,7 @@ import { beforeAll, expect, spyOn, test } from 'bun:test';
 import { parseDocument, stringify } from 'yaml';
 
 import { readToolchain, type Toolchain } from './contracts';
+import { assertPodResources } from './observability-generated-capacity';
 import type { RehearsalStageBuild } from './observability-parity-rehearsal';
 import {
   authenticateRehearsalHelm,
@@ -657,3 +658,237 @@ test('known API scope honors explicit chart metadata in a different namespace', 
     releaseOwner: 'target/store',
   });
 });
+
+test('nullable optional annotations retain their declared state without fabricating a hook', () => {
+  const selected = structuredClone(stages);
+  const bytes = encode(
+    { ...native, metadata: { ...native.metadata, annotations: null } },
+    claim,
+    provider,
+  );
+  selected[0] = { ...selected[0], bytes, sha256: hash(bytes) };
+  const inventory = readRehearsalInventory(
+    selected,
+    expansions,
+    captureRehearsalFrames(selected, expansions),
+    lock,
+  );
+  expect(inventory.entries.find((entry) => entry.kind === 'StatefulSet')).toMatchObject({
+    annotationSource: 'null',
+    hooks: [],
+  });
+  expect(inventory.entries.find((entry) => entry.name === 'setup')).toMatchObject({
+    annotationSource: 'map',
+    hooks: ['pre-install', 'pre-upgrade'],
+  });
+  expect(inventory.entries.find((entry) => entry.name === 'existing')).toMatchObject({
+    annotationSource: 'absent',
+    hooks: [],
+  });
+});
+
+test.each([
+  { name: 'array', annotations: [] },
+  { name: 'number', annotations: 5 },
+  { name: 'null value', annotations: { other: null } },
+  { name: 'null hook', annotations: { 'helm.sh/hook': null } },
+])('malformed optional annotation $name remains a refusal', ({ annotations }) => {
+  const selected = structuredClone(stages);
+  const bytes = encode(
+    { ...native, metadata: { ...native.metadata, annotations } },
+    claim,
+    provider,
+  );
+  selected[0] = { ...selected[0], bytes, sha256: hash(bytes) };
+  expect(() =>
+    readRehearsalInventory(
+      selected,
+      expansions,
+      captureRehearsalFrames(selected, expansions),
+      lock,
+    ),
+  ).toThrow();
+});
+
+test('empty ordinary annotation strings remain source facts without a hook', () => {
+  const selected = structuredClone(stages);
+  const bytes = encode(
+    { ...native, metadata: { ...native.metadata, annotations: { 'example.invalid/note': '' } } },
+    claim,
+    provider,
+  );
+  selected[0] = { ...selected[0], bytes, sha256: hash(bytes) };
+  const inventory = readRehearsalInventory(
+    selected,
+    expansions,
+    captureRehearsalFrames(selected, expansions),
+    lock,
+  );
+  expect(inventory.entries.find((entry) => entry.kind === 'StatefulSet')).toMatchObject({
+    annotationSource: 'map',
+    hooks: [],
+  });
+});
+
+test('nullable native resources remain explicit missing request and limit declarations', () => {
+  const selected = structuredClone(stages);
+  const manifest = {
+    ...native,
+    spec: {
+      ...native.spec,
+      template: {
+        spec: {
+          ...native.spec.template.spec,
+          containers: [{ name: 'app', image, resources: null }],
+        },
+      },
+    },
+  };
+  const bytes = encode(manifest, claim, provider);
+  selected[0] = { ...selected[0], bytes, sha256: hash(bytes) };
+  const inventory = readRehearsalInventory(
+    selected,
+    expansions,
+    captureRehearsalFrames(selected, expansions),
+    lock,
+  );
+  const store = inventory.entries.find((entry) => entry.kind === 'StatefulSet');
+  expect(store?.images[0]).toMatchObject({
+    resourceSource: 'null',
+    requestSource: 'absent',
+    limitSource: 'absent',
+  });
+  expect(store?.images[1]).toMatchObject({
+    resourceSource: 'absent',
+    requestSource: 'absent',
+    limitSource: 'absent',
+  });
+  expect(store?.sourceRequests).toEqual([]);
+  expect(store?.sourceLimits).toEqual([]);
+  for (const field of ['requests', 'limits'])
+    expect(
+      inventory.unresolved.some((obligation) =>
+        obligation.includes(`stage/native/0/spec/template/spec/containers/0/resources/${field}`),
+      ),
+    ).toBe(true);
+});
+
+test('actual native request and limit maps retain their source strings', () => {
+  const selected = structuredClone(stages);
+  const manifest = {
+    ...native,
+    spec: {
+      ...native.spec,
+      template: {
+        spec: {
+          ...native.spec.template.spec,
+          containers: [
+            {
+              name: 'app',
+              image,
+              resources: {
+                requests: { memory: '1Gi', cpu: '100m' },
+                limits: { memory: '2Gi', cpu: '200m' },
+              },
+            },
+          ],
+        },
+      },
+    },
+  };
+  const bytes = encode(manifest, claim, provider);
+  selected[0] = { ...selected[0], bytes, sha256: hash(bytes) };
+  const inventory = readRehearsalInventory(
+    selected,
+    expansions,
+    captureRehearsalFrames(selected, expansions),
+    lock,
+  );
+  const store = inventory.entries.find((entry) => entry.kind === 'StatefulSet');
+  expect(store?.images[0]).toMatchObject({
+    resourceSource: 'map',
+    requestSource: 'map',
+    limitSource: 'map',
+  });
+  expect(store?.sourceRequests).toEqual([
+    {
+      pointer: '/spec/template/spec/containers/0/resources/requests',
+      quantities: { memory: '1Gi', cpu: '100m' },
+    },
+  ]);
+  expect(store?.sourceLimits).toEqual([
+    {
+      pointer: '/spec/template/spec/containers/0/resources/limits',
+      quantities: { memory: '2Gi', cpu: '200m' },
+    },
+  ]);
+});
+
+test.each([
+  { name: 'array', resources: [] },
+  { name: 'number', resources: 3 },
+  { name: 'request array', resources: { requests: [] } },
+  { name: 'limit array', resources: { limits: [] } },
+  { name: 'quantity type', resources: { requests: { memory: { value: '1Gi' } } } },
+  { name: 'CPU quantity', resources: { requests: { cpu: '1Mi' } } },
+  { name: 'memory quantity', resources: { limits: { memory: 'invalid' } } },
+  { name: 'contradiction', resources: { requests: { memory: '2Gi' }, limits: { memory: '1Gi' } } },
+])('native resource $name refuses rather than becoming a missing source map', ({ resources }) => {
+  const selected = structuredClone(stages);
+  const manifest = {
+    ...native,
+    spec: {
+      ...native.spec,
+      template: {
+        spec: { ...native.spec.template.spec, containers: [{ name: 'app', image, resources }] },
+      },
+    },
+  };
+  const bytes = encode(manifest, claim, provider);
+  selected[0] = { ...selected[0], bytes, sha256: hash(bytes) };
+  expect(() =>
+    readRehearsalInventory(
+      selected,
+      expansions,
+      captureRehearsalFrames(selected, expansions),
+      lock,
+    ),
+  ).toThrow();
+});
+
+test('shared resource validation returns detached request and limit facts', () => {
+  const input = { requests: { cpu: '100m' }, limits: { cpu: '200m' } };
+  const validated = assertPodResources(input);
+  if (validated.requests === undefined || validated.limits === undefined)
+    throw new Error('fixture maps absent');
+  validated.requests['cpu'] = '150m';
+  validated.limits['cpu'] = '300m';
+  expect(input).toEqual({ requests: { cpu: '100m' }, limits: { cpu: '200m' } });
+});
+
+test.each([
+  { name: 'null', input: null },
+  { name: 'absent', input: undefined },
+  { name: 'array', input: [] },
+  { name: 'request array', input: { requests: [] } },
+  { name: 'limit array', input: { limits: [] } },
+])('existing shared resource boundary still refuses $name', ({ input }) => {
+  expect(() => assertPodResources(input)).toThrow(/pod-resources-malformed/);
+});
+
+test.each(['invalid', '-1Gi', '0Gi', '9'.repeat(400)])(
+  'known claim storage quantity %s refuses without a fabricated fact',
+  (storage) => {
+    const selected = structuredClone(stages);
+    const bytes = encode({ ...claim, spec: { resources: { requests: { storage } } } });
+    selected[0] = { ...selected[0], bytes, sha256: hash(bytes) };
+    expect(() =>
+      readRehearsalInventory(
+        selected,
+        expansions,
+        captureRehearsalFrames(selected, expansions),
+        lock,
+      ),
+    ).toThrow(/claim storage/);
+  },
+);
