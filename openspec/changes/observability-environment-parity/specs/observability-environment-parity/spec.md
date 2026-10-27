@@ -182,3 +182,25 @@ The shared candidate SHALL declare complete positive resource maps for its selec
 
 - **WHEN** pinned chart and role-input validation succeeds
 - **THEN** the result remains source evidence and full rehearsal still requires actual complete generated roles, resource enforcement, capacity and readiness
+
+### Requirement: Cold-start planning shares exact workload accounting
+
+Native cold-start costs SHALL be derived from byte-bound source artifacts through the existing workload normalizer and shared quantity/capacity arithmetic. The implementation MUST preserve preflight ownership and cutover behavior, including CPU requests with finite limit evidence, and distinguish scoped native contributions from full admission authority.
+
+#### Scenario: Complete native inputs fit a declared capacity
+
+- **WHEN** byte-bound native artifacts have supported complete resource, replica, concurrency and claim inputs
+- **THEN** namespace-scoped owners, init sequencing and claims produce exact contributions and the shared evaluator reports fit or named deficit
+- **AND** this alone cannot authorize lab creation or certify runtime health
+
+#### Scenario: A contribution is not known
+
+- **WHEN** a runnable owner or capacity behavior cannot be modeled from the selected source contract
+- **THEN** its identity and concrete missing fact remain incomplete rather than zero
+- **AND** malformed trusted bytes, hash drift, duplicate ownership or contradictory inputs refuse
+
+#### Scenario: Cutover accounting is preserved
+
+- **WHEN** shared calculation is used by existing preflight
+- **THEN** memory, CPU-request overcommit, claim, replica, placement and freshness outcomes remain unchanged
+- **AND** cold start never supplies fictional Ready, Bound or UID state

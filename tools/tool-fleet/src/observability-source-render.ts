@@ -29,7 +29,9 @@ const API = ObservabilityResourceAPI.or({
   .or({ apiVersion: "'kibana.k8s.elastic.co/v1'", kind: "'Kibana'" })
   .or({ apiVersion: "'networking.k8s.io/v1'", kind: "'NetworkPolicy'" })
   .or({ apiVersion: "'monitoring.coreos.com/v1'", kind: "'Probe'" })
-  .or({ apiVersion: "'batch/v1'", kind: "'CronJob'" });
+  .or({ apiVersion: "'batch/v1'", kind: "'CronJob'" })
+  // Proof: Task25a widening the PVC API to string admitted an apps/v1 native PVC.
+  .or({ apiVersion: "'v1'", kind: "'PersistentVolumeClaim'" });
 const Resource = type({ metadata: { name: 'string>0', 'namespace?': 'string>0' } }).and(API);
 const List = type({ apiVersion: "'v1'", kind: "'List'", items: 'unknown[]', '+': 'reject' });
 const Map = type('Record<string,unknown>');

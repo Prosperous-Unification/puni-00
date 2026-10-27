@@ -9,6 +9,7 @@ The running dev observability stack uses Compose while the planned production st
 - Bring the proven Elastic trace gateway and autonomous stored-query acceptance into the common deployment, preserving working log mappings and metrics coverage.
 - Prepare and rehearse a retained-history migration from the dev Compose stack. Continue using it until its replacement passes the common checks; record it as transitional rather than claiming parity.
 - Report source parity, rehearsal evidence and live convergence separately.
+- Share workload and capacity calculations between cutover and cold-start planning.
 - Validate and retain an explicitly supplied locked object-store archive before strict full-rehearsal creation; bootstrap imports those bytes without an implicit image build.
 
 ## Non-Goals

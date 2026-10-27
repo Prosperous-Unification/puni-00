@@ -6,6 +6,11 @@ import { parseAllDocuments } from 'yaml';
 
 import { type DiscoveryCommand, type RunDiscoveryCommand, runDiscoveryCommand } from './discover';
 import {
+  assessCapacity,
+  readCPUMilli as readCPUQuantity,
+  readMemoryMiB as readMemoryQuantity,
+} from './observability-capacity';
+import {
   normalizeWorkload,
   ObservedWorkloadSpec,
   type WorkloadModel,
@@ -416,38 +421,8 @@ export function buildObservabilityDockerCommand(
   };
 }
 
-function readMemoryMiB(quantity: string): number {
-  const match = /^(\d+(?:\.\d+)?)(Ki|Mi|Gi|Ti|K|M|G|T)?$/.exec(quantity);
-  // Proof: removing this refusal failed `unknown memory quantity refuses` with its named fault.
-  if (match === null) refusePreflight('memory-unknown');
-  const factors: Record<string, number> = {
-    '': 1 / 1048576,
-    Ki: 1 / 1024,
-    Mi: 1,
-    Gi: 1024,
-    Ti: 1048576,
-    K: 1000 / 1048576,
-    M: 1000000 / 1048576,
-    G: 1000000000 / 1048576,
-    T: 1000000000000 / 1048576,
-  };
-  const memory = Number(match[1]) * factors[match.at(2) ?? ''];
-  // Proof: removing this refusal failed `overflowing memory quantity refuses` with its named fault.
-  if (!Number.isFinite(memory)) refusePreflight('memory-unknown');
-  return memory;
-}
-
-function readCPUMilli(quantity: string): number {
-  const match = /^(\d+(?:\.\d+)?)(m|u|n)?$/.exec(quantity);
-  // Proof: removing this refusal failed `unknown node CPU refuses` with its named fault.
-  if (match === null) refusePreflight('cpu-unknown');
-  const multiplier =
-    match[2] === 'm' ? 1 : match[2] === 'u' ? 0.001 : match[2] === 'n' ? 0.000001 : 1000;
-  const cpu = Number(match[1]) * multiplier;
-  // Proof: removing this refusal failed `overflowing CPU quantity refuses` with its named fault.
-  if (!Number.isFinite(cpu)) refusePreflight('cpu-unknown');
-  return cpu;
-}
+const readMemoryMiB = (quantity: string) => readMemoryQuantity(quantity, refusePreflight);
+const readCPUMilli = (quantity: string) => readCPUQuantity(quantity, refusePreflight);
 
 function readWorkloadModel(spec: typeof WorkloadSpec.infer): WorkloadModel {
   return normalizeWorkload(spec, {
@@ -1323,22 +1298,45 @@ export async function preflightObservability(
         : [];
     // Proof: removing this refusal failed `unbounded Docker memory refuses` with its named fault.
     if (retained.some((entry) => entry.memoryBytes <= 0)) refusePreflight('docker-unbounded');
-    const requiredMiB =
-      current.reduce((sum, pod) => sum + readObservedModel(pod).memoryMiB, 0) +
-      additions +
-      retained.reduce((sum, container) => sum + container.memoryBytes / 1048576, 0) +
-      pin.reserveMiB;
+    const currentMiB = current.reduce((sum, pod) => sum + readObservedModel(pod).memoryMiB, 0);
+    const retainedMiB = retained.reduce(
+      (sum, container) => sum + container.memoryBytes / 1048576,
+      0,
+    );
     const allocatableMiB = readMemoryMiB(node.allocatable);
     const allocatableCPUMilli = readCPUMilli(node.allocatableCPU);
-    const requiredCPUMilli =
-      current.reduce((sum, pod) => sum + readObservedModel(pod).cpuMilli, 0) +
-      additionalCPUMilli +
-      retained.reduce((sum, container) => sum + computeDockerCPUMilli(container), 0) +
-      pin.reserveCPUMilli;
-    // Proof: removing this refusal failed `CPU coexistence deficit refuses` with its named fault.
-    if (requiredCPUMilli > allocatableCPUMilli) refusePreflight('cpu-capacity-exceeded');
-    // Proof: removing this refusal failed `candidate plus retained stack exceeds capacity` with its named fault.
-    if (requiredMiB > allocatableMiB) refusePreflight('capacity-exceeded');
+    const fit = assessCapacity(
+      { memoryMiB: allocatableMiB, cpuMilli: allocatableCPUMilli, diskMiB: 0 },
+      [
+        {
+          identity: 'current',
+          memoryMiB: currentMiB,
+          cpuMilli: current.reduce((sum, pod) => sum + readObservedModel(pod).cpuMilli, 0),
+          diskMiB: 0,
+        },
+        { identity: 'candidate', memoryMiB: additions, cpuMilli: additionalCPUMilli, diskMiB: 0 },
+        {
+          identity: 'retained',
+          memoryMiB: retainedMiB,
+          cpuMilli: retained.reduce((sum, container) => sum + computeDockerCPUMilli(container), 0),
+          diskMiB: 0,
+        },
+        {
+          identity: 'reserve',
+          memoryMiB: pin.reserveMiB,
+          cpuMilli: pin.reserveCPUMilli,
+          diskMiB: 0,
+        },
+      ],
+    );
+    const requiredMiB = fit.required.memoryMiB;
+    const requiredCPUMilli = fit.required.cpuMilli;
+    // Proof: Task25a preflight-cpu-fit bypass failed `CPU coexistence deficit refuses`.
+    if (fit.deficits.some((deficit) => deficit.dimension === 'cpuMilli'))
+      refusePreflight('cpu-capacity-exceeded');
+    // Proof: Task25a preflight-memory-fit bypass failed `candidate plus retained stack exceeds capacity`.
+    if (fit.deficits.some((deficit) => deficit.dimension === 'memoryMiB'))
+      refusePreflight('capacity-exceeded');
     return {
       node: pin.name,
       allocatableMiB,
@@ -1443,17 +1441,25 @@ export async function preflightObservability(
       sum + assessment.unmatched.reduce((total, model) => total + model.ephemeralMiB, 0),
     0,
   );
-  const storageRequiredMiB = newClaimMiB + newEphemeralMiB + request.storage.headroomMiB;
+  const diskFit = assessCapacity(
+    { memoryMiB: 0, cpuMilli: 0, diskMiB: filesystem.availableBytes / 1048576 },
+    [
+      { identity: 'claims', memoryMiB: 0, cpuMilli: 0, diskMiB: newClaimMiB },
+      { identity: 'ephemeral', memoryMiB: 0, cpuMilli: 0, diskMiB: newEphemeralMiB },
+      { identity: 'headroom', memoryMiB: 0, cpuMilli: 0, diskMiB: request.storage.headroomMiB },
+    ],
+  );
+  const storageRequiredMiB = diskFit.required.diskMiB;
 
   if (
-    storageRequiredMiB * 1048576 > filesystem.availableBytes ||
+    diskFit.state === 'deficit' ||
     docker.volumes.some(
       (volume) =>
         request.docker.retainedVolumes.includes(volume.name) &&
         volume.availableBytes < request.storage.headroomMiB * 1048576,
     )
   )
-    // Proof: removing this refusal failed `filesystem free-space deficit refuses` with its named fault.
+    // Proof: Task25a preflight-disk-fit bypass failed `filesystem free-space deficit refuses`.
     refusePreflight('storage-capacity-exceeded');
   const storage = {
     path: filesystem.path,

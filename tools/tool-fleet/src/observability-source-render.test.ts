@@ -677,3 +677,19 @@ test('selected source refuses a duplicate named provider role', () => {
   });
   expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(/selected resource/);
 });
+
+test('native PVC indexing preserves full selected source extra-resource refusal', () => {
+  const changed = structuredClone(rendered);
+  changed['observability/eck-operator'] +=
+    '\n---\n' +
+    stringify({
+      apiVersion: 'v1',
+      kind: 'PersistentVolumeClaim',
+      metadata: { namespace: 'observability', name: 'foreign' },
+      spec: { storageClassName: 'puni-retain', resources: { requests: { storage: '1Mi' } } },
+    });
+  expect(Object.keys(indexObservabilitySource(changed)['observability/eck-operator'])).toContain(
+    'PersistentVolumeClaim:observability:foreign',
+  );
+  expect(() => assertRenderedObservabilitySource(source, changed)).toThrow('resource closure');
+});

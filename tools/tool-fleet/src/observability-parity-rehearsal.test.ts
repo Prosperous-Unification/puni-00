@@ -8,6 +8,7 @@ import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { parseAllDocuments, parseDocument, stringify } from 'yaml';
 
 import { cliEnvironment } from './cli.fixture';
+import { deriveObservabilityColdStartCosts } from './observability-cold-start';
 import {
   assessObservabilityRehearsalAdmission,
   prepareObservabilityRehearsal,
@@ -791,4 +792,43 @@ test('controller barrier rejects matching broken-factory bytes without the depen
   );
   expect(child.exitCode).toBe(1);
   expect(child.stderr.toString().trim()).toBe('Rehearsal graph prerequisite differs');
+});
+
+test('validated full rendered source exposes native subset without certifying rehearsal admission', async () => {
+  const ledger = await deriveObservabilityColdStartCosts(root, tools, {
+    placement: 'local',
+    instances: [
+      { environment: 'dev', namespace: 'observability-dev', policy: 'development' },
+      { environment: 'prod', namespace: 'observability', policy: 'retained-production' },
+    ],
+    network: request.network,
+  });
+  expect(ledger.state).toBe('incomplete');
+  expect(ledger.creationAuthority).toBe(false);
+  expect(ledger.provenance.flatMap((frame) => frame.resources)).toHaveLength(191);
+  expect(ledger.blockers).toContainEqual({
+    owner: 'Elasticsearch:observability:elasticsearch',
+    missingFact: 'unsupported-runnable-kind:Elasticsearch',
+  });
+  expect(ledger.blockers).toContainEqual({
+    owner: 'Elasticsearch:observability-dev:elasticsearch',
+    missingFact: 'unsupported-runnable-kind:Elasticsearch',
+  });
+  expect(
+    assessObservabilityRehearsalAdmission({ availableMemoryMiB: 1000000, freeDiskMiB: 1000000 })
+      .admitted,
+  ).toBe(false);
+});
+
+test('production source cannot borrow local planned topology as target evidence', () => {
+  expect(
+    deriveObservabilityColdStartCosts(root, tools, {
+      placement: 'production',
+      instances: [
+        { environment: 'dev', namespace: 'observability-dev', policy: 'development' },
+        { environment: 'prod', namespace: 'observability', policy: 'retained-production' },
+      ],
+      network: request.network,
+    }),
+  ).rejects.toThrow('local-planned-topology-required');
 });
