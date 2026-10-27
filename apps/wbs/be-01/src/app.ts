@@ -448,6 +448,15 @@ export interface AppOptions {
    * for as long as the process happened to live.
    */
   deployedCommit?: () => string | null;
+  /**
+   * The commit the checkout was at when this process booted, read once.
+   *
+   * {@link deployedCommit} proves only what is on disk. A watcher that missed
+   * a reset leaves the old code serving while that moves on, so this is what
+   * `tools/tool-devsync` compares with the new HEAD. Null means the same as
+   * there: this deployment cannot tell.
+   */
+  bootCommit?: string | null;
   /** Overrides the process collector in tests while retaining the real shape boundary. */
   metricsScrape?: () => Promise<MetricsScrape>;
   version?: string;
@@ -548,6 +557,7 @@ export function mountedEndpoints(
       },
       probeDatabase: opts.probeDatabase,
       deployedCommit: opts.deployedCommit,
+      bootCommit: opts.bootCommit,
       logger: runtime.logger,
       scrapeMetrics: runtime.scrapeMetrics,
     }),

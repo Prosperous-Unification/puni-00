@@ -4,8 +4,10 @@
  *
  * Dev serves from a bind-mounted checkout whose tiers already watch their own
  * source -- be-01 and gw-01 under `bun --watch`, fe-01 under Vite HMR. So for
- * ordinary code the deploy is a write into that checkout: fetch, reset, done.
- * Nothing is built and nothing restarts.
+ * ordinary code the deploy is a write into that checkout: fetch, reset, then
+ * wait for be-01's `bootCommit` to name the new HEAD. Nothing is built, and
+ * the container restarts only when a watcher did not reload in time
+ * ({@link convergeBootCommits}).
  *
  * Some changes cannot reach a running process that way, and those are the
  * whole reason this file exists rather than being one `git reset` in a shell
@@ -38,6 +40,11 @@ import {
 } from '@tools/deploy-contract';
 import { $ } from 'bun';
 
+import {
+  type BootConvergenceBudget,
+  containerBootDependencies,
+  convergeBootCommits,
+} from './boot-convergence';
 import { prepareTargetSolverBinding } from './solver-binding-host';
 import { createTargetSolverBindingRuntime } from './solver-binding-runtime';
 import {
@@ -778,6 +785,8 @@ async function fingerprint(
 export interface DevSyncOptions extends Partial<DevSyncPaths> {
   mcpEnvPath?: string;
   beEnvPath?: string;
+  /** Shortens the boot-commit windows so a test need not wait out real ones. */
+  bootConvergenceBudget?: BootConvergenceBudget;
 }
 
 export async function sync(sha: string, options: DevSyncOptions = {}): Promise<void> {
@@ -806,13 +815,14 @@ export async function sync(sha: string, options: DevSyncOptions = {}): Promise<v
 
   const after = await fingerprint(paths.sourcePath);
 
-  if (needsRestart(before, after)) {
+  const restarted = needsRestart(before, after);
+  if (restarted) {
     const moved = RESTART_PATHS.filter((p) => before[p] !== after[p]);
     console.log(`[dev-sync] restart required, changed: ${moved.join(', ') || 'unknown'}`);
     await $`docker exec ${paths.containerName} bun install --frozen-lockfile`;
     await $`docker restart ${paths.containerName}`;
   } else {
-    console.log('[dev-sync] code only: watchers pick it up, nothing restarted');
+    console.log('[dev-sync] code only: nothing restarted; waiting for the watchers');
   }
 
   const containerAfter = await fingerprint(paths.sourcePath, RECREATE_PATHS);
@@ -826,6 +836,19 @@ export async function sync(sha: string, options: DevSyncOptions = {}): Promise<v
         '  Apply it: ssh h2puni "cd /home/puni1/wbs-dev/src/deploy/dev-src && docker compose up -d"',
     );
   }
+
+  // The checkout moving proves nothing about the processes: a watcher that
+  // missed the reset keeps serving the old commit while `/health`'s `commit`
+  // names the new one (2026-10-26). Converge on `bootCommit`, or throw.
+  // Proof: with this call removed, `refuses a deploy whose be-01 still runs the
+  // previous commit` in sync.test.ts received `(resolved without throwing)`
+  // (watched 2026-10-27).
+  await convergeBootCommits(head, containerBootDependencies(paths.containerName), {
+    ...(options.bootConvergenceBudget === undefined
+      ? {}
+      : { budget: options.bootConvergenceBudget }),
+    restarted,
+  });
 
   if (!paths.rehearsal) {
     await runMcpDeploymentProbe({

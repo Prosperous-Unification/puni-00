@@ -7,8 +7,13 @@ a thing IS. Design decisions live in `docs/adr/`, behaviour lives in `openspec/`
 
 ### Checkout commit
 
-The commit the dev source tree on disk is at. It describes the checkout being served,
-not the commit captured when a process or container first started.
+The commit the dev source tree on disk is at. It describes the checkout, not the code a
+running process loaded; that is its boot commit.
+
+### Boot commit
+
+The checkout commit a process read once when it booted: the code it is running. It lags
+the checkout commit until a watcher reload or a restart boots the process again.
 
 ### MCP authentication
 

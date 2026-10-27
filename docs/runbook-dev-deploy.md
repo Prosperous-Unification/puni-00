@@ -28,7 +28,8 @@ git push && ./bin/dev-deploy.sh
 `git reset --hard` its checkout at `/home/puni1/wbs-dev/src`. That checkout is bind-mounted
 into one container, `wbs-dev-src`, running all three tiers via `bun run dev` — be-01 and
 gw-01 under `bun --watch`, fe-01 under Vite. **For application code the watchers are the
-deploy**; nothing is built, pushed or restarted.
+deploy**; nothing is built or pushed, and nothing restarts unless a watcher fails to reload
+(see [Which commit dev runs](#which-commit-dev-runs)).
 
 The public frontend remains Vite's source server, not a production build: keeping transforms
 on demand is what makes a source checkout deploy in seconds. Its public process deliberately
@@ -46,12 +47,39 @@ non-empty as well.
 Verified 2026-08-04: a pushed change appeared on dev with the container's `StartedAt`
 unchanged to the nanosecond.
 
+### Which commit dev runs
+
+be-01's `/health` answers two commits, and only one of them is the running code:
+
+- `commit` is **the checkout on disk**, read on every request. The poller's proof uses it to
+  answer "did the reset land".
+- `bootCommit` is **the code running**, read once when be-01 booted.
+
+They differ whenever a watcher misses a reset. On 2026-10-26, after #758 merged as
+`3cd6e2751`, `commit` named it while be-01 still served the old `/api/openapi.json`:
+`bun --watch` had not reloaded after the poller's reset, and only
+`docker restart wbs-dev-src` fixed it.
+
+`tool-devsync` therefore waits up to 30 seconds after every reset for `bootCommit` to equal
+the new HEAD, restarts the container once if it does not, waits up to two more minutes, and
+then fails the deploy naming what be-01 reported (`convergeBootCommits` in
+`tools/tool-devsync/src/boot-convergence.ts`). A commit no watched module imports, such as
+docs only, reloads nothing, so it costs one container restart. gw-01 and mcp-01 report no
+boot commit; the restart covers them, but their staleness is not observed.
+
+After a merge, verify the running code, not the disk:
+
+```sh
+ssh h2puni 'docker exec wbs-dev-src curl -s http://127.0.0.1:3100/health'
+# {"status":"ok","commit":"<sha>","bootCommit":"<sha>"} — bootCommit must be the merge
+```
+
 **Not every change can reach a running process that way.** This is the constraint the
 design trades for its speed — know which row your change is in:
 
 | Change                                                          | What carries it                                                                                                                                                                                                                                                             |
 | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| App source under `apps/wbs/*/src`                               | The watchers. Nothing restarts.                                                                                                                                                                                                                                             |
+| App source under `apps/wbs/*/src`                               | The watchers. `tool-devsync` restarts the container only when be-01's `bootCommit` has not reached the new HEAD within 30 seconds.                                                                                                                                          |
 | `bun.lock`                                                      | `tool-devsync` restarts and runs `bun install`.                                                                                                                                                                                                                             |
 | A migration under `apps/wbs/mcp-01/drizzle`                     | mcp-01's watcher: the SQL is imported as text, so the process restarts and migrates its store at boot. A refused store keeps mcp-01 down with the reason in its log.                                                                                                        |
 | A migration under `apps/wbs/be-01/drizzle`                      | `tool-devsync` restarts; be-01 migrates at boot (`MIGRATE_ON_STARTUP=true`). Migrations are imported by no watched module, so nothing else would notice one arrive.                                                                                                         |
@@ -332,6 +360,6 @@ Observed 2026-10-17: a gate in the dev source checkout started on `b1ce4e74` at
 07:39:10 UTC; the poller reset that checkout at 07:40:02 UTC. Prettier then reported
 `ENOENT` while reading the changing tree. That interrupted attempt cannot prove
 the requested commit. The dev backend recovered after a container restart, and
-`/health` reported `e8894d0`; that health response proves the running dev revision,
-not the interrupted gate's result. Use an isolated worktree for the replacement
-exact-SHA gate.
+`/health` reported `e8894d0`; that `commit` proves the checkout revision (only
+`bootCommit` names the running one), not the interrupted gate's result. Use an
+isolated worktree for the replacement exact-SHA gate.

@@ -1016,3 +1016,103 @@ describe('be-01 environment prerequisite', () => {
     );
   });
 });
+
+describe('boot-commit convergence after reset', () => {
+  const VALID_MCP = [
+    'PORT=3300',
+    'MCP_AUTH_MODE=standalone',
+    'WBS_API_URL=http://localhost:3100',
+    'MCP_PUBLIC_URL=https://dev.wbs.bulletpoints.club/mcp',
+    'MCP_SIGNING_KEY_CURRENT=signing-key',
+    'MCP_STORE_KEY_CURRENT=store-key',
+    'MCP_STORE_PATH=/data/mcp-session.sqlite',
+    'MCP_ACCESS_TOKEN_TTL=3600',
+  ].join('\n');
+  const GIT = ['-c', 'user.name=devsync-test', '-c', 'user.email=devsync@example.invalid'];
+
+  /**
+   * A rehearsal source one commit behind its origin, and a `docker` on PATH
+   * whose be-01 answers `/health` with the boot commit in `boot`. A restart
+   * moves it to the checkout's HEAD only when `restartFixes` is set, which is
+   * the `docker restart` that repaired dev on 2026-10-26.
+   */
+  async function rehearsal(restartFixes: boolean) {
+    const directory = await scratchAsync('wbs-devsync-boot-');
+    const origin = join(directory, 'origin.git');
+    const source = join(directory, 'source');
+    const commands = join(directory, 'commands');
+    const calls = join(directory, 'docker-calls');
+    const boot = join(directory, 'boot');
+    await mkdir(commands, { recursive: true });
+    await $`git init --quiet --bare ${origin}`;
+    await $`git clone --quiet ${origin} ${source}`.quiet();
+    await writeFile(join(source, 'README.md'), 'one\n');
+    await $`git -C ${source} add README.md`;
+    await $`git -C ${source} ${GIT} commit --quiet -m one`;
+    const previous = (await $`git -C ${source} rev-parse HEAD`.text()).trim();
+    await writeFile(join(source, 'README.md'), 'two\n');
+    await $`git -C ${source} ${GIT} commit --quiet -am two`;
+    const target = (await $`git -C ${source} rev-parse HEAD`.text()).trim();
+    await $`git -C ${source} push --quiet origin HEAD:main`.quiet();
+    await $`git -C ${source} reset --hard --quiet ${previous}`;
+    await writeFile(boot, previous);
+    await writeFile(
+      join(commands, 'docker'),
+      `#!/usr/bin/env bash
+set -eu
+printf '%s\\n' "$1" >> ${JSON.stringify(calls)}
+case "$1" in
+  exec) printf '{"status":"ok","commit":"%s","bootCommit":"%s"}' "$(git -C ${JSON.stringify(source)} rev-parse HEAD)" "$(cat ${JSON.stringify(boot)})" ;;
+  restart) ${restartFixes ? `git -C ${JSON.stringify(source)} rev-parse HEAD > ${JSON.stringify(boot)}` : 'true'} ;;
+  *) exit 64 ;;
+esac
+`,
+    );
+    await chmod(join(commands, 'docker'), 0o755);
+    const mcpEnvPath = join(directory, 'mcp.env');
+    await writeFile(mcpEnvPath, `${VALID_MCP}\n`);
+    await chmod(mcpEnvPath, 0o600);
+    const beEnvPath = join(directory, 'be.env');
+    await writeFile(beEnvPath, `${BE_REQUIRED_ENV.map((key) => `${key}=value`).join('\n')}\n`);
+    const run = async (): Promise<string> => {
+      const path = process.env['PATH'];
+      process.env['PATH'] = `${commands}:${path ?? ''}`;
+      try {
+        return await rejection(
+          sync(target, {
+            sourcePath: source,
+            containerName: 'wbs-devsync-boot-test',
+            statePath: directory,
+            rehearsal: true,
+            mcpEnvPath,
+            beEnvPath,
+            bootConvergenceBudget: { watchMs: 0, restartMs: 0, pollMs: 0 },
+          }),
+        );
+      } finally {
+        process.env['PATH'] = path;
+      }
+    };
+    const dockerCalls = async () => (await readFile(calls, 'utf8')).trim().split('\n');
+    return { previous, target, source, run, dockerCalls };
+  }
+
+  it('refuses a deploy whose be-01 still runs the previous commit', async () => {
+    const fixture = await rehearsal(false);
+
+    const outcome = await fixture.run();
+
+    expect(outcome).toContain(`dev is not running ${fixture.target} after a restart`);
+    expect(outcome).toContain(`be-01 booted ${fixture.previous}`);
+    // The checkout did move: `/health`'s `commit` would have called this a success.
+    expect((await $`git -C ${fixture.source} rev-parse HEAD`.text()).trim()).toBe(fixture.target);
+    expect(await fixture.dockerCalls()).toEqual(['exec', 'restart', 'exec']);
+  });
+
+  it('accepts the deploy once the restart boots the new commit', async () => {
+    const fixture = await rehearsal(true);
+
+    expect(await fixture.run()).toBe('(resolved without throwing)');
+    expect(await fixture.dockerCalls()).toEqual(['exec', 'restart', 'exec']);
+  });
+});
