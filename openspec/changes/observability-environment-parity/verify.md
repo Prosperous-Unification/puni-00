@@ -2896,3 +2896,25 @@ Retained derived evidence:
 | retained-control.log              | `71a17678745b0e402479cd7b678b2398b1434cb9dc7d54e505e30a33b047ed24` |
 
 Documentation checks: `bunx openspec validate observability-environment-parity --strict --json` returned one valid change, zero issues, exit 0 (validator16ms). The evidence commit uses normal hooks; independent review remains pending.
+
+## Published CI checkpoints d072 and 055d — 2026-10-27
+
+The published `d072c2f6a30f3be218bf2e149cb416497dba36e4` checkpoint completed its own checks successfully: [main run 40578377675](https://github.com/Prosperous-Unification/puni-00/actions/runs/40578377675) and [infrastructure run 40578377810](https://github.com/Prosperous-Unification/puni-00/actions/runs/40578377810). Workspace job122451754784 ran20:30:25–21:31:47UTC (61m22s); Twilight job122451754634 ran20:30:25–21:35:10UTC (64m45s). Stable gate122484497801 and pixels122462214294 succeeded. Fleet122450839134 reported2654 pass,7 existing opt-in skips,0 fail across2661 tests/92 files in628.03s; deploy reported828 pass,0 fail across32 files in54.31s. Generic K3s job122457799165 succeeded20:42:04–20:57:29UTC. These timings are CI job/test durations, not observability runtime capacity or full authenticated rehearsal acceptance. The retained Fleet log is749504 bytes, SHA256 `9a5fdaa102e18abc95425b9eee8d853b55d598e676513a0dc22f81e61dd747e8`; it was not downloaded again.
+
+The subsequently published reviewed storage checkpoint `055d4008fa12129ed2bd8fee05ea52bdef15853c` has its own [main run40591788802](https://github.com/Prosperous-Unification/puni-00/actions/runs/40591788802) and [infrastructure run40591788726](https://github.com/Prosperous-Unification/puni-00/actions/runs/40591788726), created22:03:26UTC. The main workspace/Twilight jobs remain in progress at this observation; all four browser shards and stable pixels122505171272 succeeded. Fleet122497610209 failed with2713 pass,7 existing skips,2 fail,7002 assertions across2722 tests/96 files in656.83s. Deploy and generic K3s were skipped after that failure. Earlier green does not validate this checkpoint or the later unpushed DaemonSet implementation.
+
+Retained failed log: `/tmp/puni-pr760-fleet-055d.log`,905038 bytes, SHA256 `e17e59b0a51f9591c914981e81975cee0dbb1e21a7734435451d9bd32c578f80`. The two failures are `platform.test.ts` — unlocked backup init container now refused first by the common-role guard instead of the expected image guard — and `observability-preflight.test.ts` — common blackbox positive fixture returns exit1. A fresh targeted reproduction at current adapter HEAD `004485f63ffd0335cbacc3fd9b32aa1af6678a73` ran:
+
+```sh
+bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/platform.test.ts tools/tool-fleet/src/observability-preflight.test.ts -t 'rejects an unlocked init container in a backup job|actual common blackbox Deployment selector and owned scheduled ReplicaSet pod admit prerequisites'
+```
+
+Observed0 pass,481 filtered,2 fail,3 assertions,1.405s; process exit1. No timeout, whole-suite rerun, CI retry, guard weakening or source repair was performed. The first failure proves a changed refusal ordering; the second still requires diagnosis of the fixture/source/effective-resource mismatch before a fix. The fixed DaemonSet review package remains391b6c5..004485f; these observations are outside its frozen review range.
+
+The user's h3mon question does not authorize an upgrade. The earlier sizing clarification remains applicable:16GiB available/120GiB claims are full disposable rehearsal inputs, including50GiB registry and20GiB local object storage. Existing h3mon dev-only and co-location subtotals remain incomplete; no final hardware recommendation or successful host admission follows from them. No infrastructure or workload change was made for this clarification.
+
+## Task35 independent review acceptance — 2026-10-27
+
+An independent scoped review of the official nine-file package391b6c5..004485f63 approved both spec compliance and code quality with no findings. The reviewer checked topology provenance, policy-validation ordering, full initial/replacement charges, retained independent obligations, compatibility, false authority and the stated tests/evidence; no suites, renders or fault batches were replayed. Root separately reconciled the completed source/capture/proof verification and existing package rather than regenerating either. The61 watched fault observations are Bun assertion tests against production accounting code, not live Kubernetes runtime observations. The clean TS2339 producer-field fault proves the typed handoff only; the initially masked affinity fault remains excluded.
+
+The private Task35 source slice is complete. Canonical task3.1 and the overall setup remain open: CronJob lifecycle, generated workloads, image/helper/system/transient/physical costs, host admission, authenticated Flux/runtime/signals/history/recovery/live acceptance still require evidence. Source and adapter approval do not supply creation or runtime authority. No publication, deployment or hardware change followed this review.
