@@ -1,4 +1,4 @@
-import { copyFile, mkdir, symlink } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, rename, rm, symlink } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
@@ -40,13 +40,28 @@ async function installTools(cache: string): Promise<string> {
       runChecked,
     );
     await symlink(executable, join(directory, name));
+    // Proof: omitting publication failed observability-tools.test.ts fresh-cache digest,
+    // concurrent replacement and required-output EACCES/EISDIR controls.
+    if (name === 'helm') {
+      const shared = join(cache, artifactDirectory);
+      await mkdir(shared, { recursive: true, mode: 0o700 });
+      const publication = await mkdtemp(join(shared, '.prepared-'));
+      try {
+        await copyFile(join(privateCache, archive), join(publication, 'archive'));
+        await rename(join(publication, 'archive'), join(cache, archive));
+      } finally {
+        await rm(publication, { recursive: true, force: true });
+      }
+    }
   }
   return directory;
 }
 
 /**
  * Real locked kubectl and Helm, once per process/cache. Only absent optional archive seeds
- * are ignored; installer digest/version checks still run. Extraction and executables belong
+ * are ignored; installer digest/version checks still run. The verified private Helm archive is
+ * required output in the selected canonical cache, published by a unique same-filesystem rename;
+ * seed and publication I/O failures propagate. Extraction and executables belong
  * to process scratch so another process cannot remove them by reinstalling into a shared cache.
  * PUNI_PARITY_TOOLS is deliberately not an override: invalid production paths stay explicit
  * inputs to the production validators in their negative tests.
