@@ -239,3 +239,26 @@ Selected generated-workload capacity traits SHALL consume the same validated rol
 - **WHEN** required roles, source hashes, provider/runtime identity or claim binding conflict, or an additional cost-bearing shape is unsupported
 - **THEN** malformed trusted inputs refuse and supported-but-unmodeled demand remains explicitly incomplete
 - **AND** selecting known roles never hides additional demand or relabels source evidence as an actual Pod observation
+
+### Requirement: Archive byte facts preserve allocation uncertainty
+
+The existing verified archive boundary SHALL provide digest-bound layer byte facts through bounded complete streaming inspection without filesystem extraction. Compressed bytes, decoded tar-stream bytes and logical file payload MUST remain separate from physical allocation, process memory and runtime demand. These facts MUST NOT replace unknown unpack or memory allowances or grant creation authority.
+
+#### Scenario: Locked layers are completely inspected
+
+- **WHEN** the actual retained verified archive contains supported complete layers
+- **THEN** byte facts identify the archive and ordered layers and report decoded stream bytes, logical payload and entry counts
+- **AND** overwritten or deleted layer contributions receive no speculative storage credit
+- **AND** original and retained import identities remain unchanged while physical allocation, heap and import demand remain unknown
+
+#### Scenario: Layer inspection cannot establish complete facts
+
+- **WHEN** input is missing, unreadable, changed, malformed, truncated, unsupported or exceeds the bounded expansion, member or metadata contract
+- **THEN** the production reader refuses without returning partial sums as complete facts
+- **AND** it neither extracts paths nor silently skips unsupported tar, link or whiteout semantics
+
+#### Scenario: Byte facts are consumed for planning
+
+- **WHEN** deterministic byte facts are available
+- **THEN** complete device, filesystem, memory, concurrency and runtime accounting remain separately required
+- **AND** no declared claim capacity, decoded byte sum or measured peak is relabeled as a physical quota or total process-memory bound
