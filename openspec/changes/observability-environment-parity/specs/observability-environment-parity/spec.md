@@ -440,3 +440,35 @@ Shared cert-manager and Traefik source definitions SHALL declare explicit contai
 - **THEN** the locked render retains the chart's resource-aware CPU and memory settings and their declared/defaulted provenance
 - **AND** actual ingress, TLS, readiness, garbage collection and throttling under those limits remain required rehearsal checks
 - **AND** source success cannot complete host admission, actual enforcement or runtime acceptance
+
+### Requirement: Velero scratch patches have one validated execution contract
+
+Both Velero releases SHALL bound their plugin init and writable storage without changing original chart/component/image pins. A narrow standard Flux Kustomize post-render patch MUST have the same source, target and effects in offline rendering. No ignored or arbitrary post-renderer may establish a bounded candidate.
+
+#### Scenario: The supported patch is applied
+
+- **WHEN** a current Velero candidate is prepared
+- **THEN** the AWS-plugin init has complete CPU, memory and ephemeral requests/limits and its server has explicit ephemeral bounds
+- **AND** exactly one supported inline JSON6902 patch tests the complete pinned volumes array and adds only the plugins and scratch size limits
+- **AND** the original chart archive, images, credentials reference, namespace, endpoints and unrelated workload fields remain unchanged
+
+#### Scenario: A patch or tool cannot establish its intended effect
+
+- **WHEN** policy is missing, malformed, excessive, ambiguous or outside the exact supported target/operation shape, its quantities are invalid, or prepared locked tools cannot be authenticated
+- **THEN** production source validation or direct offline rendering refuses before treating the workload as bounded
+- **AND** missing or duplicate targets, failed preconditions, no-op output, wrong values and unrelated semantic changes refuse
+- **AND** other releases cannot acquire arbitrary post-renderer permission
+
+#### Scenario: The direct and canonical paths retain the same boundary
+
+- **WHEN** the supported Velero release is rendered directly or through the canonical rehearsal producer
+- **THEN** both use the same narrow decoder and the actual verified locked kubectl to apply the original source patch
+- **AND** semantic identity/cardinality and exact effects are checked without a second patch interpreter, fallback download or validation bypass
+- **AND** historical source inventory remains valid incomplete evidence without granting current-candidate readiness
+
+#### Scenario: Source patch success remains distinct from runtime acceptance
+
+- **WHEN** actual offline patched outputs satisfy the shared workload normalizer
+- **THEN** source and generator identities, original chart provenance and patch source are retained separately from runtime facts
+- **AND** actual Flux revision/patch binding, generated Pods, plugin installation/backup/recovery, writable storage/eviction/headroom and physical enforcement remain required
+- **AND** runtime/creation authority and whole-attempt admission remain incomplete until their separate criteria pass
