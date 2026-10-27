@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { type } from 'arktype';
 import { parseDocument } from 'yaml';
 
+import { assertCandidatePodResources } from './observability-pod-resources';
 import type { ObservabilitySource } from './observability-source';
 import type { ObservabilitySourceIndex } from './observability-source-render';
 
@@ -258,4 +259,70 @@ export function assertObservabilitySelectedResources(
 ): void {
   // Proof: Task25b2 assertion-reader-dependency removal let the public assertion accept a malformed init role.
   readObservabilitySelectedResources(source, indexed);
+}
+
+/** Bind each enabled common exporter container's complete rendered maps to its current owning values.
+ * Pinned KPS 91.4.1 realizes these two shared roles only in the production namespace; resource closure remains independently checked.
+ */
+export function assertObservabilityExporterResources(
+  source: Pick<ObservabilitySource, 'releases'>,
+  indexed: ObservabilitySourceIndex,
+): void {
+  const owner = 'observability/kube-prometheus-stack';
+  const releases = source.releases.filter((release) => release.owner === owner);
+  if (releases.length !== 1) throw new Error('Observability exporter source owner differs');
+  const values = type({
+    spec: {
+      values: {
+        'kube-state-metrics': { resources: 'unknown' },
+        'prometheus-node-exporter': { resources: 'unknown' },
+      },
+    },
+  }).assert(parseDocument(releases[0].manifest).toJSON()).spec.values;
+  const rendered = type('Record<string,unknown>')(indexed[owner]);
+  if (rendered instanceof type.errors)
+    throw new Error('Observability exporter output owner absent');
+  for (const [role, kind, name, container] of [
+    [
+      'kube-state-metrics',
+      'Deployment',
+      'kube-prometheus-stack-kube-state-metrics',
+      'kube-state-metrics',
+    ],
+    [
+      'prometheus-node-exporter',
+      'DaemonSet',
+      'kube-prometheus-stack-prometheus-node-exporter',
+      'node-exporter',
+    ],
+  ] as const) {
+    const expected = assertCandidatePodResources(values[role].resources);
+    const workload = type({
+      spec: {
+        template: {
+          spec: {
+            containers: type({ name: 'string', resources: 'unknown' }).array(),
+            'initContainers?': 'unknown[]',
+            'ephemeralContainers?': 'unknown[]',
+          },
+        },
+      },
+    })(rendered[`${kind}:observability:${name}`]);
+    if (workload instanceof type.errors) throw new Error('Observability exporter output absent');
+    const pod = workload.spec.template.spec;
+    // Proof: Task25c3f exporter-role/init/ephemeral bypasses admitted renamed app and extra output roles.
+    if (
+      !isDeepStrictEqual(
+        pod.containers.map((container) => container.name),
+        [container],
+      ) ||
+      (pod.initContainers !== undefined && pod.initContainers.length !== 0) ||
+      (pod.ephemeralContainers !== undefined && pod.ephemeralContainers.length !== 0)
+    )
+      throw new Error('Observability exporter role closure differs');
+    const actual = assertCandidatePodResources(pod.containers[0].resources);
+    // Proof: Task25c3f exporter-correspondence bypass admitted a valid but wrongly propagated 128Mi output limit.
+    if (!isDeepStrictEqual(actual, expected))
+      throw new Error('Observability exporter resources differ from source');
+  }
 }

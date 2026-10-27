@@ -18,7 +18,10 @@ import {
   createObservabilityNetworkPolicies,
   encodeObservabilitySource,
 } from './observability-source-network';
-import { assertObservabilitySelectedResources } from './observability-source-resources';
+import {
+  assertObservabilityExporterResources,
+  assertObservabilitySelectedResources,
+} from './observability-source-resources';
 import { assertObservabilitySelfScrapes } from './observability-source-scrapes';
 import { decodeRenderedResources } from './rendered-resources';
 
@@ -133,6 +136,8 @@ export function assertRenderedObservabilitySource(
   requireObservabilityProjectionReferences(source.assembly.projection, indexed);
   // Proof: removing only this invocation let the missing-reloader-flag full source negative return a valid receipt.
   assertObservabilitySelectedResources(source, indexed);
+  // Proof: Task25c3f exporter-caller omission admitted the changed exporter limit through this full public validator.
+  assertObservabilityExporterResources(source, indexed);
   for (const instance of source.instances) {
     const namespace = instance.namespace;
     requireEqual(

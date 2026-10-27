@@ -87,9 +87,9 @@ export function observabilityInputs(
 
 const metadata = (name: string, namespace: string) => ({ name, namespace });
 const labels = (name: string) => ({ 'app.kubernetes.io/name': name });
-const resources = (memory: number) => ({
-  requests: { cpu: '100m', memory: `${String(memory)}Mi` },
-  limits: { cpu: '1', memory: `${String(memory)}Mi` },
+const resources = (memory: number, ephemeralRequest: string, ephemeralLimit: string) => ({
+  requests: { cpu: '100m', memory: `${String(memory)}Mi`, 'ephemeral-storage': ephemeralRequest },
+  limits: { cpu: '1', memory: `${String(memory)}Mi`, 'ephemeral-storage': ephemeralLimit },
 });
 const securityContext = {
   allowPrivilegeEscalation: false,
@@ -195,6 +195,8 @@ function createSignalWorkload(role: 'collector' | 'gateway', image: string, name
                 ],
                 resources: resources(
                   isCollector ? applicationMiB.collector : applicationMiB.gateway,
+                  '64Mi',
+                  '256Mi',
                 ),
                 securityContext,
                 readinessProbe: { httpGet: { path: '/', port: 'health' }, periodSeconds: 10 },
@@ -318,7 +320,7 @@ function createMetricsProxy(image: string, namespace: string) {
                   '--global.sendanonymoususage=false',
                 ],
                 ports: [{ name: 'https', containerPort: 8443 }],
-                resources: resources(applicationMiB.metricsProxy),
+                resources: resources(applicationMiB.metricsProxy, '16Mi', '64Mi'),
                 securityContext,
                 readinessProbe: { tcpSocket: { port: 'https' } },
                 volumeMounts: [
@@ -419,10 +421,12 @@ function createRetentionJob(image: string, namespace: string) {
                 requests: {
                   cpu: '10m',
                   memory: '32Mi',
+                  'ephemeral-storage': '16Mi',
                 },
                 limits: {
                   cpu: '200m',
                   memory: '128Mi',
+                  'ephemeral-storage': '64Mi',
                 },
               },
               securityContext: {

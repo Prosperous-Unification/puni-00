@@ -30,7 +30,7 @@ const ObjectStoreWorkload = type({
 export function assertBackupTransport(manifests: readonly PlatformManifest[]): void {
   const fingerprints = {
     Deployment: 'f5c20225a7058b48791d76a939d757b047a1bbab0567b99883522af826069b77',
-    Job: '6136853647dcbf02d197b82ffc28e7ac2bf30b29c2b505a1919edac801e2680b',
+    Job: '9af531f665fab0e20cfe667d5757b62f7c1dabe2b2308c8b755437f1979cc21d',
   };
   const seen = new Set<string>();
   for (const manifest of manifests) {
@@ -51,6 +51,7 @@ export function assertBackupTransport(manifests: readonly PlatformManifest[]): v
       )
       .digest('hex');
     // Proof: removing this comparison admitted plaintext mc in validatePlatform (platform.test.ts).
+    // Proof: Task25c3f tls-fingerprint omission admitted plaintext and CA-mode mutations with bounded bucket scratch.
     if (digest !== fingerprints[workload.kind])
       throw new Error(`${workload.kind} object-store TLS contract differs`);
     seen.add(workload.kind);

@@ -51,9 +51,11 @@ spec:
             requests:
               cpu: 100m
               memory: 512Mi
+              ephemeral-storage: 64Mi
             limits:
               cpu: "1"
               memory: 512Mi
+              ephemeral-storage: 256Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -218,9 +220,11 @@ spec:
             requests:
               cpu: 100m
               memory: 1024Mi
+              ephemeral-storage: 64Mi
             limits:
               cpu: "1"
               memory: 1024Mi
+              ephemeral-storage: 256Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

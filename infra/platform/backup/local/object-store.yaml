@@ -67,8 +67,8 @@ spec:
                 - timeout 4 sh -ec 'mc alias set store https://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null; mc ready store'
             timeoutSeconds: 5
           resources:
-            requests: { cpu: 50m, memory: 256Mi }
-            limits: { cpu: '1', memory: 512Mi }
+            requests: { cpu: 50m, memory: 256Mi, ephemeral-storage: 32Mi }
+            limits: { cpu: '1', memory: 512Mi, ephemeral-storage: 256Mi }
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: { drop: [ALL] }
@@ -153,8 +153,8 @@ spec:
           envFrom:
             - secretRef: { name: object-store-root }
           resources:
-            requests: { cpu: 10m, memory: 32Mi }
-            limits: { cpu: 200m, memory: 128Mi }
+            requests: { cpu: 10m, memory: 32Mi, ephemeral-storage: 16Mi }
+            limits: { cpu: 200m, memory: 128Mi, ephemeral-storage: 64Mi }
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -163,6 +163,6 @@ spec:
             - { name: tmp, mountPath: /tmp }
             - { name: ca, mountPath: /object-store-ca, readOnly: true }
       volumes:
-        - { name: tmp, emptyDir: {} }
+        - { name: tmp, emptyDir: { sizeLimit: 16Mi } }
         - name: ca
           secret: { secretName: object-store-ca, defaultMode: 292 }

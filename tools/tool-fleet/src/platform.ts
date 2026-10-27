@@ -8,6 +8,7 @@ import { parse, parseDocument, stringify } from 'yaml';
 import { purposeCapabilities, readToolchain } from './contracts';
 import { assertObservability } from './observability';
 import { assertBackupTransport } from './platform-backup-tls';
+import { assertCommonNativeResources } from './platform-common-resources';
 import {
   assertEncryptedSecrets,
   assertLockedWorkloadImages,
@@ -24,6 +25,7 @@ import {
 } from './platform-manifests';
 import { assertOtlpTransport } from './platform-otlp';
 import {
+  assertCommonHelmResources,
   assertNetworkingCandidate,
   assertVeleroCandidate,
   PlatformHelmRelease,
@@ -574,6 +576,8 @@ export async function validatePlatform(root: string): Promise<{
     const configuredReferences = release.imageReferences(parsed.spec.values);
     // Proof: Task25c3c candidate-call removal made all five missing maps and both missing scratch bounds pass validatePlatform.
     assertNetworkingCandidate(release.name, parsed.spec.values);
+    // Proof: Task25c3f helm-call omission admitted both missing current exporter maps.
+    assertCommonHelmResources(release.name, parsed.spec.values);
     if (release.name === 'velero') {
       // Proof: Task25c3d candidate-call omission admitted both missing current maps.
       assertVeleroCandidate(parsed.spec.values);
@@ -598,6 +602,8 @@ export async function validatePlatform(root: string): Promise<{
   }
 
   const manifests = await readPlatformManifests(root);
+  // Proof: Task25c3f native-call omission admitted missing registry maps through validatePlatform.
+  assertCommonNativeResources(manifests);
   const workloadImages = assertLockedWorkloadImages(manifests, toolchain);
   const secrets = assertEncryptedSecrets(manifests);
   assertRegistryTransport(manifests);

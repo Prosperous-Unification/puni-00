@@ -5,7 +5,7 @@ import { type } from 'arktype';
 import type { Toolchain } from './contracts';
 import { readCPUMilli, readMemoryMiB } from './observability-capacity';
 // Proof: Task31 CI fix1 restoring the generated-capacity import reproduced all five fresh projection CLI initialization failures.
-import { assertPodResources } from './observability-pod-resources';
+import { assertCandidatePodResources, assertPodResources } from './observability-pod-resources';
 
 /** Standard source envelope; postRenderers require separate exact contextual validation. */
 export const PlatformHelmRelease = type({
@@ -540,7 +540,8 @@ const KubePrometheusStackValues = type({
       sha: /^sha256:[0-9a-f]{64}$/,
       '+': 'reject',
     },
-    resources: Resources,
+    // Proof: Task25c3f historical-boundary restoration of required maps rejected valid absent/null historical KPS input.
+    'resources?': StructuralResources,
     '+': 'reject',
   },
   'prometheus-node-exporter': {
@@ -553,7 +554,7 @@ const KubePrometheusStackValues = type({
       '+': 'reject',
     },
     service: { port: '9101', targetPort: '9101', '+': 'reject' },
-    resources: Resources,
+    'resources?': StructuralResources,
     tolerations: TolerateAll,
     '+': 'reject',
   },
@@ -938,3 +939,14 @@ export const platformReleases: readonly PlatformRelease[] = [
     imageReferences: readVeleroImageReferences,
   },
 ];
+
+/** Current exporter candidates require explicit bounds; historical image decoding preserves valid missing maps. */
+export function assertCommonHelmResources(release: string, values: unknown): void {
+  if (release !== 'kube-prometheus-stack') return;
+  const parsed = decode(release, KubePrometheusStackValues, values);
+  for (const resources of [
+    parsed['kube-state-metrics'].resources,
+    parsed['prometheus-node-exporter'].resources,
+  ])
+    assertCandidatePodResources(resources);
+}

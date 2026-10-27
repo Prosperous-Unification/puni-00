@@ -49,6 +49,20 @@ test('actual full pinned source rendering closes every owner and keeps source an
 });
 const faults: [string, string, string, (string | number)[], unknown][] = [
   ['API', 'observability-dev/elasticsearch', 'Elasticsearch', ['apiVersion'], 'foreign/v1'],
+  [
+    'exporter ignored bounds',
+    'observability/kube-prometheus-stack',
+    'Deployment',
+    ['spec', 'template', 'spec', 'containers', 0, 'resources', 'limits', 'ephemeral-storage'],
+    '128Mi',
+  ],
+  [
+    'exporter extra role',
+    'observability/kube-prometheus-stack',
+    'Deployment',
+    ['spec', 'template', 'spec', 'initContainers'],
+    [{ name: 'unbounded' }],
+  ],
   ['selector', 'observability/kube-prometheus-stack', 'Prometheus', ['spec', 'ruleSelector'], {}],
   [
     'target',

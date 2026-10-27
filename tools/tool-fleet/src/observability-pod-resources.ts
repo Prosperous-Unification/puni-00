@@ -46,3 +46,34 @@ export function assertPodResources(input: unknown) {
 function refuse(reason: string): never {
   throw new Error(`Generated capacity ${reason}`);
 }
+
+const Quantity = type('string>0|number');
+// Proof: Task25c3f required-map optionalization admitted a missing ephemeral request through validatePlatform.
+const CandidateBounds = type({
+  cpu: Quantity,
+  memory: Quantity,
+  'ephemeral-storage': Quantity,
+  '+': 'reject',
+});
+const CandidateResources = type({
+  requests: CandidateBounds,
+  limits: CandidateBounds,
+  '+': 'reject',
+});
+/** Require complete explicit current source budgets; historical supplied-only decoding stays in {@link assertPodResources}.
+ * Requests may be zero; every limit must be positive. Shared readers own syntax and request/limit arithmetic.
+ */
+export function assertCandidatePodResources(input: unknown) {
+  const resources = CandidateResources(input);
+  if (resources instanceof type.errors)
+    throw new Error('common candidate resource maps incomplete');
+  // Proof: Task25c3f shared-quantities bypass admitted the above-limit request in the current native negative.
+  assertPodResources(resources);
+  for (const dimension of ['cpu', 'memory', 'ephemeral-storage'] as const) {
+    const read = dimension === 'cpu' ? readCPUMilli : readMemoryMiB;
+    // Proof: Task25c3f positive-limits bypass admitted zero CPU, memory and ephemeral limits through validatePlatform.
+    if (read(String(resources.limits[dimension]), refuse) <= 0)
+      throw new Error(`common candidate ${dimension} limit must be positive`);
+  }
+  return resources;
+}

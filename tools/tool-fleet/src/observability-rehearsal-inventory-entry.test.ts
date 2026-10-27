@@ -5,6 +5,7 @@ import { scratchAsync } from '@tools/test-scratch';
 import { expect, spyOn, test } from 'bun:test';
 
 import { readToolchain } from './contracts';
+import { assertCommonCapture } from './observability-common-capture.test';
 import { assertNetworkingCapture } from './observability-networking-capture.test';
 import * as rehearsal from './observability-parity-rehearsal';
 import { inventoryObservabilityRehearsal } from './observability-rehearsal-inventory';
@@ -51,22 +52,22 @@ test('canonical eleven-stage public entry inventories actual pinned releases wit
     },
   );
   const validate = rehearsal.validateObservabilityRehearsalBuilds;
-  const buildObserver =
-    capture === undefined
-      ? null
-      : spyOn(rehearsal, 'validateObservabilityRehearsalBuilds').mockImplementation(
-          async (...arguments_) => {
-            const validated = await validate(...arguments_);
-            await writeFile(`${capture}.stages.json`, JSON.stringify(validated));
-            return validated;
-          },
-        );
+  let stageBuilds: Awaited<ReturnType<typeof validate>> | undefined;
+  const buildObserver = spyOn(rehearsal, 'validateObservabilityRehearsalBuilds').mockImplementation(
+    async (...arguments_) => {
+      const validated = await validate(...arguments_);
+      stageBuilds = validated;
+      if (capture !== undefined)
+        await writeFile(`${capture}.stages.json`, JSON.stringify(validated));
+      return validated;
+    },
+  );
   let receipt: Awaited<ReturnType<typeof inventoryObservabilityRehearsal>>;
   try {
     receipt = await inventoryObservabilityRehearsal(root, tools, request, packet, archive);
   } finally {
     observer.mockRestore();
-    buildObserver?.mockRestore();
+    buildObserver.mockRestore();
   }
 
   const output = process.env['PUNI_REHEARSAL_INVENTORY_EXPORT'];
@@ -136,6 +137,8 @@ test('canonical eleven-stage public entry inventories actual pinned releases wit
   ).toHaveLength(4);
 
   if (expansions === undefined) throw new Error('Canonical release capture is missing');
+  if (stageBuilds === undefined) throw new Error('Canonical stage capture is missing');
+  assertCommonCapture(stageBuilds.stages, expansions, receipt);
   assertNetworkingCapture(expansions, receipt);
   assertVeleroCapture(expansions['puni-backup/velero'], receipt);
 }, 30_000);
