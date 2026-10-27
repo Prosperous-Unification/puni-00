@@ -39,6 +39,12 @@ const Resources = type({
   limits: { cpu: Quantity, memory: Quantity, '+': 'reject' },
   '+': 'reject',
 });
+// Proof: optionalizing ephemeral-storage let both missing ECK/operator bounds pass validatePlatform; platform.test.ts selected provider input negatives failed.
+const DiskResources = type({
+  requests: { cpu: Quantity, memory: Quantity, 'ephemeral-storage': Quantity, '+': 'reject' },
+  limits: { cpu: Quantity, memory: Quantity, 'ephemeral-storage': Quantity, '+': 'reject' },
+  '+': 'reject',
+});
 const ObservabilityNode = type({ 'puni.dev/capability-observability': "'true'", '+': 'reject' });
 const TolerateAll = type({ operator: "'Exists'", '+': 'reject' }).array().exactlyLength(1);
 const Env = type({ name: 'string>0', value: 'string', '+': 'reject' }).array();
@@ -157,7 +163,7 @@ const HcloudCsiValues = type({
 
 const EckOperatorValues = type({
   image: ImageValues,
-  resources: Resources,
+  resources: DiskResources,
   nodeSelector: ObservabilityNode,
   config: { containerRegistry: "'docker.elastic.co'", '+': 'reject' },
   '+': 'reject',
@@ -327,13 +333,15 @@ const KubePrometheusStackValues = type({
   defaultRules: { create: 'boolean', rules: 'Record<string, boolean>', '+': 'reject' },
   prometheusOperator: {
     image: HexShaImage,
-    prometheusConfigReloader: { image: HexShaImage, '+': 'reject' },
+    // Proof: optionalizing resources admitted the missing reloader input through validatePlatform (selected provider input negative).
+    prometheusConfigReloader: { image: HexShaImage, resources: Resources, '+': 'reject' },
     admissionWebhooks: {
       deployment: { image: HexShaImage, '+': 'reject' },
-      patch: { image: HexShaImage, '+': 'reject' },
+      // Proof: optionalizing resources admitted the missing webhook input through validatePlatform (selected provider input negative).
+      patch: { image: HexShaImage, resources: DiskResources, '+': 'reject' },
       '+': 'reject',
     },
-    resources: Resources,
+    resources: DiskResources,
     nodeSelector: ObservabilityNode,
     '+': 'reject',
   },

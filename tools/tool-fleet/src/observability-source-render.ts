@@ -18,6 +18,7 @@ import {
   createObservabilityNetworkPolicies,
   encodeObservabilitySource,
 } from './observability-source-network';
+import { assertObservabilitySelectedResources } from './observability-source-resources';
 import { assertObservabilitySelfScrapes } from './observability-source-scrapes';
 
 // Proof: removing the API union made all five independent kind/API negatives accept foreign/v1 in observability-source-render.test.ts.
@@ -138,6 +139,7 @@ export function assertRenderedObservabilitySource(
   for (const [owner, identities] of Object.entries(chartInventory))
     requireEqual(Object.keys(indexed[owner]).sort(), identities.sort(), 'resource closure');
   requireObservabilityProjectionReferences(source.assembly.projection, indexed);
+  assertObservabilitySelectedResources(source, indexed);
   for (const instance of source.instances) {
     const namespace = instance.namespace;
     requireEqual(
@@ -281,7 +283,10 @@ export function assertRenderedObservabilitySource(
     requirePath(
       es,
       ['spec', 'nodeSets', 0, 'podTemplate', 'spec', 'initContainers', 0, 'resources'],
-      { requests: { cpu: '100m', memory: '128Mi' }, limits: { cpu: '500m', memory: '256Mi' } },
+      {
+        requests: { cpu: '100m', memory: '128Mi', 'ephemeral-storage': '64Mi' },
+        limits: { cpu: '500m', memory: '256Mi', 'ephemeral-storage': '64Mi' },
+      },
       'S3 measured init bound',
     );
     requirePath(

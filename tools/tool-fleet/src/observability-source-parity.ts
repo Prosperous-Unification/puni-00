@@ -151,6 +151,8 @@ export function reviewObservabilitySourceDifferences(
     const capacity: [string, string, string][] = [
       [`${prefix}/podTemplate/spec/containers/0/resources/requests/memory`, '2Gi', '4Gi'],
       [`${prefix}/podTemplate/spec/containers/0/resources/limits/memory`, '2Gi', '4Gi'],
+      [`${prefix}/podTemplate/spec/initContainers/3/resources/requests/memory`, '2Gi', '4Gi'],
+      [`${prefix}/podTemplate/spec/initContainers/3/resources/limits/memory`, '2Gi', '4Gi'],
       [`${prefix}/podTemplate/spec/containers/0/env/0/value`, '-Xms1g -Xmx1g', '-Xms2g -Xmx2g'],
       [`${prefix}/volumeClaimTemplates/0/spec/resources/requests/storage`, '10Gi', '100Gi'],
       ['/requirements/observability/capacity/memory', '2Gi', '4Gi'],

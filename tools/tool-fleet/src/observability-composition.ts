@@ -79,12 +79,54 @@ export interface ObservabilityMonitoringRelease {
   roles: ('dev' | 'prod' | 'platform')[];
   manifest: string;
 }
+/** Declared input budgets, pending startup/load evidence; these patches retain provider commands and mounts. */
+function createResources(
+  cpuRequest: string,
+  cpuLimit: string,
+  memoryRequest: string,
+  memoryLimit: string,
+  scratch: string,
+) {
+  return {
+    requests: { cpu: cpuRequest, memory: memoryRequest, 'ephemeral-storage': scratch },
+    limits: { cpu: cpuLimit, memory: memoryLimit, 'ephemeral-storage': scratch },
+  };
+}
+
 function createMonitoringRelease(
   base: ObservabilityProjectionRelease,
   instance: Instance,
 ): ObservabilityMonitoringRelease {
   const release = parseDocument(base.manifest);
   const spec = ['spec', 'values', 'alertmanager', 'alertmanagerSpec'];
+  for (const [service, main, scratch] of [
+    ['prometheus', 'prometheus', '1Gi'],
+    ['alertmanager', 'alertmanager', '256Mi'],
+  ]) {
+    const specification = ['spec', 'values', service, `${service}Spec`];
+    for (const bound of ['requests', 'limits'])
+      release.setIn([...specification, 'resources', bound, 'ephemeral-storage'], scratch);
+    release.setIn(
+      [...specification, 'containers'],
+      [
+        { name: main, resources: release.getIn([...specification, 'resources']) },
+        {
+          name: 'config-reloader',
+          resources: createResources('10m', '100m', '32Mi', '64Mi', '64Mi'),
+        },
+      ],
+    );
+    release.setIn(
+      [...specification, 'initContainers'],
+      [
+        {
+          name: 'init-config-reloader',
+          resources: createResources('10m', '100m', '32Mi', '64Mi', '64Mi'),
+        },
+      ],
+    );
+  }
+
   release.setIn([...spec, 'storage'], {
     volumeClaimTemplate: {
       spec: {
@@ -140,6 +182,34 @@ async function createElasticRelease(
     release.setIn([...pod, 'containers', 0, 'resources', bound, 'memory'], policy.memory);
     release.setIn([...pod, 'containers', 0, 'resources', bound, 'ephemeral-storage'], '1Gi');
   }
+  for (const bound of ['requests', 'limits'])
+    release.setIn([...pod, 'initContainers', 0, 'resources', bound, 'ephemeral-storage'], '64Mi');
+  for (const [index, name, resources] of [
+    [
+      1,
+      'elastic-internal-init-filesystem',
+      createResources('100m', '100m', '50Mi', '50Mi', '64Mi'),
+    ],
+    [
+      2,
+      'elastic-internal-init-keystore',
+      createResources('500m', '500m', '196Mi', '196Mi', '64Mi'),
+    ],
+    [
+      3,
+      'elastic-internal-suspend',
+      createResources('500m', '2', policy.memory, policy.memory, '1Gi'),
+    ],
+  ] as const)
+    release.setIn([...pod, 'initContainers', index], { name, resources });
+  for (const [offset, [name, sizeLimit]] of [
+    ['elastic-internal-elasticsearch-bin-local', '16Mi'],
+    ['elastic-internal-elasticsearch-config-local', '16Mi'],
+    ['elastic-internal-elasticsearch-plugins-local', '16Mi'],
+    ['elasticsearch-logs', '256Mi'],
+    ['tmp-volume', '256Mi'],
+  ].entries())
+    release.setIn([...pod, 'volumes', offset + 2], { name, emptyDir: { sizeLimit } });
   release.setIn(
     [...node, 'volumeClaimTemplates', 0, 'spec', 'resources', 'requests', 'storage'],
     policy.storage,
@@ -172,6 +242,26 @@ async function createKibanaRelease(
     namespace: instance.namespace,
   });
   const pod = ['spec', 'values', 'podTemplate', 'spec'];
+  release.setIn(
+    [...pod, 'initContainers'],
+    [
+      {
+        name: 'elastic-internal-init',
+        resources: createResources('100m', '100m', '50Mi', '50Mi', '64Mi'),
+      },
+    ],
+  );
+  release.setIn(
+    [...pod, 'volumes'],
+    [
+      ['kibana-data', '256Mi'],
+      ['kibana-plugins', '16Mi'],
+      ['elastic-internal-kibana-config-local', '16Mi'],
+      ['kibana-logs', '256Mi'],
+      ['temp-volume', '256Mi'],
+    ].map(([name, sizeLimit]) => ({ name, emptyDir: { sizeLimit } })),
+  );
+
   release.setIn([...pod, 'securityContext'], podSecurity);
   release.setIn([...pod, 'containers', 0, 'securityContext'], containerSecurity);
   for (const bound of ['requests', 'limits'])

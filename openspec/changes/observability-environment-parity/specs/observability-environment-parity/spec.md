@@ -162,3 +162,23 @@ The strict full-rehearsal path SHALL require an explicit prebuilt object-store a
 
 - **WHEN** original archive bytes change after successful private capture
 - **THEN** bootstrap consumes only the retained verified bytes and their receipt, preserving the original source distinction and all existing ownership checks
+
+### Requirement: Generated workloads have finite planning inputs
+
+The shared candidate SHALL declare complete positive resource maps for its selected application, init, reloader and monitoring-hook roles through supported pinned-provider inputs. It MUST preserve existing positive capacity and storage identities and reject omitted required role bounds. Declared inputs MUST remain distinct from actual generated Pods and enforcement evidence used for full admission.
+
+#### Scenario: The selected roles are planned
+
+- **WHEN** both service instances and their shared controllers are generated
+- **THEN** the selected supported role inputs contain positive CPU, memory and ephemeral-storage requests and limits without lowering existing positive bounds
+- **AND** supported scratch-volume limits are declared while unsupported memory-volume enforcement remains an explicit admission prerequisite
+
+#### Scenario: A required bound is omitted
+
+- **WHEN** a required selected role or positive resource input is removed or replaced with zero
+- **THEN** the production candidate validation refuses rather than treating the missing demand as zero
+
+#### Scenario: Source output is not effective Pod evidence
+
+- **WHEN** pinned chart and role-input validation succeeds
+- **THEN** the result remains source evidence and full rehearsal still requires actual complete generated roles, resource enforcement, capacity and readiness

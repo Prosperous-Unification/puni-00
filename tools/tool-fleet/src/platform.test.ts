@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
 import { describe, expect, it } from 'bun:test';
-import { parse, stringify } from 'yaml';
+import { parse, parseDocument, stringify } from 'yaml';
 
 import { assessObservabilityBudget } from './observability-budget';
 import { validatePlatform } from './platform';
@@ -1225,3 +1225,37 @@ describe('bounded Elasticsearch trust init', () => {
     });
   }
 });
+
+const selectedInputs: [string, string[], string][] = [
+  ['eck/eck-operator.yaml', ['resources', 'requests', 'ephemeral-storage'], 'ephemeral-storage'],
+  [
+    'prometheus/kube-prometheus-stack.yaml',
+    ['prometheusOperator', 'resources', 'limits', 'ephemeral-storage'],
+    'ephemeral-storage',
+  ],
+  [
+    'prometheus/kube-prometheus-stack.yaml',
+    ['prometheusOperator', 'prometheusConfigReloader', 'resources'],
+    'resources',
+  ],
+  [
+    'prometheus/kube-prometheus-stack.yaml',
+    ['prometheusOperator', 'admissionWebhooks', 'patch', 'resources'],
+    'resources',
+  ],
+];
+it.each(selectedInputs)(
+  'selected provider input refuses missing %s %j',
+  async (relativePath, path, field) => {
+    const root = await mutablePlatform();
+    const target = join(root, 'infra/platform/observability', relativePath);
+    const document = parseDocument(await readFile(target, 'utf8'));
+    document.deleteIn(['spec', 'values', ...path]);
+    await writeFile(target, document.toString());
+    await writeFile(
+      join(root, 'infra/platform/observability/base/coexistence.json'),
+      JSON.stringify(await assessObservabilityBudget(root)),
+    );
+    expect(validatePlatform(root)).rejects.toThrow(new RegExp(`values are invalid:.*${field}`));
+  },
+);

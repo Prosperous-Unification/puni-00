@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 
+import { type } from 'arktype';
 import { beforeAll, expect, test } from 'bun:test';
 import { parseAllDocuments, stringify } from 'yaml';
 
@@ -367,4 +368,312 @@ test('full source rejects malformed scrape sender policy', () => {
   expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(
     /scrape policy malformed/,
   );
+});
+
+const TestContainers = type({
+  name: 'string',
+  'resources?': {
+    requests: 'Record<string, string | number>',
+    limits: 'Record<string, string | number>',
+  },
+}).array();
+const TestVolumes = type({ name: 'string', 'emptyDir?': 'object' }).array();
+const selectedPods: [string, string, (string | number)[], string[], string[]][] = [
+  [
+    'observability-dev/elasticsearch',
+    'Elasticsearch',
+    ['spec', 'nodeSets', 0, 'podTemplate', 'spec'],
+    ['elasticsearch'],
+    [
+      'prepare-s3-trust',
+      'elastic-internal-init-filesystem',
+      'elastic-internal-init-keystore',
+      'elastic-internal-suspend',
+    ],
+  ],
+  [
+    'observability/elasticsearch',
+    'Elasticsearch',
+    ['spec', 'nodeSets', 0, 'podTemplate', 'spec'],
+    ['elasticsearch'],
+    [
+      'prepare-s3-trust',
+      'elastic-internal-init-filesystem',
+      'elastic-internal-init-keystore',
+      'elastic-internal-suspend',
+    ],
+  ],
+  [
+    'observability-dev/kibana',
+    'Kibana',
+    ['spec', 'podTemplate', 'spec'],
+    ['kibana'],
+    ['elastic-internal-init'],
+  ],
+  [
+    'observability/kibana',
+    'Kibana',
+    ['spec', 'podTemplate', 'spec'],
+    ['kibana'],
+    ['elastic-internal-init'],
+  ],
+  ...['observability-dev', 'observability'].flatMap((namespace): typeof selectedPods => [
+    [
+      `${namespace}/kube-prometheus-stack`,
+      'Prometheus',
+      ['spec'],
+      ['prometheus', 'config-reloader'],
+      ['init-config-reloader'],
+    ],
+    [
+      `${namespace}/kube-prometheus-stack`,
+      'Alertmanager',
+      ['spec'],
+      ['alertmanager', 'config-reloader'],
+      ['init-config-reloader'],
+    ],
+  ]),
+  ['observability/eck-operator', 'StatefulSet', ['spec', 'template', 'spec'], ['manager'], []],
+  [
+    'observability/prometheus-controller',
+    'Deployment',
+    ['spec', 'template', 'spec'],
+    ['kube-prometheus-stack'],
+    [],
+  ],
+  ['observability/prometheus-controller', 'Job', ['spec', 'template', 'spec'], ['create'], []],
+  ['observability/prometheus-controller', 'Job', ['spec', 'template', 'spec'], ['patch'], []],
+];
+function alterSelected(
+  owner: string,
+  kind: string,
+  role: string | undefined,
+  change: (document: ReturnType<typeof parseAllDocuments>[number]) => void,
+) {
+  const changed = { ...rendered };
+  const documents = parseAllDocuments(changed[owner]);
+  const selected = documents.find(
+    (document) =>
+      document.get('kind') === kind &&
+      (role === undefined ||
+        kind !== 'Job' ||
+        document.getIn(['spec', 'template', 'spec', 'containers', 0, 'name']) === role),
+  );
+  if (!selected) throw new Error('selected test resource absent');
+  change(selected);
+  changed[owner] = documents.map((document) => document.toString()).join('---\n');
+  return changed;
+}
+const selectedBudgets: Partial<Record<string, [string, string, string, string, string]>> = {
+  'Elasticsearch/prepare-s3-trust': ['100m', '500m', '128Mi', '256Mi', '64Mi'],
+  'Elasticsearch/elastic-internal-init-filesystem': ['100m', '100m', '50Mi', '50Mi', '64Mi'],
+  'Elasticsearch/elastic-internal-init-keystore': ['500m', '500m', '196Mi', '196Mi', '64Mi'],
+  'Kibana/kibana': ['200m', '1', '512Mi', '1Gi', '1Gi'],
+  'Kibana/elastic-internal-init': ['100m', '100m', '50Mi', '50Mi', '64Mi'],
+  'Prometheus/prometheus': ['200m', '1', '512Mi', '1Gi', '1Gi'],
+  'Alertmanager/alertmanager': ['10m', '200m', '64Mi', '128Mi', '256Mi'],
+  'StatefulSet/manager': ['100m', '1', '150Mi', '512Mi', '256Mi'],
+  'Deployment/kube-prometheus-stack': ['50m', '500m', '64Mi', '256Mi', '256Mi'],
+  'Job/create': ['100m', '500m', '64Mi', '128Mi', '64Mi'],
+  'Job/patch': ['100m', '500m', '64Mi', '128Mi', '64Mi'],
+};
+test('selected pinned provider inputs have complete positive maps in both instances and shared controller output', () => {
+  for (const [owner, kind, pod, applications, inits] of selectedPods) {
+    for (const [field, names] of [
+      ['containers', applications],
+      ['initContainers', inits],
+    ] as const) {
+      for (const name of names) {
+        alterSelected(owner, kind, name, (document) => {
+          const containers: unknown = document.getIn([...pod, field]);
+          const entries = TestContainers.assert(
+            parseAllDocuments(stringify(containers))[0].toJSON(),
+          );
+          const container = entries.find((entry: { name: string }) => entry.name === name);
+          expect(container, `${owner}/${name}`).toBeDefined();
+          if (!container?.resources) throw new Error('selected test resources absent');
+          const memory = owner.startsWith('observability-dev/') ? '2Gi' : '4Gi';
+          const budget =
+            kind === 'Elasticsearch' && ['elasticsearch', 'elastic-internal-suspend'].includes(name)
+              ? ['500m', '2', memory, memory, '1Gi']
+              : ['config-reloader', 'init-config-reloader'].includes(name)
+                ? ['10m', '100m', '32Mi', '64Mi', '64Mi']
+                : selectedBudgets[`${kind}/${name}`];
+          if (!budget) throw new Error('selected test budget absent');
+          expect(container.resources).toEqual({
+            requests: { cpu: budget[0], memory: budget[2], 'ephemeral-storage': budget[4] },
+            limits: { cpu: budget[1], memory: budget[3], 'ephemeral-storage': budget[4] },
+          });
+
+          for (const bound of ['requests', 'limits'] as const)
+            for (const resource of ['cpu', 'memory', 'ephemeral-storage'])
+              expect(
+                Number.parseFloat(String(container.resources[bound][resource])),
+                `${owner}/${name}/${bound}/${resource}`,
+              ).toBeGreaterThan(0);
+        });
+      }
+    }
+  }
+});
+const selectedFaults = selectedPods.flatMap(([owner, kind, pod, applications, inits]) =>
+  (
+    [
+      ['containers', applications],
+      ['initContainers', inits],
+    ] as const
+  ).flatMap(([field, names]) =>
+    names.flatMap((name) =>
+      [
+        'role',
+        'resources',
+        ...['requests', 'limits'].flatMap((bound) =>
+          ['cpu', 'memory', 'ephemeral-storage'].map((resource) => `${bound}/${resource}`),
+        ),
+      ].map((fault) => ({ owner, kind, pod, field, name, fault })),
+    ),
+  ),
+);
+test.each(selectedFaults)(
+  'selected source refuses $owner $name $fault',
+  ({ owner, kind, pod, field, name, fault }) => {
+    const changed = alterSelected(owner, kind, name, (document) => {
+      const entries: unknown = document.getIn([...pod, field]);
+      const containers = TestContainers.assert(parseAllDocuments(stringify(entries))[0].toJSON());
+      const index = containers.findIndex((container: { name: string }) => container.name === name);
+      if (index < 0) throw new Error('selected test role absent');
+      if (fault === 'role') document.deleteIn([...pod, field, index]);
+      else if (fault === 'resources') document.deleteIn([...pod, field, index, 'resources']);
+      else document.setIn([...pod, field, index, 'resources', ...fault.split('/')], '0');
+    });
+    expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(
+      kind === 'Deployment' && fault === 'role'
+        ? /Projection controller watches differ/
+        : /selected resource/,
+    );
+  },
+);
+test.each(['Prometheus', 'Alertmanager'])(
+  'selected source refuses duplicate generated config-out on %s',
+  (kind) => {
+    const changed = alterSelected(
+      'observability-dev/kube-prometheus-stack',
+      kind,
+      undefined,
+      (document) => {
+        document.setIn(
+          ['spec', 'volumes'],
+          [{ name: 'config-out', emptyDir: { sizeLimit: '64Mi' } }],
+        );
+      },
+    );
+    expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(/selected resource/);
+  },
+);
+test('selected source refuses a changed provider role assumption', () => {
+  const changed = alterSelected('observability-dev/kibana', 'Kibana', undefined, (document) => {
+    document.setIn(
+      ['spec', 'podTemplate', 'spec', 'initContainers'],
+      [
+        {
+          name: 'foreign-init',
+          resources: {
+            requests: { cpu: '100m', memory: '50Mi', 'ephemeral-storage': '64Mi' },
+            limits: { cpu: '100m', memory: '50Mi', 'ephemeral-storage': '64Mi' },
+          },
+        },
+      ],
+    );
+  });
+  expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(/selected resource/);
+});
+const scratchPods = selectedPods.filter(
+  ([_owner, kind]) => kind === 'Elasticsearch' || kind === 'Kibana',
+);
+test.each(
+  scratchPods.flatMap(([owner, kind, pod]) =>
+    ['missing', 'zero', 'foreign', 'duplicate'].map((fault) => ({ owner, kind, pod, fault })),
+  ),
+)('selected scratch refuses $owner $fault', ({ owner, kind, pod, fault }) => {
+  const changed = alterSelected(owner, kind, undefined, (document) => {
+    const volumes = TestVolumes.assert(
+      parseAllDocuments(stringify(document.getIn([...pod, 'volumes'])))[0].toJSON(),
+    );
+    const index = volumes.findIndex(
+      (volume: { emptyDir?: object }) => volume.emptyDir !== undefined,
+    );
+    if (fault === 'missing') document.deleteIn([...pod, 'volumes', index]);
+    if (fault === 'zero') document.setIn([...pod, 'volumes', index, 'emptyDir', 'sizeLimit'], '0');
+    if (fault === 'foreign') document.setIn([...pod, 'volumes', index, 'name'], 'foreign-scratch');
+    if (fault === 'duplicate') document.setIn([...pod, 'volumes', volumes.length], volumes[index]);
+  });
+  expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(/selected resource/);
+});
+test.each(
+  ['Prometheus', 'Alertmanager'].flatMap((kind) =>
+    ['missing', 'zero'].map((fault) => ({ kind, fault })),
+  ),
+)('selected primary map refuses $kind $fault', ({ kind, fault }) => {
+  const changed = alterSelected(
+    'observability-dev/kube-prometheus-stack',
+    kind,
+    undefined,
+    (document) => {
+      if (fault === 'missing') document.deleteIn(['spec', 'resources']);
+      else document.setIn(['spec', 'resources', 'limits', 'memory'], '0');
+    },
+  );
+  expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(/selected resource/);
+});
+test.each(['observability/eck-operator', 'observability/prometheus-controller'])(
+  'selected provider pin refuses %s',
+  (owner) => {
+    const changed = structuredClone(source);
+    const release = changed.releases.find((release) => release.owner === owner);
+    if (!release) throw new Error('test provider absent');
+    const document = parseAllDocuments(release.manifest)[0];
+    document.setIn(['spec', 'chart', 'spec', 'version'], '99.0.0');
+    release.manifest = document.toString();
+    expect(() => assertRenderedObservabilitySource(changed, rendered)).toThrow(/selected resource/);
+  },
+);
+test.each([
+  ['observability/eck-operator', 'StatefulSet'],
+  ['observability/prometheus-controller', 'Deployment'],
+])('selected provider image refuses %s', (owner, kind) => {
+  const changed = alterSelected(owner, kind, undefined, (document) => {
+    document.setIn(['spec', 'template', 'spec', 'containers', 0, 'image'], 'foreign/provider:99');
+  });
+  expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(/selected resource/);
+});
+test.each([
+  '--config-reloader-cpu-request=10m',
+  '--config-reloader-cpu-limit=100m',
+  '--config-reloader-memory-request=32Mi',
+  '--config-reloader-memory-limit=64Mi',
+])('selected reloader flags refuse removed %s', (flag) => {
+  const changed = alterSelected(
+    'observability/prometheus-controller',
+    'Deployment',
+    undefined,
+    (document) => {
+      const path = ['spec', 'template', 'spec', 'containers', 0, 'args'];
+      const flags = type('string[]').assert(
+        parseAllDocuments(stringify(document.getIn(path)))[0].toJSON(),
+      );
+      document.setIn(
+        path,
+        flags.filter((argument) => argument !== flag),
+      );
+    },
+  );
+  expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(/selected resource/);
+});
+
+test('selected source refuses a duplicate named provider role', () => {
+  const changed = alterSelected('observability-dev/kibana', 'Kibana', undefined, (document) => {
+    const path = ['spec', 'podTemplate', 'spec', 'initContainers'];
+    document.setIn([...path, 1], document.getIn([...path, 0]));
+  });
+  expect(() => assertRenderedObservabilitySource(source, changed)).toThrow(/selected resource/);
 });

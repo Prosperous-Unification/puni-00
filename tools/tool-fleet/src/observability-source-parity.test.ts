@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 
 import { beforeAll, expect, test } from 'bun:test';
-import { parseAllDocuments, stringify } from 'yaml';
+import { parseAllDocuments, parseDocument, stringify } from 'yaml';
 
 import { createObservabilitySource, type ObservabilitySource } from './observability-source';
 import {
@@ -96,7 +96,7 @@ test('full parity rejects changed S3 sibling even with a matching exception reco
   ).toThrow();
 });
 
-test('explicit disposable production-role policy changes only eight reviewed local capacity scalars', async () => {
+test('explicit disposable production-role policy changes only ten reviewed local capacity scalars', async () => {
   const request = structuredClone(local.assembly.request);
   request.instances[1].policy = 'disposable-rehearsal';
   const disposable = await createObservabilitySource(root, { ...request, network: local.network });
@@ -114,7 +114,46 @@ test('explicit disposable production-role policy changes only eight reviewed loc
       right,
       reviewObservabilitySourceDifferences(disposable, production),
     ),
-  ).toMatchObject({ reviewedDifferences: 31, wholeRenderParity: true, runtimeRehearsal: false });
+  ).toMatchObject({ reviewedDifferences: 33, wholeRenderParity: true, runtimeRehearsal: false });
+  const differences = reviewObservabilitySourceDifferences(disposable, production);
+  expect(
+    differences
+      .filter((difference) => difference.path.includes('/initContainers/3/resources/'))
+      .map((difference) => [
+        difference.path.split('/').slice(-2).join('/'),
+        difference.local,
+        difference.production,
+      ]),
+  ).toEqual([
+    ['requests/memory', '2Gi', '4Gi'],
+    ['limits/memory', '2Gi', '4Gi'],
+  ]);
+  const owner = 'observability/elasticsearch';
+  const document = parseDocument(changed[owner]);
+  document.setIn(
+    [
+      'spec',
+      'nodeSets',
+      0,
+      'podTemplate',
+      'spec',
+      'initContainers',
+      3,
+      'resources',
+      'limits',
+      'memory',
+    ],
+    '3Gi',
+  );
+  expect(() =>
+    assertObservabilitySourceParity(
+      disposable,
+      { ...left, [owner]: document.toString() },
+      production,
+      right,
+      differences,
+    ),
+  ).toThrow(/unauthorized scalar difference/);
 });
 
 test('full parity refuses changed unreviewed metadata sibling', () => {

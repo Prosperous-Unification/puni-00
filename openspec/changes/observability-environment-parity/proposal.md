@@ -1,6 +1,6 @@
 ## Why
 
-The running dev observability stack uses Compose while the planned production stack uses Kubernetes/Flux. Their signal pipelines, authentication, retention setup and recovery behavior differ, so success on dev does not prove that the production candidate will behave the same. Puni needs to exercise the deployment it intends to operate, with each environment difference justified explicitly.
+The running dev observability stack uses Compose while the planned production stack uses Kubernetes/Flux. Their signal pipelines, authentication, retention setup, generated workload bounds and recovery behavior differ, so success on dev does not prove that the production candidate will behave the same. Puni needs to exercise the deployment it intends to operate, with each environment difference justified explicitly.
 
 ## What Changes
 
