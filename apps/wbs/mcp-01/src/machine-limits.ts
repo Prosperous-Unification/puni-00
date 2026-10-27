@@ -122,6 +122,9 @@ export class MachineTrafficLimits implements MachineLimits {
     // Proof: building the per-source bucket without the debt failed `holds a source to the
     // design failure rate over ten minutes of concurrent wrong keys` (machine-limits.test.ts);
     // watched 2026-10-27.
+    // Proof: building the pair bucket without the debt failed `holds one credential id and
+    // source to the pair failure rate over ten minutes of concurrent wrong secrets`
+    // (machine-limits.test.ts) with 400 asked (100 now, bound 155); watched 2026-10-27.
     this.#failuresPerClientAndSource = new TokenBuckets(
       rates.failuresPerClientAndSource,
       now,

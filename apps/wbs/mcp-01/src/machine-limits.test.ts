@@ -382,6 +382,27 @@ describe('concurrent token requests', () => {
     expect(world_.asked()).toBeLessThanOrEqual(30 + rate + PENDING_CAP);
   }, 60_000);
 
+  it('holds one credential id and source to the pair failure rate over ten minutes of concurrent wrong secrets', async () => {
+    const world_ = world([], M10_LIMITS, { grantDelayMs: 2 });
+    const id = randomUUID();
+    const wave = () =>
+      Promise.all(
+        Array.from({ length: PENDING_CAP + 20 }, () =>
+          issue(world_.oauth, wrongKeyFor(id), ORCHESTRATOR),
+        ),
+      );
+    const seconds = 600;
+    for (let elapsed = 0; elapsed < seconds; elapsed += 10) {
+      await wave();
+      world_.clock.now += 10_000;
+    }
+    // 5 a minute after a first burst of 5, each reopening at most one pending cap early.
+    const pair = M10_LIMITS.failuresPerClientAndSource;
+    const rate = pair.perSecond * seconds;
+    expect(world_.asked()).toBeGreaterThanOrEqual(rate);
+    expect(world_.asked()).toBeLessThanOrEqual(pair.burst + rate + PENDING_CAP);
+  }, 60_000);
+
   it('admits 100 concurrent issuances of distinct credentials from one source', async () => {
     const pool = Array.from({ length: 100 }, () => credential());
     const world_ = world(pool, M10_LIMITS, { grantDelayMs: 5 });
