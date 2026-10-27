@@ -168,11 +168,21 @@ export function refusalTypeCases() {
     error: 'dependency_unavailable',
     status: 'schema_missing',
     commit: null,
+    bootCommit: null,
   });
+  // Proof: with `bootCommit` struck from `RefusalDetail`, the literal above
+  // failed wbs-contracts:typecheck with TS2353 (2026-10-27).
+  // @ts-expect-error Health detail keeps the commit its process booted with.
+  expectTypeOf<Refusal>({ error: 'dependency_unavailable', status: 'migrating', commit: null });
   // @ts-expect-error Health detail keeps its commit metadata.
   expectTypeOf<Refusal>({ error: 'dependency_unavailable', status: 'migrating' });
   // @ts-expect-error Healthy status cannot appear in a dependency refusal.
-  expectTypeOf<Refusal>({ error: 'dependency_unavailable', status: 'ok', commit: null });
+  expectTypeOf<Refusal>({
+    error: 'dependency_unavailable',
+    status: 'ok',
+    commit: null,
+    bootCommit: null,
+  });
   // @ts-expect-error No-detail is absence, never arbitrary text or an open object.
   expectTypeOf<RefusalDetail['invalid_json']>('anything');
   expectTypeOf<Refusal>({ error: 'invalid_oidc_callback' });

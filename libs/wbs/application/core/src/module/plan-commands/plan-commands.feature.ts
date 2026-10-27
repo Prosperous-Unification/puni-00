@@ -685,6 +685,7 @@ export class PlanCommandRunner {
                 commands,
                 commandAccess,
                 commandCredential,
+                actingPersonId,
               ),
             );
             if (projectId !== null) {
@@ -1007,6 +1008,7 @@ export class PlanCommandRunner {
     commands: readonly PlanCommand[],
     access: ResourceAccess,
     credential: CredentialPin | null,
+    actingPersonId: string | null,
   ): Promise<AppliedCommand[]> {
     const refs = new Map<string, string>();
     const bindings = bindCommands(graph);
@@ -1020,6 +1022,10 @@ export class PlanCommandRunner {
         refs,
         access,
         credential,
+        // Proof: with null here, `claims and releases as an API key's own agent
+        // person` (claim-own-person.controller.db.test.ts) answered 400
+        // person_required; watched 2026-10-26.
+        actingPersonId,
       );
       // Proof: removing this check made the mounted cross-project estimate test fail:
       // Expected: 404 / Received: 200 (2026-09-27).
