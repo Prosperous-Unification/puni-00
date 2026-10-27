@@ -200,12 +200,23 @@ export default ({
     },
     {
       files: [
-        // Proof: F181 removed this exact consumer; shape and independent effective admission assertions failed with fatalErrorCount zero; restored group passed.
-        'apps/twilight-structure/twilight-dash/cli/src/runs/record-preparation.ts',
         // Proof: F182 removed this exact consumer; shape and independent effective admission assertions failed with fatalErrorCount zero; restored group passed.
         'apps/twilight-structure/twilight-dash/cli/src/runs/testing/fixtures.ts',
       ],
       rules: boundary(['^@twilight-burokrat/contracts$', '^@wbs/contracts$']),
+    },
+    {
+      files: ['apps/twilight-structure/twilight-dash/cli/src/runs/record-preparation.ts'],
+      // Inherited F181 consumer provenance: preparation now uses only Burokrat contracts.
+      // Proof: P2 preparation variant restored only its removed WBS allowance; the actual
+      // zero-fatal 'record-preparation.ts denies WBS contracts' assertion failed; restoration passed.
+      rules: boundary(['^@twilight-burokrat/contracts$']),
+    },
+    {
+      // Proof: P2 widened only this new selector to plan-execution.ts; the actual zero-fatal
+      // peer-denial assertion failed while reader admission passed. Exact restoration passed.
+      files: ['apps/twilight-structure/twilight-dash/cli/src/runs/runtime-state.ts'],
+      rules: boundary(['^@wbs/contracts$']),
     },
     {
       files: ['apps/twilight-structure/twilight-dash/cli/src/resources/**/*.ts'],

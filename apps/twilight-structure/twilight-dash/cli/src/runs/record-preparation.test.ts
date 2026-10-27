@@ -1,11 +1,11 @@
-import { rejects } from 'node:assert/strict';
+import { deepEqual, doesNotReject, rejects } from 'node:assert/strict';
 
 import { expect, test } from 'bun:test';
 
 import type { ArtifactStore } from './artifact-store';
 import { artifactDigest, organizationId } from './record-codecs';
 import { recordExecution } from './record-execution';
-import { recordPreparation } from './record-preparation';
+import { readTargetObservation, recordPreparation } from './record-preparation';
 import { admitExecution, FixtureClock, unwrapReply } from './testing/fixtures';
 import { createMemoryStores } from './testing/memory-stores';
 
@@ -329,6 +329,58 @@ test('preparation rejects a coherent foreign organization observation at its hel
       /preparation scope differs/,
     );
     expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
+  } finally {
+    await stores.close();
+  }
+});
+
+test('target observation snapshots its reference and target before IO', async () => {
+  const stores = create();
+  try {
+    const setup = await admitExecution(stores);
+    const evidence = { ...setup.preparationInput.stateEvidence };
+    const target = structuredClone({
+      scope: setup.preparationInput.scope,
+      workItemId: setup.run.workItemId,
+      stepId: setup.preparationInput.stepId,
+      stepCode: setup.preparationInput.stepCode,
+    });
+    const expected = {
+      version: 1,
+      evidence: structuredClone(evidence),
+      ...structuredClone(target),
+      ledgerId: setup.state.ledgerId,
+      basis: setup.state.basis,
+    };
+    const started = Promise.withResolvers<undefined>();
+    const gate = Promise.withResolvers<undefined>();
+    const artifacts: ArtifactStore = {
+      ...stores.artifacts,
+      async readArtifact(reference) {
+        const bytes = await stores.artifacts.readArtifact(reference);
+        started.resolve(undefined);
+        await gate.promise;
+        return bytes;
+      },
+    };
+    const pending = readTargetObservation(artifacts, evidence, target);
+    try {
+      await started.promise;
+      Object.assign(evidence, { digest: artifactDigest('f'.repeat(64)), byteLength: 0 });
+      Object.assign(target.scope, {
+        personId: 'mutated',
+        projectId: 'mutated',
+        organizationId: 'mutated',
+      });
+      Object.assign(target, { workItemId: 'mutated', stepId: 'mutated', stepCode: 'mutated' });
+      gate.resolve(undefined);
+      await doesNotReject(async () => {
+        deepEqual(await pending, expected);
+      }, 'target observation must preserve its pre-IO reference and target');
+    } finally {
+      gate.resolve(undefined);
+      await Promise.allSettled([pending]);
+    }
   } finally {
     await stores.close();
   }

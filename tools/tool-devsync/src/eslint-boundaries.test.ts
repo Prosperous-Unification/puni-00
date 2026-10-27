@@ -352,6 +352,34 @@ describe('the effective production and test boundaries', () => {
     expect(withoutAllowance).toEqual(peerOptions);
   }, 30_000);
 
+  it('runtime state reader has exact WBS contract admission', async () => {
+    const root = 'apps/twilight-structure/twilight-dash/cli/src/runs/';
+    const path = root + 'runtime-state.ts';
+    const [admission] = await lint.lintText("await import('@wbs/contracts');", { filePath: path });
+    expect(admission.fatalErrorCount, 'reader admission parses').toBe(0);
+    expect(
+      admission.messages.map((message) => message.ruleId),
+      'reader WBS admission',
+    ).not.toContain('@nx/enforce-module-boundaries');
+    const source = await readFile(join(workspace, path), 'utf8');
+    expect(importsAlias(source, '@wbs/contracts')).toBe(true);
+    const [actual] = await lint.lintText(source, { filePath: path });
+    expect(actual.fatalErrorCount, 'reader source parses').toBe(0);
+    expect(
+      actual.messages.filter((message) => message.ruleId === '@nx/enforce-module-boundaries'),
+    ).toEqual([]);
+    for (const name of ['plan-execution.ts', 'record-preparation.ts']) {
+      const peer = root + name;
+      await readFile(join(workspace, peer), 'utf8');
+      const [denial] = await lint.lintText("await import('@wbs/contracts');", { filePath: peer });
+      expect(denial.fatalErrorCount, name + ' parses').toBe(0);
+      expect(
+        denial.messages.map((message) => message.ruleId),
+        name + ' denies WBS contracts',
+      ).toContain('@nx/enforce-module-boundaries');
+    }
+  }, 30_000);
+
   it('Dash durable execution admits only exact public consumers and denies adjacent paths', async () => {
     const root = 'apps/twilight-structure/twilight-dash/cli/src/runs/';
     const peerOptions = boundaryOf(
@@ -360,11 +388,11 @@ describe('the effective production and test boundaries', () => {
     if (!isRecord(peerOptions)) throw new Error('execution peer policy malformed');
     for (const [paths, aliases] of [
       [['claim-records.ts', 'testing/execution-contract.ts'], ['@wbs/contracts']],
-      [['claim-history.ts', 'execution-history.test.ts'], ['@twilight-burokrat/contracts']],
       [
-        ['record-preparation.ts', 'testing/fixtures.ts'],
-        ['@twilight-burokrat/contracts', '@wbs/contracts'],
+        ['claim-history.ts', 'execution-history.test.ts', 'record-preparation.ts'],
+        ['@twilight-burokrat/contracts'],
       ],
+      [['testing/fixtures.ts'], ['@twilight-burokrat/contracts', '@wbs/contracts']],
     ] as const) {
       for (const name of paths) {
         const path = root + name;
@@ -434,7 +462,7 @@ describe('the effective production and test boundaries', () => {
     ['claim-history.ts', '@twilight-burokrat/contracts'],
     ['execution-history.test.ts', '@twilight-burokrat/contracts'],
     ['record-preparation.ts', '@twilight-burokrat/contracts'],
-    ['record-preparation.ts', '@wbs/contracts'],
+    ['runtime-state.ts', '@wbs/contracts'],
     ['testing/fixtures.ts', '@twilight-burokrat/contracts'],
     ['testing/fixtures.ts', '@wbs/contracts'],
   ] as const) {
