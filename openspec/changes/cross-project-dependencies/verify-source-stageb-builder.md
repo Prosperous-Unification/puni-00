@@ -51,3 +51,18 @@ The narrow writer fix compares the actual post-chmod dev/inode/type/uid/gid to t
 The single current-hash watched omission is `/tmp/puni-b1-r2-final-causal-proof/ledger.json`. Removing only the new original-identity join, while leaving named/readback/final guards intact, makes the actual sentinel-survival assertion RED; exact source restoration replays GREEN. The original before-fix RED, initial watched fault and final explicit sentinel assertion are preserved separately. This proves the finite observed continuation, not indistinguishable ABA, hostile syscall atomicity, forced-GC behavior or full provider isolation.
 
 Current combined/static receipts, all seven author files, root compiler/six actual TS inclusions, exact diff from round1 and corrected full patch are frozen in `/tmp/puni-b1-r2-frozen-packet.json`. No F2–F4 redesign, J mutation, source Git or broader execution approval occurred. All custody/G1/build-history/full-volume/gate/main/physical limitations remain unchanged.
+
+## Private R16 source integration — 2026-10-27
+
+The reviewed B2 overlay was applied on private branch `integration/dependencies-b2-20261027-r16` over published R15 `5ccf807186a7bb5e4d75e6ee8ebebbd4bc229f4b`. Its fifteen paths comprise twelve exact B2 copies, two additive unions preserving newer R15 content, and the independently requested specification correction for absent original membership. Approved builder/raw/helper/production/archive code hashes remain exact. Source composition approval is `45ebfeaf9014c8aed74242cb81f62520f92b6491ad960f3b562b0df960882041`; actual application/check audit is `81e88ab2dfc5eba12becc195c1e729b8113b40fd216653b12d5fa10481a0b39f`.
+
+Fresh commands and receipts are retained in `/tmp/puni-b2-r16-application-20261027/`:
+
+- `bun node_modules/@typescript/native/bin/tsc --noEmit --listFiles -p tools/tool-remote-scripts/rehearsals/tsconfig.json` exited zero; all twenty-five explicit inputs occur once among 1,445 hashed loaded files.
+- Ordinary installed Nx graph generation and repository ESLint over all ten changed JS/TS paths exited zero, with zero lint errors or warnings. Prettier checked all fifteen paths without rewriting them.
+- `bun test tools/tool-devsync/src/eslint-boundaries.test.ts` exited zero with fifty-eight passes, zero failures and 1,238 assertions. These are static ESLint/config/synthetic-workspace controls.
+- `./node_modules/.bin/openspec validate --all --json` exited zero: 304 passed, zero failed, 701 WARNING and 22 INFO. Compared with R15, the sole additional warning concerns the new requirement's length. Validation was non-strict and retained every diagnostic.
+
+The original wrong physical Nx binary path failed before loading. The first boundary invocation recorded fifty-one passes and seven failures after an inherited absolute Nx cache path let synthetic child workspaces replace the real fifty-four-project graph with a five-project fixture graph. Those raw failures, the graph and diagnosis remain preserved. Corrected commands use the installed `dist/bin/nx.js` and ordinary per-workspace caches; the approved source stayed unchanged.
+
+Independent postflight checked every approved content hash/mode, 15,953 other tracked paths and all 242 SQL paths against HEAD. This parent verification append is the sole subsequent source change and receives its own format/whitespace check before checkpointing. Runtime lifetime controls, current-main worker qualification, full R5, final exact-SHA host gate/CI and deployment remain open. Architectural MAIN and PR630 integration remain held.

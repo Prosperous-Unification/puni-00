@@ -25,7 +25,12 @@
     "source-stageb-archive-preflight.ts",
     "source-stageb-archive-preflight.test.ts",
     "source-stageb-archive-bootstrap.ts",
-    "source-stageb-archive-bootstrap.test.ts"
+    "source-stageb-archive-bootstrap.test.ts",
+    "source-stageb-fixture.ts",
+    "source-stageb-fixture.test.ts",
+    "source-stageb-fixture-bootstrap.ts",
+    "source-stageb-fixture-bootstrap.test.ts",
+    "source-stageb-migration-worker.ts"
   ],
   "references": []
 }

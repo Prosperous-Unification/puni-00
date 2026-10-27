@@ -996,3 +996,22 @@ These are bounded fixture/source checks. Full11.1/11.2, live-old-consumer delive
 - [x] Correct independent proof-fidelity findings, preserve invalid histories, obtain source approval and verify the real union against the newer negative-only J projection.
 
 This closes only the bounded preflight/source integration. Production recipient/tool/controller approval, complete B2/K/P/O/R, cleanup-phase failure sealing, final ciphertext custody, native/host acceptance and architectural main merge remain open.
+
+### Same-original B1/A2 dependent construction lifetime amendment
+
+- [ ] Freeze protected component controls against the actual original builder and archive release bodies; obtain separate review/GO before new capability-bearing runtime.
+- [ ] Observe successful construction timing RED with original B1/A2 release, implement same-original private ownership transfer and disposal, then observe restored GREEN under an inert C seam.
+- [ ] Observe internal-failure and post-publication original C-close rejection controls, including complete original-reference reachability and primary/cleanup causes; prove each omitted retention/reachability guard separately.
+- [ ] Observe archive drain/admission exclusion, rejected admitted operation retention and immediate post-await membership checks; prove the post-await consumer veto separately in the later raw/helper adaptation phase.
+- [ ] Observe healthy inert closure, one-shot releases, close memoization and release after expiry; independently settle fixture resources before cleanup without synthesizing successful production settlement.
+- [ ] Recompile, freeze changed source/test/adapter bindings and record fresh checks and actual RED/restoration receipts in verify-source-stageb-fixture.md. Keep full constructor/provider/native/host and architectural acceptance open.
+
+### Original lifetime control custody revision
+
+- [x] Independently review the closed owned-Git capture/restoration adapter and its source/native closure; run only the separately approved small inert custody packet before any fresh Git preparation.
+- [x] Observe original-error/terminal distinction, continued capped drains and held-reader cancellation controls, including isolated protected RED and exact ordinary restoration.
+- [ ] Observe partial-root/FD acquisition and same-cutoff failure joins under the approved preparation recipe; retain failed scopes and spies on uncertainty.
+- [ ] Observe actual age close and both original EOF outcomes on normal and early-failure paths before accepting component termination.
+- [ ] Run the four partial ordinary/four isolated omission controls only after separate recipe GO; independently verify protection and original FDs for expected RED, preserving the unimplemented phase2/membership/expiry boundaries.
+
+The two completed custody rows above cover the independently accepted eight-command class controls and the separately accepted one-case preparation only; [evidence](verify-source-stageb-fixture.md). Partial acquisition, age, original domain controls and all phase2 runtime rows remain open. The applied phase2 source and fresh compiler/lint checks are source preparation, with no broader completion claim.

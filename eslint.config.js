@@ -348,6 +348,46 @@ export default [
       ],
     },
   })),
+  // The fixed rehearsal worker needs the real migration implementation and applied-ledger reader.
+  // Proof: removing either alias refused its runtime import; widening the importer or anchors,
+  // adding the barrel, or removing the infra fence plus buildable enforcement admitted a forbidden
+  // edge and failed the real worker-boundary tests (2026-10-26).
+  {
+    files: ['tools/tool-remote-scripts/rehearsals/source-stageb-migration-worker.ts'],
+    rules: {
+      '@nx/enforce-module-boundaries': [
+        'error',
+        {
+          ...nxBoundaryOptions,
+          allow: [
+            '^@wbs/contracts/solver/supervisor-protocol$',
+            '^@wbs/domain$',
+            '^@wbs/store-sqlite/migrate$',
+            '^@wbs/store-sqlite/migration-set$',
+          ],
+        },
+      ],
+    },
+  },
+  // Independent parent readback uses capture only; forward SQL remains worker-only.
+  // Proof: parent alias omission, importer widening, either missing anchor and a migrate
+  // addition each failed the corresponding real parent lint consumer (2026-10-26).
+  {
+    files: ['tools/tool-remote-scripts/rehearsals/source-stageb-fixture.ts'],
+    rules: {
+      '@nx/enforce-module-boundaries': [
+        'error',
+        {
+          ...nxBoundaryOptions,
+          allow: [
+            '^@wbs/contracts/solver/supervisor-protocol$',
+            '^@wbs/domain$',
+            '^@wbs/store-sqlite/migration-set$',
+          ],
+        },
+      ],
+    },
+  },
   {
     // Proof: removing this exact type-only alias restriction admitted a runtime receipt parser import; type-only boundary negative failed.
     files: ['tools/tool-remote-scripts/src/lib/dependency-activation-records.ts'],

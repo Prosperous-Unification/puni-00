@@ -1614,3 +1614,36 @@ A restoring supervisor SHALL acquire the canonical runtime lock and independentl
 - **THEN** read-only parked and backend inventory comparisons use shared native ordering for all actual containers while independently validating the source against the captured member
 - **AND** no expected fields are copied into actual identity, no exclusion token is recreated, and no namespace admission is granted
 - **AND** duplicate source targets, per-target native field drift, unrelated member changes and missing exact raw membership refuse
+
+### Requirement: Original rehearsal dependencies survive the complete construction lifetime
+
+The private source rehearsal builder SHALL transfer the SAME admitted original B1 staging retention and A2 archive-preflight borrow into the existing original C construction lifetime. Successful construction SHALL NOT release either dependency. Original disposal SHALL memoize the SAME C close settlement, then release the original A2 borrow, then the original B1 retention. This changes healthy release timing from construction return to successful C disposal without adding a public token, reborrowing, extending an original deadline or changing ownership budgets.
+
+#### Scenario: Construction succeeds while original disposal remains unproved
+
+- **WHEN** the original builder publishes a successfully validated construction
+- **THEN** its original borrow and retention identities remain unchanged and active
+- **AND** original staging and archive close requests wait for that dependent construction
+- **AND** final validation and publication failures use the same ownership envelope and disposal routine
+
+#### Scenario: Internal construction failure or later close cannot establish settlement
+
+- **WHEN** original C disposal rejects before or after publication, or its dependent original archive release rejects
+- **THEN** a strongly reachable private failed-lifetime record retains the original construction, original borrow, original retention and available primary and cleanup causes
+- **AND** failed-construction membership is only a negative witness and cannot authorize dependent release
+- **AND** no release waiter, dependent descriptor closure or staging removal is inferred from deadline expiry or failed cleanup
+
+#### Scenario: Original archive release drains admitted operations
+
+- **WHEN** original archive release begins with admitted continuity operations pending
+- **THEN** later operation admission refuses while the same release drains those operations
+- **AND** registry deletion, active-reference clearing and waiter resolution occur only after successful drain and an immediate original-membership recheck
+- **AND** a rejected drain or failed membership recheck commits no registry deletion, active-reference clearing or waiter resolution; the failed archive lifetime and remaining original references stay strongly reachable, and missing membership is recorded without reconstructing it
+- **AND** repeated release during drain observes the same memoized settlement, while expiry never grants new forward authority
+
+#### Scenario: Private component evidence has bounded scope
+
+- **WHEN** an inert C seam exercises actual original release consumers with synthetic trusted-bootstrap I/J and actual admitted B1/A2 tokens
+- **THEN** evidence identifies its adapted component boundary and independently observes original authority, waiters and owned resources
+- **AND** distinct protected omissions must become RED and exact restoration GREEN before receiving causal proof credit
+- **AND** component evidence alone does not establish full constructor, raw child/EOF integration, provider, native, host or architectural acceptance

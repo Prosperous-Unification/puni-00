@@ -245,11 +245,13 @@ interface Lifetime {
   active?: SourceArchivePreflightBorrow;
   released?: Promise<void>;
   releaseWaiter?: () => void;
+  releasing?: Promise<void>;
   pending: Set<Promise<unknown>>;
 }
 const attempts = new WeakSet<SourceInputs>();
 const lifetimes = new WeakMap<SourceArchivePreflight, Lifetime>();
 const borrows = new WeakMap<SourceArchivePreflightBorrow, Lifetime>();
+const failedBorrowLifetimes = new Set<Lifetime>();
 function deadline(inspection: SourceInputInspection, cutoff = inspection.originalDeadline): void {
   if (
     performance.now() >= cutoff ||
@@ -840,6 +842,7 @@ async function verifyLifetime(lifetime: Lifetime): Promise<void> {
   });
 }
 async function register<T>(lifetime: Lifetime, operation: () => Promise<T>): Promise<T> {
+  if (lifetime.releasing !== undefined) refuse('borrow release in progress');
   const pending = operation();
   lifetime.pending.add(pending);
   try {
@@ -865,6 +868,7 @@ export async function borrowSourceArchivePreflight(
     refuse('borrow refused');
   // Boundary: an opaque borrow is admitted only into this original lifetime's private registry.
   const borrow = Object.freeze({}) as SourceArchivePreflightBorrow;
+  lifetime.releasing = undefined;
   lifetime.active = borrow;
   lifetime.released = new Promise((resolve) => {
     lifetime.releaseWaiter = resolve;
@@ -889,21 +893,29 @@ export async function assertSourceArchivePreflight(
   await register(lifetime, () => verifyLifetime(lifetime));
   activeLifetime(inputs, journal, borrow);
 }
-/** Original release is permitted after expiry and waits for admitted continuity IO. */
-export async function releaseSourceArchivePreflight(
-  borrow: SourceArchivePreflightBorrow,
-): Promise<void> {
+/** Original release remains available after expiry. Admitted IO drains with new admissions excluded; only proved settlement commits registry, active-reference and waiter changes. Failure retains the original borrow and memoized refusal. */
+export function releaseSourceArchivePreflight(borrow: SourceArchivePreflightBorrow): Promise<void> {
   const lifetime = borrows.get(borrow);
-  if (lifetime?.active !== borrow) refuse('original active borrow required');
-  borrows.delete(borrow);
-  const settled = await Promise.allSettled([...lifetime.pending]);
-  lifetime.active = undefined;
-  lifetime.releaseWaiter?.();
-  const failures = settled
-    .filter((entry): entry is PromiseRejectedResult => entry.status === 'rejected')
-    .map((entry): unknown => entry.reason);
-  if (failures.length > 0)
-    throw new AggregateError(failures, 'source archive borrow settlement failed');
+  if (lifetime?.active !== borrow)
+    return Promise.reject(Error('source archive preflight original active borrow required'));
+  if (lifetime.releasing !== undefined) return lifetime.releasing;
+  lifetime.releasing = (async () => {
+    const settled = await Promise.allSettled([...lifetime.pending]);
+    const failures = settled
+      .filter((entry): entry is PromiseRejectedResult => entry.status === 'rejected')
+      .map((entry): unknown => entry.reason);
+    if (failures.length > 0)
+      throw new AggregateError(failures, 'source archive borrow settlement failed');
+    if (borrows.get(borrow) !== lifetime || lifetime.active !== borrow)
+      refuse('original active borrow changed during release');
+    borrows.delete(borrow);
+    lifetime.active = undefined;
+    lifetime.releaseWaiter?.();
+  })().catch((failure: unknown) => {
+    failedBorrowLifetimes.add(lifetime);
+    throw failure;
+  });
+  return lifetime.releasing;
 }
 /** Memoized original-only descriptor settlement waits for active use and all registered IO. */
 export function closeSourceArchivePreflight(original: SourceArchivePreflight): Promise<void> {

@@ -26,6 +26,14 @@ import {
 
 import { scanMigrationArtifact } from '../src/lib/dependency-migration-artifact-scanner';
 import { envLayout } from '../src/lib/env';
+import { decodeSourceProfilePacket, type SourceProfilePacket } from './source-participant-profile';
+import {
+  assertSourceArchivePreflight,
+  borrowSourceArchivePreflight,
+  releaseSourceArchivePreflight,
+  type SourceArchivePreflight,
+  type SourceArchivePreflightBorrow,
+} from './source-stageb-archive-preflight';
 import {
   inspectSourceArtifacts,
   readSourceArtifactChunk,
@@ -33,6 +41,10 @@ import {
   type SourceArtifactMember,
   type SourceArtifacts,
 } from './source-stageb-artifacts';
+import {
+  authenticateSourceFixturePolicies,
+  SourceFixtureConstruction,
+} from './source-stageb-fixture';
 import {
   assertSourceInputArtifact,
   inspectSourceInputs,
@@ -87,7 +99,17 @@ interface Lifetime {
   readonly leaves: LeafReference[];
   isLive: boolean;
   closing?: Promise<void>;
+  closeRequested?: boolean;
+  construction?: OriginalStagingRetention;
 }
+/** Private original construction capability; never exposed by the generated public entry. @internal */
+export interface OriginalStagingRetention {
+  readonly lifetime: Lifetime;
+  readonly settled: Promise<void>;
+  readonly settle: () => void;
+  isActive: boolean;
+}
+const originalRetentions = new WeakSet<OriginalStagingRetention>();
 const lifetimes = new WeakMap<SourceStaging, Lifetime>();
 const childName = 'source-stageb-staging';
 const activeInputs = new WeakSet<SourceInputs>();
@@ -865,6 +887,138 @@ async function stageOwnedArtifacts(
     throw primary;
   }
 }
+/** Admits one constructor against the original staging references before mutating its lifetime. */
+function retainOriginalStaging(
+  inputs: SourceInputs,
+  artifacts: SourceArtifacts,
+  staging: SourceStaging,
+  journal: SourceJournal,
+): OriginalStagingRetention {
+  const lifetime = getLifetime(staging);
+  if (
+    lifetime.inputs !== inputs ||
+    lifetime.artifacts !== artifacts ||
+    lifetime.journal !== journal
+  )
+    refuseStaging('construction original joins differ');
+  if (lifetime.closeRequested === true || lifetime.construction !== undefined)
+    refuseStaging('construction admission closed');
+  assertLive(lifetime);
+  assertBinding(lifetime);
+  let settle: () => void = () => refuseStaging('construction settlement absent');
+  const settled = new Promise<void>((resolve) => {
+    settle = resolve;
+  });
+  const retention: OriginalStagingRetention = { lifetime, settled, settle, isActive: true };
+  originalRetentions.add(retention);
+  lifetime.construction = retention;
+  return retention;
+}
+/** A close request refuses later admission without cancelling the already admitted original operation. */
+export function assertOriginalStaging(retention: OriginalStagingRetention): void {
+  if (
+    !originalRetentions.has(retention) ||
+    !retention.isActive ||
+    retention.lifetime.construction !== retention
+  )
+    refuseStaging('construction original retention refused');
+  assertLive(retention.lifetime);
+  assertBinding(retention.lifetime);
+}
+/** Detached expectations for fixed installation; original authority remains in the private retention. @internal */
+export function inspectOriginalStaging(retention: OriginalStagingRetention) {
+  assertOriginalStaging(retention);
+  return {
+    parent: retention.lifetime.parentName,
+    parentIdentity: retention.lifetime.parentIdentity,
+    members: retention.lifetime.members.map((member) => {
+      if (member.identity === undefined) refuseStaging('staged member identity absent');
+      return {
+        path: member.path,
+        kind: member.kind,
+        mode: Number(member.identity.mode & 0o7777n),
+        bytes: member.bytes,
+        sha256: member.sha256,
+        target: member.target,
+      };
+    }),
+  };
+}
+/** Reads only an original authenticated staged file in bounded positional chunks, retaining each actual leaf until settlement. @internal */
+export async function readOriginalStagedChunk(
+  retention: OriginalStagingRetention,
+  path: string,
+  offset: number,
+  maximum: number,
+): Promise<Uint8Array> {
+  assertOriginalStaging(retention);
+  const lifetime = retention.lifetime;
+  const member = lifetime.members.find((member) => member.path === path);
+  if (
+    member?.kind !== 'file' ||
+    member.identity === undefined ||
+    member.bytes === undefined ||
+    !Number.isSafeInteger(offset) ||
+    offset < 0 ||
+    offset > member.bytes ||
+    !Number.isSafeInteger(maximum) ||
+    maximum < 1 ||
+    maximum > 65536
+  )
+    refuseStaging('construction read scope refused');
+  const expected = member.identity;
+  const file = await open(
+    getChildPath(lifetime, path),
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+  );
+  const leaf = retainLeaf(lifetime, file);
+  let primary: { cause: unknown } | undefined;
+  let bytes: Uint8Array | undefined;
+  try {
+    assertOriginalStaging(retention);
+    const before = await file.stat({ bigint: true });
+    assertSameNode(before, expected);
+    if (
+      !before.isFile() ||
+      before.nlink !== 1n ||
+      before.size !== BigInt(member.bytes) ||
+      before.ctimeNs !== expected.ctimeNs ||
+      before.mtimeNs !== expected.mtimeNs
+    )
+      refuseStaging('construction staged file changed');
+    const buffer = Buffer.alloc(Math.min(maximum, member.bytes - offset));
+    let length = 0;
+    while (length < buffer.length) {
+      const read = await file.read(buffer, length, buffer.length - length, offset + length);
+      if (read.bytesRead < 1 || read.bytesRead > buffer.length - length)
+        refuseStaging('construction staged read truncated');
+      length += read.bytesRead;
+      assertOriginalStaging(retention);
+    }
+    const after = await file.stat({ bigint: true });
+    assertSameNode(after, before);
+    assertSameNode(await lstat(getChildPath(lifetime, path), { bigint: true }), before);
+    if (after.ctimeNs !== before.ctimeNs || after.mtimeNs !== before.mtimeNs)
+      refuseStaging('construction staged read changed');
+    bytes = buffer;
+  } catch (cause) {
+    primary = { cause };
+  }
+  await finishLeaf(leaf, primary);
+  if (bytes === undefined) refuseStaging('construction staged read absent');
+  return bytes;
+}
+/** Releases only the actual admitted operation; release remains available after deadline or a close request. */
+function releaseOriginalStaging(retention: OriginalStagingRetention): void {
+  if (
+    !originalRetentions.has(retention) ||
+    !retention.isActive ||
+    retention.lifetime.construction !== retention
+  )
+    refuseStaging('construction release refused');
+  retention.isActive = false;
+  retention.settle();
+}
 /** Original-token-only exact membership cleanup; memoizes settlement and preserves unproved cleanup. Parent and siblings are never deletion members. */
 export function closeSourceStaging(token: SourceStaging): Promise<void> {
   let lifetime: Lifetime;
@@ -879,7 +1033,163 @@ export function closeSourceStaging(token: SourceStaging): Promise<void> {
   }
   // Proof: staging-close-memoization saved fault made the actual consumer RED; exact restoration replayed GREEN.
   if (lifetime.closing !== undefined) return lifetime.closing;
-  lifetime.isLive = false;
-  lifetime.closing = removeStaging(lifetime);
+  lifetime.closeRequested = true;
+  const retention = lifetime.construction;
+  // Proof: construction-retention omission removed actual staged bytes before the admitted consumer settled; original I/J/B1 retention consumer RED, exact restoration GREEN.
+  lifetime.closing =
+    retention?.isActive === true
+      ? retention.settled.then(async () => {
+          lifetime.isLive = false;
+          await removeStaging(lifetime);
+        })
+      : (() => {
+          lifetime.isLive = false;
+          return removeStaging(lifetime);
+        })();
+  return lifetime.closing;
+}
+
+declare const prerequisitesBrand: unique symbol;
+/** Original completed construction; detached inspection is never preparation or native cleanup authority. */
+export interface SourcePrerequisites {
+  readonly [prerequisitesBrand]: true;
+}
+interface ConstructionOwnership {
+  construction?: SourceFixtureConstruction;
+  borrow?: SourceArchivePreflightBorrow;
+  retention?: OriginalStagingRetention;
+  primary?: { cause: unknown };
+  closing?: Promise<void>;
+}
+interface ConstructionLifetime {
+  readonly inputs: SourceInputs;
+  readonly construction: SourceFixtureConstruction;
+  readonly ownership: ConstructionOwnership;
+  readonly packet: SourceProfilePacket;
+  readonly deadline: number;
+  closing?: Promise<void>;
+}
+const constructions = new WeakMap<SourcePrerequisites, ConstructionLifetime>();
+const failedConstructions = new Set<SourceFixtureConstruction>();
+const failedConstructionLifetimes = new Set<{
+  ownership: ConstructionOwnership;
+  failure: unknown;
+}>();
+/** Joins the same original C before releasing its original A2/B1 dependencies; uncertainty retains the complete ownership envelope. */
+function disposeConstruction(ownership: ConstructionOwnership): Promise<void> {
+  if (ownership.closing !== undefined) return ownership.closing;
+  ownership.closing = (async () => {
+    try {
+      if (ownership.construction !== undefined) await ownership.construction.close();
+      if (ownership.borrow !== undefined) await releaseSourceArchivePreflight(ownership.borrow);
+      if (ownership.retention !== undefined) releaseOriginalStaging(ownership.retention);
+    } catch (failure) {
+      if (ownership.construction !== undefined) failedConstructions.add(ownership.construction);
+      failedConstructionLifetimes.add({ ownership, failure });
+      throw failure;
+    }
+  })();
+  return ownership.closing;
+}
+/**
+ * Builds only the fixed same-I/J fixture, transferring the same B1 retention and
+ * A2 borrow into C's original lifetime. Only successful original C disposal
+ * permits their ordered release; failed disposal strongly retains all original
+ * references and never authorizes dependent cleanup or later forward effects.
+ */
+export async function buildSourcePrerequisites(
+  inputs: SourceInputs,
+  artifacts: SourceArtifacts,
+  staging: SourceStaging,
+  journal: SourceJournal,
+  archivePreflight: SourceArchivePreflight,
+): Promise<SourcePrerequisites> {
+  const lifetime = getLifetime(staging);
+  if (
+    lifetime.inputs !== inputs ||
+    lifetime.artifacts !== artifacts ||
+    lifetime.journal !== journal
+  )
+    refuseStaging('construction original joins differ');
+  assertLive(lifetime);
+  assertBinding(lifetime);
+  if (lifetime.closeRequested === true || lifetime.construction !== undefined)
+    refuseStaging('construction admission closed');
+  authenticateSourceFixturePolicies(inputs, artifacts);
+  const ownership: ConstructionOwnership = {};
+  try {
+    const borrow = await borrowSourceArchivePreflight(inputs, journal, archivePreflight);
+    ownership.borrow = borrow;
+    const retention = retainOriginalStaging(inputs, artifacts, staging, journal);
+    ownership.retention = retention;
+    const construction = new SourceFixtureConstruction(
+      inputs,
+      artifacts,
+      journal,
+      retention,
+      borrow,
+    );
+    ownership.construction = construction;
+    const packet = decodeSourceProfilePacket(await construction.construct());
+    assertOriginalStaging(retention);
+    await assertSourceArchivePreflight(inputs, journal, borrow);
+    const inspection = inspectSourceInputs(inputs);
+    if (
+      packet.workflowSha !== inspection.review.workflowSha ||
+      packet.inputManifestSha256 !== inspection.review.inputManifestSha256 ||
+      packet.recipientFingerprint !== inspection.review.recipientFingerprint ||
+      packet.source.nonce !== inspection.review.nonce ||
+      packet.source.dependencySha256 !== inspectSourceArtifacts(artifacts).dependencySha256
+    )
+      refuseStaging('construction final packet joins');
+    const finalInspection = inspectSourceInputs(inputs);
+    if (finalInspection.originalDeadline !== lifetime.deadline)
+      refuseStaging('construction final cutoff differs');
+    // Boundary: only successful real construction registers this erased brand; the same original dependent ownership transfers with it.
+    const token = Object.freeze({}) as SourcePrerequisites;
+    constructions.set(token, {
+      inputs,
+      construction,
+      ownership,
+      packet,
+      deadline: lifetime.deadline,
+    });
+    return token;
+  } catch (cause) {
+    ownership.primary = { cause };
+    let cleanup: { cause: unknown } | undefined;
+    try {
+      await disposeConstruction(ownership);
+    } catch (failure) {
+      cleanup = { cause: failure };
+    }
+    throw new AggregateError(
+      cleanup === undefined ? [cause] : [cause, cleanup.cause],
+      'source prerequisite construction failed',
+      { cause },
+    );
+  }
+}
+/** Returns detached transport descriptions only; no parsed projection can recreate the original lifetime. */
+export function inspectSourcePrerequisites(original: SourcePrerequisites) {
+  const lifetime = constructions.get(original);
+  if (lifetime === undefined || lifetime.closing !== undefined)
+    refuseStaging('prerequisites original token refused');
+  const inspection = inspectSourceInputs(lifetime.inputs);
+  if (inspection.originalDeadline !== lifetime.deadline)
+    refuseStaging('prerequisites original cutoff');
+  return structuredClone({
+    packet: lifetime.packet,
+    request: lifetime.construction.projection.request,
+    evidence: lifetime.construction.inspectEvidence(),
+  });
+}
+/** Memoizes original C disposal followed by the same archive/staging releases; failed settlement retains complete dependent ownership. */
+export function closeSourcePrerequisites(original: SourcePrerequisites): Promise<void> {
+  const lifetime = constructions.get(original);
+  if (lifetime === undefined)
+    return Promise.reject(Error('source prerequisites original token refused'));
+  if (lifetime.closing !== undefined) return lifetime.closing;
+  lifetime.closing = disposeConstruction(lifetime.ownership);
   return lifetime.closing;
 }
