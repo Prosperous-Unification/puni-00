@@ -388,3 +388,29 @@ Native lifecycle accounting SHALL consume the existing validated rehearsal sourc
 - **THEN** existing valid selected-input and cutover contracts remain unchanged and no caller can replace full production source validation with a filtered summary
 - **AND** whole-attempt system/helper/image/transient/host accounting, effective enforcement and live acceptance remain required
 - **AND** native source charges report no creation or runtime authority
+
+### Requirement: Deployment charges retain bounded replacement conditions
+
+Native Deployment accounting SHALL reuse the existing validated native source traversal and workload normalizer. A supported conditional envelope MUST charge each original and first replacement Pod fully, retain exact source/template identities and distinguish source declarations/defaults from unobserved runtime conditions. No Deployment strategy alone establishes a physical peak.
+
+#### Scenario: A supported single replacement wave is accounted
+
+- **WHEN** a supported apps/v1 Deployment has explicit positive replica count R and complete supported workload bounds
+- **THEN** a conditional single-ReplicaSet, same-template first replacement wave retains R original and R first replacement Pod charges through termination
+- **AND** source lifecycle/defaulting provenance identifies the intended pinned provider separately from observed runtime state
+- **AND** source does not claim its strategy enforces the replacement-wave event exclusions
+
+#### Scenario: A lifecycle or supplied source is unsuitable
+
+- **WHEN** a supplied recognized lifecycle, count, quantity or volume value is malformed or contradictory
+- **THEN** production accounting throws before missing bounds or unsupported policy can conceal it
+- **AND** valid unsupported strategies, absent bounds or unsupported workload shapes remain named incomplete obligations
+
+#### Scenario: A conditional source envelope cannot authorize creation
+
+- **WHEN** Deployment contributions are emitted
+- **THEN** actual single-ReplicaSet/template/generation identity, unchanged scale, first replacement identities and absence of further replacement or foreign mutation remain required runtime conditions
+- **AND** rollout, repeated replacement, old/new templates, forced deletion and lost-node execution remain outside this source envelope
+- **AND** terminating Pods are never budgeted as zero and grace is not a reclamation deadline
+- **AND** existing StatefulSet charges and unrelated native/operator/writer/system/helper obligations remain visible
+- **AND** creation and runtime authority remain false and whole-attempt admission stays incomplete
