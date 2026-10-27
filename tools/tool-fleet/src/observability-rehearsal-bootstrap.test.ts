@@ -319,3 +319,19 @@ test.each([
     }),
   );
 });
+
+test.each(['undeclared-reference', 'malformed-embedded'] as const)(
+  'fix1 slash-bearing CRD sibling cannot impersonate schema root: %s',
+  async (fault) => {
+    await rejects(
+      inspectCRD((manifest) => {
+        const spec = manifest['spec'] as Record<string, unknown>;
+        spec['versions/0/schema/openAPIV3Schema'] =
+          fault === 'undeclared-reference'
+            ? { secretRef: { name: 'undeclared' } }
+            : { apiVersion: 'v1', kind: {}, metadata: {} };
+      }),
+      fault === 'undeclared-reference' ? /Secret reference/ : /kind/,
+    );
+  },
+);

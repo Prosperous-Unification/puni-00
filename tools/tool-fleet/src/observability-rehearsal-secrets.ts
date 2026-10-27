@@ -21,6 +21,9 @@ export interface SecretReference {
   consumer: string;
   path: string;
 }
+/** Property names and array positions retain structural identity independently of diagnostic paths. */
+type PropertyPath = readonly (string | number)[];
+
 const externalPath = 'infra/platform/secrets/platform-local/externally-provided.json';
 const Material = type({
   namespace: 'string>0',
@@ -278,13 +281,29 @@ export function inspectRehearsalSecrets(
     namespace: string | undefined,
     consumer: string,
     path: string,
-    schemaRoots: ReadonlySet<string>,
+    segments: PropertyPath,
+    schemaRoots: readonly PropertyPath[],
   ): void {
     // Proof: Task25c2b crd-schema-distinction omission misread schema vocabulary; whole-CRD skipping hid conversion/embedded-object faults.
-    if (schemaRoots.has(path)) return;
+    // Proof: Task25c2b fix1 slash-joined comparison admitted both sibling undeclared-reference and malformed-embedded negatives.
+    if (
+      schemaRoots.some(
+        (root) =>
+          root.length === segments.length &&
+          root.every((segment, index) => segment === segments[index]),
+      )
+    )
+      return;
     if (Array.isArray(value)) {
       value.forEach((entry: unknown, index) => {
-        scan(entry, namespace, consumer, `${path}/${String(index)}`, schemaRoots);
+        scan(
+          entry,
+          namespace,
+          consumer,
+          `${path}/${String(index)}`,
+          [...segments, index],
+          schemaRoots,
+        );
       });
       return;
     }
@@ -333,13 +352,13 @@ export function inspectRehearsalSecrets(
           consumer,
           next,
         );
-      } else scan(child, namespace, consumer, next, schemaRoots);
+      } else scan(child, namespace, consumer, next, [...segments, key], schemaRoots);
     }
   }
   for (const { path, document, identity } of manifests) {
     if (identity.kind === 'Certificate') continue;
     const consumer = `${identity.kind}/${identity.metadata.namespace ?? '_'}/${identity.metadata.name}`;
-    const schemaRoots = new Set<string>();
+    const schemaRoots: PropertyPath[] = [];
     // Proof: Task25c2b crd-api-scope weakening exempted foreign APIs and ordinary resources.
     if (
       identity.kind === 'CustomResourceDefinition' &&
@@ -355,7 +374,7 @@ export function inspectRehearsalSecrets(
         // Proof: Task25c2b crd-map-shape removal accepted schema/root arrays as maps.
         if (Array.isArray(version.schema) || Array.isArray(version.schema?.openAPIV3Schema))
           throw new Error('Rehearsal malformed CRD schema boundary');
-        schemaRoots.add(`${path}/spec/versions/${String(index)}/schema/openAPIV3Schema`);
+        schemaRoots.push(['spec', 'versions', index, 'schema', 'openAPIV3Schema']);
       });
     }
     scan(
@@ -363,6 +382,7 @@ export function inspectRehearsalSecrets(
       identity.metadata.namespace,
       consumer,
       path + '/spec',
+      ['spec'],
       schemaRoots,
     );
     if (
