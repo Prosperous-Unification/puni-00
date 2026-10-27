@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { scratchAsync } from '@tools/test-scratch';
 import { describe, expect, it } from 'bun:test';
 
+import { STALE_BOOT_EXIT_CODE } from './boot-convergence';
+
 interface CommandResult {
   code: number;
   stdout: string;
@@ -245,13 +247,25 @@ printf 'fetch-reached\\n' >> "$OBSERVATIONS"
 
   // Proof: dropping the HTTP-status check makes the 503-with-commit case pass wrongly.
   // Dropping the JSON status check likewise makes the non-ok fixture pass wrongly.
+  // Proof: reading `"commit"` again (the pre-2026-10-27 proof) printed the new
+  // checkout commit for `stale process` and passed `no bootCommit` (watched 2026-10-27).
+  const served = (commit: string, bootCommit: string | null) =>
+    JSON.stringify({ status: 'ok', commit, bootCommit });
   it.each([
-    ['ok', '{"status":"ok","commit":"' + 'a'.repeat(40) + '"}', '200', 'a'.repeat(40)],
-    ['mismatched', '{"status":"ok","commit":"' + 'c'.repeat(40) + '"}', '200', 'c'.repeat(40)],
-    ['503-with-commit', '{"status":"ok","commit":"' + 'a'.repeat(40) + '"}', '503', null],
-    ['malformed', '{"status":"ok","commit":', '200', null],
-    ['short SHA', '{"status":"ok","commit":"' + 'a'.repeat(39) + '"}', '200', null],
-    ['non-ok status', '{"status":"degraded","commit":"' + 'a'.repeat(40) + '"}', '200', null],
+    ['ok', served('a'.repeat(40), 'a'.repeat(40)), '200', 'a'.repeat(40)],
+    ['mismatched', served('c'.repeat(40), 'c'.repeat(40)), '200', 'c'.repeat(40)],
+    ['stale process', served('b'.repeat(40), 'a'.repeat(40)), '200', 'a'.repeat(40)],
+    ['no bootCommit', '{"status":"ok","commit":"' + 'a'.repeat(40) + '"}', '200', null],
+    ['null bootCommit', served('a'.repeat(40), null), '200', null],
+    ['503-with-commit', served('a'.repeat(40), 'a'.repeat(40)), '503', null],
+    ['malformed', '{"status":"ok","bootCommit":', '200', null],
+    ['short SHA', served('a'.repeat(40), 'a'.repeat(39)), '200', null],
+    [
+      'non-ok status',
+      JSON.stringify({ status: 'degraded', commit: 'a'.repeat(40), bootCommit: 'a'.repeat(40) }),
+      '200',
+      null,
+    ],
   ])('reads served commit fixture: %s', async (_name, body, status, expected) => {
     const root = await scratchAsync('wbs-dev-poller-health-');
     const commands = join(root, 'commands');
@@ -329,9 +343,9 @@ count=$((count + 1))
 printf '%s\\n' "$count" > "$HEALTH_COUNT"
 printf 'health\\n' >> "$OBSERVATIONS"
 if [ "$count" -le 6 ]; then
-  printf '{"status":"degraded","commit":"%s"}\\n200\\n' "$REMOTE_SHA"
+  printf '{"status":"degraded","commit":"%s","bootCommit":"%s"}\\n200\\n' "$REMOTE_SHA" "$REMOTE_SHA"
 else
-  printf '{"status":"ok","commit":"%s"}\\n200\\n' "$REMOTE_SHA"
+  printf '{"status":"ok","commit":"%s","bootCommit":"%s"}\\n200\\n' "$REMOTE_SHA" "$REMOTE_SHA"
 fi
 `,
     );
@@ -423,7 +437,7 @@ esac
     );
     await writeFile(
       join(commands, 'docker'),
-      '#!/usr/bin/env bash\nprintf "{\\"status\\":\\"ok\\",\\"commit\\":\\"%s\\"}\\n200\\n" "$REMOTE_SHA"\n',
+      '#!/usr/bin/env bash\nprintf "{\\"status\\":\\"ok\\",\\"commit\\":\\"%s\\",\\"bootCommit\\":\\"%s\\"}\\n200\\n" "$REMOTE_SHA" "$REMOTE_SHA"\n',
     );
     await chmod(join(commands, 'git'), 0o755);
     await chmod(join(commands, 'docker'), 0o755);
@@ -457,6 +471,103 @@ esac
       'reset',
       'sync',
     ]);
+  });
+
+  it('pins the stale-boot exit to the deployer constant', async () => {
+    const script = new URL('../../../bin/dev-poll.sh', import.meta.url).pathname;
+    const result = await command([
+      'bash',
+      '-c',
+      'DEV_POLL_SOURCE_ONLY=1 source "$1"; printf %s "$STALE_BOOT_EXIT"',
+      '_',
+      script,
+    ]);
+    expect(result.stdout).toBe(String(STALE_BOOT_EXIT_CODE));
+  });
+
+  it('retries only the proof after a stale boot, never the reset or the restart', async () => {
+    // The 2026-10-27 review's S1: a sync that throws after its reset left
+    // last-synced behind, so every tick reset back, synced forward and
+    // restarted the container again, on a host shared with prod.
+    const root = await scratchAsync('wbs-dev-poller-stale-boot-');
+    const source = join(root, 'src');
+    const state = join(root, 'state');
+    const installed = join(root, 'bin');
+    const commands = join(root, 'commands');
+    const headFile = join(root, 'head');
+    const observations = join(root, 'observations');
+    const oldSha = 'a'.repeat(40);
+    const targetSha = 'b'.repeat(40);
+    await mkdir(source, { recursive: true });
+    await mkdir(state, { recursive: true });
+    await mkdir(installed, { recursive: true });
+    await mkdir(commands, { recursive: true });
+    await writeFile(join(installed, 'bun-version'), '1.3.14\n');
+    await writeFile(headFile, `${oldSha}\n`);
+    await writeFile(
+      join(commands, 'git'),
+      `#!/usr/bin/env bash
+set -eu
+case "$1" in
+  remote) printf '%s\\n' "$EXPECTED_ORIGIN" ;;
+  fetch) exit 0 ;;
+  rev-parse)
+    if [ "$2" = HEAD ]; then cat "$HEAD_FILE"; else printf '%s\\n' "$REMOTE_SHA"; fi ;;
+  reset)
+    printf '%s\\n' "$4" > "$HEAD_FILE"
+    printf 'reset\\n' >> "$OBSERVATIONS" ;;
+  show)
+    cat <<'LOADER'
+#!/usr/bin/env bash
+printf '%s\\n' "$REMOTE_SHA" > "$HEAD_FILE"
+printf 'sync\\nrestart\\n' >> "$OBSERVATIONS"
+exit 76
+LOADER
+    ;;
+  diff) exit 0 ;;
+  *) exit 64 ;;
+esac
+`,
+    );
+    // The stale process of 2026-10-26: the disk says the target, the code does not.
+    await writeFile(
+      join(commands, 'docker'),
+      '#!/usr/bin/env bash\nprintf "{\\"status\\":\\"ok\\",\\"commit\\":\\"%s\\",\\"bootCommit\\":\\"%s\\"}\\n200\\n" "$REMOTE_SHA" "$OLD_SHA"\n',
+    );
+    await chmod(join(commands, 'git'), 0o755);
+    await chmod(join(commands, 'docker'), 0o755);
+    const script = new URL('../../../bin/dev-poll.sh', import.meta.url).pathname;
+    const env = {
+      PATH: `${commands}:${process.env['PATH'] ?? ''}`,
+      WBS_DEV_SRC: source,
+      WBS_DEV_BIN: installed,
+      WBS_DEV_BUN: join(installed, 'bun'),
+      WBS_DEV_BUN_VERSION_FILE: join(installed, 'bun-version'),
+      WBS_DEV_STATE: state,
+      WBS_DEV_LOG: join(root, 'deploy.log'),
+      WBS_DEV_PROOF_RETRY_SECONDS: '0',
+      WBS_DEV_REHEARSAL: '1',
+      WBS_DEV_EXPECTED_ORIGIN: 'https://example.invalid/puni-00.git',
+      EXPECTED_ORIGIN: 'https://example.invalid/puni-00.git',
+      HEAD_FILE: headFile,
+      REMOTE_SHA: targetSha,
+      OLD_SHA: oldSha,
+      OBSERVATIONS: observations,
+    };
+
+    for (let tick = 0; tick < 3; tick += 1) {
+      expect((await command(['bash', script], env)).code).not.toBe(0);
+    }
+
+    // Proof: with the poller's stale-boot branch removed, the second tick
+    // logged `reset`, `sync`, `restart` again (watched 2026-10-27).
+    expect((await readFile(observations, 'utf8')).trim().split('\n')).toEqual(['sync', 'restart']);
+    expect((await readFile(join(state, 'last-synced'), 'utf8')).trim()).toBe(targetSha);
+    expect(await Bun.file(join(state, 'last-proven')).exists()).toBe(false);
+    expect((await readFile(headFile, 'utf8')).trim()).toBe(targetSha);
+    const log = await readFile(join(root, 'deploy.log'), 'utf8');
+    expect(log).toContain('later ticks retry only the bootCommit proof');
+    expect(log).toContain(`/health bootCommit still says '${oldSha}'`);
   });
 
   it('guards the manual deploy source shape that streams the candidate loader', async () => {
