@@ -39,7 +39,9 @@ Read [proposal.md](proposal.md), [specification](specs/observability-environment
 
   [Task25c3b verification](verify.md#task25c3b--conditional-native-deployment-first-replacement-wave) records the bounded Deployment source slice and its clean-adapter retained control, prepared for scoped review. Full task 3.1 remains open.
 
-  [Task25c3a verification](verify.md#task25c3a--native-statefulset-ordinal-lifecycle-source-charges) records the bounded native ordinal implementation and retained-source control prepared for independent review. Whole-attempt admission and canonical 3.1 remain open.
+  [Task25c3b verification](verify.md#task25c3b--conditional-native-deployment-first-replacement-wave) records the implemented and independently approved conditional Deployment source slice. It does not complete runtime-wave enforcement or whole-attempt admission.
+
+  [Task25c3a verification](verify.md#task25c3a--native-statefulset-ordinal-lifecycle-source-charges) records the bounded native ordinal implementation and retained-source control that passed independent scoped review. Whole-attempt admission and canonical 3.1 remain open.
 
   [Task25c2a verification](verify.md#task25c2a--retained-validated-stage-and-chart-inventory) records the completed bounded source slice; bootstrap, capacity and runtime closure remain open.
 
