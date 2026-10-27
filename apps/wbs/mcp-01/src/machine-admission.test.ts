@@ -550,6 +550,8 @@ describe('the activation markers check (M13)', () => {
   it('answers 502 and reports a fault when be-01 cannot answer the markers check', async () => {
     const outages: (() => Response | Promise<Response>)[] = [
       () => Response.json({ error: 'unavailable' }, { status: 503 }),
+      // A redirect is never followed (N5 of the review), so it is unmodeled here too.
+      () => new Response(null, { status: 307, headers: { location: 'http://elsewhere.test/' } }),
       () => Promise.reject(Object.assign(new TypeError('fetch failed'), { code: 'ECONNREFUSED' })),
     ];
     for (const outage of outages) {

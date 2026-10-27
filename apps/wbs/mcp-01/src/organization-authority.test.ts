@@ -1,6 +1,7 @@
 import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
 import { describe, expect, it } from 'bun:test';
 
+import { McpDeploymentFault } from './deployment-fault';
 import {
   type DelegationOutcome,
   mcpServiceHeaderOf,
@@ -107,6 +108,44 @@ describe('organization authority client', () => {
       'x-internal-auth': SECRET,
     });
     expect(() => mcpServiceHeaderOf({})).toThrow('MCP_BE_INTERNAL_SECRET or INTERNAL_AUTH_SECRET');
+  });
+
+  it('never follows a redirect, so the secret stays with be-01', async () => {
+    const seen: Headers[] = [];
+    const elsewhere = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch: (request) => {
+        seen.push(request.headers);
+        return Response.json({ state: 'pre_activation' });
+      },
+    });
+    const redirecting = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch: () =>
+        new Response(null, {
+          status: 307,
+          headers: { location: `http://127.0.0.1:${String(elsewhere.port)}/stolen` },
+        }),
+    });
+    try {
+      const authority = organizationAuthority({
+        WBS_API_URL: `http://127.0.0.1:${String(redirecting.port)}`,
+        MCP_BE_INTERNAL_SECRET: 'd'.repeat(32),
+      });
+      const outcome = await authority.organizationsFor('upstream').then(
+        (answer) => answer,
+        (cause: unknown) => cause,
+      );
+      expect(seen.map((headers) => headers.get(MCP_INTERNAL_SECRET_HEADER))).toEqual([]);
+      // The 3xx is unmodeled: a deployment fault, which /mcp reports and answers 502.
+      expect(outcome).toBeInstanceOf(OrganizationAuthorityDefect);
+      expect(outcome).toBeInstanceOf(McpDeploymentFault);
+    } finally {
+      await redirecting.stop(true);
+      await elsewhere.stop(true);
+    }
   });
 
   it('reads each modeled delegation refusal and throws on the rest', async () => {

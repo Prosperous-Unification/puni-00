@@ -163,6 +163,12 @@ export function organizationAuthority(
   const post = (path: string, body: unknown, upstreamToken?: string) =>
     fetchImpl(`${base}/internal/mcp/${path}`, {
       method: 'POST',
+      // Never followed: the service secret and the user's upstream token stay with be-01, and
+      // a 3xx is an unmodeled answer (`OrganizationAuthorityDefect`, a reported 502 at /mcp).
+      // Proof: following redirects made `never follows a redirect, so the secret stays with
+      // be-01` (organization-authority.test.ts) see the secret at the other origin and read its
+      // `pre_activation`; watched 2026-10-27.
+      redirect: 'manual',
       headers: {
         ...serviceHeader,
         ...(upstreamToken === undefined ? {} : { authorization: `Bearer ${upstreamToken}` }),
