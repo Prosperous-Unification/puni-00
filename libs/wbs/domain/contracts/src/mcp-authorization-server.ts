@@ -52,3 +52,20 @@ export function canonicalMcpAuthorizationServer(value: string, setting: string):
     );
   return value;
 }
+
+/**
+ * Whether `audience` names WBS's authorization server (`wbs-mcp-agent-surface`
+ * M2, amending `wbs-machine-credentials` A25): equal to `server` (be-01's
+ * `WBS_MCP_AUTHORIZATION_SERVER`), or under it after a `/`. A bare prefix is
+ * not enough: `https://wbs.example/mcp/oauth.evil.example` starts with
+ * `https://wbs.example/mcp/oauth` and names another host.
+ */
+export function isUnderMcpAuthorizationServer(audience: string, server: string): boolean {
+  // Proof: with a bare `audience.startsWith(server)` here, `refuses a
+  // look-alike audience` (mcp-authorization-server.test.ts), `refuses a
+  // look-alike or wbs:org audience audience_not_wbs…`
+  // (trusted-issuer.controller.db.test.ts) and `refuses a narrowing outside
+  // the authorization server…` (oidc-credential.controller.db.test.ts) each
+  // admitted `…/oauth.evil.example`; watched 2026-10-27.
+  return audience === server || audience.startsWith(`${server}/`);
+}

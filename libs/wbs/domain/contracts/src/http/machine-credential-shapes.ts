@@ -48,6 +48,16 @@ const common = [
   // A viewer, or a member naming another account's agent person.
   { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
 ] as const;
+/**
+ * An OIDC audience, a registration's or a credential's narrowing, that is not
+ * WBS's authorization server (`WBS_MCP_AUTHORIZATION_SERVER`) or under it
+ * after a `/` (`wbs-mcp-agent-surface` M2, amending A25).
+ */
+const audienceNotWbs = {
+  status: 400,
+  schema: responseSchema(type({ error: "'audience_not_wbs'" })),
+} as const;
+
 const malformed = {
   status: 400,
   schema: responseSchema(
@@ -84,7 +94,9 @@ export const listMachineCredentials = defineEndpointShape({
  * `api_key` answers its key, `wbs_mk_<id>.<secret>`, in this response only;
  * storage keeps the secret's SHA-256 digest. An `oidc` credential names a
  * trusted issuer of the organization and the exact `subject` its tokens carry
- * (`audience`, when given, is required of them over the issuer's default);
+ * (`audience`, when given, is required of them over the issuer's default, and
+ * must equal WBS's authorization server or sit under it after a `/`, else
+ * `audience_not_wbs`);
  * it holds no secret. A member may name only an agent person bound to their
  * own account; an admin any agent person.
  */
@@ -134,6 +146,7 @@ export const createMachineCredential = defineEndpointShape({
   refusals: [
     ...common,
     malformed,
+    audienceNotWbs,
     { status: 404, schema: responseSchema(type({ error: "'unknown_person'" })) },
     { status: 404, schema: responseSchema(type({ error: "'unknown_trusted_issuer'" })) },
     {
@@ -235,7 +248,11 @@ const trustedIssuerCommon = [
   { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
 ] as const;
 
-/** Lists the active organization's trusted issuers, for its admins. */
+/**
+ * Lists the active organization's trusted issuers, for its admins, with
+ * `audienceRoot`: WBS's authorization server, which every new registration's
+ * audience must equal or sit under after a `/` (`wbs-mcp-agent-surface` M2).
+ */
 export const listTrustedIssuers = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/trusted-issuers',
@@ -245,7 +262,9 @@ export const listTrustedIssuers = defineEndpointShape({
     {
       kind: 'json',
       status: 200,
-      schema: responseSchema(type({ trustedIssuers: trustedIssuerSummary.array() })),
+      schema: responseSchema(
+        type({ trustedIssuers: trustedIssuerSummary.array(), audienceRoot: 'string' }),
+      ),
     },
   ],
   refusals: [...trustedIssuerCommon, malformed],
@@ -257,9 +276,12 @@ export const listTrustedIssuers = defineEndpointShape({
  * accept, with the `audience` every such token must carry (A25): it is what
  * tells this organization's registration of a shared public issuer from
  * another's, so `(issuer, audience)` is unique across the deployment
- * (`audience_taken`). Set it in the IdP's token request (GitHub Actions:
- * `audience` on the OIDC token request); `wbs:org:<organization id>` is the
- * recommended value, not a required one. The discovery document is fetched
+ * (`audience_taken`). It must equal WBS's authorization server
+ * (`<MCP_PUBLIC_URL>/oauth`, the list's `audienceRoot`) or sit under it after
+ * a `/`, else `audience_not_wbs` (`wbs-mcp-agent-surface` M2, amending A25);
+ * `<audienceRoot>/org/<organization id>` is the recommended value. Set it in
+ * the IdP's token request (GitHub Actions: `audience` on the OIDC token
+ * request). The discovery document is fetched
  * once: it must answer (`issuer_unreachable`), name the same `issuer`
  * (`issuer_mismatch`) and publish a public HTTPS `jwks_uri`. The deployment's
  * own sign-in issuer is `issuer_reserved`; an issuer on a literal IP or a
@@ -284,6 +306,7 @@ export const registerTrustedIssuer = defineEndpointShape({
   refusals: [
     ...trustedIssuerCommon,
     malformed,
+    audienceNotWbs,
     { status: 404, schema: responseSchema(type({ error: "'unknown_sso_connection'" })) },
     {
       status: 409,

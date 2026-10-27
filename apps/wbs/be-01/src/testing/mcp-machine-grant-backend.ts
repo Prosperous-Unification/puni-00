@@ -23,7 +23,7 @@ import { OrganizationHarness } from './organization-harness';
  * - `POST /__fixture/revoke` `{ id }` revokes a credential;
  * - `POST /__fixture/workload` `{ subject }` creates claire's `oidc` credential: `{ id }`;
  * - `POST /__fixture/assertion` `{ subject, typ?, lifetimeSeconds?, jti? }`
- *   signs a workload token of the trusted issuer for audience `wbs`;
+ *   signs a workload token of the trusted issuer for `<authorization server>/org/org-a`;
  * - `POST /__fixture/fail-next-issuance` makes the next audit write throw, a
  *   failure inside the grant route (task 2.3);
  * - `POST /__fixture/rotate-grant-key` replaces the grant key with a fresh one
@@ -36,7 +36,8 @@ const authorizationServer = process.env['MCP_TEST_AUTHORIZATION_SERVER'];
 if (secret === undefined || authorizationServer === undefined)
   throw new Error('MCP_TEST_BE_SECRET and MCP_TEST_AUTHORIZATION_SERVER are required');
 
-const AUDIENCE = 'wbs';
+/** The workload audience: under mcp-01's issuer, as `wbs-mcp-agent-surface` M2 requires. */
+const AUDIENCE = `${authorizationServer}/org/org-a`;
 const issuers = new LocalOidcIssuers();
 const ci = await issuers.add('ci.test');
 let failNextIssuance = false;

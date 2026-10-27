@@ -688,6 +688,7 @@ export async function bootBe01(
               // credentials`: the fallback answers every route
               // no_active_organization; watched 2026-10-22.
               machineCredentials: new MachineCredentialAdministrationRepository(db, services.gate),
+              mcpAuthorizationServer: mcpService.authorizationServer,
               claimLeases: claimLeaseSweep,
               // Proof: omitting this binding made `serves trusted issuer
               // administration from the shared database once activated`

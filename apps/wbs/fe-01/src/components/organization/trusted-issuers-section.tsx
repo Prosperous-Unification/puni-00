@@ -52,13 +52,21 @@ type Connections =
 type View =
   | { kind: 'loading' }
   | { kind: 'failure'; message: string }
-  | { kind: 'ready'; issuers: readonly TrustedIssuer[]; connections: Connections };
+  | {
+      kind: 'ready';
+      issuers: readonly TrustedIssuer[];
+      connections: Connections;
+      /** WBS's authorization server: every audience equals it or sits under it after a `/`. */
+      audienceRoot: string;
+    };
 
 /**
  * The organization's trusted OIDC issuers (`wbs-machine-credentials` A16), for
  * admins only: list, register by URL with an optional proven company sign-in
  * connection and default audience, and remove, which be-01 refuses `in_use`
- * with the count of live credentials naming the issuer. `onChanged` tells the
+ * with the count of live credentials naming the issuer. The audience is
+ * suggested under the list's `audienceRoot` (`wbs-mcp-agent-surface` M2) until
+ * the admin edits it. `onChanged` tells the
  * credentials panel its issuer choices moved.
  */
 export function TrustedIssuersSection({
@@ -70,9 +78,11 @@ export function TrustedIssuersSection({
 }): React.JSX.Element {
   const client = useResourceClient(ISSUER_SHAPES);
   const scope = useResourceScope();
-  const suggestedAudience =
-    scope.organization.kind === 'active' ? `wbs:org:${scope.organization.organizationId}` : null;
-  const [audience, setAudience] = useState(suggestedAudience ?? '');
+  const organizationId =
+    scope.organization.kind === 'active' ? scope.organization.organizationId : null;
+  const [audience, setAudience] = useState('');
+  /** Whether the admin typed an audience, which a later read must not replace. */
+  const isAudienceEdited = useRef(false);
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [issuerUrl, setIssuerUrl] = useState('');
   const [connectionId, setConnectionId] = useState('');
@@ -143,9 +153,21 @@ export function TrustedIssuersSection({
         default:
           return unreachable(connections);
       }
-      setView({ kind: 'ready', issuers: listed.body.trustedIssuers, connections: offered });
+      const { audienceRoot } = listed.body;
+      // Proof: 2026-10-27, suggesting `wbs:org:<id>` (the audience be-01 now
+      // refuses) failed `suggests an audience under the authorization server`
+      // and `registers an issuer, rereads and tells the panel` in
+      // `trusted-issuers-section.test.tsx` (19 pass, 2 fail).
+      if (!isAudienceEdited.current)
+        setAudience(suggestedAudienceOf(audienceRoot, organizationId) ?? '');
+      setView({
+        kind: 'ready',
+        issuers: listed.body.trustedIssuers,
+        connections: offered,
+        audienceRoot,
+      });
     },
-    [client, processRefusal],
+    [client, processRefusal, organizationId],
   );
 
   const refresh = useCallback(async () => {
@@ -330,7 +352,7 @@ export function TrustedIssuersSection({
                   }),
                 () => {
                   setIssuerUrl('');
-                  setAudience(suggestedAudience ?? '');
+                  isAudienceEdited.current = false;
                   setConnectionId('');
                 },
               );
@@ -370,14 +392,12 @@ export function TrustedIssuersSection({
                 maxLength={512}
                 aria-describedby="trusted-issuer-audience-hint"
                 onChange={(event) => {
+                  isAudienceEdited.current = true;
                   setAudience(event.target.value);
                 }}
               />
               <span id="trusted-issuer-audience-hint" className="text-muted-foreground text-xs">
-                Tokens must carry this audience. Configure the same value at your identity provider
-                {suggestedAudience === null
-                  ? '.'
-                  : `; the suggested value is ${suggestedAudience}.`}
+                {audienceHintOf(view.audienceRoot, organizationId)}
               </span>
             </span>
             {view.connections.kind === 'ready' ? (
@@ -418,4 +438,16 @@ export function TrustedIssuersSection({
       )}
     </section>
   );
+}
+
+/** The audience suggested for this organization: `<root>/org/<id>`, or none without one. */
+function suggestedAudienceOf(audienceRoot: string, organizationId: string | null): string | null {
+  return organizationId === null ? null : `${audienceRoot}/org/${organizationId}`;
+}
+
+function audienceHintOf(audienceRoot: string, organizationId: string | null): string {
+  const suggested = suggestedAudienceOf(audienceRoot, organizationId);
+  return `Tokens must carry this audience: ${audienceRoot} or a path under it. Configure the same value at your identity provider${
+    suggested === null ? '.' : `; the suggested value is ${suggested}.`
+  }`;
 }

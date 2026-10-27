@@ -74,7 +74,10 @@ function stubPanel(routes: Parameters<typeof stubServer>[0] = {}) {
           ],
         }),
     ],
-    [ISSUERS]: [() => answer(200, { trustedIssuers: [issuer] })],
+    [ISSUERS]: [
+      () =>
+        answer(200, { trustedIssuers: [issuer], audienceRoot: 'https://wbs.example/mcp/oauth' }),
+    ],
     'GET /api/organization/sso-connections': [() => answer(200, { connections: [] })],
     ...routes,
   });
@@ -609,6 +612,23 @@ describe('refusal wording and labels', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create credential' }));
     expect((await within(dialog).findByRole('alert')).textContent).toBe(
       'Check the name, subject and audience: each must be plain text that does not look like a key or token.',
+    );
+  });
+
+  it('renders audience_not_wbs on an oidc create', async () => {
+    stubPanel({ [CREATE]: [() => answer(400, { error: 'audience_not_wbs' })] });
+    mount();
+    const dialog = await openCreate();
+    fireEvent.change(within(dialog).getByLabelText('Agent person'), { target: { value: 'p-rex' } });
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'deploy' } });
+    fireEvent.change(within(dialog).getByLabelText('Source'), { target: { value: 'oidc' } });
+    fireEvent.change(within(dialog).getByLabelText('Trusted issuer'), {
+      target: { value: 'ti-1' },
+    });
+    fireEvent.change(within(dialog).getByLabelText(/^Subject/), { target: { value: 'repo:a/b' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create credential' }));
+    expect((await within(dialog).findByRole('alert')).textContent).toBe(
+      'The audience must be WBS’s authorization server or a path under it, as the trusted issuers section suggests.',
     );
   });
 

@@ -549,6 +549,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'person_required':
     case 'person_not_bound':
     case 'credential_not_for_person':
+    case 'run_mismatch':
     case 'parent_claim_unknown':
     case 'parent_claim_foreign':
     case 'parent_claim_not_ancestor':

@@ -309,9 +309,24 @@ export class ClaimRepository implements ClaimStore {
     });
   }
 
-  async renewLeases(personId: string, now: () => number): Promise<LeaseRenewal> {
+  async renewLeases(
+    personId: string,
+    runId: string | null,
+    now: () => number,
+  ): Promise<LeaseRenewal> {
+    // A run scopes to its own leases; no run means every lease of the person,
+    // never `run_id IS NULL` (the port's contract, M15).
+    // Proof: with `isNull(claim.runId)` for a null run, the SQLite
+    // certification failed `claims.lease:write-renew-expire` (its run-1
+    // leases left unrenewed); with the run filter dropped, it failed
+    // `claims.lease:run-scoped` (run b's lease renewed by run a); 83 pass,
+    // 1 fail each; watched 2026-10-27.
+    const ofHolder = () =>
+      runId === null
+        ? eq(claim.personId, personId)
+        : and(eq(claim.personId, personId), eq(claim.runId, runId));
     const inForceAt = (at: number) =>
-      and(eq(claim.personId, personId), isNull(claim.leaseRevokedAt), gt(claim.leaseExpiresAt, at));
+      and(ofHolder(), isNull(claim.leaseRevokedAt), gt(claim.leaseExpiresAt, at));
     const dueAt = (at: number) =>
       and(inForceAt(at), lt(claim.leaseExpiresAt, renewalAt(at).dueBefore));
     let at = now();

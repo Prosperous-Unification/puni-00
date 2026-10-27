@@ -117,15 +117,16 @@
   - remove the reread;
   - route unknown audiences to via-mcp-01;
   - consume per use.
-- [ ] 1.4 Parity through a test-only composition seam in `src/testing`, which
+- [x] 1.4 Parity through a test-only composition seam in `src/testing`, which
       `production-entrypoint.test.ts` keeps unreachable from `main.ts`. `CredentialAuthentication`
       gains `runId?`, and the `'personId' in credential` sites (M6) are updated. Negative: omit
       `personId` from the grant principal, and the lease assertion reddens.
 - [ ] 1.5 The A25 audience rule (machine-credentials MODIFIED delta), in two steps:
-  - **Now:** `WBS_MCP_AUTHORIZATION_SERVER`, boot-checked by the canonicalisation function,
-    which moves to `@wbs/contracts`. Both existing copies, `oauth.ts` 269–271 and `http.ts`
-    25–29, are replaced by calls to it. New registrations and narrowings must
-    equal it or sit under it with `/`. The preflight CLI is a dry run.
+  - [x] **Now** (slice 5; verify.md, slice 5 notes 8 to 10): `WBS_MCP_AUTHORIZATION_SERVER`,
+        boot-checked by the canonicalisation function, which moves to `@wbs/contracts`. Both
+        existing copies, `oauth.ts` 269–271 and `http.ts` 25–29, are replaced by calls to it.
+        New registrations and narrowings must equal it or sit under it with `/`. The preflight
+        CLI is a dry run.
   - **With slice 7:** refuse non-conforming stored rows at use.
 
   Tests: the look-alike and preflight scenarios; existing `wbs:org:` rows keep verifying on
@@ -133,7 +134,7 @@
   - a bare `startsWith`, and `…/oauth.evil.example` is admitted;
   - enforce at use before slice 7, and the "keeps verifying" test reddens.
 
-- [ ] 1.6 Run scoping (M15, opt-in), independent of the undo work:
+- [x] 1.6 Run scoping (M15, opt-in), independent of the undo work:
   - the `ClaimStore.renewLeases(personId, runId | null, now)` port, the conformance suite,
     and the SQLite and memory adapters;
   - batch renewal at `plan-commands.feature.ts` 547, reading the principal's run;

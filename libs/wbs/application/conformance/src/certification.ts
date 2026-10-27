@@ -93,6 +93,7 @@ export const SOURCE_CONFORMANCE_CASES = [
   'claims.lease:write-renew-expire',
   'claims.observeProject:legacy-observation',
   'claims.lease:revoked-instant-read',
+  'claims.lease:run-scoped',
   'claims.occupancy:hold-read-cascade',
   'demands.set:replace-clear-scope',
   'demands.set:missing-reference',

@@ -735,7 +735,15 @@ export class PlanCommandRunner {
             // (claim-lease.db.test.ts) read the old expiry (9 pass, 1 fail);
             // watched 2026-10-23.
             if (!('ok' in applied) && credential !== null && 'personId' in credential) {
-              const renewal = await graph.workItems.renewLeases(credential.personId);
+              // Only the grant's own run when it opted in (M15); every lease
+              // of the person otherwise.
+              // Proof: with `null` for the run here, `a run-scoped write renews
+              // only its run` (machine-grant-run.controller.db.test.ts) renewed
+              // run b's lease too; watched 2026-10-27.
+              const renewal = await graph.workItems.renewLeases(
+                credential.personId,
+                credential.runId ?? null,
+              );
               // The renewal moves the agent's leases in every project. Each
               // moved project hears `claims_changed` through the collector, so
               // only after the commit and never for a rolled-back batch
@@ -841,7 +849,8 @@ export class PlanCommandRunner {
   }
 
   /**
-   * Renews `personId`'s leases outside any batch: the heartbeat route's
+   * Renews `personId`'s leases (only those of `runId` when given, M15)
+   * outside any batch: the heartbeat route's
    * write, through the public graph, which reads first and takes the write
    * turn only when a lease is due (L4). Once the renewal has committed and let
    * go of the turn, it announces one type-only `claims_changed` to each
@@ -854,8 +863,8 @@ export class PlanCommandRunner {
    * unannounced until their next heartbeat. In production it does not throw:
    * the gateway broadcaster reports and swallows a failed transient push.
    */
-  async renewLeases(personId: string): Promise<LeaseStanding> {
-    const renewal = await this.opts.publicServices.workItems.renewLeases(personId);
+  async renewLeases(personId: string, runId: string | null): Promise<LeaseStanding> {
+    const renewal = await this.opts.publicServices.workItems.renewLeases(personId, runId);
     // Proof (claim-lease.controller.db.test.ts, watched 2026-10-23): with the
     // SQLite store answering its due projects before its turn and not awaiting
     // the write (announced before the commit), `announces nothing when the

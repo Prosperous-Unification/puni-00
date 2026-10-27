@@ -170,14 +170,19 @@ export interface ClaimStore extends ClaimIdentity {
   /**
    * Moves every lease of `personId` that is in force, not revoked, and due
    * (`renewalAt`) to a fresh expiry, in every project (`wbs-claim-leases` L4,
-   * L5), and answers the person's standing after it. It reads `now` and the
+   * L5), and answers the person's standing after it. A `runId` scopes both to
+   * that person's leases of that run (`wbs-mcp-agent-surface` M15); **null
+   * means every lease of the person, those of every run included**, never
+   * "`run_id IS NULL`": a caller with no run (a raw API key, a grant without
+   * `wbs_run`, a consent) keeps renewing what opted-in processes of its person
+   * hold. It reads `now` and the
    * due leases first, and takes the write turn only when one is due; inside
    * the turn it reads `now` again and decides against that instant, so a
    * heartbeat queued behind a long write never renews a lease that ran out
    * while it waited. The projects it answers are those whose leases that
    * decision moved.
    */
-  renewLeases(personId: string, now: () => number): Promise<LeaseRenewal>;
+  renewLeases(personId: string, runId: string | null, now: () => number): Promise<LeaseRenewal>;
   /**
    * The project's claims whose lease has run out at `at` (expiry at or before
    * it), in claim-id order, each with its reason: `credential_revoked` when
@@ -235,6 +240,16 @@ export interface ClaimIdentity {
    * session) is unpinned: pass null.
    */
   pinnedPersonOf(credential: CredentialPin | null): Promise<string | null>;
+}
+
+/**
+ * The run a request's pin opted into (`wbs-mcp-agent-surface` M15): a machine
+ * grant's `wbs_run`, else null (an upstream pair, a consent, a raw key, a
+ * grant without a run, or no pin).
+ */
+export function pinnedRunOf(credential: CredentialPin | null): string | null {
+  if (credential === null || !('personId' in credential)) return null;
+  return credential.runId ?? null;
 }
 
 /**

@@ -26,6 +26,8 @@ const SECRET = 'm'.repeat(32);
 const GATEWAY_SECRET = 'x'.repeat(32);
 const AUTHORIZATION_SERVER = 'https://wbs.example/mcp/oauth';
 const GRANTS = '/internal/mcp/machine-grants';
+/** claire's workload audience: under the authorization server (`wbs-mcp-agent-surface` M2). */
+const WORKLOAD_AUDIENCE = `${AUTHORIZATION_SERVER}/org/org-a`;
 const TWELVE_HOURS = 12 * 60 * 60;
 const UNKNOWN = { status: 401, body: { error: 'unknown_identity' } };
 const SUBJECT = 'system:serviceaccount:agents:claire';
@@ -197,11 +199,14 @@ function projectIds(answer: Answer): string[] {
   return (answer.body as { projects: { id: string }[] }).projects.map((project) => project.id);
 }
 
-/** Trusts `ci` in org-a and creates claire's `oidc` credential for {@link SUBJECT}. */
-async function claireWorkload(): Promise<string> {
+/**
+ * Trusts `ci` in org-a for `audience` (under the harness's authorization
+ * server) and creates claire's `oidc` credential for {@link SUBJECT}.
+ */
+async function claireWorkload(audience = WORKLOAD_AUDIENCE): Promise<string> {
   const registered = await h.call('dany', 'POST', '/api/organization/trusted-issuers', {
     issuer: ci.url,
-    audience: 'wbs',
+    audience,
   });
   if (registered.status !== 201) throw new Error(`trust refused: ${JSON.stringify(registered)}`);
   const created = await h.call('dany', 'POST', '/api/organization/machine-credentials', {
@@ -294,8 +299,8 @@ describe('issuing a machine grant', () => {
     h.close();
     h = openHarness({ authorizationServer: ci.url });
     await populate();
-    await claireWorkload();
-    const assertion = await ci.sign({ sub: SUBJECT, aud: 'wbs' });
+    await claireWorkload(`${ci.url}/org/org-a`);
+    const assertion = await ci.sign({ sub: SUBJECT, aud: `${ci.url}/org/org-a` });
     expect(await requestGrant({ issuer: ci.url, credential: { kind: 'oidc', assertion } })).toEqual(
       { status: 401, body: { error: 'invalid_token' } },
     );
@@ -404,7 +409,7 @@ describe('issuing a machine grant for a workload assertion', () => {
     const answer = await requestGrant({
       credential: {
         kind: 'oidc',
-        assertion: await ci.sign({ sub: SUBJECT, aud: 'wbs', exp: assertionExpiry }),
+        assertion: await ci.sign({ sub: SUBJECT, aud: WORKLOAD_AUDIENCE, exp: assertionExpiry }),
       },
     });
     expect(answer).toMatchObject({
@@ -423,7 +428,11 @@ describe('issuing a machine grant for a workload assertion', () => {
   // requests answered 401 unknown_identity; watched 2026-10-26.
   it('admits one Kubernetes token, one jti, from three processes', async () => {
     await claireWorkload();
-    const assertion = await ci.sign({ sub: SUBJECT, aud: 'wbs', jti: 'kubelet-token-1' });
+    const assertion = await ci.sign({
+      sub: SUBJECT,
+      aud: WORKLOAD_AUDIENCE,
+      jti: 'kubelet-token-1',
+    });
     const answers = await Promise.all(
       [1, 2, 3].map(() => requestGrant({ credential: { kind: 'oidc', assertion } })),
     );
@@ -437,7 +446,7 @@ describe('issuing a machine grant for a workload assertion', () => {
         await requestGrant({
           credential: {
             kind: 'oidc',
-            assertion: await ci.signTyped({ sub: SUBJECT, aud: 'wbs' }, typ),
+            assertion: await ci.signTyped({ sub: SUBJECT, aud: WORKLOAD_AUDIENCE }, typ),
           },
         }),
       ).toEqual({ status: 401, body: { error: 'unsupported_assertion_type', typ } });
@@ -446,7 +455,7 @@ describe('issuing a machine grant for a workload assertion', () => {
         await requestGrant({
           credential: {
             kind: 'oidc',
-            assertion: await ci.signTyped({ sub: SUBJECT, aud: 'wbs' }, 'JWT'),
+            assertion: await ci.signTyped({ sub: SUBJECT, aud: WORKLOAD_AUDIENCE }, 'JWT'),
           },
         })
       ).status,
@@ -460,7 +469,7 @@ describe('issuing a machine grant for a workload assertion', () => {
         await requestGrant({
           credential: {
             kind: 'oidc',
-            assertion: await ci.signTyped({ sub: SUBJECT, aud: 'wbs' }, 'jwt'),
+            assertion: await ci.signTyped({ sub: SUBJECT, aud: WORKLOAD_AUDIENCE }, 'jwt'),
           },
         })
       ).status,
@@ -469,7 +478,7 @@ describe('issuing a machine grant for a workload assertion', () => {
     const refused = await requestGrant({
       credential: {
         kind: 'oidc',
-        assertion: await ci.signTyped({ sub: SUBJECT, aud: 'wbs' }, long),
+        assertion: await ci.signTyped({ sub: SUBJECT, aud: WORKLOAD_AUDIENCE }, long),
       },
     });
     expect(refused.status).toBe(401);
@@ -479,7 +488,7 @@ describe('issuing a machine grant for a workload assertion', () => {
     const controlled = await requestGrant({
       credential: {
         kind: 'oidc',
-        assertion: await ci.signTyped({ sub: SUBJECT, aud: 'wbs' }, 'at\u0007jwt'),
+        assertion: await ci.signTyped({ sub: SUBJECT, aud: WORKLOAD_AUDIENCE }, 'at\u0007jwt'),
       },
     });
     expect((controlled.body as { typ: string }).typ).toBe('at?jwt');
@@ -496,7 +505,10 @@ describe('issuing a machine grant for a workload assertion', () => {
     );
     expect(
       await requestGrant({
-        credential: { kind: 'oidc', assertion: await ci.sign({ sub: SUBJECT, aud: 'wbs' }) },
+        credential: {
+          kind: 'oidc',
+          assertion: await ci.sign({ sub: SUBJECT, aud: WORKLOAD_AUDIENCE }),
+        },
       }),
     ).toEqual(UNKNOWN);
     expect(lastUsedAt(id)).toBeNull();
@@ -506,13 +518,19 @@ describe('issuing a machine grant for a workload assertion', () => {
     await claireWorkload();
     expect(
       await requestGrant({
-        credential: { kind: 'oidc', assertion: await ci.sign({ sub: 'someone-else', aud: 'wbs' }) },
+        credential: {
+          kind: 'oidc',
+          assertion: await ci.sign({ sub: 'someone-else', aud: WORKLOAD_AUDIENCE }),
+        },
       }),
     ).toEqual(UNKNOWN);
     const stranger = await issuers.add(`stranger-${crypto.randomUUID().slice(0, 8)}.test`);
     expect(
       await requestGrant({
-        credential: { kind: 'oidc', assertion: await stranger.sign({ sub: SUBJECT, aud: 'wbs' }) },
+        credential: {
+          kind: 'oidc',
+          assertion: await stranger.sign({ sub: SUBJECT, aud: WORKLOAD_AUDIENCE }),
+        },
       }),
     ).toEqual({ status: 401, body: { error: 'invalid_token' } });
   });

@@ -225,7 +225,7 @@ export function inMemoryClaims(
       );
       return Promise.resolve();
     },
-    async renewLeases(personId, now) {
+    async renewLeases(personId, runId, now) {
       // One instant: the memory source has no write turn to wait behind.
       const at = now();
       const renewal = renewalAt(at);
@@ -233,8 +233,15 @@ export function inMemoryClaims(
       // Proof: with the revocation test dropped, the memory certification's
       // `claims.lease:revoked-instant-read` case renewed a revoked lease
       // (74 pass, 1 fail); watched 2026-10-23.
+      // A run scopes to its own leases; no run means every lease of the
+      // person (the port's contract, M15).
+      // Proof: with `row.runId === null` for a null run, the memory
+      // certification failed `claims.lease:write-renew-expire`; with the run
+      // test dropped, it failed `claims.lease:run-scoped`; 83 pass, 1 fail
+      // each; watched 2026-10-27.
       const isInForce = (row: StampedClaim): boolean =>
         row.personId === personId &&
+        (runId === null || row.runId === runId) &&
         row.leaseRevokedAt === null &&
         row.leaseExpiresAt !== null &&
         at < row.leaseExpiresAt;

@@ -1063,3 +1063,87 @@ at most 10", cannot hold with the failure fence read rather than reserved: right
 overshoot the debt admits 0 for about 140 s, and when a token is back the pending cap passes the
 read together (100 in one instant). The test asserts the long-window bound instead, with a lower
 bound (at least the design rate over the window), and was watched failing on 36bd6ee5b's code.
+
+## Slice 5: parity, the audience rule (now) and run scoping (tasks 1.4, 1.5 "Now", 1.6)
+
+Built on branch `feat/wbs-mcp-run-scoping-5` from the plan branch at 743808fa3 (slices 1 to 4,
+and main with #758, #762 and #763), 2026-10-27, on the assumed M1 to M16. Every test below ran
+under `env -u CLAUDECODE` on the laptop; nothing ran on h2puni.
+
+What landed:
+
+- **1.4** `CredentialAuthentication`'s machine variant and `CredentialPin`'s person variant gain
+  `runId?`; `machinePrincipalOf` takes the run, and `admitMachineGrant` passes the grant's
+  (`PresentedMachineGrant.runId`). A raw key, a trusted-issuer token on `/api` and a consent
+  carry none. The parity test (`machine-grant-run.controller.db.test.ts`) claims through a grant
+  and through the raw key on `/api` in the composed harness.
+- **1.5, Now** `isUnderMcpAuthorizationServer` in `@wbs/contracts` (equal, or under it after a
+  `/`). A new registration's audience and an `oidc` credential's narrowing must meet it, else
+  `400 audience_not_wbs`. Stored rows are not judged and keep verifying. The preflight is
+  `trusted-issuer-audience-check-cli.ts` over `checkTrustedIssuerAudiences`
+  (`@wbs/store-sqlite`). The canonicalisation move (`oauth.ts`, `http.ts`) and the boot check
+  of `WBS_MCP_AUTHORIZATION_SERVER` had already landed in slice 1 (slice 1 review item 9).
+- **1.6** `ClaimStore.renewLeases(personId, runId | null, now)`, the conformance case
+  `claims.lease:run-scoped`, and both adapters. Also: the heartbeat route and the batch renewal
+  read the pin's run; `ClaimCaller.pinnedRunId`; the domain's `claimRunOf` (stamp or
+  `run_mismatch`) and the run-scoped `decideRelease`; `run_mismatch` in `refusal.ts`, the
+  work-item 403 refusals, the command bindings, fe-01 `plan-refusal.ts`, and the
+  `claimWorkItem` and `releaseWorkItem` descriptions. No migration.
+
+### Slice 5 notes (assumptions taken, and gaps in the design)
+
+1. **The test-only seam (1.4, M9).** Until slice 7, `/api` itself still admits raw keys, so
+   the seam needs no code of its own yet. The parity test runs on `OrganizationHarness`, the
+   production composition in `src/testing`. `production-entrypoint.test.ts` already keeps that
+   tree unreachable from `main.ts` and every `src/*-cli.ts`, the new preflight CLI included.
+   Slice 7 gives the seam its raw-key admission when `/api` starts refusing.
+2. **1.4's negative is seen earlier than the lease.** Since #758, a claim without `personId`
+   defaults to the acting person. With `personId` left out of the grant principal, the grant's
+   claim is refused `person_required` (or `credential_not_for_person` when it names the person),
+   so the lease assertion is never reached. The parity case still reddens, and so does every
+   other case of the file.
+3. **`run_mismatch` is a 403**, beside `credential_not_for_person`, because the design names
+   no status. In `claimWorkItem` it is judged right after the identity refusals, as M15 says. A
+   lead's claim for a worker keeps its `runId`, and a lead's release of a worker's claim is
+   judged without a run.
+4. **#758 and the stamp.** With `personId` absent, the claimant is the acting person. For a
+   grant that is the pinned person, so its run is stamped (tested). The run is never compared
+   for another claimant.
+5. **Renewal under a run leaves no-run leases alone.** The MODIFIED claim-leases requirement
+   says "that person and that run". So a claim taken before the process opted in is renewed
+   only by a no-run heartbeat or batch, though release counts it as the caller's own (M15). An
+   opted-in process that re-claims such a step is refused `already_claimed`, naming itself
+   (`sameHolder` needs an equal run). Release, then claim again. Left as the spec says; a
+   follow-up could fold no-run leases into a run's renewal.
+6. **The heartbeat's standing is scoped too.** `{ leases, leaseExpiresAt }` counts only the
+   run's leases when the caller has a run; with no run, it counts every lease of the person.
+7. **Undo stays per person (#753).** The be-01 test shows run `a` undoing its person's latest
+   entry, which run `b` wrote, while the human's stack holds only its own entry (M16).
+8. **The audience root reaches fe-01 (1.5).** `GET /api/organization/trusted-issuers` now
+   answers `audienceRoot`, and fe-01 suggests `<audienceRoot>/org/<organization id>` in place
+   of `wbs:org:<id>`, which the rule would refuse. The design named no carrier for it.
+   `audienceRoot` is read only for an active organization, and boot refuses an activated store
+   without the setting, so a null there throws (`activeAudienceRoot`).
+9. **Where the rule is judged.** A registration is judged after the store's role and gate
+   check (a member learns nothing) and before discovery (nothing is fetched). A narrowing is
+   judged once the organization resolves and before the store write. So a member naming a
+   foreign agent with a bad audience hears `audience_not_wbs` before `forbidden`; the root is
+   public metadata.
+10. **The preflight has no write mode.** Stored rows are never rewritten (M2), so "a dry run
+    by default" is the only mode. Its rules:
+    - it lists registrations whose audience is null or breaks the rule, and unrevoked `oidc`
+      credentials whose effective audience (their own, else their registration's) breaks it;
+    - judged against the candidate's own setting, it also shows what a changed issuer breaks;
+    - a row is accepted only by its own id (the most restrictive reading), so naming a
+      registration does not accept its credentials;
+    - it exits 3 while any listed row is not accepted.
+
+    Wiring it into the Compose candidate container, the Kubernetes schema Job and the deploy
+    CLI's `--accept-breaking` is task 8.2.
+
+11. **The model test's race excludes the sweep.** A claim queued before a sweep meets a lease
+    that the sweep then takes, which is an ordering, not a race outcome.
+    `claim-lease-race.db.test.ts` already races the sweep. The new model races a heartbeat
+    of one run against a claim of another (or the same) run, in both orders.
+12. **Not reviewed by eye.** The fe-01 change is the suggested audience and the hint text
+    only. It was tested in jsdom and not viewed in a browser.

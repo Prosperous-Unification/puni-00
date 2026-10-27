@@ -210,6 +210,8 @@ const batchRefusals = [
           // `claimWorkItem`/`releaseWorkItem`: the caller may not act as the person named.
           'person_not_bound',
           'credential_not_for_person',
+          // An opted-in run's claim or release for its own person under another run.
+          'run_mismatch',
           'parent_claim_foreign',
         ),
       ),

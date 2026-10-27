@@ -38,7 +38,8 @@ made after this change, the `audience` SHALL equal be-01's `WBS_MCP_AUTHORIZATIO
 issuer, `<MCP_PUBLIC_URL>/oauth`) or start with it followed by `/`, else `400 audience_not_wbs`;
 a credential-level audience narrowing (A25 (a)) SHALL meet the same rule. `(issuer, audience)` SHALL be unique across the deployment (`409
 audience_taken`), and an organization SHALL hold at most eight trusted issuers (`409
-trusted_issuer_limit`). The list and the registration answer SHALL carry the audience. WBS SHALL fetch
+trusted_issuer_limit`). The list and the registration answer SHALL carry the audience, and the
+list SHALL carry `audienceRoot`, the authorization server new audiences sit under. WBS SHALL fetch
 the issuer's OIDC discovery document once, require its `issuer` to equal the given URL and
 record its `jwks_uri`, which SHALL be a public HTTPS URL as above; an unreachable document SHALL be `409 issuer_unreachable`, a
 disagreeing one `409 issuer_mismatch`, and nothing is stored in either case. The configured

@@ -32,6 +32,10 @@ export type TrustedIssuerRefusal = Extract<
   { kind: 'refusal' }
 >['body'];
 
+/** `audience_not_wbs` on a registration or a credential's narrowing (`wbs-mcp-agent-surface` M2). */
+const AUDIENCE_NOT_WBS =
+  'The audience must be WBS’s authorization server or a path under it, as the trusted issuers section suggests.';
+
 /** The act a machine credential refusal answers; a create names its source. */
 export type CredentialOperation = 'read' | 'create-api-key' | 'create-oidc' | 'rotate' | 'revoke';
 
@@ -105,6 +109,8 @@ export function credentialRefusal(
       return said('This key is already rotating. Rotate again after its window ends.');
     case 'rotation_at_issuer':
       return said('This credential rotates at its issuer, not in WBS.');
+    case 'audience_not_wbs':
+      return said(AUDIENCE_NOT_WBS);
     default:
       return unreachable(refusal);
   }
@@ -159,6 +165,8 @@ export function trustedIssuerRefusal(refusal: TrustedIssuerRefusal): RefusalOutc
       );
     case 'trusted_issuer_limit':
       return said('This organization already trusts eight issuers. Remove one first.');
+    case 'audience_not_wbs':
+      return said(AUDIENCE_NOT_WBS);
     case 'not_found':
       return said('This trusted issuer is no longer registered. Refresh the list.');
     case 'in_use':
