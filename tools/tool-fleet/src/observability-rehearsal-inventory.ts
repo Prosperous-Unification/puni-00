@@ -194,8 +194,8 @@ interface ImageReference {
   role: string;
   pin: 'locked' | 'unresolved';
   resourceSource: 'absent' | 'null' | 'map';
-  requestSource: 'absent' | 'map';
-  limitSource: 'absent' | 'map';
+  requestSource: 'absent' | 'null' | 'map';
+  limitSource: 'absent' | 'null' | 'map';
 }
 interface ClaimReference {
   pointer: string;
@@ -530,10 +530,30 @@ export function readRehearsalInventory(
         for (const [index, container] of (pod[role] ?? []).entries()) {
           const at = `${prefix}/${role}/${String(index)}`;
           // Proof: Task25c2a nullable-resources removal rejected declared null; native-resource-validator bypass admitted malformed maps, quantities and contradictions.
-          const resources =
+          const declaredResources =
             container.resources === undefined || container.resources === null
               ? null
-              : assertPodResources(container.resources);
+              : Mapping.assert(container.resources);
+          // Proof: fix1 outer-map-kind removal let an array become empty supplied-map validation.
+          if (Array.isArray(declaredResources)) throw new Error('Rehearsal resource map differs');
+          const declarations = {
+            requests: declaredResources?.['requests'],
+            limits: declaredResources?.['limits'],
+          };
+          // Proof: fix1 request-null-selection/limit-null-selection removal rejected the modeled null inner maps.
+          // Proof: fix1 supplied-map-validation bypass admitted malformed supplied maps and quantities.
+          // Proof: fix1 no-fabricated-request-map inserted an undeclared empty quantity map.
+          const resources =
+            declaredResources === null
+              ? null
+              : assertPodResources({
+                  ...(declarations.requests === undefined || declarations.requests === null
+                    ? {}
+                    : { requests: declarations.requests }),
+                  ...(declarations.limits === undefined || declarations.limits === null
+                    ? {}
+                    : { limits: declarations.limits }),
+                });
           // Proof: Task25c2a resource-state collapsing null to absent lost the declared source state.
           const resourceSource =
             container.resources === undefined
@@ -549,8 +569,20 @@ export function readRehearsalInventory(
             image: container.image,
             pin,
             resourceSource,
-            requestSource: resources?.requests === undefined ? 'absent' : 'map',
-            limitSource: resources?.limits === undefined ? 'absent' : 'map',
+            // Proof: fix1 request-null-state collapsing null to absent lost the individual declared state.
+            requestSource:
+              declarations.requests === undefined
+                ? 'absent'
+                : declarations.requests === null
+                  ? 'null'
+                  : 'map',
+            // Proof: fix1 limit-null-state collapsing null to absent lost the individual declared state.
+            limitSource:
+              declarations.limits === undefined
+                ? 'absent'
+                : declarations.limits === null
+                  ? 'null'
+                  : 'map',
           });
           if (pin === 'unresolved')
             unresolved.add(
@@ -560,9 +592,10 @@ export function readRehearsalInventory(
             // Proof: Task25c2a resource-map-fabrication substituted an empty map for missing declarations;
             // missing-resource-maps removal hid their named request/limit obligations.
             const quantities = resources?.[field];
+            // Proof: fix1 null-map-obligation collapsing null to absent lost the named null-map obligation.
             if (quantities === undefined)
               unresolved.add(
-                `${frame.owner}${pointer}${at}/resources/${field}: ${role}/${container.name} declaration absent (resources:${resourceSource})`,
+                `${frame.owner}${pointer}${at}/resources/${field}: ${role}/${container.name} declaration ${declarations[field] === null ? 'null' : 'absent'} (resources:${resourceSource})`,
               );
             else
               (field === 'requests' ? entry.sourceRequests : entry.sourceLimits).push({

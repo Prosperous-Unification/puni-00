@@ -947,3 +947,123 @@ test('distinct declared namespaces remain distinct without resolving an unfamili
     namespaceOrigin: 'unresolved',
   });
 });
+
+function readInnerMapFixture(resources: unknown) {
+  const selected = structuredClone(stages);
+  const manifest = {
+    ...native,
+    spec: {
+      ...native.spec,
+      template: { spec: { containers: [{ name: 'app', image, resources }] } },
+    },
+  };
+  const bytes = encode(manifest, claim, provider);
+  selected[0] = { ...selected[0], bytes, sha256: hash(bytes) };
+  return readRehearsalInventory(
+    selected,
+    expansions,
+    captureRehearsalFrames(selected, expansions),
+    lock,
+  );
+}
+
+test.each([
+  {
+    name: 'null requests with supplied limits',
+    resources: { requests: null, limits: { memory: '1Gi' } },
+    requestSource: 'null',
+    limitSource: 'map',
+    requests: [],
+    limits: [
+      {
+        pointer: '/spec/template/spec/containers/0/resources/limits',
+        quantities: { memory: '1Gi' },
+      },
+    ],
+  },
+  {
+    name: 'supplied requests with null limits',
+    resources: { requests: { memory: '1Gi' }, limits: null },
+    requestSource: 'map',
+    limitSource: 'null',
+    requests: [
+      {
+        pointer: '/spec/template/spec/containers/0/resources/requests',
+        quantities: { memory: '1Gi' },
+      },
+    ],
+    limits: [],
+  },
+  {
+    name: 'both null',
+    resources: { requests: null, limits: null },
+    requestSource: 'null',
+    limitSource: 'null',
+    requests: [],
+    limits: [],
+  },
+  {
+    name: 'null requests and absent limits',
+    resources: { requests: null },
+    requestSource: 'null',
+    limitSource: 'absent',
+    requests: [],
+    limits: [],
+  },
+  {
+    name: 'absent requests and null limits',
+    resources: { limits: null },
+    requestSource: 'absent',
+    limitSource: 'null',
+    requests: [],
+    limits: [],
+  },
+  {
+    name: 'both absent',
+    resources: {},
+    requestSource: 'absent',
+    limitSource: 'absent',
+    requests: [],
+    limits: [],
+  },
+])(
+  'fix1 inner maps retain $name',
+  ({ resources, requestSource, limitSource, requests, limits }) => {
+    const inventory = readInnerMapFixture(resources);
+    const store = inventory.entries.find((entry) => entry.kind === 'StatefulSet');
+    expect(store?.images[0]).toMatchObject({ resourceSource: 'map', requestSource, limitSource });
+    expect(store?.sourceRequests).toEqual(requests);
+    expect(store?.sourceLimits).toEqual(limits);
+    for (const [field, state] of [
+      ['requests', requestSource],
+      ['limits', limitSource],
+    ])
+      if (state !== 'map') {
+        expect(inventory.unresolved).toContain(
+          `stage/native/0/spec/template/spec/containers/0/resources/${field}: containers/app declaration ${state} (resources:map)`,
+        );
+      }
+  },
+);
+
+test.each([
+  { name: 'request array', resources: { requests: [], limits: null } },
+  { name: 'limit array', resources: { requests: null, limits: [] } },
+  { name: 'request number', resources: { requests: 3, limits: null } },
+  { name: 'request zero', resources: { requests: 0, limits: null } },
+  { name: 'limit false', resources: { requests: null, limits: false } },
+  { name: 'limit string', resources: { requests: null, limits: 'invalid' } },
+  { name: 'CPU quantity', resources: { requests: { cpu: '1Mi' }, limits: null } },
+  { name: 'memory quantity', resources: { requests: null, limits: { memory: 'invalid' } } },
+  { name: 'quantity shape', resources: { requests: { memory: { value: '1Gi' } }, limits: null } },
+])('fix1 supplied $name still refuses beside a null opposite map', ({ resources }) => {
+  expect(() => readInnerMapFixture(resources)).toThrow();
+});
+
+test.each([
+  { name: 'request', input: { requests: null, limits: { memory: '1Gi' } } },
+  { name: 'limit', input: { requests: { memory: '1Gi' }, limits: null } },
+  { name: 'both', input: { requests: null, limits: null } },
+])('fix1 old direct validator retains $name null-map refusal', ({ input }) => {
+  expect(() => assertPodResources(input)).toThrow(/pod-resources-malformed/);
+});
