@@ -106,6 +106,7 @@ describe('the closed case manifest', () => {
       'claims.lease:write-renew-expire',
       'claims.observeProject:legacy-observation',
       'claims.lease:revoked-instant-read',
+      'claims.lease:run-scoped',
       'claims.occupancy:hold-read-cascade',
     ]);
     expect(SUPPLEMENTAL_CASE_MANIFEST).toEqual({

@@ -264,6 +264,14 @@ export interface AppOptions {
    * the one discovery fetch at registration, and the configured sign-in
    * issuer it refuses. Absent, every route answers as before activation.
    */
+  /**
+   * be-01's `WBS_MCP_AUTHORIZATION_SERVER` (`wbs-mcp-agent-surface` M2): the
+   * root every new trusted issuer registration's audience, and every `oidc`
+   * credential's narrowing, must equal or sit under after a `/`. Absent or
+   * null, an active organization's audience judgement throws: boot refuses an
+   * activated store without it.
+   */
+  mcpAuthorizationServer?: string | null;
   trustedIssuers?: {
     readonly administration: TrustedIssuerAdministration;
     readonly discovery: TrustedIssuerDiscovery;
@@ -625,6 +633,7 @@ export function mountedEndpoints(
     ...machineCredentialRoutes(
       opts.organizations,
       opts.machineCredentials ?? INACTIVE_MACHINE_CREDENTIAL_ADMINISTRATION,
+      opts.mcpAuthorizationServer ?? null,
       opts.clock,
       () => opts.claimLeases?.requestSweep(),
     ),
@@ -636,6 +645,7 @@ export function mountedEndpoints(
       opts.trustedIssuers?.administration ?? INACTIVE_TRUSTED_ISSUER_ADMINISTRATION,
       opts.trustedIssuers?.discovery ?? UNUSED_DISCOVERY,
       opts.trustedIssuers?.configuredIssuer ?? (() => Promise.resolve(null)),
+      opts.mcpAuthorizationServer ?? null,
       opts.clock,
     ),
     ...computeProviderRoutes(

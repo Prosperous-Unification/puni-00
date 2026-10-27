@@ -119,6 +119,7 @@ import { sqliteDependencyGraph } from './dependency-graph-fixture';
 import type { FakeOidcProvider } from './fake-oidc-provider';
 import { testHistoryService } from './history-fixture';
 import { testLoginThrottle } from './login-throttle-fixture';
+import { TEST_MCP_AUTHORIZATION_SERVER } from './machine-grant-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './organization-limits-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from './priority-band-fixture';
 import { testReplay } from './replay-fixture';
@@ -520,6 +521,7 @@ export class OrganizationHarness {
         canonicalUserName: (raw) => canonicalOidcEmail(raw),
       },
       machineCredentials: new MachineCredentialAdministrationRepository(db, gate),
+      mcpAuthorizationServer: TEST_MCP_AUTHORIZATION_SERVER,
       computeProviders: computeProvidersOver(db, gate),
       resourceUses: new SqliteResourceUses(db, gate),
       resourceRuntime: new SqliteResourceRuntime(db, gate),
@@ -757,6 +759,12 @@ export class OrganizationHarness {
       domains: new DomainClaimRepository(source.db, services.gate),
       enterpriseConnections: new EnterpriseConnectionRepository(source.db, services.gate),
       machineCredentials: new MachineCredentialAdministrationRepository(source.db, services.gate),
+      // As boot wires `WBS_MCP_AUTHORIZATION_SERVER`: the machine grants' own
+      // when composed, else the tests' fixed one.
+      mcpAuthorizationServer:
+        machineGrants === undefined
+          ? TEST_MCP_AUTHORIZATION_SERVER
+          : machineGrants.authorizationServer,
       claimLeases: services.claimLeases,
       computeProviders: computeProvidersOver(source.db, services.gate),
       resourceUses: new SqliteResourceUses(source.db, services.gate),

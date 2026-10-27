@@ -259,6 +259,10 @@ function parseClaims(payload: Record<string, unknown>, now: number): MachineGran
     credentialId: sub,
     personId: person_id,
     organizationId: org,
+    // Never the grant's `jti` (M15): a re-fetch would start a new run.
+    // Proof: with the run defaulted to the `jti`, `re-fetching without wbs_run
+    // orphans nothing` (machine-grant-run.controller.db.test.ts) was refused
+    // already_claimed against claire's own claim; watched 2026-10-27.
     runId: isFilled(run_id) ? run_id : null,
     expiresAt: exp,
   };

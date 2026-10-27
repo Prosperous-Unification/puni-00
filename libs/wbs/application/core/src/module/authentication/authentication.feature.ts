@@ -136,11 +136,15 @@ export interface AdmittedMachineProof {
  */
 type MembershipRule = 'members_only' | 'any_member_state';
 
-/** What a machine grant names, as its verifier read it (M3). */
+/**
+ * What a machine grant names, as its verifier read it (M3): the run is the
+ * token's opted-in `wbs_run` (M15), null when it carried none.
+ */
 export interface PresentedMachineGrant {
   readonly credentialId: string;
   readonly personId: string;
   readonly organizationId: string;
+  readonly runId: string | null;
 }
 
 export type { AuthenticatedUser } from '@wbs/contracts';
@@ -411,7 +415,7 @@ export class AuthService {
   ): Promise<AuthenticatedUser | 'unknown_identity'> {
     const admitted = await this.admitMachineKey(key, 'any_member_state');
     if (admitted === 'unknown_identity') return admitted;
-    return machinePrincipalOf(admitted.actor, admitted.username);
+    return machinePrincipalOf(admitted.actor, admitted.username, null);
   }
 
   /**
@@ -539,9 +543,10 @@ export class AuthService {
    * (`wbs-mcp-agent-surface` M3): its credential reread by id and judged by
    * {@link admitMachineCredential}'s `grant` variant (revocation, binding,
    * membership and pool expiry), the account read for its username, the use
-   * recorded coarsely. The principal is {@link machinePrincipalOf}'s with
-   * scopes derived from the reread role alone ({@link machineGrantScopesOf}).
-   * Nothing about the grant is consumed: it is reusable until its `exp`.
+   * recorded coarsely. The principal is {@link machinePrincipalOf}'s, with the
+   * grant's run when it has one (M6, M15), and scopes derived from the reread
+   * role alone ({@link machineGrantScopesOf}). Nothing about the grant is
+   * consumed: it is reusable until its `exp`.
    *
    * @throws when machine credentials are not wired, when the admitted
    * credential's account does not exist, and on every store failure.
@@ -573,7 +578,7 @@ export class AuthService {
     if ((await machines.credentials.touchLastUsed(actor.credentialId, now)) === 'absent')
       return 'unknown_identity';
     return {
-      ...machinePrincipalOf(actor, account.username),
+      ...machinePrincipalOf(actor, account.username, grant.runId),
       scopes: [...machineGrantScopesOf(actor.accountRole)],
     };
   }
@@ -609,7 +614,7 @@ export class AuthService {
   ): Promise<AuthenticatedUser | AuthenticationRefusal | 'configured_path'> {
     const admitted = await this.admitTrustedIssuerToken(token, trusted, 'any_member_state');
     if (typeof admitted === 'string') return admitted;
-    return machinePrincipalOf(admitted.actor, admitted.username);
+    return machinePrincipalOf(admitted.actor, admitted.username, null);
   }
 
   /**
@@ -724,12 +729,21 @@ export class AuthService {
  * it holds at most `member` ({@link organizationRoleOf}, A23), so it never
  * gains the bound account's administration.
  *
+ * `runId` is a machine grant's opted-in run (`wbs-mcp-agent-surface` M15),
+ * null for a raw API key, a trusted-issuer token on `/api` or a grant without
+ * one: those principals carry no run, so their renewal and claims are the
+ * person's (M6 parity).
+ *
  * The one place the acting account is decided, with
  * {@link organizationRoleOf} beside it: A12 is the assumption most likely to
  * be overruled (a machine account per credential is the recorded
  * alternative), and that change belongs here alone.
  */
-export function machinePrincipalOf(actor: MachineActor, username: string): AuthenticatedUser {
+export function machinePrincipalOf(
+  actor: MachineActor,
+  username: string,
+  runId: string | null,
+): AuthenticatedUser {
   return {
     id: actor.accountId,
     username,
@@ -738,7 +752,12 @@ export function machinePrincipalOf(actor: MachineActor, username: string): Authe
     // projects only` in `machine-credential.controller.db.test.ts` answered
     // 403 no_active_organization; watched 2026-10-22.
     delegation: { organizationId: actor.organizationId, audience: 'wbs-be-01/direct' },
-    authentication: { kind: 'machine', credentialId: actor.credentialId, personId: actor.personId },
+    authentication: {
+      kind: 'machine',
+      credentialId: actor.credentialId,
+      personId: actor.personId,
+      ...(runId === null ? {} : { runId }),
+    },
   };
 }
 

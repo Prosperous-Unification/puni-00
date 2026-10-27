@@ -242,6 +242,12 @@ export type CommandRefusalCode =
   | 'person_required'
   | 'person_not_bound'
   | 'credential_not_for_person'
+  /**
+   * A machine grant with an opted-in run (`wbs-mcp-agent-surface` M15) claims
+   * for its own person under another `runId`, or releases its person's claims
+   * held only under other runs.
+   */
+  | 'run_mismatch'
   | 'parent_claim_unknown'
   | 'parent_claim_foreign'
   | 'parent_claim_not_ancestor'
@@ -701,6 +707,9 @@ type BareRefusalCode =
   // organization at its trusted issuer cap.
   | 'audience_taken'
   | 'trusted_issuer_limit'
+  // `wbs-mcp-agent-surface` M2: an audience that is not WBS's authorization
+  // server or under it after a `/`.
+  | 'audience_not_wbs'
   // Delivery observation (`track-work-delivery`): every provider read slot
   // stayed taken for the bounded wait.
   | 'delivery_busy';

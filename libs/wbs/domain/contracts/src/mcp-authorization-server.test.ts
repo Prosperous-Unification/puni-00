@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test';
 import {
   canonicalMcpAuthorizationServer,
   canonicalMcpResourceOf,
+  isUnderMcpAuthorizationServer,
   mcpAuthorizationServerOf,
 } from './mcp-authorization-server';
 
@@ -30,5 +31,23 @@ describe('the MCP authorization server, one derivation for mcp-01 and be-01', ()
       'not a url',
     ])
       expect(() => canonicalMcpAuthorizationServer(value, 'S')).toThrow('S must be');
+  });
+
+  it('admits an audience equal to the server or under it after a slash', () => {
+    const server = 'https://wbs.example/mcp/oauth';
+    expect(isUnderMcpAuthorizationServer(server, server)).toBe(true);
+    expect(isUnderMcpAuthorizationServer(`${server}/org/A`, server)).toBe(true);
+  });
+
+  it('refuses a look-alike audience', () => {
+    const server = 'https://wbs.example/mcp/oauth';
+    for (const audience of [
+      'https://wbs.example/mcp/oauth.evil.example',
+      'https://wbs.example/mcp/oauthx',
+      'https://wbs.example/mcp',
+      'wbs:org:A',
+      'https://wbs.example/mcp/OAUTH/org/A',
+    ])
+      expect(isUnderMcpAuthorizationServer(audience, server)).toBe(false);
   });
 });

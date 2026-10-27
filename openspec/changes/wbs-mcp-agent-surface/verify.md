@@ -1064,6 +1064,165 @@ overshoot the debt admits 0 for about 140 s, and when a token is back the pendin
 read together (100 in one instant). The test asserts the long-window bound instead, with a lower
 bound (at least the design rate over the window), and was watched failing on 36bd6ee5b's code.
 
+## Slice 5: parity, the audience rule (now) and run scoping (tasks 1.4, 1.5 "Now", 1.6)
+
+Built on branch `feat/wbs-mcp-run-scoping-5` from the plan branch at 743808fa3 (slices 1 to 4,
+and main with #758, #762 and #763), 2026-10-27, on the assumed M1 to M16. Every test below ran
+under `env -u CLAUDECODE` on the laptop; nothing ran on h2puni.
+
+What landed:
+
+- **1.4** `CredentialAuthentication`'s machine variant and `CredentialPin`'s person variant gain
+  `runId?`; `machinePrincipalOf` takes the run, and `admitMachineGrant` passes the grant's
+  (`PresentedMachineGrant.runId`). A raw key, a trusted-issuer token on `/api` and a consent
+  carry none. The parity test (`machine-grant-run.controller.db.test.ts`) claims through a grant
+  and through the raw key on `/api` in the composed harness.
+- **1.5, Now** `isUnderMcpAuthorizationServer` in `@wbs/contracts` (equal, or under it after a
+  `/`). A new registration's audience and an `oidc` credential's narrowing must meet it, else
+  `400 audience_not_wbs`. Stored rows are not judged and keep verifying. The preflight is
+  `trusted-issuer-audience-check-cli.ts` over `checkTrustedIssuerAudiences`
+  (`@wbs/store-sqlite`). The canonicalisation move (`oauth.ts`, `http.ts`) and the boot check
+  of `WBS_MCP_AUTHORIZATION_SERVER` had already landed in slice 1 (slice 1 review item 9).
+- **1.6** `ClaimStore.renewLeases(personId, runId | null, now)`, the conformance case
+  `claims.lease:run-scoped`, and both adapters. Also: the heartbeat route and the batch renewal
+  read the pin's run; `ClaimCaller.pinnedRunId`; the domain's `claimRunOf` (stamp or
+  `run_mismatch`) and the run-scoped `decideRelease`; `run_mismatch` in `refusal.ts`, the
+  work-item 403 refusals, the command bindings, fe-01 `plan-refusal.ts`, and the
+  `claimWorkItem` and `releaseWorkItem` descriptions. No migration.
+
+### Slice 5 notes (assumptions taken, and gaps in the design)
+
+1. **The test-only seam (1.4, M9).** Until slice 7, `/api` itself still admits raw keys, so
+   the seam needs no code of its own yet. The parity test runs on `OrganizationHarness`, the
+   production composition in `src/testing`. `production-entrypoint.test.ts` already keeps that
+   tree unreachable from `main.ts` and every `src/*-cli.ts`, the new preflight CLI included.
+   Slice 7 gives the seam its raw-key admission when `/api` starts refusing.
+2. **1.4's negative is seen earlier than the lease.** Since #758, a claim without `personId`
+   defaults to the acting person. With `personId` left out of the grant principal, the grant's
+   claim is refused `person_required` (or `credential_not_for_person` when it names the person),
+   so the lease assertion is never reached. The parity case still reddens, and so does every
+   other case of the file.
+3. **`run_mismatch` is a 403**, beside `credential_not_for_person`, because the design names
+   no status. In `claimWorkItem` it is judged right after the identity refusals, as M15 says. A
+   lead's claim for a worker keeps its `runId`, and a lead's release of a worker's claim is
+   judged without a run.
+4. **#758 and the stamp.** With `personId` absent, the claimant is the acting person. For a
+   grant that is the pinned person, so its run is stamped (tested). The run is never compared
+   for another claimant.
+5. **No-run claims belong to every run of the person** (amended after the review of PR #768,
+   S3-1; an assumption Dany may reverse). Two reasons: there is no compatibility burden before
+   users, and release already treats them so. A run-scoped renewal renews the `(person, run)`
+   leases and the person's no-run leases. A claim by the run on a step the person holds with
+   no run answers `alreadyHeld`, without restamping it. Adding a step beside such a claim
+   still counts a bound claim for the cap, because the run is another triple.
+6. **The heartbeat's standing is scoped too.** `{ leases, leaseExpiresAt }` counts the run's
+   leases and the person's no-run leases when the caller has a run; with no run, it counts
+   every lease of the person.
+7. **Undo stays per person (#753).** The be-01 test shows run `a` undoing its person's latest
+   entry, which run `b` wrote, while the human's stack holds only its own entry (M16).
+8. **The audience root reaches fe-01 (1.5).** `GET /api/organization/trusted-issuers` now
+   answers `audienceRoot`, and fe-01 suggests `<audienceRoot>/org/<organization id>` in place
+   of `wbs:org:<id>`, which the rule would refuse. The design named no carrier for it.
+   `audienceRoot` is read only for an active organization, and boot refuses an activated store
+   without the setting, so a null there throws (`activeAudienceRoot`).
+9. **Where the rule is judged.** A registration is judged after the store's role and gate
+   check (a member learns nothing) and before discovery (nothing is fetched). A narrowing is
+   judged once the organization resolves and before the store write. So a member naming a
+   foreign agent with a bad audience hears `audience_not_wbs` before `forbidden`; the root is
+   public metadata.
+10. **The preflight has no write mode.** Stored rows are never rewritten (M2), so "a dry run
+    by default" is the only mode. Its rules:
+    - it lists registrations whose audience is null or breaks the rule, and unrevoked `oidc`
+      credentials whose effective audience (their own, else their registration's) breaks it;
+    - judged against the candidate's own setting, it also shows what a changed issuer breaks;
+    - a row is accepted only by its own id (the most restrictive reading), so naming a
+      registration does not accept its credentials;
+    - it exits 3 while any listed row is not accepted.
+
+    Wiring it into the Compose candidate container, the Kubernetes schema Job and the deploy
+    CLI's `--accept-breaking` is task 8.2.
+
+11. **The model test's race excludes the sweep.** A claim queued before a sweep meets a lease
+    that the sweep then takes, which is an ordering, not a race outcome.
+    `claim-lease-race.db.test.ts` already races the sweep. The new model races a heartbeat
+    of one run against a claim of another (or the same) run, in both orders.
+12. **Not reviewed by eye.** The fe-01 change is the suggested audience and the hint text
+    only. It was tested in jsdom and not viewed in a browser.
+
+### Commands and results, slice 5
+
+All on 2026-10-27 with `env -u CLAUDECODE` and `--skip-nx-cache`, at f26169c25 (code) and the
+fixture commit after it:
+
+| Command                                                                                                                                                    | Result                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run-many -t typecheck lint -p wbs-domain wbs-contracts wbs-core wbs-store-sqlite wbs-store-memory wbs-conformance wbs-be-01 wbs-fe-01 wbs-mcp-01` | exit 0                                                                                                                                                                                                                                                                                                                                                                            |
+| `bunx nx run wbs-be-01:test`                                                                                                                               | 3781 pass, 0 fail, 3 skipped (3784 tests, 259 files, 1429 s)                                                                                                                                                                                                                                                                                                                      |
+| `bunx nx run-many -t test -p wbs-store-sqlite wbs-core --parallel=1`                                                                                       | core 1383 pass, 0 fail. store-sqlite 1999 pass, 1 fail, 1 skipped: `StepNodeAttemptRepository > refuses a start that waited…` missed its 5 s cross-process deadline while be-01's suite ran beside it; the file alone, 14 pass, 0 fail                                                                                                                                            |
+| `bunx nx run-many -t test -p wbs-domain wbs-contracts wbs-conformance wbs-store-memory --parallel=1`                                                       | 1357 pass (3 skipped), 609, 35 and 237 pass; 0 fail                                                                                                                                                                                                                                                                                                                               |
+| `bunx nx run wbs-mcp-01:test`                                                                                                                              | 711 pass, 0 fail                                                                                                                                                                                                                                                                                                                                                                  |
+| fe-01, both project-target runs through `bun node_modules/vitest/vitest.mjs`                                                                               | UTC: 4654 pass, 7 fail of 4661. One was this slice's (`organization-page.test.tsx` stubbed the list without `audienceRoot`), fixed: 30 pass. The six others (`app-fault`, `machine-credentials-panel` source selection, two `sso-connections-panel`, `project-page`, `project-settings-modal`) fail identically at the base 743808fa3 under this runner. Auckland: 5 pass, 0 fail |
+| `bunx nx run tool-devsync:test`                                                                                                                            | 966 pass, 7 fail at the base: the seven `boot-commit convergence after reset` cases (from main) wrote an `mcp.env` without slice 4's `MCP_TRUSTED_PROXY_HOPS`. Fixed in the fixture; `sync.test.ts` 63 pass, 0 fail                                                                                                                                                               |
+| `bunx openspec validate --all --json`                                                                                                                      | exit 0; 301 items, 301 passed                                                                                                                                                                                                                                                                                                                                                     |
+| Burokrat `check-indexes working . HEAD`                                                                                                                    | exit 0                                                                                                                                                                                                                                                                                                                                                                            |
+| `bunx prettier --check` on every changed file                                                                                                              | "All matched files use Prettier code style!"                                                                                                                                                                                                                                                                                                                                      |
+
+Not run: the h2puni gate, fe-01's browser e2e and pixels, gw-01's suite, and nothing on the dev
+host. The fe-01 change was not reviewed by eye (note 12).
+
+### Failure-proof table, slice 5
+
+Each check was watched failing with the fault injected, then restored; the `Proof:` comment
+sits beside it. Counts are the file's pass and fail under the fault.
+
+| Check                                      | Fault injected                                                                 | Test that observed it failing                                                                                                                         | Result                                                    |
+| ------------------------------------------ | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 1.4 the grant principal names its person   | `personId` left out of `machinePrincipalOf`'s authentication                   | `machine-grant-run.controller.db.test.ts`: `parity with a raw key…` (and every case of the file)                                                      | 0 pass, 11 fail; `person_required` (note 2)               |
+| 1.5 slash after the root                   | a bare `audience.startsWith(server)`                                           | contracts `refuses a look-alike audience`; be-01 `refuses a look-alike or wbs:org audience…`, `refuses a narrowing outside the authorization server…` | 3/1; 46/2, `…/oauth.evil.example` admitted                |
+| 1.5 registration rule                      | refusal removed (`trusted-issuer.routes.ts`)                                   | `trusted-issuer.controller.db.test.ts`: `refuses a look-alike or wbs:org audience…`                                                                   | 23/1                                                      |
+| 1.5 narrowing rule                         | refusal removed (`machine-credential.routes.ts`)                               | `oidc-credential.controller.db.test.ts`: `refuses a narrowing outside the authorization server…`                                                      | 23/1                                                      |
+| 1.5 not at use before slice 7              | rule enforced in `admitTrustedIssuerToken` (invalid_token)                     | `keeps verifying a stored wbs:org audience on /api before slice 7`                                                                                    | 23/1                                                      |
+| 1.5 preflight refuses unaccepted rows      | every breaking row counted as accepted                                         | `trusted-issuer-audience-check-cli.db.test.ts`: three cases                                                                                           | 3/3, exit 0                                               |
+| 1.5 preflight usage                        | argument check removed                                                         | `refuses arguments before opening the database`                                                                                                       | 5/1                                                       |
+| 1.5 fe-01 suggestion                       | `wbs:org:<id>` suggested                                                       | `trusted-issuers-section.test.tsx`: `suggests an audience…`, `registers an issuer…`                                                                   | 19/2                                                      |
+| 1.6 never the `jti`                        | the verifier defaulting a grant's run to its `jti`                             | `re-fetching without wbs_run orphans nothing`                                                                                                         | 8/3, `already_claimed` naming claire                      |
+| 1.6 heartbeat by run                       | heartbeat renewing by person only (`claim-lease.routes.ts`)                    | `two processes on one credential…`                                                                                                                    | 10/1                                                      |
+| 1.6 batch renewal by run                   | `null` for the run in the batch renewal (`plan-commands.feature.ts`)           | `a run-scoped write renews only its run`; the model (`claim(0, a), race(…, claim 1 null), advance(899999), release(1, b)`)                            | 10/1; counterexample                                      |
+| 1.6 null renews every lease                | `run_id IS NULL` for a null run (SQLite `isNull`, memory `row.runId === null`) | SQLite and memory certifications: `claims.lease:write-renew-expire`; the model (`claim(0, a), advance(120000), claim(1, null)`)                       | 83/1 each; counterexample                                 |
+| 1.6 a run renews only its own              | run filter dropped (SQLite, memory)                                            | certifications: `claims.lease:run-scoped`; the model (`race(heartbeat a, claim 0 b), advance(840000), heartbeat(a)`)                                  | 83/1 each; counterexample                                 |
+| 1.6 stamp only the pinned person's claims  | the pinned-person test dropped (`claimRunOf`)                                  | domain `a lead writes a worker's delegated claim with the worker's run`; be-01 `a lead writes a worker's delegated claim…`                            | 71/1 (`run_mismatch`); 10/1                               |
+| 1.6 the grant's run over the command's     | the command's `runId` preferred                                                | domain `refuses a forged run id…`, `refuses run_mismatch before the parent-claim checks`; be-01 `a forged run id is refused run_mismatch…`            | 70/2; 10/1                                                |
+| 1.6 release only the caller's run          | every run released (`decideRelease`)                                           | domain: five run cases; be-01 `a forged run id…`, `a leaf held under two runs…`                                                                       | 67/5; 9/2                                                 |
+| 1.6 pre-opt-in claims are the caller's     | no-run claims not counted as the run's                                         | domain `releases a claim taken with no run before it opted in`                                                                                        | 71/1                                                      |
+| 1.6 a lead's release is judged without run | the run applied to every release                                               | domain `judges a lead's release of a worker's delegated claim without a run`; be-01 lead case                                                         | 71/1 (`run_mismatch`); 10/1 (`credential_not_for_person`) |
+
+### Review of PR #768 (Fable, high), how each item is addressed
+
+| Item | Fix                                                                                                                                                                                                                                                                                                                                            |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S3-1 | the no-run rule (note 5): both adapters, `claims.lease:run-scoped`, the model, the heartbeat standing; `decideClaim` adopts a no-run claim of the pinned person as `alreadyHeld` (`isHeldUnderRun`); the claim-leases delta (renewal, standing, scenario "A run renews a pre-opt-in lease") and the run requirement of the agent-surface delta |
+| S3-2 | design M15: undo and redo are per person and outside the run scope; the `releaseWorkItem` description no longer reads as covering undo; follow-up below                                                                                                                                                                                        |
+| S3-3 | design M15: `run_mismatch` 403, the scoped standing, the no-run rule; design M2: `audienceRoot` and the preflight's exit contract (0, 3, or a throw on usage or settings) with no write mode                                                                                                                                                   |
+| S4-1 | the bound-claim check and the `alreadyHeld` filter both key on the stamped run, and both are tested (`counts a run’s second step on a held leaf as no new bound claim`)                                                                                                                                                                        |
+| S4-2 | the `credentialPinOf` Proof names the run carry                                                                                                                                                                                                                                                                                                |
+| S4-3 | fe-01: the hint reads "The audience must be <root> or a path under it; suggested for this organization: <suggested>…"; `audience_not_wbs` names the root the page read (the admin's issuer list), else asks for it ("ask an admin for the value")                                                                                              |
+| S4-4 | left as it is, by the coordinator's decision                                                                                                                                                                                                                                                                                                   |
+
+New rows of the failure-proof table:
+
+| Check                                         | Fault injected                                                            | Test that observed it failing                                                                                                                                                  | Result                              |
+| --------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------- |
+| a run renews the pre-opt-in lease             | no-run half dropped (SQLite `or(…, isNull)`, memory `row.runId === null`) | certifications `claims.lease:run-scoped`; be-01 `a run renews its person’s pre-opt-in lease`; the model (`claim(0, a), race(…, claim 1 null), advance(899999), release(0, a)`) | 83/1 each; 13/1; counterexample     |
+| a run re-claims its own pre-opt-in claim      | adoption dropped (`each.runId === runId` in `decideClaim`)                | domain `adopts its own pre-opt-in claim…`; be-01 `re-claims its own pre-opt-in claim…`; the model (`claim(1, null), claim(1, a)`)                                              | 73/1; 13/1; counterexample          |
+| bound-claim check keyed on the stamped run    | `input.runId` restored                                                    | be-01 `counts a run’s second step on a held leaf…`                                                                                                                             | 13/1, `claim_limit` cap 1 current 1 |
+| `alreadyHeld` filter keyed on the stamped run | `input.runId` restored                                                    | the same case                                                                                                                                                                  | 13/1, no claim ids                  |
+| the pin carries the run                       | `runId` dropped from `credentialPinOf`                                    | `machine-grant-run.controller.db.test.ts`                                                                                                                                      | 8/6                                 |
+| fe-01 refusal names the root                  | null passed for the root                                                  | `renders audience_not_wbs on an oidc create`; `renders audience_not_wbs on register`                                                                                           | 40/2 (one pre-existing); 20/1       |
+
+**Follow-up (S3-2):** record `runId` on `command_journal` and let a run-scoped principal undo
+only its own run's entries. Today a run can undo another run's claim or release of its person
+(note 7).
+
 ## Slice 6: `WorkloadJwtBearerProvider` and `twilight-dash mcp token` (task 2.4)
 
 Built on branch `feat/dash-mcp-token-6` from the plan branch at 743808fa3 (slices 1 to 3 and
