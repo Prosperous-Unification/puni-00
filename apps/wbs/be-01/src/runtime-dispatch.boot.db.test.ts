@@ -45,7 +45,13 @@ function createBarrier() {
   return Promise.withResolvers<undefined>();
 }
 
-type IntegrationVariant = 'normal' | 'dual-failure' | 'held-readiness' | 'held-disposal';
+type IntegrationVariant =
+  | 'normal'
+  | 'dual-failure'
+  | 'held-readiness'
+  | 'held-disposal'
+  | 'delayed-ready'
+  | 'invalid-ready-hold';
 
 async function runIntegration(
   variant: IntegrationVariant = 'normal',
@@ -64,6 +70,7 @@ async function runIntegration(
   const pending: unknown[] = [];
   let waiting: ReturnType<typeof Promise.withResolvers<unknown>> | undefined;
   let childFailure: Promise<never> | undefined;
+  /** Worker preparation includes real SQLite, authenticated reads and claim construction. */
   const receivePhase = async (phase: string) => {
     const next =
       pending.length > 0
@@ -74,6 +81,9 @@ async function runIntegration(
               ...(childFailure === undefined ? [] : [childFailure]),
             ]),
             phase,
+            // Proof: T1 held the real worker after claim construction; the old 8000 ms
+            // allowance emitted "runtime dispatch phase expired: ready" before any turn.
+            phase === 'ready' ? 22000 : 8000,
           );
     waiting = undefined;
     // Proof: E1 sends a malformed phase; this assertion rejects it.
@@ -220,6 +230,11 @@ async function runIntegration(
         organizationId: 'org-a',
         projectId: project.id,
         path: join(directory, 'runs.sqlite'),
+        ...(variant === 'delayed-ready'
+          ? { readyHold: 'after-build' }
+          : variant === 'invalid-ready-hold'
+            ? { readyHold: 'invalid' }
+            : {}),
       }),
       { mode: 0o600 },
     );
@@ -257,7 +272,12 @@ async function runIntegration(
     });
     // Phase races report early exit; expected final exit also settles this rejection.
     void childFailure.catch(() => undefined);
+    const readyStarted = performance.now();
     await receivePhase('ready');
+    // Proof: T4 removed the real worker's after-build hold; the delayed case emitted
+    // "real worker ready within old allowance" instead of exercising the new window.
+    if (variant === 'delayed-ready')
+      assert(performance.now() - readyStarted > 8000, 'real worker ready within old allowance');
     child.send('go');
     await awaitPhase(Promise.race([entered.promise, childFailure]), 'request entry');
     expect(conditionalPosts).toBe(1);
@@ -383,7 +403,7 @@ async function runIntegration(
   if (primaryFailed) throw primaryFailure;
 }
 
-type HeldRole = 'readiness' | 'disposal' | 'forced-disposal';
+type HeldRole = 'readiness' | 'disposal' | 'forced-disposal' | 'disposal-start-delayed';
 interface HeldTrace {
   stage: 'readiness-held' | 'disposal-held' | 'signal';
   dbPath: string;
@@ -459,6 +479,7 @@ async function runHeldReceiver(role: HeldRole, tracePath: string): Promise<void>
         return app;
       },
     });
+    if (role === 'disposal-start-delayed') await Bun.sleep(8100);
     await receiver.stop();
   }
   throw new Error('held receiver unexpectedly completed');
@@ -466,12 +487,15 @@ async function runHeldReceiver(role: HeldRole, tracePath: string): Promise<void>
 
 type ContainedRole =
   | 'integration'
+  | 'integration-ready-delayed'
+  | 'integration-invalid-hold'
   | 'integration-readiness'
   | 'integration-disposal'
   | 'integration-disposal-delayed'
   | 'readiness'
   | 'readiness-unreported'
   | 'disposal'
+  | 'disposal-start-delayed'
   | 'forced-disposal'
   | 'dual-failure';
 interface ContainedConfig {
@@ -488,12 +512,15 @@ function readContainedConfig(path: string): ContainedConfig {
       typeof configured === 'object' &&
       'role' in configured &&
       (configured.role === 'integration' ||
+        configured.role === 'integration-ready-delayed' ||
+        configured.role === 'integration-invalid-hold' ||
         configured.role === 'integration-readiness' ||
         configured.role === 'integration-disposal' ||
         configured.role === 'integration-disposal-delayed' ||
         configured.role === 'readiness' ||
         configured.role === 'readiness-unreported' ||
         configured.role === 'disposal' ||
+        configured.role === 'disposal-start-delayed' ||
         configured.role === 'forced-disposal' ||
         configured.role === 'dual-failure') &&
       'tracePath' in configured &&
@@ -609,10 +636,13 @@ interface ContainedObservation {
 }
 
 /**
- * Held integration may spend 22000 ms preparing before its marker. The parent envelope is
- * 22000 + 500 health + 8500 held + 150 exit + 750 graceful + 2000 forced + 1500 group join
- * + 2000 stdout + 2000 stderr = 39400 ms. Its child has 40000 ms and parent 45000 ms;
- * ordinary marker acquisition remains 8000 ms and complete integration remains 22000 ms.
+ * Complete integration: 35000 ms child completion plus at most 8250 ms join/drain fits its
+ * 50000 ms parent; child ceiling is 45000 ms. Held integration retains its 22000 ms marker,
+ * 8500 ms observation, 40000 ms child and 45000 ms parent (worst parent path 39400 ms).
+ * Simple held receivers allow 22000 ms before the real marker; health and held-exit checks
+ * trigger termination by 22650 ms, before the 30000 ms child ceiling. Their full parent
+ * path is at most 22000 + 8900 = 30900 ms, below its 35000 ms ceiling. The intentionally
+ * missing marker keeps 8000 ms and a 20000 ms parent above its 16250 ms failure/cleanup bound.
  */
 async function runContainedReceiver(
   role: ContainedRole,
@@ -623,7 +653,15 @@ async function runContainedReceiver(
     role === 'integration-readiness' ||
     role === 'integration-disposal' ||
     role === 'integration-disposal-delayed';
-  const preparationMilliseconds = heldIntegration ? 22000 : 8000;
+  const completeIntegration = role === 'integration' || role === 'integration-ready-delayed';
+  const simpleHeldReceiver =
+    role === 'readiness' ||
+    role === 'disposal' ||
+    role === 'disposal-start-delayed' ||
+    role === 'forced-disposal';
+  // Proof: T2 delayed actual booted-receiver stop entry; the old 8000 ms simple marker
+  // allowance emitted "contained receiver phase expired: disposal-held" after owned join.
+  const preparationMilliseconds = heldIntegration || simpleHeldReceiver ? 22000 : 8000;
   const fixtureRoot = mkdtempSync(join(tmpdir(), 'runtime-dispatch-owned-'));
   const root = join(fixtureRoot, 'runtime');
   const markerDirectory = join(fixtureRoot, 'markers');
@@ -643,7 +681,7 @@ async function runContainedReceiver(
         import.meta.path,
         '-t',
         'contained ' + role,
-        '--timeout=' + String(heldIntegration ? 40000 : 30000),
+        '--timeout=' + String(heldIntegration ? 40000 : completeIntegration ? 45000 : 30000),
       ],
       {
         cwd: resolve(import.meta.dir, '../../../..'),
@@ -680,6 +718,7 @@ async function runContainedReceiver(
       role === 'readiness' ||
       role === 'readiness-unreported' ||
       role === 'disposal' ||
+      role === 'disposal-start-delayed' ||
       role === 'forced-disposal' ||
       role === 'integration-readiness' ||
       role === 'integration-disposal' ||
@@ -732,7 +771,11 @@ async function runContainedReceiver(
         /phase expired/,
       );
     } else {
-      exitCode = await awaitPhase(child.exited, 'contained ' + role, 22000);
+      exitCode = await awaitPhase(
+        child.exited,
+        'contained ' + role,
+        completeIntegration ? 35000 : 22000,
+      );
     }
   } catch (cause) {
     primaryFailed = true;
@@ -808,6 +851,19 @@ if (childConfigPath === undefined) {
     assert.equal(observed.exitCode, 0, observed.output);
     assert.match(observed.output, /1 pass/, 'contained integration did not run');
     assert.equal(observed.rootRemoved, true);
+  }, 50000);
+  test('real Dash worker ready after delayed preparation still completes one observed turn', async () => {
+    const observed = await runContainedReceiver('integration-ready-delayed');
+    assert.equal(observed.exitCode, 0, observed.output);
+    assert.match(observed.output, /1 pass/, 'contained delayed integration did not run');
+    assert.equal(observed.rootRemoved, true);
+  }, 50000);
+  test('worker refuses an unknown private ready hold before receiving commands', async () => {
+    const observed = await runContainedReceiver('integration-invalid-hold');
+    assert.notEqual(observed.exitCode, 0, 'unknown worker hold was accepted');
+    assert.match(observed.output, /worker exited/, 'worker error did not reach the parent');
+    assert.match(observed.output, /readyHold/, 'private selector error was not reported');
+    assert.equal(observed.rootRemoved, true);
   }, 35000);
   for (const role of ['readiness', 'disposal'] as const) {
     test(
@@ -831,7 +887,7 @@ if (childConfigPath === undefined) {
           );
         }
       },
-      15000,
+      35000,
     );
   }
   test('forces and joins an actual receiver with delayed disposal after graceful refusal', async () => {
@@ -850,7 +906,27 @@ if (childConfigPath === undefined) {
         signal: AbortSignal.timeout(500),
       }),
     );
-  }, 15000);
+  }, 35000);
+  test('real receiver disposal after delayed startup retains its listener and database until joined', async () => {
+    const observed = await runContainedReceiver('disposal-start-delayed');
+    // Proof: T5 removed the actual post-boot hold; this test emitted
+    // "real receiver marker appeared within old allowance".
+    assert(
+      (observed.preparationMilliseconds ?? 0) > 8000,
+      'real receiver marker appeared within old allowance',
+    );
+    assert.equal(observed.held?.stage, 'disposal-held');
+    assert.equal(observed.held.dbPresent, true);
+    assert(observed.held.port !== undefined && observed.held.port > 0);
+    assert.equal(observed.signaled?.stage, 'signal');
+    assert.equal(observed.signaled.dbPresent, true, 'DB deleted before receiver disposal');
+    assert.equal(observed.rootRemoved, true);
+    await assert.rejects(
+      fetch('http://127.0.0.1:' + String(observed.held.port) + '/health', {
+        signal: AbortSignal.timeout(500),
+      }),
+    );
+  }, 35000);
   for (const role of ['integration-readiness', 'integration-disposal'] as const) {
     test(
       'retains actual ' + role + ' across its inner deadline',
@@ -900,7 +976,7 @@ if (childConfigPath === undefined) {
       .filter((name) => name.startsWith('runtime-dispatch-owned-'))
       .sort();
     assert.deepEqual(after, before, 'owned receiver storage survived marker timeout');
-  }, 15000);
+  }, 20000);
   test('failed real child retains both sanitized causes beside its parent phase failure', async () => {
     await assert.rejects(
       runContainedReceiver('dual-failure', 'disposal-held'),
@@ -937,7 +1013,7 @@ if (childConfigPath === undefined) {
       .filter((name) => name.startsWith('runtime-dispatch-owned-'))
       .sort();
     assert.deepEqual(after, before, 'owned receiver storage survived readonly health failure');
-  }, 15000);
+  }, 35000);
   test('retains original and real receiver cleanup failures', async () => {
     const observed = await runContainedReceiver('dual-failure');
     assert.notEqual(observed.exitCode, 0, 'faulted child unexpectedly passed');
@@ -953,7 +1029,11 @@ if (childConfigPath === undefined) {
   const configured = readContainedConfig(childConfigPath);
   const role = configured.role;
   if (role === 'integration') {
-    test('contained integration', () => runIntegration(), 30000);
+    test('contained integration', () => runIntegration(), 45000);
+  } else if (role === 'integration-ready-delayed') {
+    test('contained integration-ready-delayed', () => runIntegration('delayed-ready'), 45000);
+  } else if (role === 'integration-invalid-hold') {
+    test('contained integration-invalid-hold', () => runIntegration('invalid-ready-hold'), 30000);
   } else if (role === 'dual-failure') {
     test('contained dual-failure', () => runIntegration('dual-failure'), 30000);
   } else if (role === 'integration-readiness') {

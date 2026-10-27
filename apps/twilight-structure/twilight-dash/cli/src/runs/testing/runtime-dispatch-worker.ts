@@ -76,6 +76,9 @@ const config = parseOrThrow(
     organizationId: 'string>=1',
     projectId: 'string>=1',
     path: 'string>=1',
+    // Proof: T3 broadened this private selector to any string; the real worker then
+    // accepted "invalid" and the parent emitted "unknown worker hold was accepted".
+    'readyHold?': "'after-build'",
   }).onUndeclaredKey('reject'),
   JSON.parse(readFileSync(configPath, 'utf8')),
 );
@@ -346,6 +349,7 @@ try {
   };
   const dispatchClaim = (cut = originalGuard) =>
     claimActivity(writer.runs, writer.artifacts, runtime, cut, input, cancellation);
+  if (config.readyHold === 'after-build') await Bun.sleep(8100);
   sendPhase({ phase: 'ready' });
   await receiveCommand('go');
   const original = dispatchClaim();

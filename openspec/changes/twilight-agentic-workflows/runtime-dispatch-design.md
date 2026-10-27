@@ -206,7 +206,15 @@ saved proof archives.
 Held whole-integration cases allow preparation separately from their intentional inner
 deadline and disposal hold; the supervisor documents the complete bounded cleanup envelope.
 A delayed real integration and a missing-marker case exercise both sufficient preparation
-and finite refusal. After joining the child, the parent attaches sanitized, drained output
+and finite refusal. Normal and controlled delayed ready preparation allow 22000 ms; other
+worker phases remain 8000 ms. Complete integration permits 35000 ms observation,
+45000 ms child and 50000 ms parent, leaving room for bounded join/drain. Simple
+real held receiver preparation permits 22000 ms, with 30000 ms child and 35000 ms
+parent, including the readonly-health failure caller. Intentionally unreported
+readiness retains its 8000 ms named deadline with a 20000 ms parent. Fixed private
+delay variants wait after actual claim construction before ready, or after actual
+receiver boot before stop, and retain real business/ownership/cause assertions.
+These are fixture budgets; the precise slow CI operation and product SLO are unknown. After joining the child, the parent attaches sanitized, drained output
 in an outer error whose cause is the original failure. It never assigns to the original
 error's message, because standard timeout exceptions can expose readonly properties.
 Declare an explicit target/CI dependency because process argv is not an Nx import edge.
