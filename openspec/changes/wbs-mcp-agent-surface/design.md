@@ -192,7 +192,12 @@ speaks it).
     Actions token URL, or a reread of the projected service-account token file), `resource`
     and, when configured, `wbs_run`.
   - _Only the SDK provider caches._ `WorkloadJwtBearerProvider` keeps its access token in
-    memory until 5 minutes before `exp`, and drops it on any 401.
+    memory until `min(5 minutes, half its lifetime)` before `exp`: an OIDC token is capped at
+    the assertion's `exp` minus 60 s, so a flat 5-minute margin would never serve one that
+    lives under 5 minutes (slice 6). It drops the token on any 401, through
+    `prepareTokenRequest` and `invalidateCredentials`: the SDK has no 401 hook, and its
+    transport calls `auth`, and so `prepareTokenRequest`, only after a 401 or when no token is
+    served.
     **`twilight-dash mcp token` keeps no cache and issues a fresh token on every run.** The
     401 recovery, `unknown_grant_key` included, then holds by construction: Claude Code
     re-runs the helper on a 401 or 403, and the re-run issues a new token.
