@@ -8,7 +8,7 @@ import { describe, expect, it } from 'bun:test';
 
 import type { McpConfig } from './config';
 import { mcpFetchHandler } from './http';
-import { machineGrantClient } from './machine-grant-client';
+import { machineGrantClient, MachineGrantTimedOut } from './machine-grant-client';
 import { M10_LIMITS, type MachineLimitRates, MachineTrafficLimits } from './machine-limits';
 import { mcpOAuthFromEnv, McpOAuthServer } from './oauth';
 import { readDocument, toolsFromDocument } from './openapi-tools';
@@ -71,6 +71,10 @@ interface WorldOptions {
   readonly grantDelayMs?: number;
   /** be-01 answers every grant request 503. */
   readonly unavailable?: boolean;
+  /** be-01 never answers the first grant request, and ignores its signal. */
+  readonly hangFirstGrant?: boolean;
+  /** How long a grant request waits for be-01. */
+  readonly grantTimeoutMs?: number;
   /** be-01 never answers the first tool call. */
   readonly hangFirstCall?: boolean;
   /** How long a tool call waits for be-01. */
@@ -90,6 +94,8 @@ function world(
   const fetchImpl: FetchLike = async (url, init) => {
     if (new URL(url).pathname === '/internal/mcp/machine-grants') {
       asked += 1;
+      if (options.hangFirstGrant === true && asked === 1)
+        return await new Promise<never>(() => undefined);
       if (options.grantDelayMs !== undefined) await Bun.sleep(options.grantDelayMs);
       if (options.unavailable === true)
         return Response.json({ error: 'unavailable' }, { status: 503 });
@@ -124,13 +130,14 @@ function world(
       now: () => clock.now,
       signingKeys: { privateKey: SIGNING.privateKey, publicKey: SIGNING.publicKey },
       machineGrants: {
-        client: machineGrantClient(CONFIG, fetchImpl),
+        client: machineGrantClient(CONFIG, fetchImpl, options.grantTimeoutMs),
         secret: SECRET,
         tokenTtlSeconds: TTL,
         jitter: () => 0,
         limit: new MachineTrafficLimits(() => clock.now, rates),
         reportFault: (fault) => {
-          throw fault;
+          if (options.hangFirstGrant !== true) throw fault;
+          reported.push(fault);
         },
       },
     },
@@ -535,6 +542,26 @@ describe('a be-01 call that never answers', () => {
     expect(world_.reported[0]).toBeInstanceOf(BeCallTimedOut);
     expect((await callTools(world_, token, 1)).texts).toEqual(['ok']);
   });
+});
+
+describe('a grant request be-01 never answers (task 4.4)', () => {
+  it('frees the pending slot of a grant request be-01 never answers, after the timeout', async () => {
+    const held = credential();
+    const world_ = world(
+      [held],
+      { ...M10_LIMITS, pendingIssuancesPerSource: 1 },
+      { hangFirstGrant: true, grantTimeoutMs: 50 },
+    );
+    const hung = await issue(world_.oauth, held.key, ORCHESTRATOR);
+    // A fault of the deployment, reported, never the caller's invalid_client.
+    expect(hung.status).toBe(502);
+    expect(await hung.json()).toMatchObject({ error: 'server_error' });
+    expect(world_.reported).toHaveLength(1);
+    expect(world_.reported[0]).toBeInstanceOf(MachineGrantTimedOut);
+    // The one pending slot is free again: the next request reaches be-01 and issues.
+    expect((await issue(world_.oauth, held.key, ORCHESTRATOR)).status).toBe(200);
+    expect(world_.asked()).toBe(2);
+  }, 5_000);
 });
 
 describe('the production composition', () => {

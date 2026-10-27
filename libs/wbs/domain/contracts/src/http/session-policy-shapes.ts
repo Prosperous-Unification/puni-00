@@ -19,6 +19,7 @@ export const readSessionPolicy = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/session-policy',
   operationId: 'getApiOrganizationSession-policy',
+  humanOnly: true,
   policies: [
     { kind: 'organization-resource', operation: 'read' },
     { kind: 'identity', require: 'signed-in' },
@@ -40,6 +41,7 @@ export const setSessionPolicy = defineEndpointShape({
   method: 'PUT',
   path: '/api/organization/session-policy',
   operationId: 'putApiOrganizationSession-policy',
+  humanOnly: true,
   policies: [
     { kind: 'organization-resource', operation: 'mutation' },
     { kind: 'origin', when: 'always-unsafe-with-session-cookie' },
