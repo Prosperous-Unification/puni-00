@@ -127,6 +127,11 @@ export interface DirectoryResource extends Store<DirectorySnapshot> {
   readonly createWorkItemType: (name: string) => Promise<WorkItemTypeView>;
 
   readonly setPersonKind: (id: string, kind: PersonKindView) => Promise<DirectoryWrite<PersonView>>;
+  /** Binds a person to an account, or unbinds them with null (organization admins only). */
+  readonly setPersonAccount: (
+    id: string,
+    accountId: string | null,
+  ) => Promise<DirectoryWrite<PersonView>>;
   /** Sets exactly the teams a person belongs to — a full replacement, never a delta. */
   readonly setPersonTeams: (
     id: string,

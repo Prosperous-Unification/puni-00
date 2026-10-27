@@ -99,6 +99,15 @@ export function createDirectoryManagement(directory: DirectoryResource): Directo
         sayTaken(await directory.setPersonTeams(person.id, teamIds));
       });
     },
+    bindAccount: (person, accountId) => {
+      // Proof: sending whatever was chosen made `sends nothing when the person
+      // is already bound there` fail on `expected [ 'patchPerson:p1' ] to
+      // deeply equal []`; watched 2026-10-27.
+      if (person.accountId === accountId) return;
+      void directory.runWrite(async () => {
+        sayTaken(await directory.setPersonAccount(person.id, accountId));
+      });
+    },
     setOwnedServices: (team, serviceIds) => {
       void directory.runWrite(async () => {
         sayTaken(await directory.setTeamServices(team.id, serviceIds));
