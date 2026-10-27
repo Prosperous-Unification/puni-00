@@ -203,6 +203,12 @@ then terminate and join the owned group before removing its database directory i
 cannot finish. Real delayed readiness and disposal regressions exercise this same supervisor.
 The supervisor creates and removes its marker storage with the fixture, independently of
 saved proof archives.
+Held whole-integration cases allow preparation separately from their intentional inner
+deadline and disposal hold; the supervisor documents the complete bounded cleanup envelope.
+A delayed real integration and a missing-marker case exercise both sufficient preparation
+and finite refusal. After joining the child, the parent attaches sanitized, drained output
+in an outer error whose cause is the original failure. It never assigns to the original
+error's message, because standard timeout exceptions can expose readonly properties.
 Declare an explicit target/CI dependency because process argv is not an Nx import edge.
 The be-01 test target declares scoped Dash runs/bridge/agents inputs actually consumed by
 the child, preserving default inputs without introducing a production app dependency.

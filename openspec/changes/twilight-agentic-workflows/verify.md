@@ -3142,3 +3142,73 @@ Independent task review found I1: four older hooks/finally owners could still de
 Eight final I1 trials each observed0/1/0: bypass each actual hook/direct finally (four trials), remove the deletion barrier, skip a peer provider, skip a real raw probe, and drop the original work cause. Each emits a named STORE-DIRECTORY-I1 AssertionError and restores exact bytes/modes across12343identities. An earlier generation of the same eight trials is retained separately; it does not add eight unique checks. Original nine-trial archives remain unchanged. All55protected files, seven lifecycle interfaces, mutable adapter executable prefixes, and51unamended reviewed sources remain exact. Final seven fix-source ASTs match restored proof code except comments. Two failed audit-normalizer preparations are preserved and uncredited; the corrected parser and raw-log audit passed.
 
 The initial task review plus I1-only rereview now approve the complete source unit with no unresolved Critical/Important finding; the inherited color warning is deferred. Reports and immutable proof/audit receipts remain in .superpowers/sdd/provider-lifecycle-tasks. The source audit and rereview did not rerun valid broad suites. Source is ready for a normal checkpoint, not aggregate publication acceptance. Step6, root format --all/OpenSpec checks, integration with the runtime repair, broad candidate review, exact-SHA canonical gate, PRCI and actual-merge CI remain required. Runtime candidateb47's canonical host gate and CI failed on separate BE-policy/fixture issues and cannot certify this source. Full S0/S7a, second-provider conformance/transfer, other executors, supported recovery, heartbeat/business-attempt mapping and production activation remain open.
+
+## Runtime CI repair and combined lifecycle candidate — 2026-10-27
+
+Lifecycle source was normally committed and pushed as3fe837fddc94803d7bdc34812877513e23d7edc5.
+Normal hooks passed with all65 source/metadata identities preserved. Runtime then advanced
+to that checkpoint and normally merged main e3a973a into0422f4f4a13ea649db42cfe5d67ec32accab6b9b.
+The complete12352-entry blob/mode/type union was checked:94 feature paths and50 incoming
+paths, with no overlap. Lifecycle Step6 remains open for aggregate publication acceptance.
+
+Old runtime b47's canonical h4 gate failed after the workspace phase passed: Twilight
+reported2541passes/3failures at stale BE test-input policy facts. PRCI40506676073 also
+failed those three cases and one held whole-integration preparation deadline. Its actual
+synthetic checkout was c8739d3e69f660744b95d914732a624896bcb8b9. A normal integration in
+that same CI took8342ms, exceeding the prior8000ms marker-preparation allowance. The exact
+failed child's internal phase remains unknown; neither old gate is accepted.
+
+The fixture repair gives held whole-integration roles a separate preparation allowance
+within the documented finite cleanup envelope. Ordinary budgets and the semantic disposal
+hold stay unchanged. A real child delayed8100ms before actual integration failed the old
+preparation limit and passes the repair. A real missing-marker child reaches a named finite
+deadline, is joined, and leaves no owned fixture storage. Child output is fully drained,
+sanitized and attached without losing the original primary or cleanup causes.
+
+Root then found CIR-I1: assigning to a standard readonly DOMException.message can replace
+the original health timeout with TypeError. A pre-aborted real held-listener health fetch
+produced the named readonly-cause RED. The parent now wraps child context with the original
+failure object as cause. The missing-marker regression inspects that preserved cause.
+Final exact BE source SHA256 bdab2ffa6962626890d6d418d44b1692ad1b3858c92b75347d07dcc3d3a44e2f
+passed11cases/0failures in79.16s with
+`bun test ./apps/wbs/be-01/src/runtime-dispatch.boot.db.test.ts --timeout=45000`.
+
+The full relationship declaration adds exactly the five existing BE test-input declarations;
+bootstrap, authority guards and production policy remain unchanged. The committed-fact
+comparison first failed the actual five-input mismatch, then passed2cases/24assertions.
+The production pilot happy/stale/bootstrap controls passed3cases/81assertions before faults;
+after exact policy restoration, one production happy case passed60assertions. Those suites
+overlap and are not summed. Initial repair BE verification passed10cases before CIR-I1;
+the final11-case run supersedes it for the amended fixture.
+
+Eight initial repair negatives cover late acquisition, disposal race, malformed trace,
+two premature-storage deletions, discarded context, fast BE fact mismatch and production
+BE authority mismatch. Actual named parent assertions or rendered policy diagnostics were
+inspected; sources restored exact bytes/modes. The cause-wrapper fix reproved the affected
+late-acquisition/disposal/trace/context paths and added a missing-cause fault: five credited
+negatives. Unchanged deletion and policy paths were not replayed. These campaigns use
+shared healthy controls, not invented per-trial positive runs; repeated cases are not new
+independent guards. The original source-context C8 remains rejected.
+
+Fresh54-node graphs backed uncached BE lint/typecheck/module checks, Burokrat typecheck
+and separate actual Burokrat source lint. External activation lint reported inactive and
+does not certify source. Touched formatting and diff checks passed. Root checked all12348
+unowned source blobs/modes against0422; production lifecycle, SQL, planner, auth and other
+guards remain unchanged. Root's first fix audit incorrectly expected the final test AST to
+equal the earlier proof baseline; the retained diff shows the later missing-marker cause
+matcher. The corrected audit permits only that known test change and proof comments, and
+the final11-case run covers it.
+
+Retained failures include initial sandbox/missing-activation setup, import sorting, a
+first complete fix suite10pass/1fail from the obsolete outer-message matcher, initial
+formatting, an uncredited first N1 trial and a proof-helper path mistake whose originals
+were preserved. An early zero-test filter output was overwritten and stays lost/uncredited.
+All other raw streams, exact source restorations, root audits and scoped reports remain
+under .superpowers/sdd/runtime-dispatch-tasks/ci-repair-1*; no historical evidence is relabeled.
+
+Initial repair source review approved the four-file unit; CIR-I1 scoped rereview marks
+the finding addressed with spec and quality Approved and no Critical/Important findings.
+New whole-candidate review, canonical exact-SHA host gate, PRCI, protected main merge and
+actual-merge CI remain required. Full S0/S7a, business-attempt/budget mapping, exact outcomes
+and releases, heartbeat, supported recovery and other providers/adapters remain open.
+No production deployment, new engine selection or storage-format migration is claimed.

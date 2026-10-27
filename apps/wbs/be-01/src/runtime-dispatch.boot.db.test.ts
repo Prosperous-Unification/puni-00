@@ -3,6 +3,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -467,7 +468,9 @@ type ContainedRole =
   | 'integration'
   | 'integration-readiness'
   | 'integration-disposal'
+  | 'integration-disposal-delayed'
   | 'readiness'
+  | 'readiness-unreported'
   | 'disposal'
   | 'forced-disposal'
   | 'dual-failure';
@@ -487,7 +490,9 @@ function readContainedConfig(path: string): ContainedConfig {
       (configured.role === 'integration' ||
         configured.role === 'integration-readiness' ||
         configured.role === 'integration-disposal' ||
+        configured.role === 'integration-disposal-delayed' ||
         configured.role === 'readiness' ||
+        configured.role === 'readiness-unreported' ||
         configured.role === 'disposal' ||
         configured.role === 'forced-disposal' ||
         configured.role === 'dual-failure') &&
@@ -532,8 +537,9 @@ async function waitForHeldTrace(
   path: string,
   stage: HeldTrace['stage'],
   child: Bun.Subprocess<'ignore', 'pipe', 'pipe'>,
+  milliseconds: number,
 ): Promise<HeldTrace> {
-  const deadline = performance.now() + 8000;
+  const deadline = performance.now() + milliseconds;
   while (performance.now() < deadline) {
     if (existsSync(path)) {
       const observed = readHeldTrace(path);
@@ -542,6 +548,8 @@ async function waitForHeldTrace(
     if (child.exitCode !== null) throw new Error('contained receiver exited before ' + stage);
     await Bun.sleep(10);
   }
+  // Proof: the real delayed integration marker exceeded the old 8000 ms entry budget and
+  // emitted this named preparation error; 22000 ms then passed the held ownership checks.
   throw new Error('contained receiver phase expired: ' + stage);
 }
 
@@ -597,9 +605,25 @@ interface ContainedObservation {
   held?: HeldTrace;
   signaled?: HeldTrace;
   rootRemoved: boolean;
+  preparationMilliseconds?: number;
 }
 
-async function runContainedReceiver(role: ContainedRole): Promise<ContainedObservation> {
+/**
+ * Held integration may spend 22000 ms preparing before its marker. The parent envelope is
+ * 22000 + 500 health + 8500 held + 150 exit + 750 graceful + 2000 forced + 1500 group join
+ * + 2000 stdout + 2000 stderr = 39400 ms. Its child has 40000 ms and parent 45000 ms;
+ * ordinary marker acquisition remains 8000 ms and complete integration remains 22000 ms.
+ */
+async function runContainedReceiver(
+  role: ContainedRole,
+  expectedStage?: HeldTrace['stage'],
+  healthSignal?: AbortSignal,
+): Promise<ContainedObservation> {
+  const heldIntegration =
+    role === 'integration-readiness' ||
+    role === 'integration-disposal' ||
+    role === 'integration-disposal-delayed';
+  const preparationMilliseconds = heldIntegration ? 22000 : 8000;
   const fixtureRoot = mkdtempSync(join(tmpdir(), 'runtime-dispatch-owned-'));
   const root = join(fixtureRoot, 'runtime');
   const markerDirectory = join(fixtureRoot, 'markers');
@@ -613,7 +637,14 @@ async function runContainedReceiver(role: ContainedRole): Promise<ContainedObser
     mkdirSync(markerDirectory, { mode: 0o700 });
     writeFileSync(configPath, JSON.stringify({ role, tracePath }), { mode: 0o600 });
     child = Bun.spawn(
-      [process.execPath, 'test', import.meta.path, '-t', 'contained ' + role, '--timeout=30000'],
+      [
+        process.execPath,
+        'test',
+        import.meta.path,
+        '-t',
+        'contained ' + role,
+        '--timeout=' + String(heldIntegration ? 40000 : 30000),
+      ],
       {
         cwd: resolve(import.meta.dir, '../../../..'),
         env: { ...process.env, TMPDIR: root, PUNI_RUNTIME_DISPATCH_CHILD_CONFIG: configPath },
@@ -642,33 +673,47 @@ async function runContainedReceiver(role: ContainedRole): Promise<ContainedObser
   let primaryFailed = false;
   let primaryFailure: unknown;
   let held: HeldTrace | undefined;
+  let observedPreparationMilliseconds: number | undefined;
   let exitCode: number | undefined;
   try {
     if (
       role === 'readiness' ||
+      role === 'readiness-unreported' ||
       role === 'disposal' ||
       role === 'forced-disposal' ||
       role === 'integration-readiness' ||
-      role === 'integration-disposal'
+      role === 'integration-disposal' ||
+      role === 'integration-disposal-delayed' ||
+      expectedStage !== undefined
     ) {
+      const preparationStarted = performance.now();
       held = await waitForHeldTrace(
         tracePath,
-        role === 'readiness' || role === 'integration-readiness'
-          ? 'readiness-held'
-          : 'disposal-held',
+        expectedStage ??
+          (role === 'readiness' ||
+          role === 'readiness-unreported' ||
+          role === 'integration-readiness'
+            ? 'readiness-held'
+            : 'disposal-held'),
         child,
+        preparationMilliseconds,
       );
+      observedPreparationMilliseconds = performance.now() - preparationStarted;
       assert.equal(held.dbPresent, true, 'actual held receiver must own its SQLite file');
       if (role === 'readiness' || role === 'integration-readiness')
         assert.equal(held.port, undefined, 'listener started before readiness');
       if (role !== 'readiness' && role !== 'integration-readiness') {
         assert(held.port !== undefined && held.port > 0, 'actual held receiver port missing');
         const health = await fetch('http://127.0.0.1:' + String(held.port) + '/health', {
-          signal: AbortSignal.timeout(500),
+          signal: healthSignal ?? AbortSignal.timeout(500),
         });
         assert.equal(health.status, 200, 'held stop must leave the actual listener active');
       }
-      if (role === 'integration-readiness' || role === 'integration-disposal') {
+      if (
+        role === 'integration-readiness' ||
+        role === 'integration-disposal' ||
+        role === 'integration-disposal-delayed'
+      ) {
         await Bun.sleep(8500);
         assert.equal(
           existsSync(held.dbPath),
@@ -729,6 +774,16 @@ async function runContainedReceiver(role: ContainedRole): Promise<ContainedObser
       cleanupFailures.push(cause);
     }
   }
+  if (primaryFailed && childOutput !== '') {
+    // Proof: N1 discarded this sanitized context; the real dual-failure child made the
+    // parent test emit "sanitized child output missing from primary failure".
+    // Proof: R1 dropped `cause`; the real held-listener health fetch rejected with a readonly
+    // TimeoutError and the parent emitted "readonly health cause was replaced".
+    const context = '\ncontained child output (sanitized):\n' + childOutput;
+    primaryFailure = new Error('contained receiver primary failure' + context, {
+      cause: primaryFailure,
+    });
+  }
   if (cleanupFailures.length > 0)
     throw new AggregateError(
       primaryFailed ? [primaryFailure, ...cleanupFailures] : cleanupFailures,
@@ -742,6 +797,7 @@ async function runContainedReceiver(role: ContainedRole): Promise<ContainedObser
     held,
     signaled,
     rootRemoved: !existsSync(fixtureRoot),
+    preparationMilliseconds: observedPreparationMilliseconds,
   };
 }
 
@@ -809,9 +865,79 @@ if (childConfigPath === undefined) {
         );
         assert.equal(observed.rootRemoved, true);
       },
-      20000,
+      45000,
     );
   }
+  test('retains delayed real integration disposal after more than eight seconds of preparation', async () => {
+    const observed = await runContainedReceiver('integration-disposal-delayed');
+    assert(
+      (observed.preparationMilliseconds ?? 0) > 8000,
+      'real marker appeared within old preparation allowance',
+    );
+    assert.equal(observed.held?.stage, 'disposal-held');
+    assert.equal(observed.signaled?.stage, 'signal');
+    assert.equal(
+      observed.signaled.dbPresent,
+      true,
+      'integration removed DB before actual acquisition/disposal',
+    );
+    assert.equal(observed.rootRemoved, true);
+  }, 45000);
+  test('missing real readiness marker has a named finite deadline and joins its owned child', async () => {
+    // Proof: the child writes its actual readiness marker to the sibling unreported path;
+    // the parent observes the named 8000 ms deadline and no owned directory survives.
+    const before = readdirSync(tmpdir())
+      .filter((name) => name.startsWith('runtime-dispatch-owned-'))
+      .sort();
+    await assert.rejects(runContainedReceiver('readiness-unreported'), (failure: unknown) => {
+      assert(failure instanceof Error);
+      assert(failure.cause instanceof Error, 'missing marker cause not preserved');
+      assert.match(failure.cause.message, /contained receiver phase expired: readiness-held/);
+      assert.match(failure.message, /contained child output \(sanitized\)/);
+      return true;
+    });
+    const after = readdirSync(tmpdir())
+      .filter((name) => name.startsWith('runtime-dispatch-owned-'))
+      .sort();
+    assert.deepEqual(after, before, 'owned receiver storage survived marker timeout');
+  }, 15000);
+  test('failed real child retains both sanitized causes beside its parent phase failure', async () => {
+    await assert.rejects(
+      runContainedReceiver('dual-failure', 'disposal-held'),
+      (failure: unknown) => {
+        assert(failure instanceof Error);
+        assert.match(
+          failure.message,
+          /contained child output \(sanitized\)/,
+          'sanitized child output missing from primary failure',
+        );
+        assert(failure.cause instanceof Error);
+        assert.match(failure.cause.message, /contained receiver exited before disposal-held/);
+        assert.match(failure.message, /injected receiver original failure/);
+        assert.match(failure.message, /injected receiver cleanup failure/);
+        return true;
+      },
+    );
+  }, 35000);
+  test('readonly health failure preserves its original cause after actual child cleanup', async () => {
+    const healthFailure = new DOMException('injected health deadline', 'TimeoutError');
+    const before = readdirSync(tmpdir())
+      .filter((name) => name.startsWith('runtime-dispatch-owned-'))
+      .sort();
+    await assert.rejects(
+      runContainedReceiver('disposal', undefined, AbortSignal.abort(healthFailure)),
+      (failure: unknown) => {
+        assert(failure instanceof Error);
+        assert.equal(failure.cause, healthFailure, 'readonly health cause was replaced');
+        assert.match(failure.message, /contained child output \(sanitized\)/);
+        return true;
+      },
+    );
+    const after = readdirSync(tmpdir())
+      .filter((name) => name.startsWith('runtime-dispatch-owned-'))
+      .sort();
+    assert.deepEqual(after, before, 'owned receiver storage survived readonly health failure');
+  }, 15000);
   test('retains original and real receiver cleanup failures', async () => {
     const observed = await runContainedReceiver('dual-failure');
     assert.notEqual(observed.exitCode, 0, 'faulted child unexpectedly passed');
@@ -834,12 +960,23 @@ if (childConfigPath === undefined) {
     test(
       'contained integration-readiness',
       () => runIntegration('held-readiness', configured.tracePath),
-      30000,
+      40000,
     );
   } else if (role === 'integration-disposal') {
     test(
       'contained integration-disposal',
       () => runIntegration('held-disposal', configured.tracePath),
+      40000,
+    );
+  } else if (role === 'integration-disposal-delayed') {
+    test('contained integration-disposal-delayed', async () => {
+      await Bun.sleep(8100);
+      await runIntegration('held-disposal', configured.tracePath);
+    }, 40000);
+  } else if (role === 'readiness-unreported') {
+    test(
+      'contained readiness-unreported',
+      () => runHeldReceiver('readiness', join(dirname(configured.tracePath), 'unreported.json')),
       30000,
     );
   } else {
