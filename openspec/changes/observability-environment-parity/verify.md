@@ -2185,3 +2185,32 @@ Each changed check has an adjacent `Proof:` comment naming these faults. Per-fau
 - `statics.log`: `e2684cf448e1163cf1e04dc14df100457e2ac34eae87e44da27079e311c93928`.
 
 Not run: full Nx/build/host gates, unchanged graph/chart/public-entry rendering, old proof matrices, any Kubernetes/Docker/runtime/store/host/credential actions, push/merge or deployment. Those are outside this bounded source slice; the parent owns existing CI and exact held publication independently of this HEAD. Full floors/stores, capacity admission, runtime/history/recovery/views/live acceptance and separate authorization boundaries remain open. Source is stopped for parent-owned scoped review.
+
+### Task25c3a fix1 — validate recognized volume modes before incomplete classification
+
+Addresses only Important I1 from exact clean FIXBASE `5cf736deecc691bc1e0c832edd110c62d34b9673`. Source commit: `ea7ec631fe356d2fbf7b0a4c05697dd8f29bd8a0`. The broad prepass now applies the existing integer-0..511 `FileMode` contract to projected/configMap/secret defaults and standalone configMap/secret item modes before unsupported-policy or absent-bound classification. Projected item modes already use `FileMode` through the existing schema; standalone downwardAPI uses its existing metadata reader. Selected/cutover schemas, valid normalization, source values and pins are unchanged. The production change is ten lines in `assertInventoryWorkload`; no extraction or metadata framework was needed.
+
+Production-entry RED reproduced all five missing surfaces with -1, 0.5 and 512 behind both unsupported policy and absent bounds, plus malformed supported lifecycle cases: **2 pass / 35 fail, 41 assertions, 0.832s**, with valid 0/511 already passing. GREEN was **37 pass / 0 fail, 0.755s**. Six new watched faults covered bypassing the mode guard and independently omitting each of its five default/item inputs. Guard bypass produced 35 failed negatives; each field omission produced its seven expected failed negatives. All exited 1 and source was restored in `finally`; proof input/restoration SHA-256 matched. Fault process time totaled 4.037s. The adjacent Proof comment identifies these observed failures.
+
+Exact commands (tests from `tools/tool-fleet`, statics from the repository root):
+
+```bash
+bun test --preload ../test/scratch/preload.ts src/observability-native-ordinal.test.ts -t 'fix1'
+python3 /tmp/puni-task25c3a-fix1/prove.py
+bun test --preload ../test/scratch/preload.ts src/observability-preflight.test.ts -t 'fix2 (explicit standard file modes|explicit projected .* file modes|(source|observed) projected file mode)'
+bun test --preload ../test/scratch/preload.ts src/observability-workload.test.ts -t 'default model has no source evidence|closed observed schema|source metadata (default mode|invalid default mode|invalid item mode|noninteger mode)'
+bunx eslint tools/tool-fleet/src/observability-workload.ts tools/tool-fleet/src/observability-native-ordinal.test.ts
+bunx tsc --project tools/tool-fleet/tsconfig.lib.json --noEmit --incremental false
+bunx tsc --project tools/tool-fleet/tsconfig.spec.json --noEmit --incremental false
+bunx prettier --check tools/tool-fleet/src/observability-workload.ts tools/tool-fleet/src/observability-native-ordinal.test.ts
+git diff --check
+bun test /tmp/puni-task25c3a-fix1/retained.test.ts
+```
+
+Fresh restored I1 tests passed **37/37, 41 assertions, 0.785s**; selected strict projected-mode controls **8/8, 23 assertions, 5.22s**; selected default-model/closed-observed/metadata-mode controls **6/6, six assertions, 0.196s**. Scoped lint/source typecheck/test typecheck/format/whitespace all exited 0 in 3.757s/1.091s/1.177s/0.378s/0.009s. Normal source hooks passed in 3.71s; Tool Wiki remained explicitly inactive/unprovisioned, not certified.
+
+One new retained-source control passed **1/1, 20 assertions, 3.98s** using **clean current adapter `ea7ec631fe356d2fbf7b0a4c05697dd8f29bd8a0`** and unchanged **captured source `5bd1104bf76e0a36c5d34ddcc2a4ba6f4b4e6b57`**. It rechecked the original three capture hashes/modes and selected toolchain bytes, production frame closure, exact source-inventory equality and unrelated obligations. Five Pod/four claim charges still total 3584MiB memory, 500m CPU requests and 8448MiB known disk; 100 blockers, all 80 source unresolved facts and false creation/runtime authority remain. No graph/chart/public-entry rerender occurred. Original evidence files were preserved; this receipt is `/tmp/puni-task25c3a-fix1/retained-ledger.json`.
+
+Evidence under `/tmp/puni-task25c3a-fix1/`: `red.log`, `green.log`, `restored.log`, `strict.log`, `workload.log`, `statics.log`, `proofs.json`, six `fault-*.log`, `retained.test.ts`, `retained.log`, `retained-ledger.json` and `source-identities.json`. Committed source hashes: workload `792d92c1324009ac2f6f60aab43130cbd8eecf4ce80932dc922e0d46def19d28`; test `7a1ceb465c28d99aeb7e37ee9cddb665f650e155138842190c8530daf1eb4924`. Proof receipt SHA-256 `d734adbd451509929497304033808201209f56e45a7e8a3055a0bb7bdf27a810`; retained control SHA-256 `790d0b66bce57fe46a829b1f354d49f5337b90bdfc3a525364caad0062a9c33a`; retained ledger SHA-256 `22c9a64ce9806fb1ff8985deffd1239077a87a3a20bca6ae73cb7e8106059fee`.
+
+The historical 45-fault/167-test batches, full suites/build/host gates and unchanged rendering were not replayed. No new families, source values/pins, credentials, CI, runtime/host/store actions, push/merge or deployment. Full source/admission/runtime/live limits remain as above. Source stopped for parent-owned I1 re-review.
