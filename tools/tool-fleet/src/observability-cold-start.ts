@@ -12,7 +12,16 @@ import {
   readMemoryMiB,
   sumCapacity,
 } from './observability-capacity';
+import {
+  deriveSelectedCapacityInputs,
+  type deriveSelectedCapacityTraits,
+} from './observability-generated-capacity';
 import { createObservabilitySource } from './observability-source';
+import {
+  type ColdStartFrame,
+  type ColdStartInventory,
+  readColdStartSource,
+} from './observability-source-inventory';
 import {
   assertRenderedObservabilitySource,
   indexObservabilitySource,
@@ -20,17 +29,7 @@ import {
 } from './observability-source-render';
 import { NativeWorkloadSpec, normalizeWorkload } from './observability-workload';
 
-/** Immutable rendered bytes. These are source evidence, never observed Pods or admission authority. */
-export interface ColdStartFrame {
-  readonly owner: string;
-  readonly bytes: string;
-}
-/** Expected unfiltered resource closure from the independently validated render contract. */
-export interface ColdStartInventory {
-  readonly owner: string;
-  readonly sha256: string;
-  readonly resources: readonly string[];
-}
+export type { ColdStartFrame, ColdStartInventory } from './observability-source-inventory';
 interface TopologyFrame {
   readonly bytes: string;
   readonly sha256: string;
@@ -153,20 +152,19 @@ export function deriveColdStartCosts(
   inventory: readonly ColdStartInventory[],
   topology: TopologyFrame,
 ) {
+  // Proof: Task25b2 native-source-boundary bypass admitted changed source bytes; the native bound-hash negative failed.
+  return deriveNativeCosts(readColdStartSource(frames, inventory), topology);
+}
+function deriveNativeCosts(
+  validated: ReturnType<typeof readColdStartSource>,
+  topology: TopologyFrame,
+) {
+  const { indexed, inventory } = validated;
   const entries: NativeCharge[] = [];
   const blockers: Blocker[] = [];
   const missing = (owner: string, missingFact: string) => {
     blockers.push({ owner, missingFact });
   };
-  const owners = frames.map((frame) => frame.owner).sort();
-  // Proof: Task25a source-owner-closure removal failed missing/duplicate/empty source-inventory negatives.
-  if (
-    inventory.length === 0 ||
-    new Set(owners).size !== owners.length ||
-    new Set(inventory.map((frame) => frame.owner)).size !== inventory.length ||
-    !isDeepStrictEqual(owners, inventory.map((frame) => frame.owner).sort())
-  )
-    refuse('source-owner-closure');
   // Proof: Task25a topology-hash removal failed changed topology hash refusal.
   if (hash(topology.bytes) !== topology.sha256) refuse('topology-hash');
   const parsedTopology = parseDocument(topology.bytes);
@@ -186,24 +184,6 @@ export function deriveColdStartCosts(
     // Proof: Task25a topology-label-duplicate removal admitted a repeated label.
     if (Object.hasOwn(labels, key)) refuse('topology-label-duplicate');
     labels[key] = label.label.slice(delimiter + 1);
-  }
-  const rendered: Record<string, string> = {};
-  for (const frame of frames) {
-    const expected = inventory.find((expected) => expected.owner === frame.owner);
-    // Proof: Task25a source-hash removal admitted changed immutable source bytes.
-    if (hash(frame.bytes) !== expected?.sha256) refuse('source-hash');
-    rendered[frame.owner] = frame.bytes;
-  }
-  const indexed = indexObservabilitySource(rendered);
-  for (const expected of inventory) {
-    // Proof: Task25a resource-closure removal admitted omitted/wrong-name/wrong-namespace owners.
-    if (
-      !isDeepStrictEqual(
-        Object.keys(indexed[expected.owner]).sort(),
-        [...expected.resources].sort(),
-      )
-    )
-      refuse('source-resource-closure');
   }
   const claims = new Map<
     string,
@@ -452,7 +432,8 @@ export function deriveColdStartCosts(
 
 /** Regenerate and validate every selected source owner before deriving its native subset.
  * This read-only production entry binds the full unfiltered render and authored one-server topology.
- * It does not cover platform/system, generated operator Pods, host or transient demand, or admit creation.
+ * Selected generated traits retain unresolved operator overlap, readonly-input/runtime overhead and enforcement.
+ * It does not certify effective Pods, platform/system, host or transient demand, or admit creation.
  */
 export async function deriveObservabilityColdStartCosts(
   root: string,
@@ -472,5 +453,52 @@ export async function deriveObservabilityColdStartCosts(
     resources: Object.keys(indexed[frame.owner]).sort(),
   }));
   const bytes = await readFile(join(root, 'infra/local/platform.k3d.yaml'), 'utf8');
-  return deriveColdStartCosts(frames, inventory, { bytes, sha256: hash(bytes) });
+  const lockBytes = await readFile(join(root, 'infra/versions/toolchain.json'), 'utf8');
+  const validated = readColdStartSource(frames, inventory);
+  const native = deriveNativeCosts(validated, { bytes, sha256: hash(bytes) });
+  return combineObservabilityColdStartCosts(
+    native,
+    deriveSelectedCapacityInputs(source, validated, { bytes: lockBytes, sha256: hash(lockBytes) }),
+  );
+}
+
+/** Replace only successfully processed source-owner kind blockers with concrete unresolved trait prerequisites.
+ * Native entries and known totals stay exact; selected per-replica traits never become attempt charges.
+ */
+export function combineObservabilityColdStartCosts(
+  native: ReturnType<typeof deriveColdStartCosts>,
+  generatedTraits: ReturnType<typeof deriveSelectedCapacityTraits>,
+) {
+  const blockers = native.blockers.flatMap((blocker) => {
+    // Proof: Task25b2 exact-blocker-owner removal replaced a foreign same-kind owner; concrete-replacement-facts removal erased unresolved prerequisites.
+    const trait = generatedTraits.find(
+      (trait) =>
+        trait.identity === blocker.owner &&
+        blocker.missingFact === `unsupported-runnable-kind:${trait.kind}`,
+    );
+    return trait === undefined
+      ? [blocker]
+      : trait.missingFacts.map((missingFact) => ({ owner: trait.identity, missingFact }));
+  });
+  return {
+    // Proof: Task25b2 native-charge-preservation and no-nominal-generated-charge faults lost nonzero native costs or appended nominal generated charges.
+    ...native,
+    scope: 'native-cold-create-and-selected-generated-traits' as const,
+    state: 'incomplete' as const,
+    generatedTraits,
+    blockers,
+    closureSHA256: hash(
+      JSON.stringify({
+        native: native.closureSHA256,
+        // Proof: Task25b2 combined-provider/runtime/derivation-closure removals each lost the corresponding changed-identity receipt.
+        generated: generatedTraits.map((trait) => ({
+          identity: trait.identity,
+          source: trait.source,
+          provider: trait.provider,
+          runtime: trait.runtime,
+          derivation: trait.derivation,
+        })),
+      }),
+    ),
+  };
 }

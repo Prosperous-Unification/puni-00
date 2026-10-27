@@ -806,14 +806,48 @@ test('validated full rendered source exposes native subset without certifying re
   expect(ledger.state).toBe('incomplete');
   expect(ledger.creationAuthority).toBe(false);
   expect(ledger.provenance.flatMap((frame) => frame.resources)).toHaveLength(191);
+  expect(ledger.generatedTraits).toHaveLength(8);
+  expect(ledger.scope).toBe('native-cold-create-and-selected-generated-traits');
   expect(ledger.blockers).toContainEqual({
     owner: 'Elasticsearch:observability:elasticsearch',
-    missingFact: 'unsupported-runnable-kind:Elasticsearch',
+    missingFact: 'operator-reconciliation-and-terminating-overlap',
   });
   expect(ledger.blockers).toContainEqual({
     owner: 'Elasticsearch:observability-dev:elasticsearch',
-    missingFact: 'unsupported-runnable-kind:Elasticsearch',
+    missingFact: 'generated-readonly-input-memory-overhead',
   });
+  expect(
+    ledger.blockers.some(
+      (blocker) => blocker.missingFact === 'unsupported-runnable-kind:Elasticsearch',
+    ),
+  ).toBe(false);
+  expect(
+    ledger.entries.some((entry) =>
+      ledger.generatedTraits.some((trait) => trait.identity === entry.owner),
+    ),
+  ).toBe(false);
+  expect(ledger.excludedContributors).toContain('system/runtime');
+  expect(ledger.knownContributions).toEqual({ memoryMiB: 0, cpuMilli: 0, diskMiB: 0 });
+  expect(ledger.entries).toHaveLength(0);
+  expect(ledger.blockers).toContainEqual({
+    owner: 'StatefulSet:observability:elastic-operator',
+    missingFact: 'surge-and-terminating-overlap',
+  });
+  expect(ledger.blockers).toContainEqual({
+    owner: 'DaemonSet:observability:otel-collector-agent',
+    missingFact: 'workload-volume-unsupported',
+  });
+  expect(
+    ledger.generatedTraits.find(
+      (trait) => trait.identity === 'Elasticsearch:observability:elasticsearch',
+    )?.claims[0].requestedMiB,
+  ).toBe(102400);
+  expect(
+    ledger.generatedTraits.map((trait) => ({
+      state: trait.state,
+      effectivePodObserved: trait.effectivePodObserved,
+    })),
+  ).toEqual(Array.from({ length: 8 }, () => ({ state: 'partial', effectivePodObserved: false })));
   expect(
     assessObservabilityRehearsalAdmission({ availableMemoryMiB: 1000000, freeDiskMiB: 1000000 })
       .admitted,

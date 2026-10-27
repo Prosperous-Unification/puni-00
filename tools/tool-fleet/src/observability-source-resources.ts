@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from 'node:util';
 
 import { type } from 'arktype';
-import { isNode, parseDocument, stringify } from 'yaml';
+import { parseDocument } from 'yaml';
 
 import type { ObservabilitySource } from './observability-source';
 import type { ObservabilitySourceIndex } from './observability-source-render';
@@ -22,28 +22,50 @@ const Bounds = type({
 const Resources = type({ requests: Bounds, limits: Bounds, '+': 'reject' });
 const Containers = type({ name: 'string', resources: Resources }).array();
 const Volumes = type({ name: 'string', 'emptyDir?': { sizeLimit: Quantity } }).array();
-function readPath(manifest: unknown, path: (string | number)[]): unknown {
-  const node = parseDocument(stringify(manifest)).getIn(path);
-  return isNode(node) ? node.toJSON() : node;
+/** Named source overrides follow the supported provider sequence; conditional realization remains an adapter prerequisite. */
+export interface SelectedRole {
+  readonly owner: string;
+  readonly identity: string;
+  readonly kind: 'Elasticsearch' | 'Kibana' | 'Prometheus' | 'Alertmanager';
+  readonly namespace: string;
+  readonly manifest: Record<string, unknown>;
+  readonly pod: unknown;
+  readonly podPointer: string;
+  readonly containers: typeof Containers.infer;
+  readonly initContainers: typeof Containers.infer;
 }
-function requireSelected(condition: boolean): void {
+function readPath(manifest: unknown, path: (string | number)[]): unknown {
+  let value = manifest;
+  for (const segment of path) {
+    if (Array.isArray(value) && typeof segment === 'number') value = value[segment];
+    else {
+      const record = type('Record<string,unknown>')(value);
+      if (record instanceof type.errors) return undefined;
+      value = record[segment];
+    }
+  }
+  return value;
+}
+function requireSelected(condition: boolean): asserts condition {
   if (!condition) throw new Error('Observability source selected resource contract differs');
 }
-function requireContainers(input: unknown, names: string[]): void {
+function requireContainers(input: unknown, names: string[]) {
   const containers = Containers(input);
   // Proof: bypassing map decoding admitted missing Kibana init resources; its selected source negative failed.
-  requireSelected(!(containers instanceof type.errors));
-  if (containers instanceof type.errors) return;
+  if (containers instanceof type.errors)
+    throw new Error('Observability source selected resource contract differs');
   // Proof: removing role equality admitted the missing Kibana init role; its selected source negative failed.
   requireSelected(
     isDeepStrictEqual(containers.map((container) => container.name).sort(), names.toSorted()),
   );
+  const byName = Object.fromEntries(containers.map((container) => [container.name, container]));
+  // Proof: Task25b2 supported-init-order reversal failed the provider sequence assertion.
+  return names.map((name) => byName[name]);
 }
 function requireScratch(input: unknown, names: string[]): void {
   const volumes = Volumes(input);
   // Proof: bypassing scratch decoding admitted a zero Kibana emptyDir limit; its selected scratch negative failed.
   requireSelected(!(volumes instanceof type.errors));
-  if (volumes instanceof type.errors) return;
   // Proof: removing scratch identity equality admitted missing Kibana scratch; its selected scratch negative failed.
   requireSelected(
     isDeepStrictEqual(
@@ -60,10 +82,11 @@ function requireScratch(input: unknown, names: string[]): void {
  * Throws when selected role maps, scratch, provider pins or shared reloader flags differ.
  * ECK named overrides preserve default commands/mounts; Prometheus extra volumes append rather than replace generated config-out.
  */
-export function assertObservabilitySelectedResources(
+export function readObservabilitySelectedResources(
   source: ObservabilitySource,
   indexed: ObservabilitySourceIndex,
-): void {
+) {
+  const roles: SelectedRole[] = [];
   for (const [owner, version] of [
     ['observability/eck-operator', '3.5.0'],
     ['observability/prometheus-controller', '91.4.1'],
@@ -80,12 +103,12 @@ export function assertObservabilitySelectedResources(
     const namespace = instance.namespace;
     const es = indexed[`${namespace}/elasticsearch`][`Elasticsearch:${namespace}:elasticsearch`];
     const pod = ['spec', 'nodeSets', 0, 'podTemplate', 'spec'];
-    requireContainers(readPath(es, [...pod, 'containers']), ['elasticsearch']);
-    requireContainers(readPath(es, [...pod, 'initContainers']), [
-      'prepare-s3-trust',
+    const esContainers = requireContainers(readPath(es, [...pod, 'containers']), ['elasticsearch']);
+    const esInits = requireContainers(readPath(es, [...pod, 'initContainers']), [
       'elastic-internal-init-filesystem',
       'elastic-internal-init-keystore',
       'elastic-internal-suspend',
+      'prepare-s3-trust',
     ]);
     requireScratch(readPath(es, [...pod, 'volumes']), [
       's3-trust',
@@ -95,11 +118,26 @@ export function assertObservabilitySelectedResources(
       'elasticsearch-logs',
       'tmp-volume',
     ]);
+    roles.push({
+      owner: `${namespace}/elasticsearch`,
+      identity: `Elasticsearch:${namespace}:elasticsearch`,
+      kind: 'Elasticsearch',
+      namespace,
+      manifest: es,
+      pod: readPath(es, pod),
+      podPointer: '/spec/nodeSets/0/podTemplate/spec',
+      containers: esContainers,
+      initContainers: esInits,
+    });
     const kibana = indexed[`${namespace}/kibana`][`Kibana:${namespace}:kibana`];
-    requireContainers(readPath(kibana, ['spec', 'podTemplate', 'spec', 'containers']), ['kibana']);
-    requireContainers(readPath(kibana, ['spec', 'podTemplate', 'spec', 'initContainers']), [
-      'elastic-internal-init',
-    ]);
+    const kibanaContainers = requireContainers(
+      readPath(kibana, ['spec', 'podTemplate', 'spec', 'containers']),
+      ['kibana'],
+    );
+    const kibanaInits = requireContainers(
+      readPath(kibana, ['spec', 'podTemplate', 'spec', 'initContainers']),
+      ['elastic-internal-init'],
+    );
     requireScratch(readPath(kibana, ['spec', 'podTemplate', 'spec', 'volumes']), [
       'kibana-data',
       'kibana-plugins',
@@ -107,15 +145,42 @@ export function assertObservabilitySelectedResources(
       'kibana-logs',
       'temp-volume',
     ]);
+    roles.push({
+      owner: `${namespace}/kibana`,
+      identity: `Kibana:${namespace}:kibana`,
+      kind: 'Kibana',
+      namespace,
+      manifest: kibana,
+      pod: readPath(kibana, ['spec', 'podTemplate', 'spec']),
+      podPointer: '/spec/podTemplate/spec',
+      containers: kibanaContainers,
+      initContainers: kibanaInits,
+    });
     for (const [kind, name] of [
       ['Prometheus', 'prometheus'],
       ['Alertmanager', 'alertmanager'],
-    ]) {
+    ] as const) {
       const cr = indexed[`${namespace}/kube-prometheus-stack`][`${kind}:${namespace}:kps-${name}`];
       // Proof: removing primary map validation admitted missing Prometheus resources; its selected primary map negative failed.
       requireSelected(!(Resources(readPath(cr, ['spec', 'resources'])) instanceof type.errors));
-      requireContainers(readPath(cr, ['spec', 'containers']), [name, 'config-reloader']);
-      requireContainers(readPath(cr, ['spec', 'initContainers']), ['init-config-reloader']);
+      const containers = requireContainers(readPath(cr, ['spec', 'containers']), [
+        name,
+        'config-reloader',
+      ]);
+      const initContainers = requireContainers(readPath(cr, ['spec', 'initContainers']), [
+        'init-config-reloader',
+      ]);
+      roles.push({
+        owner: `${namespace}/kube-prometheus-stack`,
+        identity: `${kind}:${namespace}:kps-${name}`,
+        kind,
+        namespace,
+        manifest: cr,
+        pod: readPath(cr, ['spec']),
+        podPointer: '/spec',
+        containers,
+        initContainers,
+      });
       // Proof: removing this restriction admitted duplicate generated Prometheus config-out; its production negative failed.
       requireSelected(readPath(cr, ['spec', 'volumes']) === undefined);
     }
@@ -165,4 +230,32 @@ export function assertObservabilitySelectedResources(
     ]) ===
       'docker.elastic.co/eck/eck-operator:3.5.0@sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314',
   );
+  return {
+    roles,
+    providers: {
+      eck: {
+        owner: 'observability/eck-operator',
+        chartVersion: '3.5.0',
+        image: readPath(
+          indexed['observability/eck-operator']['StatefulSet:observability:elastic-operator'],
+          ['spec', 'template', 'spec', 'containers', 0, 'image'],
+        ),
+      },
+      prometheus: {
+        owner: 'observability/prometheus-controller',
+        chartVersion: '91.4.1',
+        image: readPath(controller, ['spec', 'template', 'spec', 'containers', 0, 'image']),
+        arguments: arguments_,
+      },
+    },
+  };
+}
+
+/** Preserve the production selected-resource assertion; the adapter consumes the same validated inputs. */
+export function assertObservabilitySelectedResources(
+  source: ObservabilitySource,
+  indexed: ObservabilitySourceIndex,
+): void {
+  // Proof: Task25b2 assertion-reader-dependency removal let the public assertion accept a malformed init role.
+  readObservabilitySelectedResources(source, indexed);
 }
