@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppFaultBoundary } from '@/components/chrome/app-fault';
 import { checkClaimsRead } from '@/lib/wbs-api';
 import type { OpenProjectStream } from '@/modules/project/contract';
-import { claimedPlan } from '@/testing/claims-fixture';
+import { CLAIMED_AT, claimedPlan } from '@/testing/claims-fixture';
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { projectServicesOf } from '@/testing/project-services-of';
@@ -196,6 +196,57 @@ describe('a claimed step’s chip (wbs-claim-display 4.1)', () => {
     // Not a child of the picker's flex row: a line of its own beside it.
     expect(line?.parentElement?.contains(cell?.querySelector('input') ?? null)).toBe(true);
     expect((line?.parentElement as HTMLElement | null)?.style.display).not.toBe('flex');
+  });
+});
+
+describe('holders who share initials (wbs-claim-display 11.1, C22)', () => {
+  itDom('draws claude-code and claude-code-worker as two marks, in chips and slots', async () => {
+    // The dev by-eye check of 2026-10-26: both agents drew `CC`.
+    // Proof: the chip printing `initialsOf(holder.name)` again failed on
+    // `expected [ 'CC', 'CC' ] to deeply equal [ 'CC', 'CW' ]`, and the slot
+    // printing `initialsOf(doing.name)` on `expected '· CC' to be '· CW'`;
+    // watched 2026-10-27.
+    const { api, ids, extra } = await claimedPlan(['c-cc', 'c-ccw']);
+    const worker = await api.addPerson('claude-code-worker', []);
+    await api.addPerson('claude-code', []);
+    await api.assignPerson(ids.sand, 'step-dev', worker.id);
+    const holder = (name: string) => ({ personId: `person-${name}`, name });
+    extra.push(
+      {
+        claimId: 'c-cc',
+        workItemId: ids.sand,
+        stepId: 'step-dev',
+        holder: holder('claude-code'),
+        runId: 'r-1',
+        parentClaimId: null,
+        claimedAt: CLAIMED_AT,
+        leaseExpiresAt: null,
+        leaseRevokedAt: null,
+      },
+      {
+        claimId: 'c-ccw',
+        workItemId: ids.sand,
+        stepId: 'step-qa',
+        holder: holder('claude-code-worker'),
+        runId: 'r-2',
+        parentClaimId: null,
+        claimedAt: CLAIMED_AT,
+        leaseExpiresAt: null,
+        leaseRevokedAt: null,
+      },
+    );
+    drawTable(api);
+
+    await waitFor(() => {
+      expect(chipsIn(rowFor('020'))).toEqual(['CC', 'CW']);
+    });
+    expect(rowFor('020').querySelector('[data-folded-assignee="step-dev"]')?.textContent).toBe(
+      '· CW',
+    );
+    // The full name stays the chip's accessible name.
+    expect(
+      screen.getByRole('img', { name: /^Claimed by claude-code-worker since/ }),
+    ).toHaveAttribute('data-claim-chip', 'c-ccw');
   });
 });
 
@@ -444,6 +495,7 @@ describe('a renewal and a refused read (wbs-claim-display 6.1, C12)', () => {
         [],
         null,
         createLeaseClock(),
+        new Map([['gil', 'GI']]),
       ),
     ).toThrow('claim c-orphan names parent c-gone, not in its read');
   });

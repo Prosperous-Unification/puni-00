@@ -86,6 +86,8 @@ export interface CardRow {
  */
 export interface CardAssignee {
   name: string;
+  /** The folded cell's mark for `name`, distinct among the plan's people (C22). */
+  initials: string;
   assumed: boolean;
   /**
    * Why this person is marked as assigned outside the team — the whole

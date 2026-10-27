@@ -94,7 +94,7 @@ import {
   useEstimateMentions,
 } from './use-estimate-drafts';
 import { useMeasureDefinitions } from './use-measure-definitions';
-import { usePlanClaims } from './use-plan-claims';
+import { planInitialsOf, usePlanClaims } from './use-plan-claims';
 import { usePlanDependencies } from './use-plan-dependencies';
 import { usePlanFields } from './use-plan-fields';
 import { usePlanFilter, usePlanFilterState } from './use-plan-filter';
@@ -1493,6 +1493,8 @@ export function WbsTable({
       createPersonFor,
     });
   const { hasSchedule, spanOf } = usePlanSchedule({ scheduleError });
+  /** One mark per person the plan prints (C22), shared by the assignee slot and every chip. */
+  const initials = useMemo(() => planInitialsOf(people, claims), [people, claims]);
   const { nonOwnerNoteOf, assigneeOn, anyAssigneeOn } = usePlanAssignments({
     effectiveTeams,
     teams,
@@ -1500,6 +1502,7 @@ export function WbsTable({
     services,
     people,
     flat,
+    initials,
   });
   /** The plan's one lease clock (C6), which every chip reads; no chip owns a timer. */
   const leaseClock = useLeaseClock();
@@ -1509,6 +1512,7 @@ export function WbsTable({
     steps,
     zone: chartRead.timezone,
     leaseClock,
+    initials,
   });
 
   /**

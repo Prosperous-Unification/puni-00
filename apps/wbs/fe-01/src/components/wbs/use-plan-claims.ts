@@ -4,7 +4,9 @@ import type { InstalledClaims } from '@/lib/plan-refresh';
 import type { ClaimView, StepView } from '@/lib/wbs-api';
 
 import type { DrawnClaim } from './claim-chip';
+import { assignInitials, initialsIn } from './initials';
 import type { LeaseClock } from './lease-clock';
+import { UNKNOWN_ASSIGNEE } from './use-reference-sets';
 import type { TreeRow } from './wbs-rows';
 
 /** Where the plan draws each claim, read once per claims read and tree. */
@@ -59,6 +61,7 @@ export function indexClaims(
   steps: readonly Pick<StepView, 'id'>[],
   zone: string | null,
   leaseClock: LeaseClock,
+  initials: ReadonlyMap<string, string>,
 ): ClaimIndex {
   if (installed === null || installed.claims.length === 0) return NO_CLAIMS;
   const rowIds = new Set(rows.map((row) => row.id));
@@ -79,6 +82,7 @@ export function indexClaims(
     if (claim.stepId !== null && !stepIds.has(claim.stepId)) continue;
     const drawn: DrawnClaim = {
       claim,
+      initials: initialsIn(initials, claim.holder.name),
       parent: parentOf(claim, byId),
       clock,
       leaseClock,
@@ -98,6 +102,25 @@ export function indexClaims(
     claimedSteps.add(claim.stepId);
   }
   return { steps: stepClaims, subtrees, claimedSteps, leased };
+}
+
+/**
+ * The marks the plan prints people by (`wbs-claim-display` C22): one
+ * {@link assignInitials} over everyone the directory holds, every claim
+ * holder (a holder the directory read has not caught up with included) and
+ * {@link UNKNOWN_ASSIGNEE}, so a chip and an assignee slot never read alike
+ * for two people. The directory rather than only the people on screen, so a
+ * mark does not move when somebody is assigned elsewhere in the plan.
+ */
+export function planInitialsOf(
+  people: readonly { name: string }[],
+  claims: InstalledClaims | null,
+): ReadonlyMap<string, string> {
+  return assignInitials([
+    ...people.map((person) => person.name),
+    ...(claims?.claims ?? []).map((claim) => claim.holder.name),
+    UNKNOWN_ASSIGNEE,
+  ]);
 }
 
 /**
@@ -148,16 +171,19 @@ export function usePlanClaims({
   steps,
   zone,
   leaseClock,
+  initials,
 }: {
   claims: InstalledClaims | null;
   rows: readonly TreeRow[];
   steps: readonly StepView[];
   zone: string | null;
   leaseClock: LeaseClock;
+  /** The plan's {@link planInitialsOf}. */
+  initials: ReadonlyMap<string, string>;
 }): PlanClaims {
   const index = useMemo(
-    () => indexClaims(claims, rows, steps, zone, leaseClock),
-    [claims, rows, steps, zone, leaseClock],
+    () => indexClaims(claims, rows, steps, zone, leaseClock, initials),
+    [claims, rows, steps, zone, leaseClock, initials],
   );
   const stepClaimOn = useCallback(
     (rowId: string, stepId: string) => index.steps.get(rowId)?.get(stepId) ?? null,
