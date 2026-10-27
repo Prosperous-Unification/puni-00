@@ -59,13 +59,24 @@ export class TokenBuckets {
   readonly #fullRefillMs: number;
   #sweptAt: number;
 
-  /** @throws when `burst` is under 1 or `perSecond` is not positive: such a bucket admits nothing. */
+  /**
+   * @param rate the bucket's burst and refill.
+   * @param now the clock, in milliseconds.
+   * @param debt how far below zero {@link spend} may take a bucket; 0 for none.
+   * @throws when `burst` is under 1, `perSecond` is not positive, or `debt` is negative or not
+   *   finite: such a bucket admits nothing, or never pays back.
+   */
   constructor(
     readonly rate: TokenBucketRate,
     private readonly now: () => number,
+    private readonly debt = 0,
   ) {
     if (!(rate.burst >= 1) || !(rate.perSecond > 0) || !Number.isFinite(rate.perSecond))
       throw new Error('a token bucket needs a burst of at least 1 and a positive finite rate');
+    // Proof: without this check, `refuses a negative or unbounded debt` (token-bucket.test.ts)
+    // built both; watched 2026-10-27.
+    if (!(debt >= 0) || !Number.isFinite(debt))
+      throw new Error('a token bucket debt must be a finite number of at least 0');
     this.#fullRefillMs = (rate.burst / rate.perSecond) * 1_000;
     this.#sweptAt = now();
   }
@@ -86,15 +97,19 @@ export class TokenBuckets {
 
   /**
    * Counts one event that has already happened, such as a failed authentication: one token,
-   * or what is left down to zero. Concurrent events that all passed {@link retryAfter} are
-   * counted, never refused.
+   * down to `-debt` and no further. Concurrent events that all passed {@link retryAfter} are
+   * counted, never refused, so a level may go negative: the bucket then refills from there, and
+   * its wait ({@link retryAfterOf}) includes paying the debt back. With a debt at least the
+   * number of events that can pass the check together, none is lost.
    */
   spend(key: string): void {
     const now = this.now();
     const level = levelAt(this.#levels.get(key), this.rate, now);
     // Proof: storing only when a whole token was left failed `counts a spend on a part-filled
-    // bucket, so the part is spent too` (token-bucket.test.ts); watched 2026-10-27.
-    this.#store(key, { tokens: Math.max(0, level.tokens - 1), at: level.at }, now);
+    // bucket, so the part is spent too` (token-bucket.test.ts); flooring at 0 instead of
+    // `-debt` failed `holds a source to the design failure rate over ten minutes of concurrent
+    // wrong keys` (machine-limits.test.ts) with 6000 asked; watched 2026-10-27.
+    this.#store(key, { tokens: Math.max(-this.debt, level.tokens - 1), at: level.at }, now);
   }
 
   /** Gives one token back to `key`'s bucket, never beyond `burst`: a reservation not used. */

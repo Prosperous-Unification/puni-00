@@ -190,6 +190,37 @@ describe('a token bucket on a fake clock', () => {
     );
   });
 
+  it('carries a spend below zero down to its debt, and asks for the wait that pays it back', () => {
+    fc.assert(
+      fc.property(
+        rateArbitrary,
+        fc.integer({ min: 0, max: 50 }),
+        fc.integer({ min: 0, max: 120 }),
+        (rate, debt, spends) => {
+          const clock = { now: 0 };
+          const buckets = new TokenBuckets(rate, () => clock.now, debt);
+          for (let spent = 0; spent < spends; spent += 1) buckets.spend('a');
+          const level = Math.max(-debt, rate.burst - spends);
+          const waiting = buckets.retryAfter('a');
+          if (level >= 1) {
+            expect(waiting).toBeNull();
+            return;
+          }
+          expect(waiting).not.toBeNull();
+          const seconds = waiting?.retryAfterSeconds ?? 0;
+          expect(seconds).toBe(Math.max(1, Math.ceil((1 - level) / rate.perSecond)));
+          clock.now += seconds * 1_000;
+          expect(buckets.take('a')).toBeNull();
+        },
+      ),
+    );
+  });
+
+  it('refuses a negative or unbounded debt', () => {
+    expect(() => new TokenBuckets({ burst: 1, perSecond: 1 }, () => 0, -1)).toThrow('debt');
+    expect(() => new TokenBuckets({ burst: 1, perSecond: 1 }, () => 0, Infinity)).toThrow('debt');
+  });
+
   it('gains nothing from a clock that steps back', () => {
     fc.assert(
       fc.property(rateArbitrary, fc.integer({ min: 1, max: 60_000 }), (rate, back) => {

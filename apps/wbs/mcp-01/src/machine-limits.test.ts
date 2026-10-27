@@ -362,6 +362,26 @@ describe('concurrent token requests', () => {
     expect(second[0]?.headers.get('retry-after')).toBe('1');
   });
 
+  it('holds a source to the design failure rate over ten minutes of concurrent wrong keys', async () => {
+    const world_ = world([], M10_LIMITS, { grantDelayMs: 2 });
+    const wave = () =>
+      Promise.all(
+        Array.from({ length: PENDING_CAP + 20 }, () =>
+          issue(world_.oauth, wrongKeyFor(randomUUID()), ORCHESTRATOR),
+        ),
+      );
+    const seconds = 600;
+    for (let elapsed = 0; elapsed < seconds; elapsed += 10) {
+      await wave();
+      world_.clock.now += 10_000;
+    }
+    // 30 a minute after a first burst of 30, each reopening at most one pending cap early:
+    // at least the rate, at most the burst, the rate and one cap of overshoot.
+    const rate = M10_LIMITS.failuresPerSource.perSecond * seconds;
+    expect(world_.asked()).toBeGreaterThanOrEqual(rate);
+    expect(world_.asked()).toBeLessThanOrEqual(30 + rate + PENDING_CAP);
+  }, 60_000);
+
   it('admits 100 concurrent issuances of distinct credentials from one source', async () => {
     const pool = Array.from({ length: 100 }, () => credential());
     const world_ = world(pool, M10_LIMITS, { grantDelayMs: 5 });

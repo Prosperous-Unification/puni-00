@@ -83,8 +83,9 @@ export interface MachineLimitRates {
   readonly callsInFlightPerOrganization: number;
   /**
    * Token requests of one source waiting on be-01 at once: the per-source issuance burst, so a
-   * 100-pod rollout behind one egress address issues at once, and the failure fence, which is
-   * read rather than reserved, is overshot by at most this many per burst.
+   * 100-pod rollout behind one egress address issues at once. The failure fence, read rather
+   * than reserved, is overshot by at most this many once per drain, and the failure buckets
+   * carry this much debt so the overshoot is paid back before the fence reopens.
    */
   readonly pendingIssuancesPerSource: number;
 }
@@ -116,8 +117,21 @@ export class MachineTrafficLimits implements MachineLimits {
   readonly #pendingPerSource: InFlightCounter;
 
   constructor(now: () => number, rates: MachineLimitRates = M10_LIMITS) {
-    this.#failuresPerClientAndSource = new TokenBuckets(rates.failuresPerClientAndSource, now);
-    this.#failuresPerSource = new TokenBuckets(rates.failuresPerSource, now);
+    // Up to the pending cap of failures can pass the read together; a debt that deep keeps every
+    // one of them counted, so the fence returns to its rate after an overshoot.
+    // Proof: building the per-source bucket without the debt failed `holds a source to the
+    // design failure rate over ten minutes of concurrent wrong keys` (machine-limits.test.ts);
+    // watched 2026-10-27.
+    this.#failuresPerClientAndSource = new TokenBuckets(
+      rates.failuresPerClientAndSource,
+      now,
+      rates.pendingIssuancesPerSource,
+    );
+    this.#failuresPerSource = new TokenBuckets(
+      rates.failuresPerSource,
+      now,
+      rates.pendingIssuancesPerSource,
+    );
     this.#issuancesPerCredential = new TokenBuckets(rates.issuancesPerCredential, now);
     this.#issuancesPerSource = new TokenBuckets(rates.issuancesPerSource, now);
     this.#callsPerCredential = new TokenBuckets(rates.callsPerCredential, now);
@@ -136,7 +150,7 @@ export class MachineTrafficLimits implements MachineLimits {
       ]);
     // Read, not taken: reserving failure tokens capped a source's legitimate concurrency at the
     // failure burst (review of PR #765, B1). The overshoot a read allows is bounded by the
-    // pending cap below, once per burst.
+    // pending cap below once per drain; the failure buckets' debt then holds the design rate.
     // Proof: taking the failure tokens here (the fa37fa65a order) failed `admits 100 concurrent
     // issuances of one credential from one source` and `admits 100 concurrent issuances of
     // distinct credentials from one source` (machine-limits.test.ts): 5 and 30 asked; watched

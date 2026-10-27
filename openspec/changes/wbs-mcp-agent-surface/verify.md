@@ -854,8 +854,21 @@ What landed:
      source, 30 per source, so a 100-pod rollout behind one egress address got 95 `429`s with a
      12 s wait the helper's 10 s budget cannot absorb. Reading them lets concurrent failures pass
      one check together; the pending cap bounds that: **at most 30 + 100 failed requests per
-     source (5 + 100 per credential and source) reach be-01 before the fence closes, once per
-     burst**. The pending cap is not the issuance bucket: that refills while be-01 is slow.
+     source (5 + 100 per credential and source) reach be-01 once per drain; afterwards the
+     design rate**. A failure is spent into debt down to `-pendingIssuancesPerSource` (re-review
+     S5): flooring at zero lost all but one of the spends of requests that passed the read
+     together, so each refilled token reopened the fence for another pending cap (6000 in ten
+     minutes in the test, against 30 a minute). With the debt, every passed failure is counted,
+     the bucket refills from below zero, and its `Retry-After` includes the repayment. The fence
+     still reopens in bursts: once a token is back, up to the pending cap can pass the read
+     together, and their debt then holds it shut for about the cap over the rate (200 s per
+     source). Over any window T, at most 30 + 100 + 30/min × T failures per source reach be-01
+     (400 in the test's ten minutes, bound 430). Within one reopening the burst is the pending
+     cap, not one token: holding it to one would mean reserving, which B1 removed. The pending
+     cap is not the issuance bucket: that refills while be-01 is slow. A negative level only
+     enters `levelAt` (which refills from it and caps at the burst), `retryAfterOf` (a longer
+     wait) and the sweep (which drops only full buckets); `give` is never used on a failure
+     bucket.
    - _N1._ The per-credential issuance is taken only after be-01 verified the credential, so a
      claimed public id answers `429` only to the key's holder; a stranger sees `401`.
    - _Dropped grants._ Requests for one credential from many sources at once can reach be-01
@@ -943,14 +956,14 @@ Retry after N s.` (or `too_many_in_flight`), and a request that ran no call and 
 All on 2026-10-27, code as at the head of this branch, with
 `env -u CLAUDECODE` and `--skip-nx-cache`:
 
-| Command                                                                                     | Result                                                                                                                                                    |
-| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bunx nx run-many -t typecheck lint -p wbs-mcp-01 tool-devsync --parallel=1`                | exit 0                                                                                                                                                    |
-| `bunx nx run wbs-mcp-01:test`                                                               | 705 pass, 0 fail (32 files) after the re-review fixes (700 after the review, 692 before); the model and limits files 24 pass, 0 fail in each of five runs |
-| `bunx nx run tool-devsync:test`                                                             | 941 pass, 0 fail (49 files, 707.7 s), exit 0; no port 9100 clash (before the review fixes, which touch no tool-devsync file)                              |
-| `bunx openspec validate --all --json`                                                       | exit 0; 297 items, 297 passed                                                                                                                             |
-| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` | exit 0                                                                                                                                                    |
-| `bunx prettier --check` on every changed file but `.env.example`                            | "All matched files use Prettier code style!"; `shellcheck bin/dev-mcp-preflight.sh` exit 0                                                                |
+| Command                                                                                     | Result                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run-many -t typecheck lint -p wbs-mcp-01 tool-devsync --parallel=1`                | exit 0                                                                                                                                                         |
+| `bunx nx run wbs-mcp-01:test`                                                               | 708 pass, 0 fail (32 files) after S5 (705 after B1, 700 after the review, 692 before); the model, limits and bucket files 39 pass, 0 fail in each of five runs |
+| `bunx nx run tool-devsync:test`                                                             | 941 pass, 0 fail (49 files, 707.7 s), exit 0; no port 9100 clash (before the review fixes, which touch no tool-devsync file)                                   |
+| `bunx openspec validate --all --json`                                                       | exit 0; 297 items, 297 passed                                                                                                                                  |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` | exit 0                                                                                                                                                         |
+| `bunx prettier --check` on every changed file but `.env.example`                            | "All matched files use Prettier code style!"; `shellcheck bin/dev-mcp-preflight.sh` exit 0                                                                     |
 
 Not run: the h2puni gate, wbs-be-01's and wbs-contracts' tests (neither changed), fe-01 and its
 e2e, gw-01, task 4.3's load evidence, and anything on a host. No migration and no
@@ -1036,3 +1049,16 @@ sits beside it. The lower-bound tests were also run against fa37fa65a's `oauth.t
 
 `takeEach` went with the failure reservation; its proof row above is withdrawn. The bucket's
 admissions bound now counts what was given back.
+
+### Re-review of PR #765 at 36bd6ee5b, S5
+
+| Item     | Fix                                                                                                                                                                     | Fault injected                                                                                                                         | Test that observed it failing                                                                                                                                                                     |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S5       | `spend` floors at `-debt`; the failure buckets carry `pendingIssuancesPerSource` of debt; note 4 and design M10 reworded ("once per drain; afterwards the design rate") | 36bd6ee5b's `token-bucket.ts` and `machine-limits.ts` (floor at 0); the floor alone set to 0; the per-source bucket built without debt | limits `holds a source to the design failure rate over ten minutes of concurrent wrong keys`: 6000 asked on 36bd6ee5b (400 now, bound 430); bucket `carries a spend below zero down to its debt…` |
+| S5 guard | a negative or non-finite debt is refused at construction                                                                                                                | check removed                                                                                                                          | bucket `refuses a negative or unbounded debt`                                                                                                                                                     |
+
+The reviewer's proposed negative, "20 s of refill after the first overshoot admits at least 1 and
+at most 10", cannot hold with the failure fence read rather than reserved: right after the
+overshoot the debt admits 0 for about 140 s, and when a token is back the pending cap passes the
+read together (100 in one instant). The test asserts the long-window bound instead, with a lower
+bound (at least the design rate over the window), and was watched failing on 36bd6ee5b's code.

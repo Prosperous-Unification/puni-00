@@ -542,9 +542,11 @@ _Alternatives:_ keep accepting (two surfaces in fact); a deprecation header peri
   failure buckets and gives the issuance back; a success takes one issuance of the credential
   be-01 verified; anything else gives the issuance back. The failure buckets are read, not
   reserved, so a source's legitimate concurrency is its 100 pending slots, not its failure
-  burst; the cost is that concurrent failures can overshoot the failure fence by at most the
-  pending cap once per burst (at most 30 + 100 failed requests reach be-01 per IP before it
-  closes). The per-credential issuance is counted only after be-01 verified the credential, so
+  burst. The cost is that concurrent failures can overshoot the failure fence: at most 30 + 100
+  failed requests per IP once per drain. A failure is spent into debt down to the pending cap
+  (never floored at zero, which would lose the overshoot), so afterwards the fence holds the
+  design rate on average, reopening in bursts of at most the pending cap: over any window T,
+  at most 30 + 100 + 30/min × T failures per IP reach be-01. The per-credential issuance is counted only after be-01 verified the credential, so
   a claimed public id answers `429` only to its holder. A grant be-01 issued that this limit
   then refuses is dropped unsigned: be-01 has written or found the day's audit row and touched
   `last_used_at`, and no token exists for it (section 4 note 4).
