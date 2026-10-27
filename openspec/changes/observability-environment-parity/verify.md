@@ -1989,3 +1989,46 @@ The committed **ad987** adapter's retained-input control matched every frozen **
 | `tools/tool-fleet/src/observability-rehearsal-inventory.test.ts` | `6385720f4b946f624f38be7fe4b830fd1fb16812bd5383d7add2fde7b4e4278b` |
 
 The original73-case suite/48-fault batch, chart renders, public entry and broader runtime/host/CI gates were not replayed. No large captures were copied. Scope stayed I1 plus its fixture type correction; all prior unresolved/runtime/admission limits and canonical4/11 remain unchanged. Root owns scoped fix review.
+
+## Task27 — deterministic required-command absence
+
+Source `9bcae1794eb02d04c7602394d43697350dbafa7e`, from clean BASE `b74e0446e01819459615bd44edcda4c1990b1916`. This restores the existing actual CLI negative contract. The fixture accepts an explicit per-run executable search path; only the required-command absence case selects its absolute private bin after deleting kubectl. Existing callers retain the same private-bin-plus-inherited-PATH default. The production CLI, executable selection, exact sanitized diagnostic and exit 1 remain unchanged; the negative also requires empty stdout. No empty PATH component or cwd search is introduced.
+
+A controlled inherited-PATH kubectl exits 0 with empty stdout and records invocation in owned scratch. Before the change, the negative invoked it once and failed: expected `observability preflight: command-unavailable-or-timeout`, received `observability preflight: context-unavailable`. After the change, the same test passed without invoking it. Removing only the explicit private search-path argument reproduced that exact failure and one invocation; `finally` restored byte-identical source and the negative passed again. The adjacent `Proof:` records this fault. This is a fixture boundary proof, not a new production guard or replay of old production fault batches.
+
+| Observation                                        | Test outcome                          | Process time | Fallback invocations |
+| -------------------------------------------------- | ------------------------------------- | ------------ | -------------------- |
+| Controlled baseline RED                            | 0 pass/1 fail,2 assertions,305ms Bun  | 0.310s       | 1                    |
+| Controlled GREEN                                   | 1 pass/0 fail,3 assertions,334ms Bun  | 0.338s       | 0                    |
+| Removed private search boundary                    | 0 pass/1 fail,3 assertions,343ms Bun  | 0.347s       | 1                    |
+| Restored boundary                                  | 1 pass/0 fail,3 assertions,324ms Bun  | 0.328s       | 0                    |
+| Final changed negative and three adjacent controls | 4 pass/0 fail,21 assertions,1.58s Bun | 1.581s       | 0                    |
+
+The three adjacent controls are the valid actual CLI inventory, existing missing-context refusal and credential-bearing transport privacy negative. All four ran with the controlled fallback directory prepended to the test runner's inherited PATH. An earlier sandbox-only attempt failed at `Bun.listen` with EPERM before any fallback invocation; it is a setup failure, not semantic RED. The scoped authorized rerun supplied the observations above.
+
+```bash
+bun /tmp/puni-task27-evidence/run.ts red-controlled 1 1
+bun /tmp/puni-task27-evidence/run.ts green-controlled 0 0
+bun /tmp/puni-task27-evidence/fault.ts
+bun /tmp/puni-task27-evidence/run.ts restored-controlled 0 0
+bun /tmp/puni-task27-evidence/run.ts focused-final 0 0 '^(required command absence refuses with a safe transport failure category|authorized inventory binds the reviewed revision without replacing the observed Flux revision|missing context refuses|transport errors cannot forward credential-bearing input or error causes)$'
+bunx eslint tools/tool-fleet/src/observability-preflight.test.ts
+bunx tsc --build --force tools/tool-fleet/tsconfig.json
+bunx prettier --check tools/tool-fleet/src/observability-preflight.test.ts
+```
+
+The runner records the exact expanded Bun test argv, selected names, exit codes, invocation counts, timings and source hashes in [run receipts](/tmp/puni-task27-evidence/runs.jsonl). [Final focused output](/tmp/puni-task27-evidence/focused-final.log), [fault output](/tmp/puni-task27-evidence/fault-inherited-path.log), [restoration receipt](/tmp/puni-task27-evidence/fault-restoration.json), [fault script](/tmp/puni-task27-evidence/fault.ts). Source-only scoped ESLint/typecheck/format exited 0 in 3.83s/1.71s/0.53s. Normal source-commit hooks passed in 4.22s process: staged lint/format, plaintext-secret/private-nesting and message hooks; Tool Wiki reported inactive/uncertified because its external activation root is absent. Migration/doc-cap routes were inapplicable; no hook was bypassed. Final formatting over the source, canonical verify and ignored report passed in 0.90s.
+
+Final test SHA256 is `1b864b25d7849c5ca89c3116a38ee79f1be9927e3ae8ba51d41903f49f7c4a4e`. The production preflight, CLI and discovery files are byte-identical to BASE; [source identities](/tmp/puni-task27-evidence/source-hashes.json) records both sides. No capacity values, pins, proposal/spec/design, production or CI policy changed.
+
+### Task25c2a independent-review closure
+
+The original bounded Task25c2a review identified I1, preservation of individual null request/limit maps. The follow-up `task-25c2a-fix1-review.md` reports **all findings addressed; no new Critical/Important breakage**, I1 spec-compliant and fix quality approved. It reviewed source `ad987d36173b846b1064570520a034bac012b901` and evidence `b74e0446e01819459615bd44edcda4c1990b1916` after the original `task-25c2a-review.md`. These are retained independent-review observations, not a new review or test replay. Only that inventory slice and I1 are closed; runtime, full-goal and admission acceptance do not follow.
+
+### Published886 final CI observation
+
+The retained `published-886-final-ci.json` records main run [40503029547](https://github.com/Prosperous-Unification/puni-00/actions/runs/40503029547) completed **failure** for published HEAD `88646561321d4163c18023495051f2bb92d63a62`. Workspace job `122185432997` failed after **77m16s elapsed including setup** (12:21:19Z–13:38:35Z on 2026-10-27); its retained Nx log reports **73m22s**. Workspace Fleet had 2000 pass/7 skip/1 fail,2008 tests across 79 files,723.58s. The sole Fleet failure is this required-command absence test at the old line 1543, with the exact expected/actual diagnostic above. [Retained workspace log](/tmp/puni-pr760-workspace-886-artifact/nx-gate.log); artifact 12738108074. The fixture inherited the runner's kubectl; production still refused safely, and this does not establish a production defect.
+
+Twilight, all pixels shards and stable pixels succeeded. Distinct Infra run 40503029484 succeeded with 2001 pass/7 skip/0 fail,592.38s. Those successes do not override the failed main gate. This records the completed published886 run, not CI for the new Task27 source/evidence HEAD; root owns publication and new-head CI. No job was cancelled, restarted or rerun here.
+
+Canonical progress stays **4/11**; 3.1, full 4.3, generated runtime enforcement, complete source/host admission, actual stored signals/views/history/recovery and live cutover remain open. Full Fleet/app/backend/browser/CI/chart runs, full host gates, old proof batches, live probes and OpenSpec validation were intentionally not run for this bounded test-only restoration. No push, merge, deploy, secret change, target mutation or external message occurred. Large retained logs/captures were linked, not copied.
