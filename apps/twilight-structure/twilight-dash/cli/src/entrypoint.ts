@@ -1,4 +1,3 @@
-import { runDash, runFleetPlan } from './cli';
 import { monotonicClock, wallClock } from './clock';
 
 /**
@@ -17,13 +16,31 @@ function refusalLine(cause: unknown): string {
   return `error: ${message}${codes.length === 0 ? '' : ` [${codes.join(', ')}]`}\n`;
 }
 
+const argv = process.argv.slice(2);
 try {
-  await runDash(process.argv.slice(2), {
-    clock: wallClock(),
-    monotonic: monotonicClock(),
-    planEnrollment: runFleetPlan,
-    stdout: process.stdout,
-  });
+  if (argv[0] === 'mcp') {
+    // `mcp token` runs as Claude Code's `headersHelper`, whose 10 s budget counts from spawn:
+    // it loads only its own modules (about 0.1 s), not `cli.ts`'s command graph (about 2.5 s,
+    // measured 2026-10-27).
+    // Proof: not dispatching `mcp` made `the entrypoint prints only the header map…` see exit 1
+    // where 0 was expected (2026-10-27).
+    const { runMcpCommand } = await import('./mcp/token-command');
+    await runMcpCommand(argv.slice(1), {
+      send: (input, init) => fetch(input, init),
+      monotonic: monotonicClock(),
+      sleep: (milliseconds) => Bun.sleep(milliseconds),
+      environment: process.env,
+      write: (text) => process.stdout.write(text),
+    });
+  } else {
+    const { runDash, runFleetPlan } = await import('./cli');
+    await runDash(argv, {
+      clock: wallClock(),
+      monotonic: monotonicClock(),
+      planEnrollment: runFleetPlan,
+      stdout: process.stdout,
+    });
+  }
 } catch (cause) {
   process.stderr.write(refusalLine(cause));
   process.exitCode = 1;

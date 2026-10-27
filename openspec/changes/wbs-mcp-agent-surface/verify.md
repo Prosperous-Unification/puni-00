@@ -1222,3 +1222,202 @@ New rows of the failure-proof table:
 **Follow-up (S3-2):** record `runId` on `command_journal` and let a run-scoped principal undo
 only its own run's entries. Today a run can undo another run's claim or release of its person
 (note 7).
+
+## Slice 6: `WorkloadJwtBearerProvider` and `twilight-dash mcp token` (task 2.4)
+
+Built on branch `feat/dash-mcp-token-6` from the plan branch at 743808fa3 (slices 1 to 3 and
+section 4 merged, plus main), 2026-10-27, on the assumed M2, M4 and M10. Every test below ran
+under `env -u CLAUDECODE` on the laptop; nothing ran on h2puni, and no host was touched. No
+file under `apps/wbs/` changed.
+
+What landed, in `apps/twilight-structure/twilight-dash/cli/src/mcp/`:
+
+- `machine-token.ts`: the endpoint of a resource (`<resource>/oauth`, `/token`), the run, the
+  concealed `ApiKey` read from an owner-only file (`readOwnerOnly` and `MachineKey` are now
+  exported by `compute/configuration.ts` for it), the workload token readers (a reread file, or
+  GitHub Actions), and the token endpoint's refusal and `Retry-After`.
+- `token-command.ts`: `twilight-dash mcp token`, dispatched by `entrypoint.ts` before `cli.ts`
+  is loaded (note 1).
+- `workload-provider.ts`: `WorkloadJwtBearerProvider`.
+- Tests: `mcp-token.boot.test.ts` against the real stack (`testing/wbs-mcp-stack.ts`: be-01's
+  composed grant route, the fixture mcp-01's booted tests use, and **mcp-01's production
+  `main.ts`** in standalone mode with its real M10 limits and `MCP_TRUSTED_PROXY_HOPS=0`, each
+  in its own process; Dash imports neither app), `token-command.test.ts` and
+  `workload-provider.test.ts` against a **faithful fake** of the token endpoint where the real
+  stack cannot produce the case on demand: a `429` with a chosen `Retry-After` at a chosen
+  moment of the budget, answered as mcp-01's `machineRefusal` does (`429`,
+  `invalid_request`, `rate_limited`, `Retry-After` in seconds).
+- The Dash README's `mcp token` section, with Claude Code's `headersHelper` configuration for an
+  API key (the headless swarm path).
+
+### Slice 6 notes (assumptions taken, and gaps in the design)
+
+1. **The helper budget and Dash's load time.** Loading `cli.ts`'s command graph takes about
+   2.5 s (measured: `entrypoint.ts mcp token` exited in 2.68 to 2.76 s before the change), and a
+   budget measured from the command's start does not see it, so a `Retry-After: 30` 2 s into the
+   command would have been killed by Claude Code. `entrypoint.ts` now dispatches `mcp` first
+   and imports only `src/mcp` (0.12 s to exit, twice), and every other command imports `cli.ts`
+   dynamically. The 0.1 s of load before the command starts is inside M2's 1 s margin; the
+   budget is still measured from the command's start, because Dash's monotonic origin is not
+   promised to be the process start.
+2. **The 5-minute cache margin cannot hold for short tokens** (M2). An OIDC token is capped at
+   the assertion's `exp` minus 60 s, and a GitHub Actions token lives minutes, so an access token
+   under 5 minutes would never be served: the SDK would send no bearer, re-authenticate, and
+   then throw "Server returned 401 after successful authentication". The provider keeps a token
+   until `min(5 min, half its lifetime)` before `exp` (fault F15). Design amendment proposed.
+3. **"Drops it on any 401" has no SDK hook.** The SDK transport calls `auth` (and so
+   `prepareTokenRequest`) only after a 401, or when `tokens()` serves nothing, and for a
+   non-interactive provider `auth` always fetches. The provider therefore drops its token in
+   `prepareTokenRequest` and in `invalidateCredentials('tokens' | 'all')` (F16), and the real
+   stack proves the re-fetch after a 401 (F13).
+4. **The provider's `Retry-After` needs the caller's cooperation.** The SDK sends the token
+   request through the transport's `fetch` and throws on a `429` at once. The provider honours
+   M2's wait (capped at 60 s, one retry) only when its `tokenFetch(fetch)` is the transport's
+   `fetch`; the README says so. The retry resends the same assertion, which is safe because
+   no `jti` is consumed (M3).
+5. **The issuer is derived, not imported.** `mcpAuthorizationServerOf` lives in `@wbs/contracts`,
+   which Dash's product boundary admits only at listed paths; `src/mcp/` derives the same two
+   lines locally rather than widening the policy (which needs its own effective-policy test in
+   `tools/tool-devsync`). The real-stack test pins the two: stamping `<origin>/oauth` made the
+   SDK refuse the client information (F21). Follow-up if a third consumer appears.
+6. **The helper derives its token endpoint** (`<resource>/oauth/token`, M2) instead of
+   discovering it, saving two requests of the 10 s budget. A deployment fronting another
+   token endpoint would break the helper; the provider uses the SDK's discovery.
+7. **How the secret is supplied.** By file path in an argument, never the secret: `ps` shows
+   arguments to every user, and an environment variable is inherited by every process Claude
+   Code starts, so an agent's own shell could print it into a transcript. The key file must be
+   owner-only (`readOwnerOnly`, F10); the workload token file need not be, because a projected
+   service-account token is mounted 0644 by default. Residual: the agent's own user can read
+   the key file; keeping the key from the agent needs another user.
+8. **GitHub Actions** is supported through the runner's `ACTIONS_ID_TOKEN_REQUEST_URL` and
+   `_TOKEN` (`--github-actions-audience`), tested against a fake runner endpoint only; no real
+   Actions run was made.
+9. **`Retry-After` as an HTTP date** is treated as absent (no retry, exit 1); mcp-01 sends
+   seconds only. A `429` without `Retry-After` is not retried either.
+10. **No request timeout in the helper.** Claude Code kills it at 10 s; a hung token request
+    therefore ends without a Dash error line. The provider has none either (the SDK's own
+    behaviour).
+11. **The 100 staggered issuances** start 40 ms apart (4 s), not spread over 60 s: M10's burst
+    of 100 makes any start pattern within a minute equivalent at the first minute, and a
+    60 s spread would cost a minute of test time. The fault (two issuances per run, F2) drew
+    M10's `429`.
+12. **The stack runs mcp-01 at credential epoch 0.** Machine admission reads no epoch (M5), so
+    the activation runbook's epoch step was not run; consent paths are not exercised here.
+13. **CI routing.** Dash's tests start be-01's fixture and mcp-01's `main.ts`, both in
+    `twilight-dash:test`'s inputs. _Corrected:_ the original note said an mcp-01-only PR might
+    not select Dash. It does: `nx show projects --affected --files=apps/wbs/mcp-01/src/main.ts`
+    named `twilight-dash` with the base's `project.json` too, and CI's pull-request run is
+    `nx affected`. The review's `implicitDependencies` on `wbs-be-01` and `wbs-mcp-01` (S3-5)
+    were added and then withdrawn: CI's `workspace-projects.test.ts` `productConstraints > is
+satisfiable by every internal dependency in the actual repository graph` failed on them
+    with `twilight-dash -> wbs-be-01` and `twilight-dash -> wbs-mcp-01` (run 40517831190), as a
+    Twilight product may not depend on WBS apps. Follow-up if Dash's selection must not rest
+    on the incidental path: a routing rule rather than a graph edge.
+14. **`--run` is static per `headersHelper` entry**, so a batch that scopes each run needs one
+    `--mcp-config` per run (README).
+15. **2.2's moved negative** ("make the provider cache its first assertion") is F14 here.
+16. **Design amended (review S2-1).** M2 now states the `min(5 min, half the lifetime)` margin
+    (note 2) and the drop through `prepareTokenRequest` and `invalidateCredentials` (note 3).
+17. **A misused flag echoed a secret (review S2-2).** `--key-file <key>` printed "no
+    configuration at <key>", and `--assertion-file <token>` "cannot read the workload token at
+    <token>". A value shaped like a key (`wbs_mk_` and an id) or a JWT (`eyJ…` with three parts)
+    is now refused naming only the flag, and every key file and assertion file refusal names
+    the flag and never the path, which also replaces the "configuration" wording (S4-2). A
+    relative path starting with such a shape is refused too; nothing else is.
+18. **Redirects (review S3-1).** Bun re-sends a POST body to a 307's target, across origins,
+    so a token request is sent with `redirect: 'manual'` by the helper (a 3xx is refused, naming
+    its status) and by `tokenFetch` (the 3xx reaches the SDK, which throws naming it).
+    `redirect: 'manual'` rather than `'error'`: it gives a refusal that names the redirect.
+19. **Follow-up: per-source sizing for multi-pool fleets (review S3-3).** M10's
+    `issuancesPerSource` is the same burst 100 and 300 a minute as the per-credential limit;
+    behind one proxy hop every agent on one host or NAT shares it, whatever credential it holds.
+    The README says so.
+20. **Follow-up: an `mcp-token.mjs` bundle before task 8.1 (review S3-4).** The helper runs from
+    a checkout with `bun install`; the README says so.
+21. **Not done: one in-flight issuance in the provider (review S4-5, optional).** Concurrent
+    `auth` calls on one provider could each issue a token; how often the SDK makes them was not
+    analysed. The stack harness's cleanup on a failed start (S4-4) is not proven by a test.
+
+### Commands and results, slice 6
+
+All on 2026-10-27 at the head of this branch, with `env -u CLAUDECODE` and `--skip-nx-cache`:
+
+| Command                                                                                     | Result                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run-many -t typecheck lint -p twilight-dash`                                       | exit 0                                                                                                                                                                                                                                                                                                     |
+| `bunx nx run twilight-dash:test`                                                            | 3404 pass, 0 fail (99 files, 845.9 s), exit 0; `src/mcp` alone 31 pass (8 boot, 23 fake)                                                                                                                                                                                                                   |
+| `bunx nx run tool-devsync:test`                                                             | 966 pass, 7 fail (50 files, 834.3 s), exit 1: all seven are `sync.test.ts` "boot-commit convergence after reset", whose fixture `mcp.env` lacked `MCP_TRUSTED_PROXY_HOPS`. They failed identically on the base 743808fa3; the plan branch fixed the fixture in a8b233254, merged here for the review fixes |
+| `bunx openspec validate --all --json`                                                       | exit 0; 301 items, 301 passed                                                                                                                                                                                                                                                                              |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` | exit 0 (the existing store-memory and plan-commands review debt)                                                                                                                                                                                                                                           |
+| `bunx prettier --check` on every changed file                                               | "All matched files use Prettier code style!"                                                                                                                                                                                                                                                               |
+| `entrypoint.ts mcp token` (usage refusal), timed                                            | 2.68, 2.76, 2.68 s before note 1's fast path; 0.12, 0.12 s after                                                                                                                                                                                                                                           |
+
+Not run: the h2puni gate, wbs-be-01's and wbs-mcp-01's suites (neither changed; their booted
+fixture and `main.ts` ran inside Dash's tests), fe-01 and its e2e, gw-01, a real GitHub
+Actions run, a real Claude Code `headersHelper` session, and anything on a host. No migration
+and no `libs/**/service/` file changed.
+
+### Failure-proof table, slice 6
+
+Each check was watched failing with the fault injected, then restored; the `Proof:` comment
+sits beside the check or its test. "Boot" is `mcp-token.boot.test.ts`, "helper"
+`token-command.test.ts`, "provider" `workload-provider.test.ts`.
+
+| #   | Check                                                | Fault injected                                         | Test that observed it failing                                                                                                                 |
+| --- | ---------------------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1  | the helper keeps no cache (2.4's helper negative)    | a module-level memo of the bearer, printed once set    | boot `a re-run 0.6 s after a 401 on the token it served issues a new token`: the re-run printed the rejected token (`not.toBe(first)`)        |
+| F2  | one issuance per run, under M10                      | each run sends its token request twice                 | boot `100 staggered issuances…`: a helper met M10's 429 and reached its wait                                                                  |
+| F3  | `wbs_run` sent                                       | `form.set('wbs_run', …)` removed                       | boot `a run is signed into the token as wbs_run`: no `wbs_run` claim                                                                          |
+| F4  | `Retry-After` capped at the budget                   | the whole `Retry-After` waited                         | helper `with Retry-After: 30, 2 s into the run, waits 7 s and retries once`: slept 30000                                                      |
+| F5  | no retry when the capped wait is ≤ 0                 | the `wait <= 0` check removed                          | helper `a 429 whose capped wait is zero or less is not retried`: retried and printed a token                                                  |
+| F6  | one retry, never a loop                              | retry while `429`                                      | helper `retried once and refused again exits non-zero`: printed the third answer's token                                                      |
+| F7  | exactly one credential                               | `chosen.length === 0`                                  | helper `refuses no credential or two…` (`--key-file` with `--assertion-file`): issued                                                         |
+| F8  | `https:` or loopback only                            | any protocol admitted                                  | helper `refuses a plain-HTTP resource off loopback`: issued                                                                                   |
+| F9  | the key file holds a `wbs_mk_` key                   | shape check disabled                                   | helper `refuses a key file that holds no wbs_mk_ key, never echoing it`: issued                                                               |
+| F10 | owner-only key file                                  | `readOwnerOnly`'s mode check skipped                   | helper `refuses a group-readable key file`: issued from a 0640 file                                                                           |
+| F11 | Actions variables required                           | an unset variable admitted                             | helper `refuses an unset ACTIONS_ID_TOKEN_REQUEST_TOKEN, naming it`: a request was sent                                                       |
+| F12 | no dynamic registration (2.4's test)                 | `clientInformation()` returns undefined                | boot `connects and calls a tool without a dynamic registration request`: "OAuth client information must be saveable for dynamic registration" |
+| F13 | the provider re-fetches after a 401 (its negative)   | `tokens()` keeps serving the first token               | boot `re-fetches after a 401`: "Server returned 401 after successful authentication"                                                          |
+| F14 | a fresh assertion per request (2.2's moved negative) | the first assertion cached                             | boot `a run outlives its workload token`: the SDK's `InvalidGrantError`                                                                       |
+| F15 | short tokens are served (note 2)                     | a flat 5-minute margin                                 | boot `a run outlives its workload token`: "Server returned 401 after successful authentication"                                               |
+| F16 | drop the token when the SDK asks for a new one       | `prepareTokenRequest` keeps the cache                  | provider `drops its token when the SDK asks for a new one, or invalidates it`                                                                 |
+| F17 | the provider's `Retry-After` capped at 60 s          | cap removed                                            | provider `waits a token endpoint Retry-After, capped at 60 s, and retries once`: slept 90000                                                  |
+| F18 | a token needs `expires_in`                           | check disabled                                         | provider `refuses a token without expires_in`: no throw                                                                                       |
+| F19 | `entrypoint.ts` dispatches `mcp`                     | dispatch disabled                                      | boot `the entrypoint prints only the header map, and a refusal names no key`: exit 1                                                          |
+| F20 | no key in any output                                 | the refusal names the request's `authorization` header | boot, the same test: stderr held `error: refused for Basic …`                                                                                 |
+| F21 | the issuer is mcp-01's (note 5)                      | `<origin>/oauth` stamped                               | boot `connects and calls a tool…`: "OAuth client information is bound to authorization server …/oauth and is not presented to …/mcp/oauth"    |
+
+### Review of PR #767 (Fable, high), how each item is addressed
+
+| Item | Fix                                                                                                               | Fault injected                                        | Test that observed it failing                                                                                                   |
+| ---- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1 | design.md M2 amended (note 16)                                                                                    | — (text)                                              | —                                                                                                                               |
+| S2-2 | N1: secret-shaped flag values refused naming the flag                                                             | shape check disabled                                  | helper `a key given to --key-file`, `a token given to --assertion-file`: the file refusal instead                               |
+| S2-2 | N2: key file refusals name `--key-file`, never the path                                                           | `readOwnerOnly`'s refusal rethrown as is              | helper `a secret that is no file, given to --key-file`: stderr "config_absent: no configuration at sk-pasted-secret-value"      |
+| S2-2 | N3: assertion file refusals name `--assertion-file`, never the path                                               | the path in the message                               | helper `a secret that is no file, given to --assertion-file`: stderr "cannot read the workload token at sk-pasted-secret-value" |
+| S3-1 | N4: the helper never follows a redirect                                                                           | `redirect: 'manual'` and the 3xx check removed        | helper `is never followed…` (two real servers, a cross-origin 307): printed the other origin's token                            |
+| S3-1 | N5: `tokenFetch` never follows a redirect                                                                         | `init` passed unchanged                               | provider `never follows a redirect of a token request` (two real servers): 200 instead of 307                                   |
+| S3-2 | N6: unreadable apart from empty or oversize                                                                       | an unreadable file answered "holds no workload token" | `machine-token.test.ts` `refuses an unreadable assertion file apart from an empty or oversize one`                              |
+| S4-5 | N7: the cap counts bytes                                                                                          | `assertion.length`                                    | the same test: 120,000 bytes admitted                                                                                           |
+| S3-2 | N8: GitHub non-200 refused                                                                                        | status check disabled                                 | `machine-token.test.ts` `refuses a GitHub Actions answer other than 200…`: resolved with the 403 body's value                   |
+| S3-2 | N9: a non-JSON answer named by status                                                                             | a refusal coded `unknown` returned                    | `machine-token.test.ts` `names a proxy's non-JSON 502 and a JSON answer without error…`: resolved                               |
+| S3-2 | N10: JSON without `error` named by status                                                                         | `error` read unchecked                                | the same test: resolved with a refusal coded `undefined`                                                                        |
+| S3-2 | N11: only the delay form of `Retry-After`                                                                         | any value read with `Number`                          | `machine-token.test.ts` `reads only the delay form of Retry-After`: NaN for the HTTP date                                       |
+| S3-2 | N12: the token is dropped at `servedUntil`                                                                        | the expiry check disabled                             | provider `serves its token until 5 minutes before exp…`: still served                                                           |
+| S3-2 | N13: `invalidateCredentials` drops the token                                                                      | every scope ignored                                   | provider `drops its token when the SDK invalidates it`: still served                                                            |
+| S3-3 | README: the per-source limit; note 19                                                                             | — (text)                                              | —                                                                                                                               |
+| S3-4 | README: a checkout with `bun install`; note 20                                                                    | — (text)                                              | —                                                                                                                               |
+| S3-5 | withdrawn: `implicitDependencies` broke the product boundary (note 13); Dash is already selected by `nx affected` | —                                                     | CI `productConstraints…actual repository graph` failed with the edges                                                           |
+| S4-1 | static `test.each` labels                                                                                         | —                                                     | —                                                                                                                               |
+| S4-2 | "key file" wording (with S2-2)                                                                                    | —                                                     | —                                                                                                                               |
+| S4-3 | README: the design cannot hide the key from the agent's own user                                                  | — (text)                                              | —                                                                                                                               |
+| S4-4 | the stack stops both processes and removes its store on a failed start                                            | not proven by a test (note 21)                        | —                                                                                                                               |
+| S4-5 | bytes (N7); the single in-flight issuance is not done (note 21)                                                   | —                                                     | —                                                                                                                               |
+
+Commands for the fixes, 2026-10-27 with `env -u CLAUDECODE` and `--skip-nx-cache`, after
+merging the plan branch at a8b233254: `bunx nx run-many -t typecheck lint -p twilight-dash`
+exit 0; `bun test src/mcp src/no-ambient-clock.test.ts src/cli.test.ts` (Dash) 73 pass, 0
+fail (6 files); `tool-devsync` `sync.test.ts -t "boot-commit convergence"` 8 pass, 0 fail
+(a8b233254's fixture fix); `openspec validate --all --json` 301 of 301; `check-indexes working .
+HEAD` exit 0; prettier clean. The full Dash and tool-devsync suites were not rerun; CI runs
+them.

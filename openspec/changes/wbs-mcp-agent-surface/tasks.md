@@ -196,8 +196,8 @@
 - [x] 2.3 Secrets: inject a throw in be-01's route during a Basic request. The test asserts
       that the report, route evidence and audit row hold no key, no `base64(id:key)` and no
       assertion. Negative: put the form in the report.
-- [ ] 2.4 `WorkloadJwtBearerProvider` and `twilight-dash mcp token` in Twilight Dash
-      (`src/mcp/`).
+- [x] 2.4 `WorkloadJwtBearerProvider` and `twilight-dash mcp token` in Twilight Dash
+      (`src/mcp/`; slice 6, verify.md slice 6 notes).
   - The provider stamps client info with the authorization server's issuer, has a no-op
     `addClientAuthentication`, and has a `prepareTokenRequest` that reads a fresh assertion
     and adds `wbs_run`.
