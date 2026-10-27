@@ -892,3 +892,58 @@ test.each(['invalid', '-1Gi', '0Gi', '9'.repeat(400)])(
     ).toThrow(/claim storage/);
   },
 );
+
+function createMixedScopeStages(namespace: string) {
+  const selected = structuredClone(stages);
+  const crd = {
+    apiVersion: 'apiextensions.k8s.io/v1',
+    kind: 'CustomResourceDefinition',
+    metadata: { name: 'machines.example.invalid' },
+    spec: {
+      group: 'example.invalid',
+      names: { kind: 'Machine' },
+      scope: 'Namespaced',
+      versions: [{ name: 'v1' }],
+    },
+  };
+  const bytes = encode(crd, provider, {
+    ...provider,
+    apiVersion: 'example.invalid/v2',
+    metadata: { ...provider.metadata, namespace },
+  });
+  selected[0] = { ...selected[0], bytes, sha256: hash(bytes) };
+  return selected;
+}
+
+test('mixed resolved and unresolved API versions cannot split one declared object owner', () => {
+  const selected = createMixedScopeStages('declared');
+  expect(() =>
+    readRehearsalInventory(
+      selected,
+      expansions,
+      captureRehearsalFrames(selected, expansions),
+      lock,
+    ),
+  ).toThrow(/duplicate object/);
+});
+
+test('distinct declared namespaces remain distinct without resolving an unfamiliar API scope', () => {
+  const selected = createMixedScopeStages('other');
+  const inventory = readRehearsalInventory(
+    selected,
+    expansions,
+    captureRehearsalFrames(selected, expansions),
+    lock,
+  );
+  expect(
+    inventory.entries.find((entry) => entry.apiVersion === 'example.invalid/v1'),
+  ).toMatchObject({ scope: 'Namespaced', namespace: 'declared', declaredNamespace: 'declared' });
+  expect(
+    inventory.entries.find((entry) => entry.apiVersion === 'example.invalid/v2'),
+  ).toMatchObject({
+    scope: 'unresolved',
+    namespace: null,
+    declaredNamespace: 'other',
+    namespaceOrigin: 'unresolved',
+  });
+});

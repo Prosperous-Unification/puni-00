@@ -394,7 +394,13 @@ export function readRehearsalInventory(
     const namespace = resolveNamespace(identity, frame, scopes);
     // Proof: Task25c2a group-owner substitution admitted two versions of one API group/kind owner.
     const apiGroup = identity.apiVersion.includes('/') ? identity.apiVersion.split('/')[0] : '';
-    const key = `${apiGroup}:${identity.kind}:${namespace.scope}:${namespace.namespace ?? identity.metadata.namespace ?? '_'}:${identity.metadata.name}`;
+    // Proof: Task25c2a mixed-scope-owner restored classification in this key and split one declared physical owner.
+    const key = JSON.stringify([
+      apiGroup,
+      identity.kind,
+      namespace.namespace ?? identity.metadata.namespace ?? null,
+      identity.metadata.name,
+    ]);
     // Proof: Task25c2a duplicate-object removal admitted duplicate actual expansion objects.
     if (seen.has(key)) throw new Error('Rehearsal duplicate object owner');
     seen.add(key);
