@@ -302,6 +302,9 @@
   - one credential skipped in revoke;
   - re-key creating persons;
   - `removePersons` leaving the count unchanged.
+
+  Tag the pool routes `humanOnly` (M8) and add them to the pinned human-only list.
+
 - [ ] 6.3 The fe-01 pool panel (keys once as a download, counts before confirming, rendered
       states, reviewed by eye).
 - [ ] 6.4 `twilight-dash pool import <file>`, giving each agent process its own `wbs_run`.

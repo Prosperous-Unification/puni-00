@@ -517,7 +517,14 @@ children (laundering, rejected); (c) subject patterns (deferred); (d) one admin 
 **M8. Human-only is an endpoint policy.**
 
 - A `humanOnly` policy on endpoint shapes excludes them from tools for every principal. The
-  covered set is the one listed in the spec.
+  covered set is the one listed in the spec, including compute provider administration: a
+  provider's host locator decides where every project's capacity reports come from, so only
+  a human admin registers or removes one.
+- Matching is on the document's canonical method and path; the pinned operation-name test
+  catches a second spelling of a tagged route.
+- The token endpoint's grant call to be-01 uses the tool-call bound (`BE_CALL_TIMEOUT_MS`,
+  35 s) deliberately: one bound for every be-01 call, and a stalled be-01 holds a pending slot
+  at most that long.
 - `EXCLUDED_PATHS` keeps auth, internal, smoke and `/api/organization/active`.
 - The capacity report becomes a tool.
 - A `humanOnly` shape matching nothing fails startup.

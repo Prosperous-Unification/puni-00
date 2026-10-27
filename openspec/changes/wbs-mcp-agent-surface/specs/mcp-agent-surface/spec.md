@@ -261,7 +261,8 @@ and a `humanOnly` shape matching no operation SHALL fail startup.
 - **WHEN** any MCP principal calls `tools/list`
 - **THEN** no tool reaches machine credentials, trusted issuers, agent pools, provisioning
   tokens, memberships, invitations, join requests, domains, SSO connections, session policy,
-  the limits read, the capacity-mode switch, restore approvals or onboarding
+  the limits read, the capacity-mode switch, restore approvals, onboarding or compute provider
+  administration (list, register, update, remove)
 
 #### Scenario: The capacity report is a tool
 
