@@ -339,6 +339,10 @@ assertion minted for WBS could also be valid elsewhere).
   - every later HTTP request with that token gets HTTP `401 invalid_token` with
     `WWW-Authenticate`, so a helper or SDK client re-fetches and then meets `invalid_client`
     or `invalid_grant`. Another replica learns it at its own first refused call.
+  - _One HTTP answer per request_ (slice 3). The 401 and the 502 above replace the request's
+    whole JSON-RPC body, a batch's included; the 502 wins over the 401. A secret, a key and
+    a grant's verification are the same for every call of one request, so a batch meets
+    them together. Any other 401 code on a machine call is a deployment fault (502).
 - _Cost._ The grant is multi-use until `exp`. Its only write is the coarse last-use touch.
 - _No single-use consume of workload assertions._ RFC 7523 makes `jti` replay protection a
   MAY, and a consume would break Kubernetes. The kubelet keeps the same token, and so the same
@@ -581,6 +585,10 @@ as well as be-01's fake.
   activation marker. The activation runbook moves both in one procedure.
 - _A mismatch is a fault, not a mode._ If be-01 answers `activated` while mcp-01's epoch is
   still 0, mcp-01 reports a configuration fault and refuses the request.
+  - _Where it is asked_ (slice 3): on `/mcp`, before an upstream token is forwarded at epoch
+    0, mcp-01 asks `POST /internal/mcp/organizations` with it, one be-01 call per such
+    request, and answers `502 server_error` when be-01 is activated. Without either service
+    secret mcp-01 cannot ask, and be-01's `no_active_organization` is the only line.
 - _The test._ It boots the shared activation fixture, which sets both markers, and checks the
   mismatched case separately.
 

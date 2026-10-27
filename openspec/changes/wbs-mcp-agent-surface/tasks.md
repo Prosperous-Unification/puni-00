@@ -218,9 +218,9 @@
 
 ## 3. mcp-01: `/mcp` admission
 
-- [ ] 3.1 M13: remove the upstream fallback after activation. Tests: "An Auth0 token on /mcp"
+- [x] 3.1 M13: remove the upstream fallback after activation. Tests: "An Auth0 token on /mcp"
       and "Markers disagree". Negative: restore the fallback.
-- [ ] 3.2 Machine tokens: no store reads, and the grant sent with the secret. Revocation per
+- [x] 3.2 Machine tokens: no store reads, and the grant sent with the secret. Revocation per
       design.md M3: a `machine_credential_refused` tool error for each call served after the
       revocation commits, the per-replica refused set (for `unknown_identity` only), then
       HTTP 401 on later requests. Tests: the second-replica
@@ -239,17 +239,17 @@
 - [ ] 3.3 Only if Dany chooses M1 (ii), and only after slice 7: raw keys. Negative: inject
       "mcp-01 answers from the cache without calling be-01 on the tool call", and watch the
       revoked-key scenario redden.
-- [ ] 3.4 Paths (M14): refuse empty, `.` and `..` values, and assert that the sent pathname
+- [x] 3.4 Paths (M14): refuse empty, `.` and `..` values, and assert that the sent pathname
       equals the expanded template. Negative: **replace the path encoder with the identity
       function**, and an `id` of `x/../../claims` reaches be-01's fake as `/api/claims` unless
       the pathname assertion refuses it. Watch it pass through with the assertion removed.
-- [ ] 3.5 Gateway mode (M11): the real negative is the `token_use: machine` JWT. The test token
+- [x] 3.5 Gateway mode (M11): the real negative is the `token_use: machine` JWT. The test token
       carries `wbs_groups: ['dev:wbs:read']`, so that scopes don't mask it, and calls a read
       tool. Remove the branch, and the answer becomes 200 with a request recorded by be-01's
       fake. A `wbs_mk_` key is already 401 through `decodeJwt`, and no check is claimed for
       it.
 - [ ] 3.6 Hosted connector check on dev: claude.ai consent with `none` is unchanged. Record it.
-- [ ] 3.7 Secret cutover (M14), with each secret tested on `/internal/mcp/delegation`. The old
+- [x] 3.7 Secret cutover (M14), with each secret tested on `/internal/mcp/delegation`. The old
       secret is removed in release N+1 (a follow-up).
 
 ## 4. Limits and the source address

@@ -563,6 +563,165 @@ Recorded, not changed:
   issuer route does not yet refuse registering `WBS_MCP_AUTHORIZATION_SERVER`, because the
   core route is not composed with it. Such a registration admits no grant.
 
+## Slice 3: `/mcp` admission at mcp-01 (tasks 3.1, 3.2, 3.4, 3.5 and 3.7)
+
+Built on branch `feat/wbs-mcp-admission-3` from the plan branch at 25b60f291 (slices 1 and 2
+merged), 2026-10-27, on the assumed M1 to M16 as slices 1 and 2 amended them. Task 3.3 waits
+for Dany's M1 choice and task 3.6 is a dev check after deploy; neither is here. Every test
+below ran under `env -u CLAUDECODE` on the laptop; nothing ran on h2puni.
+
+What landed:
+
+- **3.1** `McpOAuthServer.admitUpstream` (`src/oauth.ts`): at the activated epoch no upstream
+  token is admitted, and `bearerFor` throws for a sessionless caller instead of forwarding.
+  Before it, be-01 activated beside mcp-01's epoch 0 is `ActivationMarkersDisagree`, a
+  reported `McpDeploymentFault` (`src/deployment-fault.ts`) answered `502 server_error`.
+- **3.2** `McpOAuthServer.admitCaller` dispatches on the verified `token_use`;
+  `src/machine-admission.ts` holds `machineIdentityOf`, the per-replica
+  `RefusedMachineTokens` and the per-request `MachineCaller`; `server.ts` `callAsMachine`
+  presents the grant with `MCP_BE_INTERNAL_SECRET` and maps be-01's refusals; `http.ts` turns
+  a machine caller's outcome into the request's HTTP answer. `/revoke` answers a machine token
+  `400 unsupported_token_type`.
+- **3.4** `buildRequest` (`src/wbs-client.ts`) refuses an empty, `.` or `..` path value
+  (`dot_segment`) and a URL that does not parse back to the expanded template
+  (`route_changed`), both `ToolInputRefused` before any be-01 request.
+- **3.5** `authenticateCaller` (`src/caller-auth.ts`) refuses a `token_use: machine` JWT in
+  gateway mode.
+- **3.7** `mcpServiceHeaderOf` (`src/organization-authority.ts`): the dedicated secret alone
+  whenever it is set, else `INTERNAL_AUTH_SECRET`; `mcpOAuthFromEnv` composes organization
+  authority from either. be-01 already admitted either on `/internal/mcp/*` (slice 1); its
+  test now covers `/internal/mcp/delegation` too.
+
+Tests: `machine-admission.test.ts` (fake be-01: the grant on the wire, a second replica with
+store spies, scope narrowing, revocation per call, per batch and per replica, the secret and
+key faults, expiry, `token_use`, `/revoke` and refresh, gateway mode, the refused set),
+`machine-admission.model.test.ts` (`fc.asyncModelRun`, below), `machine-admission.boot.test.ts`
+(the headless flow against be-01's composed routes in their own process), and additions to
+`wbs-client.test.ts`, `oauth.test.ts`, `credential-epoch.test.ts`,
+`organization-authority.test.ts`, `organization-delegation.boot.test.ts`, `machine-token.test.ts`,
+`main.test.ts` and be-01's `machine-grant.controller.db.test.ts`.
+
+### Slice 3 notes (assumptions taken, and gaps in the design)
+
+1. **The HTTP answer of a tool call's refusal.** M3 wants HTTP 401 or 502 for some be-01
+   answers, but a tool handler runs inside the SDK's transport, which answers 200. The
+   `MachineCaller` in `AuthInfo.extra` records the outcome and `mcpHttpResponse` replaces the
+   JSON-RPC body after the transport answered. The 502 wins over the 401, and a batch gets one
+   answer (design M3 now says so). The secret is a private field, so no printer reaches it.
+2. **Which 401s are which on a machine call.** `unknown_identity` is the credential's refusal;
+   `unknown_grant_key` and `invalid_token` are the grant's (401, re-fetch); every other 401
+   code, `internal_unauthorized` and an unexpected `unauthenticated` among them, is a
+   deployment fault (502). A Basic-gate 401 stays the existing `EdgeGate` tool error.
+3. **Where the markers are compared (M13).** Only on `/mcp`, before forwarding an upstream
+   token at epoch 0, through `POST /internal/mcp/organizations`, which costs one be-01 call per
+   such request (design M13 now says so). be-01 refusing the token there is `401`. The consent
+   callback is not checked: `organization-delegation.boot.test.ts` deliberately runs mcp-01 at
+   epoch 0 beside an activated be-01, and a pre-activation session's unbound family still
+   forwards its upstream token until the epoch advance revokes it, refused by be-01
+   `no_active_organization`. Left as it is, because the runbook advances the epoch first.
+4. **A fault reporter is required with organization authority**, since the markers fault must
+   be reported: `McpOAuthServer` refuses to start without one, and `main.ts` composes one
+   reporter for every `McpDeploymentFault` (`MachineGrantDefect` is now one). Its log line is
+   `MCP deployment fault`.
+5. **Machine admission needs the machine grant settings.** A machine token is admitted only in
+   standalone mode with `machineGrants` composed, because its be-01 calls need the secret they
+   carry (`MachineGrantSettings.secret`, new). Elsewhere it is 401.
+6. **`token_use` on the consent path.** An absent `token_use` stays admitted. Removing that,
+   once consent tokens issued before slice 2 have expired (one `MCP_ACCESS_TOKEN_TTL` after
+   that release), is a follow-up; nothing here dates it.
+7. **`/revoke` for a machine token** is refused even when expired, as long as its signature
+   verifies; an unverifiable token keeps RFC 7009's 200. Refresh with a machine token as the
+   refresh token is `invalid_grant` by the store's own lookup; tested, no new code.
+8. **The secret cutover in mcp-01.** "mcp-01 sends only the new secret" is read as: the
+   dedicated secret alone whenever `MCP_BE_INTERNAL_SECRET` is set, and
+   `INTERNAL_AUTH_SECRET` only where it is not yet seeded (dev's mcp-01 is not, slice 2 note 2).
+   Either secret now composes organization authority, in gateway mode too, so a deployment
+   with only the dedicated secret keeps consent working after release N+1.
+9. **Path refusals.** A value of three or more dots names a row and is sent; only `.` and `..`
+   are dot segments. The route check compares `new URL(url).pathname` with
+   `WBS_API_URL`'s own path plus the expanded template, so a path prefix is kept.
+10. **The refused set's bound.** Each refusal drops the entries whose token has expired, so the
+    set holds at most the refused tokens still alive; it is never a store (M5).
+11. **The e2e test names the person.** Main's #758 (`claimWorkItem` defaults `personId` to the
+    caller) is not in the plan branch at 25b60f291 (`git merge-base --is-ancestor` said no), so
+    `machine-admission.boot.test.ts` claims with `personId: 'claire'`, and also shows a claim
+    for another person of the account refused.
+12. **The rotation fixture.** The booted backend gains `POST /__fixture/rotate-grant-key`,
+    which replaces the grant key and keeps no previous one: a rotation that dropped
+    `_PREVIOUS` early.
+13. **The SDK and batches.** MCP SDK 1.31.0 accepts a JSON-RPC batch at `/mcp` and runs its
+    calls concurrently (observed in the batch tests), as design M3 assumed.
+14. **The model test's own trap.** Its first draft drew the expiry as often as a call, so most
+    runs expired at once and one sabotage (a secret fault entered into the refused set) passed.
+    Calls are now weighted eight to one, and the run counts every branch it reached.
+15. **Not in slice 3:** M10's limits (`sourceOf` still trusts the leftmost `X-Forwarded-For`,
+    task 4.2), the human-only tool policy (5.1), run scoping (1.6), and the hosted-connector
+    check (3.6). A `wbs_mk_` key on `/mcp` stays 401 through the JWT decode (M11).
+
+### Commands and results, slice 3
+
+All on 2026-10-27 at 87f5cf80b (the docs commit after it changes no code), with
+`env -u CLAUDECODE` and `--skip-nx-cache`:
+
+| Command                                                                                     | Result                                                                   |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `bunx nx run-many -t typecheck lint -p wbs-mcp-01 wbs-be-01 --parallel=1`                   | exit 0                                                                   |
+| `bunx nx run wbs-mcp-01:test`                                                               | 649 pass, 0 fail (27 files)                                              |
+| `bunx nx run wbs-contracts:test`                                                            | 607 pass, 0 fail                                                         |
+| `bunx nx run wbs-be-01:test`                                                                | 3755 pass, 3 skipped, 0 fail (3758 tests in 256 files, 1262.2 s), exit 0 |
+| `bunx nx run tool-devsync:test`                                                             | 940 pass, 0 fail (49 files, 741.2 s), exit 0; no port 9100 clash         |
+| `bunx openspec validate --all --json`                                                       | exit 0; 297 items, 297 passed                                            |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` | exit 0 (the existing store-memory and plan-commands review debt)         |
+| `bunx prettier --check` on every changed file but `.env.example`                            | "All matched files use Prettier code style!"                             |
+
+Not run: the h2puni gate, fe-01 and its e2e, gw-01 (untouched), and anything on the dev host.
+No migration and no `libs/**/service/` file changed, so no pin test or `kinds.json` entry was
+due.
+
+### Failure-proof table, slice 3
+
+Each check was watched failing with the fault injected, then restored; the `Proof:` comment
+sits beside it. "Unit" is `machine-admission.test.ts`, "model"
+`machine-admission.model.test.ts`, "boot" `machine-admission.boot.test.ts`, "delegation boot"
+`organization-delegation.boot.test.ts`.
+
+| Task | Check                                                                | Fault injected                                                                       | Test that observed it failing                                                                                               |
+| ---- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| 3.1  | no upstream token after activation (3.1's negative)                  | the fallback restored: epoch refusal, markers check and `bearerFor` throw removed    | delegation boot `an Auth0 token on /mcp is 401 once both markers are set…` (200) and the markers test (200)                 |
+| 3.1  | epoch refusal alone                                                  | removed                                                                              | delegation boot `an Auth0 token on /mcp is 401…` (502)                                                                      |
+| 3.1  | markers disagree is a fault                                          | check removed                                                                        | delegation boot `a raw upstream Bearer is a reported fault while the markers disagree` (200)                                |
+| 3.1  | a deployment fault is 502                                            | mapped to 401                                                                        | the same (401)                                                                                                              |
+| 3.1  | `bearerFor` never forwards a sessionless token                       | throw removed                                                                        | `credential-epoch.test.ts` `never forwards a sessionless token after activation`                                            |
+| 3.2  | machine dispatch                                                     | removed                                                                              | boot: all five tests after activation (401)                                                                                 |
+| 3.2  | the grant with the secret (forward the access token)                 | the access token as the bearer                                                       | unit `presents the grant with the secret, and never the access token`                                                       |
+| 3.2  | machine call branch                                                  | removed                                                                              | unit: six tests (no secret sent; consent mapping)                                                                           |
+| 3.2  | no store read (read the epoch)                                       | `credentialEpoch()` in `admitMachine`                                                | unit `is answered by a second replica sharing only the keys and the secret, reading no store`                               |
+| 3.2  | be-01 rereads per call (3.2's cache negative)                        | be-01 `identity.ts` caching the admission per presented grant                        | boot `revocation at the next call…` (the call succeeded after revocation)                                                   |
+| 3.2  | refused set consulted (skip the refused set)                         | check skipped                                                                        | unit revocation and batch tests (200); model                                                                                |
+| 3.2  | refused set filled on `unknown_identity`                             | `credentialRefused()` dropped                                                        | unit revocation and batch tests (200); model                                                                                |
+| 3.2  | a secret mismatch never enters the set                               | `credentialRefused()` beside the fault                                               | unit `answers a missing or wrong secret 502…, and keeps the token once the secret is fixed` (401); model                    |
+| 3.2  | a key fault never enters the set                                     | `credentialRefused()` beside `grantRejected()`                                       | model                                                                                                                       |
+| 3.2  | one set per replica                                                  | one set shared by both replicas                                                      | model                                                                                                                       |
+| 3.2  | `unknown_grant_key` is HTTP 401 (3.2's rotation negative)            | `grantRejected()` dropped (a tool error)                                             | unit `answers a grant be-01 cannot verify 401 invalid_token…` (200); boot `answers a key rotation 401 invalid_token…` (200) |
+| 3.2  | the outcome replaces the HTTP answer                                 | mapping removed                                                                      | unit secret and key tests (200)                                                                                             |
+| 3.2  | `internal_unauthorized` reported, not re-fetched (1.2's mcp-01 half) | be-01 answering a missing or wrong secret `unknown_grant_key`                        | boot `a wrong service secret is a reported fault, 502, never a re-fetch` (401)                                              |
+| 3.2  | machine admission only where composed                                | mode test removed                                                                    | unit `refuses a machine token where no machine admission is composed` (admitted in gateway mode)                            |
+| 3.2  | a machine token needs its grant                                      | grant read as optional                                                               | unit `refuses a machine token without its grant…` (`Bearer undefined` sent, 200)                                            |
+| 3.2  | consent path refuses another `token_use`                             | refusal removed                                                                      | `oauth.test.ts` `refuses a consent session token of any use but consent` (admitted)                                         |
+| 3.2  | `/revoke` answers `unsupported_token_type`                           | refusal removed                                                                      | unit `answers unsupported_token_type for a machine token at /revoke…` (200)                                                 |
+| 3.2  | the fault reporter is redacted                                       | policy built with `[]`                                                               | `main.test.ts` `reports a deployment fault redacted`                                                                        |
+| 3.4  | dot segments refused                                                 | refusal removed                                                                      | `wbs-client.test.ts` `refuses an empty, "." or ".." path value before any be-01 request`                                    |
+| 3.4  | sent pathname equals the template (3.4's negative)                   | encoder replaced by the identity function: refused; then the route check removed too | `refuses a value that would move the route` passed with the check, failed without it (`/api/claims` sent)                   |
+| 3.5  | gateway refuses `token_use: machine` (3.5's negative)                | branch removed                                                                       | unit `refuses a machine token in gateway mode, forwarding nothing` (200, be-01's fake recorded the call)                    |
+| 3.7  | mcp-01 sends the dedicated secret alone                              | `INTERNAL_AUTH_SECRET` preferred                                                     | `organization-authority.test.ts` `sends only the dedicated secret once it is configured`                                    |
+| 3.7  | either secret composes organization authority                        | `INTERNAL_AUTH_SECRET` alone, as before                                              | `machine-token.test.ts` `composes machine grants from the environment in standalone mode only` (gateway asked no reporter)  |
+| 3.7  | be-01 admits either secret on `/internal/mcp/delegation`             | `mcp-internal` admitting one secret only, each way                                   | be-01 `admit either secret on /internal/mcp/delegation` (and the `credentials/ended` test)                                  |
+
+The model property (seed 20261027, 100 runs of up to 14 commands) failed under each of the
+five refused-set sabotages above and passes restored; its run asserts every branch was
+reached (a refused call, a refused request, a secret fault, a key fault, a batch split by the
+revocation).
+
 ## Failure-proof table
 
 Slice 1 rows. Each check was watched failing with the fault injected, then restored; the
