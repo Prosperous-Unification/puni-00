@@ -2457,3 +2457,113 @@ Published `63004ecc92a4abab1803ca0c19c55bdc7b02b394`: Infra run 40563427159 fail
 Retained Fleet log `/tmp/puni-pr760-fleet-6300.log`, 559,284 bytes, SHA-256 `fc95e6c0718735ce9b91cb40188ff98f7a1d369a495777fc5d937e1723f41304`, obtained once with `gh api --allow-escape-sequences repos/Prosperous-Unification/puni-00/actions/jobs/122398234802/logs`. Exact failed names and all seven unchanged skip names are in the controller's `published-6300-infra-failure.json`. Successful CodeQL/pixels or a still-live main shard do not override this failure.
 
 [Task31 CI fix1](#task31-ci-fix1--restore-fresh-projection-cli-initialization) records the reproduced five failures, verbatim helper extraction, all seven unchanged CLI tests passing, the controlled old-import fault and independent scoped approval. The repair preserves the API union, CLI handlers/assertions, resource checking and Task32 source contracts. Its local evidence is not a new hosted CI verdict. Publishing a reviewed repair for this known failing revision may supersede its remaining run through existing workflow concurrency; this is a meaningful source update, not a rerun triggered by waiting. Observe the replacement checkpoint's own required verdicts.
+
+## Task33 / Task25c3e — conditional serial Job lifecycle accounting
+
+Intent BASE `701c58bc271adfa74df374a95192d7a2a9e2cce5` preceded source/tests. The approved current typed shape adds only Job policy decoding, conditional lifecycle records and accounting slots to the existing native companion. Source commit **`4adb2425057144ca2232437573f2678ca81234a9`** was clean for the single retained-source control. Normal commit hooks passed in 3.94s; Tool Wiki reported `inactive`, not certification. No pushes, CI actions, host/runtime mutation, chart rendering or new capture occurred.
+
+Supported accounting is a fresh unchanged serial NonIndexed Job with effective parallelism=completions=1, suspend/manualSelector=false, supported default failure/replacement behavior and no live/foreign identity. Backoff B retains B+1 full normalized Pod slots, including failed/terminating attempts. The existing normalizer, owner expansion and shared capacity sums are reused. Job scope/lifecycles are additive; inventory and both authorities stay source-only/false. Slots are accounting identities, never Pod names or UIDs.
+
+The adapter materializes at most 256 slots per Job (backoff 0..255); this is a computational limit, not a Kubernetes, hardware or physical safety bound. Backoff256 and MaxInt32 are valid incomplete sources, without truncation or materialization. All supplied known malformed policy/count/selector/resource/volume state is rejected before these branches, provider mismatch or missing bounds. Broad absent/null resource maps remain incomplete. Specific pinned-source lookups resolved conditional completion defaulting, policy defaults and recognized validation domains; no controller-design research was repeated. Job deadline 0 and values above int32 but within safe integers are metadata, not reclamation deadlines.
+
+Per-owner runtime and whole-attempt Helm install/upgrade/retry/remediation, hook Job UID, Flux forced-recreation and retained predecessor/Pod/device/log history obligations remain mandatory. Failure/finalizer accounting, successful/uncertain creation reconciliation and no further creation after success are explicit unobserved conditions. Container restarts reuse slots but leave cumulative logs unbounded; deadlines, grace, TTL and hook policies earn no cleanup credit.
+
+### Commands and outcomes
+
+Commands ran from `/home/df/.codex/worktrees/aa39/puni-00`; exact final arrays/UTC starts/exits/timings are in `/tmp/puni-task25c3e/source-checks.json` and `retained-command.json`.
+
+| Command                                                                                                                                                                                        | Observed result                                                                                                     |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/observability-native-job.test.ts`                                                                                     | Final restored source: **104 pass, 0 fail, 448 assertions**, Bun 805ms/process0.823s.                               |
+| `bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/observability-native-ordinal.test.ts tools/tool-fleet/src/observability-native-deployment.test.ts`                    | Selected unchanged-family compatibility: **147 pass, 0 fail, 285 assertions**, Bun 1.342s. Not repeatedly replayed. |
+| `bunx eslint tools/tool-fleet/src/observability-native-ordinal.ts tools/tool-fleet/src/observability-native-job.test.ts`                                                                       | Exit0, 3.845s.                                                                                                      |
+| `bunx tsc --project tools/tool-fleet/tsconfig.spec.json --noEmit --incremental false`                                                                                                          | Exit0, 1.282s; scoped Fleet types, no emitted build.                                                                |
+| `bunx prettier --check tools/tool-fleet/src/observability-native-ordinal.ts tools/tool-fleet/src/observability-native-job.test.ts openspec/changes/observability-environment-parity/design.md` | Exit0, 0.463s.                                                                                                      |
+| `bunx openspec validate observability-environment-parity --strict --json`                                                                                                                      | One valid change, zero issues, exit0, 0.845s.                                                                       |
+| `git diff --check`                                                                                                                                                                             | Exit0, 0.027s before source commit.                                                                                 |
+| `bun test --timeout=15000 /tmp/puni-task25c3e/retained.test.ts`                                                                                                                                | Exactly one clean committed-adapter retained-source control: **1 pass, 0 fail, 205 assertions**, Bun2.26s.          |
+
+Meaningful original RED/setup evidence is retained. Schema/default/classification first ran **7 pass / 44 fail**; implemented green 51. Charge/metadata tests ran **62 pass / 9 fail**: eight missing-feature failures plus one incorrect diagnostic expectation (shared source decoding already rejects malformed CPU as `Generated capacity cpu-unknown`). Only that expectation was corrected; green 71 followed. Recognized selector/policy additions ran **87 pass / 6 fail**, then green 93. Added focused prepass/operator controls grew the suite to 101; grammar/claim controls to 103. Self-review's empty managedBy DNS-label negative failed once, then passed with its targeted fix, giving 104. Initial scoped lint reported 14 callback/template/type issues and initial types reported test YAML-node TS2339; all corrected, with final outputs above. Earlier logs were not relabeled as green. Evidence assembly initially assumed a `3.1q` checkbox in canonical tasks.md; that assertion failed after verify.md was written. The actual canonical task is a paragraph under open task 3.1, so a verification link was added there instead; no task-completion checkbox was invented.
+
+### Observed R5 faults
+
+Each following fault was injected individually through `readRehearsalNativeCosts`, observed failing, and immediately restored in `finally`; no old proof matrix was replayed and no mutation framework was added. Adjacent `Proof:` comments name the observed dependencies/tests. Exact fault descriptions, commands, failing-test counts, timings and restored source hashes are in `/tmp/puni-task25c3e/proofs.json`; individual `fault-<name>.log`/`.json` files preserve the output. All 47 targeted commands exited1 with failed assertions. The shared command prefix is `bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/observability-native-job.test.ts -t`; table entries are its exact final filter argument. The range fault ran only backoff 256 (257 slots), never hostile MaxInt32 with the guard removed. Expression grammar and success-index grammar controls isolate their checks from later matching/numeric refusals.
+
+| Fault                | Exact test filter                             | Failed tests                                  | Process seconds       |
+| -------------------- | --------------------------------------------- | --------------------------------------------- | --------------------- |
+| arrays               | `Job malformed (selector array                | selector labels array                         | failure shape)`       | 3              | 0.584                |
+| attempt-count        | `Job backoff (0                               | 4                                             | 6                     | 10) retains`   | 4                    | 0.601               |
+| backoff-default      | `Job defaults preserve`                       | 1                                             | 0.571                 |
+| claim-obligation     | `Job external claim`                          | 1                                             | 0.590                 |
+| completion-default   | `Job valid unsupported workqueue`             | 1                                             | 0.573                 |
+| condition-key        | `Job malformed condition type`                | 1                                             | 0.579                 |
+| conditions           | `Job conditions and whole`                    | 1                                             | 0.604                 |
+| deadline             | `Job malformed deadline`                      | 2                                             | 0.584                 |
+| exit-codes           | `Job malformed failure exit codes (zero       | duplicate                                     | unordered)`           | 3              | 0.596                |
+| exit-container       | `Job malformed failure container unknown`     | 1                                             | 0.580                 |
+| expansion-range      | `Job valid unsupported range above bound`     | 1                                             | 0.574                 |
+| fail-index           | `Job malformed failure index contradiction`   | 1                                             | 0.585                 |
+| failure-matchers     | `Job malformed failure (rule neither          | both matchers)`                               | 2                     | 0.573          |
+| failure-replacement  | `Job (failure policy cannot                   | malformed failure replacement contradiction)` | 2                     | 0.580          |
+| foreign              | `Job malformed foreign`                       | 3                                             | 0.653                 |
+| full-retention       | `Job backoff 4 retains`                       | 1                                             | 0.568                 |
+| history-forgery      | `Job conditions and whole`                    | 1                                             | 0.579                 |
+| indexed              | `Job malformed indexed (work queue            | parallel cap)`                                | 2                     | 0.583          |
+| large-indexes        | `Job malformed indexed large`                 | 1                                             | 0.561                 |
+| managed-by           | `Job malformed managed controller domain`     | 1                                             | 0.585                 |
+| managed-domain-label | `empty domain label`                          | 1                                             | 0.588                 |
+| max-indexes          | `Job malformed (max failed without index      | indexed max failures)`                        | 2                     | 0.564          |
+| namespace            | `Job namespace and provider`                  | 1                                             | 0.566                 |
+| nonindexed-policy    | `Job malformed (per index nonindexed          | success nonindexed)`                          | 2                     | 0.573          |
+| prepass              | `all-native prepass`                          | 1                                             | 0.612                 |
+| resource-obligation  | `Job broad resource absence`                  | 4                                             | 0.591                 |
+| runtime-forgery      | `Job conditions and whole`                    | 1                                             | 0.571                 |
+| runtime-obligation   | `Job conditions and whole`                    | 1                                             | 0.573                 |
+| schema               | `Job malformed (mode                          | suspend                                       | manual selector       | replacement    | restart absent value | failure rule action | failure exit codes empty | failure conditions status)` | 8               | 0.607                    |
+| selector-grammar     | `Job selector In.*bad value`                  | 1                                             | 0.576                 |
+| selector-labels      | `Job malformed selector (invalid key          | invalid value                                 | mismatched template)` | 3              | 0.578                |
+| selector-match       | `Job selector (In.*wrong                      | NotIn                                         | Exists.*\[\]          | DoesNotExist)` | 4                    | 0.605               |
+| selector-values      | `Job selector Exists.*setup`                  | 1                                             | 0.582                 |
+| serial-policy        | `Job (valid unsupported (workqueue            | parallel                                      | indexed               | suspended      | manual selection     | selector            | foreign controller       | replacement Failed          | failure policy) | namespace and provider)` | 10  | 0.616 |
+| slot                 | `Job backoff 4 retains`                       | 1                                             | 0.575                 |
+| source-frame         | `Job backoff 4 retains`                       | 1                                             | 0.574                 |
+| source-identity      | `Job runtime`                                 | 5                                             | 0.592                 |
+| source-pointer       | `Job backoff 4 retains`                       | 1                                             | 0.570                 |
+| success-count        | `Job malformed success count exceeds indexes` | 1                                             | 0.583                 |
+| success-grammar      | `Job malformed success index exponent`        | 1                                             | 0.568                 |
+| success-range        | `Job malformed success indexes (overlap       | bound)`                                       | 2                     | 0.596          |
+| success-required     | `Job malformed success empty rule`            | 1                                             | 0.574                 |
+| template             | `Job conditions and whole`                    | 1                                             | 0.573                 |
+| total                | `Job charges share`                           | 1                                             | 0.571                 |
+| unbounded-obligation | `Job unbounded bucket`                        | 1                                             | 0.573                 |
+| whole-attempt        | `Job (conditions and whole                    | unbounded bucket)`                            | 2                     | 0.581          |
+| writer-obligation    | `Job absent ephemeral`                        | 1                                             | 0.580                 |
+
+### One clean retained-source control
+
+The immutable Task32 capture source **and clean generator** remain `0e39b65706c1c6dd98fb031cd7927f6262e1d539`, distinct from adapter `4adb2425057144ca2232437573f2678ca81234a9`. All three original capture hashes/modes were checked before derivation and remain 0400; they were never rewritten or relabeled:
+
+| Original file under `/tmp/puni-task25c3d/` | SHA-256                                                            |
+| ------------------------------------------ | ------------------------------------------------------------------ |
+| `current-frames.json`                      | `22744ba8af46abf8213d8ae19d8b68055a5f6b86ebc9ef641a7205069ae1e73b` |
+| `current-frames.json.stages.json`          | `2b112804d1f90f4b8b456bf85611cf2e656095b92d0a26aa78d73277ddb0b7a2` |
+| `current-receipt.json`                     | `736a1667f5e7885dbeefef25cf55977be629d574a5401cec486c1f9dfe2c5624` |
+
+The existing validated source API consumed 25 frames, 11 stages and 396 inventory entries. All 29 old entries, five ordinal lifecycles, **ten Deployment lifecycles** and every non-Job blocker compare exactly with Task32's retained ledger; source inventory hash, frame records, unresolved facts, provider metadata, prerequisites and excluded contributors also compare exactly. The frozen older design's 27 entries / nine Deployments are historical, not this baseline.
+
+Eight normalizable Jobs add 74 slots: cert-manager startup 5, admission-create 7, admission-patch 7, each of the five settings/objects/snapshot Jobs 11. Every slot's exact source frame/hash/pointer, identity, concurrency metadata and full memory/CPU/disk charge is asserted. The known increment is **10112 MiB memory / 2200m CPU requests / 1216 MiB disk**. New total: **103 entries / 20480 MiB memory / 3790m CPU requests / 13120 MiB known disk / 120 blockers**. Five independent absent-ephemeral/log/runtime writer obligations remain. `Job:puni-backup:object-store-buckets` remains `candidate-emptydir-unbounded`, with no invented charge and with its whole-attempt history obligation. Every supported owner retains its own runtime binding and generation/history obligation. No source charge establishes runtime concurrency, effective Pod enforcement, cleanup or a finite cross-generation multiplier.
+
+Artifact hashes and final source hashes are in `/tmp/puni-task25c3e/source-identities.json`:
+
+| Evidence file           | SHA-256                                                            |
+| ----------------------- | ------------------------------------------------------------------ |
+| `proofs.json`           | `f742c2f2866346de491c87537ea71db1452acf6a09b8cf1f1514fd5330f7b23a` |
+| `source-checks.json`    | `adfcc34f3c8df37679b8199af634ef9ac1724cc6c2fd1cd20dda8dfb6c1acd35` |
+| `retained.test.ts`      | `eb1320327688d52de562b561f1c49a0f5e55c7a55be015527b34ce981d98e1bb` |
+| `retained-ledger.json`  | `a673fff2c4c2215826404047f4daf5e0ced3e585db88c539a058c7a06ac53e7f` |
+| `retained-summary.json` | `7239f687126fd09df2a0d80deb2b359f5788f587715e11f3a2651fe94dc482e6` |
+| `retained-command.json` | `45797ce3cb5d82bf9d0ba2e8d87a4d5f998548f670ea3865d6ed79a720c302b7` |
+
+### Remaining acceptance
+
+This is source-only Task33 implementation evidence, awaiting root-owned scoped review. Task 3.1/full admission and runtime acceptance remain open: CronJob/manual recovery, generated/native remainder, writers, system/helpers/transients/host contributors, whole-attempt generations and retained histories, actual provider/features/effective Pods/UIDs/node/enforcement and retained storage. The canonical 4/11 contract is unmodified; the retained control checks 11 source stages, not a new runtime rehearsal. Full Nx gates, h2/h4 gates, full Fleet suite, build, cluster/runtime checks, CI reruns, publication, deployment and Secret actions were deliberately not run in this scoped task. Root owns the unrelated ec8 Infra cache/fixture failure; no CI repair was attempted here.
