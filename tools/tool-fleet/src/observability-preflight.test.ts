@@ -573,7 +573,10 @@ async function fixture() {
         server.stop(true);
       }
     },
-    async run(requestPath = join(directory, 'request.json')) {
+    async run(
+      requestPath = join(directory, 'request.json'),
+      searchPath = `${bin}:${executablePath}`,
+    ) {
       await writeFile(join(directory, 'request.json'), JSON.stringify(request));
       await writeFile(join(directory, 'snapshot.json'), JSON.stringify(snapshot));
       const child = Bun.spawn(
@@ -591,7 +594,7 @@ async function fixture() {
           cwd: root,
           env: {
             ...cliEnvironment(),
-            PATH: `${bin}:${executablePath}`,
+            PATH: searchPath,
             PREFLIGHT_SNAPSHOT: join(directory, 'snapshot.json'),
             SSH_AUTH_SOCK: join(directory, 'agent.sock'),
           },
@@ -1538,8 +1541,11 @@ it('required command absence refuses with a safe transport failure category', as
   const { unlink } = await import('node:fs/promises');
   const setup = await fixture();
   await unlink(join(setup.directory, 'bin/kubectl'));
-  const response = await setup.run();
+  // Proof: restoring inherited PATH invoked an exit-0 fallback kubectl and failed this
+  // test's exact diagnostic assertion with context-unavailable (Task27).
+  const response = await setup.run(undefined, join(setup.directory, 'bin'));
   expect(response.exitCode).toBe(1);
+  expect(response.stdout).toBe('');
   expect(response.stderr.trim()).toBe('observability preflight: command-unavailable-or-timeout');
 });
 
