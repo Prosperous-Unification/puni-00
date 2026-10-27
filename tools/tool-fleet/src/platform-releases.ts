@@ -3,6 +3,8 @@ import { createHash } from 'node:crypto';
 import { type } from 'arktype';
 
 import type { Toolchain } from './contracts';
+import { readCPUMilli, readMemoryMiB } from './observability-capacity';
+import { assertPodResources } from './observability-generated-capacity';
 
 type ChartLockName = keyof Toolchain['charts'];
 
@@ -45,6 +47,52 @@ const DiskResources = type({
   limits: { cpu: Quantity, memory: Quantity, 'ephemeral-storage': Quantity, '+': 'reject' },
   '+': 'reject',
 });
+/** Historical release decoding validates supplied quantities without requiring candidate budgets. */
+const NetworkingQuantities = type({
+  'cpu?': Quantity,
+  'memory?': Quantity,
+  'ephemeral-storage?': Quantity,
+  '+': 'reject',
+});
+// Proof: Task25c3c resource-unknown-keys widening admitted foreign resource branches in structural image decoding.
+const NetworkingResources = type({
+  'requests?': NetworkingQuantities.or('null'),
+  'limits?': NetworkingQuantities.or('null'),
+  '+': 'reject',
+})
+  // Proof: Task25c3c historical-null removal broke historical absent/null image-reference controls.
+  .or('null')
+  .narrow((resources) => {
+    // Proof: Task25c3c resource-array bypass admitted outer resource arrays in both release decoders.
+    if (Array.isArray(resources)) return false;
+    // Proof: Task25c3c shared-resource-validation substitution admitted malformed/negative requests and contradictions in current/structural callers.
+    if (resources !== null)
+      assertPodResources({
+        ...(resources.requests == null ? {} : { requests: resources.requests }),
+        ...(resources.limits == null ? {} : { limits: resources.limits }),
+      });
+    return true;
+  });
+function refuseNetworking(reason: string): never {
+  throw new Error(`networking candidate ${reason}`);
+}
+// Proof: Task25c3c scratch-reader removal admitted malformed and negative supplied scratch quantities.
+const ScratchQuantity = Quantity.or('null').narrow((quantity) => {
+  if (quantity !== null) readMemoryMiB(String(quantity), refuseNetworking);
+  return true;
+});
+// Proof: Task25c3c scratch-array and scratch-unknown-keys bypasses admitted array and foreign-medium emptyDirs.
+const Scratch = type({ 'sizeLimit?': ScratchQuantity, '+': 'reject' }).narrow(
+  (scratch) => !Array.isArray(scratch),
+);
+// Proof: Task25c3c tmp-volume-array bypass admitted an array in structural Traefik decoding.
+const TemporaryVolume = type({ 'emptyDir?': Scratch, '+': 'reject' }).narrow(
+  (volume) => !Array.isArray(volume),
+);
+// Proof: Task25c3c persistence-array bypass admitted an array; disabled-persistence widening accepted enabled persistence through validatePlatform.
+const Persistence = type({ 'enabled?': 'false', 'emptyDir?': Scratch, '+': 'reject' }).narrow(
+  (persistence) => !Array.isArray(persistence),
+);
 const ObservabilityNode = type({ 'puni.dev/capability-observability': "'true'", '+': 'reject' });
 const TolerateAll = type({ operator: "'Exists'", '+': 'reject' }).array().exactlyLength(1);
 const Env = type({ name: 'string>0', value: 'string', '+': 'reject' }).array();
@@ -67,9 +115,12 @@ const TraefikValues = type({
     '+': 'reject',
   },
   versionOverride: 'string>0',
+  'resources?': NetworkingResources,
+  'persistence?': Persistence,
   deployment: {
     kind: "'DaemonSet'",
     dnsPolicy: "'ClusterFirstWithHostNet'",
+    'tmpVolume?': TemporaryVolume,
     '+': 'reject',
   },
   hostNetwork: 'true',
@@ -107,13 +158,65 @@ const TraefikValues = type({
 
 const CertManagerValues = type({
   crds: { enabled: 'true', '+': 'reject' },
+  'resources?': NetworkingResources,
   image: ImageValues,
-  webhook: { image: ImageValues, '+': 'reject' },
-  cainjector: { image: ImageValues, '+': 'reject' },
+  webhook: { image: ImageValues, 'resources?': NetworkingResources, '+': 'reject' },
+  cainjector: { image: ImageValues, 'resources?': NetworkingResources, '+': 'reject' },
   acmesolver: { image: ImageValues, '+': 'reject' },
-  startupapicheck: { image: ImageValues, '+': 'reject' },
+  startupapicheck: { image: ImageValues, 'resources?': NetworkingResources, '+': 'reject' },
   '+': 'reject',
 });
+
+/** Require current shared networking budgets separately from historical image decoding.
+ * Throws for incomplete maps, nonpositive limits/scratch or invalid supplied quantities.
+ * Shared resource validation owns request/limit arithmetic; these are policy inputs, not runtime observations.
+ */
+export function assertNetworkingCandidate(release: string, values: unknown): void {
+  if (release !== 'cert-manager' && release !== 'traefik') return;
+  const requireResources = (input: unknown) => {
+    // Proof: Task25c3c candidate-call/required-container omissions lost each production missing-map refusal.
+    const resources = decode('networking candidate', DiskResources, input);
+    // Proof: Task25c3c shared-resource-validation bypass lost request/limit and supplied-quantity refusals.
+    assertPodResources(resources);
+    for (const dimension of ['cpu', 'memory', 'ephemeral-storage'] as const) {
+      const read = dimension === 'cpu' ? readCPUMilli : readMemoryMiB;
+      // Proof: Task25c3c positive-limits bypass admitted zero CPU/memory/ephemeral limits with zero requests.
+      if (read(String(resources.limits[dimension]), refuseNetworking) <= 0)
+        refuseNetworking(`${release} ${dimension} limit must be positive`);
+    }
+  };
+  if (release === 'cert-manager') {
+    const parsed = decode(release, CertManagerValues, values);
+    // Proof: Task25c3c required-controller/cainjector/webhook/startupapicheck omissions each lost its missing-map negative.
+    for (const resources of [
+      parsed.resources,
+      parsed.cainjector.resources,
+      parsed.webhook.resources,
+      parsed.startupapicheck.resources,
+    ])
+      requireResources(resources);
+  } else {
+    const parsed = decode(release, TraefikValues, values);
+    // Proof: Task25c3c required-traefik omission lost the production missing-map negative.
+    requireResources(parsed.resources);
+    // Proof: Task25c3c required-scratch omission lost both missing sizeLimit negatives.
+    const scratch = decode(
+      'networking candidate',
+      type({
+        persistence: { enabled: 'false', emptyDir: { sizeLimit: Quantity } },
+        deployment: { tmpVolume: { emptyDir: { sizeLimit: Quantity } } },
+      }),
+      parsed,
+    );
+    for (const quantity of [
+      scratch.persistence.emptyDir.sizeLimit,
+      scratch.deployment.tmpVolume.emptyDir.sizeLimit,
+    ])
+      // Proof: Task25c3c positive-scratch bypass admitted zero data/tmp sizeLimits.
+      if (readMemoryMiB(String(quantity), refuseNetworking) <= 0)
+        refuseNetworking('Traefik scratch size must be positive');
+  }
+}
 
 const HcloudCcmValues = type({
   image: { repository: 'string>0', tag: 'string>0', '+': 'reject' },

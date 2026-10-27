@@ -2,11 +2,13 @@ import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
+import { type } from 'arktype';
 import { describe, expect, it } from 'bun:test';
 import { parse, parseDocument, stringify } from 'yaml';
 
 import { assessObservabilityBudget } from './observability-budget';
 import { validatePlatform } from './platform';
+import { platformReleases } from './platform-releases';
 
 const repositoryRoot = join(import.meta.dir, '../../..');
 
@@ -1259,3 +1261,190 @@ it.each(selectedInputs)(
     expect(validatePlatform(root)).rejects.toThrow(new RegExp(`values are invalid:.*${field}`));
   },
 );
+
+const networkingBounds = [
+  ['controller', 'networking/cert-manager/release.yaml', ['resources']],
+  ['cainjector', 'networking/cert-manager/release.yaml', ['cainjector', 'resources']],
+  ['webhook', 'networking/cert-manager/release.yaml', ['webhook', 'resources']],
+  ['startupapicheck', 'networking/cert-manager/release.yaml', ['startupapicheck', 'resources']],
+  ['traefik', 'networking/traefik.yaml', ['resources']],
+  ['data scratch', 'networking/traefik.yaml', ['persistence', 'emptyDir', 'sizeLimit']],
+  ['tmp scratch', 'networking/traefik.yaml', ['deployment', 'tmpVolume', 'emptyDir', 'sizeLimit']],
+] as const;
+
+for (const [name, relativePath, path] of networkingBounds) {
+  it(`Task25c3c current candidate refuses missing ${name} bound`, async () => {
+    const root = await mutablePlatform();
+    const file = join(root, 'infra/platform', relativePath);
+    const document = parseDocument(await readFile(file, 'utf8'));
+    if (document.hasIn(['spec', 'values', ...path])) document.deleteIn(['spec', 'values', ...path]);
+    await writeFile(file, document.toString());
+    expect(validatePlatform(root)).rejects.toThrow(/networking candidate/);
+  });
+}
+
+for (const [name, relativePath, path] of networkingBounds) {
+  for (const [fault, value] of [
+    ['null', null],
+    ['zero', 0],
+    ['negative', '-1'],
+    ['malformed', 'broken'],
+  ] as const) {
+    it(`Task25c3c current candidate refuses ${name} ${fault}`, async () => {
+      const root = await mutablePlatform();
+      const file = join(root, 'infra/platform', relativePath);
+      const document = parseDocument(await readFile(file, 'utf8'));
+      document.setIn(['spec', 'values', ...path], value);
+      await writeFile(file, document.toString());
+      expect(validatePlatform(root)).rejects.toThrow(/values|networking candidate/);
+    });
+  }
+}
+for (const dimension of ['cpu', 'memory', 'ephemeral-storage'] as const) {
+  for (const [fault, side, value] of [
+    ['missing request', 'requests', undefined],
+    ['missing limit', 'limits', undefined],
+    ['null request', 'requests', null],
+    ['null limit', 'limits', null],
+    ['negative request', 'requests', '-1'],
+    ['malformed request', 'requests', 'invalid'],
+    ['zero limit', 'limits', 0],
+    ['above limit', 'requests', dimension === 'cpu' ? '3' : '1Gi'],
+  ] as const) {
+    it(`Task25c3c ${dimension} ${fault} refuses`, async () => {
+      const root = await mutablePlatform();
+      const file = join(root, 'infra/platform/networking/traefik.yaml');
+      const document = parseDocument(await readFile(file, 'utf8'));
+      const path = ['spec', 'values', 'resources', side, dimension];
+      if (value === undefined) document.deleteIn(path);
+      else document.setIn(path, value);
+      if (fault === 'zero limit')
+        document.setIn(['spec', 'values', 'resources', 'requests', dimension], 0);
+      await writeFile(file, document.toString());
+      expect(validatePlatform(root)).rejects.toThrow(
+        /values|networking candidate|Generated capacity/,
+      );
+    });
+  }
+}
+it('Task25c3c explicit zero requests are valid current bounds', async () => {
+  const root = await mutablePlatform();
+  const file = join(root, 'infra/platform/networking/traefik.yaml');
+  const document = parseDocument(await readFile(file, 'utf8'));
+  document.setIn(['spec', 'values', 'resources', 'requests'], {
+    cpu: 0,
+    memory: '0',
+    'ephemeral-storage': 0,
+  });
+  await writeFile(file, document.toString());
+  expect(validatePlatform(root)).resolves.toHaveProperty('releases');
+});
+it('Task25c3c persistence cannot replace bounded scratch', async () => {
+  const root = await mutablePlatform();
+  const file = join(root, 'infra/platform/networking/traefik.yaml');
+  const document = parseDocument(await readFile(file, 'utf8'));
+  document.setIn(['spec', 'values', 'persistence', 'enabled'], true);
+  await writeFile(file, document.toString());
+  expect(validatePlatform(root)).rejects.toThrow(/values/);
+});
+for (const release of platformReleases.filter((release) =>
+  ['cert-manager', 'traefik'].includes(release.name),
+)) {
+  it(`Task25c3c historical ${release.name} absent and null maps preserve locked image decoding`, async () => {
+    const document = parseDocument(
+      await readFile(join(repositoryRoot, 'infra/platform', release.path), 'utf8'),
+    );
+    const references = release.imageReferences(
+      type({ spec: { values: 'unknown' } }).assert(document.toJSON()).spec.values,
+    );
+    for (const [, relativePath, path] of networkingBounds) {
+      if (relativePath !== release.path) continue;
+      document.deleteIn(['spec', 'values', ...path]);
+    }
+    document.deleteIn(['spec', 'values', 'persistence']);
+    if (document.hasIn(['spec', 'values', 'deployment', 'tmpVolume']))
+      document.deleteIn(['spec', 'values', 'deployment', 'tmpVolume']);
+    expect(
+      release.imageReferences(
+        type({ spec: { values: 'unknown' } }).assert(document.toJSON()).spec.values,
+      ),
+    ).toEqual(references);
+    for (const [, relativePath, path] of networkingBounds) {
+      if (relativePath === release.path && path.at(-1) === 'resources')
+        document.setIn(['spec', 'values', ...path], null);
+    }
+    expect(
+      release.imageReferences(
+        type({ spec: { values: 'unknown' } }).assert(document.toJSON()).spec.values,
+      ),
+    ).toEqual(references);
+    document.setIn(['spec', 'values', 'resources'], { requests: null, limits: { cpu: '1' } });
+    expect(
+      release.imageReferences(
+        type({ spec: { values: 'unknown' } }).assert(document.toJSON()).spec.values,
+      ),
+    ).toEqual(references);
+  });
+  for (const [fault, resources] of [
+    ['array', []],
+    ['request array', { requests: [] }],
+    ['limit array', { limits: [] }],
+    ['malformed quantity', { requests: { cpu: '1Mi' } }],
+    ['negative quantity', { limits: { memory: '-1' } }],
+    ['contradiction', { requests: { memory: '1Gi' }, limits: { memory: '1Mi' } }],
+    ['foreign branch', { image: 'untrusted' }],
+  ] as const) {
+    it(`Task25c3c structural ${release.name} supplied ${fault} refuses`, async () => {
+      const document = parseDocument(
+        await readFile(join(repositoryRoot, 'infra/platform', release.path), 'utf8'),
+      );
+      document.setIn(['spec', 'values', 'resources'], resources);
+      expect(() =>
+        release.imageReferences(
+          type({ spec: { values: 'unknown' } }).assert(document.toJSON()).spec.values,
+        ),
+      ).toThrow();
+    });
+  }
+}
+
+for (const [name, path, value] of [
+  ['persistence array', ['persistence'], []],
+  ['data emptyDir array', ['persistence', 'emptyDir'], []],
+  ['tmpVolume array', ['deployment', 'tmpVolume'], []],
+  ['tmp emptyDir array', ['deployment', 'tmpVolume', 'emptyDir'], []],
+  ['scratch quantity', ['persistence', 'emptyDir', 'sizeLimit'], 'invalid'],
+  ['scratch negative', ['deployment', 'tmpVolume', 'emptyDir', 'sizeLimit'], '-1'],
+  ['foreign scratch field', ['persistence', 'emptyDir', 'medium'], 'Memory'],
+] as const) {
+  it(`Task25c3c structural Traefik ${name} refuses`, async () => {
+    const release = platformReleases.find((release) => release.name === 'traefik');
+    if (release === undefined) throw new Error('Missing Traefik release');
+    const document = parseDocument(
+      await readFile(join(repositoryRoot, 'infra/platform', release.path), 'utf8'),
+    );
+    document.setIn(['spec', 'values', ...path], value);
+    expect(() =>
+      release.imageReferences(
+        type({ spec: { values: 'unknown' } }).assert(document.toJSON()).spec.values,
+      ),
+    ).toThrow();
+  });
+}
+for (const side of ['requests', 'limits']) {
+  for (const [fault, value] of [
+    ['missing', undefined],
+    ['null', null],
+  ] as const) {
+    it(`Task25c3c current ${fault} ${side} map refuses`, async () => {
+      const root = await mutablePlatform();
+      const file = join(root, 'infra/platform/networking/traefik.yaml');
+      const document = parseDocument(await readFile(file, 'utf8'));
+      const path = ['spec', 'values', 'resources', side];
+      if (value === undefined) document.deleteIn(path);
+      else document.setIn(path, value);
+      await writeFile(file, document.toString());
+      expect(validatePlatform(root)).rejects.toThrow(/networking candidate/);
+    });
+  }
+}

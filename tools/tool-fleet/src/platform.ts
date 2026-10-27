@@ -23,7 +23,7 @@ import {
   referencedSecrets,
 } from './platform-manifests';
 import { assertOtlpTransport } from './platform-otlp';
-import { platformReleases } from './platform-releases';
+import { assertNetworkingCandidate, platformReleases } from './platform-releases';
 
 const PlatformIdentity = type({
   apiVersion: "'v1'",
@@ -595,6 +595,8 @@ export async function validatePlatform(root: string): Promise<{
       throw new Error(`${release.name} chart archive differs from the toolchain lock`);
     }
     const configuredReferences = release.imageReferences(parsed.spec.values);
+    // Proof: Task25c3c candidate-call removal made all five missing maps and both missing scratch bounds pass validatePlatform.
+    assertNetworkingCandidate(release.name, parsed.spec.values);
     for (const image of lock.images) {
       if (configuredReferences[image.role] !== `${image.name}@${image.digest}`) {
         // Proof: moving the Traefik digest to ignored `image.unusedDigest` made the production
