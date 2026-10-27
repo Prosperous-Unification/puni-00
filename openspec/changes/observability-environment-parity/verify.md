@@ -1893,3 +1893,73 @@ PR #760 checkpoint `88646561321d4163c18023495051f2bb92d63a62` completed infra-ch
 Completed logs were retrieved once: `/tmp/puni-pr760-fleet-886.log` (927533 bytes, 3691 lines) and `/tmp/puni-pr760-deploy-886.log` (130684 bytes, 774 lines). All seven optional authenticated-backend test names match checkpoint420; the actual backend profile was not enabled in this CI run. The ignored `published-886-ci.json` retains exact counts and names. This is scoped CI evidence for the published provider changes and excludes the later local archive implementation.
 
 At the last main CI observation, 2026-10-27 13:06:12 UTC, run `40503029547` remained in progress with workspace `122185432997` and Twilight `122185433126` live. All pixels shards and stable pixels `122194026618` succeeded. A required gate success is not inferred from these partial outcomes. No job was cancelled, restarted or rerun. Canonical progress remains 4/11; generated runtime enforcement, complete source/host admission, actual stored signals/views/history/recovery and live cutover remain open.
+
+## Task25c2a — retained validated stage and chart inventory
+
+Source commits: `ef8c7b2ec05ddc10ee9631d3fa2ebd06f8169a44`, namespace correction `81dd393dd1060863e6bf807509ddef7aa90ba0a4`, optional source-state correction `d93bc7e869aa2d63ceac416f40ad38812988bfba`, and final identity correction `f20008047994359de1cda45f783078be4072d4f6`. Base: `c4d0ab8f31b3b277b9e1f13090b64b98b4080702`. Sole source owner; no push, merge, target or credential changes. Canonical progress stays **4/11** and 3.1 remains open.
+
+The validator now returns its retained `RehearsalStageBuild[]` through `validateObservabilityRehearsalBuilds`; legacy prepare/validate still return their existing receipt. `inventoryObservabilityRehearsal(root, tools, input, directory, helmArchive?)` consumes that single validation/build pass and renders each discovered release once through the existing renderer. Explicit private archive selection has no fallback; the four-argument convenience uses the existing canonical cache. Shared `decodeRenderedResources` preserves the old observability API/default-namespace adapter. Native PodSpec extraction and the existing pure resource validator are reused; returned quantity maps are detached. No quantity or replica totals are derived.
+
+The parent supplied pre-code intent evidence: proposal397 words, strict OpenSpec1 valid/0 issues19ms and normal intent hooks0.35s. These are inherited dispatch records, not rerun claims. Local OpenSpec status/apply returned `sdd-lean`, ready,4/11. Bare `openspec` was unavailable (127); the installed repository binary was used successfully.
+
+### Actual public entry and final-source control
+
+The full public entry passed on clean **d93bc7e869aa2d63ceac416f40ad38812988bfba**, with source and generator revisions equal and `generator.dirty:false`: **1 pass/0 fail,16 assertions,9.71563s case/10.23s Bun/10.33s process**. It retained11 stages,12 release declarations/expansions,23 frames and364 objects (140 stage/224 expansion). These are source object counts, not observed workload or capacity totals. It records32 native image references,8 claim/reference/template facts and11 objects with hook annotations. Four exact image references remain unmapped to lock strings; one IngressClass scope remains adapter-unresolved. All84 unresolved obligations remain visible.
+
+Inventory SHA256: `93f77fae585669a72cdfc69b8d302d182858a8092f289e9bd8af3455f71bda14`; packet artifact SHA256: `744392b5c360739e2f9ed887f8e0e10c2a13ad5c8666ec963af3937e994da758`. Helm archive SHA256 is `86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb`; verified `linux-amd64/helm` executable SHA256 is separately `57ce7fc4ea77b28ee6fa91ae071abcade74d3f524e80c9decff5877a5ac8eda4`. The retained archive is privately copied and extracted through `installLockedTool`; inventory itself never downloads. Capability1.35.0 remains the renderer's source fixture with `observed:false`.
+
+Self-review found that scope classification partitioned one physical group/kind/namespace/name identity across a resolved CRD version and an unresolved version. **f200** removes classification from the identity tuple while leaving unknown scope/namespace unresolved. Mixed-version duplicate RED and distinct-namespace positive were followed by GREEN and one watched scope-restoration fault. No chart rerender followed this correction. The final committed adapter consumed frozen **d93** stage/chart captures and matched every public-entry fact exactly: **2.30818s fold/2.90s process**,364 objects/84 unresolved. This is a final-source captured-core control, not a public-entry receipt for f200.
+
+Retained receipts: [public entry](/tmp/puni-task25c2a-evidence/full-entry-final.log), [source summary](/tmp/puni-task25c2a-evidence/source-summary.json), [public receipt](/tmp/puni-task25c2a-evidence/full-entry-final-receipt.json), [f200 captured-core control](/tmp/puni-task25c2a-evidence/final-source-core-control.log), [immutable capture identities](/tmp/puni-task25c2a-evidence/immutable-captures.json), [final source hashes](/tmp/puni-task25c2a-evidence/final-source-hashes.json). Raw captures remain private mode0400; they were not copied into the repository.
+
+### Commands and results
+
+All commands ran in `/home/df/.codex/worktrees/aa39/puni-00` with `login:false`. Exact fault commands, exit codes and timings are in [all proof receipts](/tmp/puni-task25c2a-evidence/all-proofs.json); logs and scripts remain under that private evidence directory.
+
+```bash
+bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 tools/tool-fleet/src/observability-rehearsal-inventory.test.ts
+bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 tools/tool-fleet/src/observability-parity-rehearsal.test.ts --test-name-pattern 'packages exact|packaged graph refuses|packaged broad legacy|packaged Secret refuses|packet file closure|altered receipt|same-version substituted kubectl|controller barrier builds|controller barrier refuses|controller barrier independently refuses|controller barrier rejects empty|validated full rendered source'
+bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 tools/tool-fleet/src/observability-projection-render.test.ts --test-name-pattern 'renderer refuses.*required Helm dependency|renderer refuses a changed pinned chart'
+bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 tools/tool-fleet/src/platform.test.ts --test-name-pattern 'plain workload image|unlocked init container|registry image digest'
+bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 tools/tool-fleet/src/observability-parity-rehearsal.test.ts --test-name-pattern 'validated full rendered source exposes native subset'
+bunx tsc --build --force tools/tool-fleet/tsconfig.json
+bun node_modules/.bin/openspec validate observability-environment-parity --strict --json
+```
+
+Final focused output: **73 pass/0 fail,109 assertions,2.38s** (2.39s process). Related legacy packet/control output:24 pass/0 fail,66 assertions,68.60s; renderer dependencies/pins:5/0,14.47s; native image controls:3/0,7.11s. After the shared validator return seam, the scoped old191-object/eight-trait wrapper passed again:1/0,17 assertions,8.05s (8.08s process). Its strict direct null/absent/array refusals and detached map behavior are also covered by the focused suite.
+
+Final identity-fix typecheck exited0 in1.97s; format check exited0 in0.40s. The scoped ESLint checks and each normal source commit's staged lint/format passed. The most recent pre-evidence strict OpenSpec check returned1 valid/0 issues. Source commit process times were5.46s,3.66s,4.22s and3.80s respectively. Tool Wiki reported inactive/uncertified because its external activation root is absent; plaintext-secret/private-nesting and trailer hooks passed. Migration/doc-cap hook routes were inapplicable. No hook was bypassed.
+
+Actual public-entry command on d93:
+
+```bash
+PUNI_REHEARSAL_INVENTORY_EXPORT=/tmp/puni-task25c2a-evidence/full-entry-final-receipt.json PUNI_REHEARSAL_FRAMES_EXPORT=/tmp/puni-task25c2a-evidence/full-entry-final-raw.json /usr/bin/time -f 'elapsedSeconds=%e' bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 tools/tool-fleet/src/observability-rehearsal-inventory-entry.test.ts
+/usr/bin/time -f 'elapsedSeconds=%e' bun /tmp/puni-task25c2a-evidence/final-source-core-control.ts
+```
+
+### Red, refusal and R5 lineage
+
+Initial missing-module and placeholder failures were setup reds, not semantic acceptance. The first implementation also exposed a schema named `Map` shadowing the constructor; the name was corrected. Semantic REDs then independently exposed missing release declarations, coherent chart-version drift, API-group duplicate ownership, foreign PVC APIs, namespace precedence, nullable metadata, malformed map arrays, missing native resource visibility, quantity/limit contradictions, returned-map aliasing, invalid/zero claim quantities and mixed resolved/unresolved owners. Final73/0 output follows their corrections.
+
+Two real public-entry refusals are preserved: ef8 rejected intentional cross-namespace chart metadata (9.74326s case/10.26s process);81dd rejected optional `annotations:null` (8.71567s case/9.15s process). The latter retained the actual raw outputs, reused offline for subsequent field/model corrections. Null annotations are now explicit absent/null/map facts; malformed annotation maps/values still throw, while ordinary empty annotation strings remain valid. Native resource maps likewise retain absent/null/map; source request/limit maps are emitted only when declared. No resource values or pins changed.
+
+**48 isolated faults were caught and restored,28.823s aggregate.47 remain applicable; the blanket release/object namespace equality proof is superseded and is not claimed as a current guard.** Adjacent `Proof:` comments identify the observed faults. The initial hook fault was masked by an earlier null-map-value refusal; quoting an empty string isolated the intended hook check. A hash-only namespace fault was still refused by resource closure; the combined frame-contract fault was then watched. The original empty-claim shape proof was re-proved with the added quantity-reader dependency broken. These refinements and both failed fault setups remain recorded rather than counted as successful first attempts. No original proof batch was replayed after corrections.
+
+| Guard/dependency group                  | Caught faults                                                                                                                                                                                                    |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stage/frame/release closure             | 10: stage-contract, expansion-owner, frame-owner, frame-hash, resource-closure, required-declaration, chart-pin, release-identity, declaration-equality, empty-expansion                                         |
+| Namespace/API/CRD/physical identity     | 12: cluster-namespace, duplicate-crd, malformed-crd, duplicate-object, group-owner, native-api, claim-api, unknown-scope, crd-scope-resolution, metadata-precedence, namespace-frame-contract, mixed-scope-owner |
+| Native/claim/hook/structural boundaries | 10: container-image, pod-required, claim-reference, claim-template, hook-required, yaml-errors, list-members, claim-quantity-reader, claim-positive, claim-shape-reader                                          |
+| Optional annotations                    | 4: nullable-annotations, annotation-array, annotation-maptype, annotation-state                                                                                                                                  |
+| Native resource maps/aliases            | 6: nullable-resources, resource-state, missing-resource-maps, native-resource-validator, resource-map-fabrication, resource-alias                                                                                |
+| Archive/selected executable             | 3: archive-source, archive-hash, selected-executable                                                                                                                                                             |
+| Visible uncertainty                     | 2: provider-hidden, helper-hidden                                                                                                                                                                                |
+| Superseded namespace rule               | 1: release-namespace                                                                                                                                                                                             |
+
+### Limits and outstanding work
+
+The six native roles lacking resource maps remain concrete unresolved request/limit declarations: cert-manager controller/cainjector/webhook/startupapicheck, Traefik and the Velero AWS-plugin init container. Four exact image-reference links and adapter-unmodeled IngressClass scope remain unresolved; no repository-alias inference was added. Provider realization, bootstrap/lifecycle/helper closure, runtime capability equality and all capacity/admission work remain separate. Task25c2b and C3 were not implemented.
+
+The receipt remains `runnableClosure:incomplete`, `creationAuthority:false`, `runtimeRehearsal:false`, `transportObserved:not-evaluated`. This does not relabel the existing authenticated source-binding implementation or change legacy receipt fields. No Pod/UID/Ready/Bound/cgroup or host observation was fabricated.
+
+Full Fleet/Nx gates, old broad render/fault matrices, old archive probes, backend/browser/runtime/transport/host gates and CI replay were intentionally not run. No Docker/build/import/OCI extraction, target mutation, publication, store or secret action occurred; only the explicitly required verified Helm member was privately extracted. Parent owns CI/publication and the separate preflight test-hermeticity finding. Full-goal floors, stores, actual signals/views/history and dev cutover remain open.
