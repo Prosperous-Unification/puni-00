@@ -258,13 +258,17 @@ Each replica applies M10's limits in memory (`src/machine-limits.ts`): failed
 authentications at the token endpoint, 5 a minute per `client_id` and source
 and 30 a minute per source; successful issuances, 300 a minute with a burst of
 100, per credential and per source, in buckets apart from the failures, so a
-stranger's wrong secrets never lock out a credential; `tools/call` messages, 10
+stranger's wrong secrets never lock out a credential (a request reserves its failure
+and per-source issuance tokens before be-01 is asked and gives back what its outcome did
+not use; the per-credential issuance counts once be-01 verified the credential); `tools/call` messages, 10
 a second with a burst of 20, per credential, counted per message, so a batch of
 30 runs 20; and 128 tool calls in flight per organization. A token-endpoint
 refusal is `429 invalid_request` with `error_description: "rate_limited"` and
 `Retry-After`. On `/mcp` a limited call is a tool error naming `rate_limited` or
 `too_many_in_flight` and its wait; a request whose only answer is such a call is
 HTTP `429` with `Retry-After`. With R replicas each limit is R times as wide.
+A tool call waits at most 35 s for be-01 (`BE_CALL_TIMEOUT_MS`), then answers a
+reported tool error and frees its slot.
 
 ## Durable sessions and key rotation
 

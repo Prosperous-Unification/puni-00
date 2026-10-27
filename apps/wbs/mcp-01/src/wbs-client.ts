@@ -39,8 +39,62 @@ export type FetchLike = (
     headers: Record<string, string>;
     body?: string;
     redirect?: RequestRedirect;
+    signal?: AbortSignal;
   },
 ) => Promise<Response>;
+
+/**
+ * How long one tool call waits for be-01, answer and body together: past be-01's own bound.
+ * be-01 serves through Elysia, whose Bun server closes a connection idle for 30 s (Elysia's
+ * `idleTimeout` default; be-01 sets none), and its long work (solver runs, optimization) runs
+ * in the background rather than inside a request. So a call still waiting at 35 s is not one
+ * be-01 is finishing. Without a bound, a hung be-01 would hold the caller's in-flight slot
+ * (`wbs-mcp-agent-surface` M10) for ever.
+ */
+export const BE_CALL_TIMEOUT_MS = 35_000;
+
+/**
+ * be-01 did not answer a tool call within {@link BE_CALL_TIMEOUT_MS}. Not the caller's
+ * credential and not a network error (a `TimeoutError` carries no system error code): the
+ * call is reported as an unexpected failure and answered a tool error, never a 401.
+ */
+export class BeCallTimedOut extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'BeCallTimedOut';
+  }
+}
+
+/** The MCP request was cancelled while its tool call waited for be-01: a controlled exit. */
+export class ToolCallCancelled extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ToolCallCancelled';
+  }
+}
+
+/**
+ * `work` raced against `signal`: it rejects with the signal's reason once the signal aborts,
+ * even when `work` itself never settles (a fetch that ignores its signal).
+ */
+async function untilAborted<T>(signal: AbortSignal, work: () => Promise<T>): Promise<T> {
+  let stop: (() => void) | undefined;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    const abort = () => {
+      reject(signal.reason instanceof Error ? signal.reason : new Error('aborted'));
+    };
+    if (signal.aborted) abort();
+    signal.addEventListener('abort', abort, { once: true });
+    stop = () => {
+      signal.removeEventListener('abort', abort);
+    };
+  });
+  try {
+    return await Promise.race([work(), aborted]);
+  } finally {
+    stop?.();
+  }
+}
 
 /**
  * be-01 rejected the caller credential with a 401, so a consent session must end. `code` is
@@ -363,20 +417,46 @@ export async function callTool(
   fetchImpl: FetchLike = fetch,
   callerToken?: string,
   serviceHeaders: Readonly<Record<string, string>> = {},
+  call: { readonly cancel?: AbortSignal; readonly timeoutMs?: number } = {},
 ): Promise<ToolTextResult> {
   const request = buildRequest(tool, input, config, callerToken, serviceHeaders);
-  const response = await fetchImpl(request.url, {
-    method: request.method,
-    headers: { ...request.headers },
-    // A redirect is never followed: the caller's bearer and mcp-01's secret would go with it to
-    // wherever it points. A 3xx is then an unexpected answer, reported below.
-    // Proof: following redirects made `never follows a redirect, so the secret stays with be-01`
-    // (wbs-client.test.ts) see the secret at the other origin; watched 2026-10-27.
-    redirect: 'manual',
-    ...(request.body === undefined ? {} : { body: request.body }),
-  });
+  const timeout = AbortSignal.timeout(call.timeoutMs ?? BE_CALL_TIMEOUT_MS);
+  const signal = call.cancel === undefined ? timeout : AbortSignal.any([timeout, call.cancel]);
+  let response: Response;
+  let bodyText: string;
+  try {
+    // Proof: with the race removed (the signal only handed to a fetch that ignores it), `frees
+    // the in-flight slot of a call be-01 never answers, after the timeout` (machine-limits.test.ts)
+    // and `throws BeCallTimedOut for a call be-01 never answers…` (wbs-client.test.ts) hung;
+    // watched 2026-10-27.
+    [response, bodyText] = await untilAborted(signal, async () => {
+      const answered = await fetchImpl(request.url, {
+        method: request.method,
+        headers: { ...request.headers },
+        // A redirect is never followed: the caller's bearer and mcp-01's secret would go with it
+        // to wherever it points. A 3xx is then an unexpected answer, reported below.
+        // Proof: following redirects made `never follows a redirect, so the secret stays with
+        // be-01` (wbs-client.test.ts) see the secret at the other origin; watched 2026-10-27.
+        redirect: 'manual',
+        signal,
+        ...(request.body === undefined ? {} : { body: request.body }),
+      });
+      return [answered, await answered.text()] as const;
+    });
+  } catch (cause) {
+    // Proof: rethrowing the TimeoutError itself failed the same two tests' BeCallTimedOut
+    // expectation; watched 2026-10-27.
+    if (timeout.aborted)
+      throw new BeCallTimedOut(
+        `${tool.name}: be-01 did not answer ${tool.method.toUpperCase()} ${tool.path} within ${String((call.timeoutMs ?? BE_CALL_TIMEOUT_MS) / 1_000)} s.`,
+      );
+    // Proof: without this mapping, `throws BeCallTimedOut… and ToolCallCancelled once cancelled`
+    // (wbs-client.test.ts) saw the raw abort; watched 2026-10-27.
+    if (call.cancel?.aborted === true)
+      throw new ToolCallCancelled(`${tool.name} was cancelled before be-01 answered.`);
+    throw cause;
+  }
 
-  const bodyText = await response.text();
   if (!response.ok) {
     // Proof: on 2026-09-21, widening this upper bound to 599 sent a secret-bearing 500 through
     // refusal, exposed its body as tool content, and skipped the unexpected reporter.

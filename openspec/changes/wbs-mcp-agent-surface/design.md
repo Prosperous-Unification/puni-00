@@ -460,7 +460,7 @@ _Alternative:_ a 1 h cap, which breaks any orchestrator that hands out a token p
   - a raw-key grant lives 60 s (be-01 caps it);
   - a replica caches it under `SHA-256(key)` for at most that long, and the cache is never
     the authority, because be-01's reread is;
-  - raw-key failures count in M10's failure buckets;
+  - raw-key failures on `/mcp` count in M10's failure buckets, per `(client_id, IP)` and per IP;
   - a raw-key grant writes **no** `machine_token_issued` row. One per cache miss would be
     about 144,000 rows a day per replica for 100 agents, which is the event-log bloat shape
     this repo has already had. `last_used_at` is its trace.
@@ -533,10 +533,18 @@ _Alternatives:_ keep accepting (two surfaces in fact); a deprecation header peri
   (1 behind Caddy); with 0, the socket address. A spoofed leftmost entry changes nothing.
   A request the proxies did not write (too few entries, no IP address) counts under one shared
   `unattributed` source; a missing or invalid setting refuses boot (section 4 note 1).
-- _Failures and successes are counted apart._ Failed authentications, at the token endpoint
-  and for any raw key on `/mcp`, are counted per `(client_id, IP)` and per IP. Successful
-  issuances are limited per credential, separately, so a stranger who knows a public id cannot
-  lock it out.
+- _Failures and successes are counted apart._ Failed authentications at the token endpoint
+  are counted per `(client_id, IP)` and per IP. Successful issuances are limited per
+  credential, separately, so a stranger who knows a public id cannot lock it out.
+- _Reserved before be-01, settled after._ A token request takes one failure token per IP, one
+  per `(client_id, IP)` when it names a credential, and one issuance per IP before be-01 is
+  asked, all or none, so concurrent requests cannot all pass one check. A success gives the
+  failure tokens back and takes one issuance of the credential be-01 verified; a failure gives
+  the issuance token back; any other outcome gives everything back. The per-credential issuance
+  is counted only after be-01 verified the credential, so a claimed public id answers `429` only
+  to its holder. A grant be-01 issued that this limit then refuses is dropped unsigned: be-01
+  has written or found the day's audit row and touched `last_used_at`, and no token exists for
+  it (section 4 note 4).
 
 | Limit                                 | Default per replica  | Sized for                                                                                                                     |
 | ------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |

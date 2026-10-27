@@ -48,7 +48,11 @@ import {
   machineGrantClient,
   MachineGrantDefect,
 } from './machine-grant-client';
-import { type IssuanceAttempt, type MachineLimits, MachineTrafficLimits } from './machine-limits';
+import {
+  type IssuanceReservation,
+  type MachineLimits,
+  MachineTrafficLimits,
+} from './machine-limits';
 import {
   type ConsentOrganizations,
   type OrganizationAuthority,
@@ -1658,9 +1662,11 @@ export class McpOAuthServer implements McpOAuthHandler {
 
   /**
    * {@link machineToken} past the mode check. M10's limits are asked after the request is
-   * parsed, which reads nothing, so the `client_id` it names is known; be-01 is asked only
-   * when they admit it. Every `invalid_client` and `invalid_grant` answered, the parser's
-   * included, counts as a failed authentication; an issuance is taken once be-01 granted one.
+   * parsed, which reads nothing, so the `client_id` it names is known. The request reserves its
+   * failure and per-source issuance tokens before be-01 is asked, and its outcome settles the
+   * reservation: every `invalid_client` and `invalid_grant` answered, the parser's included, is
+   * a failed authentication; a grant signed is an issuance; anything else gives every token
+   * back, a thrown defect included.
    */
   private async answerMachineGrant(
     request: Request,
@@ -1673,7 +1679,7 @@ export class McpOAuthServer implements McpOAuthHandler {
       request.headers.get('authorization'),
       this.audience,
     );
-    const attempt: IssuanceAttempt = {
+    const admission = settings.limit.reserveIssuance({
       source,
       clientId:
         parsed.kind === 'refused'
@@ -1681,19 +1687,36 @@ export class McpOAuthServer implements McpOAuthHandler {
           : parsed.grant === 'client_credentials'
             ? parsed.keyCredentialId
             : parsed.clientId,
-    };
-    const limited = settings.limit.admitIssuance(attempt);
+    });
     // RFC 6749 §5.2 has no rate-limit error, so none is invented (M10).
     // Proof: with this removed, `answers 429 invalid_request with Retry-After when the limit
     // refuses, asking nobody` (machine-token.test.ts) answered 200; watched 2026-10-27.
-    if (limited !== null) return rateLimited(limited.retryAfterSeconds);
-    if (parsed.kind === 'refused') {
-      // Proof: with this count removed, `counts a secret the parser refuses, never asking be-01,
-      // as a failure too` (machine-limits.test.ts) answered the 31st 401; watched 2026-10-27.
-      if (parsed.error === 'invalid_client' || parsed.error === 'invalid_grant')
-        settings.limit.recordFailedIssuance(attempt);
-      return machineRefusal(parsed.error, parsed.description);
+    if (admission.kind === 'limited') return rateLimited(admission.retryAfterSeconds);
+    const { reservation } = admission;
+    try {
+      if (parsed.kind === 'refused') {
+        // Proof: with this count removed, `counts a secret the parser refuses, never asking
+        // be-01, as a failure too` (machine-limits.test.ts) answered the 31st 401; watched
+        // 2026-10-27.
+        if (parsed.error === 'invalid_client' || parsed.error === 'invalid_grant')
+          reservation.failed();
+        return machineRefusal(parsed.error, parsed.description);
+      }
+      return await this.answerParsedMachineGrant(parsed, settings, reservation);
+    } finally {
+      // Every path that did not settle (another refusal, be-01 unavailable, a defect) gives the
+      // tokens back; a settled reservation ignores it.
+      // Proof: without this, `gives every token back when be-01 is unavailable`
+      // (machine-limits.test.ts) answered 429 after 30 outages; watched 2026-10-27.
+      reservation.release();
     }
+  }
+
+  private async answerParsedMachineGrant(
+    parsed: MachineTokenRequest,
+    settings: MachineGrantSettings,
+    reservation: IssuanceReservation,
+  ): Promise<Response> {
     // The one answer for every refusal of this request's credential, each a failed
     // authentication (M10).
     // Proof: answering invalid_grant for a key failed `an unknown id, a revoked key and a wrong
@@ -1702,7 +1725,7 @@ export class McpOAuthServer implements McpOAuthHandler {
     // Proof: with the count removed, `counts a rotating spoofed first entry…` and three more
     // (machine-limits.test.ts) never answered 429; watched 2026-10-27.
     const refuseCredential = (): Response => {
-      settings.limit.recordFailedIssuance(attempt);
+      reservation.failed();
       return machineRefusal(
         parsed.grant === 'client_credentials' ? 'invalid_client' : 'invalid_grant',
       );
@@ -1750,12 +1773,9 @@ export class McpOAuthServer implements McpOAuthHandler {
     // Proof: with this removed, `refuses a grant that leaves no lifetime after the 60 s margin`
     // (machine-token.test.ts) signed it; watched 2026-10-27.
     if (expiresAt <= nowSeconds) return refuseCredential();
-    // Per credential and per source, in buckets apart from the failures (M10); be-01's grant is
-    // then dropped unsigned.
-    // Proof: with this removed, `refuses the 101st issuance of one credential at once, from any
-    // address` and `one address issues 100 tokens for a pool of 100…` (machine-limits.test.ts)
-    // signed the 101st; watched 2026-10-27.
-    const issuance = settings.limit.takeIssuance(attempt, issued.credentialId);
+    // Per credential, now that be-01 verified it (M10); refused, be-01's grant is dropped
+    // unsigned after be-01 did its work.
+    const issuance = reservation.issued(issued.credentialId);
     if (issuance !== null) return rateLimited(issuance.retryAfterSeconds);
     const token = await this.issueMachineToken(issued, scopes, nowSeconds, expiresAt);
     return Response.json(

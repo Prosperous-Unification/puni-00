@@ -415,7 +415,10 @@ describe('redirects', () => {
 describe('the endpoint around the grants', () => {
   it('answers 429 invalid_request with Retry-After when the limit refuses, asking nobody', async () => {
     const { oauth, be } = server(() => issued(), {
-      limit: { ...NO_MACHINE_LIMITS, admitIssuance: () => ({ retryAfterSeconds: 7 }) },
+      limit: {
+        ...NO_MACHINE_LIMITS,
+        reserveIssuance: () => ({ kind: 'limited', retryAfterSeconds: 7 }),
+      },
     });
     const answer = await keyRequest(oauth);
     expect(answer.status).toBe(429);

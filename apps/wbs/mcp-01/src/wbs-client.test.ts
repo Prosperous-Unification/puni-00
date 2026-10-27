@@ -3,7 +3,15 @@ import { describe, expect, it } from 'bun:test';
 import type { McpConfig } from './config';
 import type { DerivedTool } from './openapi-tools';
 import type { FetchLike } from './wbs-client';
-import { buildRequest, callTool, EdgeGate, ToolInputRefused, UpstreamRejected } from './wbs-client';
+import {
+  BeCallTimedOut,
+  buildRequest,
+  callTool,
+  EdgeGate,
+  ToolCallCancelled,
+  ToolInputRefused,
+  UpstreamRejected,
+} from './wbs-client';
 
 const CONFIG: McpConfig = {
   MCP_AUTH_MODE: 'standalone',
@@ -252,6 +260,42 @@ describe('buildRequest', () => {
 });
 
 describe('callTool', () => {
+  it('throws BeCallTimedOut for a call be-01 never answers, and ToolCallCancelled once cancelled', async () => {
+    const never: FetchLike = () => new Promise<never>(() => undefined);
+    const input = { id: 'p1' };
+    const timedOut = await callTool(
+      READ,
+      input,
+      CONFIG,
+      never,
+      'token',
+      {},
+      { timeoutMs: 20 },
+    ).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    expect(timedOut).toBeInstanceOf(BeCallTimedOut);
+    const cancelling = new AbortController();
+    const pending = callTool(
+      READ,
+      input,
+      CONFIG,
+      never,
+      'token',
+      {},
+      {
+        cancel: cancelling.signal,
+        timeoutMs: 60_000,
+      },
+    ).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    cancelling.abort();
+    expect(await pending).toBeInstanceOf(ToolCallCancelled);
+  });
+
   it('never follows a redirect, so the secret stays with be-01', async () => {
     const seen: Headers[] = [];
     const elsewhere = Bun.serve({

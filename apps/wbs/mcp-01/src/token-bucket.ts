@@ -84,17 +84,12 @@ export class TokenBuckets {
     return waiting;
   }
 
-  /**
-   * Counts one event that has already happened, such as a failed authentication: one token,
-   * or what is left down to zero. Concurrent events that all passed {@link retryAfter} are
-   * counted, never refused.
-   */
-  spend(key: string): void {
+  /** Gives one token back to `key`'s bucket, never beyond `burst`: a reservation not used. */
+  give(key: string): void {
     const now = this.now();
     const level = levelAt(this.#levels.get(key), this.rate, now);
-    // Proof: storing only when a whole token was left failed `counts a spend on a part-filled
-    // bucket, so the part is spent too` (token-bucket.test.ts); watched 2026-10-27.
-    this.#store(key, { tokens: Math.max(0, level.tokens - 1), at: level.at }, now);
+    // Past `burst` is never read: `levelAt` caps every read.
+    this.#store(key, { tokens: level.tokens + 1, at: level.at }, now);
   }
 
   /** How many buckets are held, for tests of the bound. */

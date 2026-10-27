@@ -20,6 +20,8 @@ export const MACHINE_SCOPES = ['wbs:read', 'wbs:write'] as const;
 export type MachineScope = (typeof MACHINE_SCOPES)[number];
 
 /** `wbs_run`'s limit, equal to a command's `runId` limit (M15). */
+/** The longest `client_id` read; a credential id is a 36-character UUID. */
+const MOST_CHARACTERS_IN_A_CLIENT_ID = 256;
 const MOST_CHARACTERS_IN_A_RUN = 256;
 /** How much of an unsupported `typ` a refusal echoes, as be-01's grant route does. */
 const MOST_ECHOED_TYP_CHARACTERS = 64;
@@ -165,6 +167,12 @@ export function parseMachineTokenRequest(
   // 2026-10-27.
   if (bodyClientId !== undefined && basicClientId !== undefined) return refused('invalid_request');
   const clientId = basicClientId ?? bodyClientId ?? null;
+  // The id becomes a key of M10's per-`(client_id, source)` bucket, so its length is bounded
+  // here, where it is first read (review of PR #765, S2).
+  // Proof: with this check removed, `refuses a client_id over 256 characters invalid_request`
+  // (token-request.test.ts) admitted 257; watched 2026-10-27.
+  if (clientId !== null && clientId.length > MOST_CHARACTERS_IN_A_CLIENT_ID)
+    return refused('invalid_request', 'client_id must have at most 256 characters');
 
   let secret: string | undefined;
   if (grantType === CLIENT_CREDENTIALS_GRANT) {

@@ -14,7 +14,7 @@ import { mcpOAuthFromEnv, McpOAuthServer } from './oauth';
 import { readDocument, toolsFromDocument } from './openapi-tools';
 import { createServer } from './server';
 import { CLIENT_CREDENTIALS_GRANT } from './token-request';
-import type { FetchLike } from './wbs-client';
+import { BeCallTimedOut, type FetchLike } from './wbs-client';
 
 /**
  * M10's limits through the real token endpoint and `/mcp`, against a fake be-01 that knows
@@ -60,32 +60,57 @@ interface World {
   readonly handle: (request: Request) => Promise<Response>;
   /** Tool calls be-01 has served. */
   readonly served: () => number;
+  /** Grant requests that reached be-01. */
+  readonly asked: () => number;
+  /** What the unexpected tool failure reporter was handed. */
+  readonly reported: unknown[];
 }
 
-function world(valid: readonly Credential[], rates: MachineLimitRates = M10_LIMITS): World {
+interface WorldOptions {
+  /** be-01 answers grant requests after this many milliseconds, so requests overlap. */
+  readonly grantDelayMs?: number;
+  /** be-01 answers every grant request 503. */
+  readonly unavailable?: boolean;
+  /** be-01 never answers the first tool call. */
+  readonly hangFirstCall?: boolean;
+  /** How long a tool call waits for be-01. */
+  readonly beCallTimeoutMs?: number;
+}
+
+function world(
+  valid: readonly Credential[],
+  rates: MachineLimitRates = M10_LIMITS,
+  options: WorldOptions = {},
+): World {
   const clock = { now: NOW };
   const byKey = new Map(valid.map((held) => [held.key, held]));
   let served = 0;
-  const fetchImpl: FetchLike = (url, init) => {
+  let asked = 0;
+  const reported: unknown[] = [];
+  const fetchImpl: FetchLike = async (url, init) => {
     if (new URL(url).pathname === '/internal/mcp/machine-grants') {
+      asked += 1;
+      if (options.grantDelayMs !== undefined) await Bun.sleep(options.grantDelayMs);
+      if (options.unavailable === true)
+        return Response.json({ error: 'unavailable' }, { status: 503 });
       const body = JSON.parse(init.body ?? '{}') as { credential: { key: string } };
       const held = byKey.get(body.credential.key);
-      return Promise.resolve(
-        held === undefined
-          ? Response.json({ error: 'unknown_identity' }, { status: 401 })
-          : Response.json({
-              grant: `grant-${held.id}`,
-              credentialId: held.id,
-              personId: 'claire',
-              organizationId: held.organizationId,
-              scopes: ['read', 'write'],
-              expiresAt: Math.floor(clock.now / 1000) + TTL + 60,
-              runId: null,
-            }),
-      );
+      return held === undefined
+        ? Response.json({ error: 'unknown_identity' }, { status: 401 })
+        : Response.json({
+            grant: `grant-${held.id}`,
+            credentialId: held.id,
+            personId: 'claire',
+            organizationId: held.organizationId,
+            scopes: ['read', 'write'],
+            expiresAt: Math.floor(clock.now / 1000) + TTL + 60,
+            runId: null,
+          });
     }
     served += 1;
-    return Promise.resolve(Response.json({ projects: [] }));
+    if (options.hangFirstCall === true && served === 1)
+      return await new Promise<never>(() => undefined);
+    return Response.json({ projects: [] });
   };
   const oauth = new McpOAuthServer(
     CONFIG,
@@ -117,15 +142,19 @@ function world(valid: readonly Credential[], rates: MachineLimitRates = M10_LIMI
         config: CONFIG,
         fetchImpl,
         reportUnexpectedToolFailure: (cause) => {
-          throw cause instanceof Error ? cause : new Error(String(cause));
+          reported.push(cause);
+          return { sentence: 'mcp-01 failed unexpectedly', occurrenceId: 'occurrence' };
         },
+        ...(options.beCallTimeoutMs === undefined
+          ? {}
+          : { beCallTimeoutMs: options.beCallTimeoutMs }),
       }),
     CONFIG,
     oauth,
     {},
     oauth,
   );
-  return { clock, oauth, handle, served: () => served };
+  return { clock, oauth, handle, served: () => served, asked: () => asked, reported };
 }
 
 async function issue(oauth: McpOAuthServer, key: string, forwardedFor: string): Promise<Response> {
@@ -242,6 +271,33 @@ describe('failed authentications at the token endpoint', () => {
     await expectRateLimited(refused);
   });
 
+  it("a failure gives the address's issuance token back", async () => {
+    const held = credential();
+    const { oauth } = world([held], {
+      ...M10_LIMITS,
+      failuresPerSource: { burst: 1_000, perSecond: 1 },
+      issuancesPerSource: { burst: 10, perSecond: 0.001 },
+    });
+    for (let attempt = 0; attempt < 20; attempt += 1)
+      expect((await issue(oauth, wrongKeyFor(randomUUID()), ORCHESTRATOR)).status).toBe(401);
+    expect((await issue(oauth, held.key, ORCHESTRATOR)).status).toBe(200);
+  });
+
+  it('gives every token back when be-01 is unavailable', async () => {
+    const { oauth } = world([], M10_LIMITS, { unavailable: true });
+    for (let attempt = 0; attempt < 120; attempt += 1)
+      expect((await issue(oauth, wrongKeyFor(randomUUID()), ORCHESTRATOR)).status).toBe(503);
+  });
+
+  it('answers a stranger 401, never 429, for a credential whose issuances are spent', async () => {
+    const held = credential();
+    const { oauth } = world([held]);
+    for (let run = 0; run < 100; run += 1)
+      expect((await issue(oauth, held.key, `192.0.2.${String(run)}`)).status).toBe(200);
+    await expectRateLimited(await issue(oauth, held.key, '192.0.2.200'));
+    expect((await issue(oauth, wrongKeyFor(held.id), STRANGER)).status).toBe(401);
+  });
+
   it("a stranger's wrong secrets do not lock out the credential", async () => {
     const held = credential();
     const { oauth } = world([held]);
@@ -259,6 +315,30 @@ describe('failed authentications at the token endpoint', () => {
     expect(refused.status).toBe(429);
     world_.clock.now += Number(refused.headers.get('retry-after')) * 1_000;
     expect((await issue(world_.oauth, wrongKeyFor(id), STRANGER)).status).toBe(401);
+  });
+});
+
+describe('concurrent token requests', () => {
+  it('lets at most 30 of 100 concurrent wrong keys from one source reach be-01', async () => {
+    const world_ = world([], M10_LIMITS, { grantDelayMs: 5 });
+    const answers = await Promise.all(
+      Array.from({ length: 100 }, () =>
+        issue(world_.oauth, wrongKeyFor(randomUUID()), ORCHESTRATOR),
+      ),
+    );
+    expect(world_.asked()).toBeLessThanOrEqual(30);
+    expect(answers.filter((answer) => answer.status === 401)).toHaveLength(world_.asked());
+    expect(answers.filter((answer) => answer.status === 429)).toHaveLength(100 - world_.asked());
+  });
+
+  it('lets at most the burst of 300 concurrent issuances for one credential from one source reach be-01', async () => {
+    const held = credential();
+    const world_ = world([held], M10_LIMITS, { grantDelayMs: 5 });
+    const answers = await Promise.all(
+      Array.from({ length: 300 }, () => issue(world_.oauth, held.key, ORCHESTRATOR)),
+    );
+    expect(world_.asked()).toBeLessThanOrEqual(100);
+    expect(answers.filter((answer) => answer.status === 200)).toHaveLength(world_.asked());
   });
 });
 
@@ -341,6 +421,28 @@ describe('tools/call on /mcp', () => {
     ]);
     // Both slots were released once their calls ended.
     expect((await callTools(world_, await tokenFor(world_, held), 2)).texts).toEqual(['ok', 'ok']);
+  });
+});
+
+describe('a be-01 call that never answers', () => {
+  it('frees the in-flight slot of a call be-01 never answers, after the timeout', async () => {
+    const held = credential();
+    const world_ = world(
+      [held],
+      { ...M10_LIMITS, callsInFlightPerOrganization: 1 },
+      {
+        hangFirstCall: true,
+        beCallTimeoutMs: 50,
+      },
+    );
+    const token = await tokenFor(world_, held);
+    expect((await callTools(world_, token, 1)).texts).toEqual([
+      'getApiProjects could not be called: mcp-01 failed unexpectedly. Reference occurrence.',
+    ]);
+    // Reported as a fault of the deployment, never the caller's 401.
+    expect(world_.reported).toHaveLength(1);
+    expect(world_.reported[0]).toBeInstanceOf(BeCallTimedOut);
+    expect((await callTools(world_, token, 1)).texts).toEqual(['ok']);
   });
 });
 
