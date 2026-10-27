@@ -1695,3 +1695,31 @@ Source normal hooks passed: precommit3.82s, lint3.76s, format0.38s, plaintext-se
 Skipped by the authorized fix scope: original60 proofs, old matrices/full suites, another actual wrapper/gate replay, backend/browser/e2e, build, host/runtime/Kubernetes/Flux/live work, CI actions, push, merge and publication. Previous actual191-resource wrapper evidence remains the previous slice's evidence. No new runtime/host/admission evidence is claimed. Canonical progress stays4/11; concurrency, readonly-input/runtime overhead, effective Pod/claim/mount equality, enforcement, floors and runtime/live criteria remain open.
 
 Final fixround1 evidence formatting/whitespace passed (process0.253s); strict scoped OpenSpec returned1 valid change/0 issues/18ms (process0.520s). Only this recorded-check sentence was then added; normal evidence hooks validate the final Markdown.
+
+## Published checkpoint 420bdbf6 — completed CI evidence
+
+The published draft PR #760 head `420bdbf6bd78c5f96498fcf0693b120f3edf3566` completed CI run `40488001900` and infra-check run `40488001985` successfully. Fresh `gh pr checks 760 --required --json name,state,bucket,link` returned both required verdicts as SUCCESS: [gate](https://github.com/Prosperous-Unification/puni-00/actions/runs/40488001900/job/122161249984) and [pixels](https://github.com/Prosperous-Unification/puni-00/actions/runs/40488001900/job/122145628707). A separate PR read confirmed the exact head and OPEN/draft state. This evidence covers reviewed Tasks 25a and 26; it excludes local Tasks 25b1 and 25b2 and any later commit.
+
+| Evidence                            | Observed outcome                                                                                          |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Workspace job 122134732304          | SUCCESS; 10:23:23–11:22:07 UTC, 58m44s job wall time                                                      |
+| Twilight job 122134732446           | SUCCESS; 10:23:24–11:24:39 UTC, 61m15s job wall time                                                      |
+| Stable verdicts                     | gate 122161249984 and pixels 122145628707 SUCCESS; all four pixels shards SUCCESS                         |
+| Fleet job 122134546365              | SUCCESS; 10:22:57–10:36:48 UTC. Fleet check step 10:24:39–10:35:38 UTC, not asserted to be test-only time |
+| Fleet tests                         | 1838 pass / 7 skip / 0 fail; 1845 tests across 77 files, 639.82s reported Bun duration                    |
+| Deploy tests in Fleet job           | 828 pass / 0 fail across 32 files, 67.03s; lint/typecheck also succeeded                                  |
+| Generic Kubernetes job 122140680536 | SUCCESS; completed 10:51:26 UTC, including existing test:k3s and Traefik rehearsal targets                |
+
+Completed logs were retrieved once after the infra workflow became terminal: `/tmp/puni-pr760-fleet-420.log` (882029 bytes, 3522 lines) and `/tmp/puni-pr760-deploy-420.log` (131533 bytes, 780 lines). Seven opt-in tests in `observability-access-auth.test.ts` remained skipped because `PUNI_AUTH_ELASTIC_LAB` was not supplied. Their exact names match the previous 005 checkpoint; this is not absent-tool suppression. Earlier actual authenticated-backend component receipts remain separate evidence, not a current full observability rehearsal.
+
+Task 26's resource-test file retained all 319 local pre-existing cases and added 3 controls. Comparing the actual CI logs at 005 and 420, its reported case-duration sum fell from 256821.79ms for 318 cases to 55999.26ms for 322 cases. The extra pre-refactor case was introduced by 25a. Fleet's overall reported test duration changed from 801.38s (1772 tests) to 639.82s (1845 tests). These are separate CI runs with additional cases and environmental variance; they do not establish that all job-wall-time change was caused by the refactor. The same 42-case local comparison and caller-removal proof remain in Task 26 evidence.
+
+The first read-only log parser expected non-TTY `(pass)` markers and produced no case timings. It was corrected to the actual checkmark/group-header format, required nonempty 318/322 inventories, and checked all seven skip names before the retained comparison was used. No tests were rerun to obtain these observations. The ignored `published-005-420-timing.json` retains this comparison.
+
+These successful generic CI jobs do not prove full observability Kubernetes/Flux reconciliation, actual generated Pods/cgroups/mounts, complete cold-start admission, stored dev signals/operator views, migration history, recovery or live cutover. Canonical completion remains 4/11. No CI selection/concurrency policy, production activation, persistent credentials, storage retirement or final merge changed.
+
+### Scoped review closure for Tasks 25b1 and 25b2
+
+Task 25b1 received an independent approved review with no findings. Task 25b2's initial independent review found one blocking malformed-before-unsupported gap. Fix source `5cffee6e354c4c5cafacd0f64f0bc7038eed8b70` and evidence `2f778a907dbdcacd55f5669b1a0b3b00f272ac59` received scoped re-review: the finding is addressed, with no new Critical/Important breakage or out-of-scope observations. The re-review inspected the retained 34 affected tests, five default controls and nine new fault logs without repeating them. This closes the bounded source prerequisite, not full admission or runtime acceptance.
+
+Parent checks independently matched the six original tested source hashes and Git blobs before the fix, then matched both final fix files against `task-25b2-fix1-evidence/final-tested-source.sha256` after re-review. An ignored post-evidence handoff helper initially rejected an ArrayBuffer passed to node:crypto; using Uint8Array corrected that metadata-only setup error. Production files and observed fault results were unaffected. Tool Wiki remains inactive/uncertified. The complete published420 CI evidence above excludes these later local commits; the next published checkpoint needs its own CI outcome. Broad final branch review and all canonical runtime/live requirements remain open.
