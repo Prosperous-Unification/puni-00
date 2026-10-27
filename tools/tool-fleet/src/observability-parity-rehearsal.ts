@@ -7,6 +7,8 @@ import { isDeepStrictEqual } from 'node:util';
 import { type } from 'arktype';
 import { isNode, parseAllDocuments, parseDocument, stringify } from 'yaml';
 
+import { runChecked } from './check-cli';
+import { authenticatePreparedKubectl } from './check-provision';
 import { readToolchain, type Toolchain } from './contracts';
 import { type HostCapacity, requireProfileResources } from './k3d-lab';
 import { inspectRehearsalSecrets, type RehearsalSecret } from './observability-rehearsal-secrets';
@@ -600,15 +602,7 @@ async function validateBuilds(
 ) {
   const lock = await readToolchain(join(directory, 'infra/versions/toolchain.json'));
   const kubectl = join(tools, 'kubectl');
-  // Proof: a same-version wrapper was accepted before this SHA-256 check; substituted-kubectl negative failed.
-  if (hash(await readFile(kubectl)) !== lock.binaries.kubectl.sha256)
-    throw new Error('Rehearsal kubectl integrity differs');
-  if (
-    !execute([kubectl, 'version', '--client'], root)
-      .toString()
-      .includes(`Client Version: ${lock.binaries.kubectl.version}`)
-  )
-    throw new Error('Rehearsal kubectl version differs');
+  await authenticatePreparedKubectl(directory, tools, runChecked);
   const rootBuild = execute([kubectl, 'kustomize', join(directory, graph)], root).toString();
   const roots = documents(rootBuild).map((document) => Identity.assert(document.toJSON()));
   if (

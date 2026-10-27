@@ -1,14 +1,12 @@
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 
 import { type } from 'arktype';
 import { parseDocument } from 'yaml';
 
 import { runChecked } from './check-cli';
-import { installLockedTool, toolCacheDirectory } from './check-provision';
+import { authenticatePreparedHelm } from './check-provision';
 import { readToolchain, type Toolchain } from './contracts';
 import { readMemoryMiB } from './observability-capacity';
 import { assertPodResources } from './observability-generated-capacity';
@@ -27,7 +25,7 @@ import {
 } from './observability-rehearsal-sources';
 import {
   observabilityRenderCapabilities,
-  renderObservabilityReleases,
+  renderAuthenticatedObservabilityReleases,
 } from './observability-render';
 import { lockedImageReferences, podSpecOf } from './platform-manifests';
 import { decodeRenderedResources } from './rendered-resources';
@@ -795,39 +793,9 @@ export function readRehearsalInventory(...input: Parameters<typeof readRehearsal
   return readRehearsalSource(...input).inventory;
 }
 
-/** Verify a prepared archive privately through the existing installer, then bind selected executable bytes before invocation. Missing preparation never downloads. */
+/** Preserve explicit archive selection and required-preparation failures for existing callers. */
 export async function authenticateRehearsalHelm(root: string, tools: string, archive?: string) {
-  const lock = await readToolchain(join(root, 'infra/versions/toolchain.json'));
-  const pin = lock.binaries.helm;
-  const name = basename(new URL(pin.url).pathname);
-  const prepared = archive ?? join(toolCacheDirectory(process.env), `helm-${pin.version}`, name);
-  // Proof: Task25c2a archive-source substitution admitted explicitly missing, unreadable and changed archives.
-  const bytes = await readFile(prepared);
-  // Proof: Task25c2a archive-hash removal reached the prohibited-download fault instead of refusing bad bytes.
-  if (hash(bytes) !== pin.sha256) throw new Error('Rehearsal Helm archive integrity differs');
-  const directory = await mkdtemp(join(tmpdir(), 'rehearsal-helm-identity-'));
-  try {
-    const cache = join(directory, 'cache');
-    await mkdir(join(cache, `helm-${pin.version}`), { recursive: true });
-    await writeFile(join(cache, `helm-${pin.version}`, name), bytes);
-    const executable = await installLockedTool(
-      { name: 'helm', ...pin, member: 'linux-amd64/helm' },
-      cache,
-      runChecked,
-    );
-    const executableSHA256 = hash(await readFile(executable));
-    // Proof: Task25c2a selected-executable removal admitted the same-version substitute before invocation.
-    if (hash(await readFile(join(resolve(tools), 'helm'))) !== executableSHA256)
-      throw new Error('Rehearsal Helm executable integrity differs');
-    return {
-      version: pin.version,
-      archiveSHA256: pin.sha256,
-      executableSHA256,
-      member: 'linux-amd64/helm' as const,
-    };
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
+  return authenticatePreparedHelm(root, tools, runChecked, archive);
 }
 
 /**
@@ -849,9 +817,13 @@ export async function prepareRehearsalInventory(
     input,
     directory,
   );
-  const helm = await authenticateRehearsalHelm(directory, tools, helmArchive);
   const releases = stages.flatMap((stage) => stage.releases);
-  const expansions = await renderObservabilityReleases(directory, tools, releases);
+  const { expansions, helm } = await renderAuthenticatedObservabilityReleases(
+    directory,
+    tools,
+    releases,
+    helmArchive,
+  );
   const bootstrapFrames = buildRehearsalBootstrap(bootstrap, bootstrap.policyBytes);
   const contract = captureRehearsalFrames(stages, expansions, bootstrapFrames);
   const lock = await readToolchain(join(directory, 'infra/versions/toolchain.json'));

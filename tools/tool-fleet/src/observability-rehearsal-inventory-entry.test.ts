@@ -10,6 +10,7 @@ import * as rehearsal from './observability-parity-rehearsal';
 import { inventoryObservabilityRehearsal } from './observability-rehearsal-inventory';
 import * as rendering from './observability-render';
 import { provisionObservabilityTools } from './observability-tools.fixture';
+import { assertVeleroCapture } from './observability-velero-capture.test';
 
 const root = join(import.meta.dir, '../../..');
 
@@ -39,13 +40,13 @@ test('canonical eleven-stage public entry inventories actual pinned releases wit
     basename(new URL(lock.binaries.helm.url).pathname),
   );
   const capture = process.env['PUNI_REHEARSAL_FRAMES_EXPORT'];
-  const render = rendering.renderObservabilityReleases;
-  let expansions: Awaited<ReturnType<typeof render>> | undefined;
-  const observer = spyOn(rendering, 'renderObservabilityReleases').mockImplementation(
+  const render = rendering.renderAuthenticatedObservabilityReleases;
+  let expansions: Awaited<ReturnType<typeof render>>['expansions'] | undefined;
+  const observer = spyOn(rendering, 'renderAuthenticatedObservabilityReleases').mockImplementation(
     async (...arguments_) => {
       const frames = await render(...arguments_);
-      expansions = frames;
-      if (capture !== undefined) await writeFile(capture, JSON.stringify(frames));
+      expansions = frames.expansions;
+      if (capture !== undefined) await writeFile(capture, JSON.stringify(frames.expansions));
       return frames;
     },
   );
@@ -136,4 +137,5 @@ test('canonical eleven-stage public entry inventories actual pinned releases wit
 
   if (expansions === undefined) throw new Error('Canonical release capture is missing');
   assertNetworkingCapture(expansions, receipt);
+  assertVeleroCapture(expansions['puni-backup/velero'], receipt);
 }, 30_000);

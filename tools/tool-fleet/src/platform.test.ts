@@ -9,6 +9,12 @@ import { parse, parseDocument, stringify } from 'yaml';
 import { assessObservabilityBudget } from './observability-budget';
 import { validatePlatform } from './platform';
 import { platformReleases } from './platform-releases';
+import {
+  veleroPatch,
+  veleroPostRenderers,
+  writeVeleroCandidates,
+} from './platform-velero-fixture.test';
+import { readVeleroPatch } from './platform-velero-patch';
 
 const repositoryRoot = join(import.meta.dir, '../../..');
 
@@ -1448,3 +1454,230 @@ for (const side of ['requests', 'limits']) {
     });
   }
 }
+
+for (const environment of ['local', 'production']) {
+  it(`Task25c3d current ${environment} candidate refuses missing Velero patch`, async () => {
+    const root = await mutablePlatform();
+    await writeVeleroCandidates(root);
+    const file = join(root, `infra/platform/backup/velero/${environment}/velero.yaml`);
+    const document = parseDocument(await readFile(file, 'utf8'));
+    if (document.hasIn(['spec', 'postRenderers'])) document.deleteIn(['spec', 'postRenderers']);
+    await writeFile(file, document.toString());
+    expect(validatePlatform(root)).rejects.toThrow(/Velero patch/);
+  });
+}
+for (const [name, path] of [
+  ['server', ['resources']],
+  ['plugin', ['initContainers', 0, 'resources']],
+] as const) {
+  it(`Task25c3d current candidate refuses missing ${name} resources`, async () => {
+    const root = await mutablePlatform();
+    await writeVeleroCandidates(root);
+    const file = join(root, 'infra/platform/backup/velero/local/velero.yaml');
+    const document = parseDocument(await readFile(file, 'utf8'));
+    if (document.hasIn(['spec', 'values', ...path])) document.deleteIn(['spec', 'values', ...path]);
+    await writeFile(file, document.toString());
+    expect(validatePlatform(root)).rejects.toThrow(/Velero candidate/);
+  });
+}
+it('Task25c3d historical incomplete server and plugin resources preserve image inventory', async () => {
+  const release = platformReleases.find(
+    (release) => release.path === 'backup/velero/local/velero.yaml',
+  );
+  if (release === undefined) throw new Error('Velero fixture absent');
+  const document = parseDocument(
+    await readFile(join(repositoryRoot, 'infra/platform', release.path), 'utf8'),
+  );
+  const references = release.imageReferences(
+    type({ spec: { values: 'unknown' } }).assert(document.toJSON()).spec.values,
+  );
+  for (const resources of [undefined, null, {}, { requests: null, limits: { cpu: '1' } }]) {
+    for (const path of [['resources'], ['initContainers', 0, 'resources']]) {
+      if (resources === undefined) {
+        if (document.hasIn(['spec', 'values', ...path]))
+          document.deleteIn(['spec', 'values', ...path]);
+      } else document.setIn(['spec', 'values', ...path], resources);
+    }
+    expect(
+      release.imageReferences(
+        type({ spec: { values: 'unknown' } }).assert(document.toJSON()).spec.values,
+      ),
+    ).toEqual(references);
+  }
+});
+it('Task25c3d accepts bounded Velero source policy', async () => {
+  const root = await mutablePlatform();
+  await writeVeleroCandidates(root);
+  expect(validatePlatform(root)).resolves.toHaveProperty('releases');
+});
+for (const [fault, policy] of [
+  ['empty', []],
+  ['null', null],
+  ['extra renderer', [...veleroPostRenderers(), ...veleroPostRenderers()]],
+  ['external renderer', [{ executable: 'foreign' }]],
+  [
+    'unknown kustomize option',
+    [{ kustomize: { ...veleroPostRenderers()[0].kustomize, images: [] } }],
+  ],
+  [
+    'extra patch',
+    [
+      {
+        kustomize: {
+          patches: [
+            ...veleroPostRenderers()[0].kustomize.patches,
+            ...veleroPostRenderers()[0].kustomize.patches,
+          ],
+        },
+      },
+    ],
+  ],
+  ...['group', 'version', 'kind', 'name', 'namespace', 'labelSelector', 'annotationSelector'].map(
+    (field) => [
+      `target ${field}`,
+      [
+        {
+          kustomize: {
+            patches: [
+              {
+                target: {
+                  ...veleroPostRenderers()[0].kustomize.patches[0].target,
+                  [field]: 'foreign',
+                },
+                patch: veleroPatch,
+              },
+            ],
+          },
+        },
+      ],
+    ],
+  ),
+  ...[
+    ['empty patch', ''],
+    ['malformed', '['],
+    ['multiple documents', veleroPatch + '---\n[]'],
+    ['duplicate key', veleroPatch.replace('- op: test', '- op: test\n  op: test')],
+    ['extra operation', veleroPatch + '- op: remove\n  path: /metadata/labels\n'],
+    ['reordered operation', veleroPatch.replace('- op: test', '- op: add')],
+    ['wrong path', veleroPatch.replace('/volumes/1/', '/volumes/0/')],
+    ['extra operation field', veleroPatch.replace('- op: test', '- op: test\n  from: /foreign')],
+    [
+      'wrong precondition',
+      veleroPatch.replace('secretName: velero-credentials', 'secretName: foreign'),
+    ],
+    ['zero quantity', veleroPatch.replace('256Mi', "'0'")],
+    ['numeric quantity', veleroPatch.replace('256Mi', '256')],
+    ['invalid quantity', veleroPatch.replace('256Mi', 'NaN')],
+    ['negative quantity', veleroPatch.replace('256Mi', '-1Mi')],
+    ['overflow quantity', veleroPatch.replace('256Mi', '9'.repeat(400) + 'Gi')],
+  ].map(([fault, patch]) => [
+    fault,
+    [{ kustomize: { patches: [{ ...veleroPostRenderers()[0].kustomize.patches[0], patch }] } }],
+  ]),
+] as const) {
+  it(`Task25c3d patch ${type('string').assert(fault)} refuses through platform`, async () => {
+    const root = await mutablePlatform();
+    await writeVeleroCandidates(root);
+    const file = join(root, 'infra/platform/backup/velero/local/velero.yaml');
+    const document = parseDocument(await readFile(file, 'utf8'));
+    document.setIn(['spec', 'postRenderers'], policy);
+    await writeFile(file, document.toString());
+    expect(validatePlatform(root)).rejects.toThrow(/Velero patch/);
+  });
+}
+
+for (const [name, path] of [
+  ['server', ['resources']],
+  ['plugin', ['initContainers', 0, 'resources']],
+] as const) {
+  for (const [fault, suffix, value] of [
+    ['null map', [], null],
+    ['array map', [], []],
+    ['foreign field', ['foreign'], 'x'],
+    ['missing requests', ['requests'], undefined],
+    ['null requests', ['requests'], null],
+    ['missing limits', ['limits'], undefined],
+    ['null limits', ['limits'], null],
+    ['missing cpu', ['requests', 'cpu'], undefined],
+    ['missing memory', ['limits', 'memory'], undefined],
+    ['missing disk', ['limits', 'ephemeral-storage'], undefined],
+    ['bad cpu', ['requests', 'cpu'], '1Mi'],
+    ['negative memory', ['requests', 'memory'], '-1Mi'],
+    ['nonfinite disk', ['requests', 'ephemeral-storage'], '9'.repeat(400) + 'Gi'],
+    ['zero disk request', ['requests', 'ephemeral-storage'], '0Mi'],
+    ['above cpu limit', ['requests', 'cpu'], '2'],
+    ['above memory limit', ['requests', 'memory'], '2Gi'],
+    ['above disk limit', ['requests', 'ephemeral-storage'], '2Gi'],
+  ] as const) {
+    it(`Task25c3d ${name} ${fault} refuses`, async () => {
+      const root = await mutablePlatform();
+      await writeVeleroCandidates(root);
+      const file = join(root, 'infra/platform/backup/velero/local/velero.yaml');
+      const document = parseDocument(await readFile(file, 'utf8'));
+      const target = ['spec', 'values', ...path, ...suffix];
+      if (value === undefined) document.deleteIn(target);
+      else document.setIn(target, value);
+      await writeFile(file, document.toString());
+      expect(validatePlatform(root)).rejects.toThrow(/Velero candidate|values|Generated capacity/);
+    });
+  }
+  for (const dimension of ['cpu', 'memory', 'ephemeral-storage']) {
+    it(`Task25c3d ${name} positive ${dimension} limit required`, async () => {
+      const root = await mutablePlatform();
+      await writeVeleroCandidates(root);
+      const file = join(root, 'infra/platform/backup/velero/local/velero.yaml');
+      const document = parseDocument(await readFile(file, 'utf8'));
+      for (const side of ['requests', 'limits'])
+        document.setIn(['spec', 'values', ...path, side, dimension], '0');
+      await writeFile(file, document.toString());
+      expect(validatePlatform(root)).rejects.toThrow(/Velero candidate/);
+    });
+  }
+}
+it('Task25c3d zero CPU and memory requests remain valid', async () => {
+  const root = await mutablePlatform();
+  await writeVeleroCandidates(root);
+  const file = join(root, 'infra/platform/backup/velero/local/velero.yaml');
+  const document = parseDocument(await readFile(file, 'utf8'));
+  for (const path of [['resources'], ['initContainers', 0, 'resources']])
+    for (const dimension of ['cpu', 'memory'])
+      document.setIn(['spec', 'values', ...path, 'requests', dimension], '0');
+  await writeFile(file, document.toString());
+  expect(validatePlatform(root)).resolves.toHaveProperty('releases');
+});
+it('Task25c3d decoded patch snapshots caller authority and preserves original inline bytes', () => {
+  const policy = veleroPostRenderers();
+  const decoded = readVeleroPatch(policy);
+  policy[0].kustomize.patches[0].patch = 'foreign';
+  policy[0].kustomize.patches[0].target.name = 'foreign';
+  expect(decoded.patch).toBe(veleroPatch);
+  expect(decoded.pluginsSizeLimit).toBe('256Mi');
+  expect(decoded.scratchSizeLimit).toBe('1Gi');
+  expect(Object.isFrozen(decoded)).toBe(true);
+});
+
+it('Task25c3d owning declarations carry the candidate bounds and original patch', async () => {
+  for (const environment of ['local', 'production']) {
+    const file = join(repositoryRoot, `infra/platform/backup/velero/${environment}/velero.yaml`);
+    const document = parseDocument(await readFile(file, 'utf8'));
+    const decoded = readVeleroPatch(
+      type({ spec: { postRenderers: 'unknown' } }).assert(document.toJSON()).spec.postRenderers,
+    );
+    expect(decoded.pluginsSizeLimit).toBe('256Mi');
+    expect(decoded.scratchSizeLimit).toBe('1Gi');
+    expect(document.getIn(['spec', 'values', 'resources', 'requests', 'ephemeral-storage'])).toBe(
+      '128Mi',
+    );
+    expect(document.getIn(['spec', 'values', 'resources', 'limits', 'ephemeral-storage'])).toBe(
+      '1Gi',
+    );
+    expect(
+      type({ spec: { values: { initContainers: type({ resources: 'unknown' }).array() } } }).assert(
+        document.toJSON(),
+      ).spec.values.initContainers[0].resources,
+    ).toEqual({
+      requests: { cpu: '50m', memory: '64Mi', 'ephemeral-storage': '16Mi' },
+      limits: { cpu: '1', memory: '256Mi', 'ephemeral-storage': '128Mi' },
+    });
+  }
+});

@@ -23,7 +23,13 @@ import {
   referencedSecrets,
 } from './platform-manifests';
 import { assertOtlpTransport } from './platform-otlp';
-import { assertNetworkingCandidate, platformReleases } from './platform-releases';
+import {
+  assertNetworkingCandidate,
+  assertVeleroCandidate,
+  PlatformHelmRelease,
+  platformReleases,
+} from './platform-releases';
+import { readVeleroPatch } from './platform-velero-patch';
 
 const PlatformIdentity = type({
   apiVersion: "'v1'",
@@ -72,35 +78,6 @@ const FluxStage = type({
       .array()
       .exactlyLength(1),
     'timeout?': 'string>0',
-    '+': 'reject',
-  },
-  '+': 'reject',
-});
-
-// Proof: changing the HelmRelease spec's unknown-key policy to delete admitted a post-renderer
-// that replaced Traefik's locked image in the production validator on 2026-09-17.
-const HelmRelease = type({
-  apiVersion: "'helm.toolkit.fluxcd.io/v2'",
-  kind: "'HelmRelease'",
-  metadata: { name: 'string>0', namespace: 'string>0', '+': 'reject' },
-  spec: {
-    interval: 'string>0',
-    'dependsOn?': type({ name: 'string>0', '+': 'reject' }).array().atLeastLength(1),
-    chart: {
-      spec: {
-        chart: 'string>0',
-        version: 'string>0',
-        sourceRef: {
-          kind: "'GitRepository'",
-          name: "'puni-platform'",
-          namespace: "'flux-system'",
-          '+': 'reject',
-        },
-        '+': 'reject',
-      },
-      '+': 'reject',
-    },
-    values: 'unknown',
     '+': 'reject',
   },
   '+': 'reject',
@@ -572,7 +549,7 @@ export async function validatePlatform(root: string): Promise<{
   const releaseNames: string[] = [];
   for (const release of platformReleases) {
     const releasePath = join(root, 'infra/platform', release.path);
-    const parsed = HelmRelease(await readYaml(releasePath));
+    const parsed = PlatformHelmRelease(await readYaml(releasePath));
     if (parsed instanceof type.errors) {
       throw new Error(`${release.name} HelmRelease is invalid: ${parsed.summary}`);
     }
@@ -597,6 +574,15 @@ export async function validatePlatform(root: string): Promise<{
     const configuredReferences = release.imageReferences(parsed.spec.values);
     // Proof: Task25c3c candidate-call removal made all five missing maps and both missing scratch bounds pass validatePlatform.
     assertNetworkingCandidate(release.name, parsed.spec.values);
+    if (release.name === 'velero') {
+      // Proof: Task25c3d candidate-call omission admitted both missing current maps.
+      assertVeleroCandidate(parsed.spec.values);
+      // Proof: Task25c3d platform-patch-call omission admitted the foreign volume precondition.
+      readVeleroPatch(parsed.spec.postRenderers);
+      // Proof: Task25c3d postrenderer-context removal admitted the existing Traefik image-replacement policy.
+    } else if (Object.hasOwn(parsed.spec, 'postRenderers')) {
+      throw new Error(`${release.name} HelmRelease postRenderers must be removed`);
+    }
     for (const image of lock.images) {
       if (configuredReferences[image.role] !== `${image.name}@${image.digest}`) {
         // Proof: moving the Traefik digest to ignored `image.unusedDigest` made the production

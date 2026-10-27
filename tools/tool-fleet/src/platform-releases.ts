@@ -6,6 +6,35 @@ import type { Toolchain } from './contracts';
 import { readCPUMilli, readMemoryMiB } from './observability-capacity';
 import { assertPodResources } from './observability-generated-capacity';
 
+/** Standard source envelope; postRenderers require separate exact contextual validation. */
+export const PlatformHelmRelease = type({
+  apiVersion: "'helm.toolkit.fluxcd.io/v2'",
+  kind: "'HelmRelease'",
+  metadata: { name: 'string>0', namespace: 'string>0', '+': 'reject' },
+  spec: {
+    interval: 'string>0',
+    'dependsOn?': type({ name: 'string>0', '+': 'reject' }).array().atLeastLength(1),
+    chart: {
+      spec: {
+        chart: 'string>0',
+        version: 'string>0',
+        sourceRef: {
+          kind: "'GitRepository'",
+          name: "'puni-platform'",
+          namespace: "'flux-system'",
+          '+': 'reject',
+        },
+        '+': 'reject',
+      },
+      '+': 'reject',
+    },
+    values: 'unknown',
+    'postRenderers?': 'unknown',
+    '+': 'reject',
+  },
+  '+': 'reject',
+});
+
 type ChartLockName = keyof Toolchain['charts'];
 
 /**
@@ -48,16 +77,16 @@ const DiskResources = type({
   '+': 'reject',
 });
 /** Historical release decoding validates supplied quantities without requiring candidate budgets. */
-const NetworkingQuantities = type({
+const StructuralQuantities = type({
   'cpu?': Quantity,
   'memory?': Quantity,
   'ephemeral-storage?': Quantity,
   '+': 'reject',
 });
 // Proof: Task25c3c resource-unknown-keys widening admitted foreign resource branches in structural image decoding.
-const NetworkingResources = type({
-  'requests?': NetworkingQuantities.or('null'),
-  'limits?': NetworkingQuantities.or('null'),
+const StructuralResources = type({
+  'requests?': StructuralQuantities.or('null'),
+  'limits?': StructuralQuantities.or('null'),
   '+': 'reject',
 })
   // Proof: Task25c3c historical-null removal broke historical absent/null image-reference controls.
@@ -115,7 +144,7 @@ const TraefikValues = type({
     '+': 'reject',
   },
   versionOverride: 'string>0',
-  'resources?': NetworkingResources,
+  'resources?': StructuralResources,
   'persistence?': Persistence,
   deployment: {
     kind: "'DaemonSet'",
@@ -158,12 +187,12 @@ const TraefikValues = type({
 
 const CertManagerValues = type({
   crds: { enabled: 'true', '+': 'reject' },
-  'resources?': NetworkingResources,
+  'resources?': StructuralResources,
   image: ImageValues,
-  webhook: { image: ImageValues, 'resources?': NetworkingResources, '+': 'reject' },
-  cainjector: { image: ImageValues, 'resources?': NetworkingResources, '+': 'reject' },
+  webhook: { image: ImageValues, 'resources?': StructuralResources, '+': 'reject' },
+  cainjector: { image: ImageValues, 'resources?': StructuralResources, '+': 'reject' },
   acmesolver: { image: ImageValues, '+': 'reject' },
-  startupapicheck: { image: ImageValues, 'resources?': NetworkingResources, '+': 'reject' },
+  startupapicheck: { image: ImageValues, 'resources?': StructuralResources, '+': 'reject' },
   '+': 'reject',
 });
 
@@ -623,6 +652,7 @@ const VeleroValues = type({
   upgradeCRDs: 'false',
   initContainers: type({
     name: "'velero-plugin-for-aws'",
+    'resources?': StructuralResources,
     image: 'string>0',
     volumeMounts: type({ mountPath: "'/target'", name: "'plugins'", '+': 'reject' })
       .array()
@@ -641,7 +671,7 @@ const VeleroValues = type({
     backupStorageLocation: VeleroLocation.array().atMostLength(1),
     '+': 'reject',
   },
-  resources: Resources,
+  'resources?': StructuralResources,
   nodeAgent: { resources: Resources, tolerations: TolerateAll, '+': 'reject' },
   metrics: { serviceMonitor: { enabled: 'true', '+': 'reject' }, '+': 'reject' },
   // Proof: widening kind admitted a Deployment through extraObjects (platform.test.ts).
@@ -668,6 +698,31 @@ const VeleroValues = type({
   schedules: 'Record<string, object>',
   '+': 'reject',
 });
+
+/** Require current Velero server/plugin budgets without authorizing historical image inventory.
+ * CPU/memory requests may be zero; limits and both new ephemeral requests must be positive.
+ */
+export function assertVeleroCandidate(values: unknown): void {
+  const parsed = decode('velero', VeleroValues, values);
+  const refuse = (reason: string): never => {
+    throw new Error(`Velero candidate ${reason}`);
+  };
+  // Proof: Task25c3d candidate-server/plugin omissions each admitted its absent current resource map.
+  for (const input of [parsed.resources, parsed.initContainers[0].resources]) {
+    const resources = decode('Velero candidate', DiskResources, input);
+    // Proof: Task25c3d shared-quantities dependency removal admitted request/limit contradictions.
+    assertPodResources(resources);
+    for (const dimension of ['cpu', 'memory', 'ephemeral-storage'] as const) {
+      const read = dimension === 'cpu' ? readCPUMilli : readMemoryMiB;
+      // Proof: Task25c3d positive-limits widening admitted zero CPU/memory/disk limits.
+      if (read(String(resources.limits[dimension]), refuse) <= 0)
+        refuse(`${dimension} limit must be positive`);
+    }
+    // Proof: Task25c3d positive-request widening admitted zero new ephemeral requests.
+    if (readMemoryMiB(String(resources.requests['ephemeral-storage']), refuse) <= 0)
+      refuse('ephemeral request must be positive');
+  }
+}
 
 function elasticReferences(release: string, version: string, image: string) {
   const tag = /:([^:@]+)@/.exec(image)?.[1];
@@ -722,7 +777,8 @@ const otelReferences = (values: unknown) => {
   };
 };
 
-const veleroReferences = (values: unknown) => {
+/** Decode both registered Velero releases through the same strict image/value boundary. */
+export const readVeleroImageReferences = (values: unknown) => {
   const parsed = decode('velero', VeleroValues, values);
   // Proof: removing this guard admitted two effective default BSLs (platform.test.ts).
   if (parsed.configuration.backupStorageLocation.length + (parsed.extraObjects?.length ?? 0) !== 1)
@@ -871,13 +927,13 @@ export const platformReleases: readonly PlatformRelease[] = [
     lock: 'velero',
     path: 'backup/velero/local/velero.yaml',
     chart: 'charts/velero-12.2.0.tgz',
-    imageReferences: veleroReferences,
+    imageReferences: readVeleroImageReferences,
   },
   {
     name: 'velero',
     lock: 'velero',
     path: 'backup/velero/production/velero.yaml',
     chart: 'charts/velero-12.2.0.tgz',
-    imageReferences: veleroReferences,
+    imageReferences: readVeleroImageReferences,
   },
 ];
