@@ -1675,3 +1675,66 @@ private namespaces, read-only cgroup view and all existing deadlines are unchang
 This is preparation and review only. Source stays frozen until actual execution
 and both independent cleanup audits finish; no production activation is authorized
 by this rehearsal result alone.
+
+## HOST55 stopped at the readiness observer before publication
+
+HOST55 returned1 without timeout after46.983seconds. Initialization, the bootstrap
+backup and reopening completed. Publication had not started when the readiness
+observer failed. No tag fault, strict partial census or recovery was reached.
+The recovery witness remains unverified.
+
+The frozen bundle frame25605:41 maps to reading an unselected candidate process's
+`/proc/<pid>/cmdline` inside `waitMode`. The bounded classifier maps
+`process-absent` exclusively to Error.code ESRCH. Candidate identity and lifetime
+were not captured, so this is no proof that a selected Distribution process died.
+The observer already retries ENOENT, connection refusal and timeout/abort; ESRCH
+currently propagates. Local correction will test bounded retry for this expected
+candidate-observation outcome while retaining full argv/UID/mode/HTTP readiness,
+unknown-error refusals, parent-lifetime checks and the existing timeout.
+
+All83 periodic host root/cgroup comparisons and the final host/UTS comparisons
+matched. Normal teardown removed cgroup before proc and the root mount last,
+detached all four owned loops and released the canonical lock. Both independent
+cleanup audits returned0 with empty stderr. The worker covered all process mount
+views and its queue record; the controller separately covered descriptors, backing
+references, its mount view and the exact outside PID/start identities. The owned
+fixture and three private namespaces were absent, with over20GiB host reserve.
+All100 registry sources, nine payloads and262 independently observed build inputs
+still matched after execution and the controller audit. Executed registry sources
+were copied before new edits; final receipt changes contain only closure metadata.
+This closes the failed run and releases local readiness-observer work. No retry or
+new native run is authorized by that release; full recovery and activation remain
+required.
+
+## Bounded readiness correction and HOST56 review
+
+The private readiness observer now retries ESRCH from candidate observation under
+its existing ten-second deadline. That result never means ready: a later complete
+argv/environment/UID observation and HTTP200 are still required. The executed55
+source differs only by that retry category, two adjacent proof comments and a line
+wrap. Production startup, deadlines, sleeps and process lifetimes are unchanged.
+
+The focused regression first failed two cases with the original behavior, then
+passed eight tests/83 assertions. The final readiness/process-observation suite
+passed 18 tests/118 assertions. Separate exact counterfactuals remove the ESRCH
+category, deadline and Error-shape check: each causes an observed assertion failure.
+The deadline case reaches an explicit modeled sleep rescue, rather than a test
+runner timeout. Proc reads, HTTP and clock are modeled; no actual ten-second or
+kernel-lifetime proof is claimed. Library/spec checks returned0 with empty output,
+the new test is lint-clean and formatting passed. Runtime guard-module lint was
+not run in this slice; all existing Task8 lint debt remains required work.
+
+Independent review verified all 52 covering pins, 100 registry source pins, nine
+regular archive payloads and 262 actual build inputs. Its build matches the frozen
+bundle byte for byte, and the compiled diff contains only the ESRCH literal. The
+inner/workload/runtime payloads are unchanged from executed55. The actual helper,
+outer script, private namespaces, read-only cgroup view, four filesystems, 896MiB
+envelope, 21/20GiB host reserves and all existing deadlines remain unchanged.
+
+One HOST56 run is released using manifest
+59eb7e8359d8fc378db4585dd60d1294a30942adca442261e93860c9a7f85b85,
+after fresh canonical availability, pins and output absence. Its recovery acceptance
+is unchanged: actual tag500, strict pre-API partial census and matching-pair verified
+recovery must finish at a fenced handoff. This preparation proves neither native
+recovery nor activation. Source remains frozen through execution and both cleanup
+audits; a further run requires a separately reviewed concrete change or disposition.
