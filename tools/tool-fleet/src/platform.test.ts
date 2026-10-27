@@ -6,8 +6,10 @@ import { type } from 'arktype';
 import { describe, expect, it } from 'bun:test';
 import { parse, parseDocument, stringify } from 'yaml';
 
+import { readToolchain } from './contracts';
 import { assessObservabilityBudget } from './observability-budget';
 import { validatePlatform } from './platform';
+import { assertLockedWorkloadImages, readPlatformManifests } from './platform-manifests';
 import { platformReleases } from './platform-releases';
 import {
   veleroPatch,
@@ -536,7 +538,7 @@ describe('validatePlatform', () => {
     );
   });
 
-  it('rejects an unlocked init container in a backup job', async () => {
+  it('rejects an unregistered backup init role before its unlocked image', async () => {
     const root = await mutablePlatform();
     await replaceManifestText(
       root,
@@ -544,7 +546,14 @@ describe('validatePlatform', () => {
       '      automountServiceAccountToken: false\n      securityContext:\n        runAsNonRoot: true\n        runAsUser: 1000\n        seccompProfile: { type: RuntimeDefault }\n      containers:\n',
       '      automountServiceAccountToken: false\n      securityContext:\n        runAsNonRoot: true\n        runAsUser: 1000\n        seccompProfile: { type: RuntimeDefault }\n      initContainers:\n        - { name: fetch, image: docker.io/library/alpine:3 }\n      containers:\n',
     );
-    expect(validatePlatform(root)).rejects.toThrow(/Job\/object-store-buckets container fetch/);
+    expect(validatePlatform(root)).rejects.toThrow(
+      'common candidate native role or scratch differs',
+    );
+    const manifests = await readPlatformManifests(root);
+    const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
+    expect(() => assertLockedWorkloadImages(manifests, toolchain)).toThrow(
+      'backup/local/object-store.yaml Job/object-store-buckets container fetch image differs from the toolchain lock',
+    );
   });
 
   it('rejects a changed Velero plugin image', async () => {

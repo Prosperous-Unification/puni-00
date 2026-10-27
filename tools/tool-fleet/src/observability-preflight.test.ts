@@ -1862,6 +1862,7 @@ it('actual common blackbox Deployment selector and owned scheduled ReplicaSet po
   candidate.name = workload.metadata.name;
   candidate.memoryMiB = 64;
   candidate.cpuMilli = 10;
+  candidate.ephemeralMiB = 64;
   const source = commonSource;
   candidate.artifactSHA256 = createHash('sha256').update(source).digest('hex');
   await writeFile(candidate.artifactPath, source);
@@ -1897,9 +1898,12 @@ it('actual common blackbox Deployment selector and owned scheduled ReplicaSet po
   setup.snapshot.pods[0].initCPUs = [];
   setup.snapshot.pods[0].initCPULimits = [];
   const spec = projectFixturePod(setup.snapshot.pods[0]).spec as typeof WorkloadSpec.infer;
+  spec.containers[0].resources.requests['ephemeral-storage'] = '16Mi';
+  spec.containers[0].resources.limits['ephemeral-storage'] = '64Mi';
   spec.automountServiceAccountToken = false;
   setup.snapshot.pods[0].specOverride = spec;
   const response = await setup.run();
+  expect(response.stderr.trim()).toBe('');
   expect(response.exitCode).toBe(0);
   const receipt = JSON.parse(
     await readFile(join(setup.directory, 'receipt.json'), 'utf8'),

@@ -2918,3 +2918,60 @@ The user's h3mon question does not authorize an upgrade. The earlier sizing clar
 An independent scoped review of the official nine-file package391b6c5..004485f63 approved both spec compliance and code quality with no findings. The reviewer checked topology provenance, policy-validation ordering, full initial/replacement charges, retained independent obligations, compatibility, false authority and the stated tests/evidence; no suites, renders or fault batches were replayed. Root separately reconciled the completed source/capture/proof verification and existing package rather than regenerating either. The61 watched fault observations are Bun assertion tests against production accounting code, not live Kubernetes runtime observations. The clean TS2339 producer-field fault proves the typed handoff only; the initially masked affinity fault remains excluded.
 
 The private Task35 source slice is complete. Canonical task3.1 and the overall setup remain open: CronJob lifecycle, generated workloads, image/helper/system/transient/physical costs, host admission, authenticated Flux/runtime/signals/history/recovery/live acceptance still require evidence. Source and adapter approval do not supply creation or runtime authority. No publication, deployment or hardware change followed this review.
+
+## Task36 changed-contract CI fixture restoration — 2026-10-27
+
+This bounded test-only restoration starts at `c0faae7400b22588a55018b27ec0aca3561d24c4`. The root classified it as restoring the existing precise contracts under R4; no new behavior or production safety check was introduced. Task35 source and its accepted review package are untouched. The retained 055d CI log and the previously recorded two-case RED above were reused without redownload or CI rerun: 0 pass, 481 filtered, 2 fail, 3 assertions, 1.405s at `004485f63ffd0335cbacc3fd9b32aa1af6678a73`.
+
+### Diagnosis and correction
+
+`validatePlatform` calls `assertCommonNativeResources` before `assertLockedWorkloadImages`. The existing backup fixture adds `fetch` as an init container to the registered `object-store-buckets` Job; that role intentionally permits one named app container and no init/ephemeral containers. The test now requires the specific `common candidate native role or scratch differs` refusal through the real platform validator. Its original init-image purpose remains covered by calling the real exported image checker with the same decoded mutated manifests and toolchain, requiring `backup/local/object-store.yaml Job/object-store-buckets container fetch image differs from the toolchain lock`. Neither production guard nor its order changed.
+
+The blackbox case retained the real CLI, checked-in common source bytes and selector, Deployment→ReplicaSet→Pod UID ownership, and migration-ready assertion. Adding an empty-stderr assertion exposed the actual first refusal:
+
+```sh
+bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/observability-preflight.test.ts -t 'actual common blackbox Deployment selector and owned scheduled ReplicaSet pod admit prerequisites'
+```
+
+Observed 0 pass, 204 filtered, 1 fail, 1 assertion, 756ms (case 711.29ms), exit 1; stderr was exactly `observability preflight: candidate-ephemeral-mismatch`. `readCandidateCosts` compares the source-normalized disk demand to the caller declaration before assessing effective replicas. The common source declares ephemeral request 16Mi / limit 64Mi; the stale caller declared 0Mi and `projectFixturePod` omitted both effective resource fields. The fixture now explicitly declares candidate `ephemeralMiB: 64` and supplies effective request `16Mi` / limit `64Mi` locally through the existing `specOverride`. The shared projector and production source/effective comparison remain unchanged. The permanent empty-stderr assertion preserves the diagnostic visibility.
+
+Two implementation attempts exposed test wiring errors, both corrected before final verification: the first green attempt passed blackbox but called `readToolchain` with the fixture directory (EISDIR: 1 pass, 481 filtered, 1 fail, 5 assertions, 1.372s); the next selected run used a nonexistent guessed `toolchain.lock.yaml` (ENOENT: 8 pass, 474 filtered, 1 fail, 19 assertions, 4.65s). The final call uses the exact existing `validatePlatform` path, `infra/versions/toolchain.json`. These were test wiring errors, not additional production diagnoses or acceptance evidence.
+
+### Focused verification
+
+```sh
+bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/platform.test.ts tools/tool-fleet/src/observability-preflight.test.ts -t 'rejects an unregistered backup init role before its unlocked image|actual common blackbox Deployment selector and owned scheduled ReplicaSet pod admit prerequisites|accepts the locked ordered platform graph for every cluster overlay|rejects a plain workload image outside the toolchain lock|rejects a changed Velero plugin image|small caller ephemeral allowance cannot replace bounded source scratch demand|source selector must match actual node labels|owned pod scheduled elsewhere cannot certify selected placement|bounded container ephemeral allowance covers shared scratch without charging the bytes twice'
+```
+
+Observed 9 pass, 474 filtered, 0 fail, 20 assertions, 4.71s; exit 0. This includes the two restored cases, unchanged whole-graph positive, ordinary workload/plugin image negatives, source placement refusal, disk-budget mismatch refusal, scheduled-replica mismatch, and bounded disk accounting positive. Blackbox took 759.32ms and backup role/image took 225.98ms.
+
+```sh
+bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/observability-preflight.test.ts -t 'fix1 old named pod resources cannot establish the selected candidate readiness'
+```
+
+Observed 1 pass, 204 filtered, 0 fail, 3 assertions, 880ms (case 832.18ms); exit 0. This directly relevant resource-equality negative still blocks readiness for an old named Pod. No production safety check changed, so no new mutation-proof claim is made and no old proof batch was replayed.
+
+The following scoped checks returned exit 0:
+
+- `bunx eslint tools/tool-fleet/src/platform.test.ts tools/tool-fleet/src/observability-preflight.test.ts` — no diagnostics; tool-call wall time 4.098s.
+- `bunx tsc --project tools/tool-fleet/tsconfig.spec.json --noEmit --incremental false` — no diagnostics; tool-call wall time 1.273s.
+- `bunx prettier --check tools/tool-fleet/src/platform.test.ts tools/tool-fleet/src/observability-preflight.test.ts` — all matched files use Prettier style; tool-call wall time 0.378s.
+- `bunx openspec validate observability-environment-parity --strict --json` — 1 passed change, 0 failed, no issues, validator 18ms; tool-call wall time 0.452s.
+- `bunx prettier --check tools/tool-fleet/src/platform.test.ts tools/tool-fleet/src/observability-preflight.test.ts openspec/changes/observability-environment-parity/verify.md` — all three changed files use Prettier style after formatting the appended evidence.
+- The final `bunx openspec validate observability-environment-parity --strict --json` repeat after the evidence edit returned 1 passed change, 0 issues, validator 16ms; tool-call wall time 0.466s.
+- `git diff --check` — no whitespace diagnostics.
+
+Production contract/source hashes read during this diagnosis (SHA256):
+
+| Path                                                             | SHA256                                                             |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `tools/tool-fleet/src/platform-common-resources.ts`              | `7404c90c2a86dd69b77296aafa034e968e03e3d182d2a71f4104802158ffd894` |
+| `tools/tool-fleet/src/platform-manifests.ts`                     | `616452cd8f914636b2da97c58c40a7c5bdeb8cb3057390d01eee793625178275` |
+| `tools/tool-fleet/src/platform.ts`                               | `e2c9830297cbf5aeedbfaf6beb8bda63c7b1efc535afe514d7ef36d233db0a1f` |
+| `tools/tool-fleet/src/observability-workload.ts`                 | `792d92c1324009ac2f6f60aab43130cbd8eecf4ce80932dc922e0d46def19d28` |
+| `tools/tool-fleet/src/observability-preflight.ts`                | `9f4f8903fa9a4f7b9381a9a461367c0b4fe27375416279d33992be055a351495` |
+| `tools/tool-fleet/src/observability-preflight-cli.ts`            | `fa9dc49715bdcd14bee2ef77834e6e2d78678f53f340c35823bc01e3ed72b0a2` |
+| `infra/platform/observability/prometheus/blackbox-exporter.yaml` | `0bdf775283f02c3a96c8c4c24b421982e3c59866b4b3f40bf55f52f1681cb12b` |
+| `infra/platform/backup/local/object-store.yaml`                  | `bca40b55dbfc1cd5cdd0c4d57806651bdce08ab3ebac9f5705217545f90c04b1` |
+
+Only the two tests and this verification record change. Full Fleet/Nx/build/host gates, historical proof suites, chart/canonical renders, full strict validation of unrelated changes, CI, network/image calls, cluster/Docker/host/runtime work and live acceptance were deliberately not run. Existing immutable raw captures and private evidence were not modified. Canonical4of11, full source/capacity/host/runtime acceptance and the overall observability setup remain open. Root owns later CI observation; no push, merge, deploy, storage, secrets or hardware change is part of this restoration.
