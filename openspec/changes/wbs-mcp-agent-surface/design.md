@@ -531,6 +531,8 @@ _Alternatives:_ keep accepting (two surfaces in fact); a deprecation header peri
 
 - _Source address._ It is the `X-Forwarded-For` entry `MCP_TRUSTED_PROXY_HOPS` from the right
   (1 behind Caddy); with 0, the socket address. A spoofed leftmost entry changes nothing.
+  A request the proxies did not write (too few entries, no IP address) counts under one shared
+  `unattributed` source; a missing or invalid setting refuses boot (section 4 note 1).
 - _Failures and successes are counted apart._ Failed authentications, at the token endpoint
   and for any raw key on `/mcp`, are counted per `(client_id, IP)` and per IP. Successful
   issuances are limited per credential, separately, so a stranger who knows a public id cannot
@@ -547,7 +549,9 @@ _Alternatives:_ keep accepting (two surfaces in fact); a deprecation header peri
 
 - With R replicas, the effective organization in-flight limit is 128 × R. These are
   per-replica fences; the authoritative fences are be-01's transactional caps.
-- `/mcp` refusals are HTTP `429` with `Retry-After`. A token-endpoint refusal is HTTP `429`
+- `/mcp` refusals are HTTP `429` with `Retry-After` when the request ran no call and its one
+  answer is a limited call; in a batch each limited call is a tool error naming its wait, and
+  the rest run (section 4 note 6). A token-endpoint refusal is HTTP `429`
   with error `invalid_request` and `error_description: "rate_limited"`, plus `Retry-After`.
   RFC 6749 §5.2 has no rate-limit error, so WBS invents no error code.
 

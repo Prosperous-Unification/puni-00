@@ -789,3 +789,162 @@ Slice 1 rows. Each check was watched failing with the fault injected, then resto
 | activation preflight                            | grant settings left out of `unready`                           | `organization-activation-cli.db.test.ts`: both machine-grant-settings cases                                                                                 | exit 0, not 8                          |
 | previous key needs current                      | guard disabled                                                 | `config.test.ts`: `refuses a previous grant key without a current one`                                                                                      | loaded                                 |
 | canonical authorization server                  | reproduction check dropped                                     | `mcp-authorization-server.test.ts`, `config.test.ts`                                                                                                        | uppercase host admitted                |
+
+## Section 4: limits and the source address (tasks 4.1 and 4.2)
+
+Built on branch `feat/wbs-mcp-limits-4` from the plan branch at d652a4cfa (slices 1 to 3
+merged), 2026-10-27, on the assumed M10 as slices 1 to 3 amended it. Every test below ran
+under `env -u CLAUDECODE` on the laptop; nothing ran on h2puni, and no host was touched. Task
+4.3 (load evidence) is not part of this branch.
+
+What landed:
+
+- **4.1** `src/token-bucket.ts`: a pure bucket level (`levelAt`, `retryAfterOf`) and
+  `TokenBuckets`, one bucket per key on an injected clock, with `take` (refuses when empty),
+  `spend` (counts an event that happened, floored at zero), `takeEach` (all or none) and a sweep
+  of full buckets. `src/in-flight-counter.ts`: `InFlightCounter`, a per-key ceiling with an
+  idempotent release. Fake-clock properties in `token-bucket.test.ts`; the counter is shared
+  across async requests, so `in-flight-counter.model.test.ts` drives it through `/mcp` with
+  `fc.asyncModelRun`.
+- **4.2** `src/source-address.ts`: `sourceAddressOf`, the `X-Forwarded-For` entry
+  `MCP_TRUSTED_PROXY_HOPS` from the right, or the socket address with 0. The variable is
+  required by `loadConfig` (0 to 9) in both modes; `oauth.ts` reads the source once per request
+  for registration, authorization and the token endpoint, and the leftmost-entry `sourceOf` is
+  gone. `src/machine-limits.ts`: `MachineTrafficLimits` with M10's six limits
+  (`M10_LIMITS`), composed by `mcpOAuthFromEnv`; `NO_MACHINE_LIMITS` replaces
+  `NO_TOKEN_ENDPOINT_LIMITS` for tests that are not about M10. `MachineCaller.admitCall`
+  (`machine-admission.ts`) counts each `tools/call` message (`server.ts`), and `http.ts` answers
+  a request whose only answer is a limited call `429`.
+- **Deployments.** `MCP_TRUSTED_PROXY_HOPS` is set where the repository shows the topology
+  (note 12), and `assertMcpEnv` (`tools/tool-devsync/src/sync.ts`) and
+  `bin/dev-mcp-preflight.sh` now require it in dev's `.env`.
+
+### Section 4 notes (assumptions taken, and gaps in the design)
+
+1. **A source the proxies did not write.** Fewer `X-Forwarded-For` entries than the hops, an
+   entry at that position that is no IP address, or 0 hops with no socket address: the request
+   counts under one shared source, `unattributed`, rather than being refused or attributed to a
+   guess. It is limited more tightly, never trusted more. The registration census reads the
+   same source, so the old `unknown` source is now `unattributed`. The configuration itself is
+   never defaulted: a missing or invalid `MCP_TRUSTED_PROXY_HOPS` refuses boot, in gateway mode
+   too, because the OAuth routes count by source there as well.
+2. **What a failed authentication is.** Every machine-grant answer `invalid_client` or
+   `invalid_grant`: be-01's credential refusals, a `client_id` that is not the grant's
+   credential, a grant left with no lifetime, and the parser's own (`not-a-key` secrets,
+   malformed Basic, a `client_assertion`, a refused `typ`). Other refusals (`invalid_request`,
+   `invalid_scope`, `invalid_target`, 5xx) are not counted.
+3. **The `client_id` of the pair.** For `client_credentials` it is the key's own credential id,
+   so a stranger sending wrong secrets for a public id fills the pair bucket of that id and
+   their own address. For the JWT-bearer grant it is the `client_id` when one is sent; without
+   one, and for a request the parser refused, only the per-source buckets count.
+4. **The order at the token endpoint.** The request is parsed first (it reads nothing), so the
+   `client_id` is known; then the limits are asked, before be-01. The failure buckets are only
+   checked there and spent when the answer is a failure, so concurrent failures that passed the
+   check all count. The success buckets are checked there (per source, and per credential when
+   the request names one) and taken once be-01 granted the issuance, per credential and per
+   source together or not at all. A refusal at that point drops be-01's grant unsigned; be-01
+   has already done the grant's work (its audit row and `touchLastUsed`).
+5. **Bucket shapes.** "5 / min" and "30 / min" are bursts of 5 and 30 refilled over a minute;
+   "300 / min, burst 100" refills 5 a second; `tools/call` "10 / s, burst 20" refills 10 a
+   second. A `Retry-After` is the whole seconds until one token, at least 1.
+6. **The `/mcp` refusal form.** M10 says `/mcp` refusals are HTTP `429`; the spec's batch
+   scenario says the calls beyond the burst answer 429-shaped tool errors while the rest run.
+   Both hold: a limited call is the tool error `<tool> could not be called: rate_limited (429).
+Retry after N s.` (or `too_many_in_flight`), and a request that ran no call and whose one
+   JSON-RPC answer is a limited call is HTTP `429` with `Retry-After` and `{"error":
+"rate_limited"}`. A batch keeps its 200 and its array. A limited message still spends its
+   token: the bucket bounds messages sent.
+7. **In-flight waits** have no rate to compute from; the wait asked is 1 s.
+8. **Who is limited on `/mcp`.** Machine callers only (the requirement bounds machine traffic);
+   consent sessions are not counted.
+9. **Raw keys on `/mcp`.** M10 counts "any raw key on `/mcp`" as a failure, but no raw-key
+   admission exists (Dany's option (ii) was not taken; a `wbs_mk_` bearer stays `401` through
+   the JWT decode, M11), so nothing there is counted.
+10. **No knobs.** The six values are `M10_LIMITS`, constants; tests pass other rates to the
+    constructor. Making them environment settings waits for a need.
+11. **Memory and slice 3's note 10.** A full bucket is dropped by a sweep that runs at most once
+    per full-refill interval, so the maps hold only keys touched within about two intervals; an
+    in-flight key is dropped when its count returns to zero. The refused set is now bounded:
+    one replica signs at most 100 + 5 × lifetime tokens per credential, so with the default 12 h
+    TTL at most 216,100 refused tokens per credential are alive on a replica. That bound is
+    real but loose; the per-source success limit binds the same number per address.
+12. **Hop counts per environment**, counting only what the repository proves:
+    - prod and staging (`deploy/k8s/wbs/overlays/{prod,staging}`): **1**, the Traefik Ingress.
+      Whatever stands in front of Traefik (a load balancer, a CDN) is not in the repository and
+      is not counted; if it exists, its address is what mcp-01 counts, which is tighter, not
+      looser.
+    - the dev-environment Pod (`overlays/dev/pod.yaml`): **1**, the lab's Ingress.
+    - the local lab (`overlays/local`): **0**. No Ingress there reaches mcp-01, so the socket
+      address is read.
+    - dev on h2puni (`deploy/dev-src/compose.yml`): its mcp-01 reads the host's gitignored
+      `apps/wbs/mcp-01/.env`, which this branch cannot change. The value is **1**:
+      `deploy/compose/site-dev.caddy.candidate` writes `X-Forwarded-For {remote_host}` on both
+      MCP handles, one Caddy hop. **Before merging, `MCP_TRUSTED_PROXY_HOPS=1` must be seeded in
+      `/home/puni1/wbs-dev/src/apps/wbs/mcp-01/.env`**: devsync's `assertMcpEnv` and the
+      preflight now refuse a deploy without it, and mcp-01 refuses to boot. The cutover list in
+      `docs/auth-integration.md` names it. Whether the live `site-dev.caddy` is the candidate was
+      not checked (no host was touched); any Caddy in front is one hop either way.
+    - a laptop (`.env.example`, copied by `bun run dev:setup`): **0**.
+    - Hop counting cannot judge a request that bypasses the proxies (a Pod port reached inside
+      the cluster): its header is the client's own words. That is the design's limit, not
+      changed here.
+13. **The in-flight model** (concurrency rule): states are, per organization, the calls be-01
+    holds; events are a request of one to four concurrent calls and a held call ending with a
+    success, a 500 or a thrown fetch, in any order; the invariants are in the test's comment.
+    Its five sabotages and the unit test's sixth are in the table below.
+
+### Commands and results, section 4
+
+All on 2026-10-27 at 653ba6993 (the docs commit after it changes no code), with
+`env -u CLAUDECODE` and `--skip-nx-cache`:
+
+| Command                                                                                     | Result                      |
+| ------------------------------------------------------------------------------------------- | --------------------------- |
+| `bunx nx run-many -t typecheck lint -p wbs-mcp-01 tool-devsync --parallel=1`                | exit 0                      |
+| `bunx nx run wbs-mcp-01:test`                                                               | 691 pass, 0 fail (32 files) |
+| `bunx nx run tool-devsync:test`                                                             | DEVSYNC_RESULT              |
+| `bunx openspec validate --all --json`                                                       | OPENSPEC_RESULT             |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` | BUROKRAT_RESULT             |
+| `bunx prettier --check` on every changed file but `.env.example`                            | PRETTIER_RESULT             |
+
+Not run: the h2puni gate, wbs-be-01's and wbs-contracts' tests (neither changed), fe-01 and its
+e2e, gw-01, task 4.3's load evidence, and anything on a host. No migration and no
+`libs/**/service/` file changed, so no pin test or `kinds.json` entry was due.
+
+### Failure-proof table, section 4
+
+Each check was watched failing with the fault injected, then restored; the `Proof:` comment
+sits beside it. "Limits" is `machine-limits.test.ts`, "model" `in-flight-counter.model.test.ts`
+(seed 20261027), "bucket" `token-bucket.test.ts`.
+
+| Task | Check                                  | Fault injected                                                                      | Test that observed it failing                                                                                                       |
+| ---- | -------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 4.2  | source from the right (4.2's negative) | leftmost entry, `entries[0]`                                                        | limits `counts a rotating spoofed first entry…, and refuses after 30`; three `source-address.test.ts` cases                         |
+| 4.2  | separate buckets (4.2's negative)      | failures spent in the issuance buckets: one bucket for successes and failures       | limits `a stranger's wrong secrets do not lock out the credential` and four more                                                    |
+| 4.2  | per message (4.2's negative)           | `admitCall` asks the limits for a request's first call only: counting HTTP requests | limits `a batch of 30 calls runs 20 and limits 10`, `answers a single limited call 429…`, the in-flight test                        |
+| 4.2  | a limited call is refused              | the limited branch in `server.ts` ignored                                           | the same three                                                                                                                      |
+| 4.2  | single limited call is HTTP 429        | mapping removed (`http.ts`)                                                         | limits `answers a single limited call 429 with Retry-After, and asks be-01 nothing` (200)                                           |
+| 4.2  | admission before be-01                 | check removed                                                                       | `machine-token.test.ts` `answers 429 invalid_request with Retry-After…`; four limits tests                                          |
+| 4.2  | issuance taken after the grant         | take removed                                                                        | limits `one address issues 100 tokens for a pool of 100…`, `refuses the 101st issuance of one credential at once, from any address` |
+| 4.2  | be-01 refusals count                   | count removed                                                                       | limits: four tests                                                                                                                  |
+| 4.2  | parser refusals count                  | count removed                                                                       | limits `counts a secret the parser refuses, never asking be-01, as a failure too`                                                   |
+| 4.2  | production composes the limits         | `NO_MACHINE_LIMITS`-shaped object in `mcpOAuthFromEnv`                              | limits `composes M10's limits from the environment`                                                                                 |
+| 4.2  | `MCP_TRUSTED_PROXY_HOPS` required      | key optional                                                                        | `config.test.ts` `refuses a missing or invalid MCP_TRUSTED_PROXY_HOPS, naming it`                                                   |
+| 4.2  | dev `.env` needs the key (devsync)     | key dropped from `MCP_REQUIRED_ENV`                                                 | `sync.test.ts` `requires exactly one durable in-container MCP store path`                                                           |
+| 4.2  | dev `.env` needs the key (preflight)   | key dropped from the script's list                                                  | `mcp-preflight.test.ts` `refuses an MCP environment without MCP_TRUSTED_PROXY_HOPS`                                                 |
+| 4.1  | in-flight ceiling                      | `count > limit`                                                                     | model, `[Send(org-a, 1), Send(org-a, 3)]`: be-01 held four                                                                          |
+| 4.1  | release decrements                     | release deletes the key's whole count                                               | model, `[Send(org-a, 1), Send(org-a, 1)]`: the second release threw                                                                 |
+| 4.1  | per organization                       | one counter for every organization (`machine-limits.ts`)                            | model, `[Send(org-b, 1), Send(org-a, 3)]`                                                                                           |
+| 4.1  | slot held for the call                 | release before the call (`server.ts`)                                               | model, `[Send(org-a, 1), Send(org-a, 3)]`                                                                                           |
+| 4.1  | slot freed however the call ends       | release only after a call that did not fail                                         | model, `[Send(org-b, 3), End(org-b, throw), Send(org-b, 1)]`                                                                        |
+| 4.1  | idempotent release                     | guard removed                                                                       | `in-flight-counter.test.ts` `admits up to the limit per key, and a second release frees nothing`                                    |
+| 4.1  | burst cap                              | cap removed                                                                         | bucket `admits at most the burst at once, however long the bucket sat idle`                                                         |
+| 4.1  | Retry-After suffices                   | `Math.floor`                                                                        | bucket `admits a fresh key its whole burst at once, then refuses with a wait that suffices`                                         |
+| 4.1  | clock stepping back                    | floor at 0 removed                                                                  | bucket `gains nothing from a clock that steps back`                                                                                 |
+| 4.1  | sweep                                  | never sweeps                                                                        | bucket `holds only the keys touched within two full-refill intervals`                                                               |
+| 4.1  | all or none                            | takes before checking                                                               | bucket `takes from every bucket named or from none`                                                                                 |
+| 4.1  | a spend spends a part-filled bucket    | stored only when a whole token was left                                             | bucket `counts a spend on a part-filled bucket, so the part is spent too`                                                           |
+
+Two first drafts proved nothing and were fixed before the proofs above: the bucket's
+total-admissions bound passed with the burst cap removed (an idle bucket's excess only shows in
+one instant), and the part-filled spend test waited too little to tell the two apart.
