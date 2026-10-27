@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import type { BrowserOidcClient, JwtClaims } from '@wbs/auth';
 import { Database } from 'bun:sqlite';
 import { describe, expect, it } from 'bun:test';
+import { decodeJwt, decodeProtectedHeader, SignJWT } from 'jose';
 
 import type { McpConfig } from './config';
 import { mcpFetchHandler, mcpHttpResponse } from './http';
@@ -642,6 +643,34 @@ describe('McpOAuthServer', () => {
     expect(exchangeCalls).toHaveLength(2);
     expect(await second.response.json()).toEqual({ error: 'temporarily_unavailable' });
     expect((await tokenResponse(oauth, 'random-1', firstCode, verifier)).status).toBe(200);
+  });
+
+  // `wbs-mcp-agent-surface` M5: the consent path admits `token_use: consent`, or none for a
+  // token issued before the claim existed, and nothing else, even with a live session.
+  it('refuses a consent session token of any use but consent', async () => {
+    const signingKeys = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const { oauth } = fixture({ signingKeys });
+    const verifier = 'v'.repeat(43);
+    const code = await authorizationCode(oauth, verifier);
+    const issued = await tokenResponse(oauth, 'random-1', code, verifier);
+    const consent = ((await issued.json()) as { access_token: string }).access_token;
+    expect(decodeJwt(consent)['token_use']).toBe('consent');
+    const resigned = (use: string | undefined) => {
+      const { token_use: _dropped, ...claims } = decodeJwt(consent);
+      return new SignJWT(use === undefined ? claims : { ...claims, token_use: use })
+        .setProtectedHeader(decodeProtectedHeader(consent) as { alg: string })
+        .sign(signingKeys.privateKey);
+    };
+    const settled = (token: string) =>
+      oauth.admitCaller(token).then(
+        () => 'admitted',
+        (cause: unknown) => String(cause),
+      );
+    expect(await settled(consent)).toBe('admitted');
+    expect(await settled(await resigned(undefined))).toBe('admitted');
+    expect(await settled(await resigned('other'))).toContain('unknown use');
+    // A machine use without a grant is refused by the machine path, never the session's.
+    expect(await settled(await resigned('machine'))).not.toBe('admitted');
   });
 
   // Proof: allowing token exchanges to append sessions without a bound keeps

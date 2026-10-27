@@ -19,7 +19,7 @@ import {
   type OAuthRouteEvidence,
   type TokenEndpointLimit,
 } from './oauth';
-import { CLIENT_CREDENTIALS_GRANT, JWT_BEARER_GRANT } from './token-request';
+import { CLIENT_CREDENTIALS_GRANT, Concealed, JWT_BEARER_GRANT } from './token-request';
 
 const MCP_URL = 'https://wbs.example/mcp';
 const OAUTH = 'https://wbs.example/mcp/oauth';
@@ -103,6 +103,7 @@ function server(
           { ...CONFIG, MCP_BE_INTERNAL_SECRET: options.secret ?? SECRET },
           be.fetchImpl,
         ),
+        secret: options.secret ?? SECRET,
         tokenTtlSeconds: TTL,
         jitter: options.jitter ?? (() => 0),
         limit: options.limit ?? NO_TOKEN_ENDPOINT_LIMITS,
@@ -343,6 +344,7 @@ describe('be-01’s answers', () => {
               return fetch(input, init);
             },
           ),
+          secret,
           tokenTtlSeconds: TTL,
           limit: NO_TOKEN_ENDPOINT_LIMITS,
           reportFault: (fault) => faults.push(fault),
@@ -362,6 +364,51 @@ describe('be-01’s answers', () => {
     const answer = await bearerRequest(oauth, { client_id: crypto.randomUUID() });
     expect(answer.status).toBe(400);
     expect(await answer.json()).toEqual({ error: 'invalid_grant' });
+  });
+});
+
+describe('redirects', () => {
+  it('never follows a redirect, so the key and the secret stay with be-01', async () => {
+    const seen: Headers[] = [];
+    const elsewhere = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch: (request) => {
+        seen.push(request.headers);
+        return issued();
+      },
+    });
+    const redirecting = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch: () =>
+        new Response(null, {
+          status: 307,
+          headers: { location: `http://127.0.0.1:${String(elsewhere.port)}/stolen` },
+        }),
+    });
+    try {
+      const client = machineGrantClient({
+        ...CONFIG,
+        WBS_API_URL: `http://127.0.0.1:${String(redirecting.port)}`,
+      });
+      const answer = await client
+        .issue({
+          issuer: OAUTH,
+          credential: { kind: 'api_key', key: new Concealed(KEY) },
+          expiresAt: Math.floor(NOW / 1000) + TTL,
+          run: null,
+        })
+        .then(
+          () => 'answered',
+          (cause: unknown) => (cause instanceof MachineGrantDefect ? 'defect' : String(cause)),
+        );
+      expect(seen.map((headers) => headers.get(MCP_INTERNAL_SECRET_HEADER))).toEqual([]);
+      expect(answer).toBe('defect');
+    } finally {
+      await redirecting.stop(true);
+      await elsewhere.stop(true);
+    }
   });
 });
 
@@ -426,13 +473,14 @@ describe('the endpoint around the grants', () => {
       expect(() =>
         mcpOAuthFromEnv(CONFIG, { ...env, MCP_STORE_PATH: join(dir, 'none.sqlite') }),
       ).toThrow('no fault reporter');
-      // Gateway mode composes no machine grants at all, so it needs no reporter.
+      // Gateway mode composes no machine grants at all, so only organization authority (which
+      // the secret composes in either mode, task 3.7) asks for the reporter there.
       expect(() =>
         mcpOAuthFromEnv(
           { ...CONFIG, MCP_AUTH_MODE: 'gateway' },
           { ...env, MCP_STORE_PATH: join(dir, 'gateway-none.sqlite') },
         ),
-      ).not.toThrow();
+      ).toThrow('organization authority is composed but no fault reporter');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -446,8 +494,14 @@ describe('the endpoint around the grants', () => {
         () => 'admitted',
         () => 'refused',
       );
-    expect(await refused(oauth.verify(body.access_token))).toBe('refused');
+    // Admitted as a machine (section 3), which has no session.
+    expect(await refused(oauth.verify(body.access_token))).toBe('admitted');
     expect(await refused(oauth.callerSessionFor(body.access_token))).toBe('refused');
+    // One that fails local verification is refused here, never verified upstream.
+    const [header, payload] = body.access_token.split('.');
+    const forged = `${header}.${payload}.${'A'.repeat(342)}`;
+    expect(await refused(oauth.verify(forged))).toBe('refused');
+    expect(await refused(oauth.admitCaller(forged))).toBe('refused');
     expect(upstreamCalls()).toBe(0);
   });
 

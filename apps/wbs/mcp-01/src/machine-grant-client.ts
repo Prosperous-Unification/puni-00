@@ -1,6 +1,7 @@
 import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
 import { type } from '@wbs/validation';
 
+import { McpDeploymentFault } from './deployment-fault';
 import type { Concealed } from './token-request';
 import type { FetchLike } from './wbs-client';
 
@@ -58,7 +59,7 @@ export interface MachineGrantClient {
  * fault, never a client's refusal: it propagates, so the token request fails
  * as the server's and is reported, and no client is told its credential is bad.
  */
-export class MachineGrantDefect extends Error {}
+export class MachineGrantDefect extends McpDeploymentFault {}
 
 const ISSUED = type({
   grant: 'string',
@@ -93,6 +94,10 @@ export function machineGrantClient(
       try {
         response = await fetchImpl(url, {
           method: 'POST',
+          // Never followed: the key and the secret stay with be-01, and a 3xx is a defect.
+          // Proof: following redirects made `never follows a redirect…` (machine-token.test.ts)
+          // see the secret at the other origin; watched 2026-10-27.
+          redirect: 'manual',
           headers: {
             // Proof: sending it as x-internal-auth failed `sends the key with the dedicated
             // secret…` (machine-token.test.ts); watched 2026-10-27.

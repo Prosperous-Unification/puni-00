@@ -123,6 +123,7 @@ beforeAll(async () => {
           grantRequests += 1;
           return fetch(input, init);
         }),
+        secret: BE_SECRET,
         tokenTtlSeconds: 12 * 60 * 60,
         limit: NO_TOKEN_ENDPOINT_LIMITS,
         reportFault: (fault) => {

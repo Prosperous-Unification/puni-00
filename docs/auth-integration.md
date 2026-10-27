@@ -333,7 +333,11 @@ organization. mcp-01 therefore binds every consent to one organization and
 calls be-01 with a WBS-signed delegation instead
 (`openspec/changes/organization-ownership-and-access`, tasks 2.5, 6.4, 6.6).
 
-- mcp-01 needs be-01's `INTERNAL_AUTH_SECRET` in its own environment, and be-01
+- mcp-01 needs be-01's `MCP_BE_INTERNAL_SECRET` (sent alone, in
+  `x-mcp-internal-auth`, whenever it is set) or, until the secret cutover's
+  second release, its `INTERNAL_AUTH_SECRET` in its own environment
+  (`wbs-mcp-agent-surface` M14: be-01 admits either on `/internal/mcp/*`, so
+  be-01 swaps first, then mcp-01). be-01
   needs the dedicated RSA pair `WBS_DELEGATION_SIGNING_KEY` (PKCS#8 PEM) and
   `WBS_DELEGATION_VERIFY_KEY` (SPKI PEM). Without the secret mcp-01 keeps
   forwarding the upstream token; without the pair be-01 answers

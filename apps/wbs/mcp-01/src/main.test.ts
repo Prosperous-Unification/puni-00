@@ -8,6 +8,7 @@ import { parseOrThrow } from '@wbs/validation';
 import { expect, spyOn, test } from 'bun:test';
 
 import type { McpConfig } from './config';
+import type { McpDeploymentFault } from './deployment-fault';
 import { MachineGrantDefect } from './machine-grant-client';
 import { type McpApplicationDeps, startMcpApplication } from './main';
 import type { DerivedTool } from './openapi-tools';
@@ -245,10 +246,10 @@ test('redacts the machine grant secret with the other boundary secrets', () => {
   expect(loggerOptions[0]?.secrets).toEqual(['mcp-user:boundary-secret', machineSecret]);
 });
 
-test('reports a machine grant fault redacted', () => {
+test('reports a deployment fault redacted', () => {
   const machineSecret = crypto.randomUUID().repeat(2);
   const lines: string[] = [];
-  let report: ((fault: MachineGrantDefect) => void) | undefined;
+  let report: ((fault: McpDeploymentFault) => void) | undefined;
   startMcpApplication({
     loadConfig: () => ({ ...CONFIG, MCP_BE_INTERNAL_SECRET: machineSecret }),
     readDocument: () => ({ paths: {} }),
@@ -261,9 +262,9 @@ test('reports a machine grant fault redacted', () => {
     createLogger: (options) =>
       createLogger({ ...options, destination: { write: (chunk) => void lines.push(chunk) } }),
   });
-  if (report === undefined) throw new Error('no machine grant fault reporter was composed');
+  if (report === undefined) throw new Error('no deployment fault reporter was composed');
   report(new MachineGrantDefect(`be-01 answered unmodeled, sent ${machineSecret}`));
-  const faultLines = lines.filter((line) => line.includes('MCP machine grant fault'));
+  const faultLines = lines.filter((line) => line.includes('MCP deployment fault'));
   expect(faultLines).toHaveLength(1);
   expect(faultLines[0]).toContain('be-01 answered unmodeled');
   expect(faultLines[0]).not.toContain(machineSecret);

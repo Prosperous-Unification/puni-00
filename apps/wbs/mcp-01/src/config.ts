@@ -25,8 +25,10 @@ export const McpConfig = type({
   // organization resources once activated.
   'INTERNAL_AUTH_SECRET?': 'string>=32',
   // be-01's MCP_BE_INTERNAL_SECRET, sent as `x-mcp-internal-auth` with every
-  // machine grant request (`wbs-mcp-agent-surface` M14). Present in standalone
-  // mode, the token endpoint offers the machine grants ({@link offersMachineGrants}).
+  // machine grant request, every machine token's be-01 call and, in place of
+  // INTERNAL_AUTH_SECRET, every `/internal/mcp/*` call (`wbs-mcp-agent-surface`
+  // M14). Present in standalone mode, the token endpoint offers the machine
+  // grants ({@link offersMachineGrants}).
   // Proof: with 'string' here, `refuses a short MCP_BE_INTERNAL_SECRET, naming it and not its
   // value` (machine-token.test.ts) loaded it; watched 2026-10-27.
   'MCP_BE_INTERNAL_SECRET?': 'string>=32',
