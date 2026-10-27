@@ -472,3 +472,30 @@ Both Velero releases SHALL bound their plugin init and writable storage without 
 - **THEN** source and generator identities, original chart provenance and patch source are retained separately from runtime facts
 - **AND** actual Flux revision/patch binding, generated Pods, plugin installation/backup/recovery, writable storage/eviction/headroom and physical enforcement remain required
 - **AND** runtime/creation authority and whole-attempt admission remain incomplete until their separate criteria pass
+
+### Requirement: Serial Job attempts retain conditional lifecycle costs
+
+The native capacity companion SHALL derive supported serial Job attempt charges through the existing validated traversal and workload normalizer, preserving source provenance and every independent incomplete contributor. A finite source envelope MUST NOT confer runtime or creation authority.
+
+#### Scenario: A supported Job has bounded retry accounting
+
+- **WHEN** a fresh unchanged serial NonIndexed Job has one completion, one parallel slot, supported failure/replacement behavior and a valid declared or pinned-default backoff limit B
+- **THEN** the companion retains B+1 full normalized Pod charges, including failed and terminating attempts, with exact source/template/namespace and declared/defaulted provenance
+- **AND** slots are accounting identities rather than observed Pod UIDs
+- **AND** the conditional envelope explicitly requires reconciled successful and uncertain creates, durable nonduplicated failure accounting, no adoption or foreign mutation, and no further creation after success
+- **AND** container restart, deadline, grace, TTL and hook deletion do not provide physical reclamation or cumulative log-growth bounds
+
+#### Scenario: A known Job declaration is malformed or unsupported
+
+- **WHEN** supplied known count, policy, selector, quantity or volume state is malformed or contradictory
+- **THEN** the production entry refuses before unsupported-policy, missing-bound or provider-mismatch shortcuts
+- **WHEN** the supplied declaration is valid but outside the supported serial scenario or has absent bounds
+- **THEN** its unsupported policy or independent missing resource/storage facts remain explicit, without manufactured maps or zeroed demand
+
+#### Scenario: A per-Job envelope cannot certify the whole attempt
+
+- **WHEN** conditional Job contributions are derived from retained real source
+- **THEN** existing StatefulSet/Deployment charges and unrelated obligations remain intact
+- **AND** missing Helm invocation/retry/remediation, hook Job generations, Flux forced-recreation and predecessor-history bindings remain explicit whole-attempt obligations
+- **AND** actual provider features, effective Pods, UIDs, mounts, logs and enforcement still require runtime evidence
+- **AND** inventory remains source-only and creation/runtime authority remain false
