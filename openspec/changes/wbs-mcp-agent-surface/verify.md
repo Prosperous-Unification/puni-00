@@ -1109,14 +1109,15 @@ What landed:
 4. **#758 and the stamp.** With `personId` absent, the claimant is the acting person. For a
    grant that is the pinned person, so its run is stamped (tested). The run is never compared
    for another claimant.
-5. **Renewal under a run leaves no-run leases alone.** The MODIFIED claim-leases requirement
-   says "that person and that run". So a claim taken before the process opted in is renewed
-   only by a no-run heartbeat or batch, though release counts it as the caller's own (M15). An
-   opted-in process that re-claims such a step is refused `already_claimed`, naming itself
-   (`sameHolder` needs an equal run). Release, then claim again. Left as the spec says; a
-   follow-up could fold no-run leases into a run's renewal.
-6. **The heartbeat's standing is scoped too.** `{ leases, leaseExpiresAt }` counts only the
-   run's leases when the caller has a run; with no run, it counts every lease of the person.
+5. **No-run claims belong to every run of the person** (amended after the review of PR #768,
+   S3-1; an assumption Dany may reverse). Two reasons: there is no compatibility burden before
+   users, and release already treats them so. A run-scoped renewal renews the `(person, run)`
+   leases and the person's no-run leases. A claim by the run on a step the person holds with
+   no run answers `alreadyHeld`, without restamping it. Adding a step beside such a claim
+   still counts a bound claim for the cap, because the run is another triple.
+6. **The heartbeat's standing is scoped too.** `{ leases, leaseExpiresAt }` counts the run's
+   leases and the person's no-run leases when the caller has a run; with no run, it counts
+   every lease of the person.
 7. **Undo stays per person (#753).** The be-01 test shows run `a` undoing its person's latest
    entry, which run `b` wrote, while the human's stack holds only its own entry (M16).
 8. **The audience root reaches fe-01 (1.5).** `GET /api/organization/trusted-issuers` now
@@ -1194,3 +1195,30 @@ sits beside it. Counts are the file's pass and fail under the fault.
 | 1.6 release only the caller's run          | every run released (`decideRelease`)                                           | domain: five run cases; be-01 `a forged run id…`, `a leaf held under two runs…`                                                                       | 67/5; 9/2                                                 |
 | 1.6 pre-opt-in claims are the caller's     | no-run claims not counted as the run's                                         | domain `releases a claim taken with no run before it opted in`                                                                                        | 71/1                                                      |
 | 1.6 a lead's release is judged without run | the run applied to every release                                               | domain `judges a lead's release of a worker's delegated claim without a run`; be-01 lead case                                                         | 71/1 (`run_mismatch`); 10/1 (`credential_not_for_person`) |
+
+### Review of PR #768 (Fable, high), how each item is addressed
+
+| Item | Fix                                                                                                                                                                                                                                                                                                                                            |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S3-1 | the no-run rule (note 5): both adapters, `claims.lease:run-scoped`, the model, the heartbeat standing; `decideClaim` adopts a no-run claim of the pinned person as `alreadyHeld` (`isHeldUnderRun`); the claim-leases delta (renewal, standing, scenario "A run renews a pre-opt-in lease") and the run requirement of the agent-surface delta |
+| S3-2 | design M15: undo and redo are per person and outside the run scope; the `releaseWorkItem` description no longer reads as covering undo; follow-up below                                                                                                                                                                                        |
+| S3-3 | design M15: `run_mismatch` 403, the scoped standing, the no-run rule; design M2: `audienceRoot` and the preflight's exit contract (0, 3, or a throw on usage or settings) with no write mode                                                                                                                                                   |
+| S4-1 | the bound-claim check and the `alreadyHeld` filter both key on the stamped run, and both are tested (`counts a run’s second step on a held leaf as no new bound claim`)                                                                                                                                                                        |
+| S4-2 | the `credentialPinOf` Proof names the run carry                                                                                                                                                                                                                                                                                                |
+| S4-3 | fe-01: the hint reads "The audience must be <root> or a path under it; suggested for this organization: <suggested>…"; `audience_not_wbs` names the root the page read (the admin's issuer list), else asks for it ("ask an admin for the value")                                                                                              |
+| S4-4 | left as it is, by the coordinator's decision                                                                                                                                                                                                                                                                                                   |
+
+New rows of the failure-proof table:
+
+| Check                                         | Fault injected                                                            | Test that observed it failing                                                                                                                                                  | Result                              |
+| --------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------- |
+| a run renews the pre-opt-in lease             | no-run half dropped (SQLite `or(…, isNull)`, memory `row.runId === null`) | certifications `claims.lease:run-scoped`; be-01 `a run renews its person’s pre-opt-in lease`; the model (`claim(0, a), race(…, claim 1 null), advance(899999), release(0, a)`) | 83/1 each; 13/1; counterexample     |
+| a run re-claims its own pre-opt-in claim      | adoption dropped (`each.runId === runId` in `decideClaim`)                | domain `adopts its own pre-opt-in claim…`; be-01 `re-claims its own pre-opt-in claim…`; the model (`claim(1, null), claim(1, a)`)                                              | 73/1; 13/1; counterexample          |
+| bound-claim check keyed on the stamped run    | `input.runId` restored                                                    | be-01 `counts a run’s second step on a held leaf…`                                                                                                                             | 13/1, `claim_limit` cap 1 current 1 |
+| `alreadyHeld` filter keyed on the stamped run | `input.runId` restored                                                    | the same case                                                                                                                                                                  | 13/1, no claim ids                  |
+| the pin carries the run                       | `runId` dropped from `credentialPinOf`                                    | `machine-grant-run.controller.db.test.ts`                                                                                                                                      | 8/6                                 |
+| fe-01 refusal names the root                  | null passed for the root                                                  | `renders audience_not_wbs on an oidc create`; `renders audience_not_wbs on register`                                                                                           | 40/2 (one pre-existing); 20/1       |
+
+**Follow-up (S3-2):** record `runId` on `command_journal` and let a run-scoped principal undo
+only its own run's entries. Today a run can undo another run's claim or release of its person
+(note 7).

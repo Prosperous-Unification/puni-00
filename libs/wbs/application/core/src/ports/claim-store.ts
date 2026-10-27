@@ -171,7 +171,9 @@ export interface ClaimStore extends ClaimIdentity {
    * Moves every lease of `personId` that is in force, not revoked, and due
    * (`renewalAt`) to a fresh expiry, in every project (`wbs-claim-leases` L4,
    * L5), and answers the person's standing after it. A `runId` scopes both to
-   * that person's leases of that run (`wbs-mcp-agent-surface` M15); **null
+   * that person's leases of that run and the person's no-run leases (taken
+   * before it opted in; `wbs-mcp-agent-surface` M15, an assumption Dany may
+   * reverse); **null
    * means every lease of the person, those of every run included**, never
    * "`run_id IS NULL`": a caller with no run (a raw API key, a grant without
    * `wbs_run`, a consent) keeps renewing what opted-in processes of its person

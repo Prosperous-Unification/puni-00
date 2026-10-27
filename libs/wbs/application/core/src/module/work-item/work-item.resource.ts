@@ -51,6 +51,7 @@ import {
   freeUnitsOf,
   haveSameSliceOrder,
   type Hold,
+  isHeldUnderRun,
   isLegacyMetric,
   type IsoDate,
   isoDateOfInstantIn,
@@ -3875,11 +3876,13 @@ export class WorkItemService {
     // its own person (M15), else the command's.
     const run = claimRunOf(caller, input.personId, input.runId);
     if ('reason' in run) throw new Error(`claim of ${id} was decided under a mismatched run`);
-    const { runId } = run;
     if (decided.kind === 'alreadyHeld') {
+      // Proof: with `input.runId` here, `counts a run’s second step on a held
+      // leaf as no new bound claim` (machine-grant-run.controller.db.test.ts)
+      // answered the repeat with no claim ids; watched 2026-10-27.
       const held = near.filter(
         (each) =>
-          each.workItemId === id && each.personId === input.personId && each.runId === runId,
+          each.workItemId === id && each.personId === input.personId && isHeldUnderRun(each, run),
       );
       return {
         ok: true,
@@ -3903,7 +3906,14 @@ export class WorkItemService {
     // and five more were applied, the second run of one person among them
     // (7 pass, 6 fail).
     const addsBoundClaim = !near.some(
-      (each) => each.workItemId === id && each.personId === input.personId && each.runId === runId,
+      // The stamped run, exactly: an adopted no-run claim is another triple,
+      // so a run's first step beside it still adds a bound claim.
+      // Proof: with `input.runId` here (the command's run, null for a grant
+      // that sent none), `counts a run's second step on a held leaf as no new
+      // bound claim` (machine-grant-run.controller.db.test.ts) was refused
+      // claim_limit at cap 1; watched 2026-10-27.
+      (each) =>
+        each.workItemId === id && each.personId === input.personId && each.runId === run.runId,
     );
     if (addsBoundClaim) {
       const crossed = await this.refuseBoundClaims(access, 1);

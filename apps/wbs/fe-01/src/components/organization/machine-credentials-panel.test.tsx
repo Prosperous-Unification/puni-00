@@ -6,6 +6,7 @@ import { OrganizationResourcesProvider } from '@/runtime/organization-resources'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@/testing/organization-render';
 import { answerEmpty, answerJson as answer, stubServer } from '@/testing/stub-server';
 
+import { credentialRefusal } from './machine-credential-refusal';
 import { MachineCredentialsPanel } from './machine-credentials-panel';
 import type { CredentialViewer } from './organization-role';
 
@@ -628,8 +629,15 @@ describe('refusal wording and labels', () => {
     fireEvent.change(within(dialog).getByLabelText(/^Subject/), { target: { value: 'repo:a/b' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create credential' }));
     expect((await within(dialog).findByRole('alert')).textContent).toBe(
-      'The audience must be WBS’s authorization server or a path under it, as the trusted issuers section suggests.',
+      'The audience must be https://wbs.example/mcp/oauth or a path under it.',
     );
+  });
+
+  it('asks for the audience root where the page could not read it', () => {
+    expect(credentialRefusal({ error: 'audience_not_wbs' }, 'create-oidc', null)).toEqual({
+      kind: 'message',
+      text: 'The audience must be WBS’s authorization server or a path under it (ask an admin for the value).',
+    });
   });
 
   it('names the issuing account for an admin and falls back to its id for a member', async () => {

@@ -6,8 +6,9 @@ Every committed project command batch whose credential is pinned to a person SHA
 the batch's own transaction, every lease of that person in force and due (expiring before
 `now + 15 minutes − 60 seconds`), in every project, to `now + 15 minutes`. When the
 credential is a machine grant that carries a run (`wbs-mcp-agent-surface` M15), only the leases
-of that person **and that run** SHALL be renewed. A caller with no run SHALL renew every lease
-of the person, those of opted-in runs included. A lease past its
+of that person **and that run**, and the person's leases with no run (taken before it opted
+in), SHALL be renewed. A caller with no run SHALL renew every lease of the person, those of
+opted-in runs included. A lease past its
 expiry, or ended by revocation, SHALL NOT be renewed.
 
 #### Scenario: A progress write renews
@@ -17,9 +18,15 @@ expiry, or ended by revocation, SHALL NOT be renewed.
 
 #### Scenario: A run-scoped write renews only its run
 
-- **WHEN** `codex` holds leases under runs `a` and `b`, and a batch arrives under a grant with
-  run `a`
-- **THEN** only the run `a` leases are renewed
+- **WHEN** `codex` holds leases under runs `a` and `b` and one with no run, and a batch arrives
+  under a grant with run `a`
+- **THEN** the run `a` leases and the no-run lease are renewed, and the run `b` leases are not
+
+#### Scenario: A run renews a pre-opt-in lease
+
+- **WHEN** `codex` claimed a step with no run, then heartbeats under a grant with run `a`
+- **THEN** that lease is renewed, and a claim of the same step by run `a` answers `alreadyHeld`
+  without restamping its run
 
 #### Scenario: A late renewal does not revive
 
@@ -29,9 +36,9 @@ expiry, or ended by revocation, SHALL NOT be renewed.
 ### Requirement: An idle agent heartbeats cheaply
 
 `POST /api/claims/renew` SHALL renew the caller's pinned person's leases, scoped to the caller's
-run when it has one, as a batch does, and
-answer `{ leases, leaseExpiresAt }`: the leases in force and the earliest expiry, null when
-none. It SHALL read first and enter the write turn only when a lease is due. An unpinned
+run (and the person's no-run leases) when it has one, as a batch does, and answer
+`{ leases, leaseExpiresAt }`: the leases in force within that same scope and the earliest
+expiry, null when none. It SHALL read first and enter the write turn only when a lease is due. An unpinned
 caller SHALL be refused `403 not_pinned`. It reads no input: a request carrying a body (even
 `{}`) SHALL be refused `400 invalid_body`, and one carrying a query string `400 invalid_query`,
 renewing nothing.

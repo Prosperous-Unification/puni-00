@@ -83,6 +83,8 @@ export function TrustedIssuersSection({
   const [audience, setAudience] = useState('');
   /** Whether the admin typed an audience, which a later read must not replace. */
   const isAudienceEdited = useRef(false);
+  /** The audience root the last read answered, for `audience_not_wbs`. */
+  const audienceRootRead = useRef<string | null>(null);
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [issuerUrl, setIssuerUrl] = useState('');
   const [connectionId, setConnectionId] = useState('');
@@ -95,7 +97,9 @@ export function TrustedIssuersSection({
 
   const processRefusal = useCallback(
     (refusal: TrustedIssuerRefusal, isRead: boolean) => {
-      const outcome = trustedIssuerRefusal(refusal);
+      // Proof: 2026-10-27, passing null here failed `renders audience_not_wbs on
+      // register` (the root missing from the sentence).
+      const outcome = trustedIssuerRefusal(refusal, audienceRootRead.current);
       if (outcome.kind === 'lost') {
         setView({ kind: 'loading' });
         onAccessLost(outcome.loss);
@@ -154,6 +158,7 @@ export function TrustedIssuersSection({
           return unreachable(connections);
       }
       const { audienceRoot } = listed.body;
+      audienceRootRead.current = audienceRoot;
       // Proof: 2026-10-27, suggesting `wbs:org:<id>` (the audience be-01 now
       // refuses) failed `suggests an audience under the authorization server`
       // and `registers an issuer, rereads and tells the panel` in
@@ -447,7 +452,7 @@ function suggestedAudienceOf(audienceRoot: string, organizationId: string | null
 
 function audienceHintOf(audienceRoot: string, organizationId: string | null): string {
   const suggested = suggestedAudienceOf(audienceRoot, organizationId);
-  return `Tokens must carry this audience: ${audienceRoot} or a path under it. Configure the same value at your identity provider${
-    suggested === null ? '.' : `; the suggested value is ${suggested}.`
-  }`;
+  return `The audience must be ${audienceRoot} or a path under it${
+    suggested === null ? '' : `; suggested for this organization: ${suggested}`
+  }. Configure the same value at your identity provider.`;
 }

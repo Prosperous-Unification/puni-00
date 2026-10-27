@@ -78,7 +78,7 @@ describe('trusted issuers', () => {
     expect(screen.getByLabelText('Audience')).toHaveProperty('required', true);
     expect(
       screen.getByText(
-        `Tokens must carry this audience: ${ROOT} or a path under it. Configure the same value at your identity provider; the suggested value is ${SUGGESTED}.`,
+        `The audience must be ${ROOT} or a path under it; suggested for this organization: ${SUGGESTED}. Configure the same value at your identity provider.`,
       ),
     ).toBeDefined();
   });
@@ -177,7 +177,7 @@ describe('trusted issuers', () => {
     [
       'audience_not_wbs',
       400,
-      'The audience must be WBS’s authorization server or a path under it, as the trusted issuers section suggests.',
+      `The audience must be https://wbs.example/mcp/oauth or a path under it.`,
     ],
     ['forbidden', 403, 'Only an admin can manage trusted issuers.'],
   ])('renders %s on register', async (error, status, text) => {

@@ -104,7 +104,9 @@ export type CredentialPin = CredentialPair | { readonly personId: string; readon
  * watched 2026-10-22. Answering null for a consent made `a consent session's
  * tool call claims as its agent, never with the human's reach` (mcp-01
  * `organization-delegation.boot.test.ts`) accept the claim as `codex`;
- * watched 2026-10-22.
+ * watched 2026-10-22. Dropping a machine grant's `runId` from the pin made six
+ * cases of `machine-grant-run.controller.db.test.ts` fail (the run not
+ * stamped, renewed or judged: 8 pass, 6 fail); watched 2026-10-27.
  */
 export function credentialPinOf(
   authentication: CredentialAuthentication | undefined,

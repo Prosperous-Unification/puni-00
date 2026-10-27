@@ -252,9 +252,13 @@ speaks it).
   - **Ordering.** Until M9 lands (slice 7), the rule applies only to **new** registrations.
     Existing rows keep verifying on `/api`, so OIDC fleets there are not broken before MCP
     serves them. With slice 7, a non-conforming row is refused at use (`invalid_grant`).
-  - **The preflight.** `trusted-issuer-audience-check-cli.ts` is a dry run by default and lists
-    every registration and credential that the rule, or a changed issuer, would break. Where
-    it runs:
+  - **The root reaches fe-01** (slice 5): `GET /api/organization/trusted-issuers` answers
+    `audienceRoot`, and fe-01 suggests `<audienceRoot>/org/<organization id>`.
+  - **The preflight.** `trusted-issuer-audience-check-cli.ts` is a dry run with no write mode
+    (stored rows are never rewritten). It lists every registration and credential that the
+    rule, or a changed issuer, would break. It exits 0 when every listed row is accepted, 3
+    while one is not, and throws (non-zero) on usage or a missing or non-canonical setting.
+    Where it runs:
     - Compose: inside the **candidate** colour's be-01 container before the swap, with the
       shared SQLite volume and the candidate's `WBS_MCP_AUTHORIZATION_SERVER`.
     - Kubernetes: in the schema Job, with the candidate image and the same environment.
@@ -693,7 +697,19 @@ enforced, so a client that runs several processes on one credential can opt in t
     So a no-run principal (a raw API key in the test seam, or a token without `wbs_run`)
     also renews opted-in processes' leases. That is stated in the port's JSDoc and pinned by
     a test;
-  - re-fetching with the same `wbs_run` keeps the leases.
+  - re-fetching with the same `wbs_run` keeps the leases;
+  - **the person's no-run claims belong to every run of that person** (slice 5, an assumption
+    Dany may reverse, symmetric with release; no compatibility burden before users). A
+    run-scoped renewal renews the `(person, run)` leases **and** the person's no-run leases,
+    and a claim by the run on a step the person holds with no run answers `alreadyHeld`
+    without restamping it. It still counts as a separate bound claim for the cap when the run
+    adds a step beside it;
+  - `run_mismatch` is `403`, beside `credential_not_for_person` (slice 5);
+  - the heartbeat's `{ leases, leaseExpiresAt }` counts the run's leases and the person's
+    no-run leases; with no run, every lease of the person;
+  - **undo and redo are per person and outside the run scope** (#753): a run-scoped
+    principal can undo another run's claim or release of its person. Recording the run on
+    `command_journal` is a follow-up (verify.md, slice 5).
 - _Why not the MCP session id._ mcp-01 is stateless and issues none. Claude Code subagents
   share their parent's connection, and so one run.
 - _Code it touches._

@@ -226,26 +226,44 @@ function refuseIdentity(
  * the run the command gave. A lead writing a worker's delegated claim keeps
  * the worker's `runId`, so the worker can release it later. `run_mismatch`
  * when the claimant is the pinned person and the command names another run.
+ * For the pinned person the run also adopts the person's no-run claims
+ * ({@link ClaimRun}): a repeat answers `alreadyHeld`, never restamping them.
  */
 export function claimRunOf(
   caller: ClaimCaller,
   claimantId: string,
   requestedRunId: string | null,
-): { readonly runId: string | null } | { readonly reason: 'run_mismatch' } {
+): ClaimRun | { readonly reason: 'run_mismatch' } {
   // Proof: with the pinned-person test dropped (every claim the principal
   // writes judged under its run), `a lead writes a worker's delegated claim
   // with the worker's run` (claim.test.ts) was refused run_mismatch, and the
   // be-01 scenario of the same name (machine-grant-run.controller.db.test.ts)
   // failed too; watched 2026-10-27.
   if (caller.pinnedRunId === null || caller.pinnedPersonId !== claimantId)
-    return { runId: requestedRunId };
+    return { runId: requestedRunId, adoptsNoRun: false };
   // Proof: with the command's run preferred over the grant's, `refuses a
   // forged run id run_mismatch` and `refuses run_mismatch before the
   // parent-claim checks` (claim.test.ts) claimed, as did `a forged run id`
   // (machine-grant-run.controller.db.test.ts); watched 2026-10-27.
   if (requestedRunId !== null && requestedRunId !== caller.pinnedRunId)
     return { reason: 'run_mismatch' };
-  return { runId: caller.pinnedRunId };
+  return { runId: caller.pinnedRunId, adoptsNoRun: true };
+}
+
+/**
+ * The run a claim is written and compared under. `adoptsNoRun`: the caller
+ * opted into that run for its own person, so the person's no-run claims
+ * (taken before it opted in) count as held by it, as release and renewal
+ * count them (`wbs-mcp-agent-surface` M15; an assumption Dany may reverse).
+ */
+export interface ClaimRun {
+  readonly runId: string | null;
+  readonly adoptsNoRun: boolean;
+}
+
+/** Whether `held` is a claim of the run `run` describes, a no-run claim it adopts included. */
+export function isHeldUnderRun(held: Pick<Claim, 'runId'>, run: ClaimRun): boolean {
+  return held.runId === run.runId || (run.adoptsNoRun && held.runId === null);
 }
 
 /**
@@ -324,7 +342,11 @@ export function decideClaim(request: ClaimRequest): ClaimDecision {
 
   const sameHolder = (each: Claim): boolean =>
     each.personId === claimant.personId &&
-    each.runId === runId &&
+    // Proof: with `each.runId === runId` alone, `adopts its own pre-opt-in
+    // claim as alreadyHeld` (claim.test.ts) was refused already_claimed
+    // naming itself, as was `re-claims its own pre-opt-in claim`
+    // (machine-grant-run.controller.db.test.ts); watched 2026-10-27.
+    isHeldUnderRun(each, run) &&
     each.parentClaimId === request.parentClaimId;
   const onTarget = claims.filter((each) => each.workItemId === target.workItemId);
 

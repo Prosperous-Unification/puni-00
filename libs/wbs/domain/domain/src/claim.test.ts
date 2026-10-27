@@ -811,6 +811,31 @@ describe('decideClaim under an opted-in run', () => {
     );
   });
 
+  it('adopts its own pre-opt-in claim as alreadyHeld, without restamping it', () => {
+    const before = [
+      claim({ id: 'p', workItemId: 'leaf', stepId: 'plan', personId: 'worker', runId: null }),
+      claim({ id: 'r', workItemId: 'leaf', stepId: 'review', personId: 'worker', runId: null }),
+    ];
+    expect(decideClaim(leafRequest({ caller: RUN_A, runId: null, claims: before }))).toEqual({
+      kind: 'alreadyHeld',
+    });
+    // A step beside the adopted one is written under the run.
+    const decided = decideClaim(
+      leafRequest({ caller: RUN_A, runId: null, claims: before.slice(0, 1) }),
+    );
+    if (decided.kind !== 'claim') throw new Error(`refused: ${JSON.stringify(decided)}`);
+    expect(decided.drafts.map(({ stepId, runId }) => [stepId, runId])).toEqual([['review', 'a']]);
+  });
+
+  it('adopts no other person’s no-run claim', () => {
+    const theirs = [
+      claim({ id: 'p', workItemId: 'leaf', stepId: 'plan', personId: 'other', runId: null }),
+    ];
+    expect(decideClaim(leafRequest({ caller: RUN_A, runId: null, claims: theirs })).kind).toBe(
+      'refused',
+    );
+  });
+
   it("a lead writes a worker's delegated claim with the worker's run", () => {
     const lead = { accountId: F, isAdmin: false, pinnedPersonId: 'claire', pinnedRunId: 'a' };
     const decided = decideClaim(

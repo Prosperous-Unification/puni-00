@@ -426,8 +426,9 @@ API key today. A run SHALL never be defaulted from the token's `jti`.
 ### Requirement: An opted-in run scopes renewal, claims and release
 
 With a run, a claim **for the caller's pinned person** SHALL take that run as its `runId`,
-and naming another `runId` for that person SHALL be refused `run_mismatch`. A claim for another
-person keeps its given `runId`. Release, renewal and undo follow the MODIFIED `claim-leases`
+and naming another `runId` for that person SHALL be refused `run_mismatch`. A step the person
+holds with no run SHALL count as held by the run (`alreadyHeld`, its run not restamped). A
+claim for another person keeps its given `runId`. Release, renewal and undo follow the MODIFIED `claim-leases`
 and `plan-command-registry` requirements; undo SHALL stay per person.
 
 #### Scenario: Two processes on one credential

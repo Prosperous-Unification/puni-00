@@ -117,11 +117,14 @@ interface Real {
   readonly world: World;
 }
 
-/** A renewal at the model's instant by `run`: null renews every lease of the person (M15). */
+/**
+ * A renewal at the model's instant by `run`: its own leases and the person's
+ * no-run ones; null renews every lease of the person (M15).
+ */
 function renewIn(model: Model, run: Run): void {
   const at = model.clock.now;
   for (const lease of model.held.values()) {
-    if (run !== null && lease.run !== run) continue;
+    if (run !== null && lease.run !== run && lease.run !== null) continue;
     if (at < lease.expiresAt && lease.expiresAt < at + CLAIM_LEASE_MS - LEASE_RENEWAL_RESOLUTION_MS)
       lease.expiresAt = at + CLAIM_LEASE_MS;
   }
@@ -130,7 +133,9 @@ function renewIn(model: Model, run: Run): void {
 /** The model's claim by `run` on `leaf`: the outcome it expects, applied when it succeeds. */
 function claimIn(model: Model, leaf: number, run: Run): 'ok' | 'already_claimed' {
   const held = model.held.get(leaf);
-  if (held !== undefined && held.run !== run) return 'already_claimed';
+  // A run adopts its person's no-run claim as held, never restamping it.
+  if (held !== undefined && held.run !== run && !(run !== null && held.run === null))
+    return 'already_claimed';
   renewIn(model, run);
   if (held === undefined)
     model.held.set(leaf, { run, expiresAt: model.clock.now + CLAIM_LEASE_MS });
@@ -173,7 +178,7 @@ function expectStoreMatches(model: Model, world: World): void {
   expect(stored.sort(byItem)).toEqual(expected.sort(byItem));
 }
 
-const counts = { races: 0, mismatches: 0, otherRunRenewals: 0 };
+const counts = { races: 0, mismatches: 0, otherRunRenewals: 0, noRunRenewals: 0 };
 
 class Claim implements fc.AsyncCommand<Model, Real> {
   constructor(
@@ -232,6 +237,12 @@ class Heartbeat implements fc.AsyncCommand<Model, Real> {
       )
     )
       counts.otherRunRenewals += 1;
+    if (
+      [...model.held.values()].some(
+        (lease) => this.under !== null && lease.run === null && lease.expiresAt > model.clock.now,
+      )
+    )
+      counts.noRunRenewals += 1;
     renewIn(model, this.under);
     await real.world.runner.renewLeases(AGENT, this.under);
     expectStoreMatches(model, real.world);
@@ -321,24 +332,29 @@ describe('run-scoped leases as a model (wbs-mcp-agent-surface M15)', () => {
    * claim, release and heartbeat while the clock moves and sweeps run, and a
    * heartbeat races a claim in either order. After every
    * command the store holds exactly the model's claims, runs and expiries: a
-   * run renews only its own leases (by heartbeat or by any committed batch),
-   * no run renews every lease of the person, a release under a run takes only
-   * that run's or a no-run claim, and nothing depends on which turn came first.
+   * run renews its own leases and the person's no-run ones (by heartbeat or
+   * by any committed batch), no run renews every lease of the person, a run
+   * adopts its person's no-run claim as held, a release under a run takes
+   * only that run's or a no-run claim, and nothing depends on which turn came
+   * first.
    *
    * Proof, each watched 2026-10-27 with this generator and seed: with the
    * run filter dropped from `ClaimRepository.renewLeases`, fast-check shrank
    * to `race(heartbeat a, claim 0 b), advance(840000), heartbeat(a)` (run
-   * a's heartbeat moved run b's lease); with `null` for the run in the batch
-   * renewal (plan-commands.feature.ts), to `claim(0, a), race(…, claim 1
-   * null), advance(899999), release(1, b)` (run b's release renewed run a's
-   * lease); with `isNull(claim.runId)` for a null run, to `claim(0, a),
-   * advance(120000), claim(1, null)` (a no-run batch left run a's lease
-   * where it was).
+   * a's heartbeat moved run b's lease); with its no-run half dropped, to
+   * `claim(0, a), race(…, claim 1 null), advance(899999), release(0, a)`
+   * (run a's release left the no-run lease where it was); with `null` for the
+   * run in the batch renewal (plan-commands.feature.ts), to `race(…, claim 1
+   * null), claim(0, a), advance(899999), release(1, b)`; with
+   * `isNull(claim.runId)` for a null run, to `claim(0, a), advance(120000),
+   * claim(1, null)`; with the adoption dropped from `decideClaim`, to
+   * `claim(1, null), claim(1, a)` (refused already_claimed naming itself).
    */
   it('holds exactly the model’s runs and leases, whatever the turn order', async () => {
     counts.races = 0;
     counts.mismatches = 0;
     counts.otherRunRenewals = 0;
+    counts.noRunRenewals = 0;
     await fc.assert(
       fc.asyncProperty(fc.commands(commandArbs, { maxCommands: 24 }), async (commands) => {
         const clock = { now: T };
@@ -355,6 +371,7 @@ describe('run-scoped leases as a model (wbs-mcp-agent-surface M15)', () => {
       races: counts.races > 40,
       mismatches: counts.mismatches > 5,
       otherRunRenewals: counts.otherRunRenewals > 5,
-    }).toEqual({ races: true, mismatches: true, otherRunRenewals: true });
+      noRunRenewals: counts.noRunRenewals > 5,
+    }).toEqual({ races: true, mismatches: true, otherRunRenewals: true, noRunRenewals: true });
   }, 240_000);
 });

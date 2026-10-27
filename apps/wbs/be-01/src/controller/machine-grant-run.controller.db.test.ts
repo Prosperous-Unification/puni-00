@@ -286,6 +286,84 @@ describe('run scoping through wbs_run (task 1.6)', () => {
     });
   });
 
+  // Proof: with a run's renewal kept to its own run (the no-run half dropped
+  // from `ClaimRepository.renewLeases`), the pre-opt-in lease stayed at
+  // T + 15 min; watched 2026-10-27.
+  it('a run renews its person’s pre-opt-in lease', async () => {
+    const [leaf] = await workItems(['Leaf']);
+    expectApplied(
+      await commands(asGrant(await grantFor(claireKey)), [
+        { kind: 'claimWorkItem', workItemId: leaf },
+      ]),
+    );
+    now = T + 5 * MINUTE;
+    expect(
+      await withGrant(await grantFor(claireKey, 'a'), 'POST', '/api/claims/renew'),
+    ).toMatchObject({
+      status: 200,
+      body: { leases: 2, leaseExpiresAt: now + CLAIM_LEASE_MS },
+    });
+    expect(new Set(claimRows().map(({ leaseExpiresAt }) => leaseExpiresAt))).toEqual(
+      new Set([now + CLAIM_LEASE_MS]),
+    );
+  });
+
+  it('re-claims its own pre-opt-in claim as alreadyHeld, the run not restamped', async () => {
+    const [leaf] = await workItems(['Leaf']);
+    expectApplied(
+      await commands(asGrant(await grantFor(claireKey)), [
+        { kind: 'claimWorkItem', workItemId: leaf },
+      ]),
+    );
+    const again = await commands(asGrant(await grantFor(claireKey, 'a')), [
+      { kind: 'claimWorkItem', workItemId: leaf },
+    ]);
+    expect(again).toMatchObject({ status: 200, body: { results: [{ alreadyHeld: true }] } });
+    expect(new Set(claimRows().map(({ runId }) => runId))).toEqual(new Set([null]));
+  });
+
+  // Proof: with `input.runId` in place of the stamped run in the bound-claim
+  // check, the second step was refused claim_limit (cap 1, current 1); with it
+  // in the alreadyHeld filter, the repeat answered no claim ids; watched
+  // 2026-10-27.
+  it('counts a run’s second step on a held leaf as no new bound claim', async () => {
+    const [leaf] = await workItems(['Leaf']);
+    const [impl, review] = steps;
+    capClaims(1);
+    const processA = await grantFor(claireKey, 'a');
+    expectApplied(
+      await commands(asGrant(processA), [
+        { kind: 'claimWorkItem', workItemId: leaf, steps: [impl] },
+      ]),
+    );
+    expectApplied(
+      await commands(asGrant(processA), [
+        { kind: 'claimWorkItem', workItemId: leaf, steps: [review] },
+      ]),
+    );
+    // Repeating a held step answers the claims the run holds on the leaf.
+    expect(
+      await commands(asGrant(processA), [
+        { kind: 'claimWorkItem', workItemId: leaf, steps: [impl] },
+      ]),
+    ).toMatchObject({
+      status: 200,
+      body: {
+        results: [{ alreadyHeld: true, claimIds: [expect.any(String), expect.any(String)] }],
+      },
+    });
+    expect(
+      claimRows()
+        .map(({ stepId, runId }) => [stepId, runId])
+        .sort(),
+    ).toEqual(
+      [
+        [impl, 'a'],
+        [review, 'a'],
+      ].sort(),
+    );
+  });
+
   it('a re-fetch with the same wbs_run keeps the run', async () => {
     const [leaf] = await workItems(['Leaf']);
     expectApplied(

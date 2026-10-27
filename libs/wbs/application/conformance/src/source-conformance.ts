@@ -642,8 +642,9 @@ export function existingStoreRegistrations(
         expect(await port.findById(seed.projectIds[0], leased.id)).toEqual(leased);
       },
     ),
-    // `wbs-mcp-agent-surface` M15: a run renews only its own leases, and no
-    // run renews every lease of the person, those of every run included.
+    // `wbs-mcp-agent-surface` M15: a run renews its own leases and the
+    // person's no-run ones (taken before it opted in), never another run's;
+    // no run renews every lease of the person, those of every run included.
     storeCase('claims', 'claims.lease:run-scoped', openers.claims, async ({ port, seed }) => {
       const [leaf, child] = seed.workItemIds[0];
       const [stepId, otherStepId] = seed.stepIds[0];
@@ -676,20 +677,20 @@ export function existingStoreRegistrations(
             leaseExpiresAt,
           ]),
         );
-      // Run a alone: b's lease and the no-run lease stay where they were, and
-      // the standing counts run a's lease only.
+      // Run a: its lease and the no-run lease move, b's stays where it was,
+      // and the standing counts those two.
       expect(await port.renewLeases(agent, 'a', () => 5_000)).toEqual({
-        standing: { leases: 1, leaseExpiresAt: 905_000 },
+        standing: { leases: 2, leaseExpiresAt: 905_000 },
         renewedProjectIds: [seed.projectIds[0]],
       });
       expect(await expiries()).toEqual({
         'claim-run-a': 905_000,
         'claim-run-b': 10_000,
-        'claim-no-run': 10_000,
+        'claim-no-run': 905_000,
       });
-      // A run that holds nothing renews nothing and stands at none.
+      // A run that holds nothing renews nothing new; it stands at the no-run lease.
       expect(await port.renewLeases(agent, 'c', () => 6_000)).toEqual({
-        standing: { leases: 0, leaseExpiresAt: null },
+        standing: { leases: 1, leaseExpiresAt: 905_000 },
         renewedProjectIds: [],
       });
       // No run: every lease of the person, whatever its run.
@@ -700,7 +701,7 @@ export function existingStoreRegistrations(
       expect(await expiries()).toEqual({
         'claim-run-a': 905_000,
         'claim-run-b': 907_000,
-        'claim-no-run': 907_000,
+        'claim-no-run': 905_000,
       });
     }),
     storeCase(
