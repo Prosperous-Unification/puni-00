@@ -291,3 +291,16 @@ Proof comments identify the observed failures. Red logs remain alongside green l
 No paid provider, live store, Browser Use, image publication, fleet operation or deployment
 was used. Full canonical host verification is delegated to the controller at the frozen
 public commit; local covering checks are recorded in the final fix report.
+
+Follow-up portability correction: the mounted app/API test requires the API as an explicit
+FE project-transfer dependency. The app now declares that dependency (including SQLite
+transitively); API metadata declares its already-installed exact `ai` and OpenRouter package
+specifications. No dependency version or portability producer behavior changed. The existing
+clean-copy fixture now asserts the five-project closure and runs all five mounted replay
+cases inside the copied workspace with installed package modules only and no linked source
+projects. Removing the API edge or either package declaration caused the corresponding
+production-path transfer test to fail; each restored run passed. Logs are
+`closure-red.log`, `closure-green-final.log`, `closure-mutation-summary.log` and the named
+`fault-/restored-{closure,provider-package,sdk-package}.log` in the same evidence directory.
+Public `81c151732a64aecbb58bfc49baf8921c23fc63bd` remains in history but is superseded for the
+final gate and private role selection by the subsequent metadata/fixture correction commit.

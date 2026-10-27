@@ -478,21 +478,35 @@ test('the website app and its closure copy into a clean private workspace at unc
   const closure = [
     'libs/website/domain/contracts',
     'libs/website/adapters/analytics',
+    'libs/website/adapters/store-sqlite',
+    'apps/website/be-01',
     'apps/website/fe-01',
   ];
   const source = stageRepository(closure);
   const destination = workspace('private');
   synchronizeBaseline(source, destination);
   installDeclaredPackages(source, destination, closure);
+  // Proof: removing the API dependency omitted API/SQLite and failed this closure assertion.
   expect(copyProject(source, destination, 'apps/website/fe-01')).toEqual(closure);
   for (const file of [
     'apps/website/fe-01/src/main.tsx',
+    'apps/website/fe-01/src/replay-recovery.test.tsx',
+    'apps/website/be-01/src/server.ts',
+    'libs/website/adapters/store-sqlite/src/store.ts',
     'libs/website/adapters/analytics/src/browser.ts',
     'libs/website/domain/contracts/src/index.ts',
   ])
     expect(readFileSync(join(destination, file), 'utf8')).toBe(
       readFileSync(join(repository, file), 'utf8'),
     );
+  // Uses installed packages only; no source project is linked into this copied workspace.
+  symlinkSync(join(repository, 'node_modules'), join(destination, 'node_modules'), 'dir');
+  const replay = Bun.spawnSync(
+    [process.execPath, 'test', './apps/website/fe-01/src/replay-recovery.test.tsx'],
+    { cwd: destination, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 },
+  );
+  expect(replay.stderr.toString()).toContain('5 pass');
+  expect(replay.exitCode).toBe(0);
   const copied = parseJson(join(destination, 'tsconfig.base.json')) as CompilerConfig;
   expect(copied.compilerOptions.paths['@website/analytics']).toEqual([
     './libs/website/adapters/analytics/src/index.ts',
@@ -506,6 +520,8 @@ test('an import of an alias owned outside the declared closure is refused before
   const closure = [
     'libs/website/domain/contracts',
     'libs/website/adapters/analytics',
+    'libs/website/adapters/store-sqlite',
+    'apps/website/be-01',
     'apps/website/fe-01',
   ];
   const source = stageRepository(closure);
@@ -529,6 +545,8 @@ test('analytics dependencies are required on both edges of the website closure',
   const closure = [
     'libs/website/domain/contracts',
     'libs/website/adapters/analytics',
+    'libs/website/adapters/store-sqlite',
+    'apps/website/be-01',
     'apps/website/fe-01',
   ];
   for (const [projectPath, retained] of [
@@ -551,3 +569,26 @@ test('analytics dependencies are required on both edges of the website closure',
     expect(existsSync(join(destination, 'libs'))).toBe(false);
   }
 });
+
+for (const name of ['@openrouter/ai-sdk-provider', 'ai'])
+  test(`the copied API requires its declared ${name} package before writes`, () => {
+    const closure = [
+      'libs/website/domain/contracts',
+      'libs/website/adapters/store-sqlite',
+      'apps/website/be-01',
+    ];
+    const source = stageRepository(closure);
+    const destination = workspace('private');
+    synchronizeBaseline(source, destination);
+    installDeclaredPackages(source, destination, closure);
+    const manifest = parseJson(join(destination, 'package.json')) as {
+      dependencies: Record<string, string>;
+    };
+    Reflect.deleteProperty(manifest.dependencies, name);
+    json(join(destination, 'package.json'), manifest);
+    // Proof: removing either package declaration admitted the corresponding missing-package fixture.
+    expect(() => copyProject(source, destination, 'apps/website/be-01')).toThrow(
+      `Missing package ${name}@`,
+    );
+    expect(existsSync(join(destination, 'apps'))).toBe(false);
+  });

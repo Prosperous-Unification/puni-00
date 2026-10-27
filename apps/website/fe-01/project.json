@@ -7,7 +7,11 @@
   "metadata": {
     "portability": {
       "visibility": "public",
-      "dependencies": ["libs/website/domain/contracts", "libs/website/adapters/analytics"],
+      "dependencies": [
+        "libs/website/domain/contracts",
+        "libs/website/adapters/analytics",
+        "apps/website/be-01"
+      ],
       "aliases": [],
       "packages": {
         "@types/react": "^19.2.18",
