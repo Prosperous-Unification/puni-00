@@ -4,6 +4,7 @@
   "sourceRoot": "apps/twilight-structure/twilight-dash/cli/src",
   "projectType": "application",
   "tags": ["scope:app", "type:app", "runtime:bun", "ring:adapter", "product:twilight-dash"],
+  "implicitDependencies": ["wbs-be-01", "wbs-mcp-01"],
   "targets": {
     "test": {
       "cache": false,

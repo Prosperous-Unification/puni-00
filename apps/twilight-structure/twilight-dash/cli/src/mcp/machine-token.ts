@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { parseSecretsOrThrow, type } from '@shared/validation';
 
-import { MachineKey, readOwnerOnly } from '../compute/configuration';
+import { ConfigurationRefusal, MachineKey, readOwnerOnly } from '../compute/configuration';
 
 /** RFC 7523 §2.1's grant type: the workload token is the grant, and no client authenticates. */
 export const JWT_BEARER_GRANT = 'urn:ietf:params:oauth:grant-type:jwt-bearer';
@@ -89,14 +89,25 @@ export class ApiKey {
 
   /**
    * The key in the owner-only file at `path`: the whole file, one trailing newline allowed.
-   * @throws ConfigurationRefusal `config_absent`, `config_unreadable`, `credential_not_owner_only`
-   * from {@link readOwnerOnly}; an Error naming the path, never the bytes, when it is no key.
+   * Every refusal names `--key-file` and never the path: a key pasted where the path belongs
+   * would otherwise be echoed on stderr.
+   * @throws Error `--key-file: …` when the file is absent, unreadable, not owned by this user with
+   * mode 0600, over 64 KiB, or holds no `wbs_mk_` key.
    */
   public static read(path: string): ApiKey {
-    const key = readOwnerOnly(path).replace(/\r?\n$/, '');
+    let bytes: string;
+    try {
+      bytes = readOwnerOnly(path);
+    } catch (cause) {
+      if (!(cause instanceof ConfigurationRefusal)) throw cause;
+      // Proof: rethrowing readOwnerOnly's refusal made `a secret that is no file, given to
+      // --key-file` print "config_absent: no configuration at sk-pasted-secret-value" (2026-10-27).
+      throw new Error(`--key-file: ${KEY_FILE_REFUSALS[cause.reason]}`, { cause });
+    }
+    const key = bytes.replace(/\r?\n$/, '');
     // Proof: admitting any bytes made `refuses a key file that holds no wbs_mk_ key, never
     // echoing it` send them as the secret and print a token (2026-10-27).
-    if (!MachineKey.test(key)) throw new Error(`${path} does not hold a wbs_mk_ API key`);
+    if (!MachineKey.test(key)) throw new Error('--key-file: the key file holds no wbs_mk_ API key');
     return new ApiKey(key);
   }
 
@@ -119,13 +130,25 @@ export class ApiKey {
   }
 }
 
+/** What a `--key-file` refusal says for each of `readOwnerOnly`'s reasons; never the path. */
+const KEY_FILE_REFUSALS: Record<ConfigurationRefusal['reason'], string> = {
+  config_absent: 'the key file does not exist',
+  config_unreadable: 'the key file cannot be read',
+  credential_not_owner_only: 'the key file must be owned by this user with mode 0600',
+  config_malformed: 'the key file is over 64 KiB',
+  unsupported_measure: 'the key file cannot be read',
+  provider_kind_not_available: 'the key file cannot be read',
+  provider_not_implemented: 'the key file cannot be read',
+};
+
 /** Reads one workload token; every call reads afresh (M2: a run outlives its first token). */
 export type AssertionReader = () => Promise<string>;
 
 /**
  * Rereads the workload token at `path` on every call: a Kubernetes projected service-account
  * token, which the kubelet rotates in place. The file is not required to be owner-only: a
- * projected token is the pod's own and is mounted 0644 by default.
+ * projected token is the pod's own and is mounted 0644 by default. Refusals name
+ * `--assertion-file`, never the path, which could be a pasted token.
  */
 export function assertionFileReader(path: string): AssertionReader {
   return () => {
@@ -133,11 +156,20 @@ export function assertionFileReader(path: string): AssertionReader {
     try {
       bytes = readFileSync(path, 'utf8');
     } catch (cause) {
-      return Promise.reject(new Error(`cannot read the workload token at ${path}`, { cause }));
+      // Proof: answering an unreadable file "holds no workload token" made `refuses an
+      // unreadable assertion file apart from an empty or oversize one` fail; naming the path
+      // here made `a secret that is no file, given to --assertion-file` print it (2026-10-27).
+      return Promise.reject(
+        new Error('--assertion-file: the workload token file cannot be read', { cause }),
+      );
     }
     const assertion = bytes.trim();
-    if (assertion.length === 0 || assertion.length > MOST_ASSERTION_BYTES) {
-      return Promise.reject(new Error(`${path} does not hold a workload token`));
+    // Proof: comparing `assertion.length` made `…an empty or oversize one` admit 40,000
+    // three-byte characters (120,000 bytes) (2026-10-27).
+    if (assertion.length === 0 || Buffer.byteLength(assertion) > MOST_ASSERTION_BYTES) {
+      return Promise.reject(
+        new Error('--assertion-file: the file holds no workload token (empty or over 64 KiB)'),
+      );
     }
     return Promise.resolve(assertion);
   };
@@ -172,6 +204,8 @@ export function gitHubActionsReader(
     const response = await send(requestUrl, {
       headers: { authorization: `Bearer ${requestToken}`, accept: 'application/json' },
     });
+    // Proof: dropping this check made `refuses a GitHub Actions answer other than 200, naming
+    // its status` resolve with the 403 body's value (2026-10-27).
     if (response.status !== 200) {
       throw new Error(`GitHub Actions refused the workload token: HTTP ${String(response.status)}`);
     }
@@ -206,12 +240,16 @@ export async function refusalOf(response: Response): Promise<TokenRefusal> {
   let body: unknown;
   try {
     body = await response.json();
+    // Proof: returning a refusal coded `unknown` for an unparsable body made `names a proxy's
+    // non-JSON 502 and a JSON answer without error by status only` resolve (2026-10-27).
   } catch (cause) {
     throw new Error(`the MCP token endpoint answered HTTP ${String(response.status)}, not JSON`, {
       cause,
     });
   }
   const parsed = OAuthError(body);
+  // Proof: reading `error` unchecked made the same test resolve with a refusal coded
+  // `undefined` (2026-10-27).
   if (parsed instanceof type.errors) {
     throw new Error(
       `the MCP token endpoint answered HTTP ${String(response.status)} without an OAuth error`,
@@ -226,6 +264,8 @@ export async function refusalOf(response: Response): Promise<TokenRefusal> {
  */
 export function retryAfterSecondsOf(response: Response): number | null {
   const value = response.headers.get('retry-after');
+  // Proof: reading any value with `Number` made `reads only the delay form of Retry-After` get
+  // NaN for the HTTP date (2026-10-27).
   if (value === null || !/^\d{1,9}$/.test(value)) return null;
   return Number(value);
 }

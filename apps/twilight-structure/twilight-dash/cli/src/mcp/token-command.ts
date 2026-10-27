@@ -45,6 +45,10 @@ type Presentation =
   | { readonly kind: 'api_key'; readonly key: ApiKey }
   | { readonly kind: 'assertion'; readonly read: AssertionReader };
 
+/** A value shaped like a `wbs_mk_` key, or like a JWT (three base64url parts, header `{"`). */
+const SECRET_SHAPE = /wbs_mk_[0-9a-f]{8}-/;
+const JWT_SHAPE = /^eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/;
+
 const IssuedToken = type({ access_token: 'string > 0', token_type: /^[Bb]earer$/ });
 
 /**
@@ -112,8 +116,24 @@ export async function runMcpCommand(
   // claim (2026-10-27).
   if (run !== undefined) form.set('wbs_run', run);
 
-  const request = (): Promise<Response> =>
-    deps.send(endpoint.tokenUrl, { method: 'POST', headers, body: form });
+  // A redirect is never followed: Bun re-sends a POST body, the assertion included, to a
+  // 307's target, whatever its origin.
+  const request = async (): Promise<Response> => {
+    const answer = await deps.send(endpoint.tokenUrl, {
+      method: 'POST',
+      headers,
+      body: form,
+      redirect: 'manual',
+    });
+    // Proof: following redirects (no `redirect: 'manual'`, no check) made `is never followed`
+    // print the other origin's token instead of refusing (2026-10-27).
+    if (answer.status >= 300 && answer.status < 400) {
+      throw new Error(
+        `the MCP token endpoint answered a redirect (HTTP ${String(answer.status)}); a token request is never redirected`,
+      );
+    }
+    return answer;
+  };
   let response = await request();
   if (response.status === 429) {
     const retryAfter = retryAfterSecondsOf(response);
@@ -143,6 +163,13 @@ function presentationOf(
 ): Presentation {
   const value = flag === undefined ? undefined : values.get(flag);
   if (flag === undefined || value === undefined) throw new Error(USAGE);
+  // A key or a token pasted where a path belongs would be echoed by a file error; refuse it
+  // naming only the flag.
+  // Proof: without this check `a key given to --key-file` and `a token given to
+  // --assertion-file` got the file refusal instead of this one (2026-10-27).
+  if (flag !== '--github-actions-audience' && (SECRET_SHAPE.test(value) || JWT_SHAPE.test(value))) {
+    throw new Error(`${flag} names a file, not a ${flag === '--key-file' ? 'key' : 'token'}`);
+  }
   if (flag === '--key-file') return { kind: 'api_key', key: ApiKey.read(value) };
   if (flag === '--assertion-file') return { kind: 'assertion', read: assertionFileReader(value) };
   return { kind: 'assertion', read: gitHubActionsReader(value, deps.environment, deps.send) };

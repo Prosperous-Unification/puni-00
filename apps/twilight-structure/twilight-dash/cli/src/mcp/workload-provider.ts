@@ -81,6 +81,8 @@ export class WorkloadJwtBearerProvider implements OAuthClientProvider {
     // 401` throw "Server returned 401 after successful authentication" (2026-10-27).
     const cached = this.#cached;
     if (cached === undefined) return undefined;
+    // Proof: serving past `servedUntil` made `serves its token until 5 minutes before exp, or
+    // half its lifetime for a short one` still see `long` at 3,300,000 ms (2026-10-27).
     if (this.options.monotonic.now() >= cached.servedUntil) {
       this.#cached = undefined;
       return undefined;
@@ -148,25 +150,32 @@ export class WorkloadJwtBearerProvider implements OAuthClientProvider {
   public invalidateCredentials(
     scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery',
   ): void {
+    // Proof: ignoring every scope made `drops its token when the SDK invalidates it` still
+    // serve the token after invalidateCredentials('tokens') (2026-10-27).
     if (scope === 'all' || scope === 'tokens') this.#cached = undefined;
   }
 
   /**
    * `send` for the SDK transport, honouring a token endpoint `429`: it waits the `Retry-After`
    * seconds, capped at 60 s, and retries once (M2); a second `429`, or one without a delay,
-   * reaches the SDK, which throws. Every other request passes through untouched.
+   * reaches the SDK, which throws. A token request is never redirected: Bun would re-send its
+   * body, the assertion included, to a 307's target, so the 3xx answer reaches the SDK, which
+   * throws naming its status. Every other request passes through untouched.
    */
   public tokenFetch(send: FetchLike): FetchLike {
     return async (input, init) => {
-      const response = await send(input, init);
-      if (response.status !== 429 || urlOf(input) !== this.options.endpoint.tokenUrl)
-        return response;
+      if (urlOf(input) !== this.options.endpoint.tokenUrl) return send(input, init);
+      // Proof: passing `init` unchanged made `never follows a redirect of a token request` get
+      // the other origin's 200 instead of the 307 (2026-10-27).
+      const tokenInit: RequestInit = { ...init, redirect: 'manual' };
+      const response = await send(input, tokenInit);
+      if (response.status !== 429) return response;
       const retryAfter = retryAfterSecondsOf(response);
       if (retryAfter === null) return response;
       // Proof: dropping the cap made `waits a token endpoint Retry-After, capped at 60 s, and
       // retries once` sleep 90000 ms (2026-10-27).
       await this.options.sleep(Math.min(retryAfter * 1_000, MOST_RETRY_AFTER_MS));
-      return send(input, init);
+      return send(input, tokenInit);
     };
   }
 }

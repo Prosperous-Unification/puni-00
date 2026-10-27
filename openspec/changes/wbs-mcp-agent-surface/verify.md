@@ -1144,27 +1144,51 @@ What landed, in `apps/twilight-structure/twilight-dash/cli/src/mcp/`:
     M10's `429`.
 12. **The stack runs mcp-01 at credential epoch 0.** Machine admission reads no epoch (M5), so
     the activation runbook's epoch step was not run; consent paths are not exercised here.
-13. **CI routing.** Dash's tests now start be-01's fixture and mcp-01's `main.ts`. Both are in
-    `twilight-dash:test`'s inputs, but the project graph has no edge from Dash to either app,
-    so a PR touching only mcp-01 may not select Dash's tests. Follow-up: an implicit dependency
-    or a routing rule.
+13. **CI routing.** Dash's tests start be-01's fixture and mcp-01's `main.ts`. Both are in
+    `twilight-dash:test`'s inputs, and since the review of PR #767 Dash's `project.json` names
+    `wbs-be-01` and `wbs-mcp-01` as `implicitDependencies` (`nx graph` shows both edges as
+    `implicit`). _Corrected:_ the original note said an mcp-01-only PR might not select Dash.
+    It did: `nx show projects --affected --files=apps/wbs/mcp-01/src/main.ts` named
+    `twilight-dash` even with the base's `project.json`, and CI's pull-request run is
+    `nx affected`. The edges now make the dependency explicit rather than incidental.
 14. **`--run` is static per `headersHelper` entry**, so a batch that scopes each run needs one
     `--mcp-config` per run (README).
 15. **2.2's moved negative** ("make the provider cache its first assertion") is F14 here.
+16. **Design amended (review S2-1).** M2 now states the `min(5 min, half the lifetime)` margin
+    (note 2) and the drop through `prepareTokenRequest` and `invalidateCredentials` (note 3).
+17. **A misused flag echoed a secret (review S2-2).** `--key-file <key>` printed "no
+    configuration at <key>", and `--assertion-file <token>` "cannot read the workload token at
+    <token>". A value shaped like a key (`wbs_mk_` and an id) or a JWT (`eyJ…` with three parts)
+    is now refused naming only the flag, and every key file and assertion file refusal names
+    the flag and never the path, which also replaces the "configuration" wording (S4-2). A
+    relative path starting with such a shape is refused too; nothing else is.
+18. **Redirects (review S3-1).** Bun re-sends a POST body to a 307's target, across origins,
+    so a token request is sent with `redirect: 'manual'` by the helper (a 3xx is refused, naming
+    its status) and by `tokenFetch` (the 3xx reaches the SDK, which throws naming it).
+    `redirect: 'manual'` rather than `'error'`: it gives a refusal that names the redirect.
+19. **Follow-up: per-source sizing for multi-pool fleets (review S3-3).** M10's
+    `issuancesPerSource` is the same burst 100 and 300 a minute as the per-credential limit;
+    behind one proxy hop every agent on one host or NAT shares it, whatever credential it holds.
+    The README says so.
+20. **Follow-up: an `mcp-token.mjs` bundle before task 8.1 (review S3-4).** The helper runs from
+    a checkout with `bun install`; the README says so.
+21. **Not done: one in-flight issuance in the provider (review S4-5, optional).** Concurrent
+    `auth` calls on one provider could each issue a token; how often the SDK makes them was not
+    analysed. The stack harness's cleanup on a failed start (S4-4) is not proven by a test.
 
 ### Commands and results, slice 6
 
 All on 2026-10-27 at the head of this branch, with `env -u CLAUDECODE` and `--skip-nx-cache`:
 
-| Command                                                                                     | Result                                                                                                                                                                                                                                                                                                                                                                                             |
-| ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bunx nx run-many -t typecheck lint -p twilight-dash`                                       | exit 0                                                                                                                                                                                                                                                                                                                                                                                             |
-| `bunx nx run twilight-dash:test`                                                            | 3404 pass, 0 fail (99 files, 845.9 s), exit 0; `src/mcp` alone 31 pass (8 boot, 23 fake)                                                                                                                                                                                                                                                                                                           |
-| `bunx nx run tool-devsync:test`                                                             | 966 pass, 7 fail (50 files, 834.3 s), exit 1: all seven are `sync.test.ts` "boot-commit convergence after reset", whose fixture `mcp.env` lacks `MCP_TRUSTED_PROXY_HOPS` (section 4 made it required; main brought the tests). They fail identically on the base 743808fa3 (1 pass, 7 fail, run in a detached worktree); no tool-devsync file changed here. Follow-up: add the key to that fixture |
-| `bunx openspec validate --all --json`                                                       | exit 0; 301 items, 301 passed                                                                                                                                                                                                                                                                                                                                                                      |
-| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` | exit 0 (the existing store-memory and plan-commands review debt)                                                                                                                                                                                                                                                                                                                                   |
-| `bunx prettier --check` on every changed file                                               | "All matched files use Prettier code style!"                                                                                                                                                                                                                                                                                                                                                       |
-| `entrypoint.ts mcp token` (usage refusal), timed                                            | 2.68, 2.76, 2.68 s before note 1's fast path; 0.12, 0.12 s after                                                                                                                                                                                                                                                                                                                                   |
+| Command                                                                                     | Result                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run-many -t typecheck lint -p twilight-dash`                                       | exit 0                                                                                                                                                                                                                                                                                                     |
+| `bunx nx run twilight-dash:test`                                                            | 3404 pass, 0 fail (99 files, 845.9 s), exit 0; `src/mcp` alone 31 pass (8 boot, 23 fake)                                                                                                                                                                                                                   |
+| `bunx nx run tool-devsync:test`                                                             | 966 pass, 7 fail (50 files, 834.3 s), exit 1: all seven are `sync.test.ts` "boot-commit convergence after reset", whose fixture `mcp.env` lacked `MCP_TRUSTED_PROXY_HOPS`. They failed identically on the base 743808fa3; the plan branch fixed the fixture in a8b233254, merged here for the review fixes |
+| `bunx openspec validate --all --json`                                                       | exit 0; 301 items, 301 passed                                                                                                                                                                                                                                                                              |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` | exit 0 (the existing store-memory and plan-commands review debt)                                                                                                                                                                                                                                           |
+| `bunx prettier --check` on every changed file                                               | "All matched files use Prettier code style!"                                                                                                                                                                                                                                                               |
+| `entrypoint.ts mcp token` (usage refusal), timed                                            | 2.68, 2.76, 2.68 s before note 1's fast path; 0.12, 0.12 s after                                                                                                                                                                                                                                           |
 
 Not run: the h2puni gate, wbs-be-01's and wbs-mcp-01's suites (neither changed; their booted
 fixture and `main.ts` ran inside Dash's tests), fe-01 and its e2e, gw-01, a real GitHub
@@ -1200,3 +1224,38 @@ sits beside the check or its test. "Boot" is `mcp-token.boot.test.ts`, "helper"
 | F19 | `entrypoint.ts` dispatches `mcp`                     | dispatch disabled                                      | boot `the entrypoint prints only the header map, and a refusal names no key`: exit 1                                                          |
 | F20 | no key in any output                                 | the refusal names the request's `authorization` header | boot, the same test: stderr held `error: refused for Basic …`                                                                                 |
 | F21 | the issuer is mcp-01's (note 5)                      | `<origin>/oauth` stamped                               | boot `connects and calls a tool…`: "OAuth client information is bound to authorization server …/oauth and is not presented to …/mcp/oauth"    |
+
+### Review of PR #767 (Fable, high), how each item is addressed
+
+| Item | Fix                                                                    | Fault injected                                        | Test that observed it failing                                                                                                   |
+| ---- | ---------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1 | design.md M2 amended (note 16)                                         | — (text)                                              | —                                                                                                                               |
+| S2-2 | N1: secret-shaped flag values refused naming the flag                  | shape check disabled                                  | helper `a key given to --key-file`, `a token given to --assertion-file`: the file refusal instead                               |
+| S2-2 | N2: key file refusals name `--key-file`, never the path                | `readOwnerOnly`'s refusal rethrown as is              | helper `a secret that is no file, given to --key-file`: stderr "config_absent: no configuration at sk-pasted-secret-value"      |
+| S2-2 | N3: assertion file refusals name `--assertion-file`, never the path    | the path in the message                               | helper `a secret that is no file, given to --assertion-file`: stderr "cannot read the workload token at sk-pasted-secret-value" |
+| S3-1 | N4: the helper never follows a redirect                                | `redirect: 'manual'` and the 3xx check removed        | helper `is never followed…` (two real servers, a cross-origin 307): printed the other origin's token                            |
+| S3-1 | N5: `tokenFetch` never follows a redirect                              | `init` passed unchanged                               | provider `never follows a redirect of a token request` (two real servers): 200 instead of 307                                   |
+| S3-2 | N6: unreadable apart from empty or oversize                            | an unreadable file answered "holds no workload token" | `machine-token.test.ts` `refuses an unreadable assertion file apart from an empty or oversize one`                              |
+| S4-5 | N7: the cap counts bytes                                               | `assertion.length`                                    | the same test: 120,000 bytes admitted                                                                                           |
+| S3-2 | N8: GitHub non-200 refused                                             | status check disabled                                 | `machine-token.test.ts` `refuses a GitHub Actions answer other than 200…`: resolved with the 403 body's value                   |
+| S3-2 | N9: a non-JSON answer named by status                                  | a refusal coded `unknown` returned                    | `machine-token.test.ts` `names a proxy's non-JSON 502 and a JSON answer without error…`: resolved                               |
+| S3-2 | N10: JSON without `error` named by status                              | `error` read unchecked                                | the same test: resolved with a refusal coded `undefined`                                                                        |
+| S3-2 | N11: only the delay form of `Retry-After`                              | any value read with `Number`                          | `machine-token.test.ts` `reads only the delay form of Retry-After`: NaN for the HTTP date                                       |
+| S3-2 | N12: the token is dropped at `servedUntil`                             | the expiry check disabled                             | provider `serves its token until 5 minutes before exp…`: still served                                                           |
+| S3-2 | N13: `invalidateCredentials` drops the token                           | every scope ignored                                   | provider `drops its token when the SDK invalidates it`: still served                                                            |
+| S3-3 | README: the per-source limit; note 19                                  | — (text)                                              | —                                                                                                                               |
+| S3-4 | README: a checkout with `bun install`; note 20                         | — (text)                                              | —                                                                                                                               |
+| S3-5 | `implicitDependencies` on `wbs-be-01`, `wbs-mcp-01`; note 13 corrected | — (graph: both edges `implicit`)                      | —                                                                                                                               |
+| S4-1 | static `test.each` labels                                              | —                                                     | —                                                                                                                               |
+| S4-2 | "key file" wording (with S2-2)                                         | —                                                     | —                                                                                                                               |
+| S4-3 | README: the design cannot hide the key from the agent's own user       | — (text)                                              | —                                                                                                                               |
+| S4-4 | the stack stops both processes and removes its store on a failed start | not proven by a test (note 21)                        | —                                                                                                                               |
+| S4-5 | bytes (N7); the single in-flight issuance is not done (note 21)        | —                                                     | —                                                                                                                               |
+
+Commands for the fixes, 2026-10-27 with `env -u CLAUDECODE` and `--skip-nx-cache`, after
+merging the plan branch at a8b233254: `bunx nx run-many -t typecheck lint -p twilight-dash`
+exit 0; `bun test src/mcp src/no-ambient-clock.test.ts src/cli.test.ts` (Dash) 73 pass, 0
+fail (6 files); `tool-devsync` `sync.test.ts -t "boot-commit convergence"` 8 pass, 0 fail
+(a8b233254's fixture fix); `openspec validate --all --json` 301 of 301; `check-indexes working .
+HEAD` exit 0; prettier clean. The full Dash and tool-devsync suites were not rerun; CI runs
+them.

@@ -2,7 +2,7 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterAll, describe, expect, test } from 'bun:test';
+import { afterAll, afterEach, describe, expect, test } from 'bun:test';
 
 import { urlOf } from './machine-token';
 import { runMcpCommand } from './token-command';
@@ -238,13 +238,14 @@ describe('the token request', () => {
 });
 
 describe('refusals before any request', () => {
+  // Static labels: a `%p` label would print the fake key into the test name.
   test.each([
-    [[]],
-    [['--key-file', keyPath, '--assertion-file', keyPath]],
-    [['--key-file', keyPath, '--key-file', keyPath]],
-    [['--key-file']],
-    [['--key-file', keyPath, '--key', KEY]],
-  ])('refuses no credential or two, a repeated, valueless or unknown flag: %p', async (flags) => {
+    ['no credential', []],
+    ['two credentials', ['--key-file', keyPath, '--assertion-file', keyPath]],
+    ['a repeated flag', ['--key-file', keyPath, '--key-file', keyPath]],
+    ['a valueless flag', ['--key-file']],
+    ['an unknown flag', ['--key-file', keyPath, '--key', KEY]],
+  ])('refuses %s', async (_label, flags) => {
     const helper = scripted([{ at: 0, answer: issued }]);
     expect(await rejection(helper.run(flags))).toContain('usage: mcp token');
     expect(helper.requests).toEqual([]);
@@ -279,7 +280,7 @@ describe('refusals before any request', () => {
     // (2026-10-27).
     expect(
       await rejection(helper.run(['--key-file', writeKey('shared.key', KEY, 0o640)])),
-    ).toContain('credential_not_owner_only');
+    ).toContain('--key-file: the key file must be owned by this user with mode 0600');
     expect(helper.requests).toEqual([]);
   });
 
@@ -287,7 +288,7 @@ describe('refusals before any request', () => {
     const helper = scripted([{ at: 0, answer: issued }]);
     const path = writeKey('wrong.key', 'sk-not-a-wbs-key-but-secret');
     const refusal = helper.run(['--key-file', path]);
-    expect(await rejection(refusal)).toContain(`${path} does not hold a wbs_mk_ API key`);
+    expect(await rejection(refusal)).toBe('--key-file: the key file holds no wbs_mk_ API key');
     expect(await rejection(refusal)).not.toContain('sk-not-a-wbs-key');
     expect(helper.requests).toEqual([]);
   });
@@ -298,5 +299,109 @@ describe('refusals before any request', () => {
       await rejection(helper.run(['--key-file', keyPath, '--run', 'x'.repeat(257)])),
     ).toContain('--run must have 1 to 256 characters');
     expect(helper.requests).toEqual([]);
+  });
+});
+
+describe('a misused flag never echoes its value', () => {
+  const ENTRYPOINT = join(import.meta.dir, '../entrypoint.ts');
+  const JWT = `eyJhbGciOiJSUzI1NiJ9.${'p'.repeat(40)}.${'s'.repeat(40)}`;
+
+  async function entrypoint(flags: readonly string[]): Promise<{ code: number; stderr: string }> {
+    const child = Bun.spawn(
+      [process.execPath, ENTRYPOINT, 'mcp', 'token', '--resource', RESOURCE, ...flags],
+      { stdout: 'pipe', stderr: 'pipe', stdin: 'ignore' },
+    );
+    const [stdout, stderr, code] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ]);
+    expect(stdout).toBe('');
+    return { code, stderr };
+  }
+
+  test.each([
+    ['a key given to --key-file', '--key-file', KEY, 'error: --key-file names a file, not a key\n'],
+    [
+      'a token given to --assertion-file',
+      '--assertion-file',
+      JWT,
+      'error: --assertion-file names a file, not a token\n',
+    ],
+    [
+      'a secret that is no file, given to --key-file',
+      '--key-file',
+      'sk-pasted-secret-value',
+      'error: --key-file: the key file does not exist [ENOENT]\n',
+    ],
+    [
+      'a secret that is no file, given to --assertion-file',
+      '--assertion-file',
+      'sk-pasted-secret-value',
+      'error: --assertion-file: the workload token file cannot be read [ENOENT]\n',
+    ],
+  ])('%s', async (_label, flag, value, expected) => {
+    // Proof: rethrowing readOwnerOnly's refusal as is made the third case print "config_absent:
+    // no configuration at sk-pasted-secret-value", and naming the path in the assertion
+    // reader's refusal made the fourth print it; without the shape check in `presentationOf`
+    // the first two got the file refusals instead (2026-10-27).
+    const refused = await entrypoint([flag, value]);
+    expect(refused.code).toBe(1);
+    expect(refused.stderr).toBe(expected);
+    expect(refused.stderr).not.toContain(value);
+  });
+});
+
+describe('a redirect of the token request', () => {
+  const servers: Bun.Server<undefined>[] = [];
+  afterEach(() => {
+    for (const server of servers.splice(0)) void server.stop(true);
+  });
+
+  test('is never followed: no request reaches the other origin, and the refusal names it', async () => {
+    const elsewhere: string[] = [];
+    const other = Bun.serve({
+      port: 0,
+      fetch: async (request) => {
+        elsewhere.push(await request.text());
+        return issued();
+      },
+    });
+    servers.push(other);
+    const endpoint = Bun.serve({
+      port: 0,
+      fetch: () =>
+        new Response(null, {
+          status: 307,
+          headers: { location: `http://localhost:${String(other.port)}/steal` },
+        }),
+    });
+    servers.push(endpoint);
+    const assertionPath = join(scratch, 'redirected-token');
+    writeFileSync(assertionPath, 'workload.assertion.jwt');
+    const printed: string[] = [];
+    const refusal = runMcpCommand(
+      [
+        'token',
+        '--resource',
+        `http://127.0.0.1:${String(endpoint.port)}/mcp`,
+        '--assertion-file',
+        assertionPath,
+      ],
+      {
+        send: (input, init) => fetch(input, init),
+        monotonic: { now: () => 0 },
+        sleep: () => Promise.reject(new Error('no sleep')),
+        environment: {},
+        write: (text) => printed.push(text),
+      },
+    );
+    // Proof: following the redirect (no `redirect: 'manual'`, no 3xx check) made the helper
+    // print the other origin's token instead of this refusal (2026-10-27).
+    expect(await rejection(refusal)).toBe(
+      'the MCP token endpoint answered a redirect (HTTP 307); a token request is never redirected',
+    );
+    expect(elsewhere).toEqual([]);
+    expect(printed).toEqual([]);
   });
 });

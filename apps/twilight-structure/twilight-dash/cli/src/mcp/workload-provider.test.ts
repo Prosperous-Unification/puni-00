@@ -64,13 +64,25 @@ describe('WorkloadJwtBearerProvider', () => {
     expect(instance.tokens()).toBeUndefined();
   });
 
-  test('drops its token when the SDK asks for a new one, or invalidates it', async () => {
+  test('drops its token when the SDK asks for a new one', async () => {
     const instance = provider({ now: 0 });
     instance.saveTokens({ access_token: 'first', token_type: 'Bearer', expires_in: 3_600 });
     await instance.prepareTokenRequest();
     expect(instance.tokens()).toBeUndefined();
-    instance.saveTokens({ access_token: 'second', token_type: 'Bearer', expires_in: 3_600 });
+  });
+
+  test('drops its token when the SDK invalidates it', () => {
+    const instance = provider({ now: 0 });
+    const save = () => {
+      instance.saveTokens({ access_token: 'token', token_type: 'Bearer', expires_in: 3_600 });
+    };
+    save();
+    instance.invalidateCredentials('client');
+    expect(instance.tokens()?.access_token).toBe('token');
     instance.invalidateCredentials('tokens');
+    expect(instance.tokens()).toBeUndefined();
+    save();
+    instance.invalidateCredentials('all');
     expect(instance.tokens()).toBeUndefined();
   });
 
@@ -93,6 +105,47 @@ describe('WorkloadJwtBearerProvider', () => {
     expect(answer.status).toBe(429);
     expect(sleeps).toEqual([60_000]);
     expect(sent).toEqual([ENDPOINT.tokenUrl, ENDPOINT.tokenUrl]);
+  });
+
+  test('never follows a redirect of a token request', async () => {
+    const elsewhere: string[] = [];
+    const other = Bun.serve({
+      port: 0,
+      fetch: async (request) => {
+        elsewhere.push(await request.text());
+        return Response.json({ access_token: 'stolen', token_type: 'Bearer', expires_in: 60 });
+      },
+    });
+    const endpoint = Bun.serve({
+      port: 0,
+      fetch: () =>
+        new Response(null, {
+          status: 307,
+          headers: { location: `http://localhost:${String(other.port)}/steal` },
+        }),
+    });
+    try {
+      const local = mcpEndpointOf(`http://127.0.0.1:${String(endpoint.port)}/mcp`);
+      const instance = new WorkloadJwtBearerProvider({
+        endpoint: local,
+        credentialId: 'credential-1',
+        readAssertion: () => Promise.resolve('workload.jwt'),
+        monotonic: { now: () => 0 },
+        sleep: () => Promise.reject(new Error('no sleep')),
+      });
+      const send = instance.tokenFetch((input, init) => fetch(input, init));
+      const answer = await send(local.tokenUrl, {
+        method: 'POST',
+        body: new URLSearchParams({ assertion: 'workload.jwt' }),
+      });
+      // Proof: passing `init` unchanged (following the redirect) made this see 200
+      // (2026-10-27).
+      expect(answer.status).toBe(307);
+      expect(elsewhere).toEqual([]);
+    } finally {
+      void endpoint.stop(true);
+      void other.stop(true);
+    }
   });
 
   test('passes a 429 from /mcp through untouched', async () => {
