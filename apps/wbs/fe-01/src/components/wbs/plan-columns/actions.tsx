@@ -1,4 +1,5 @@
 import { ActionsMenu } from '../actions-menu';
+import { claimActions } from '../claim-offer';
 import type { PlanLive } from '../plan-live';
 import { statusActions } from '../status-cell';
 import { column } from './column';
@@ -37,6 +38,19 @@ export function createActionsColumn({ live }: { live: PlanLive }) {
           // status is said one way everywhere.
           ...statusActions(live.current.statusOffers(row.original), (status) => {
             live.current.chooseStatus(row.original.id, status);
+          }),
+          // Claim or Release my claim for the signed-in account's person, after
+          // the statuses because it is also about who is doing the work
+          // (`wbs-claim-display` 11.2); a Claim it cannot take says why.
+          // Proof: handing `claimActions` null here failed six cases of
+          // plan-claim-actions.test.tsx; watched 2026-10-27.
+          ...claimActions(row.original.readings.claimOffer, {
+            claim: (personId) => {
+              live.current.claimRow(row.original.id, personId);
+            },
+            release: (personId, delegated) => {
+              live.current.releaseRow(row.original.id, personId, delegated);
+            },
           }),
           {
             id: 'add-child',
