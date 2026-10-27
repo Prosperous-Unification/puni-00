@@ -2,7 +2,7 @@ import { chmod, cp, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
-import { expect, test } from 'bun:test';
+import { expect, spyOn, test } from 'bun:test';
 import { type Document, parseAllDocuments, stringify } from 'yaml';
 
 import fixture from './fixtures/observability-projection.json';
@@ -12,6 +12,8 @@ import {
   assertRenderedObservabilityProjection,
   renderObservabilityProjection,
 } from './observability-projection-render';
+import * as pinnedRendering from './observability-render';
+import { provisionObservabilityTools } from './observability-tools.fixture';
 
 const root = join(import.meta.dir, '../../..');
 const request = (placement: 'local' | 'production') => ({
@@ -292,14 +294,25 @@ test('renderer refuses a changed pinned chart before invoking it', async () => {
   );
   const projection = await createObservabilityProjection(directory, request('production'));
   const archive = join(directory, 'infra/platform/charts/eck-operator-3.5.0.tgz');
-  await writeFile(
-    join(directory, 'helm'),
-    `#!/bin/sh\nprintf broken > '${archive}'\nprintf v4.3.0\n`,
+  const tools = await provisionObservabilityTools();
+  const render = pinnedRendering.renderObservabilityReleases;
+  // Corrupt the owned copy after the wrapper revalidates source, without substituting an executable.
+  const fault = spyOn(pinnedRendering, 'renderObservabilityReleases').mockImplementation(
+    async (...arguments_) => {
+      await writeFile(archive, 'broken');
+      return render(...arguments_);
+    },
   );
-  await chmod(join(directory, 'helm'), 0o700);
-  expect(renderObservabilityProjection(directory, directory, projection)).rejects.toThrow(
-    /chart differs/,
-  );
+  try {
+    const failure: unknown = await renderObservabilityProjection(directory, tools, projection).then(
+      () => null,
+      (failure: unknown) => failure,
+    );
+    expect(failure).toBeInstanceOf(Error);
+    if (failure instanceof Error) expect(failure.message).toMatch(/chart differs/);
+  } finally {
+    fault.mockRestore();
+  }
 });
 
 test('effective parser refuses malformed YAML independently of resource membership', async () => {
