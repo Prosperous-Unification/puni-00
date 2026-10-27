@@ -20,7 +20,7 @@ spec:
         memory: 128Mi
         ephemeral-storage: 16Mi
       limits:
-        cpu: 1
+        cpu: '1'
         memory: 512Mi
         ephemeral-storage: 64Mi
     crds:
@@ -36,7 +36,7 @@ spec:
           memory: 128Mi
           ephemeral-storage: 16Mi
         limits:
-          cpu: 1
+          cpu: '1'
           memory: 512Mi
           ephemeral-storage: 64Mi
       image:
@@ -50,7 +50,7 @@ spec:
           memory: 128Mi
           ephemeral-storage: 16Mi
         limits:
-          cpu: 1
+          cpu: '1'
           memory: 512Mi
           ephemeral-storage: 64Mi
       image:
@@ -69,7 +69,7 @@ spec:
           memory: 64Mi
           ephemeral-storage: 16Mi
         limits:
-          cpu: 1
+          cpu: '1'
           memory: 256Mi
           ephemeral-storage: 64Mi
       image:
