@@ -204,3 +204,38 @@ Native cold-start costs SHALL be derived from byte-bound source artifacts throug
 - **WHEN** shared calculation is used by existing preflight
 - **THEN** memory, CPU-request overcommit, claim, replica, placement and freshness outcomes remain unchanged
 - **AND** cold start never supplies fictional Ready, Bound or UID state
+
+### Requirement: Generated capacity traits retain their evidence boundary
+
+Selected generated-workload capacity traits SHALL consume the same validated role inputs and workload normalizer as source validation. Provider-specific mapping MUST remain outside shared capacity concepts. Byte-bound source, provider/runtime pins, per-replica resource and claim facts, unassessed concurrency and unobserved enforcement MUST remain distinguishable. Source traits MUST NOT fabricate effective Pods or grant creation authority.
+
+#### Scenario: Selected provider inputs produce traits
+
+- **WHEN** the exact supported ECK and Prometheus-operator inputs for both instances are decoded
+- **THEN** named roles, sequential init order, source resource quantities, scratch and requested claims produce source-bound per-replica traits
+- **AND** unresolved operator overlap, generated-input overhead and effective runtime facts remain named blockers rather than nominal replica totals charged as complete demand
+
+#### Scenario: A named generated memory volume has no literal size limit
+
+- **WHEN** an internal source policy authorizes exactly one supported Memory volume with absent literal sizeLimit and complete application and sequential-init limits
+- **THEN** the shared normalizer derives the conservative Pod memory upper bound as max(sum(application limits), max(sequential init limits)) plus Pod overhead
+- **AND** it adds neither that bound nor overhead twice, preserves the absent source sizeLimit and records enforcement as unobserved
+- **AND** missing or wrong policy identity, unsupported volumes, invalid explicit limits or incomplete resource shapes refuse
+
+#### Scenario: Standalone metadata projection is source-policy scoped
+
+- **WHEN** the internal policy authorizes the selected standalone downwardAPI volume
+- **THEN** actual safe metadata field paths, unique relative file paths, read-only mounts and effective file modes, including zero, are retained without inventing metadata values or zero overhead
+- **AND** missing or contradictory selectors, unsafe paths, invalid modes, mixed volume sources and duplicate identities refuse before unrelated unsupported recovery
+
+#### Scenario: Default normalization remains strict
+
+- **WHEN** existing cutover or native callers omit the new source policy
+- **THEN** their accepted schemas, normalized output and first-refusal behavior remain unchanged
+- **AND** standalone downwardAPI and emptyDir without a finite literal sizeLimit remain unsupported for those callers
+
+#### Scenario: Provider or cost-bearing closure is unsupported
+
+- **WHEN** required roles, source hashes, provider/runtime identity or claim binding conflict, or an additional cost-bearing shape is unsupported
+- **THEN** malformed trusted inputs refuse and supported-but-unmodeled demand remains explicitly incomplete
+- **AND** selecting known roles never hides additional demand or relabels source evidence as an actual Pod observation
