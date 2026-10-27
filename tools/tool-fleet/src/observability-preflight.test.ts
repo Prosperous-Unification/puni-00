@@ -3233,3 +3233,29 @@ for (const side of ['source', 'observed'] as const)
       expect(response.stderr).toContain('projection-malformed');
     });
   }
+
+it('fix1 native mount metadata preserves cutover projection-malformed refusal', async () => {
+  const setup = await fixture();
+  await rewriteCandidate(setup, (source) =>
+    source.replace(
+      '          securityContext:',
+      '          volumeMounts:\n            - name: scratch\n              mountPath: /scratch\n              mountPropagation: HostToContainer\n          securityContext:',
+    ),
+  );
+  const response = await setup.run();
+  expect(response.exitCode).toBe(1);
+  expect(response.stderr.trim()).toBe('observability preflight: projection-malformed');
+});
+
+it('fix1 legacy volume validation preserves its first quantity refusal', async () => {
+  const setup = await fixture();
+  await rewriteCandidate(setup, (source) =>
+    source.replace(
+      '      containers:',
+      '      volumes:\n        - name: first\n          emptyDir:\n            sizeLimit: invalid\n        - name: later\n          configMap:\n            name: public\n          secret:\n            secretName: reference\n      containers:',
+    ),
+  );
+  const response = await setup.run();
+  expect(response.exitCode).toBe(1);
+  expect(response.stderr.trim()).toBe('observability preflight: memory-unknown');
+});

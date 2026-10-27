@@ -285,7 +285,7 @@ test('changed topology hash refuses and multiple servers remain incomplete', () 
   ).toContainEqual({ owner: 'topology', missingFact: 'eligible-one-server-topology' });
 });
 
-test('missing native resource map is identified incomplete', () => {
+test('missing native resource map refuses malformed trusted state', () => {
   const packet = change((manifest, index) => {
     if (index === 0)
       manifest.deleteIn([
@@ -299,9 +299,9 @@ test('missing native resource map is identified incomplete', () => {
         'memory',
       ]);
   });
-  expect(
-    deriveColdStartCosts(packet.frames, packet.inventory, packet.topology).blockers,
-  ).toContainEqual({ owner: 'StatefulSet:dev:store', missingFact: 'native-workload-inputs' });
+  expect(() => deriveColdStartCosts(packet.frames, packet.inventory, packet.topology)).toThrow(
+    'Cold start controller-malformed source=observability/native owner=StatefulSet:dev:store path=/',
+  );
 });
 
 for (const [name, edit, diagnostic] of [
@@ -509,3 +509,255 @@ test('DaemonSet rolling overlap remains incomplete rather than one nominal pod',
     deriveColdStartCosts(packet.frames, packet.inventory, packet.topology).blockers,
   ).toContainEqual({ owner: 'DaemonSet:dev:agent', missingFact: 'surge-and-terminating-overlap' });
 });
+
+for (const [name, path, value] of [
+  ['string replicas', ['spec', 'replicas'], '2'],
+  ['nonarray containers', ['spec', 'template', 'spec', 'containers'], 'PRIVATE-MARKER-containers'],
+  [
+    'malformed resources',
+    ['spec', 'template', 'spec', 'containers', 0, 'resources'],
+    { limits: 'PRIVATE-MARKER-bounds' },
+  ],
+] as const)
+  test(`fix1 malformed controller ${name} throws safe source context`, () => {
+    const packet = change((manifest, index) => {
+      if (index === 0) manifest.setIn([...path], value);
+    });
+    let failure: unknown;
+    try {
+      deriveColdStartCosts(packet.frames, packet.inventory, packet.topology);
+    } catch (caught) {
+      failure = caught;
+    }
+    expect(failure).toBeInstanceOf(Error);
+    if (!(failure instanceof Error)) throw new Error('Expected malformed controller refusal');
+    expect(failure.message).toBe(
+      'Cold start controller-malformed source=observability/native owner=StatefulSet:dev:store path=/',
+    );
+    expect(failure.message).not.toContain('PRIVATE-MARKER');
+    expect(failure.cause).toBeUndefined();
+  });
+for (const [name, volumes] of [
+  [
+    'multiple supported sources',
+    [
+      {
+        name: 'contradiction',
+        emptyDir: { sizeLimit: '1Mi' },
+        configMap: { name: 'PRIVATE-MARKER-map' },
+      },
+    ],
+  ],
+  [
+    'unsupported with supported source',
+    [
+      {
+        name: 'contradiction',
+        hostPath: { path: '/PRIVATE-MARKER-host' },
+        emptyDir: { sizeLimit: '1Mi' },
+      },
+    ],
+  ],
+  ['missing source', [{ name: 'PRIVATE-MARKER-empty' }]],
+  [
+    'duplicate names',
+    [
+      { name: 'duplicate', emptyDir: { sizeLimit: '1Mi' } },
+      { name: 'duplicate', emptyDir: { sizeLimit: '2Mi' } },
+    ],
+  ],
+  [
+    'contradictory projection',
+    [
+      {
+        name: 'contradiction',
+        projected: {
+          sources: [
+            {
+              secret: { name: 'PRIVATE-MARKER-secret' },
+              configMap: { name: 'PRIVATE-MARKER-map' },
+            },
+          ],
+        },
+      },
+    ],
+  ],
+  [
+    'missing downward selector',
+    [
+      {
+        name: 'contradiction',
+        projected: { sources: [{ downwardAPI: { items: [{ path: 'value' }] } }] },
+      },
+    ],
+  ],
+  [
+    'contradictory downward selector',
+    [
+      {
+        name: 'contradiction',
+        projected: {
+          sources: [
+            {
+              downwardAPI: {
+                items: [
+                  {
+                    path: 'value',
+                    fieldRef: { fieldPath: 'metadata.name' },
+                    resourceFieldRef: { resource: 'limits.memory' },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+    ],
+  ],
+] as const)
+  test(`fix1 malformed volume ${name} throws safe source context`, () => {
+    const packet = change((manifest, index) => {
+      if (index === 0) manifest.setIn(['spec', 'template', 'spec', 'volumes'], volumes);
+    });
+    let failure: unknown;
+    try {
+      deriveColdStartCosts(packet.frames, packet.inventory, packet.topology);
+    } catch (caught) {
+      failure = caught;
+    }
+    expect(failure).toBeInstanceOf(Error);
+    if (!(failure instanceof Error)) throw new Error('Expected contradictory volume refusal');
+    expect(failure.message).toBe(
+      'Cold start workload-contradiction source=observability/native owner=StatefulSet:dev:store path=/spec/template/spec',
+    );
+    expect(failure.message).not.toContain('PRIVATE-MARKER');
+    expect(failure.cause).toBeUndefined();
+  });
+test('fix1 wellformed unsupported hostPath remains an incomplete fact', () => {
+  const packet = change((manifest, index) => {
+    if (index === 0)
+      manifest.setIn(
+        ['spec', 'template', 'spec', 'volumes'],
+        [{ name: 'host', hostPath: { path: '/PRIVATE-MARKER-host' } }],
+      );
+  });
+  const ledger = deriveColdStartCosts(packet.frames, packet.inventory, packet.topology);
+  expect(ledger.state).toBe('incomplete');
+  expect(ledger.blockers).toContainEqual({
+    owner: 'StatefulSet:dev:store',
+    missingFact: 'workload-volume-unsupported',
+  });
+  expect(JSON.stringify(ledger.blockers)).not.toContain('PRIVATE-MARKER');
+});
+test('fix1 unsafe source context never appears in a malformed-input diagnostic', () => {
+  const packet = change((manifest, index) => {
+    if (index === 0) manifest.setIn(['spec', 'replicas'], 'PRIVATE-MARKER-replicas');
+  });
+  packet.frames[0].owner = 'PRIVATE-MARKER-source';
+  packet.inventory[0].owner = 'PRIVATE-MARKER-source';
+  expect(() => deriveColdStartCosts(packet.frames, packet.inventory, packet.topology)).toThrow(
+    'Cold start workload-context-malformed',
+  );
+});
+
+test('fix1 wellformed unsupported mount propagation remains incomplete', () => {
+  const packet = change((manifest, index) => {
+    if (index === 0)
+      manifest.setIn(
+        ['spec', 'template', 'spec', 'containers', 0, 'volumeMounts', 0, 'mountPropagation'],
+        'HostToContainer',
+      );
+  });
+  const ledger = deriveColdStartCosts(packet.frames, packet.inventory, packet.topology);
+  expect(ledger.blockers).toContainEqual({
+    owner: 'StatefulSet:dev:store',
+    missingFact: 'workload-shape-unsupported',
+  });
+});
+test('fix1 malformed mount propagation throws safe source context', () => {
+  const packet = change((manifest, index) => {
+    if (index === 0)
+      manifest.setIn(
+        ['spec', 'template', 'spec', 'containers', 0, 'volumeMounts', 0, 'mountPropagation'],
+        'PRIVATE-MARKER-propagation',
+      );
+  });
+  expect(() => deriveColdStartCosts(packet.frames, packet.inventory, packet.topology)).toThrow(
+    'Cold start controller-malformed source=observability/native owner=StatefulSet:dev:store path=/',
+  );
+});
+
+test('fix1 wellformed unsupported projected resource field remains incomplete', () => {
+  const packet = change((manifest, index) => {
+    if (index === 0)
+      manifest.setIn(
+        ['spec', 'template', 'spec', 'volumes'],
+        [
+          {
+            name: 'projection',
+            projected: {
+              sources: [
+                {
+                  downwardAPI: {
+                    items: [{ path: 'memory', resourceFieldRef: { resource: 'limits.memory' } }],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      );
+  });
+  expect(
+    deriveColdStartCosts(packet.frames, packet.inventory, packet.topology).blockers,
+  ).toContainEqual({ owner: 'StatefulSet:dev:store', missingFact: 'workload-volume-unsupported' });
+});
+
+for (const [name, volumes, rolling] of [
+  [
+    'unsupported volume before contradiction',
+    [
+      { name: 'host', hostPath: { path: '/unmodeled' } },
+      {
+        name: 'broken',
+        emptyDir: { sizeLimit: '1Mi' },
+        persistentVolumeClaim: { claimName: 'records' },
+      },
+    ],
+    false,
+  ],
+  [
+    'unsupported projection before contradiction',
+    [
+      {
+        name: 'projection',
+        projected: {
+          sources: [
+            {
+              downwardAPI: {
+                items: [{ path: 'memory', resourceFieldRef: { resource: 'limits.memory' } }],
+              },
+            },
+            { secret: { name: 'reference' }, configMap: { name: 'reference' } },
+          ],
+        },
+      },
+    ],
+    false,
+  ],
+  [
+    'unsupported rolling before contradiction',
+    [{ name: 'broken', emptyDir: { sizeLimit: '1Mi' }, configMap: { name: 'reference' } }],
+    true,
+  ],
+] as const)
+  test(`fix1 ordering ${name} still throws malformed state`, () => {
+    const packet = change((manifest, index) => {
+      if (index !== 0) return;
+      manifest.setIn(['spec', 'template', 'spec', 'volumes'], volumes);
+      if (rolling) manifest.setIn(['spec', 'updateStrategy', 'type'], 'RollingUpdate');
+    });
+    expect(() => deriveColdStartCosts(packet.frames, packet.inventory, packet.topology)).toThrow(
+      'Cold start workload-contradiction source=observability/native owner=StatefulSet:dev:store path=/spec/template/spec',
+    );
+  });

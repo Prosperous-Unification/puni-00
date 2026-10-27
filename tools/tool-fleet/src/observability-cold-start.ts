@@ -18,7 +18,7 @@ import {
   indexObservabilitySource,
   renderObservabilitySource,
 } from './observability-source-render';
-import { normalizeWorkload, WorkloadSpec } from './observability-workload';
+import { NativeWorkloadSpec, normalizeWorkload } from './observability-workload';
 
 /** Immutable rendered bytes. These are source evidence, never observed Pods or admission authority. */
 export interface ColdStartFrame {
@@ -73,7 +73,7 @@ const Controller = type({
     'podSuccessPolicy?': 'unknown',
     'successPolicy?': 'unknown',
     template: {
-      spec: WorkloadSpec.and({
+      spec: NativeWorkloadSpec.and({
         'restartPolicy?': 'string',
         'terminationGracePeriodSeconds?': 'number',
         'hostNetwork?': 'boolean',
@@ -123,6 +123,24 @@ function refuse(reason: string): never {
 function isPositiveInteger(count: number | undefined): count is number {
   return count !== undefined && Number.isSafeInteger(count) && count > 0;
 }
+/** Fixed categories and schema-validated identifiers provide context without serializing trusted input values or causes. */
+function refuseSourceShape(
+  category: 'controller-malformed' | 'workload-contradiction',
+  source: string,
+  owner: string,
+  path: '/' | '/spec/template/spec',
+): never {
+  const context = type({
+    source: /^[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)*$/,
+    owner: /^(?:Deployment|StatefulSet|DaemonSet|Job):[a-z0-9][a-z0-9.-]*:[a-z0-9][a-z0-9.-]*$/,
+  })({ source, owner });
+  // Proof: fix1-safe-context removal lost the unsafe-source contextual refusal.
+  if (context instanceof type.errors) return refuse('workload-context-malformed');
+  throw new Error(
+    `Cold start ${category} source=${context.source} owner=${context.owner} path=${path}`,
+  );
+}
+
 class UnsupportedWorkload extends Error {}
 
 /** Derive only one cold-create generation, with no deletion, restart, upgrade or recovery authority.
@@ -236,18 +254,63 @@ export function deriveColdStartCosts(
         continue;
       }
       const workload = Controller(manifest);
-      // Proof: Task25a native-resource-map removal dropped a missing memory-limit fact.
-      if (workload instanceof type.errors) {
-        missing(identity, 'native-workload-inputs');
+      // Proof: fix1-controller-malformed downgrade failed string-replica, nonarray-container and missing-map negatives.
+      if (workload instanceof type.errors)
+        refuseSourceShape('controller-malformed', expected.owner, identity, '/');
+      const spec = workload.spec;
+      const pod = spec.template.spec;
+      // Proof: fix1-ordering-before-concurrency early return let rolling behavior hide malformed volumes.
+      const templates = spec.volumeClaimTemplates ?? [];
+      // Proof: Task25a claim-kind removal lost the Deployment claim-template refusal.
+      if (templates.length !== 0 && kind !== 'StatefulSet') refuse('claim-template-kind');
+      // Proof: Task25a claim-template-duplicate removal lost the duplicate-template refusal.
+      if (new Set(templates.map((template) => template.metadata.name)).size !== templates.length)
+        refuse('claim-template-duplicate');
+      const volumes = [...(pod.volumes ?? [])];
+      for (const template of templates) {
+        // Proof: Task25a claim-volume-collision removal lost the explicit/template volume collision refusal.
+        if (volumes.some((volume) => volume.name === template.metadata.name))
+          refuse('claim-template-volume-collision');
+        volumes.push({
+          name: template.metadata.name,
+          persistentVolumeClaim: { claimName: template.metadata.name },
+        });
+      }
+      let model: ReturnType<typeof normalizeWorkload>;
+      try {
+        model = normalizeWorkload(
+          { ...pod, volumes },
+          {
+            memory: (quantity) => readMemoryMiB(quantity, refuse),
+            cpu: (quantity) => readCPUMilli(quantity, refuse),
+            // Proof: fix1-malformed-callback bypass downgraded contradictory source volumes to incomplete.
+            refuseMalformed: () =>
+              refuseSourceShape(
+                'workload-contradiction',
+                expected.owner,
+                identity,
+                '/spec/template/spec',
+              ),
+            refuse: (reason) => {
+              if (
+                reason === 'workload-volume-unsupported' ||
+                reason === 'workload-shape-unsupported'
+              )
+                throw new UnsupportedWorkload(reason);
+              return refuse(reason);
+            },
+          },
+        );
+      } catch (failure) {
+        if (!(failure instanceof UnsupportedWorkload)) throw failure;
+        missing(identity, failure.message);
         continue;
       }
-      const spec = workload.spec;
       // Proof: Task25a ordinal removal invented zero-based claim identities for start=10.
       if (spec.ordinals !== undefined) {
         missing(identity, 'stateful-ordinal-contract');
         continue;
       }
-      const pod = spec.template.spec;
       let pods: number;
       if (kind === 'Deployment' || kind === 'StatefulSet') {
         // Proof: Task25a replica-count removal dropped absent and zero replica facts.
@@ -328,44 +391,6 @@ export function deriveColdStartCosts(
       ) {
         // Proof: Task25a placement removal admitted a selector absent from the planned server labels.
         missing(identity, 'eligible-one-server-placement');
-        continue;
-      }
-      const templates = spec.volumeClaimTemplates ?? [];
-      // Proof: Task25a claim-kind removal lost the Deployment claim-template refusal.
-      if (templates.length !== 0 && kind !== 'StatefulSet') refuse('claim-template-kind');
-      // Proof: Task25a claim-template-duplicate removal lost the duplicate-template refusal.
-      if (new Set(templates.map((template) => template.metadata.name)).size !== templates.length)
-        refuse('claim-template-duplicate');
-      const volumes = [...(pod.volumes ?? [])];
-      for (const template of templates) {
-        // Proof: Task25a claim-volume-collision removal lost the explicit/template volume collision refusal.
-        if (volumes.some((volume) => volume.name === template.metadata.name))
-          refuse('claim-template-volume-collision');
-        volumes.push({
-          name: template.metadata.name,
-          persistentVolumeClaim: { claimName: template.metadata.name },
-        });
-      }
-      let model: ReturnType<typeof normalizeWorkload>;
-      try {
-        model = normalizeWorkload(
-          { ...pod, volumes },
-          {
-            memory: (quantity) => readMemoryMiB(quantity, refuse),
-            cpu: (quantity) => readCPUMilli(quantity, refuse),
-            refuse: (reason) => {
-              if (
-                reason === 'workload-volume-unsupported' ||
-                reason === 'workload-shape-unsupported'
-              )
-                throw new UnsupportedWorkload(reason);
-              return refuse(reason);
-            },
-          },
-        );
-      } catch (failure) {
-        if (!(failure instanceof UnsupportedWorkload)) throw failure;
-        missing(identity, failure.message);
         continue;
       }
       const source = {

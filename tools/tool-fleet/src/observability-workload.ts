@@ -127,6 +127,16 @@ const specFields = {
 
 /** Source-only zero-cost fields may remain in manifests; all cost-bearing shapes are explicit. */
 export const WorkloadSpec = type(specFields);
+// Proof: fix1-mount-propagation-enum widening admitted a malformed propagation marker.
+const NativeMount = Mount.merge({
+  'mountPropagation?': "'None'|'HostToContainer'|'Bidirectional'",
+});
+const NativeContainer = Container.merge({ 'volumeMounts?': NativeMount.array() });
+/** Recognize authored mount propagation as an explicit unsupported fact, without widening cutover's closed source/observed decoders. */
+export const NativeWorkloadSpec = WorkloadSpec.merge({
+  containers: NativeContainer.array().atLeastLength(1),
+  'initContainers?': NativeContainer.array(),
+});
 const SafeReference = type({
   name: 'string>0',
   'optional?': 'boolean',
@@ -181,11 +191,13 @@ export const ObservedWorkloadSpec = type({
   '+': 'reject',
 });
 
-type Spec = typeof WorkloadSpec.infer;
+type Spec = typeof NativeWorkloadSpec.infer;
 interface WorkloadReaders {
   readonly memory: (quantity: string) => number;
   readonly cpu: (quantity: string) => number;
   readonly refuse: (reason: string) => never;
+  /** Distinguish malformed trusted structure from supported-shape limitations; legacy callers keep the same refusal category. */
+  readonly refuseMalformed?: (reason: string) => never;
 }
 
 /** Normalize the same named resource/mount model for source and observed replicas; never infer rollout identity from images alone. */
@@ -193,6 +205,62 @@ export function normalizeWorkload(spec: Spec, readers: WorkloadReaders) {
   const { memory, cpu } = readers;
   function refuse(reason: string): never {
     return readers.refuse(reason);
+  }
+  function refuseMalformed(reason: string): never {
+    // Proof: fix1-malformed-callback bypass failed the native contradictory-volume negative; legacy fallback preserves its category.
+    if (readers.refuseMalformed !== undefined) return readers.refuseMalformed(reason);
+    return refuse(reason);
+  }
+  const sourceVolumes = spec.volumes ?? [];
+  function requireProjectionStructure(source: typeof Projection.infer): void {
+    const count = [
+      source.secret,
+      source.configMap,
+      source.downwardAPI,
+      source.serviceAccountToken,
+    ].filter((variant) => variant !== undefined).length;
+    // Proof: fix1-ordering-projection-cardinality downgrade failed the contradictory-projection negative.
+    if (count > 1 || (count === 0 && !source.unsupportedKind))
+      refuseMalformed('workload-volume-unsupported');
+    // Proof: fix1-ordering-downward-cardinality downgrade failed missing/both selector negatives.
+    if (
+      source.downwardAPI?.items.some(
+        (entry) =>
+          [entry.fieldRef, entry.resourceFieldRef].filter((selector) => selector !== undefined)
+            .length !== 1,
+      )
+    )
+      refuseMalformed('workload-volume-unsupported');
+  }
+  function requireVolumeStructure(volume: NonNullable<Spec['volumes']>[number]): void {
+    const count = [
+      volume.persistentVolumeClaim,
+      volume.emptyDir,
+      volume.configMap,
+      volume.secret,
+      volume.projected,
+      volume.ephemeral,
+      volume.csi,
+      volume.hostPath,
+      volume.downwardAPI,
+    ].filter((variant) => variant !== undefined).length;
+    // Proof: fix1-ordering-volume-cardinality downgrade failed supported/supported and hostPath/supported contradiction negatives.
+    if (count > 1) refuseMalformed('workload-volume-unsupported');
+    // Proof: fix1-ordering-missing-source downgrade failed the missing-source native negative.
+    if (count === 0 && !volume.unsupportedKind) refuseMalformed('workload-volume-unsupported');
+    // Proof: fix1-ordering-projection-traversal truncation hid a contradiction after an unsupported projection.
+    for (const source of volume.projected?.sources ?? []) requireProjectionStructure(source);
+  }
+  function requireUniqueVolumes(volumes: readonly { readonly name: string }[]): void {
+    // Proof: fix1-ordering-volume-uniqueness downgrade failed the duplicate-name native negative.
+    if (new Set(volumes.map((volume) => volume.name)).size !== volumes.length)
+      refuseMalformed('workload-volume-unsupported');
+  }
+  // Proof: fix1-ordering-native-prepass bypass hid a later contradiction; enabling it for legacy changed the first quantity refusal.
+  const checksStructureFirst = readers.refuseMalformed !== undefined;
+  if (checksStructureFirst) {
+    for (const volume of sourceVolumes) requireVolumeStructure(volume);
+    requireUniqueVolumes(sourceVolumes);
   }
   if (
     spec.unsupported ||
@@ -210,7 +278,8 @@ export function normalizeWorkload(spec: Spec, readers: WorkloadReaders) {
   // Proof: `duplicate-volume` removal/broken dependency failed `fix1 source duplicate volume names are explicitly refused` with an assertion.
   // Proof: `bad-projection` removal/broken dependency failed `fix1 source malformed projection variants are explicitly refused` with an assertion.
   // Proof: `resource-field-projection` removal/broken dependency failed `fix1 source resource-field projection is explicitly refused` with an assertion.
-  const volumes = (spec.volumes ?? []).map((volume) => {
+  const volumes = sourceVolumes.map((volume) => {
+    if (!checksStructureFirst) requireVolumeStructure(volume);
     if (
       volume.unsupportedKind ||
       volume.ephemeral !== undefined ||
@@ -219,15 +288,6 @@ export function normalizeWorkload(spec: Spec, readers: WorkloadReaders) {
       volume.downwardAPI !== undefined
     )
       refuse('workload-volume-unsupported');
-    const variants = [
-      volume.persistentVolumeClaim,
-      volume.emptyDir,
-      volume.configMap,
-      volume.secret,
-      volume.projected,
-    ].filter((variant) => variant !== undefined);
-    // Proof: `multiple-volume-variants` removal/broken dependency failed `fix1 source multiple volume variants are explicitly refused` with an assertion.
-    if (variants.length > 1) refuse('workload-volume-unsupported');
     if (volume.persistentVolumeClaim !== undefined)
       return {
         name: volume.name,
@@ -282,18 +342,8 @@ export function normalizeWorkload(spec: Spec, readers: WorkloadReaders) {
     if (volume.projected !== undefined) {
       const projected = volume.projected;
       const sources = projected.sources.map((source) => {
-        if (
-          source.unsupportedKind ||
-          [source.secret, source.configMap, source.downwardAPI, source.serviceAccountToken].filter(
-            (variant) => variant !== undefined,
-          ).length !== 1
-        )
-          refuse('workload-volume-unsupported');
-        if (
-          source.downwardAPI?.items.some(
-            (entry) => entry.resourceFieldRef !== undefined || entry.fieldRef === undefined,
-          )
-        )
+        if (source.unsupportedKind) refuse('workload-volume-unsupported');
+        if (source.downwardAPI?.items.some((entry) => entry.resourceFieldRef !== undefined))
           refuse('workload-volume-unsupported');
         const reference = (entry: typeof source.secret) =>
           entry === undefined
@@ -339,8 +389,7 @@ export function normalizeWorkload(spec: Spec, readers: WorkloadReaders) {
     }
     return refuse('workload-volume-unsupported');
   });
-  if (new Set(volumes.map((volume) => volume.name)).size !== volumes.length)
-    refuse('workload-volume-unsupported');
+  if (!checksStructureFirst) requireUniqueVolumes(volumes);
   const admitted = new Set<string>();
   if (spec.automountServiceAccountToken !== false) {
     for (const volume of spec.volumes ?? []) {
@@ -391,12 +440,14 @@ export function normalizeWorkload(spec: Spec, readers: WorkloadReaders) {
         admitted.add(volume.name);
     }
   }
-  const normalizeContainer = (container: typeof Container.infer) => {
+  const normalizeContainer = (container: typeof NativeContainer.infer) => {
     if (
       container.unsupported ||
       (container.restartPolicy !== undefined && container.restartPolicy !== '') ||
       container.volumeDevices !== undefined ||
-      container.resizePolicy !== undefined
+      container.resizePolicy !== undefined ||
+      // Proof: fix1-mount-propagation-unsupported removal silently normalized an unmodeled source mount.
+      container.volumeMounts?.some((mount) => mount.mountPropagation !== undefined)
     )
       // Proof: `restartable-init` removal/broken dependency failed `source restartable init accounting is refused instead of underestimated` with an assertion.
       refuse('workload-shape-unsupported');
