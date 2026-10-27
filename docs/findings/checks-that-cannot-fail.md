@@ -1,5 +1,31 @@
 # R5 incident catalogue
 
+## Bun throw assertions can accept a returned Error
+
+Observed on2026-10-27 with Bun1.4.4 (38afee6c8):
+`expect(() => new Error('returned')).toThrow()` passed even though its callback
+returned an Error without throwing. The test exited0 with1pass. The equivalent
+`throws(() => new Error('returned'))` from `node:assert/strict`, run by Bun,
+exited1 with `AssertionError: Missing expected exception`. A control callback
+that actually threw satisfied that strict assertion and exited0.
+
+This masked a real new constructor-validation negative: removing TurnDispatchError's
+top intent codec left the malformed version/claim cases green under the Bun matcher.
+Changing the oracle to strict `throws` made those same removed-guard cases fail;
+the separate inherited request snapshot still rejected malformed requests. No inherited
+guard was removed to strengthen the new proof. A successful constructor returning an
+Error must not satisfy a test requiring construction to throw.
+
+The finite three-file probe ran `bun test <probe.test.ts> --timeout=3000` once per
+variant, retaining source/output hashes and actual exits0/1/0 in
+`/tmp/puni-bun-returned-error-matcher-20261027/receipt.json`. The intentionally failing
+strict-return probe is evidence of the oracle distinction, not a product failure.
+Original surviving production trials remain separate from the final proof batch.
+The [dispatch verification record](../../openspec/changes/twilight-agentic-workflows/verify.md)
+records final scoped acceptance. This observation establishes that installed Bun version's
+behavior for these callbacks; it does not certify other versions or assert a matcher
+contract on their behalf.
+
 ## Bun SQLite whole-script errors can be masked
 
 Observed on 2026-10-22 with Bun1.4.2 (744846f84): Database.run executed CREATE TABLE

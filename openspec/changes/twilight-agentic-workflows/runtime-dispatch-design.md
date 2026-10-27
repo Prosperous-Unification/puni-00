@@ -175,11 +175,19 @@ Validate/snapshot the complete TurnReply and record `turn_observed` under exact 
 revisions with the distinct observation ID. Fresh stage advances the submitted run revision
 once and uses the staged attempt revision; it does not advance scope revision. Observation
 persistence uses those exact values across awaits without refreshing for intervening facts.
+After historical stage replay has priority, a fresh stage refuses an observation ID already
+present in verified local execution history. An applied or duplicate observation reply must
+acknowledge this staged run/attempt at the staged attempt revision advanced once. An older
+identical not_started reply cannot acknowledge a newer pending stage; mismatch throws with
+the actual store reply as diagnostic cause. A concurrent original winner for this same stage
+may return its exact historical acknowledgement without another turn.
 Preserve complete text, measured zero/unknown reason, finish and unresolved variants.
 Not_started, unresolved and completed preserve
 their current storage meanings. Completed means turn_returned, not accepted business
-success, released claim/capacity or successor settlement. Throwing dispatch or failed reply
-persistence retains the pending identity and original cause; no automatic redispatch.
+success, released claim/capacity or successor settlement. Expected observation-store refusal
+returns typed pending/local_refused with its actual reason and original intent/ack. Unexpected
+dispatch/persistence throws or mismatched stored acknowledgement throw TurnDispatchError
+with correlation and original cause. Neither outcome clears pending or automatically redispatches.
 
 ## 5. Integration and remaining recovery
 

@@ -60,6 +60,13 @@ The host SHALL delegate retained stage replay before fresh-ready predicates and 
 - **THEN** observation persistence refuses without refreshing authority or dispatching again, and the correlated failure preserves pending work
 - **AND** the captured save uses the submitted run revision advanced once and the stage attempt revision
 
+#### Scenario: An older observation ID is supplied for a new stage
+
+- **WHEN** a fresh stage would reuse an observation command already in verified local execution history
+- **THEN** the host refuses identity_conflict before staging or physical dispatch
+- **AND** an applied or duplicate observation reply for another staged attempt revision throws a correlated fault instead of reporting the new turn observed
+- **AND** an exact concurrent original acknowledgement for the same stage remains valid
+
 ### Requirement: Receiver boot integration follows actual test dependencies
 
 Integration SHALL use a booted be-01 listener and separate Dash worker over authenticated loopback transport, bounded process phases and awaited cleanup, observing actual histories. Nx test inputs SHALL declare consumed Dash sources; CI selection SHALL include be-01 when they change. A controlled unleased test principal SHALL NOT certify machine heartbeat, business-attempt mapping, paid-provider execution or production readiness.

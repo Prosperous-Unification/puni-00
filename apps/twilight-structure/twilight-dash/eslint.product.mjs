@@ -227,5 +227,14 @@ export default ({
       files: ['apps/twilight-structure/twilight-dash/cli/src/runs/build-claim-request.ts'],
       rules: boundary(['^@wbs/contracts$']),
     },
+    {
+      // Proof: P01/P02 removed exact consumers; P03/P04 widened alias/relative; P05 admitted dispatch-turn.ts and P06 widened to cli/src/**/*.ts. 'Dash turn dispatch' semantic policy assertions failed; P01–P04 reached explicit zero-fatal checks, P05/P06 returned empty message lists at production-peer denials.
+      // Proof: P07 added only runs/dispatch-turn.test.ts; the named unlisted-test denial failed. A separate real ESLint probe reported zero fatal errors and no diagnostics; exact restoration and the same selector passed.
+      files: [
+        'apps/twilight-structure/twilight-dash/cli/src/bridge/claim-client.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/bridge/claim-client.test.ts',
+      ],
+      rules: boundary(['^@wbs/contracts$']),
+    },
   ];
 };

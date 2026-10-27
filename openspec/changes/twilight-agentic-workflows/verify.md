@@ -2950,8 +2950,11 @@ job logs,8 checkout identities,608 browser passes and40 existing skips audited. 
 queue refusal ran no checks. New main's ordinary-claim person default was inspected;
 combined68 preparation/310assert,26 claim-core/99assert and4 real HTTP/18assert cases,
 uncached Dash typecheck and299 OpenSpec validations passed. Actual merge
-CI40419076145 is running; its full terminal outcome is not yet accepted. No feature-gate
-result is relabeled as a combined-tree host gate.
+CI40419076145 completed successfully. Root audited all10 successful raw job logs and8
+actual67773 checkout identities, including608 browser passes and40 existing skips. The
+conditional docs-only job was skipped; no feature-gate result is relabeled as a combined-tree
+host gate. The original local observer disappeared; terminal evidence capture resumed only
+after a fresh GitHub read proved completion, without restarting the workflow.
 
 The client260eb28e8, authority8119ea9fa and builder28e518103 checkpoints were normally
 committed/pushed after their independent task approvals. Claim Task2 now has196 passing
@@ -2978,7 +2981,58 @@ to recover the original paired ack. Shared receipt retention preserves actual by
 detaches the returned reference across its additional await. No POST replay, revision
 refresh, turn, release or current execution permission is inferred. Independent Task2
 review approves spec and task quality with no Critical/Important finding and separately audits
-all40 trial pairs. Normal checkpoint follows this entry. WBS030.08/150.3/010.01 notes
+all40 trial pairs. Normal checkpoint585b060d3 was committed/pushed with hooks and reviewed
+source identities preserved. WBS030.08/150.3/010.01 notes
 were updated/read back with the actual preparation merge; all remain in_progress. The
 new turn-dispatch plan is spec-valid and not yet implemented. Full packet gates, real boot,
 heartbeat/lifecycle, business-attempt mapping and complete S0/S7a remain open.
+
+## Guarded turn host and assertion oracle — 2026-10-27
+
+The new narrow project-claims reader and one-turn host retain historical stage replay,
+fresh-only dispatch, exact current claim/grant/attachment correspondence, separate finite
+server-clock lease observation, full live locator/executor checks and complete reply
+retention. Turn staging advances run/attempt, not scope; observation uses the captured cut.
+Fresh observation-ID reuse refuses before dispatch. Stored acknowledgement must name this
+stage's run/attempt/revision; an older not_started acknowledgement cannot report a newer
+pending turn observed. Expected save refusal returns typed pending with its actual reason;
+unexpected faults retain correlated TurnDispatchError. No business success/release follows.
+
+Final three-file client/memory/SQLite suites pass264tests837assert, including a second
+SQLite reader observing committed intent at executor entry and reopened reply. The real
+policy case passes1test39assert. Fresh54-node Nx graph was content/hash verified before
+four uncached Dash/tool-devsync lint/typecheck targets passed. Touched formatting/diff and
+scoped OpenSpec passed;13 inherited length warnings and earlier color-variable warning
+remain disclosed. After the small assertion/comment follow-up, the complete focused suite,
+policy case, affected lint/typecheck and format/diff passed again; no unrelated gate was
+replayed. Actual commands and outputs remain in the task report and retained raw logs.
+
+The original94 distinct host/client faults and six policy faults retain their original frozen
+tests and raw evidence. A missing worker handle interrupted T55: actual source matched that
+one saved mutant, frozen tests matched, no process remained, and only that source was
+restored from verified original bytes. Fifty-two completed trials were preserved;42 missing
+or setup-failed trials were resumed in a separate directory. The interruption is development
+orchestration evidence, not product worker-recovery proof. No initial survivor, setup/import
+failure or timeout receives credit. Original source and policy executable output is unchanged
+after adjacent Proof comments; inherited planner/history/SQL/auth guards stayed installed.
+
+Supplemental U01–U03 valid-body mutations now directly prove unresolved text/usage/reason
+retention in both providers; P07 separately proves exact unlisted-test consumer denial under
+valid policy configuration. These use strengthened frozen tests and preserve original94/six
+archives. P05 is production-peer admission; P06 broadens a wildcard and first fails production
+denial. Their earlier descriptions were corrected rather than relabeled as test-peer proof.
+The current total is97 host/client plus seven policy fault trials across both evidence sets.
+
+Root independently reproduced Bun1.4.4's returned-Error matcher hazard: callback-returned
+Error satisfies toThrow (exit0), strict assert.throws rejects it (exit1), and an actual throw
+passes strict assertion (exit0). Production T86 then visibly rejects malformed version/claim
+when its codec is removed; inherited request snapshot still rejects malformed request.
+The [incident catalogue](../../../docs/findings/checks-that-cannot-fail.md#bun-throw-assertions-can-accept-a-returned-error)
+records that bounded observation. Existing catalogue payload remains byte-identical.
+
+Independent initial Task1 review approves spec/quality without Critical/Important findings
+and audits all original94/six faults. Supplemental scoped review marks both Minor findings
+addressed with no new breakage; normal checkpoint follows this entry. Real receiver boot/CI selection, whole-packet review and exact-SHA gates remain
+required, as do heartbeat/lifecycle, numeric business-attempt mapping, outcomes/releases,
+supported recovery, other adapters/providers and CTT coordinator acceptance. Separate
+inventory/lease reads provide no atomic fence, continued lease or physical-stop proof.
