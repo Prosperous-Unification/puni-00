@@ -2,9 +2,11 @@ import { createHash } from 'node:crypto';
 import { closeSync, constants, fstatSync, openSync, readSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 
 import { type } from 'arktype';
 
+import { readTarField, readTarOctal, requireTarChecksum } from './archive-tar-header';
 import type { ObjectStoreLock } from './object-store-image';
 
 const LIMIT = 128 * 1024 * 1024;
@@ -135,31 +137,9 @@ function readMembers(bytes: Buffer): Map<string, Buffer> {
     if (++count > 32)
       // Proof: Removing the member cap lost the bounded member-count refusal; corrected many-members negative failed.
       throw new Error('Object store archive has too many members');
-    const field = (start: number, end: number): string => {
-      const segment = header.subarray(start, end);
-      const terminator = segment.indexOf(0);
-      if (terminator >= 0 && !segment.subarray(terminator).every((byte) => byte === 0))
-        // Proof: Removing NUL-tail validation accepted the hidden header suffix; ambiguous-name negative failed.
-        throw new Error('Object store archive has an ambiguous header');
-      return segment.subarray(0, terminator < 0 ? segment.length : terminator).toString('utf8');
-    };
-    const octal = (start: number, end: number): number => {
-      const text = header
-        .subarray(start, end)
-        .toString('utf8')
-        .replace(/[\0 ]+$/, '');
-      if (!/^[0-7]+$/.test(text))
-        // Proof: Removing octal validation lost the specific invalid-header refusal; octal negative failed.
-        throw new Error('Object store archive has invalid octal metadata');
-      return Number.parseInt(text, 8);
-    };
-    const checksum = header.reduce(
-      (sum, byte, position) => sum + (position >= 148 && position < 156 ? 32 : byte),
-      0,
-    );
-    if (octal(148, 156) !== checksum)
-      // Proof: Removing checksum validation accepted the altered header; checksum negative failed.
-      throw new Error('Object store archive header checksum differs');
+    const field = (start: number, end: number) => readTarField(header, start, end);
+    const octal = (start: number, end: number) => readTarOctal(header, start, end);
+    requireTarChecksum(header);
     if (
       header.subarray(257, 265).toString('binary') !== 'ustar\0' + '00' ||
       field(345, 500) !== '' ||
@@ -197,19 +177,11 @@ function readMembers(bytes: Buffer): Map<string, Buffer> {
   throw new Error('Object store archive is truncated');
 }
 
-/**
- * Capture one locked simple ustar OCI archive without extraction, network or Docker commands.
- * Validates actual referenced bytes and both import selector formats, then writes an exclusive
- * owner-only copy. Release signatures remain the build's provenance; this verifies its locked
- * output and does not manufacture new signature or human-review evidence.
- * @throws On missing/unreadable/unsupported input, incomplete identities or existing capture.
- */
-export async function captureObjectStoreArchive(
-  source: string,
-  state: string,
+function verifyArchive(
+  bytes: Buffer,
+  path: string,
   lock: Pick<ObjectStoreLock, 'image' | 'digest'>,
-): Promise<ObjectStoreArchive> {
-  const bytes = readBoundedArchive(source);
+) {
   const members = readMembers(bytes);
   const required = (name: string): Buffer => {
     const member = members.get(name);
@@ -280,10 +252,8 @@ export async function captureObjectStoreArchive(
   if ([...members.keys()].some((name) => !referenced.has(name)))
     // Proof: Removing closure validation accepted an extra SHA256 blob; unreferenced negative failed.
     throw new Error('Object store archive contains an unreferenced blob');
-  const directory = join(state, 'object-store');
-  await mkdir(directory, { mode: 0o700 });
   const archive: ObjectStoreArchive = {
-    path: join(directory, 'image.oci'),
+    path,
     image: lock.image,
     digest: lock.digest,
     config: manifest.config.digest,
@@ -306,6 +276,31 @@ export async function captureObjectStoreArchive(
     importMemoryBytes: 'unknown',
     unpackBytes: 'unknown',
   };
+  return {
+    archive,
+    layers: manifest.layers.map((layer) => ({
+      digest: layer.digest,
+      bytes: required(`blobs/sha256/${layer.digest.slice(7)}`),
+    })),
+  };
+}
+
+/**
+ * Capture one locked simple ustar OCI archive without extraction, network or Docker commands.
+ * Validates actual referenced bytes and both import selector formats, then writes an exclusive
+ * owner-only copy. Release signatures remain the build's provenance; this verifies its locked
+ * output and does not manufacture new signature or human-review evidence.
+ * @throws On missing/unreadable/unsupported input, incomplete identities or existing capture.
+ */
+export async function captureObjectStoreArchive(
+  source: string,
+  state: string,
+  lock: Pick<ObjectStoreLock, 'image' | 'digest'>,
+): Promise<ObjectStoreArchive> {
+  const bytes = readBoundedArchive(source);
+  const directory = join(state, 'object-store');
+  const { archive } = verifyArchive(bytes, join(directory, 'image.oci'), lock);
+  await mkdir(directory, { mode: 0o700 });
   await writeFile(archive.path, bytes, { flag: 'wx', mode: 0o400 });
   await writeFile(join(directory, 'archive.json'), `${JSON.stringify(archive)}\n`, {
     flag: 'wx',
@@ -321,4 +316,22 @@ export function readObjectStoreArchive(archive: ObjectStoreArchive): Buffer {
     // Proof: Removing retained-byte comparison reached import after private-copy corruption; retained-identity negative failed.
     throw new Error('Object store retained archive changed');
   return bytes;
+}
+
+/**
+ * Re-derive the complete locked archive identity before exposing ordered compressed layer views.
+ * Receipt fields are claims checked against actual bounded bytes, never descriptor authority.
+ * @throws On any existing archive refusal or disagreement with the complete retained receipt.
+ */
+export function readObjectStoreLayers(
+  receipt: ObjectStoreArchive,
+  lock: Pick<ObjectStoreLock, 'image' | 'digest'>,
+) {
+  // Proof: Removing schema validation opened the absent path before rejecting malformed unpackBytes; receipt-schema negative failed.
+  ObjectStoreArchiveSchema.assert(receipt);
+  const verified = verifyArchive(readObjectStoreArchive(receipt), receipt.path, lock);
+  if (!isDeepStrictEqual(receipt, verified.archive))
+    // Proof: Removing comparison accepted caller-forged config identity; forged-receipt-config negative failed.
+    throw new Error('Object store layer facts receipt differs from verified bytes');
+  return verified;
 }
