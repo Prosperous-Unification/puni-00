@@ -4,7 +4,8 @@ import { type } from 'arktype';
 
 import type { Toolchain } from './contracts';
 import { readCPUMilli, readMemoryMiB } from './observability-capacity';
-import { assertPodResources } from './observability-generated-capacity';
+// Proof: Task31 CI fix1 restoring the generated-capacity import reproduced all five fresh projection CLI initialization failures.
+import { assertPodResources } from './observability-pod-resources';
 
 /** Standard source envelope; postRenderers require separate exact contextual validation. */
 export const PlatformHelmRelease = type({

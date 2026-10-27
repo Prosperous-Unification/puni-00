@@ -9,11 +9,11 @@ import { runChecked } from './check-cli';
 import { authenticatePreparedHelm } from './check-provision';
 import { readToolchain, type Toolchain } from './contracts';
 import { readMemoryMiB } from './observability-capacity';
-import { assertPodResources } from './observability-generated-capacity';
 import {
   type RehearsalStageBuild,
   validateObservabilityRehearsalBuilds,
 } from './observability-parity-rehearsal';
+import { assertPodResources } from './observability-pod-resources';
 import {
   linkRehearsalImage,
   readRehearsalObligations,
