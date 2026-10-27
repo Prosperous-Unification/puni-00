@@ -425,3 +425,65 @@ it('uses POSIX prefix paths and refuses prefix traversal', async () => {
   const unsafe = await prepare([tar([{ name: 'a', prefix: '../outside' }])]);
   await rejects(readObjectStoreLayerFacts(unsafe.archive, unsafe.lock), /path/);
 });
+
+for (const target of ['.', '..']) {
+  it(`refuses whiteout deletion target ${target}`, async () => {
+    const fixture = await prepare([tar([{ name: `dir/.wh.${target}` }])]);
+    await rejects(readObjectStoreLayerFacts(fixture.archive, fixture.lock), /whiteout/);
+  });
+}
+it('preserves valid whiteout deletion basenames and the explicit opaque marker', async () => {
+  const fixture = await prepare([
+    tar([
+      { name: 'dir/.wh.name' },
+      { name: 'dir/.wh..config' },
+      { name: 'dir/.wh....' },
+      { name: 'dir/.wh..wh..opq' },
+    ]),
+  ]);
+  const facts = await readObjectStoreLayerFacts(fixture.archive, fixture.lock);
+  expect(facts.totals).toMatchObject({
+    entries: 4,
+    whiteouts: 4,
+    logicalFileBytes: 0,
+    regularFiles: 0,
+  });
+});
+
+for (const [label, ancestor] of [
+  ['regular file', { name: 'dir', bytes: Buffer.from('x') }],
+  ['symlink', { name: 'dir', kind: '2', link: 'target' }],
+  ['hardlink', { name: 'dir', kind: '1', link: 'target' }],
+] as const) {
+  for (const order of ['ancestor first', 'descendant first']) {
+    it(`refuses ${label} ancestor with ${order}`, async () => {
+      const descendant = { name: 'dir/nested/file', bytes: Buffer.from('abc') };
+      const entries = order === 'ancestor first' ? [ancestor, descendant] : [descendant, ancestor];
+      const fixture = await prepare([
+        tar([{ name: 'target', bytes: Buffer.from('t') }, ...entries]),
+      ]);
+      await rejects(readObjectStoreLayerFacts(fixture.archive, fixture.lock), /ancestor/);
+    });
+  }
+}
+for (const order of ['ancestor first', 'descendant first']) {
+  it(`preserves explicit nested directory headers with ${order}`, async () => {
+    const directories = [
+      { name: 'dir/', kind: '5' },
+      { name: 'dir/nested/', kind: '5' },
+    ];
+    const descendant = { name: 'dir/nested/file', bytes: Buffer.from('abc') };
+    const entries =
+      order === 'ancestor first'
+        ? [...directories, descendant]
+        : [descendant, ...directories.reverse()];
+    const fixture = await prepare([tar(entries)]);
+    const facts = await readObjectStoreLayerFacts(fixture.archive, fixture.lock);
+    expect(facts.totals).toMatchObject({
+      entries: 3,
+      directories: 2,
+      regularFiles: 1,
+      logicalFileBytes: 3,
+    });
+  });
+}

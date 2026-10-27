@@ -84,6 +84,7 @@ type Counts = ReturnType<typeof emptyCounts>;
 function inspectHeader(
   header: Buffer,
   paths: Map<string, string>,
+  directories: Set<string>,
   limits: Limits,
   counts: Counts,
 ): number {
@@ -112,13 +113,19 @@ function inspectHeader(
   if (paths.has(path))
     // Proof: Removing uniqueness accepted ./a plus a; duplicate-path negative failed.
     throw new Error('Object store layer has a duplicate path');
+  if (kind !== '5' && directories.has(path))
+    // Proof: Removing this refusal accepted a regular ancestor after its descendant; descendant-first negative failed. Removing the directory exemption failed the valid late-directory control.
+    throw new Error('Object store layer replaces a required directory ancestor');
   const ancestors = path.split('/');
   ancestors.pop();
   while (ancestors.length > 0) {
-    const ancestor = paths.get(ancestors.join('/'));
+    const ancestorPath = ancestors.join('/');
+    const ancestor = paths.get(ancestorPath);
     if (ancestor !== undefined && ancestor !== '5')
       // Proof: Removing ancestor validation accepted dir/a beneath a symlink; ancestor negative failed.
       throw new Error('Object store layer path has a non-directory ancestor');
+    // Proof: Dropping this requirement accepted a later symlink ancestor; descendant-first symlink negative failed.
+    directories.add(ancestorPath);
     ancestors.pop();
   }
   const size = readTarOctal(header, 124, 136);
@@ -132,12 +139,15 @@ function inspectHeader(
   const basename = path.slice(path.lastIndexOf('/') + 1);
   const whiteout = basename.startsWith('.wh.');
   if (whiteout) {
+    const target = basename.slice(4);
     if (
       (kind !== '0' && kind !== '\0') ||
       size !== 0 ||
-      (basename !== '.wh..wh..opq' && (basename === '.wh.' || basename.slice(4).startsWith('.wh.')))
+      (basename !== '.wh..wh..opq' &&
+        (target === '' || target === '.' || target === '..' || target.startsWith('.wh.')))
     )
       // Proof: Removing whiteout validation accepted a payload-bearing deletion record; whiteout negative failed.
+      // Proof: Removing the dot or dotdot target exclusion accepted .wh.. or .wh...; each deletion-target negative failed.
       throw new Error('Object store layer has an ambiguous or unsupported whiteout');
     counts.whiteouts++;
   } else if (kind === '0' || kind === '\0') {
@@ -168,6 +178,7 @@ async function inspectLayer(bytes: Buffer, limits: Limits, totals: Counts) {
   const counts = emptyCounts();
   counts.compressedBytes = bytes.length;
   const paths = new Map<string, string>();
+  const directories = new Set<string>();
   let header = Buffer.alloc(512);
   let headerBytes = 0;
   let payloadBytes = 0;
@@ -223,7 +234,7 @@ async function inspectLayer(bytes: Buffer, limits: Limits, totals: Counts) {
               if (totals.entries + counts.entries >= limits.entries)
                 // Proof: Removing the aggregate header cap accepted two layers above one-entry limit; member-bound negative failed.
                 throw new Error('Object store layer member count exceeds bound');
-              payloadBytes = inspectHeader(header, paths, limits, counts);
+              payloadBytes = inspectHeader(header, paths, directories, limits, counts);
               paddingBytes = (512 - (payloadBytes % 512)) % 512;
             }
             headerBytes = 0;
@@ -248,7 +259,9 @@ async function inspectLayer(bytes: Buffer, limits: Limits, totals: Counts) {
 /**
  * Completely inspect verified gzip-compressed GNU/POSIX ustar layers without extraction.
  * Supports regular files, directories, prior-file hardlinks, lexical root-confined symlinks
- * and empty regular OCI whiteouts. PAX, longname, sparse, devices and other extensions refuse.
+ * and empty regular OCI whiteouts with valid deletion basenames or the explicit opaque marker.
+ * Ancestors must remain directories regardless of header order. PAX, longname, sparse, devices
+ * and other extensions refuse.
  * Contributions are summed across layers without overwrite/deletion credits. Decoded and
  * logical bytes do not bound filesystem allocation or total process/import memory.
  * Optional limits only tighten parser ceilings; decoder chunks and the source watermark use 64KiB.
