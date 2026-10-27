@@ -189,6 +189,65 @@ describe('buildRequest', () => {
   it('does not send a body for an operation that declares none', () => {
     expect(buildRequest(READ, { id: 'p1' }, CONFIG).headers['content-type']).toBeUndefined();
   });
+
+  // `wbs-mcp-agent-surface` M14, task 3.4: `/api/projects/{id}/claims` with `..` would
+  // normalise to `/api/claims`, another operation.
+  const CLAIMS: DerivedTool = {
+    name: 'getApiProjectsByIdClaims',
+    description: 'irrelevant here',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    method: 'get',
+    path: '/api/projects/{id}/claims',
+    locations: { id: 'path' },
+  };
+
+  it('refuses an empty, "." or ".." path value before any be-01 request', async () => {
+    for (const id of ['..', '.', '']) {
+      const be01 = stub(json(200, {}));
+      const failure = await caughtFailure(callTool(CLAIMS, { id }, CONFIG, be01.fetch));
+      expect(failure).toBeInstanceOf(ToolInputRefused);
+      if (!(failure instanceof ToolInputRefused)) throw new Error('expected ToolInputRefused');
+      expect(failure.details).toEqual({
+        kind: 'dot_segment',
+        toolName: 'getApiProjectsByIdClaims',
+        parameterName: 'id',
+      });
+      expect(be01.calls).toHaveLength(0);
+    }
+    // A value holding dots among other characters names a row and is sent, escaped.
+    expect(buildRequest(CLAIMS, { id: '...' }, CONFIG).url).toBe(
+      'https://dev.wbs.bulletpoints.club/api/projects/.../claims',
+    );
+  });
+
+  it('refuses a value that would move the route', async () => {
+    const be01 = stub(json(200, {}));
+    const outcome = await caughtFailure(
+      callTool(CLAIMS, { id: 'x/../../claims' }, CONFIG, be01.fetch),
+    );
+    const sent = be01.calls.map((call) => new URL(call.url).pathname);
+    // Either it is sent to the template's own route (the encoder keeps the value one segment),
+    // or it is refused before be-01 is asked (the route check); never to `/api/claims`.
+    expect(sent.every((path) => /^\/api\/projects\/[^/]+\/claims$/.test(path))).toBe(true);
+    if (sent.length === 0) expect(outcome).toBeInstanceOf(ToolInputRefused);
+    else expect(sent).toEqual(['/api/projects/x%2F..%2F..%2Fclaims/claims']);
+  });
+
+  it('keeps a path prefix of WBS_API_URL in the route it checks', () => {
+    expect(
+      buildRequest(CLAIMS, { id: 'p1' }, { ...CONFIG, WBS_API_URL: 'https://wbs.example/be/' }).url,
+    ).toBe('https://wbs.example/be/api/projects/p1/claims');
+  });
+
+  it('sends mcp-01 service headers beside the caller bearer', () => {
+    const request = buildRequest(READ, { id: 'p1' }, CONFIG, 'grant', {
+      'x-mcp-internal-auth': 'secret',
+    });
+    expect(request.headers).toEqual({
+      authorization: 'Bearer grant',
+      'x-mcp-internal-auth': 'secret',
+    });
+  });
 });
 
 describe('callTool', () => {

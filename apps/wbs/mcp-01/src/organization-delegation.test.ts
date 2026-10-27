@@ -103,6 +103,9 @@ function fixture(
           wbs_groups: ['dev:wbs:read', 'dev:wbs:write'],
         }),
       organizations,
+      reportFault: (fault) => {
+        throw fault;
+      },
     },
   );
   return { oauth, recorded, store };

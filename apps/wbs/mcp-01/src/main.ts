@@ -8,8 +8,8 @@ import {
 } from '@wbs/observability';
 
 import { loadConfig, type McpConfig } from './config';
+import type { DeploymentFaultReporter } from './deployment-fault';
 import { type McpOAuthHandler, startHttpServer } from './http';
-import type { MachineGrantDefect } from './machine-grant-client';
 import { mcpOAuthFromEnv, type OAuthRouteEvidence } from './oauth';
 import { type OpenApiDocument, readDocument, toolsFromDocument } from './openapi-tools';
 import { createServer } from './server';
@@ -43,7 +43,7 @@ export interface McpApplicationDeps {
     env: Readonly<Record<string, string | undefined>>,
     routeEvidence?: (evidence: OAuthRouteEvidence) => void,
     fetchImpl?: FetchLike,
-    reportMachineGrantFault?: (fault: MachineGrantDefect) => void,
+    reportFault?: DeploymentFaultReporter,
   ) => ApplicationOAuth;
   readonly startHttpServer: (
     makeServer: () => ReturnType<typeof createServer>,
@@ -89,11 +89,12 @@ export function startMcpApplication(deps: McpApplicationDeps = productionDeps): 
   // Proof: on 2026-09-21, passing `[]` here exposed the owned Basic credential in the production
   // diagnostic line while the public MCP envelope remained generic.
   const reportUnexpectedToolFailure = createUnexpectedToolFailureReporter(logger, secrets);
-  // A fault be-01's machine grant answer revealed is reported here, redacted like every other
-  // line, and the client is answered 502 (`wbs-mcp-agent-surface` M3).
-  // Proof: 2026-10-27, building this policy with `[]` made `reports a machine grant fault
+  // A deployment fault (an unmodeled be-01 answer, a missing or wrong service secret, activation
+  // markers that disagree) is reported here, redacted like every other line, and the client is
+  // answered 502 (`wbs-mcp-agent-surface` M3, M13).
+  // Proof: 2026-10-27, building this policy with `[]` made `reports a deployment fault
   // redacted` (main.test.ts) find the secret in the failure line.
-  const redactMachineGrantFault = createFailureRedaction(secrets);
+  const redactDeploymentFault = createFailureRedaction(secrets);
   const oauth = deps.mcpOAuthFromEnv(
     config,
     process.env,
@@ -104,9 +105,9 @@ export function startMcpApplication(deps: McpApplicationDeps = productionDeps): 
     (fault) => {
       logger.error(
         {
-          err: registerReportedFailure(reportFailure(fault, { redact: redactMachineGrantFault })),
+          err: registerReportedFailure(reportFailure(fault, { redact: redactDeploymentFault })),
         },
-        'MCP machine grant fault',
+        'MCP deployment fault',
       );
     },
   );
@@ -167,7 +168,10 @@ export function startMcpApplication(deps: McpApplicationDeps = productionDeps): 
     {
       tool_count: tools.length,
       wbs_api_url: config.WBS_API_URL,
-      organization_delegation: config.INTERNAL_AUTH_SECRET === undefined ? 'off' : 'on',
+      organization_delegation:
+        config.INTERNAL_AUTH_SECRET === undefined && config.MCP_BE_INTERNAL_SECRET === undefined
+          ? 'off'
+          : 'on',
       port: http.port,
       path: '/mcp',
     },

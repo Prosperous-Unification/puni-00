@@ -133,7 +133,14 @@ function server(
               wbs_groups: ['dev:wbs:read', 'dev:wbs:write'],
             })
           : Promise.reject(new Error('not an upstream token')),
-      ...(organizations === undefined ? {} : { organizations }),
+      ...(organizations === undefined
+        ? {}
+        : {
+            organizations,
+            reportFault: (fault) => {
+              throw fault;
+            },
+          }),
     },
   );
 }
@@ -648,6 +655,23 @@ describe('pre-activation access, refresh and code refusal', () => {
       const { callback } = await consent(oauth);
       expect(callback.searchParams.get('error')).toBe('temporarily_unavailable');
       expect(callback.searchParams.get('code')).toBeNull();
+    } finally {
+      store.close();
+    }
+  });
+
+  it('never forwards a sessionless token after activation', async () => {
+    const path = storePath();
+    new McpSessionStore(path, [KEY]).close();
+    const store = new McpSessionStore(path, [KEY]);
+    try {
+      const before = server(store, ACTIVATED_ONE);
+      // Before activation a sessionless upstream caller keeps today's forwarding.
+      expect(await before.bearerFor(null, 'upstream-token', ['read'])).toBe('upstream-token');
+      raiseEpoch(path);
+      expect(await rejection(before.bearerFor(null, 'upstream-token', ['read']))).toBeInstanceOf(
+        Error,
+      );
     } finally {
       store.close();
     }

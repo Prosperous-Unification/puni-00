@@ -1,6 +1,7 @@
 import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
 import { type } from '@wbs/validation';
 
+import { McpDeploymentFault } from './deployment-fault';
 import type { Concealed } from './token-request';
 import type { FetchLike } from './wbs-client';
 
@@ -58,7 +59,7 @@ export interface MachineGrantClient {
  * fault, never a client's refusal: it propagates, so the token request fails
  * as the server's and is reported, and no client is told its credential is bad.
  */
-export class MachineGrantDefect extends Error {}
+export class MachineGrantDefect extends McpDeploymentFault {}
 
 const ISSUED = type({
   grant: 'string',

@@ -154,7 +154,9 @@ who linked several methods acts as one user whichever one they used.
 
 ## Organizations
 
-With `INTERNAL_AUTH_SECRET` set to be-01's own value, consent after activation
+With `MCP_BE_INTERNAL_SECRET` or `INTERNAL_AUTH_SECRET` set to be-01's own value
+(the dedicated one alone is sent, in `x-mcp-internal-auth`, whenever it is set:
+the secret cutover of `wbs-mcp-agent-surface` M14), consent after activation
 asks be-01 which organizations the user may bind: one is chosen implicitly,
 several show a choice page, none refuses with `access_denied`. The
 organization, local user and upstream issuer are stored on the code, refresh
@@ -165,9 +167,12 @@ header can name another organization, and another organization's project
 answers 404. Every request rereads the family's membership; a removed member's
 request answers 401 and its refresh `invalid_grant`. A be-01 401 refreshes the
 upstream token and asks for a new delegation, never forwarding the raw token.
-A direct upstream token (not an mcp-01 session) and a session consented before
-activation reach be-01 unbound and are refused with `no_active_organization`.
-Unset, mcp-01 forwards the upstream token as before. Contract and deployment
+Once mcp-01's credential epoch is activated, `/mcp` accepts no upstream token
+(M13): an Auth0 token is `401 invalid_token` and be-01 is asked nothing. Before
+that, a direct upstream token is forwarded only while be-01 says it is not
+activated either; be-01 activated beside mcp-01's epoch 0 is a deployment fault,
+reported and answered `502 server_error`. Neither secret set, mcp-01 forwards the
+upstream token as before. Contract and deployment
 keys: `docs/auth-integration.md`, "MCP organization delegation".
 
 ### Consent as an agent person
@@ -214,8 +219,25 @@ the assertion's or rotated secret's end. Every key failure is `401
 invalid_client` with a Basic challenge, every assertion failure `400
 invalid_grant`, before activation too; nothing falls back to the upstream
 verifier. Dynamic registration refuses both grants. Without the secret, or in
-gateway mode, both grants answer `unsupported_grant_type`. `/mcp` does not admit
-these tokens yet (the change's section 3).
+gateway mode, both grants answer `unsupported_grant_type`.
+
+### Machine tokens at `/mcp`
+
+`/mcp` admits a machine token by signature, issuer, audience and `exp` alone,
+plus this replica's refused set (`src/machine-admission.ts`); no store is read,
+so any replica holding the signing keys and the secret serves it (M5). Each
+tool call presents be-01's grant from the token with the secret in
+`x-mcp-internal-auth`, never the access token, and be-01 rereads the credential
+every time. The token's scope is enforced before be-01 is asked. be-01's
+refusals map per M3: `unknown_identity` (revoked, expired or unbound) is the tool
+error `machine_credential_refused`, after which this replica answers that token
+`401 invalid_token`; `unknown_grant_key` and `invalid_token` make the request
+`401 invalid_token`, so the client fetches a new token; `internal_unauthorized`
+or any other 401 is a deployment fault, reported and answered `502`. A machine
+token at `/revoke` is `400 unsupported_token_type`, at refresh `invalid_grant`.
+In gateway mode a token carrying `token_use: machine` is `401` and never
+forwarded (M11). Path values that are empty, `.` or `..`, or that would change
+the route once the URL is parsed, are refused before any be-01 request (M14).
 
 ## Durable sessions and key rotation
 

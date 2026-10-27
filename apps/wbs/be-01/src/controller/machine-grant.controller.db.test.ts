@@ -741,4 +741,40 @@ describe('the existing mcp-01 routes during the secret cutover', () => {
     expect(refused.status).toBe(401);
     expect(await refused.json()).toEqual({ error: 'internal_unauthorized' });
   });
+
+  // Task 3.7: the delegation route every consent call needs. mcp-01 sends the dedicated secret
+  // alone once it is configured, and an older mcp-01 still sends x-internal-auth, until release
+  // N+1 drops it. This harness composes no delegation signing key, so an admitted request is
+  // answered by the route itself (`403 delegation_inactive`), never as the secret's refusal.
+  it('admit either secret on /internal/mcp/delegation', async () => {
+    const delegation = async (headers: Record<string, string>) => {
+      const answer = await h.request('/internal/mcp/delegation', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${h.token('dany')}`,
+          ...headers,
+        },
+        body: JSON.stringify({
+          organizationId: 'org-a',
+          userId: h.userId('dany'),
+          client: 'client-1',
+          grant: 'family-1',
+          scope: 'read',
+        }),
+      });
+      return { status: answer.status, body: (await answer.json()) as unknown };
+    };
+    const dedicated = await delegation({ [MCP_INTERNAL_SECRET_HEADER]: SECRET });
+    const legacy = await delegation({ 'x-internal-auth': GATEWAY_SECRET });
+    // Proof: with `mcp-internal` admitting the dedicated secret alone (the `internalSecretOf`
+    // half dropped in identity.ts), `legacy` answered internal_unauthorized; with it admitting
+    // x-internal-auth alone, `dedicated` did; watched 2026-10-27.
+    expect(legacy).toEqual(dedicated);
+    expect(dedicated.body).not.toEqual({ error: 'internal_unauthorized' });
+    expect(await delegation({})).toEqual({
+      status: 401,
+      body: { error: 'internal_unauthorized' },
+    });
+  });
 });

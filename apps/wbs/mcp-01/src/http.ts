@@ -6,11 +6,40 @@ import { canonicalMcpResourceOf, mcpAuthorizationServerOf } from '@wbs/contracts
 
 import { authenticateCaller } from './caller-auth';
 import { type McpConfig, offersMachineGrants } from './config';
+import { McpDeploymentFault } from './deployment-fault';
+import { MachineCaller } from './machine-admission';
 import { CLIENT_CREDENTIALS_GRANT, JWT_BEARER_GRANT } from './token-request';
 import { EdgeGate } from './wbs-client';
 
 const HEALTH_PATHS = new Set(['/health/liveness', '/health/readiness', '/health/alb-readiness']);
 const MCP_SCOPES = ['wbs:read', 'wbs:write', 'wbs:editor'] as const;
+
+/**
+ * The prefix of the groups claim's WBS scopes (`dev:wbs:read`): `prod` in production, else
+ * `dev`. The token endpoint signs machine tokens' groups with it and `/mcp` reads them back.
+ */
+export function groupPrefixOf(env: Readonly<Record<string, string | undefined>>): 'prod' | 'dev' {
+  return env['NODE_ENV'] === 'production' ? 'prod' : 'dev';
+}
+
+/** `401 invalid_token` with the RFC 9728 challenge, so a client re-fetches or reauthorizes. */
+function invalidTokenResponse(config: McpConfig, presentedToken: boolean): Response {
+  const resource = new URL(config.MCP_PUBLIC_URL);
+  const resourceMetadata = new URL('/.well-known/oauth-protected-resource', resource);
+  const invalidToken = presentedToken ? ', error="invalid_token"' : '';
+  return Response.json(
+    { error: presentedToken ? 'invalid_token' : 'unauthorized' },
+    {
+      status: 401,
+      headers: {
+        'WWW-Authenticate': `Bearer resource_metadata="${resourceMetadata.href}"${invalidToken}`,
+      },
+    },
+  );
+}
+
+/** A deployment fault, already reported: the client is told only that the server failed. */
+const SERVER_ERROR = () => Response.json({ error: 'server_error' }, { status: 502 });
 
 export function healthResponse(url: URL): Response | undefined {
   return HEALTH_PATHS.has(url.pathname) ? Response.json({ status: 'ok' }) : undefined;
@@ -109,7 +138,7 @@ export async function mcpHttpResponse(
   if (oauthResponse !== undefined) return oauthResponse;
   if (url.pathname !== '/mcp') return new Response('Not found', { status: 404 });
 
-  const groupPrefix = env['NODE_ENV'] === 'production' ? 'prod' : 'dev';
+  const groupPrefix = groupPrefixOf(env);
   const groupsClaim = env['AUTH_GROUPS_CLAIM'] ?? 'wbs_groups';
   let authInfo;
   try {
@@ -123,21 +152,28 @@ export async function mcpHttpResponse(
   } catch (cause) {
     if (cause instanceof EdgeGate)
       return Response.json({ error: 'temporarily_unavailable' }, { status: 503 });
-    const resource = new URL(config.MCP_PUBLIC_URL);
-    const resourceMetadata = new URL('/.well-known/oauth-protected-resource', resource);
-    const presentedToken = /^Bearer [^\s]+$/i.test(request.headers.get('authorization') ?? '');
-    const invalidToken = presentedToken ? ', error="invalid_token"' : '';
-    return Response.json(
-      { error: presentedToken ? 'invalid_token' : 'unauthorized' },
-      {
-        status: 401,
-        headers: {
-          'WWW-Authenticate': `Bearer resource_metadata="${resourceMetadata.href}"${invalidToken}`,
-        },
-      },
+    // Reported where it was found (M13); never a verdict on the caller's token.
+    // Proof: answering it 401 failed `a raw upstream Bearer is a reported fault while the
+    // markers disagree` (organization-delegation.boot.test.ts); watched 2026-10-27.
+    if (cause instanceof McpDeploymentFault) return SERVER_ERROR();
+    return invalidTokenResponse(
+      config,
+      /^Bearer [^\s]+$/i.test(request.headers.get('authorization') ?? ''),
     );
   }
-  return await transport.handleRequest(request, { authInfo });
+  const answered = await transport.handleRequest(request, { authInfo });
+  // A machine caller's calls decide the HTTP answer when be-01 could not verify its grant or the
+  // deployment failed (M3); otherwise the JSON-RPC body stands, refusals as tool errors.
+  const machine = authInfo.extra?.['machine'];
+  if (machine instanceof MachineCaller && machine.httpRefusal !== null) {
+    // Proof: with this mapping removed, `answers a missing or wrong secret 502…` and `answers a
+    // grant be-01 cannot verify 401 invalid_token…` (machine-admission.test.ts) saw 200;
+    // watched 2026-10-27.
+    return machine.httpRefusal === 'server_error'
+      ? SERVER_ERROR()
+      : invalidTokenResponse(config, true);
+  }
+  return answered;
 }
 
 /**

@@ -37,9 +37,16 @@ export type FetchLike = (
   init: { method: string; headers: Record<string, string>; body?: string },
 ) => Promise<Response>;
 
-/** be-01 rejected the caller credential, so its local MCP session must end. */
+/**
+ * be-01 rejected the caller credential with a 401, so a consent session must end. `code` is
+ * be-01's own error code when its body carried one; a machine caller's call is judged by it
+ * (`wbs-mcp-agent-surface` M3), never by the message.
+ */
 export class UpstreamRejected extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly code?: string,
+  ) {
     super(message);
     this.name = 'UpstreamRejected';
   }
@@ -99,6 +106,16 @@ type ToolInputRefusalDetails =
       readonly parameterName: string;
       readonly location: 'path' | 'query';
       readonly receivedType: string;
+    }
+  | {
+      readonly kind: 'dot_segment';
+      readonly toolName: string;
+      readonly parameterName: string;
+    }
+  | {
+      readonly kind: 'route_changed';
+      readonly toolName: string;
+      readonly path: string;
     };
 
 function toolInputRefusalMessage(details: ToolInputRefusalDetails): string {
@@ -112,6 +129,10 @@ function toolInputRefusalMessage(details: ToolInputRefusalDetails): string {
       return `${details.toolName} needs the path parameter "${details.parameterName}" and it was not given, so ${details.path} cannot be built.`;
     case 'non_scalar_url':
       return `${details.toolName}: ${details.location} parameter "${details.parameterName}" must be a string, number or boolean; received ${details.receivedType}. Every ${details.location} parameter be-01 declares is scalar.`;
+    case 'dot_segment':
+      return `${details.toolName}: path parameter "${details.parameterName}" must not be empty, "." or "..", which would change the route ${details.toolName} calls rather than name a row.`;
+    case 'route_changed':
+      return `${details.toolName}: the path parameters would send this call to another route than ${details.path}, so it was not sent.`;
     default: {
       const unreachable: never = details;
       throw new Error(`Unknown tool input refusal: ${String(unreachable)}`);
@@ -162,12 +183,18 @@ const asUrlValue = (
  * @throws {ToolInputRefused} if an input is undeclared, a path parameter is missing, or a URL
  * value is not scalar. The first has nowhere to go; the second leaves a literal `{id}` that
  * be-01 answers 404 to as if the row were gone; the third would become `[object Object]`.
+ * Also if a path value is empty, `.` or `..`, or the URL would not parse back to the expanded
+ * template: either would send the call to another route.
+ *
+ * `serviceHeaders` are mcp-01's own (a machine caller's `x-mcp-internal-auth`), sent beside the
+ * caller's bearer.
  */
 export function buildRequest(
   tool: DerivedTool,
   input: Readonly<Record<string, unknown>>,
   config: McpConfig,
   callerToken?: string,
+  serviceHeaders: Readonly<Record<string, string>> = {},
 ): WbsRequest {
   const query = new URLSearchParams();
   const body: Record<string, unknown> = {};
@@ -208,6 +235,15 @@ export function buildRequest(
         },
       });
     }
+    // `encodeURIComponent` leaves `.` intact, so `..` would climb a segment once the URL is
+    // parsed, and an empty value would merge two (`wbs-mcp-agent-surface` M14).
+    // Proof: with this refusal removed, `refuses an empty, "." or ".." path value before any
+    // be-01 request` (wbs-client.test.ts) sent `{..}` as `/api/claims`; watched 2026-10-27.
+    if (value === '' || value === '.' || value === '..') {
+      throw new ToolInputRefused({
+        details: { kind: 'dot_segment', toolName: tool.name, parameterName: name },
+      });
+    }
     return encodeURIComponent(value);
   });
 
@@ -227,10 +263,23 @@ export function buildRequest(
   if (declaresBody) headers['content-type'] = 'application/json';
 
   const queryString = query.toString();
+  const base = config.WBS_API_URL.replace(/\/+$/, '');
+  const url = `${base}${path}${queryString === '' ? '' : `?${queryString}`}`;
+  // The route is the template's, whatever a value holds: what is sent must parse back to the
+  // expanded template, so no encoding gap can move the call (M14). be-01's routing stays the
+  // second line, since a proxy may still normalise what is sent.
+  // Proof: with the encoder replaced by the identity function, `x/../../claims` was refused
+  // here by `refuses a value that would move the route` (wbs-client.test.ts), and reached
+  // be-01's fake as `/api/claims` once this check was also removed; watched 2026-10-27.
+  if (new URL(url).pathname !== `${new URL(base).pathname.replace(/\/+$/, '')}${path}`) {
+    throw new ToolInputRefused({
+      details: { kind: 'route_changed', toolName: tool.name, path: tool.path },
+    });
+  }
   return {
     method: tool.method.toUpperCase(),
-    url: `${config.WBS_API_URL.replace(/\/+$/, '')}${path}${queryString === '' ? '' : `?${queryString}`}`,
-    headers,
+    url,
+    headers: { ...headers, ...serviceHeaders },
     ...(declaresBody ? { body: JSON.stringify(body) } : {}),
   };
 }
@@ -288,6 +337,7 @@ function refusal(
   if (response.status === 401) {
     throw new UpstreamRejected(
       `${head} The caller access token is expired, invalid, or lacks the issuer/audience be-01 trusts.${trimmed === '' ? '' : `\n${trimmed}`}`,
+      code,
     );
   }
   return text(`${head}${trimmed === '' ? '' : `\n${trimmed}`}`, true);
@@ -307,8 +357,9 @@ export async function callTool(
   config: McpConfig,
   fetchImpl: FetchLike = fetch,
   callerToken?: string,
+  serviceHeaders: Readonly<Record<string, string>> = {},
 ): Promise<ToolTextResult> {
-  const request = buildRequest(tool, input, config, callerToken);
+  const request = buildRequest(tool, input, config, callerToken, serviceHeaders);
   const response = await fetchImpl(request.url, {
     method: request.method,
     headers: { ...request.headers },

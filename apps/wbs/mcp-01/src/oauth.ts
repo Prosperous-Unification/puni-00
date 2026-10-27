@@ -31,8 +31,11 @@ import {
   SignJWT,
 } from 'jose';
 
+import type { CallerAdmission } from './caller-auth';
 import { type McpConfig, offersMachineGrants } from './config';
-import type { McpOAuthHandler } from './http';
+import { type DeploymentFaultReporter, McpDeploymentFault } from './deployment-fault';
+import { groupPrefixOf, type McpOAuthHandler } from './http';
+import { MachineCaller, machineIdentityOf, RefusedMachineTokens } from './machine-admission';
 import {
   type IssuedMachineGrant,
   type MachineGrantAnswer,
@@ -216,6 +219,11 @@ export const NO_TOKEN_ENDPOINT_LIMITS: TokenEndpointLimit = () => null;
 export interface MachineGrantSettings {
   /** be-01's grant route, the only verifier of a key or an assertion. */
   readonly client: MachineGrantClient;
+  /**
+   * `MCP_BE_INTERNAL_SECRET`, sent beside the grant on every be-01 call a machine token makes
+   * (M14); the grant alone acts as no one.
+   */
+  readonly secret: string;
   /** `MCP_MACHINE_TOKEN_TTL`, in seconds, before jitter. */
   readonly tokenTtlSeconds: number;
   /** A uniform draw from [0, 1) for the jitter; `Math.random` when absent. */
@@ -226,8 +234,15 @@ export interface MachineGrantSettings {
    * redacting the deployment's secrets, as `main.ts` composes it; the client
    * is then answered `502 server_error` (M3).
    */
-  readonly reportFault: (fault: MachineGrantDefect) => void;
+  readonly reportFault: DeploymentFaultReporter;
 }
+
+/**
+ * be-01's activation marker is set while mcp-01's credential epoch is still 0 (M13): the
+ * activation runbook moves both in one procedure, so this is a deployment fault, never a mode
+ * in which an upstream token is forwarded.
+ */
+export class ActivationMarkersDisagree extends McpDeploymentFault {}
 
 /** At most this many consent ends are reported to be-01 per sweep. */
 const CONSENT_END_REPORT_BATCH = 100;
@@ -262,6 +277,11 @@ interface Options {
   revocationFailure?: () => void;
   /** Present, the token endpoint answers the machine grants; absent, `unsupported_grant_type`. */
   machineGrants?: MachineGrantSettings;
+  /**
+   * Reports a deployment fault found while admitting a caller ({@link ActivationMarkersDisagree});
+   * required with {@link organizations}, the only way mcp-01 can ask be-01 for its marker.
+   */
+  reportFault?: DeploymentFaultReporter;
 }
 
 type UpstreamClient = Pick<
@@ -324,6 +344,9 @@ export class McpOAuthServer implements McpOAuthHandler {
   private readonly reauthKey: Buffer;
   private readonly revocationFailure: () => void;
   private readonly machineGrants: MachineGrantSettings | undefined;
+  private readonly reportFault: DeploymentFaultReporter | undefined;
+  /** This replica's refused machine tokens (M3); never a store (M5). */
+  private readonly refusedMachineTokens: RefusedMachineTokens;
   /** Absent, as for a server built without it, machine grants are refused like gateway mode. */
   private readonly authMode: McpConfig['MCP_AUTH_MODE'] | undefined;
 
@@ -375,7 +398,11 @@ export class McpOAuthServer implements McpOAuthHandler {
     this.routeEvidence = options.routeEvidence;
     this.organizations = options.organizations;
     this.machineGrants = options.machineGrants;
+    this.reportFault = options.reportFault;
+    this.refusedMachineTokens = new RefusedMachineTokens(this.now);
     this.authMode = config.MCP_AUTH_MODE;
+    if (this.organizations !== undefined && this.reportFault === undefined)
+      throw new Error('organization authority needs a deployment fault reporter');
     // Proof: 2026-10-21, without this refusal `refuses to start at the activated epoch without
     // organization authority` (credential-epoch.test.ts) constructed the server.
     if (
@@ -383,7 +410,7 @@ export class McpOAuthServer implements McpOAuthHandler {
       this.store.credentialEpoch() >= ACTIVATED_CREDENTIAL_EPOCH
     )
       throw new Error(
-        'MCP credential epoch is activated; mcp-01 needs INTERNAL_AUTH_SECRET to bind consents',
+        'MCP credential epoch is activated; mcp-01 needs INTERNAL_AUTH_SECRET or MCP_BE_INTERNAL_SECRET to bind consents',
       );
     this.readRefreshAuthority =
       options.readRefreshAuthority ?? options.organizations?.readRefreshAuthority;
@@ -435,20 +462,27 @@ export class McpOAuthServer implements McpOAuthHandler {
     return response;
   }
 
+  /**
+   * Verifies a bearer as {@link admitCaller} does, without refreshing a consent session's
+   * upstream token: a machine token's claims, a consent token's, or before activation an
+   * upstream token's.
+   */
   async verify(token: string): Promise<JwtClaims> {
+    let payload: JWTPayload;
     try {
-      return await this.verifyLocal(token);
+      payload = await this.verifySignature(token);
     } catch (cause) {
       this.refuseOwnToken(token, cause);
-      return await this.verifyUpstream(token);
+      return await this.admitUpstream(token);
     }
+    if (payload['token_use'] === 'machine') return this.admitMachine(payload).claims;
+    return this.consentClaimsOf(payload);
   }
 
   /**
    * Rethrows `cause` for a token that names mcp-01's own issuer, so an
-   * mcp-01 token that failed local verification (a machine token, which
-   * `/mcp` admits only with the change's section 3, or an ended session's) is
-   * never handed to the upstream verifier.
+   * mcp-01 token that failed local verification (an expired machine token, or
+   * an ended session's) is never handed to the upstream verifier.
    */
   private refuseOwnToken(token: string, cause: unknown): void {
     let issuer: unknown;
@@ -463,23 +497,47 @@ export class McpOAuthServer implements McpOAuthHandler {
     if (issuer === this.issuer) throw cause;
   }
 
-  async callerSessionFor(
-    token: string,
-  ): Promise<{ readonly upstreamToken: string; readonly mcpSessionId: string | null }> {
-    let payload: JwtClaims;
+  /**
+   * Admits one `/mcp` bearer (`wbs-mcp-agent-surface` M5, M13), dispatching on the verified
+   * token's `token_use`:
+   * - `machine`: signature, issuer, audience, `exp`, the grant, and this replica's refused set;
+   *   no store is read or written, so another replica sharing only the keys and the secret
+   *   admits it too;
+   * - `consent`, or none for a consent token issued before slice 2 (until
+   *   `MCP_ACCESS_TOKEN_TTL` after that release): the session store, and the session's
+   *   upstream token refreshed when due;
+   * - any other `token_use` is refused;
+   * - a token of another issuer is an upstream token, admitted only before activation.
+   *
+   * @throws {ActivationMarkersDisagree} when be-01 is activated and mcp-01's epoch is not.
+   * @throws {EdgeGate} when the identity provider is unavailable for a due refresh.
+   * Any other refusal throws a plain error, which `/mcp` answers `401 invalid_token`.
+   */
+  async admitCaller(token: string): Promise<CallerAdmission> {
+    let payload: JWTPayload;
     try {
-      payload = await this.verifyLocal(token);
+      payload = await this.verifySignature(token);
     } catch (cause) {
       this.refuseOwnToken(token, cause);
-      await this.verifyUpstream(token);
-      return { upstreamToken: token, mcpSessionId: null };
+      const claims = await this.admitUpstream(token);
+      return { claims, upstreamToken: token, mcpSessionId: null, machine: null };
     }
+    // Proof: with this dispatch removed, `a headless agent's key reaches /mcp as its machine
+    // person` (machine-admission.boot.test.ts) answered 401: the session store knows no machine
+    // token; watched 2026-10-27.
+    if (payload['token_use'] === 'machine') return this.admitMachine(payload);
+    const claims = this.consentClaimsOf(payload);
     const family = this.sessionOf(payload);
-    const sessionId = payload['jti'];
+    const sessionId = payload.jti;
     if (typeof sessionId !== 'string') throw new Error('verified MCP token has no session id');
     try {
       const current = await this.refreshUpstreamIfNeeded(family);
-      return { upstreamToken: current.upstreamAccessToken, mcpSessionId: sessionId };
+      return {
+        claims,
+        upstreamToken: current.upstreamAccessToken,
+        mcpSessionId: sessionId,
+        machine: null,
+      };
     } catch (cause) {
       if (cause instanceof UpstreamRefreshUnavailable)
         throw new EdgeGate('The identity provider is temporarily unavailable. Retry this request.');
@@ -489,8 +547,93 @@ export class McpOAuthServer implements McpOAuthHandler {
     }
   }
 
+  /** {@link admitCaller} for a consent or upstream bearer; a machine token has no session. */
+  async callerSessionFor(
+    token: string,
+  ): Promise<{ readonly upstreamToken: string; readonly mcpSessionId: string | null }> {
+    const admitted = await this.admitCaller(token);
+    if (admitted.machine !== null) throw new Error('a machine token has no MCP session');
+    return { upstreamToken: admitted.upstreamToken, mcpSessionId: admitted.mcpSessionId };
+  }
+
   async upstreamTokenFor(token: string): Promise<string> {
     return (await this.callerSessionFor(token)).upstreamToken;
+  }
+
+  /**
+   * A machine token, already verified by signature, issuer, audience and `exp` (M5). Admitted
+   * only in standalone mode with the machine grant settings, which carry the secret its be-01
+   * calls need, and only while this replica has not seen its credential refused. Reads no store.
+   * The access token itself is never sent to be-01 (M1); the grant it carries is.
+   */
+  private admitMachine(payload: JWTPayload): CallerAdmission & { readonly claims: JwtClaims } {
+    const settings = this.machineGrants;
+    // Proof: with the mode test removed, `refuses a machine token where no machine admission is
+    // composed` (machine-admission.test.ts) admitted one in gateway mode; watched 2026-10-27.
+    if (settings === undefined || this.authMode !== 'standalone')
+      throw new Error('this mcp-01 admits no machine token');
+    const identity = machineIdentityOf(payload);
+    // Proof: with this check skipped, `answers the call after a revocation commits
+    // machine_credential_refused, then 401…` and the batch revocation test
+    // (machine-admission.test.ts) answered the next request 200; watched 2026-10-27.
+    if (this.refusedMachineTokens.isRefused(identity.jti))
+      throw new Error('machine credential refused on this replica');
+    return {
+      claims: { ...payload, sub: identity.credentialId },
+      upstreamToken: identity.grant,
+      mcpSessionId: null,
+      machine: new MachineCaller(
+        identity,
+        settings.secret,
+        this.refusedMachineTokens,
+        settings.reportFault,
+      ),
+    };
+  }
+
+  /**
+   * A consent token's claims after its session row is found (M5): `token_use: consent`, or none
+   * for one issued before `token_use` existed.
+   */
+  private consentClaimsOf(payload: JWTPayload): JwtClaims {
+    const use = payload['token_use'];
+    // Proof: with this refusal removed, `refuses a consent session token of any use but consent`
+    // (oauth.test.ts) admitted a live session's token of use `other`; watched 2026-10-27.
+    if (use !== undefined && use !== 'consent') throw new Error('MCP token is of an unknown use');
+    this.sessionOf(payload);
+    if (typeof payload.sub !== 'string' || payload.sub === '') {
+      throw new Error('verified MCP token has no subject');
+    }
+    return { ...payload, sub: payload.sub };
+  }
+
+  /**
+   * A token of another issuer (M13). After activation none is accepted and nothing is
+   * forwarded. Before it, the token is verified upstream and, when mcp-01 can ask be-01, be-01
+   * must still be unactivated: a set be-01 marker beside mcp-01's epoch 0 is reported as a
+   * deployment fault and refused.
+   */
+  private async admitUpstream(token: string): Promise<JwtClaims> {
+    // Proof: with this refusal removed, `an Auth0 token on /mcp is 401 once both markers are
+    // set…` (organization-delegation.boot.test.ts) answered 502 instead; with it, the markers
+    // check and `bearerFor`'s throw all removed (the fallback restored), 200; watched 2026-10-27.
+    if (this.store.credentialEpoch() >= ACTIVATED_CREDENTIAL_EPOCH)
+      throw new Error('mcp-01 accepts no upstream token after activation');
+    const claims = await this.verifyUpstream(token);
+    if (this.organizations === undefined) return claims;
+    const consent = await this.organizations.organizationsFor(token);
+    // Proof: with this check removed, `a raw upstream Bearer is a reported fault while the
+    // markers disagree` (organization-delegation.boot.test.ts) forwarded the token (200);
+    // watched 2026-10-27.
+    if (consent.kind === 'activated') {
+      const fault = new ActivationMarkersDisagree(
+        "be-01 is activated but mcp-01's credential epoch is 0; run the activation runbook's epoch step",
+      );
+      this.reportFault?.(fault);
+      throw fault;
+    }
+    if (consent.kind === 'refused') throw new Error('be-01 refused the upstream token');
+    return claims;
   }
 
   /**
@@ -541,7 +684,15 @@ export class McpOAuthServer implements McpOAuthHandler {
     upstreamToken: string,
     scopes: readonly string[],
   ): Promise<string> {
-    if (mcpSessionId === null) return upstreamToken;
+    if (mcpSessionId === null) {
+      // After activation no caller without a session is admitted (M13); one reaching here is a
+      // defect, and its raw token is never forwarded.
+      // Proof: with this throw removed, `never forwards a sessionless token after activation`
+      // (credential-epoch.test.ts) resolved with the upstream token; watched 2026-10-27.
+      if (this.store.credentialEpoch() >= ACTIVATED_CREDENTIAL_EPOCH)
+        throw new Error('mcp-01 forwards no sessionless token after activation');
+      return upstreamToken;
+    }
     const family = this.store.familyForSession(mcpSessionId, this.now());
     // Proof: forwarding the upstream token for a missing session made `ends a
     // removed member's session` in `organization-delegation.test.ts` resolve
@@ -594,15 +745,6 @@ export class McpOAuthServer implements McpOAuthHandler {
     const family = this.store.familyForSessionId(mcpSessionId);
     this.store.revokeSessionFamily(mcpSessionId, this.now());
     if (family !== null) await this.revokeRefreshToken(family.upstreamRefreshToken);
-  }
-
-  private async verifyLocal(token: string): Promise<JwtClaims> {
-    const payload = await this.verifySignature(token);
-    this.sessionOf(payload);
-    if (typeof payload.sub !== 'string' || payload.sub === '') {
-      throw new Error('verified MCP token has no subject');
-    }
-    return { ...payload, sub: payload.sub };
   }
 
   private sessionOf(payload: JWTPayload): FamilyRecord {
@@ -1830,6 +1972,13 @@ export class McpOAuthServer implements McpOAuthHandler {
       } catch {
         payload = null;
       }
+      // A machine token has no family to end and cannot be revoked here (M5): its credential's
+      // revocation in WBS ends it at the next call. RFC 7009 §2.2.1's error says so, rather
+      // than a 200 that would claim it ended.
+      // Proof: with this refusal removed, `answers unsupported_token_type for a machine token at
+      // /revoke…` (machine-admission.test.ts) answered 200; watched 2026-10-27.
+      if (payload?.['token_use'] === 'machine')
+        return Response.json({ error: 'unsupported_token_type' }, { status: 400 });
       const family =
         payload === null
           ? this.store.familyForRefreshToken(token)
@@ -1956,9 +2105,12 @@ export function mcpOAuthFromEnv(
   env: Readonly<Record<string, string | undefined>>,
   routeEvidence?: (evidence: OAuthRouteEvidence) => void,
   fetchImpl?: FetchLike,
-  reportMachineGrantFault?: (fault: MachineGrantDefect) => void,
+  reportFault?: DeploymentFaultReporter,
 ): McpOAuthServer {
-  const secret = config.INTERNAL_AUTH_SECRET;
+  // Either service secret composes organization authority during the cutover (M14), which then
+  // sends the dedicated one alone whenever it is set (`mcpServiceHeaderOf`).
+  const offersOrganizations =
+    config.INTERNAL_AUTH_SECRET !== undefined || config.MCP_BE_INTERNAL_SECRET !== undefined;
   let client: BrowserOidcClient | undefined;
   const get = () => (client ??= browserOidcClientFromEnv(env, { allowMissingAccessExpiry: true }));
   let upstreamVerifier: TokenVerifier | undefined;
@@ -1976,20 +2128,13 @@ export function mcpOAuthFromEnv(
     },
     {
       groupsClaim: env['AUTH_GROUPS_CLAIM'] ?? 'wbs_groups',
-      groupPrefix: env['NODE_ENV'] === 'production' ? 'prod' : 'dev',
+      groupPrefix: groupPrefixOf(env),
       routeEvidence,
       verifyUpstream,
-      ...(secret === undefined
-        ? {}
-        : {
-            organizations: organizationAuthority(
-              { ...config, INTERNAL_AUTH_SECRET: secret },
-              fetchImpl,
-            ),
-          }),
+      // Composed before organization authority, so a missing reporter names the grants first.
       // Proof: with this condition `machineSecret === undefined` alone, `composes machine
       // grants from the environment in standalone mode only` (machine-token.test.ts) composed
-      // them in gateway mode, demanding a fault reporter there; watched 2026-10-27.
+      // them in gateway mode, demanding a fault reporter for them there; watched 2026-10-27.
       ...(machineSecret === undefined || !offersMachineGrants(config)
         ? {}
         : {
@@ -1998,22 +2143,35 @@ export function mcpOAuthFromEnv(
                 { ...config, MCP_BE_INTERNAL_SECRET: machineSecret },
                 fetchImpl,
               ),
+              secret: machineSecret,
               tokenTtlSeconds,
               limit: NO_TOKEN_ENDPOINT_LIMITS,
-              reportFault: requiredFaultReporter(reportMachineGrantFault),
+              reportFault: requiredFaultReporter(reportFault, 'machine grants are offered'),
             },
           }),
+      // Proof: composing it for INTERNAL_AUTH_SECRET alone, as before the cutover, failed
+      // `composes machine grants from the environment in standalone mode only`
+      // (machine-token.test.ts): gateway mode then asked no reporter; watched 2026-10-27.
+      ...(offersOrganizations
+        ? {
+            organizations: organizationAuthority(config, fetchImpl),
+            reportFault: requiredFaultReporter(reportFault, 'organization authority is composed'),
+          }
+        : {}),
       ...oauthPersistenceFromEnv(env),
     },
   );
 }
 
-/** The machine grant fault reporter `main.ts` composes; offering the grants without one is a defect. */
+/**
+ * The deployment fault reporter `main.ts` composes; offering machine grants or organization
+ * authority without one is a defect.
+ */
 function requiredFaultReporter(
-  report: ((fault: MachineGrantDefect) => void) | undefined,
-): (fault: MachineGrantDefect) => void {
-  if (report === undefined)
-    throw new Error('machine grants are offered but no fault reporter was composed');
+  report: DeploymentFaultReporter | undefined,
+  composed: string,
+): DeploymentFaultReporter {
+  if (report === undefined) throw new Error(`${composed} but no fault reporter was composed`);
   return report;
 }
 

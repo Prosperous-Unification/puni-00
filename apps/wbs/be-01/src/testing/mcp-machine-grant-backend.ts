@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 
-import { importMachineGrantKeys } from '../runtime/machine-grant';
+import { importMachineGrantKeys, type MachineGrantKey } from '../runtime/machine-grant';
 import { LocalOidcIssuers } from './local-oidc-issuer';
 import { addAgentPerson, issueApiKey, revokeMachineCredential } from './machine-credential-fixture';
 import { OrganizationHarness } from './organization-harness';
@@ -26,6 +26,9 @@ import { OrganizationHarness } from './organization-harness';
  *   signs a workload token of the trusted issuer for audience `wbs`;
  * - `POST /__fixture/fail-next-issuance` makes the next audit write throw, a
  *   failure inside the grant route (task 2.3);
+ * - `POST /__fixture/rotate-grant-key` replaces the grant key with a fresh one
+ *   and keeps no previous key: a rotation that dropped `_PREVIOUS` early, so
+ *   every grant already issued is `unknown_grant_key` (task 3.2);
  * - `GET /__fixture/audit` lists the organization audit rows.
  */
 const secret = process.env['MCP_TEST_BE_SECRET'];
@@ -39,14 +42,15 @@ const ci = await issuers.add('ci.test');
 let failNextIssuance = false;
 let trustedIssuerId: string | undefined;
 
+/** Read at every signature and verification, so the rotation fixture can replace its key. */
+const grantKeys: { current: MachineGrantKey; previous: MachineGrantKey | null } =
+  await importMachineGrantKeys({ current: randomBytes(32).toString('base64url'), previous: null });
+
 const h = OrganizationHarness.openComposedWith({
   trustedIssuers: { fetch: issuers.fetch, configuredIssuer: null },
   machineGrants: {
     secret,
-    keys: await importMachineGrantKeys({
-      current: randomBytes(32).toString('base64url'),
-      previous: null,
-    }),
+    keys: grantKeys,
     authorizationServer,
     newId: () => {
       if (failNextIssuance) {
@@ -127,6 +131,15 @@ async function fixture(request: Request, path: string): Promise<Response | undef
     return Response.json({
       assertion: typ === undefined ? await ci.sign(claims) : await ci.signTyped(claims, typ),
     });
+  }
+  if (request.method === 'POST' && path === '/__fixture/rotate-grant-key') {
+    const rotated = await importMachineGrantKeys({
+      current: randomBytes(32).toString('base64url'),
+      previous: null,
+    });
+    grantKeys.current = rotated.current;
+    grantKeys.previous = null;
+    return Response.json({ rotated: true });
   }
   if (request.method === 'POST' && path === '/__fixture/fail-next-issuance') {
     failNextIssuance = true;

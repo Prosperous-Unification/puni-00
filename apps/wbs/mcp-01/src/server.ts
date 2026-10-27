@@ -7,6 +7,8 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 import type { McpConfig } from './config';
+import { McpDeploymentFault } from './deployment-fault';
+import { MachineCaller } from './machine-admission';
 import type { DerivedTool } from './openapi-tools';
 import type { UnexpectedToolFailureReporter } from './unexpected-tool-failure';
 import type { FetchLike, ToolTextResult } from './wbs-client';
@@ -189,6 +191,14 @@ export function createServer(deps: ServerDeps): Server {
     }
 
     const authInfo = extra.authInfo;
+    const machine = machineCallerOf(authInfo);
+    // A machine token's calls carry its grant and mcp-01's secret, never a session's delegation
+    // or the access token itself (M3, M14).
+    // Proof: with this branch removed, `presents the grant with the secret, and never the access
+    // token` (machine-admission.test.ts) saw be-01 asked with no secret, and five more tests
+    // there failed; watched 2026-10-27.
+    if (machine !== null)
+      return await callAsMachine(tool, request.params.arguments ?? {}, machine, authInfo.token);
     const sessionOfCall = extraSessionId(authInfo);
     // One be-01 call with the credential `upstreamToken` stands behind: asked
     // afresh each time, because a delegation is good for exactly one call.
@@ -288,6 +298,61 @@ export function createServer(deps: ServerDeps): Server {
     }
   });
 
+  /**
+   * One be-01 call for a machine caller, and what its refusal means (M3): `unknown_identity`
+   * is the credential's refusal, the tool error `machine_credential_refused`, after which this
+   * replica refuses the token; `unknown_grant_key` and `invalid_token` make the request
+   * `401 invalid_token`, so the client re-fetches; any other 401, `internal_unauthorized`
+   * included, is a deployment fault, reported and answered `502`.
+   */
+  async function callAsMachine(
+    tool: DerivedTool,
+    input: Readonly<Record<string, unknown>>,
+    machine: MachineCaller,
+    grant: string,
+  ): Promise<ReturnType<typeof asCallToolResult>> {
+    try {
+      return asCallToolResult(
+        await callTool(tool, input, config, fetchImpl, grant, machine.serviceHeaders()),
+      );
+    } catch (cause) {
+      if (cause instanceof UpstreamRejected) {
+        // Proof: with `credentialRefused()` dropped here, `answers the call after a revocation
+        // commits machine_credential_refused, then 401…` (machine-admission.test.ts) answered
+        // the next request 200; entering the secret fault below as well failed `answers a
+        // missing or wrong secret 502…, and keeps the token once the secret is fixed`;
+        // watched 2026-10-27.
+        if (cause.code === 'unknown_identity') {
+          machine.credentialRefused();
+          return asCallToolResult(
+            errorText(
+              `${tool.name} could not be called: machine_credential_refused. be-01 refused this machine credential: it is revoked, expired, or its person is no longer bound to a member. A new token is refused the same way until an admin issues a credential.`,
+            ),
+          );
+        }
+        // Proof: answering these as tool errors (`grantRejected()` dropped) failed `answers a
+        // grant be-01 cannot verify 401 invalid_token, so the client re-fetches`
+        // (machine-admission.test.ts) with 200; watched 2026-10-27.
+        if (cause.code === 'unknown_grant_key' || cause.code === 'invalid_token') {
+          machine.grantRejected();
+          return asCallToolResult(
+            errorText(`${tool.name} could not be called: invalid_token. Fetch a new token.`),
+          );
+        }
+        machine.deploymentFault(
+          new McpDeploymentFault(
+            `be-01 answered a machine call to ${tool.method.toUpperCase()} ${tool.path} HTTP 401 ${cause.code ?? 'without a code'}`,
+          ),
+        );
+        return asCallToolResult(errorText(`${tool.name} could not be called: server_error.`));
+      }
+      if (cause instanceof EdgeGate) return asCallToolResult(errorText(cause.message));
+      if (cause instanceof ToolInputRefused)
+        return asCallToolResult(errorText(`${tool.name} could not be called: ${cause.message}`));
+      return reportToolFailure(tool.name, cause);
+    }
+  }
+
   function reportToolFailure(
     toolName: string,
     caught: unknown,
@@ -305,6 +370,13 @@ export function createServer(deps: ServerDeps): Server {
   }
 
   return server;
+}
+
+function machineCallerOf(authInfo: unknown): MachineCaller | null {
+  if (typeof authInfo !== 'object' || authInfo === null || !('extra' in authInfo)) return null;
+  const extra = authInfo.extra;
+  if (typeof extra !== 'object' || extra === null || !('machine' in extra)) return null;
+  return extra.machine instanceof MachineCaller ? extra.machine : null;
 }
 
 function extraSessionId(authInfo: unknown): string | null {
