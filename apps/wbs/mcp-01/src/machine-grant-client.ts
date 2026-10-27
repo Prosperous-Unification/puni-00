@@ -94,6 +94,10 @@ export function machineGrantClient(
       try {
         response = await fetchImpl(url, {
           method: 'POST',
+          // Never followed: the key and the secret stay with be-01, and a 3xx is a defect.
+          // Proof: following redirects made `never follows a redirect…` (machine-token.test.ts)
+          // see the secret at the other origin; watched 2026-10-27.
+          redirect: 'manual',
           headers: {
             // Proof: sending it as x-internal-auth failed `sends the key with the dedicated
             // secret…` (machine-token.test.ts); watched 2026-10-27.

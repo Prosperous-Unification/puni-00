@@ -233,7 +233,11 @@ refusals map per M3: `unknown_identity` (revoked, expired or unbound) is the too
 error `machine_credential_refused`, after which this replica answers that token
 `401 invalid_token`; `unknown_grant_key` and `invalid_token` make the request
 `401 invalid_token`, so the client fetches a new token; `internal_unauthorized`
-or any other 401 is a deployment fault, reported and answered `502`. A machine
+or any other 401 is a deployment fault, reported and answered `502`. That 401 or
+502 replaces the whole response, a batch's included, so the answers to calls
+be-01 already served (writes too) are not seen: a client that retries after
+it must make its writes idempotent under retry. mcp-01 never follows a redirect
+from be-01, so the secret and the grant stay there. A machine
 token at `/revoke` is `400 unsupported_token_type`, at refresh `invalid_grant`.
 In gateway mode a token carrying `token_use: machine` is `401` and never
 forwarded (M11). Path values that are empty, `.` or `..`, or that would change

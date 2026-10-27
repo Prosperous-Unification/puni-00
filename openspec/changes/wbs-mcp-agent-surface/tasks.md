@@ -251,6 +251,13 @@
 - [ ] 3.6 Hosted connector check on dev: claude.ai consent with `none` is unchanged. Record it.
 - [x] 3.7 Secret cutover (M14), with each secret tested on `/internal/mcp/delegation`. The old
       secret is removed in release N+1 (a follow-up).
+- [ ] 3.8 Remove the consent path's `use === undefined` branch (`consentClaimsOf` in
+      `apps/wbs/mcp-01/src/oauth.ts`; design M5), so a token without `token_use` is refused.
+      Due once `MCP_ACCESS_TOKEN_TTL` (default 1 h) has passed since the slice-2 release
+      (PR #761, merged into the plan branch 2026-10-27) reached each deployment: on dev, one
+      hour after this plan branch is merged and deployed; on prod, one hour after the prod
+      swap that carries it. Owner: whoever lands the prod swap. Negative: keep the branch, and
+      a re-signed consent token without `token_use` stays admitted.
 
 ## 4. Limits and the source address
 

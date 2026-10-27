@@ -33,6 +33,8 @@ export function machineIdentityOf(payload: JWTPayload): MachineIdentity {
   };
   if (payload['token_use'] !== 'machine') throw new Error('not a machine token');
   const run = payload['wbs_run'];
+  // Proof: with this check removed, `refuses a machine token whose run claim is not text`
+  // (machine-admission.test.ts) admitted runs '' and 5; watched 2026-10-27.
   if (run !== undefined && (typeof run !== 'string' || run === ''))
     throw new Error('machine token has a malformed wbs_run claim');
   if (typeof payload.exp !== 'number') throw new Error('machine token has no exp');
@@ -132,6 +134,8 @@ export class MachineCaller {
   /** Reports `fault`, and the request answers `502 server_error`. */
   deploymentFault(fault: McpDeploymentFault): void {
     this.reportFault(fault);
+    // Proof: keeping an earlier outcome here (`??=`) made `answers a batch meeting a key fault
+    // and a secret fault 502` (machine-admission.test.ts) answer 401; watched 2026-10-27.
     this.#httpRefusal = 'server_error';
   }
 }

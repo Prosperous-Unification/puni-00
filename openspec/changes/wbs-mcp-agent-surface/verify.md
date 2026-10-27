@@ -641,7 +641,9 @@ key faults, expiry, `token_use`, `/revoke` and refresh, gateway mode, the refuse
    are dot segments. The route check compares `new URL(url).pathname` with
    `WBS_API_URL`'s own path plus the expanded template, so a path prefix is kept.
 10. **The refused set's bound.** Each refusal drops the entries whose token has expired, so the
-    set holds at most the refused tokens still alive; it is never a store (M5).
+    set holds at most the refused tokens still alive; it is never a store (M5). How many
+    tokens one credential can have alive is bounded only by M10's per-credential issuance
+    limit, which arrives with task 4.2; until then the bound is the token endpoint's rate.
 11. **The e2e test names the person.** Main's #758 (`claimWorkItem` defaults `personId` to the
     caller) is not in the plan branch at 25b60f291 (`git merge-base --is-ancestor` said no), so
     `machine-admission.boot.test.ts` claims with `personId: 'claire'`, and also shows a claim
@@ -721,6 +723,37 @@ The model property (seed 20261027, 100 runs of up to 14 commands) failed under e
 five refused-set sabotages above and passes restored; its run asserts every branch was
 reached (a refused call, a refused request, a secret fault, a key fault, a batch split by the
 revocation).
+
+### Review of PR #764 (Fable, high), how each item is addressed
+
+Fixed on the same branch, 2026-10-27. Each new or changed check was watched failing with the
+fault injected, then restored (each restore checked byte for byte); the `Proof:` comment sits
+beside it. "Unit" is `machine-admission.test.ts`.
+
+| Item   | Fix                                                                                                                                                                                               | Fault injected                                       | Test that failed                                                                                                                                         |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S1     | `admitUpstream` reports any failure of the markers check as an `McpDeploymentFault` (502); `OrganizationAuthorityDefect` now extends `McpDeploymentFault` (also N4)                               | the catch rethrowing                                 | unit `answers 502 and reports a fault when be-01 cannot answer the markers check` (be-01's 503: no fault reported); the same test covers a refused fetch |
+| S2a    | kept the `refused` refusal                                                                                                                                                                        | line removed                                         | unit `refuses an upstream token be-01 refuses at the markers check, forwarding nothing` (200, forwarded)                                                 |
+| S2b    | 502 wins over 401                                                                                                                                                                                 | `deploymentFault` keeping an earlier outcome (`??=`) | unit `answers a batch meeting a key fault and a secret fault 502` (401)                                                                                  |
+| S2c    | malformed `wbs_run` refused                                                                                                                                                                       | check removed                                        | unit `refuses a machine token whose run claim is not text` (200 for `''` and `5`)                                                                        |
+| S3     | task 3.8 (dated by the slice-2 release reaching each deployment, owner named) and design M5                                                                                                       | —                                                    | —                                                                                                                                                        |
+| S4     | `bearerFor`'s throw applies in standalone mode only; gateway keeps forwarding; design M13                                                                                                         | mode condition removed                               | `credential-epoch.test.ts` `keeps forwarding in gateway mode after activation` (rejected)                                                                |
+| N1     | design M3 and the mcp-01 README: writes must be idempotent under retry; semantics unchanged                                                                                                       | —                                                    | —                                                                                                                                                        |
+| N2     | note 10 names task 4.2 as the bound's dependency                                                                                                                                                  | —                                                    | —                                                                                                                                                        |
+| N3     | `verify()` uses `machineClaimsOf`, building no `MachineCaller`                                                                                                                                    | — (refactor; the unit and boot suites pass)          | —                                                                                                                                                        |
+| N5     | `redirect: 'manual'` in `callTool` and the grant client (`FetchLike` gains `redirect`)                                                                                                            | redirects followed                                   | `wbs-client.test.ts` and `machine-token.test.ts` `never follows a redirect…` (the other origin received `x-mcp-internal-auth`)                           |
+| design | M13: runbook step 2b and `mcp_epoch_not_advanced`, the outage case, gateway; M14: dedicated secret alone when set, legacy until seeded, gateway composes organization authority too, no redirects | —                                                    | `openspec validate --strict`                                                                                                                             |
+
+Results after the review fixes, 2026-10-27, `env -u CLAUDECODE`, `--skip-nx-cache`: typecheck
+and lint for wbs-mcp-01 exit 0; `wbs-mcp-01:test` 657 pass, 0 fail; `wbs-contracts:test` 607
+pass, 0 fail; `tool-devsync:test` 940 pass, 0 fail (723.2 s); `openspec validate --all --json`
+297/297, and `--strict` for this change exit 0; Burokrat `check-indexes` exit 0; Prettier
+clean. be-01 is untouched by these fixes, so its suite was not rerun (3755 pass at 87f5cf80b).
+Not run: the h2puni gate, fe-01 and its e2e, gw-01.
+
+During these proofs one injection script failed to restore its files; the four sites were
+repaired by hand from the intended text, the unit file rerun green (19 pass), and every later
+injection used a script that compares the restored file byte for byte.
 
 ## Failure-proof table
 

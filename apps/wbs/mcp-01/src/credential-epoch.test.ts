@@ -84,6 +84,7 @@ function server(
   consent?: ConsentOrganizations,
   upstream: Upstream = {},
   ends: { credentialId: string; familyId: string }[] = [],
+  config: McpConfig = CONFIG,
 ): McpOAuthServer {
   let counter = 0;
   const organizations: OrganizationAuthority | undefined =
@@ -105,7 +106,7 @@ function server(
             }),
         };
   return new McpOAuthServer(
-    CONFIG,
+    config,
     {
       authorizationUrl: (input) =>
         Promise.resolve(new URL(`https://idp.example/authorize?state=${input.state}`)),
@@ -672,6 +673,24 @@ describe('pre-activation access, refresh and code refusal', () => {
       expect(await rejection(before.bearerFor(null, 'upstream-token', ['read']))).toBeInstanceOf(
         Error,
       );
+    } finally {
+      store.close();
+    }
+  });
+
+  it('keeps forwarding in gateway mode after activation', async () => {
+    const path = storePath();
+    new McpSessionStore(path, [KEY]).close();
+    raiseEpoch(path);
+    const store = new McpSessionStore(path, [KEY]);
+    try {
+      const gateway = server(store, ACTIVATED_ONE, {}, [], {
+        ...CONFIG,
+        MCP_AUTH_MODE: 'gateway',
+        MCP_TRUSTED_GATEWAY: 'true',
+      });
+      // The gateway verified the token; mcp-01 forwards it as before (M11, M13).
+      expect(await gateway.bearerFor(null, 'gateway-token', ['read'])).toBe('gateway-token');
     } finally {
       store.close();
     }

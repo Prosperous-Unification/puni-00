@@ -343,6 +343,10 @@ assertion minted for WBS could also be valid elsewhere).
     whole JSON-RPC body, a batch's included; the 502 wins over the 401. A secret, a key and
     a grant's verification are the same for every call of one request, so a batch meets
     them together. Any other 401 code on a machine call is a deployment fault (502).
+  - _Writes under retry_ (review of PR #764). Replacing the body also hides the answers to
+    calls be-01 already served, writes included, so a client that retries the request after
+    the 401 may repeat them. Client authors must make writes idempotent under retry (claims
+    already are: a second claim by the same holder is `alreadyHeld`).
 - _Cost._ The grant is multi-use until `exp`. Its only write is the coarse last-use touch.
 - _No single-use consume of workload assertions._ RFC 7523 makes `jti` replay protection a
   MAY, and a consume would break Kubernetes. The kubelet keeps the same token, and so the same
@@ -444,7 +448,9 @@ _Alternative:_ a 1 h cap, which breaks any orchestrator that hands out a token p
   `wbs_machine_grant`; consent tokens issued since slice 2 carry `token_use: consent`. Section
   3's machine path requires `token_use: machine` **and** `wbs_machine_grant`, and its consent
   path refuses any `token_use` other than `consent` (an absent one only until the consent
-  tokens issued before slice 2 have expired, at most `MCP_ACCESS_TOKEN_TTL`). Since slice 2,
+  tokens issued before slice 2 have expired, at most `MCP_ACCESS_TOKEN_TTL`). Slice 3 still
+  admits an absent one; task 3.8 removes that branch once `MCP_ACCESS_TOKEN_TTL` has passed
+  since the slice-2 release reached each deployment (review of PR #764). Since slice 2,
   a token naming mcp-01's issuer that fails local verification is never handed to the
   upstream verifier.
 - be-01 refuses, `invalid_token`, a workload assertion whose `iss` is
@@ -585,9 +591,19 @@ as well as be-01's fake.
   activation marker. The activation runbook moves both in one procedure.
 - _A mismatch is a fault, not a mode._ If be-01 answers `activated` while mcp-01's epoch is
   still 0, mcp-01 reports a configuration fault and refuses the request.
+  - _Why the epoch moves first_: the activation runbook advances it in step 2b
+    (`docs/runbook-organization-activation.md`), and be-01's activation `--apply` refuses
+    with `mcp_epoch_not_advanced` (exit 7) while mcp-01 is still at epoch 0, so a set be-01
+    marker beside epoch 0 means the procedure was bypassed.
+  - _Gateway mode_ (review of PR #764): the throw in `bearerFor` applies in standalone mode
+    only. In gateway mode the gateway verified the token and mcp-01 forwards it as before,
+    after activation too; a gateway with no organization delegation is the deployment's
+    choice, and be-01 refuses its token for organization resources itself.
   - _Where it is asked_ (slice 3): on `/mcp`, before an upstream token is forwarded at epoch
     0, mcp-01 asks `POST /internal/mcp/organizations` with it, one be-01 call per such
-    request, and answers `502 server_error` when be-01 is activated. Without either service
+    request, and answers `502 server_error` when be-01 is activated, or when be-01 cannot
+    answer (an outage or an unmodeled answer is a deployment fault, reported; review of
+    PR #764). Without either service
     secret mcp-01 cannot ask, and be-01's `no_active_organization` is the only line.
 - _The test._ It boots the shared activation fixture, which sets both markers, and checks the
   mismatched case separately.
@@ -602,7 +618,11 @@ _Alternative:_ keep the fallback (today's passthrough; non-conformant).
   stays for gw-01 and the tools, and gets the same constant-time compare.
 - _Cutover across colours._
   - Release N's be-01 accepts either secret on `/internal/mcp/*`. Swap be-01 first, then
-    mcp-01, which sends only the new secret.
+    mcp-01, which sends the dedicated secret alone when it is set, and the legacy
+    `INTERNAL_AUTH_SECRET` only until the dedicated one is seeded (slice 3). Either secret
+    composes mcp-01's organization authority, in gateway mode too.
+  - mcp-01 never follows a redirect on a be-01 call, so neither secret nor a caller's
+    bearer is carried to another origin (review of PR #764).
   - Release N+1's be-01 drops `x-internal-auth` there.
   - Grant admission accepts only the new secret from the start, because no older mcp-01
     sends grants.

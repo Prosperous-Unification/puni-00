@@ -34,7 +34,12 @@ export interface WbsRequest {
 /** The slice of `fetch` this module uses, so a test can pass a stub. */
 export type FetchLike = (
   url: string,
-  init: { method: string; headers: Record<string, string>; body?: string },
+  init: {
+    method: string;
+    headers: Record<string, string>;
+    body?: string;
+    redirect?: RequestRedirect;
+  },
 ) => Promise<Response>;
 
 /**
@@ -363,6 +368,11 @@ export async function callTool(
   const response = await fetchImpl(request.url, {
     method: request.method,
     headers: { ...request.headers },
+    // A redirect is never followed: the caller's bearer and mcp-01's secret would go with it to
+    // wherever it points. A 3xx is then an unexpected answer, reported below.
+    // Proof: following redirects made `never follows a redirect, so the secret stays with be-01`
+    // (wbs-client.test.ts) see the secret at the other origin; watched 2026-10-27.
+    redirect: 'manual',
     ...(request.body === undefined ? {} : { body: request.body }),
   });
 

@@ -251,6 +251,45 @@ describe('buildRequest', () => {
 });
 
 describe('callTool', () => {
+  it('never follows a redirect, so the secret stays with be-01', async () => {
+    const seen: Headers[] = [];
+    const elsewhere = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch: (request) => {
+        seen.push(request.headers);
+        return Response.json({ items: [] });
+      },
+    });
+    const redirecting = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch: () =>
+        new Response(null, {
+          status: 307,
+          headers: { location: `http://127.0.0.1:${String(elsewhere.port)}/stolen` },
+        }),
+    });
+    try {
+      const failure = await caughtFailure(
+        callTool(
+          READ,
+          { id: 'p1' },
+          { ...CONFIG, WBS_API_URL: `http://127.0.0.1:${String(redirecting.port)}` },
+          fetch,
+          'grant',
+          { 'x-mcp-internal-auth': 'secret-value' },
+        ),
+      );
+      // The 3xx is an unexpected answer, and nothing reached the other origin.
+      expect(seen.map((headers) => headers.get('x-mcp-internal-auth'))).toEqual([]);
+      expect(String(failure)).toContain('unexpected HTTP 307');
+    } finally {
+      await redirecting.stop(true);
+      await elsewhere.stop(true);
+    }
+  });
+
   it('returns be-01’s JSON body unedited on success', async () => {
     const be01 = stub(json(200, { items: [{ id: 'w1', number: '1.1' }] }));
     const result = await callTool(READ, { id: 'p1' }, CONFIG, be01.fetch, 'caller-token');

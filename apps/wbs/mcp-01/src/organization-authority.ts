@@ -2,6 +2,7 @@ import { MCP_INTERNAL_SECRET_HEADER, type WbsScope } from '@wbs/contracts';
 import { type } from '@wbs/validation';
 
 import type { McpConfig } from './config';
+import { McpDeploymentFault } from './deployment-fault';
 import type { McpRefreshAuthorityReader } from './refresh-authority';
 import type { FetchLike } from './wbs-client';
 
@@ -121,7 +122,7 @@ const AUTHORITY = type({ outcome: "'denied'" }).or({
 });
 
 /** be-01 answered something this release does not model: a deployment defect, never a refusal. */
-export class OrganizationAuthorityDefect extends Error {}
+export class OrganizationAuthorityDefect extends McpDeploymentFault {}
 
 /**
  * The one service secret mcp-01 sends on `/internal/mcp/*` during the secret cutover

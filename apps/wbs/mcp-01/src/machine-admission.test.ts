@@ -12,6 +12,7 @@ import { machineIdentityOf, RefusedMachineTokens } from './machine-admission';
 import { machineGrantClient } from './machine-grant-client';
 import { McpOAuthServer, NO_TOKEN_ENDPOINT_LIMITS } from './oauth';
 import { readDocument, toolsFromDocument } from './openapi-tools';
+import { organizationAuthority } from './organization-authority';
 import { createServer } from './server';
 import { McpSessionStore } from './session-store';
 import { CLIENT_CREDENTIALS_GRANT } from './token-request';
@@ -444,6 +445,129 @@ describe('a machine token at /mcp', () => {
     expect(await refreshed?.json()).toEqual({ error: 'invalid_grant' });
     // Neither ended it.
     expect((await mcp(handle, token, read)).status).toBe(200);
+  });
+});
+
+describe('the review of PR #764', () => {
+  it('answers a batch meeting a key fault and a secret fault 502', async () => {
+    const be = fakeBe();
+    const { oauth, handle, faults } = replica(be);
+    const token = await accessToken(oauth);
+    let served = 0;
+    // The key fault arrives first, so a 401 recorded first must still give way to the 502.
+    be.state.answer = () => {
+      served += 1;
+      return served === 1
+        ? refusal(401, 'unknown_grant_key')
+        : refusal(401, 'internal_unauthorized');
+    };
+    // Proof: with `deploymentFault` keeping an earlier outcome (`??=` in machine-admission.ts),
+    // this answered 401; watched 2026-10-27.
+    const answer = await mcp(handle, token, [...read, ...read]);
+    expect(answer.status).toBe(502);
+    expect(faults).toHaveLength(1);
+  });
+
+  it('refuses a machine token whose run claim is not text', async () => {
+    const be = fakeBe();
+    const { oauth, handle } = replica(be);
+    const issued = decodeJwt(await accessToken(oauth));
+    const kid = decodeProtected(await accessToken(oauth));
+    for (const run of ['', 5]) {
+      const forged = await new SignJWT({ ...issued, wbs_run: run })
+        .setProtectedHeader({ alg: 'RS256', kid, typ: 'JWT' })
+        .sign(SIGNING.privateKey);
+      expect((await mcp(handle, forged, read)).status).toBe(401);
+    }
+    expect(be.api).toHaveLength(0);
+  });
+});
+
+/**
+ * mcp-01 at epoch 0 with organization authority, asked by a raw upstream token: be-01's
+ * `/internal/mcp/organizations` answers through `organizations`, and every other be-01 call is
+ * recorded in `api`.
+ */
+function upstreamReplica(organizations: () => Response | Promise<Response>) {
+  const api: string[] = [];
+  const faults: McpDeploymentFault[] = [];
+  const config = { ...CONFIG, INTERNAL_AUTH_SECRET: 'i'.repeat(32) };
+  const fetchImpl: FetchLike = (url) => {
+    const path = new URL(url).pathname;
+    if (path === '/internal/mcp/organizations') return Promise.resolve(organizations());
+    api.push(path);
+    return Promise.resolve(Response.json({ projects: [] }));
+  };
+  const oauth = new McpOAuthServer(
+    config,
+    {
+      authorizationUrl: () => Promise.reject(new Error('unused')),
+      exchange: () => Promise.reject(new Error('unused')),
+      refresh: () => Promise.reject(new Error('unused')),
+      revoke: () => Promise.resolve(),
+    },
+    {
+      now: () => NOW,
+      verifyUpstream: (token) =>
+        token === 'upstream-token'
+          ? Promise.resolve({
+              iss: 'https://idp.example/',
+              sub: 'auth0|ada',
+              wbs_groups: ['dev:wbs:read'],
+            })
+          : Promise.reject(new Error('not upstream')),
+      organizations: organizationAuthority(config, fetchImpl),
+      reportFault: (fault) => faults.push(fault),
+    },
+  );
+  const handle = mcpFetchHandler(
+    () =>
+      createServer({
+        tools: TOOLS,
+        config,
+        fetchImpl,
+        reportUnexpectedToolFailure: (cause) => {
+          throw cause instanceof Error ? cause : new Error(String(cause));
+        },
+        bearerFor: (sessionId, upstreamToken, scopes) =>
+          oauth.bearerFor(sessionId, upstreamToken, scopes),
+      }),
+    config,
+    oauth,
+    {},
+    oauth,
+  );
+  return { handle, api, faults };
+}
+
+describe('the activation markers check (M13)', () => {
+  it('forwards an upstream token while be-01 is not activated either', async () => {
+    const { handle, api } = upstreamReplica(() => Response.json({ state: 'pre_activation' }));
+    expect((await mcp(handle, 'upstream-token', read)).status).toBe(200);
+    expect(api).toEqual(['/api/projects']);
+  });
+
+  it('answers 502 and reports a fault when be-01 cannot answer the markers check', async () => {
+    const outages: (() => Response | Promise<Response>)[] = [
+      () => Response.json({ error: 'unavailable' }, { status: 503 }),
+      () => Promise.reject(Object.assign(new TypeError('fetch failed'), { code: 'ECONNREFUSED' })),
+    ];
+    for (const outage of outages) {
+      const { handle, api, faults } = upstreamReplica(outage);
+      const answer = await mcp(handle, 'upstream-token', read);
+      expect(answer.status).toBe(502);
+      expect(faults).toHaveLength(1);
+      expect(api).toEqual([]);
+    }
+  });
+
+  it('refuses an upstream token be-01 refuses at the markers check, forwarding nothing', async () => {
+    const { handle, api, faults } = upstreamReplica(() =>
+      Response.json({ error: 'unauthenticated' }, { status: 401 }),
+    );
+    expect((await mcp(handle, 'upstream-token', read)).status).toBe(401);
+    expect(api).toEqual([]);
+    expect(faults).toEqual([]);
   });
 });
 

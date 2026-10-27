@@ -35,7 +35,12 @@ import type { CallerAdmission } from './caller-auth';
 import { type McpConfig, offersMachineGrants } from './config';
 import { type DeploymentFaultReporter, McpDeploymentFault } from './deployment-fault';
 import { groupPrefixOf, type McpOAuthHandler } from './http';
-import { MachineCaller, machineIdentityOf, RefusedMachineTokens } from './machine-admission';
+import {
+  MachineCaller,
+  type MachineIdentity,
+  machineIdentityOf,
+  RefusedMachineTokens,
+} from './machine-admission';
 import {
   type IssuedMachineGrant,
   type MachineGrantAnswer,
@@ -475,7 +480,7 @@ export class McpOAuthServer implements McpOAuthHandler {
       this.refuseOwnToken(token, cause);
       return await this.admitUpstream(token);
     }
-    if (payload['token_use'] === 'machine') return this.admitMachine(payload).claims;
+    if (payload['token_use'] === 'machine') return this.machineClaimsOf(payload).claims;
     return this.consentClaimsOf(payload);
   }
 
@@ -566,7 +571,27 @@ export class McpOAuthServer implements McpOAuthHandler {
    * calls need, and only while this replica has not seen its credential refused. Reads no store.
    * The access token itself is never sent to be-01 (M1); the grant it carries is.
    */
-  private admitMachine(payload: JWTPayload): CallerAdmission & { readonly claims: JwtClaims } {
+  private admitMachine(payload: JWTPayload): CallerAdmission {
+    const { claims, identity, settings } = this.machineClaimsOf(payload);
+    return {
+      claims,
+      upstreamToken: identity.grant,
+      mcpSessionId: null,
+      machine: new MachineCaller(
+        identity,
+        settings.secret,
+        this.refusedMachineTokens,
+        settings.reportFault,
+      ),
+    };
+  }
+
+  /** {@link admitMachine}'s checks, without the per-request caller {@link verify} has no use for. */
+  private machineClaimsOf(payload: JWTPayload): {
+    readonly claims: JwtClaims;
+    readonly identity: MachineIdentity;
+    readonly settings: MachineGrantSettings;
+  } {
     const settings = this.machineGrants;
     // Proof: with the mode test removed, `refuses a machine token where no machine admission is
     // composed` (machine-admission.test.ts) admitted one in gateway mode; watched 2026-10-27.
@@ -578,17 +603,7 @@ export class McpOAuthServer implements McpOAuthHandler {
     // (machine-admission.test.ts) answered the next request 200; watched 2026-10-27.
     if (this.refusedMachineTokens.isRefused(identity.jti))
       throw new Error('machine credential refused on this replica');
-    return {
-      claims: { ...payload, sub: identity.credentialId },
-      upstreamToken: identity.grant,
-      mcpSessionId: null,
-      machine: new MachineCaller(
-        identity,
-        settings.secret,
-        this.refusedMachineTokens,
-        settings.reportFault,
-      ),
-    };
+    return { claims: { ...payload, sub: identity.credentialId }, identity, settings };
   }
 
   /**
@@ -621,7 +636,24 @@ export class McpOAuthServer implements McpOAuthHandler {
       throw new Error('mcp-01 accepts no upstream token after activation');
     const claims = await this.verifyUpstream(token);
     if (this.organizations === undefined) return claims;
-    const consent = await this.organizations.organizationsFor(token);
+    let consent: ConsentOrganizations;
+    try {
+      consent = await this.organizations.organizationsFor(token);
+    } catch (cause) {
+      // be-01 unreachable, or answering what this release does not model, cannot confirm it is
+      // unactivated, so nothing is forwarded; a deployment fault, never the caller's token.
+      // Proof: with this catch rethrowing, `answers 502 and reports a fault when be-01 cannot
+      // answer the markers check` (machine-admission.test.ts) reported no fault for be-01's
+      // 503; watched 2026-10-27.
+      const fault =
+        cause instanceof McpDeploymentFault
+          ? cause
+          : new McpDeploymentFault('be-01 could not answer the activation markers check', {
+              cause,
+            });
+      this.reportFault?.(fault);
+      throw fault;
+    }
     // Proof: with this check removed, `a raw upstream Bearer is a reported fault while the
     // markers disagree` (organization-delegation.boot.test.ts) forwarded the token (200);
     // watched 2026-10-27.
@@ -632,6 +664,9 @@ export class McpOAuthServer implements McpOAuthHandler {
       this.reportFault?.(fault);
       throw fault;
     }
+    // Proof: with this refusal removed, `refuses an upstream token be-01 refuses at the markers
+    // check, forwarding nothing` (machine-admission.test.ts) forwarded it (200); watched
+    // 2026-10-27.
     if (consent.kind === 'refused') throw new Error('be-01 refused the upstream token');
     return claims;
   }
@@ -685,11 +720,17 @@ export class McpOAuthServer implements McpOAuthHandler {
     scopes: readonly string[],
   ): Promise<string> {
     if (mcpSessionId === null) {
-      // After activation no caller without a session is admitted (M13); one reaching here is a
-      // defect, and its raw token is never forwarded.
+      // After activation no standalone caller without a session is admitted (M13); one reaching
+      // here is a defect, and its raw token is never forwarded. Gateway mode verifies nothing
+      // here and keeps forwarding the gateway's token, as before (M11, M13).
       // Proof: with this throw removed, `never forwards a sessionless token after activation`
-      // (credential-epoch.test.ts) resolved with the upstream token; watched 2026-10-27.
-      if (this.store.credentialEpoch() >= ACTIVATED_CREDENTIAL_EPOCH)
+      // (credential-epoch.test.ts) resolved with the upstream token; with the mode condition
+      // removed, `keeps forwarding in gateway mode after activation` there rejected; watched
+      // 2026-10-27.
+      if (
+        this.authMode === 'standalone' &&
+        this.store.credentialEpoch() >= ACTIVATED_CREDENTIAL_EPOCH
+      )
         throw new Error('mcp-01 forwards no sessionless token after activation');
       return upstreamToken;
     }

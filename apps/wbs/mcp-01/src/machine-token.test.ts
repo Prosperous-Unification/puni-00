@@ -19,7 +19,7 @@ import {
   type OAuthRouteEvidence,
   type TokenEndpointLimit,
 } from './oauth';
-import { CLIENT_CREDENTIALS_GRANT, JWT_BEARER_GRANT } from './token-request';
+import { CLIENT_CREDENTIALS_GRANT, Concealed, JWT_BEARER_GRANT } from './token-request';
 
 const MCP_URL = 'https://wbs.example/mcp';
 const OAUTH = 'https://wbs.example/mcp/oauth';
@@ -364,6 +364,51 @@ describe('be-01’s answers', () => {
     const answer = await bearerRequest(oauth, { client_id: crypto.randomUUID() });
     expect(answer.status).toBe(400);
     expect(await answer.json()).toEqual({ error: 'invalid_grant' });
+  });
+});
+
+describe('redirects', () => {
+  it('never follows a redirect, so the key and the secret stay with be-01', async () => {
+    const seen: Headers[] = [];
+    const elsewhere = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch: (request) => {
+        seen.push(request.headers);
+        return issued();
+      },
+    });
+    const redirecting = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch: () =>
+        new Response(null, {
+          status: 307,
+          headers: { location: `http://127.0.0.1:${String(elsewhere.port)}/stolen` },
+        }),
+    });
+    try {
+      const client = machineGrantClient({
+        ...CONFIG,
+        WBS_API_URL: `http://127.0.0.1:${String(redirecting.port)}`,
+      });
+      const answer = await client
+        .issue({
+          issuer: OAUTH,
+          credential: { kind: 'api_key', key: new Concealed(KEY) },
+          expiresAt: Math.floor(NOW / 1000) + TTL,
+          run: null,
+        })
+        .then(
+          () => 'answered',
+          (cause: unknown) => (cause instanceof MachineGrantDefect ? 'defect' : String(cause)),
+        );
+      expect(seen.map((headers) => headers.get(MCP_INTERNAL_SECRET_HEADER))).toEqual([]);
+      expect(answer).toBe('defect');
+    } finally {
+      await redirecting.stop(true);
+      await elsewhere.stop(true);
+    }
   });
 });
 
