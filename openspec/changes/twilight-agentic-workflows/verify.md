@@ -3299,3 +3299,65 @@ permanent-pending choices and inspect-runs design remain unaccepted. Full S0/S7a
 heartbeat, recovery, business-attempt/budget mapping, outcomes/releases, remaining
 adapters/conformance, second provider/transfer and CTT consumption remain open.
 No production deployment or producer-owned credential implementation is included.
+
+## Toolbar hint fixture readiness — 2026-10-27
+
+Normal main integration committed/pushed f35ed5522959d217278c73b05587911da4b4c25e,
+tree45b6c658dd7d73aa8822d50945578d71b8343b6d, preserving the reviewed source
+hashes through all hooks. The first commit attempt exhausted Node's4GiB lint
+heap; its unchanged staged tree committed with normal hooks enabled under8GiB.
+PRCI40583766956 attempt1 then failed its required pixels aggregate: browser
+648scheduled=607passed+40skipped+1failed,zero flaky-category. Workspace/Twilight
+and the exact-f35 canonical h4 gate were still running when this repair began;
+their pending outcomes do not erase the browser failure or certify a successor.
+
+The existing `a toolbar control waits two seconds, and rings while it does`
+case expected Keyboard shortcuts but read Export/Import's words for30000ms.
+Root downloaded existing failed-shard artifact12771671192 once:4761183bytes,
+SHA25626692f39cc6a8180c9409fab9c98b87da31cc88044d86ae43e20019204c361f1,
+matching the run/head API digest. Its trace hovered keyboard at1011.6/65.
+Retained frames show Export absent at hover, then appearing and moving the
+keyboard button left under the stationary cursor. The actual caller sets
+exportAvailable from treeReadProject.current===projectId after a successful
+tree read. No frontend product behavior changed in this repair.
+
+The fixture now awaits that existing visible Export summary before any timed
+pointer measurement. Every original hint timing, text, ring, position and other
+test assertion remains. A controlled actual first-tree response held until
+the toolbar/picker appeared, then250ms, reproduced the exact wrong-Export-text
+failure without the new wait. The same delay plus only the new wait passed.
+All temporary routing/delay code was then removed, and final source reconstructs
+from pinned f35 with only that wait, JSDoc and adjacent observed Proof comment.
+No old product guard or prior fault campaign was removed/replayed.
+
+Final fixture SHA256c681607a0278a14caf8380bc842f5c0dc0f587f31d7601b98c55bcdfc57041ce,
+rawmode33204: complete hints file8/0 in47.0s, whole Nx47.5s. Uncached FE lint,
+typecheck and module prerequisite passed in1m38s. Scoped formatting and final
+checkpoint checks remain separate. Vite's existing native-loader warning and
+NO_COLOR/FORCE_COLOR diagnostics remain visible. Repeated focused executions
+overlap the complete suite and are not summed into extra test coverage.
+
+Two setup/probe corrections remain explicit: an initial source-pin assertion
+mistook the retained rawlog hash for the source hash and stopped before writes;
+the following misnamed delayed-openapi-red run was actually an unchanged f35
+healthy control. The subsequent controlled-red OpenAPI-delay probe passed and
+falsified that dependency hypothesis. Neither is a meaningful RED. Caller
+inspection corrected the dependency to the first tree read; only the later
+controlled-tree-red/green pair earns the new readiness-boundary observation.
+Its failure screenshot/context/trace were retained before the next browser run.
+
+New-run CI observation initially used standalone Node24 behind a Volta shim.
+The actual launch and interrupted exit1 are preserved. Root-authorized cleanup
+verified ownership, saved closed captures and an API-idle boundary, signaled only
+that local observer, then continued the same unmodified workflow under Bun1.4.4.
+Two existing successful raw logs were reused with exact run/job/attempt/hash
+provenance; no workflow or valid test was rerun for this correction. Original
+Node observation is not relabeled compliant or confused with a CI failure.
+
+Raw diagnosis: /tmp/puni-f35-hints-diagnosis-20261027a/. Controlled and final
+commands, source snapshots, restoration and failure artifacts:
+/tmp/puni-hints-readiness-proof-20261027a/. Current independent scoped review:
+/tmp/puni-hints-readiness-review-20261027.md. New exact-candidate canonical gate
+and applicable CI, fresh publication preflight, ordinary protected main merge
+and full actual-merge CI remain required. Full S0/S7a and the unaccepted outcome/
+recovery/format4 choices remain open. No production deployment.
