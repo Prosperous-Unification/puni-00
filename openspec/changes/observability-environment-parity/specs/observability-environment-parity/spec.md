@@ -343,3 +343,48 @@ The source inventory SHALL retain the selected Git input's Flux install, local p
 - **WHEN** bootstrap contributor inventory succeeds
 - **THEN** actual runner-input equality, lifecycle and writer accounting, admitted measurements, host facts and full runtime/live acceptance remain required
 - **AND** runtime and creation authority remain false, with transport not evaluated in this receipt
+
+### Requirement: Native ordinal charges retain lifecycle conditions
+
+Native lifecycle accounting SHALL consume the existing validated rehearsal source traversal and reuse shared quantities, workload normalization and the native ledger. A dedicated Kubernetes adapter MUST distinguish declared/defaulted source policy, supported lifecycle conditions and unobserved runtime prerequisites. Native subset charges MUST NOT confer creation authority or complete whole-attempt admission.
+
+#### Scenario: Supported StatefulSet source gains ordinal charges
+
+- **WHEN** validated apps/v1 StatefulSet inputs use supported default or explicit OrderedReady and RollingUpdate policy in one immutable-source attempt
+- **THEN** accounting retains one full normalized Pod charge per supported ordinal through creation, process recovery and graceful same-template replacement
+- **AND** selected real source owners gain nonzero native charges without hardcoded owner budgets or a second calculator
+- **AND** terminating source demand is never replaced by an assumed zero
+
+#### Scenario: Source defaults remain distinguishable from observations
+
+- **WHEN** supported API defaulting supplies omitted lifecycle policy or grace fields
+- **THEN** the declared absence, pinned provider default and derivation provenance remain distinguishable
+- **AND** the source-render capability and intended runtime pin remain separate from observed runtime versions
+- **AND** a grace value is not presented as a guaranteed physical reclamation deadline
+
+#### Scenario: A source or recognized input is malformed
+
+- **WHEN** required frame identity/hash/namespace closure drifts, counts are malformed, or supplied quantities, claims or volumes contradict their known contract
+- **THEN** production accounting throws before an unsupported lifecycle or missing-bound shortcut can conceal the malformed input
+- **AND** valid absent resource declarations in the broad inventory remain named incomplete facts without invented maps or caps
+- **AND** legacy selected-input missing-bound refusals remain strict
+
+#### Scenario: A lifecycle is outside the supported scenario
+
+- **WHEN** forced deletion, lost-node execution, foreign mutation, unbound old templates, unsupported ordinal or management policy, or unaccounted controller generations are required
+- **THEN** the affected lifecycle remains explicitly incomplete rather than receiving a nominal-replica peak
+- **AND** Deployment, DaemonSet, Job, CronJob, generated-operator and writer obligations remain separately visible until their own accounting is implemented
+
+#### Scenario: Replacement reuses an ordinal claim
+
+- **WHEN** a supported same-template StatefulSet ordinal reuses its source claim template
+- **THEN** the namespace/controller/template/ordinal claim identity is charged once
+- **AND** conflicting identities or sizes refuse
+- **AND** requested claim bytes remain source reservations rather than observed Bound storage, retained usage or filesystem quotas
+
+#### Scenario: Existing callers and full admission remain bounded
+
+- **WHEN** common per-owner derivation is reused by the new whole-inventory native adapter
+- **THEN** existing valid selected-input and cutover contracts remain unchanged and no caller can replace full production source validation with a filtered summary
+- **AND** whole-attempt system/helper/image/transient/host accounting, effective enforcement and live acceptance remain required
+- **AND** native source charges report no creation or runtime authority
