@@ -1159,3 +1159,13 @@ full application/browser/component-runtime suites, real Helm/kubectl reconciliat
 CI rerun and runtime/live acceptance. No Docker/cluster/remote, persistent credential,
 route, volume, push, merge or deployment operations occurred. Fresh scoped review
 remains required after SOURCESTOP.
+
+## Reviewed CI repair and main integration checkpoint
+
+Task22 source `b308f4f162da9db8dde30dba53f72f8ae7917acc` received independent scoped review: compliant/approved, no Critical or Important issues. The pre-existing lint colour-environment warning remains disclosed and deferred to final review. Full CI and runtime acceptance are not certified by that review.
+
+Fresh `git fetch origin main` completed successfully; main remained `67773f97ac5c608bd785f5ff5619cc0f053779e2`. Normal-hook `git merge --no-edit origin/main` integrated it into the feature branch at `6bf4b8bc1972db0f6fc3fc9edd6ac6a09d81e2f9`; no conflict or main mutation. The only overlapping path, `docs/wiki-policy/policy.json`, merged disjoint changes. Diffs against both parents prove the feature's shared Elasticsearch consumer path and main's fixture exclusions/evidence metadata are retained. `git diff --check HEAD^1 HEAD` exited0; status was clean.
+
+Main relocated the unchanged observability runtime fixture and updated its test import. The focused merged-tree check `bun test --timeout=10000 tools/tool-observability-stack/src/dev/runtime.test.ts` passed56tests/99assertions in1.062s. This tests the fixture import and existing runtime adapter behavior through controlled boundaries; it is not an actual deployment. Prior passing Task19/20/22 batches were not repeated because main changed no corresponding implementation or inputs. The full gate will observe the published merged head separately; no all-green claim.
+
+Source/component evidence remains distinct from full Kubernetes rehearsal and real dev acceptance; canonical completion remains4/11. The existing app-profile creation/retained-volume teardown and authenticated source-binding components do not close full platform capacity, bootstrap/import, generated-Pod, history/recovery or live rollout requirements. Final implementation merge, production activation and persistent credential changes remain separately authorized.
