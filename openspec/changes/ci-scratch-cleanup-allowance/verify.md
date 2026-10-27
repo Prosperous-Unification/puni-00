@@ -27,3 +27,111 @@ Read-only diagnosis recovered only artifact12777736848, nx-gate-log-workspace-1.
 One copied actual preload/remover replay with31 seconds injected at the rmSync boundary reproduced the same unnamed hook failure with30000ms (exit1,31.029s; named tests pass and physical cleanup completes). Changing only the copied hook to60000ms passed (exit0,31.046s,2tests and physical removal). Each child had a45-second external ceiling. These are controlled finite-delay observations, not hosted filesystem measurements; the particular hosted syscall/filesystem cause remains unknown. Full diagnosis and exact replay records are retained under `/tmp/puni-devsync-055d-diagnosis/` and the observability private task38 report.
 
 The coherent proposal/spec/tasks update precedes source implementation. Scope is only the cleanup allowance and directly covering budget/regression/docs evidence; ordinary test/job/phase budgets and cleanup semantics stay unchanged. Keep slow proof out of the default fast suite. Implementation, new-source checks, independent review and current hosted verification remain pending.
+
+## Revised-source verification — 2026-10-28
+
+Implementation base: `95a471e0c51b1e365cac798661b1382a98854a9f`. Bun 1.4.4 matches
+`.bun-version`. Only `afterAll(removeProcessRoot, 30_000)` changes to `60_000`;
+the helper, ordinary command budgets, inherited/reduced failures, signal behavior,
+job/phase limits and default test collection are unchanged. The fast exact-budget
+expectation and adjacent proof/budget documentation are updated. No permanent slow
+test or opt-in framework was added.
+
+Evidence directory: `/tmp/puni-cleanup-task39/`. JSON records retain exact argv,
+exit status and elapsed wall time; paired `.stdout`/`.stderr` logs retain output.
+The original `/tmp/puni-devsync-055d-diagnosis/` bytes were only read.
+
+### TDD and production-path negative
+
+- RED, before production edit: `bun test --preload ./tools/test/scratch/preload.ts
+tools/test/scratch/cleanup-budget.test.ts --timeout=30000 --test-name-pattern
+'the cleanup allowance is scoped'`: exit 1, 0 pass / 1 fail / 1 filtered,
+  1 assertion, 0.033s. Expected `/60_?000/`, received the actual `30_000` hook.
+  Records: `fast-red.{json,stdout,stderr}`.
+- GREEN: `bun test --preload ./tools/test/scratch/preload.ts tools/test/scratch
+--timeout=30000`: exit 0, 7 pass / 0 fail, 40 assertions, 7.020s.
+  Records: `scratch-green.{json,stdout,stderr}`.
+- Fault: omit only the production hook's explicit allowance, run the same focused
+  test file with `--test-name-pattern 'the actual preload allows'`: exit 1,
+  0 pass / 1 fail / 1 filtered, 5 assertions, 0.163s. The actual callback/remover
+  fixture failed `Expected: 0, Received: 1` after its injected 100ms cleanup exceeded
+  the inherited 20ms deadline. Records: `allowance-omitted.{json,stdout,stderr}`.
+- Restore the exact production bytes, then run that file without the name filter:
+  exit 0, 2 pass / 0 fail, 27 assertions, 0.617s. Inherited and reduced 50ms hook
+  failures, ordinary 20ms hangs and physical removal remain covered.
+  Records: `restored.{json,stdout,stderr}`. Adjacent `Proof:` comments identify
+  both the changed-budget negative and allowance-omission fault.
+
+### Single revised-source slow proof outside the default suite
+
+Reused the old 30-second RED from `cleanup-replay.json`: exit 1, 31.029s,
+2 named passes followed by the unnamed hook failure at 31000.61ms. Its retained
+stderr SHA256 remains
+`2a46986bded12525bb6b50be2def534ee906966b7262c8798ef773a4d558446c`;
+the old replay JSON remains
+`51422ebfe7bc9ce57f79e313092949015dfb859fdfc37223c105deebb639f26d`.
+It was not rerun.
+
+Executed `python3 /tmp/puni-cleanup-task39/replay.py` from the implementation
+worktree. That retained one-off harness copied the revised preload byte-for-byte,
+kept its actual callback, and copied the actual helper while injecting the same
+31000ms finite `Atomics.wait` immediately before `rmSync`. The injected helper
+and both tiny suites match the existing diagnosis fixture byte-for-byte. It ran:
+
+```sh
+TMPDIR=/tmp/puni-cleanup-task39/cleanup-revised-60000/temp \
+  /home/df/.bun/bin/bun test \
+  --preload /tmp/puni-cleanup-task39/cleanup-revised-60000/preload.ts \
+  --timeout=30000 \
+  /tmp/puni-cleanup-task39/cleanup-revised-60000/first.test.ts \
+  /tmp/puni-cleanup-task39/cleanup-revised-60000/second.test.ts
+```
+
+The Python subprocess imposed a separate 45-second ceiling. Exit 0, 2 pass /
+0 fail, 31.026s; both reported scratch directories and their enclosing process root
+were absent, and the dedicated temp directory was empty after the child exited.
+`revised-replay.json` records each path, absence and full SHA256 map;
+`cleanup-revised-60000/{stdout,stderr}.log` retain output. `replay.py` is the exact
+executed harness and refuses overwriting its existing fixture; reproduction can
+copy it and choose a fresh `evidence` directory before running it.
+
+SHA256 identities:
+
+- Production and copied revised preload:
+  `22e56a8f5db855e86dad3b7f3c67b989c122d15a7f6e06f8245418590a968521`.
+- Unchanged actual helper:
+  `0c3240faa4151f84394584cf792ed4e38ec6835a961bf54bec9664aaebe5cc8a`.
+- Revised fast cleanup regression:
+  `2316a319ff22e281d27cc868ebaa7f54214985111b9d3697c9b780665ac980cb`.
+- Injected actual helper copy:
+  `d9d05eee72ab785d72af1c79d7e52d6157f8851c900e0cde4855c695f5136b61`.
+- Revised slow-proof stderr:
+  `5d80d5fdc70cee818a0dd9853cd1a458e93026456a46b519208dda4fa5fd6960`.
+
+### Scoped checks and limits
+
+With `NX_DAEMON=false NX_TUI=false` and installed local tools:
+
+- `bun x nx run tool-test-scratch:lint --skip-nx-cache`: exit 0, 2.882s;
+  configured lint includes the Nx graph. Only output warning: Node ignored
+  `NO_COLOR` because `FORCE_COLOR` was set; no lint or skipped-boundary warning.
+- `bun x tsc --build --force tools/test/scratch/tsconfig.json`: exit 0, 0.112s.
+- `bun x nx run tool-devsync:test-levels:verify --skip-nx-cache`: exit 0, 2.555s,
+  `Verified declared test collections`.
+- `bun x openspec validate ci-scratch-cleanup-allowance --strict`: exit 0, 0.584s.
+- `bun x openspec validate observability-environment-parity --strict`: exit 0,
+  0.600s.
+- Final Prettier check on the three source/docs paths and all four cleanup change
+  artifacts: exit 0, 0.354s. Final strict validations after evidence edits: cleanup
+  exit 0, 0.692s; observability exit 0, 0.654s. `git diff --check`: exit 0.
+  Exact final argv/output are in `final-static.json`.
+
+No full devsync/Fleet suite, full Nx/build gate, host gate, network/runtime,
+Docker/SSH operation, hosted retry, push, merge or deployment was run. Scoped
+independent review and current hosted verification remain pending with the
+controller. This source repair does not close observability 3.1, canonical 4-of-11
+or live acceptance. The particular hosted filesystem/syscall cause remains
+unmeasured. Finite injected latency establishes allowance behavior and actual
+physical removal; it cannot establish hosted storage performance or interrupt a
+blocked synchronous syscall. The existing best-effort removal error policy remains
+unchanged.
