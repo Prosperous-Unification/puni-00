@@ -5,7 +5,8 @@ import type { TokenVerifier } from '@wbs/auth';
 import { canonicalMcpResourceOf, mcpAuthorizationServerOf } from '@wbs/contracts';
 
 import { authenticateCaller } from './caller-auth';
-import type { McpConfig } from './config';
+import { type McpConfig, offersMachineGrants } from './config';
+import { CLIENT_CREDENTIALS_GRANT, JWT_BEARER_GRANT } from './token-request';
 import { EdgeGate } from './wbs-client';
 
 const HEALTH_PATHS = new Set(['/health/liveness', '/health/readiness', '/health/alb-readiness']);
@@ -50,8 +51,29 @@ export function oauthMetadataResponse(url: URL, config: McpConfig): Response | u
       registration_endpoint: `${issuer}/register`,
       jwks_uri: `${issuer}/jwks`,
       response_types_supported: ['code'],
-      grant_types_supported: ['authorization_code', 'refresh_token'],
-      token_endpoint_auth_methods_supported: ['none'],
+      // The machine grants (`wbs-mcp-agent-surface` M2) authenticate an API
+      // key by Basic or in the body; `private_key_jwt` is never listed,
+      // because no WBS client authenticates with its own key.
+      // Proof: listing them always failed `omits them without the secret and in gateway mode`
+      // (machine-token.test.ts); watched 2026-10-27.
+      ...(offersMachineGrants(config)
+        ? {
+            grant_types_supported: [
+              'authorization_code',
+              'refresh_token',
+              CLIENT_CREDENTIALS_GRANT,
+              JWT_BEARER_GRANT,
+            ],
+            token_endpoint_auth_methods_supported: [
+              'none',
+              'client_secret_basic',
+              'client_secret_post',
+            ],
+          }
+        : {
+            grant_types_supported: ['authorization_code', 'refresh_token'],
+            token_endpoint_auth_methods_supported: ['none'],
+          }),
       code_challenge_methods_supported: ['S256'],
       scopes_supported: MCP_SCOPES,
       authorization_response_iss_parameter_supported: true,

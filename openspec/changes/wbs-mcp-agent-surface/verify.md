@@ -346,6 +346,223 @@ wbs-contracts, wbs-mcp-01 and tool-remote-scripts tests 0 fail; `openspec valida
 neither is in be's `SECRET_KEYS` nor `APP_ENV_ALLOWED_KEYS`, so the prod swap cannot pass
 them to be-01.
 
+## Slice 2: the token endpoint at mcp-01 (tasks 2.1 to 2.3)
+
+Built on branch `feat/wbs-mcp-token-endpoint-2` from the plan branch at e58d3cd4b (slice 1
+merged), 2026-10-26 and 2026-10-27, on the assumed M1 to M16 as slice 1 amended them. Every
+test below ran under `env -u CLAUDECODE` on the laptop; nothing ran on h2puni.
+
+What landed:
+
+- **2.1** `src/token-request.ts`: `parseMachineTokenRequest`, red first (commit 3ea765cf7 holds
+  the test alone). Keys and assertions travel in `Concealed`, whose private field no printer
+  reaches.
+- **2.2** `src/machine-grant-client.ts` calls `POST /internal/mcp/machine-grants` with
+  `x-mcp-internal-auth` and maps every answer; `McpOAuthServer.machineToken` (`src/oauth.ts`)
+  signs the machine token; `MCP_BE_INTERNAL_SECRET` (config, redacted in `main.ts`) and
+  `MCP_MACHINE_TOKEN_TTL`; the metadata (`src/http.ts`); registration refusing both grants; the
+  `TokenEndpointLimit` seam and its 429.
+- **2.3** the booted test's failure case, with be-01's report read from its log stream.
+
+Tests: `token-request.test.ts` (parser), `machine-token.test.ts` (endpoint against a fake be-01:
+mapping, lifetime, metadata, registration, 429, configuration),
+`machine-token.boot.test.ts` (the SDK's `ClientCredentialsProvider` and a test-local JWT-bearer
+client against be-01's composed grant route in its own process,
+`apps/wbs/be-01/src/testing/mcp-machine-grant-backend.ts`, with a local trusted issuer), and one
+`main.test.ts` case.
+
+### Slice 2 notes (assumptions taken, and gaps in the design)
+
+1. **The lifetime asked for.** M3 and M4 give the token `exp` 60 s before the grant and a TTL of
+   60 s to 24 h; taken literally a 60 s TTL leaves a token no lifetime. mcp-01 asks be-01 for
+   now + the jittered TTL + 60 s, so the token itself lives the jittered TTL, and a 24 h token
+   fits be-01's 24 h + 60 s cap. A grant that leaves no lifetime after the margin (an assertion
+   or a rotated secret ending within about a minute) is refused with the source's own error.
+2. **When the grants are offered.** Only in standalone mode with `MCP_BE_INTERNAL_SECRET` set
+   (`offersMachineGrants`); otherwise both answer `unsupported_grant_type` and the metadata omits
+   them, which is also M11's grant half. The secret stays optional in mcp-01's config and is not
+   yet seeded into dev's `.env` or the Kubernetes secret (task 8.2). `MCP_MACHINE_TOKEN_TTL` is
+   read at boot either way.
+3. **Client authentication details the design leaves open.** A `client_id` sent both by Basic and
+   in the body is `invalid_request`. On the JWT-bearer grant a `client_assertion` is
+   `invalid_client`, as on `client_credentials`, and Basic with an empty password only carries the
+   `client_id`. Basic parts are not form-decoded: an id and a key hold only unreserved
+   characters, and the SDK does not encode them.
+4. **A mismatched `client_id`.** On `client_credentials` it is judged against the key's own id
+   before be-01 is asked (`invalid_client`). On the JWT-bearer grant only the grant names the
+   credential, so be-01 is asked (its audit row is written) and the mismatch is `invalid_grant`.
+5. **Scope.** An empty `scope` is `invalid_scope`, as is a request whose scopes the grant does not
+   hold (asked of be-01 first, since only the grant tells).
+6. **Repetition.** Any parameter sent twice, or as a file, is `invalid_request`; a second
+   `resource` is `invalid_target` (the spec's scenario).
+7. **`typ` at mcp-01 too.** The parser refuses an unsupported `typ` before be-01 is asked; be-01's
+   `unsupported_assertion_type` is the second line, mapped the same way and tested with a fake
+   be-01.
+8. **be-01 failing.** A 5xx or an unreachable be-01 is `503 temporarily_unavailable` with
+   `Retry-After: 5`; be-01 reports its own failure. `internal_unauthorized`, an answer impossible
+   for the source asked (`invalid_token` or a `typ` refusal for a key, `invalid_body` without a
+   run, a grant for another credential than the key), and a malformed body throw
+   `MachineGrantDefect`, and no client is told its credential is bad. _Amended by the review of
+   PR #761 (S3):_ the defect is reported through mcp-01's redacting logger and answered `502
+server_error`, no longer Bun's 500.
+9. **Limits.** `TokenEndpointLimit` is the seam M10's limiters fill in task 4.2; production
+   composes `NO_TOKEN_ENDPOINT_LIMITS` until then, and `sourceOf` still trusts the leftmost
+   `X-Forwarded-For` (4.2). The 429 form is tested with a refusing limit.
+10. **The token.** `sub` is the credential id; the claims carry `wbs_machine_grant`,
+    `wbs_person`, `wbs_organization` and, when opted in, `wbs_run`, and the scopes also as the
+    groups claim `/mcp` admission reads. It is signed with mcp-01's one access-token key, so
+    section 3 tells machine tokens apart by `token_use`. Responses carry `Cache-Control:
+no-store` (RFC 6749 §5.1). Route evidence records the two grant types by name and nothing
+    else of the request.
+11. **`/mcp`, `/refresh` and `/revoke` are section 3's.** Today a machine token at `/mcp` is 401:
+    `verifyLocal` finds no session and the upstream verifier refuses it; nothing is forwarded.
+    `/revoke` answers 200 and changes nothing. This slice takes **no** piece of section 3:
+    admitting the token at `/mcp` without the grant-and-secret bearer and the refused set would
+    be most of task 3.2. So three scenarios are tested only up to the token endpoint: "An SDK
+    client gets a token and lists tools" (the `tools/list` half), "A run outlives its workload
+    token" (the next tool call) and "A read-only credential cannot write" (the `insufficient_scope`
+    refusal). Their server-side token halves are tested here.
+12. **The provider-cache negative** of 2.2 ("make the provider cache its first assertion")
+    belongs to `WorkloadJwtBearerProvider`, task 2.4. Here a test-local client reads a fresh
+    assertion per request, and what the server enforces is tested: the first assertion, once the
+    token it capped has expired, mints nothing.
+13. **Registration** refuses a client whose `grant_types` names either machine grant; other
+    unknown grant types keep today's behaviour.
+14. **The 2.3 fault** is the booted backend's audit-row id generator throwing inside the grant
+    route, for a Basic request and a JWT-bearer one. The report is be-01's log line, read from the
+    backend's stdout. The audit rows and mcp-01's route evidence are checked too, by exact
+    substring and the `plaintext-secrets` key pattern.
+15. **A25's audience rule** (task 1.5) is still not applied; the fixture's trusted issuer uses
+    audience `wbs`.
+
+### Commands and results, slice 2
+
+All on 2026-10-27 at f3fe2918f, with `env -u CLAUDECODE` and `--skip-nx-cache`:
+
+| Command                                                                                     | Result                                                                   |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `bunx nx run-many -t typecheck lint -p wbs-mcp-01 wbs-be-01 --parallel=1`                   | exit 0                                                                   |
+| `bunx nx run wbs-mcp-01:test`                                                               | 612 pass, 0 fail (24 files)                                              |
+| `bunx nx run wbs-contracts:test`                                                            | 607 pass, 0 fail                                                         |
+| `bunx nx run wbs-be-01:test`                                                                | 3752 pass, 3 skipped, 0 fail (3755 tests in 256 files, 1259.2 s), exit 0 |
+| `bunx nx run tool-devsync:test`                                                             | 940 pass, 0 fail (49 files, 735.3 s), exit 0                             |
+| `bunx openspec validate --all --json`                                                       | exit 0; 297 items, 297 passed                                            |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` | exit 0 (the existing store-memory and plan-commands review debt)         |
+| `bunx prettier --check` on every changed file but `.env.example`                            | "All matched files use Prettier code style!"                             |
+
+Not run: the h2puni gate, fe-01 and its e2e, gw-01, and anything on the dev host. No
+migration and no `libs/**/service/` file changed, so no pin test or `kinds.json` entry was due.
+
+### Failure-proof table, slice 2
+
+Each check was watched failing with the fault injected, then restored; the `Proof:` comment
+sits beside the check. "Boot" is `machine-token.boot.test.ts`, "endpoint"
+`machine-token.test.ts`, "parser" `token-request.test.ts`.
+
+| Check                                                     | Fault injected                                                         | Test that observed it failing                                                                                    |
+| --------------------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| repeated parameter                                        | only a second `resource` refused                                       | parser `refuses any repeated parameter or a file value invalid_request`                                          |
+| second `resource` is `invalid_target`                     | answered `invalid_request`                                             | parser `refuses a missing, foreign, non-canonical or repeated resource invalid_target`                           |
+| file value                                                | read as text                                                           | parser `refuses any repeated parameter or a file value invalid_request`                                          |
+| malformed `Authorization`                                 | treated as absent                                                      | parser `refuses no secret, … or a malformed Basic header invalid_client` (body secret admitted)                  |
+| two client authentication methods                         | check removed                                                          | parser `refuses two client authentication methods invalid_request`                                               |
+| lone `client_assertion` is `invalid_client`               | answered `invalid_request`                                             | parser, both `client_assertion` tests                                                                            |
+| `client_id` in Basic and body                             | check removed                                                          | parser, both "sent twice" tests                                                                                  |
+| `client_credentials` needs a secret                       | check removed                                                          | parser `refuses no secret, …` (invalid_request)                                                                  |
+| no secret on the JWT-bearer grant                         | branch removed                                                         | parser `refuses a Basic secret, a body secret and a client_id sent twice invalid_request`                        |
+| canonical `resource`                                      | comparison removed                                                     | parser `refuses a missing, foreign, …`                                                                           |
+| scope                                                     | default answered for any scope                                         | parser `refuses wbs:editor, an unknown or empty scope invalid_scope`, `narrows to a requested subset…`           |
+| `wbs_run` length                                          | upper bound removed                                                    | parser `refuses an empty or over-long run invalid_request`                                                       |
+| key grammar                                               | any secret admitted                                                    | parser `refuses no secret, … a non-key secret …`                                                                 |
+| `client_id` equals the key's id                           | comparison removed                                                     | parser `refuses a client_id other than the key’s id invalid_client`                                              |
+| assertion required                                        | missing assertion judged by its header                                 | parser `refuses a missing assertion invalid_request` (invalid_grant)                                             |
+| `typ`                                                     | every `typ` admitted                                                   | parser `refuses an ID-JAG, an access token or any other typ…`                                                    |
+| `typ` echo cap                                            | cap removed                                                            | parser `echoes at most 64 printable characters of a typ`                                                         |
+| carrier's private field                                   | public field                                                           | parser `never prints the key or the assertion` (`inspect`, `Bun.inspect`)                                        |
+| grant dispatch                                            | dispatch removed                                                       | boot: 15 tests                                                                                                   |
+| no settings, `unsupported_grant_type`                     | answered `invalid_grant`                                               | endpoint `answers unsupported_grant_type without the machine grant settings`                                     |
+| limit                                                     | check removed                                                          | endpoint `answers 429 invalid_request with Retry-After…`                                                         |
+| one `invalid_client` for every key failure                | `invalid_grant` for a revoked key (2.2's negative)                     | boot `an unknown id, a revoked key and a wrong secret…`, `nothing is issued…`                                    |
+| JWT-bearer `client_id` equals the grant's credential      | comparison removed                                                     | boot `a client_id the registered-client store has never seen…`                                                   |
+| `client_id` never looked up (2.2's negative, raw request) | lookup in the registered-client store                                  | boot: that test and four more (401)                                                                              |
+| scope narrowing                                           | requested scopes kept                                                  | boot `a key bound to a viewer gets wbs:read only`                                                                |
+| empty narrowed scope                                      | check removed                                                          | endpoint `narrows to the grant’s scopes, and refuses a request beyond them…`                                     |
+| `exp` 60 s before the grant                               | the grant's `exp`                                                      | boot: SDK, GitHub Actions and run-outlives tests                                                                 |
+| no lifetime left                                          | check removed                                                          | endpoint `refuses a grant that leaves no lifetime after the 60 s margin`                                         |
+| jitter                                                    | none                                                                   | endpoint `lowers the lifetime by at most 10 %…`, `sends the key with the dedicated secret…`                      |
+| asks 60 s more                                            | dropped                                                                | the same two                                                                                                     |
+| `no-store`                                                | headers removed                                                        | endpoint `expires 60 s before the grant…`                                                                        |
+| registration refuses machine grants (2.2's negative)      | check removed; body `none` with a loopback redirect                    | endpoint `refuses a client that asks for a machine grant` (201)                                                  |
+| grant for the key's own credential                        | comparison removed                                                     | endpoint `throws a defect, never a refusal…`                                                                     |
+| Basic challenge                                           | header removed                                                         | endpoint `maps unknown_identity and not_activated to invalid_client…`                                            |
+| evidence names the grant                                  | `other` recorded                                                       | endpoint `records the grant type, and nothing else…`                                                             |
+| no fall-through to upstream (2.2's negative)              | upstream verifier called on a refusal                                  | boot `an assertion for an unknown subject…`, `nothing is issued…`, `an unknown id, a revoked key…`               |
+| `MCP_MACHINE_TOKEN_TTL` bounds                            | bounds removed                                                         | endpoint `reads MCP_MACHINE_TOKEN_TTL as 60 s to 24 h…`                                                          |
+| dedicated secret header                                   | sent as `x-internal-auth`                                              | endpoint `sends the key with the dedicated secret…`                                                              |
+| unreachable be-01                                         | rethrown                                                               | endpoint `answers 503 temporarily_unavailable…`                                                                  |
+| be-01 5xx                                                 | thrown as a defect                                                     | the same                                                                                                         |
+| `invalid_token` only for an assertion                     | admitted for a key                                                     | endpoint `throws a defect, never a refusal…`                                                                     |
+| `typ` refusal only for an assertion                       | admitted for a key                                                     | the same                                                                                                         |
+| `invalid_body` only with a run                            | condition removed                                                      | the same (invalid_request)                                                                                       |
+| issued shape                                              | check skipped                                                          | the same (`scopes: ['admin']` answered invalid_scope)                                                            |
+| `not_activated` is a refusal                              | dropped                                                                | boot `nothing is issued: invalid_client for a key, invalid_grant for an assertion`                               |
+| `MCP_BE_INTERNAL_SECRET` length                           | `'string'`                                                             | endpoint `refuses a short MCP_BE_INTERNAL_SECRET…`                                                               |
+| gateway offers no machine grant                           | mode test removed                                                      | endpoint `omits them without the secret and in gateway mode`                                                     |
+| metadata lists them conditionally                         | always listed                                                          | the same                                                                                                         |
+| the secret is redacted                                    | left out of `secrets`                                                  | `main.test.ts` `redacts the machine grant secret with the other boundary secrets`                                |
+| 2.3: no form in be-01's report                            | be-01's route rethrows with the body in the message ("form in report") | boot `a failure inside be-01’s grant route leaks no key, Basic form or assertion` (the key found in be-01's log) |
+
+### Review of PR #761 (Fable, high), how each item is addressed
+
+Fixed on the same branch, 2026-10-27. Each new or changed check was watched failing with the
+fault injected, then restored; the `Proof:` comment sits beside it.
+
+| Item   | Fix                                                                                                                                                                                                                                                                                                                      | Fault injected                                                                                                                                     | Test that failed                                                                                                                                                                                                                                       |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| S1     | `mcpOAuthFromEnv` tested both ways; `machineToken` also refuses outside standalone mode (`MCP_AUTH_MODE` now reaches `McpOAuthServer`)                                                                                                                                                                                   | condition `machineSecret === undefined` alone; the mode test removed                                                                               | `composes machine grants from the environment in standalone mode only` (composed in gateway mode); `answers unsupported_grant_type in gateway mode, even with the settings`                                                                            |
+| S2     | be-01 answers `no_lifetime` `401 unknown_identity`, which mcp-01 maps to the credential's refusal                                                                                                                                                                                                                        | `invalid_body` restored                                                                                                                            | be-01 `refuses a key in the last part-second of its rotation window unknown_identity`                                                                                                                                                                  |
+| S3     | `MachineGrantDefect` caught in `machineToken`, reported through `reportFault` (composed in `main.ts` with the redacting policy), answered `502 {"error":"server_error"}` with no-store                                                                                                                                   | rethrown; the policy built with `[]`                                                                                                               | `answers a be-01 fault 502 server_error and reports it, never a refusal` (and two more); `main.test.ts` `reports a machine grant fault redacted`                                                                                                       |
+| S4     | a grant whose `expiresAt` exceeds the request, or whose `runId` differs from the run sent, is a defect                                                                                                                                                                                                                   | each comparison removed                                                                                                                            | `answers a be-01 fault 502…`                                                                                                                                                                                                                           |
+| N1     | tests for an empty Basic user, a JWT-bearer Basic without a colon, an empty assertion, a non-text `typ`, a 403 `typ` refusal and one naming no `typ`; an empty `MCP_MACHINE_TOKEN_TTL` stays the default, because `loadConfig` reads every empty mcp-01 variable as unset (`config.ts`), now stated beside it and tested | `basic === null` alone; colon check removed; `=== ''` dropped; `String(typ)`; the 401 condition dropped; the `typ !== undefined` condition dropped | `reads a Basic header with an empty user…`; `refuses a Basic header without a colon invalid_client`; `refuses a missing or empty assertion invalid_request`; `refuses a typ that is not text, naming it as JSON`; `answers a be-01 fault 502…` (twice) |
+| N2     | consent tokens carry `token_use: consent`; a token naming mcp-01's issuer that fails local verification is never handed to `verifyUpstream` (`refuseOwnToken`); design M5 records what section 3 requires                                                                                                                | the claim removed; the rethrow removed                                                                                                             | `exchanges one authorization code for an audience-bound local token…` (oauth.test.ts); `never hands a machine token to the upstream verifier` (one upstream call)                                                                                      |
+| N3     | be-01 refuses, `invalid_token`, an assertion whose `iss` is `WBS_MCP_AUTHORIZATION_SERVER`                                                                                                                                                                                                                               | refusal removed                                                                                                                                    | be-01 `refuses an assertion naming mcp-01’s own issuer invalid_token` (grant issued)                                                                                                                                                                   |
+| N4     | recorded below                                                                                                                                                                                                                                                                                                           | —                                                                                                                                                  | —                                                                                                                                                                                                                                                      |
+| N5     | recorded below (not changed)                                                                                                                                                                                                                                                                                             | —                                                                                                                                                  | —                                                                                                                                                                                                                                                      |
+| N6     | design M3: narrowing is enforced by mcp-01's token scope only; section 3 must refuse before be-01                                                                                                                                                                                                                        | —                                                                                                                                                  | —                                                                                                                                                                                                                                                      |
+| N7     | only a `TypeError` carrying a system error `code` is be-01 unreachable (503); any other fetch failure is a defect (502), its cause left out because its message may quote the secret header                                                                                                                              | every `TypeError` read as unreachable                                                                                                              | `answers 502 for a secret fetch cannot carry in a header…`, `answers a be-01 fault 502…`                                                                                                                                                               |
+| N8     | the Proof comment's stray parenthesis fixed                                                                                                                                                                                                                                                                              | —                                                                                                                                                  | —                                                                                                                                                                                                                                                      |
+| design | M3 (TTL + 60 s, `no_lifetime`, the 502, defects for a longer grant or another run, narrowing), M4 (TTL + 60 s), M5 (`token_use`, the reserved issuer)                                                                                                                                                                    | —                                                                                                                                                  | `openspec validate --strict`                                                                                                                                                                                                                           |
+
+Results at 3ed536cc3, 2026-10-27, `env -u CLAUDECODE`, `--skip-nx-cache`: typecheck and lint
+for wbs-mcp-01 and wbs-be-01 exit 0; `wbs-mcp-01:test` 620 pass, 0 fail; `wbs-contracts:test`
+607 pass, 0 fail; `wbs-be-01:test` 3754 pass, 3 skipped, 0 fail (3757 tests, 256 files);
+`tool-devsync:test` 940 pass, 0 fail; `openspec validate --all --json` 297/297; Burokrat
+`check-indexes` exit 0; Prettier clean. Two earlier tool-devsync runs failed 43 and then 14
+tests, all in `performance-level.test.ts`, with `listen EADDRINUSE :::9100`: another
+session's performance run held that port. Run alone with the port free, the file passed 67/0,
+and the full suite then passed. Not run: the h2puni gate, fe-01 and its e2e, gw-01.
+
+Two existing `oauth.test.ts` expectations changed with N2: a revoked consent token at `verify`
+is now refused by its local failure (`MCP OAuth session is missing, expired, or revoked`), no
+longer by the upstream verifier's `not an upstream token`.
+
+Recorded, not changed:
+
+- **N4.** be-01 writes the `machine_token_issued` row (and touches `last_used_at`) before
+  mcp-01 judges the grant, so a request mcp-01 then refuses still leaves one: a JWT-bearer
+  `client_id` other than the grant's credential, a narrowed scope the grant does not hold, a
+  grant with no lifetime left after the margin, or a grant mcp-01 reads as a defect. The row
+  names the credential and run only, and stays within the per-day bound.
+- **N5.** An unfetchable trusted issuer key set is `invalid_token` inside
+  `admitTrustedIssuerToken` (the verdict `key_set_unavailable` becomes the same refusal as an
+  invalid token, as the `/api` spec requires), so mcp-01 answers `invalid_grant`, not `503`.
+  Telling them apart needs a new `AuthenticationRefusal` variant through `@wbs/core`, its
+  `/api` callers and the grant contract: more than this review's scope. The failure is
+  reported by be-01's key set reporter either way.
+- **N3's registration half.** The reservation is enforced at grant issuance only; the trusted
+  issuer route does not yet refuse registering `WBS_MCP_AUTHORIZATION_SERVER`, because the
+  core route is not composed with it. Such a registration admits no grant.
+
 ## Failure-proof table
 
 Slice 1 rows. Each check was watched failing with the fault injected, then restored; the

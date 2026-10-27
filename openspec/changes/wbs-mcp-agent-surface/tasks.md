@@ -160,7 +160,7 @@
 
 ## 2. mcp-01: the token endpoint
 
-- [ ] 2.1 Red: the form parser.
+- [x] 2.1 Red: the form parser.
   - `client_credentials`: Basic or body, never both, never with a `client_assertion`; a lone
     `client_assertion` is `invalid_client`; `client_id` optional and matched.
   - JWT-bearer: `assertion` required, `typ` checked, a Basic secret refused, and `client_id`
@@ -168,7 +168,8 @@
   - Exactly one canonical `resource` (`invalid_target`).
   - Default scope; `wbs_run` of 1 to 256 characters.
   - Carriers that redact.
-- [ ] 2.2 Green:
+- [x] 2.2 Green (slice 2; `tools/list` through `/mcp` waits for 3.2, and the provider-cache
+      negative moves to 2.4: verify.md, slice 2 notes):
   - both grants, and token signing (`token_use machine`, the grant's scopes, `exp` 60 s
     before the grant, 0–10% jitter);
   - `MCP_MACHINE_TOKEN_TTL`;
@@ -191,7 +192,7 @@
   - accept a Basic secret on the JWT-bearer grant, and its `invalid_request` test reddens;
   - make the provider cache its first assertion.
 
-- [ ] 2.3 Secrets: inject a throw in be-01's route during a Basic request. The test asserts
+- [x] 2.3 Secrets: inject a throw in be-01's route during a Basic request. The test asserts
       that the report, route evidence and audit row hold no key, no `base64(id:key)` and no
       assertion. Negative: put the form in the report.
 - [ ] 2.4 `WorkloadJwtBearerProvider` and `twilight-dash mcp token` in Twilight Dash

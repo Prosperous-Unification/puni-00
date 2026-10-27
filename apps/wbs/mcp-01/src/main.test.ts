@@ -8,6 +8,7 @@ import { parseOrThrow } from '@wbs/validation';
 import { expect, spyOn, test } from 'bun:test';
 
 import type { McpConfig } from './config';
+import { MachineGrantDefect } from './machine-grant-client';
 import { type McpApplicationDeps, startMcpApplication } from './main';
 import type { DerivedTool } from './openapi-tools';
 import { SessionRefreshRefused } from './wbs-client';
@@ -225,6 +226,47 @@ test('starts without a Basic secret and writes OAuth and startup facts through t
   } finally {
     consoleError.mockRestore();
   }
+});
+
+test('redacts the machine grant secret with the other boundary secrets', () => {
+  const machineSecret = crypto.randomUUID().repeat(2);
+  const loggerOptions: CreateLoggerOptions[] = [];
+  startMcpApplication({
+    loadConfig: () => ({ ...CONFIG, MCP_BE_INTERNAL_SECRET: machineSecret }),
+    readDocument: () => ({ paths: {} }),
+    toolsFromDocument: () => [READ],
+    mcpOAuthFromEnv: () => oauthFixture(),
+    startHttpServer: () => ({ port: 3313 }),
+    createLogger: (options) => {
+      loggerOptions.push(options);
+      return createLogger({ ...options, destination: { write: () => undefined } });
+    },
+  });
+  expect(loggerOptions[0]?.secrets).toEqual(['mcp-user:boundary-secret', machineSecret]);
+});
+
+test('reports a machine grant fault redacted', () => {
+  const machineSecret = crypto.randomUUID().repeat(2);
+  const lines: string[] = [];
+  let report: ((fault: MachineGrantDefect) => void) | undefined;
+  startMcpApplication({
+    loadConfig: () => ({ ...CONFIG, MCP_BE_INTERNAL_SECRET: machineSecret }),
+    readDocument: () => ({ paths: {} }),
+    toolsFromDocument: () => [READ],
+    mcpOAuthFromEnv: (_config, _env, _evidence, _fetch, reportFault) => {
+      report = reportFault;
+      return oauthFixture();
+    },
+    startHttpServer: () => ({ port: 3314 }),
+    createLogger: (options) =>
+      createLogger({ ...options, destination: { write: (chunk) => void lines.push(chunk) } }),
+  });
+  if (report === undefined) throw new Error('no machine grant fault reporter was composed');
+  report(new MachineGrantDefect(`be-01 answered unmodeled, sent ${machineSecret}`));
+  const faultLines = lines.filter((line) => line.includes('MCP machine grant fault'));
+  expect(faultLines).toHaveLength(1);
+  expect(faultLines[0]).toContain('be-01 answered unmodeled');
+  expect(faultLines[0]).not.toContain(machineSecret);
 });
 
 /** Starts the production composition around `oauth` and connects a client whose MCP session is live. */

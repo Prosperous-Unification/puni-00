@@ -1,0 +1,171 @@
+import { randomBytes } from 'node:crypto';
+
+import { importMachineGrantKeys } from '../runtime/machine-grant';
+import { LocalOidcIssuers } from './local-oidc-issuer';
+import { addAgentPerson, issueApiKey, revokeMachineCredential } from './machine-credential-fixture';
+import { OrganizationHarness } from './organization-harness';
+
+/**
+ * be-01 for mcp-01's booted machine token test
+ * (`apps/wbs/mcp-01/src/machine-token.boot.test.ts`, `wbs-mcp-agent-surface`
+ * tasks 2.2 and 2.3), run as its own process: the composed organization
+ * harness with machine grants and one local trusted issuer, over a fresh
+ * migrated file. `MCP_TEST_BE_SECRET` and `MCP_TEST_AUTHORIZATION_SERVER` are
+ * the test's own generated values; the grant key is generated here. Prints
+ * `{"port":N}` once serving, then be-01's log lines.
+ *
+ * Organization `org-a` has dany (super admin) and vic (viewer), with agent
+ * persons `claire` (bound to dany) and `vics-agent` (bound to vic). Fixture
+ * routes stand in for the admin:
+ * - `POST /__fixture/activate` sets the activation marker, then trusts the
+ *   local issuer in org-a;
+ * - `POST /__fixture/api-key` `{ personId }` issues an API key: `{ id, key }`;
+ * - `POST /__fixture/revoke` `{ id }` revokes a credential;
+ * - `POST /__fixture/workload` `{ subject }` creates claire's `oidc` credential: `{ id }`;
+ * - `POST /__fixture/assertion` `{ subject, typ?, lifetimeSeconds?, jti? }`
+ *   signs a workload token of the trusted issuer for audience `wbs`;
+ * - `POST /__fixture/fail-next-issuance` makes the next audit write throw, a
+ *   failure inside the grant route (task 2.3);
+ * - `GET /__fixture/audit` lists the organization audit rows.
+ */
+const secret = process.env['MCP_TEST_BE_SECRET'];
+const authorizationServer = process.env['MCP_TEST_AUTHORIZATION_SERVER'];
+if (secret === undefined || authorizationServer === undefined)
+  throw new Error('MCP_TEST_BE_SECRET and MCP_TEST_AUTHORIZATION_SERVER are required');
+
+const AUDIENCE = 'wbs';
+const issuers = new LocalOidcIssuers();
+const ci = await issuers.add('ci.test');
+let failNextIssuance = false;
+let trustedIssuerId: string | undefined;
+
+const h = OrganizationHarness.openComposedWith({
+  trustedIssuers: { fetch: issuers.fetch, configuredIssuer: null },
+  machineGrants: {
+    secret,
+    keys: await importMachineGrantKeys({
+      current: randomBytes(32).toString('base64url'),
+      previous: null,
+    }),
+    authorizationServer,
+    newId: () => {
+      if (failNextIssuance) {
+        failNextIssuance = false;
+        throw new Error('injected failure inside the machine grant route');
+      }
+      return crypto.randomUUID();
+    },
+  },
+});
+await h.register('dany');
+await h.register('vic');
+h.organization('org-a');
+h.member('org-a', 'dany', 'super_admin');
+h.member('org-a', 'vic', 'viewer');
+h.bind('dany', 'org-a');
+addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
+addAgentPerson(h.sqlite, 'vics-agent', 'org-a', h.userId('vic'));
+
+function issuedBy(personId: string): string {
+  return h.userId(personId === 'vics-agent' ? 'vic' : 'dany');
+}
+
+async function fixture(request: Request, path: string): Promise<Response | undefined> {
+  if (request.method === 'POST' && path === '/__fixture/activate') {
+    h.activate();
+    const registered = await h.call('dany', 'POST', '/api/organization/trusted-issuers', {
+      issuer: ci.url,
+      audience: AUDIENCE,
+    });
+    if (registered.status !== 201) return Response.json(registered, { status: 500 });
+    trustedIssuerId = (registered.body as { id: string }).id;
+    return Response.json({ activated: true });
+  }
+  if (request.method === 'POST' && path === '/__fixture/api-key') {
+    const { personId } = (await request.json()) as { personId: string };
+    const { id, key } = await issueApiKey(h.sqlite, {
+      organizationId: 'org-a',
+      personId,
+      issuedBy: issuedBy(personId),
+      name: `key ${crypto.randomUUID()}`,
+    });
+    return Response.json({ id, key });
+  }
+  if (request.method === 'POST' && path === '/__fixture/revoke') {
+    const { id } = (await request.json()) as { id: string };
+    revokeMachineCredential(h.sqlite, id, Date.now());
+    return Response.json({ revoked: id });
+  }
+  if (request.method === 'POST' && path === '/__fixture/workload') {
+    const { subject } = (await request.json()) as { subject: string };
+    if (trustedIssuerId === undefined) return new Response('activate first', { status: 500 });
+    const created = await h.call('dany', 'POST', '/api/organization/machine-credentials', {
+      source: 'oidc',
+      name: `workload ${subject}`,
+      personId: 'claire',
+      trustedIssuerId,
+      subject,
+    });
+    if (created.status !== 201) return Response.json(created, { status: 500 });
+    return Response.json({ id: (created.body as { id: string }).id });
+  }
+  if (request.method === 'POST' && path === '/__fixture/assertion') {
+    const { subject, typ, lifetimeSeconds, jti } = (await request.json()) as {
+      subject: string;
+      typ?: string;
+      lifetimeSeconds?: number;
+      jti?: string;
+    };
+    const now = Math.floor(Date.now() / 1000);
+    const claims = {
+      sub: subject,
+      aud: AUDIENCE,
+      iat: now,
+      exp: now + (lifetimeSeconds ?? 300),
+      jti: jti ?? crypto.randomUUID(),
+    };
+    return Response.json({
+      assertion: typ === undefined ? await ci.sign(claims) : await ci.signTyped(claims, typ),
+    });
+  }
+  if (request.method === 'POST' && path === '/__fixture/fail-next-issuance') {
+    failNextIssuance = true;
+    return Response.json({ armed: true });
+  }
+  if (request.method === 'GET' && path === '/__fixture/audit')
+    return Response.json(
+      h.sqlite.query('SELECT action, detail FROM organization_audit ORDER BY created_at, id').all(),
+    );
+  return undefined;
+}
+
+const server = Bun.serve({
+  hostname: '127.0.0.1',
+  port: 0,
+  fetch: async (request) => {
+    const url = new URL(request.url);
+    const answered = await fixture(request, url.pathname);
+    if (answered !== undefined) return answered;
+    return await h.request(`${url.pathname}${url.search}`, {
+      method: request.method,
+      headers: request.headers,
+      ...(request.method === 'GET' || request.method === 'HEAD'
+        ? {}
+        : { body: await request.arrayBuffer() }),
+    });
+  },
+});
+console.log(JSON.stringify({ port: server.port }));
+
+async function stop(): Promise<void> {
+  await server.stop(true);
+  h.close();
+  await issuers.stop();
+  process.exit(0);
+}
+process.once('SIGTERM', () => {
+  void stop();
+});
+process.once('SIGINT', () => {
+  void stop();
+});

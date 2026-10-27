@@ -12,6 +12,9 @@ import type { MachineGrantAuthority } from '../runtime/machine-grant-authority';
 export function machineGrantRoutes(authority: MachineGrantAuthority) {
   return [
     bind(issueMcpMachineGrant, async ({ body }) => {
+      // Proof: rethrowing a failure here with the body in its message made `a failure inside
+      // be-01’s grant route leaks no key, Basic form or assertion` (mcp-01
+      // machine-token.boot.test.ts) find the key in be-01's report; watched 2026-10-27.
       const outcome = await authority.issue(body);
       switch (outcome.kind) {
         case 'issued': {

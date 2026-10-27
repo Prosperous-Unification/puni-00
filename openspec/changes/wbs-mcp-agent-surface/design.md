@@ -286,7 +286,13 @@ assertion minted for WBS could also be valid elsewhere).
   `min(requested, now + MOST_MACHINE_GRANT_SECONDS, assertion.exp, secret expiry)`, floored to
   a whole second, with a 24 h + 60 s cap. The secret expiry is the matched API-key secret's
   end of rotation window, so no grant outlives the secret that minted it.
-  mcp-01 sets its own token `exp` 60 s before the grant's, which absorbs clock skew.
+  mcp-01 sets its own token `exp` 60 s before the grant's, which absorbs clock skew. So that
+  the token itself lives the jittered TTL (M4), mcp-01 asks be-01 for now + that TTL + 60 s,
+  which is why the cap is 24 h + 60 s; a grant that leaves no lifetime after the margin is
+  refused with the source's error (slice 2). be-01 answers a capped `exp` not after now (a
+  secret or assertion ending within the second) `401 unknown_identity`, the credential's one
+  refusal, never `invalid_body`. mcp-01 treats a grant whose `exp` exceeds what it asked for,
+  or whose run differs from the one it sent, as be-01's defect (review of PR #761).
 - _Verifier._ A dedicated verifier admits only that `typ`, that scalar `aud` and those keys.
   It allows 60 s of clock skew between replicas (`iat` up to 60 s ahead, and jose's
   `clockTolerance`). `directAudienceOf` dispatches on exact audiences, and any other audience
@@ -299,7 +305,10 @@ assertion minted for WBS could also be valid elsewhere).
   for a viewer-bound one), never from the token or the metadata's `scopes_supported`. be-01
   returns them in the grant, and mcp-01 **narrows the access token to them**, so a read-only
   credential fails mcp-01's own write check before be-01 is asked. `http.ts` still advertises `wbs:editor` for
-  consent (`MCP_SCOPES` at line 11, used at lines 40 and 56).
+  consent (`MCP_SCOPES` at line 11, used at lines 40 and 56). A request for fewer scopes than
+  the credential holds (`scope=wbs:read`) is enforced **only** by the mcp-01 token's scope:
+  be-01's grant still carries the credential's scopes, so section 3's admission must refuse a
+  call the token's scope does not cover before be-01 is asked (review of PR #761, N6).
 - _Failures, and how revocation reaches the client._ A refused grant is
   `401 unknown_identity` at be-01 (A5; there is no `credential_revoked` here). Today a be-01
   401 becomes an in-band tool error inside an HTTP 200 (`wbs-client.ts` 288–291, with
@@ -316,7 +325,9 @@ assertion minted for WBS could also be valid elsewhere).
     - `401 unknown_identity`: the credential was refused. This and only this enters the
       per-replica refused set, which holds the token's `jti` until the token's `exp`;
     - `401 internal_unauthorized`: the service secret is missing or wrong. This is a reported
-      server fault (HTTP 502 to the client) and never enters the refused set;
+      server fault (HTTP 502 to the client) and never enters the refused set. At the token
+      endpoint it, and every answer mcp-01 does not model, is reported through mcp-01's
+      redacting logger and answered `502 {"error":"server_error"}` (slice 2);
     - `401 unknown_grant_key`: the grant's `kid` is unknown;
     - `401 invalid_token`: the grant does not verify (signature, claims, an `iat` more than
       60 s ahead). mcp-01 maps it to HTTP `401 invalid_token`, so the client re-fetches, and
@@ -399,8 +410,9 @@ the credential under the service secret alone.
 - Helper, app and SDK clients re-fetch on 401, so short tokens cost them nothing.
 - The raw key, if Dany chooses (ii), carries no expiry of its own; its grants last 60 s
   (M5).
-- `client_credentials` tokens default to **12 h**, capped at **24 h** by M3, with `exp` lowered
-  by a uniform 0–10% jitter so a pool does not re-fetch in one burst.
+- `client_credentials` tokens default to **12 h** (`MCP_MACHINE_TOKEN_TTL`), capped at **24 h**
+  by M3, with `exp` lowered by a uniform 0–10% jitter so a pool does not re-fetch in one burst.
+  mcp-01 asks for that lifetime plus the 60 s margin (M3).
 - An OIDC token never outlives its assertion.
 - Why 24 h is acceptable: revocation does not depend on the token lifetime, because every call
   rereads the credential. The lifetime bounds only how long a stolen token stays useful while
@@ -423,6 +435,17 @@ _Alternative:_ a 1 h cap, which breaks any orchestrator that hands out a token p
   shared store.
 - A machine token at `/refresh` is `invalid_grant`, and at `/revoke` it is
   `unsupported_token_type`.
+- _Telling the token kinds apart_ (slice 2, review of PR #761). Both kinds are signed with
+  mcp-01's one access-token key. Machine tokens carry `token_use: machine` and
+  `wbs_machine_grant`; consent tokens issued since slice 2 carry `token_use: consent`. Section
+  3's machine path requires `token_use: machine` **and** `wbs_machine_grant`, and its consent
+  path refuses any `token_use` other than `consent` (an absent one only until the consent
+  tokens issued before slice 2 have expired, at most `MCP_ACCESS_TOKEN_TTL`). Since slice 2,
+  a token naming mcp-01's issuer that fails local verification is never handed to the
+  upstream verifier.
+- be-01 refuses, `invalid_token`, a workload assertion whose `iss` is
+  `WBS_MCP_AUTHORIZATION_SERVER`: mcp-01's own issuer is reserved at grant issuance, as the
+  sign-in issuer is at trusted issuer registration (slice 2).
 - _If Dany chooses (ii):_
   - a raw-key grant lives 60 s (be-01 caps it);
   - a replica caches it under `SHA-256(key)` for at most that long, and the cache is never

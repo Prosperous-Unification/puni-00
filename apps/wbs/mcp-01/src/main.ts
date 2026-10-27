@@ -9,6 +9,7 @@ import {
 
 import { loadConfig, type McpConfig } from './config';
 import { type McpOAuthHandler, startHttpServer } from './http';
+import type { MachineGrantDefect } from './machine-grant-client';
 import { mcpOAuthFromEnv, type OAuthRouteEvidence } from './oauth';
 import { type OpenApiDocument, readDocument, toolsFromDocument } from './openapi-tools';
 import { createServer } from './server';
@@ -42,6 +43,7 @@ export interface McpApplicationDeps {
     env: Readonly<Record<string, string | undefined>>,
     routeEvidence?: (evidence: OAuthRouteEvidence) => void,
     fetchImpl?: FetchLike,
+    reportMachineGrantFault?: (fault: MachineGrantDefect) => void,
   ) => ApplicationOAuth;
   readonly startHttpServer: (
     makeServer: () => ReturnType<typeof createServer>,
@@ -76,13 +78,22 @@ export function startMcpApplication(deps: McpApplicationDeps = productionDeps): 
 } {
   const config = deps.loadConfig();
   const tools = deps.toolsFromDocument(deps.readDocument());
-  const secrets = [config.WBS_BASIC_AUTH, config.INTERNAL_AUTH_SECRET].filter(
-    (secret): secret is string => secret !== undefined && secret.length > 0,
-  );
+  const secrets = [
+    config.WBS_BASIC_AUTH,
+    config.INTERNAL_AUTH_SECRET,
+    // Proof: leaving it out failed `redacts the machine grant secret with the other boundary
+    // secrets` (main.test.ts); watched 2026-10-27.
+    config.MCP_BE_INTERNAL_SECRET,
+  ].filter((secret): secret is string => secret !== undefined && secret.length > 0);
   const logger = deps.createLogger({ service: 'mcp-01', secrets });
   // Proof: on 2026-09-21, passing `[]` here exposed the owned Basic credential in the production
   // diagnostic line while the public MCP envelope remained generic.
   const reportUnexpectedToolFailure = createUnexpectedToolFailureReporter(logger, secrets);
+  // A fault be-01's machine grant answer revealed is reported here, redacted like every other
+  // line, and the client is answered 502 (`wbs-mcp-agent-surface` M3).
+  // Proof: 2026-10-27, building this policy with `[]` made `reports a machine grant fault
+  // redacted` (main.test.ts) find the secret in the failure line.
+  const redactMachineGrantFault = createFailureRedaction(secrets);
   const oauth = deps.mcpOAuthFromEnv(
     config,
     process.env,
@@ -90,6 +101,14 @@ export function startMcpApplication(deps: McpApplicationDeps = productionDeps): 
       logger.info({ event: 'mcp_oauth_route', ...evidence }, 'MCP OAuth route');
     },
     deps.fetchImpl,
+    (fault) => {
+      logger.error(
+        {
+          err: registerReportedFailure(reportFailure(fault, { redact: redactMachineGrantFault })),
+        },
+        'MCP machine grant fault',
+      );
+    },
   );
   // The mcp-01 → be-01 half of consent revocation (`wbs-machine-credentials` A20, _End_). An
   // unreachable be-01 is modeled inside the sweep (the ends stay durable for the next one); any

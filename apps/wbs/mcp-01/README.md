@@ -188,6 +188,35 @@ retired by the epoch) and every code never exchanged to
 `/internal/mcp/credentials/ended`, keeping each end in the store until be-01
 acknowledges it.
 
+### Machine credentials at the token endpoint
+
+With `MCP_BE_INTERNAL_SECRET` set to be-01's own value, in standalone mode,
+`/mcp/oauth/token` also answers two machine grants (`wbs-mcp-agent-surface`
+M2–M4), and the authorization server metadata lists them with the methods
+`client_secret_basic` and `client_secret_post`:
+
+- `client_credentials` with a `wbs_mk_` API key as the client secret, by HTTP
+  Basic (the MCP SDK's `ClientCredentialsProvider`) or in the body; a
+  `client_id`, when sent, must be the key's credential id;
+- `urn:ietf:params:oauth:grant-type:jwt-bearer` with a trusted issuer's
+  workload token as `assertion` and no client authentication.
+
+Each request carries `resource` equal to `MCP_PUBLIC_URL`; `scope` defaults to
+`wbs:read wbs:write`, and `wbs_run` (1 to 256 characters) opts into run scoping.
+The request is parsed in `src/token-request.ts`, and be-01's
+`/internal/mcp/machine-grants` alone verifies the key or assertion, called with
+the secret in `x-mcp-internal-auth` (`src/machine-grant-client.ts`). The answer
+is an access token with `token_use: machine`, the grant's scopes, be-01's grant
+as a claim and `exp` 60 s before the grant's, with no refresh token; nothing is
+stored. `MCP_MACHINE_TOKEN_TTL` (seconds, 60 to 86400, default 43200) is the
+lifetime asked for, lowered by a uniform 0–10 % jitter and capped by be-01 at
+the assertion's or rotated secret's end. Every key failure is `401
+invalid_client` with a Basic challenge, every assertion failure `400
+invalid_grant`, before activation too; nothing falls back to the upstream
+verifier. Dynamic registration refuses both grants. Without the secret, or in
+gateway mode, both grants answer `unsupported_grant_type`. `/mcp` does not admit
+these tokens yet (the change's section 3).
+
 ## Durable sessions and key rotation
 
 mcp-01 owns this store because it is the authorization server that creates,
