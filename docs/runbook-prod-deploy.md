@@ -226,7 +226,9 @@ The Kubernetes release does run mcp-01; what it needs is under [Kubernetes](#kub
   read-only. On an **activated** store it refuses (exit 4) when any of the three is missing or
   would fail boot (weak, equal, `_PREVIOUS needs _CURRENT`), naming each and never a value:
   `the store is activated and be-01 would refuse to boot it: MCP_BE_INTERNAL_SECRET is missing; …`.
-  Nothing has stopped yet, so the fix is to seed the files and deploy again. A store before
+  Nothing has stopped yet, so the fix is to seed the files and deploy again. The Kubernetes
+  capture Job runs the same CLI, with `wbs-backend-secrets` and the candidate overlay's server,
+  before its snapshot. A store before
   activation passes and reports what it lacks; a store the ledger proves has not reached
   `20260927180000_add_organization_activation` reads as `not_migrated`, and a broken marker
   refuses. be-01's own boot refusal stays as the last line.
@@ -279,10 +281,21 @@ nothing yet. The listing names the work that slice 7, or any change of `MCP_PUBL
 force. Each listed registration needs its identity provider changed and the registration
 re-made.
 
-**Wired into both deploys.** When the candidate env names `WBS_MCP_AUTHORIZATION_SERVER`, the
-Compose be swap runs this check in the same `mcp-preflight` step, before any writer stops; the
-Kubernetes capture Job runs it before its snapshot and every migration. Both take the accepted
-ids from the deploy CLI:
+**Wired into both deploys.** Both run it with the candidate image, before any migration, and
+take the accepted ids from the deploy CLI:
+
+- **Compose:** in the be swap's `mcp-preflight` step, after the settings check, while the
+  outgoing colour still serves, so a refusal stops nothing. It runs when the candidate's
+  `be-01.env` names `WBS_MCP_AUTHORIZATION_SERVER`; without one it is skipped and logged, because
+  the settings check has already refused an activated store without a server.
+- **Kubernetes:** in the capture Job, after the settings check and before the snapshot. That is
+  after `writes-closed` and `writer-stopped`: schema Jobs are refused while a writer pod runs, so
+  the check sits inside the outage window. A refusal there captures nothing, and the
+  transaction's rollback restarts the previous release with no schema to undo. The server is the
+  **candidate** overlay's `wbs-backend-config` value, rendered by `deploy-k3s` before the
+  transaction starts (a candidate overlay without it refuses then, before writes close) and
+  passed to the Job as a plain value; the live ConfigMap is not read, because the candidate's
+  lands only at `reconcile-desired`, after migration.
 
 ```sh
 bunx nx run tool-deploy:deploy -- be --execute --accept-breaking=<id,id>        # Compose
@@ -295,12 +308,11 @@ refuses the deploy with the CLI's stderr in the failure, which names every unacc
 running the deploy without the flag is how to list them. The Kubernetes flag is not journaled:
 a resumed run that has not captured yet needs it again.
 
-Without a server the Compose step skips the audience check and says so: the settings check
-has already refused an activated store without one. The Kubernetes capture Job reads the
-server from `wbs-backend-config`, and fails naming it when the ConfigMap lacks it. A store the
-ledger proves has not reached `20261022100000_add_machine_credential` holds no registration and
-passes. A candidate image that ships neither CLI predates them; the deploy logs that and skips
-the check, so rolling back to such an image is not blocked.
+A store the ledger proves has not reached `20261022100000_add_machine_credential` holds no
+registration and passes. **A candidate image without either CLI refuses** (Compose: exit 74,
+`candidate image lacks src/…`; Kubernetes: the capture Job names the path). Compose has no
+escape: swap an image that predates the checks by hand. Kubernetes skips a missing CLI, loudly,
+only when the deploy declares an older candidate with `--allow-downgrade` or `--recovers`.
 
 Accepting a row is a decision, not a fix. Record the ids and why with the deploy. Neither path
 has run on a host yet; their behaviour is tested in `swap-mcp-preflight.db.test.ts` and
@@ -373,14 +385,20 @@ The prod and staging overlays are plan-only. They now carry what an activated st
   (M14).
 - each overlay's `wbs-backend-config` carries `WBS_MCP_AUTHORIZATION_SERVER`, its
   `MCP_PUBLIC_URL` plus `/oauth` (`mcp-manifest.test.ts` holds them equal).
-- the capture Job runs the audience preflight (above).
+- the capture Job runs the settings and audience preflights (above), with the candidate
+  overlay's server.
 
 `MCP_BE_INTERNAL_SECRET` must hold one value in two Secrets, `wbs-solver/wbs-backend-secrets`
 and `wbs/wbs-mcp-secrets`, and the operator provisions both before the first release carrying
 this manifest: without the key, the mcp-01 pod stops at `CreateContainerConfigError`. Roll the
-backend first, as in step 2. Kubernetes has no settings preflight: a missing grant setting on
-an activated store fails the backend rollout after migration, which the release transaction
-rolls back with the captured schema.
+backend first, as in step 2.
+
+The preflights run inside the capture Job, after writes close, not in a read-only phase before
+it as Compose does: moving them needs a Job kind the single-writer guard admits beside a running
+backend, which this change does not add. Their refusal costs an outage and a rollback that
+touches no schema. A boot failure after migration for any other reason still takes the
+captured-schema rollback, and a table-guarded `down.sql` that refuses there parks the release
+in `rollback-failed`, which needs the manual recovery the release journal prints.
 
 ## Team claims swap window and rollback
 

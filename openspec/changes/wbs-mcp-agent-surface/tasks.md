@@ -355,7 +355,7 @@
     `--accept-breaking`;
   - order the secret cutover.
     (`docs/runbook-prod-deploy.md`, "MCP agent surface"; verify.md slice 14. The preflight
-    step is a manual `docker run`, because no deploy CLI runs it yet; see 8.3.)
+    was a manual `docker run` until 8.3 wired it into both deploys; verify.md slice 15.)
 - [x] 8.3 Deploy wiring the runbook found missing (verify.md slice 14, gaps):
   - the Compose swap and the Kubernetes schema Job run `trusted-issuer-audience-check-cli.ts`
     with the candidate image before migrating, and both deploy CLIs take

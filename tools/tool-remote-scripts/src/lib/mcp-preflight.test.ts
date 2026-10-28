@@ -71,6 +71,8 @@ describe('parseMcpSettingsReport', () => {
       '{"authorizationServer":null}',
       'null',
       '[]',
+      // What a candidate without the CLI once printed; it is no report.
+      '"cli-absent"',
     ])
       expect(() => parseMcpSettingsReport(output)).toThrow(
         'candidate reported malformed machine grant settings',
@@ -93,7 +95,7 @@ describe('mcpPreflightCommand', () => {
       '--network',
       'none',
       '--mount',
-      'type=bind,source=/home/puni1/wbs/data,target=/data',
+      'type=bind,source=/home/puni1/wbs/data,target=/data,bind-propagation=rprivate',
     ]);
     expect(command).toContain('DB_PATH=/data/plan.db');
     expect(command).toContain('WBS_ACCEPT_BREAKING_AUDIENCES=ti-a,ti-b');
@@ -119,19 +121,6 @@ describe('assertMcpSurfaceReady', () => {
   it('refuses an activated store reported without a server', async () => {
     const activated = candidate('{"activation":"activated","authorizationServer":null}');
     expect(await refusal(activated.check())).toContain('reported no authorization server');
-  });
-
-  it('logs a candidate older than either CLI and skips its check', async () => {
-    const old = candidate('"cli-absent"');
-    await old.check();
-    expect(old.ran).toEqual(['settings']);
-    expect(old.log.join('\n')).toContain('predates the MCP preflight');
-    const partly = candidate(
-      '{"activation":"pre_activation","authorizationServer":"https://wbs.example/mcp/oauth"}',
-      '"cli-absent"',
-    );
-    await partly.check();
-    expect(partly.log.join('\n')).toContain('the audience preflight is skipped');
   });
 
   it('refuses a malformed audience check', async () => {

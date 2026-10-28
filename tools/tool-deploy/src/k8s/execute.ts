@@ -3,6 +3,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 
+import { parseAllDocuments } from 'yaml';
+
 import { isTerminal, type JournalRecord, type ReleaseJournal } from './journal';
 import {
   assertMigrationCapture,
@@ -702,6 +704,17 @@ export interface KubectlSettings {
    */
   acceptBreakingAudiences?: readonly string[];
   /**
+   * The candidate overlay's `WBS_MCP_AUTHORIZATION_SERVER`, resolved before the transaction by
+   * {@link readCandidateAuthorizationServer} so its absence refuses before writes close. Absent,
+   * the capture effect resolves it itself.
+   */
+  candidateAuthorizationServer?: string;
+  /**
+   * The deploy declared an older candidate (`--allow-downgrade` or `--recovers`), so a capture
+   * Job may skip a preflight CLI the image does not ship. Otherwise an absent CLI refuses.
+   */
+  olderCandidateDeclared?: boolean;
+  /**
    * Clone of the deploy repository the WBS GitRepository serves. `reconcile-desired` pushes
    * `flux.desiredRevision` to it, and only while the WBS unit is suspended. Absent or `null`,
    * a Flux release requires the source to be at the desired revision already.
@@ -811,23 +824,37 @@ if (mode === 'capture') {
   }
 }
 if (!fs.existsSync(dbPath)) throw new Error('database ' + dbPath + ' does not exist');
-// The audience preflight (wbs-mcp-agent-surface M2) runs before the snapshot and every
-// migration: a stored audience that breaks WBS_MCP_AUTHORIZATION_SERVER and is not named in
-// WBS_ACCEPT_BREAKING_AUDIENCES fails the Job with the CLI's exit and stderr. The capability
-// probe above proved src readable, so an absent CLI is a candidate older than the check.
+// The MCP preflight (wbs-mcp-agent-surface M2, M3) runs before the snapshot and every
+// migration, in the order the Compose swap runs it: the machine grant settings (exit 4 on an
+// activated store lacking one), then the audience check against the candidate overlay's
+// WBS_MCP_AUTHORIZATION_SERVER (exit 3 on a breaking audience not in
+// WBS_ACCEPT_BREAKING_AUDIENCES). Either failure fails the Job with the CLI's exit and stderr.
+// A candidate without a CLI refuses, unless the deploy declared an older candidate
+// (--allow-downgrade or --recovers, PUNI_OLDER_CANDIDATE=1): then the check is skipped, loudly.
 // Proof: with this block removed, 'refuses an unaccepted wbs:org registration before the
 // snapshot' (execute-adapter.test.ts) took the snapshot and passed; watched 2026-10-28.
 if (mode === 'capture') {
-  const audienceCli = 'src/trusted-issuer-audience-check-cli.ts';
-  if (fs.existsSync(audienceCli)) {
-    const check = Bun.spawnSync(['bun', 'run', audienceCli], { stdout: 'pipe', stderr: 'pipe' });
+  for (const [name, path] of [
+    ['machine grant settings', 'src/mcp-service-settings-check-cli.ts'],
+    ['trusted issuer audience', 'src/trusted-issuer-audience-check-cli.ts'],
+  ]) {
+    if (!fs.existsSync(path)) {
+      // Proof: with this refusal replaced by the skip, 'refuses a candidate without the
+      // preflight CLIs unless an older candidate is declared' (execute-adapter.test.ts) took
+      // the snapshot; watched 2026-10-28.
+      if (process.env.PUNI_OLDER_CANDIDATE !== '1') {
+        throw new Error('candidate image lacks ' + path + '; only a declared downgrade or ' +
+          'recovery (--allow-downgrade, --recovers) may deploy an image without the ' + name + ' preflight');
+      }
+      console.error('declared older candidate ships no ' + path + ': the ' + name + ' preflight is skipped');
+      continue;
+    }
+    const check = Bun.spawnSync(['bun', 'run', path], { stdout: 'pipe', stderr: 'pipe' });
     if (check.exitCode !== 0) {
-      throw new Error('trusted issuer audience preflight refused (exit ' + check.exitCode + '): ' +
+      throw new Error(name + ' preflight refused (exit ' + check.exitCode + '): ' +
         check.stderr.toString().trim());
     }
-    console.error('audience preflight passed: ' + check.stdout.toString().replace(/\s+/g, ' '));
-  } else {
-    console.error('candidate ships no ' + audienceCli + ': it predates the audience preflight, which is skipped');
+    console.error(name + ' preflight passed: ' + check.stdout.toString().replace(/\s+/g, ' '));
   }
 }
 const cli = (args) => {
@@ -975,20 +1002,11 @@ const SECURITY_CONTEXT = {
 };
 
 /**
- * The capture Job's audience preflight judges stored audiences against be-01's own
- * `WBS_MCP_AUTHORIZATION_SERVER`. Optional here so a ConfigMap without it fails the Job with
- * the CLI's named refusal rather than holding the pod in `CreateContainerConfigError`.
+ * The capture Job's settings preflight judges the machine grant settings be-01 will boot with,
+ * so it sees the backend's own Secret. The authorization server is not read from the live
+ * ConfigMap: the capture effect passes the candidate overlay's value as a plain env.
  */
-const AUDIENCE_SERVER_ENV = {
-  name: 'WBS_MCP_AUTHORIZATION_SERVER',
-  valueFrom: {
-    configMapKeyRef: {
-      name: 'wbs-backend-config',
-      key: 'WBS_MCP_AUTHORIZATION_SERVER',
-      optional: true,
-    },
-  },
-};
+const CAPTURE_ENV_FROM = [{ secretRef: { name: 'wbs-backend-secrets' } }];
 
 /**
  * One schema Job in the backend namespace. It satisfies F6's trusted admission (approved image,
@@ -1038,10 +1056,11 @@ export function backendTaskJob(
                 { name: 'DB_PATH', value: '/data/wbs.sqlite' },
                 { name: 'HOME', value: '/tmp' },
                 ...Object.entries(env).map(([key, value]) => ({ name: key, value })),
-                // Proof: with this entry removed, `reads the server from the backend ConfigMap
-                // and carries the accept list` (execute-adapter.test.ts) failed; watched 2026-10-28.
-                ...(env['PUNI_TASK'] === 'capture' ? [AUDIENCE_SERVER_ENV] : []),
               ],
+              // Proof: with this entry removed, `passes the candidate overlay's server and the
+              // backend Secret, never the live ConfigMap` (execute-adapter.test.ts) failed;
+              // watched 2026-10-28.
+              ...(env['PUNI_TASK'] === 'capture' ? { envFrom: CAPTURE_ENV_FROM } : {}),
               resources: {
                 requests: { cpu: '50m', memory: '128Mi' },
                 limits: { memory: '512Mi' },
@@ -1812,8 +1831,19 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects & Clus
           PUNI_TASK: 'capture',
           PUNI_RELEASE: identity.attempt,
           PUNI_SNAPSHOT_DIR: '/data/snapshots',
-          // Proof: with this spread emptied, `reads the server from the backend ConfigMap and
-          // carries the accept list` (execute-adapter.test.ts) failed; watched 2026-10-28.
+          // The candidate's server, never the live ConfigMap's: the candidate overlay lands only
+          // in reconcileDesired, after migration, so the live value would judge a server change
+          // against the old server.
+          // Proof: with this entry removed, `passes the candidate overlay's server and the
+          // backend Secret, never the live ConfigMap` (execute-adapter.test.ts) failed; the
+          // same test refuses any configMapKeyRef in the Job; watched 2026-10-28.
+          WBS_MCP_AUTHORIZATION_SERVER:
+            settings.candidateAuthorizationServer ??
+            (await readCandidateAuthorizationServer(settings)),
+          ...(settings.olderCandidateDeclared === true ? { PUNI_OLDER_CANDIDATE: '1' } : {}),
+          // Proof: with this spread emptied, `passes the candidate overlay's server and the
+          // backend Secret, never the live ConfigMap` (execute-adapter.test.ts) failed; watched
+          // 2026-10-28.
           ...((settings.acceptBreakingAudiences ?? []).length > 0
             ? {
                 WBS_ACCEPT_BREAKING_AUDIENCES: (settings.acceptBreakingAudiences ?? []).join(','),
@@ -1958,6 +1988,54 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects & Clus
 }
 
 /** Renders `settings.overlay` with the release's digests substituted for the placeholder names. */
+/**
+ * `WBS_MCP_AUTHORIZATION_SERVER` from the backend ConfigMap in a rendered overlay: what be-01
+ * will boot with once this release reconciles.
+ *
+ * @throws when the render holds no such ConfigMap, or it lacks the key or leaves it empty.
+ */
+export function authorizationServerOfRendered(rendered: string, backendNamespace: string): string {
+  for (const document of parseAllDocuments(rendered)) {
+    const object: unknown = document.toJS();
+    if (object === null || typeof object !== 'object') continue;
+    const metadata: unknown = Reflect.get(object, 'metadata');
+    if (
+      Reflect.get(object, 'kind') !== 'ConfigMap' ||
+      metadata === null ||
+      typeof metadata !== 'object' ||
+      Reflect.get(metadata, 'name') !== 'wbs-backend-config' ||
+      Reflect.get(metadata, 'namespace') !== backendNamespace
+    )
+      continue;
+    const data: unknown = Reflect.get(object, 'data');
+    const server: unknown =
+      data !== null && typeof data === 'object'
+        ? Reflect.get(data, 'WBS_MCP_AUTHORIZATION_SERVER')
+        : undefined;
+    // Proof: with this refusal removed, `refuses a candidate overlay without the server`
+    // (execute-adapter.test.ts) returned undefined; watched 2026-10-28.
+    if (typeof server !== 'string' || server === '')
+      throw new Error(
+        `the candidate overlay's wbs-backend-config lacks WBS_MCP_AUTHORIZATION_SERVER`,
+      );
+    return server;
+  }
+  throw new Error(`the candidate overlay renders no ${backendNamespace}/wbs-backend-config`);
+}
+
+/**
+ * Renders the candidate overlay (`settings.overlay`, this checkout's) and reads its server with
+ * {@link authorizationServerOfRendered}. Images are irrelevant to a ConfigMap, so the overlay
+ * renders as it stands.
+ */
+export async function readCandidateAuthorizationServer(
+  settings: Pick<KubectlSettings, 'kubectl' | 'overlay' | 'namespaces'>,
+): Promise<string> {
+  const rendered = await run([settings.kubectl, 'kustomize', settings.overlay], null, 60_000);
+  if (rendered.exitCode !== 0) throw new Error(`kustomize failed: ${rendered.stderr.trim()}`);
+  return authorizationServerOfRendered(rendered.stdout, settings.namespaces.backend);
+}
+
 export async function renderOverlay(
   settings: Pick<KubectlSettings, 'kubectl' | 'overlay'>,
   identity: ReleaseIdentity,

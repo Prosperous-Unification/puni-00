@@ -67,14 +67,19 @@ const ACTIVATE =
  * Runs the swap's own `docker run … sh -c` command against the real be-01
  * source: env files by their swap paths, `/data` as the fixture's directory.
  */
-function runCandidate(args: string[], root: string, envFiles: Map<string, string>): string {
+function runCandidate(
+  args: string[],
+  root: string,
+  envFiles: Map<string, string>,
+  source: string,
+): string {
   const env: Record<string, string> = { PATH: dirname(process.execPath) + ':/usr/bin:/bin' };
   let script: string | undefined;
   for (let at = 1; at < args.length; at++) {
     const argument = args[at];
     const next = args[at + 1] ?? '';
     if (argument === '--mount') {
-      expect(next).toBe(`type=bind,source=${ROOT}/data,target=/data`);
+      expect(next).toBe(`type=bind,source=${ROOT}/data,target=/data,bind-propagation=rprivate`);
       at++;
     } else if (argument === '--env-file') {
       const text = envFiles.get(next);
@@ -100,7 +105,7 @@ function runCandidate(args: string[], root: string, envFiles: Map<string, string
   ]);
   if (script === undefined) throw new Error('candidate command has no script');
   const child = Bun.spawnSync(['sh', '-c', script], {
-    cwd: BACKEND,
+    cwd: source,
     env,
     stdout: 'pipe',
     stderr: 'pipe',
@@ -110,7 +115,12 @@ function runCandidate(args: string[], root: string, envFiles: Map<string, string
   return child.stdout.toString();
 }
 
-function attempt(root: string, beEnv: string, secrets: readonly string[] = SECRETS) {
+function attempt(
+  root: string,
+  beEnv: string,
+  secrets: readonly string[] = SECRETS,
+  source: string = BACKEND,
+) {
   const appEnv = tierEnvFiles('be')[0];
   const secretsFile = tierSecretsFile('be');
   const envFiles = new Map<string, string>(
@@ -147,7 +157,7 @@ function attempt(root: string, beEnv: string, secrets: readonly string[] = SECRE
       }),
     sh: (args) => {
       commands.push(args);
-      if (args[0] === 'run') return Promise.resolve(runCandidate(args, root, envFiles));
+      if (args[0] === 'run') return Promise.resolve(runCandidate(args, root, envFiles, source));
       if (args[0] === 'stop') return Promise.reject(new Error('reached the outgoing stop'));
       if (args[0] === 'image' && args[3] === '{{json .}}')
         return Promise.resolve(JSON.stringify({ Id: `sha256:${'b'.repeat(64)}` }));
@@ -237,6 +247,20 @@ describe('the be swap MCP preflight', () => {
     const reached = await failure(execute(swap.plan, IMAGE, 'deadbeef', swap.io));
     expect(reached).toContain('reached the outgoing stop');
     expect(swap.commands.filter((args) => args[0] === 'run')).toHaveLength(1);
+  });
+});
+
+describe('a candidate without the preflight CLIs', () => {
+  it('refuses a candidate that ships no settings CLI', async () => {
+    const { root } = store();
+    // An image whose `src` lacks both CLIs: a release older than the check, or a packaging fault.
+    const source = join(root, 'older-image');
+    mkdirSync(join(source, 'src'), { recursive: true });
+    const swap = attempt(root, `WBS_MCP_AUTHORIZATION_SERVER=${SERVER}\n`, SECRETS, source);
+    const refusal = await failure(execute(swap.plan, IMAGE, 'deadbeef', swap.io));
+    expect(refusal).toContain('candidate image lacks src/mcp-service-settings-check-cli.ts');
+    expect(swap.commands.some((args) => args[0] === 'stop')).toBe(false);
+    expect(existsSync(join(root, 'be-writer-stop.json'))).toBe(false);
   });
 });
 

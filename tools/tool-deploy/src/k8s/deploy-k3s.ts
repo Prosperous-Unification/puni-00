@@ -10,6 +10,7 @@ import {
   executeRelease,
   kubectlEffects,
   type KubectlSettings,
+  readCandidateAuthorizationServer,
   renderOverlay,
   run,
 } from './execute';
@@ -293,15 +294,24 @@ export async function main(args: readonly string[], root: string): Promise<void>
   const stateDir = dirname(journalPath);
   mkdirSync(stateDir, { recursive: true, mode: 0o700 });
   const bounds = boundsFor(request.environment);
+  const overlay = resolve(root, 'deploy/k8s/wbs/overlays', request.environment);
+  // Before the transaction, so a candidate overlay without the server refuses before writes close.
+  const candidateAuthorizationServer = await readCandidateAuthorizationServer({
+    kubectl,
+    overlay,
+    namespaces: request.namespaces,
+  });
   const effects = kubectlEffects({
     kubectl,
     kubeconfig: flag(args, '--kubeconfig'),
     context: request.cluster.context,
     namespaces: request.namespaces,
     stateDir,
-    overlay: resolve(root, 'deploy/k8s/wbs/overlays', request.environment),
+    overlay,
     deployRepository: prepared.deployRepository,
     acceptBreakingAudiences,
+    candidateAuthorizationServer,
+    olderCandidateDeclared: args.includes('--allow-downgrade') || request.recovers !== null,
     log: (line) => {
       console.log(line);
     },
