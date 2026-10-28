@@ -19,8 +19,9 @@ const BUSY_TIMEOUT_MS = 5000;
  *
  * The cache is private to its `Database`, so a replaced handle starts empty, and SQLite
  * recompiles a cached statement when another connection changed the schema (blue/green share
- * the file); `db.db.test.ts` observes both. Bun reads this static on every miss, so setting it
- * once here covers every connection this file opens.
+ * the file); `db.db.test.ts` observes both. `Database.MAX_QUERY_CACHE_SIZE` is a process-global
+ * static that Bun reads on every miss, so importing this file sets it for every `Database` in the
+ * process, including ones opened elsewhere.
  */
 export const STATEMENT_CACHE_SIZE = 1024;
 Database.MAX_QUERY_CACHE_SIZE = STATEMENT_CACHE_SIZE;
@@ -351,11 +352,17 @@ export function openReadOnlyDatabase(dbPath: string): Database {
 
 /**
  * Runs `read` on a connection of its own inside one `BEGIN DEFERRED` read
- * transaction, then commits and closes it (a pooled one goes back idle,
- * {@link poolReadConnections}): the committed state at one
+ * transaction, then commits and closes it: the committed state at one
  * instant, never a batch's uncommitted writes on the process connection and
- * never another process's commit landing between two of its statements. What
- * `read` answers must not borrow the connection, which is closed on return.
+ * never another process's commit landing between two of its statements.
+ *
+ * What `read` answers must be plain data and must not keep `db`: on return the
+ * connection is closed or, when it came from {@link poolReadConnections}, lent
+ * to the next observation, where a kept handle would read inside another
+ * caller's snapshot. A pooled handle throws on any use after its release.
+ *
+ * @throws what `read` throws; an AggregateError of that and the rollback's
+ * failure when the rollback fails too.
  */
 export async function observeCommitted<T>(
   openConnection: () => Connection,
@@ -373,7 +380,17 @@ export async function observeCommitted<T>(
       return captured;
     } catch (failure) {
       // Proof: omitting rollback failed owned dependency-failure close-time BEGIN assertion.
-      transaction.rollback();
+      try {
+        transaction.rollback();
+      } catch (rollbackFailure) {
+        // Proof: rethrowing the read's failure alone made `reports a read failure and its failed
+        // rollback together` (db.db.test.ts) lose the rollback's; watched 2026-10-28.
+        throw new AggregateError(
+          [failure, rollbackFailure],
+          'an observation failed and its read transaction did not roll back',
+          { cause: rollbackFailure },
+        );
+      }
       throw failure;
     }
   } finally {
@@ -396,13 +413,20 @@ export interface ReadConnectionPool {
  * open a file and compile its statements again (about a tenth of be-01's CPU per call under the
  * M10 load run, `wbs-mcp-agent-surface` task 4.5).
  *
- * A connection's `close` returns it to the pool only when it holds no transaction: a snapshot
- * is never kept between observations, and the next `BEGIN DEFERRED` on it reads the state
- * committed by then. One released inside a transaction (its rollback failed), or beyond
- * `idleLimit` idle connections, or after the pool closed, is closed. A connection is lent to
- * one caller at a time, and its second `close` does nothing. The pool belongs to one source,
- * whose `close` closes it, so no connection outlives the process connection it was opened
- * beside.
+ * States: each connection `open()` made is idle, lent or closed; the pool is open or closed.
+ * Events: `acquire` lends an idle connection (or a new one; none while closed); a lent handle's
+ * first `close` releases it, back to idle only while the pool is open, below `idleLimit` idle
+ * and outside a transaction, else closed; later `close` calls do nothing; the pool's `close`
+ * closes every idle one. Invariants, held by `db.pool.model.db.test.ts`: connections open equal
+ * idle plus lent; none is lent twice; none is idle once the pool closed; and with no lent
+ * connection inside a transaction, no snapshot blocks a full WAL checkpoint, so the next
+ * `BEGIN DEFERRED` reads the state committed by then.
+ *
+ * A lent handle's `db` throws on any use after its release, so a handle a read kept cannot read
+ * inside the next borrower's snapshot. The pool belongs to one source, whose `close` closes it,
+ * so no connection outlives the process connection it was opened beside. Like that connection,
+ * a pooled one keeps the file it opened: a database replaced by rename while be-01 runs stays
+ * unseen by both, which is why a restore stops be-01 first.
  *
  * @throws from `acquire` whatever `open` throws, and when the pool is closed.
  */
@@ -414,8 +438,16 @@ export function poolReadConnections(open: () => Connection, idleLimit = 8): Read
       if (closed) throw new Error('the read connection pool is closed');
       const connection = idle.pop() ?? open();
       let released = false;
+      // Proof: handing out `connection.db` itself made `refuses a pooled handle used after its
+      // release` (db.db.test.ts) read through it; watched 2026-10-28.
+      const db = new Proxy(connection.db, {
+        get(target, key, receiver) {
+          if (released) throw new Error('a pooled read connection was used after its release');
+          return Reflect.get(target, key, receiver) as unknown;
+        },
+      });
       return {
-        db: connection.db,
+        db,
         close: () => {
           if (released) return;
           released = true;
