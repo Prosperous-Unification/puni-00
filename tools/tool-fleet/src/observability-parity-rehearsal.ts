@@ -749,7 +749,7 @@ export async function validateObservabilityRehearsalBuilds(
     [join(tools, 'kubectl'), 'kustomize', join(directory, rehearsalBootstrapPaths.retainedPolicy)],
     root,
   ).toString();
-  // Proof: Task62 retained-build-directory substitution failed the structural canonical seam test; runtime acceptance remains unobserved.
+  // Proof: Task62 round1 runner-root substitution made the actual builder return the different fake-executable output; retained-byte assertion failed.
   const fluxBytes = execute(
     [join(tools, 'kubectl'), 'kustomize', join(directory, rehearsalBootstrapPaths.fluxOverlay)],
     root,

@@ -833,7 +833,7 @@ export async function prepareRehearsalInventory(
     releases,
     helmArchive,
   );
-  // Proof: Task62 inventory-built-bytes substitution failed the structural forwarding test.
+  // Proof: Task62 round1 raw-vendor substitution made the actual producer inventory raw-only instead of applied Flux; its output assertion failed.
   const bootstrapFrames = buildRehearsalBootstrap(
     bootstrap,
     bootstrap.policyBytes,

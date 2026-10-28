@@ -1917,7 +1917,7 @@ it('Task25c3d owning declarations carry the candidate bounds and original patch'
   }
 });
 
-it('all forward Flux callers use shared overlay and preserve vendor authentication/lifecycle', async () => {
+it('Ansible Flux caller copies both inputs and authenticates vendor before applying overlay', async () => {
   const playbook = type({
     tasks: type({
       'ansible.builtin.copy?': { dest: 'string' },
@@ -1947,23 +1947,9 @@ it('all forward Flux callers use shared overlay and preserve vendor authenticati
     return arguments_ === undefined ? [] : [arguments_];
   });
   expect(commands).toContainEqual(['sha256sum', '/var/cache/puni/flux/install.yaml']);
-  expect(commands).toContainEqual(['k3s', 'kubectl', 'apply', '-k', '/var/cache/puni/flux']);
-  const cutover = await readFile(
-    join(repositoryRoot, 'tools/tool-deploy/src/k8s/cutover-rehearsal.ts'),
-    'utf8',
-  );
-  const install = cutover.slice(
-    cutover.indexOf('async function installFlux()'),
-    cutover.indexOf('async function installFlux()') + 1400,
-  );
-  expect(install).toContain("const path = join(ROOT, 'infra/platform/flux/install.yaml')");
-  expect(install.indexOf('digest !== lock.manifests.fluxInstall.sha256')).toBeLessThan(
-    install.indexOf("await k(['apply'"),
-  );
-  expect(install).toContain(
-    "await k(['apply', '--server-side', '-k', join(ROOT, 'infra/platform/flux')])",
-  );
-  expect(install).toContain(
-    "'helm-controller',\n    'notification-controller',\n    '--replicas=0'",
+  const apply = ['k3s', 'kubectl', 'apply', '-k', '/var/cache/puni/flux'];
+  expect(commands).toContainEqual(apply);
+  expect(commands.findIndex((arguments_) => arguments_[0] === 'sha256sum')).toBeLessThan(
+    commands.findIndex((arguments_) => JSON.stringify(arguments_) === JSON.stringify(apply)),
   );
 });

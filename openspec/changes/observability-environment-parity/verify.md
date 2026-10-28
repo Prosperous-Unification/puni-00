@@ -4041,3 +4041,57 @@ Independent scoped review/publication belong to root. No push, CI cancellation o
 rerun, deployment, Secret/store/hardware action or final merge occurred. The live
 source3.1 task, current-network inputs, effective Pods/storage and successful
 fetch/reconcile/restart/recovery/physical admission remain unverified.
+
+## Task62 parent fix round1 — production caller tests and protocol count correction
+
+This section is authoritative over the earlier structural-proof and whole-capture
+counter wording. The earlier commands/outputs remain historical; no successful
+real capture, output, source identity or old evidence was changed or replayed.
+
+Parent review found the source-text canonical forwarding test mirrored the
+implementation and did not meet the production-path negative requirement. It is
+removed. Two replacement cases execute existing production callers through
+existing exported dependency mocks and a faithful fake kubectl executable:
+
+- The actual retained builder authenticates/reads its real packet inputs and
+  invokes the fake executable. Its Flux argv selects physically distinct retained
+  versus mutable-root fixture outputs. The returned bytes must be the retained
+  output. Other graph output and tool authentication are explicitly mocked; no
+  real Kustomize/chart/runtime render occurs.
+- The actual inventory producer receives a validated dependency fixture whose
+  built Flux namespace differs from its raw vendor namespace. The real bootstrap
+  builder and inventory traversal must retain only the applied namespace and its
+  own build hash. No source-text/regex assertion or bootstrap-builder stub is used.
+
+Clean replacement baseline passes2tests/6assertions (`48-round1-positive.log`).
+Exactly2 new dependency corruptions were watched: retained directory→runner root
+and built bytes→raw vendor. Both fail the actual output assertion (exit1), then
+restore source bytes exactly (`round1-proofs.json`). Restored caller/declarative
+Ansible coverage passes3tests/10assertions (`51-round1-restored.log`,8.41s Bun).
+The first fixture attempts failed because generated fake-script newlines were
+not escaped and the synthetic inventory had no required stage; these are setup
+failures, retained in46/47 and excluded from safety proof counts. Spec typecheck
+passes; import sorting corrected the sole subsequent lint issue.
+
+The cutover TypeScript literal assertion is removed. Its apply-k/vendor-auth and
+separate scale-down behavior are verified by code inspection, with runtime
+execution still pending. The Ansible structured YAML declaration test remains,
+including digest-before-apply ordering; it makes no playbook execution claim.
+The2 old structural canonical experiments are superseded/excluded from credited
+production-path evidence, and the old cutover structural experiment is excluded.
+The Ansible declaration check remains explicitly structural. Adjacent production
+Proof comments now name the actual caller output failures.
+
+Protocol counter correction for the SAME one real capture at source
+`765c7dec791a049a79905fc56b63fed45a55542f`, artifact
+`0a4f95b5d8e9c77da098d7d5a452119f4dde3c6b9101737d8ed5301bdd56a8cc`:
+`prepareObservabilityRehearsal` itself returns the existing validation/build pass,
+then `prepareRehearsalInventory` performs its validation/build pass and one Helm
+render/bootstrap-frame production. Thus the ONE capture invocation/request
+contains TWO canonical validation/build passes, ONE Helm render and ONE bootstrap
+frame production. Observers were attached after preparation, so stored counters
+of1 refer only to the inventory phase. This is established from the successfully
+returned existing callgraph, not new global instrumentation. The12.539s command,
+raw counters/logs and all captured bytes remain unchanged; there is no rerender,
+accounting repeat, optimization or new production API. Independent scoped review
+and full3.1/runtime/physical admission remain open.
