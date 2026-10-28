@@ -2480,6 +2480,56 @@ Not run:
 - the h2puni gate (`bin/h2puni-gate.sh`); CI runs the full suites;
 - the origin of the unrequested helper run after a failed helper, which was not traced.
 
+## Slice 14 — prod runbook (task 8.2)
+
+`docs/runbook-prod-deploy.md` gains "MCP agent surface": the three settings and where each
+lives per target, how to generate them, the cutover order (bundle, be-01 before mcp-01,
+activation, key rotation, the pool swap-window rule, task 3.8's timing), the audience
+preflight, post-swap checks, rollback of the pool and machine-token migrations, capacity, and
+what Kubernetes still lacks. `docs/runbook-organization-activation.md` step 2c now names the
+real env root, `/home/puni1/wbs` (it said `/srv/wbs`, the stale copy).
+
+Docs only; nothing was run on any host. Every name the section cites was read in code at
+25b873b1d:
+
+| Runbook claim                                                     | Code                                                                                                                                      |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Compose deploys be, gw, fe only                                   | `tools/tool-remote-scripts/src/lib/deploy-contract.ts:24` `TIERS`                                                                         |
+| prod never routes `/mcp`                                          | `tools/tool-remote-scripts/src/swap.ts:151` `readMcpExposure`                                                                             |
+| the secrets ride be's derived file; the server rides `be-01.env`  | `tools/tool-remote-scripts/src/lib/docker.ts:134–140` `SECRET_KEYS`, `:256` `APP_ENV_ALLOWED_KEYS`                                        |
+| the swap checks only the 32-character floor                       | `docker.ts:458–460` `VALUE_RULES`; not in `APP_ENV_REQUIRED_KEYS` or `SECRET_REQUIRED_KEYS`                                               |
+| boot refuses an activated store without them                      | `apps/wbs/be-01/src/boot.ts:519–522`; `config.ts:111–116` `missingMcpServiceSettings`                                                     |
+| strength, distinctness, `_PREVIOUS` needs `_CURRENT`              | `apps/wbs/be-01/src/runtime/machine-grant.ts:15,22,67`; `config.ts:79–96`                                                                 |
+| `kid` derived from the key                                        | `machine-grant.ts:28,47–49`                                                                                                               |
+| the server's canonical form                                       | `libs/wbs/domain/contracts/src/mcp-authorization-server.ts:34–54`                                                                         |
+| either secret on `/internal/mcp/*`, the dedicated one for grants  | `apps/wbs/be-01/src/http/identity.ts:97–111`                                                                                              |
+| activation exit 8                                                 | `apps/wbs/be-01/src/organization-activation-cli.ts:95,102`                                                                                |
+| keep `_PREVIOUS` 24 h 60 s                                        | `libs/wbs/application/core/src/service/machine-grant.ts:8` `MOST_MACHINE_GRANT_SECONDS`                                                   |
+| `MCP_ACCESS_TOKEN_TTL` defaults to 3,600 s; 3.8's branch          | `apps/wbs/mcp-01/src/oauth.ts:98,627–631`                                                                                                 |
+| preflight: read-only, exit 3, the message, the accepted-ids parse | `apps/wbs/be-01/src/trusted-issuer-audience-check-cli.ts:11–45`; `libs/wbs/adapters/store-sqlite/src/db.ts:348`                           |
+| the schema Job runs capture, migrate, rollback only               | `tools/tool-deploy/src/k8s/execute.ts:777,812,813`                                                                                        |
+| mcp-01 offers grants only standalone with the secret              | `apps/wbs/mcp-01/src/config.ts:83`; the probe's grant list, `bin/dev-mcp-probe.sh:76–97`                                                  |
+| mcp-01 at epoch 1 without either secret refuses                   | `apps/wbs/mcp-01/src/oauth.ts:419`                                                                                                        |
+| pool revoke with persons removed                                  | `libs/wbs/domain/contracts/src/http/agent-pool-shapes.ts:179`; `apps/wbs/fe-01/src/components/organization/agent-pools-panel.tsx:118–121` |
+| the three guarded downs and the append-only audit                 | each `down.sql` CHECK name; `organization_audit_no_delete`, `20261028100100_…/migration.sql:93`                                           |
+| `bootCommit` is null without a checkout                           | `apps/wbs/be-01/src/deployed-commit.ts:90–110`                                                                                            |
+| prod overlay: `MCP_TRUSTED_PROXY_HOPS=1`, `MCP_PUBLIC_URL`        | `deploy/k8s/wbs/overlays/prod/kustomization.yaml:38,40`                                                                                   |
+| capacity                                                          | slice 12 above (120.6 calls a second)                                                                                                     |
+
+Gaps found, filed as task 8.3:
+
+1. No deploy CLI runs the audience preflight or takes `--accept-breaking`. Neither the Compose
+   swap nor the schema Job (`BACKEND_TASK_SCRIPT`) calls `trusted-issuer-audience-check-cli.ts`;
+   the only reference to `--accept-breaking` is the CLI's own JSDoc. The runbook gives a
+   manual `docker run` with the candidate image instead.
+2. `deploy/k8s/wbs/base/mcp.yaml` gives mcp-01 neither `MCP_BE_INTERNAL_SECRET` nor
+   `INTERNAL_AUTH_SECRET`, so a Kubernetes mcp-01 offers no machine grant and refuses to start
+   at credential epoch 1. The prod and staging `wbs-backend-config` lack
+   `WBS_MCP_AUTHORIZATION_SERVER` (only the local overlay sets it, inside a Secret).
+3. The Compose swap preflight does not know whether the store is activated, so a missing grant
+   setting surfaces as a be-01 boot refusal after migration. The runbook adds a `grep -c`
+   check before every be swap of an activated store.
+
 ## Fresh-main artifact policy reconciliation (2026-10-28)
 
 Private merge: tested checkpoint `766ce699dc14eb9a157f8b7ad2b4fe2b91380fe7` and main
