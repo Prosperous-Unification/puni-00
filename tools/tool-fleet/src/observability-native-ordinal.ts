@@ -10,6 +10,7 @@ import {
   normalizeNativeOwner,
   UnsupportedNativeWorkload,
 } from './observability-cold-start';
+import { readCronCalendar } from './observability-cron-syntax';
 import { expandNativeCohorts } from './observability-native-cohorts';
 import {
   deriveDaemonLifecycle,
@@ -956,8 +957,14 @@ function deriveNativeCosts(
     );
     daemonLifecycles.push(deriveDaemonLifecycle(controller, entry, identity, topology));
   }
-  const validated = source.native.map((view) => ({ ...view, pod: readNativeInput(view) }));
-  for (const { entry, manifest, pod: broadPod } of validated) {
+  // Proof: Task54 prepass-order omission let an earlier ordinal collision mask malformed late CronJob calendar fields.
+  // Parsed calendars stay local: Task54 serialization injection failed the native no-bigint JSON controls.
+  const validated = source.native.map((view) => ({
+    ...view,
+    calendar: view.entry.kind === 'CronJob' ? readCronCalendar(view.manifest['spec']) : undefined,
+    pod: readNativeInput(view),
+  }));
+  for (const { entry, manifest, calendar, pod: broadPod } of validated) {
     const identity = `${entry.kind}:${entry.namespace ?? '_'}:${entry.name}`;
     if (entry.category === 'claim') {
       missing(identity, 'claim-owner-and-retention-unaccounted');
@@ -974,6 +981,16 @@ function deriveNativeCosts(
     }
     if (entry.kind === 'Job') {
       deriveJob({ entry, manifest });
+      continue;
+    }
+    if (entry.kind === 'CronJob') {
+      // Proof: Task54 calendar-invariant broke the prepass dependency; native valid controls refused with the named missing-calendar error.
+      if (calendar === undefined) throw new Error('Cron calendar missing after validation');
+      // Proof: Task54 unknown-blocker omission lost the right/UTC, posix/UTC, Unknown/Zone and utc native knowledge blockers.
+      if (calendar.timeZone.kind === 'outside-catalogue')
+        missing(identity, 'cronjob-time-zone-outside-catalogue');
+      // Proof: Task54 lifecycle-blocker omission hid every valid unsupported CronJob in the native controls.
+      missing(identity, 'CronJob-lifecycle-unaccounted');
       continue;
     }
     if (entry.kind !== 'StatefulSet') {
