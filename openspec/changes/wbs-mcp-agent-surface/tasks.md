@@ -347,10 +347,22 @@
       slice 7.
       (Not done: the dev run waits on a pool in the dev web app. Its rehearsal on a throwaway stack,
       `apps/wbs/mcp-01/src/load/pool-swarm-rehearsal.ts`, passed; verify.md slice 13.)
-- [ ] 8.2 Prod runbook:
+- [x] 8.2 Prod runbook:
   - seed `WBS_MACHINE_GRANT_SIGNING_KEY_*`, `MCP_BE_INTERNAL_SECRET` and
     `WBS_MCP_AUTHORIZATION_SERVER`;
   - run the audience preflight in the candidate container (Compose) or the schema Job
     (Kubernetes), with `WBS_ACCEPT_BREAKING_AUDIENCES` set from the deploy CLI's
     `--accept-breaking`;
   - order the secret cutover.
+    (`docs/runbook-prod-deploy.md`, "MCP agent surface"; verify.md slice 14. The preflight
+    step is a manual `docker run`, because no deploy CLI runs it yet; see 8.3.)
+- [ ] 8.3 Deploy wiring the runbook found missing (verify.md slice 14, gaps):
+  - the Compose swap and the Kubernetes schema Job run `trusted-issuer-audience-check-cli.ts`
+    with the candidate image before migrating, and both deploy CLIs take
+    `--accept-breaking=<ids>` into `WBS_ACCEPT_BREAKING_AUDIENCES`. Negative: skip the step,
+    and a fixture with an unaccepted `wbs:org:` registration swaps;
+  - `deploy/k8s/wbs/base/mcp.yaml` gives mcp-01 `MCP_BE_INTERNAL_SECRET` from
+    `wbs-mcp-secrets`, and the prod and staging `wbs-backend-config` carry
+    `WBS_MCP_AUTHORIZATION_SERVER`. Negative: drop the ref, and `mcp-manifest.test.ts` reddens;
+  - the be swap preflight requires the three settings when the store is activated, so a
+    missing key refuses before migration instead of at be-01 boot.
