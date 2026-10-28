@@ -762,7 +762,7 @@ The native-only capacity companion SHALL bind optional declared CronJob horizons
 
 #### Scenario: Valid large or absent scenarios remain visibly incomplete
 
-- **GIVEN** a missing horizon, unknown timezone knowledge, suspended/Replace/non-UTC/other valid calendar, unsupported Job policy or safe computed envelope exceeding256 slots
+- **GIVEN** a missing horizon, unknown effective timezone knowledge, suspended/Replace/non-UTC/other valid calendar, unsupported Job policy or safe computed envelope exceeding256 slots
 - **WHEN** source accounting runs
 - **THEN** it retains exact named incomplete conditions without truncating demand or inventing a horizon
 - **AND** malformed supplied fields and bindings still throw before those classifications
@@ -774,3 +774,19 @@ The native-only capacity companion SHALL bind optional declared CronJob horizons
 - **THEN** fresh creation afterL, bounded controller clock while creation remains possible, stable source/calendar/timezone/controller generation and one JobUID per nominal tick remain explicit conditions
 - **AND** prior/missed-beforeL/manual/adopted/recreated Jobs, Helm/Flux generations, retained history/log/device/volume growth and actual window enforcement remain independent unobserved obligations
 - **AND** source completeness, whole-attempt fit, creation and runtime authority remain false until their own evidence is verified
+
+#### Scenario: Required controller metadata does not override explicit source scheduling
+
+- **GIVEN** a valid bound horizon always supplies structurally valid controllerTimeZone metadata and the CronJob explicitly declares UTC
+- **WHEN** the declared controller zone differs or lies outside pinned catalogue knowledge
+- **THEN** scheduling still uses source UTC without an invented equality requirement
+- **AND** controller declaration and its knowledge state remain visible without claiming observation or replacing the source
+- **AND** absent source timezone instead requires the declared controller zone as an explicit conditional scheduling input
+
+#### Scenario: Zero scheduled ticks do not fabricate retry allocations
+
+- **GIVEN** a supported UTC horizon contains no nominal tick and nested backoff is a large valid count
+- **WHEN** the aggregate CronJob envelope is calculated
+- **THEN** N(B+1) is zero and no retry entry is materialized
+- **AND** declared lifecycle facts and all manual/prior/generation/history/enforcement obligations remain visible
+- **AND** the standalone Job representation bound is unchanged
