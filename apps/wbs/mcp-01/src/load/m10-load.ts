@@ -105,8 +105,9 @@ async function spawnServer(
   script: string,
   env: Record<string, string>,
   log: string,
+  bunFlags: readonly string[] = [],
 ): Promise<{ readonly process: Bun.Subprocess<'ignore', 'pipe', 'pipe'>; readonly port: number }> {
-  const child = Bun.spawn([process.execPath, script], {
+  const child = Bun.spawn([process.execPath, ...bunFlags, script], {
     cwd: REPO_ROOT,
     env,
     stdin: 'ignore',
@@ -139,6 +140,15 @@ async function spawnServer(
     }),
   ]);
   return { process: child, port };
+}
+
+/**
+ * `M10_LOAD_BE_PROFILE_DIR` (an existing directory, outside the run's temp directory) makes
+ * be-01 write a `--cpu-prof-md` profile there when the driver stops it; unset, none is written.
+ */
+function beProfileFlags(): readonly string[] {
+  const dir = process.env['M10_LOAD_BE_PROFILE_DIR'];
+  return dir === undefined ? [] : ['--cpu-prof-md', `--cpu-prof-dir=${dir}`];
 }
 
 function baseEnv(): Record<string, string> {
@@ -838,6 +848,7 @@ async function run(): Promise<Record<string, unknown>> {
       MCP_LOAD_OTHER_AGENTS: String(OTHER_AGENTS),
     },
     'be-01.log',
+    beProfileFlags(),
   );
   beBase = `http://127.0.0.1:${String(be.port)}`;
   const storeKey = randomBytes(32);
