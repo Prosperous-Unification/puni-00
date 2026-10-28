@@ -348,7 +348,15 @@ REQUEST=json.loads(${JSON.stringify(JSON.stringify(request))})
 FAULT=${JSON.stringify(authorityFault)}
 COLLECTION=${String(collections)}
 for database in REQUEST['databases']: database['host']='/home/puni1/'+('wbs' if database['environment']=='prod' else 'wbs-dev')+'/data/main'
+SOLVER_EXECUTABLE_PATH=${JSON.stringify(join(base.root, 'installed-0'))}
 class ActivationHost(Complete):
+ def fixture_executable(self,path):
+  solver=REQUEST.get('solver')
+  if solver is not None and path=='/proc/'+str(solver['pid'])+'/exe':
+   descriptors=self.__dict__.setdefault('fixture_executable_descriptors',{})
+   if solver['pid'] not in descriptors:descriptors[solver['pid']]=os.open(SOLVER_EXECUTABLE_PATH,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+   return descriptors[solver['pid']]
+  return super().fixture_executable(path)
  def read(self,path,limit):
   if FAULT=='boot-drift' and COLLECTION>1 and path=='/proc/sys/kernel/random/boot_id':return b'22222222-2222-2222-2222-222222222222\n'
   if FAULT=='prior' and path=='/proc/4242/cmdline':return b'/usr/bin/bun\x00/home/puni1/wbs/bin/swap.js\x00'

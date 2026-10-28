@@ -890,6 +890,12 @@ Solver audit recognition is part of X3/X4: opaque runtime-lock-scoped tokens bin
 - [ ] P2 Implement complete restoring/active policy verification before accepting either phase.
 - [ ] P3 Integrate compatible restoration controllers and prove S4 reopening. Parent 10.2-S4 remains open.
 
+### Original-context solver-first restoration checkpoint (bounded P2b-3)
+
+- [x] Observe genuine preparation/finalizer/consumption RED at the missing solver-first entry, then restore the pinned solver under the same original context, owner and deadline without starting products.
+- [x] Retain actual primitive readiness privately; preserve original tuple/static authority, empty openers and closing activation barriers. Observe six ordinary cases and five finite guard omissions with exact same-case restoration. [Local evidence and limits](verify-solver-first-context.md).
+- [ ] Complete solver→backend→gateway→source composition, restart-policy/controller handoff, exposure and separately authorized host/Kubernetes acceptance. Parent P2b/P3/S4 and 10.2 remain open.
+
 ### Bounded source/solver physical acceptance runner source
 
 - [x] XS1 Add the invocation-labelled complete-inventory transport and reuse the strict solver fixture lifecycle for the unchanged source/managed coordinator; include focused transport tests and watched fault receipts. See [runner source receipt](verify-source-exclusion-acceptance.md).
