@@ -5,7 +5,6 @@ import {
   existsSync,
   mkdtempSync,
   readFileSync,
-  rmSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -15,18 +14,37 @@ import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
 import { decodeAdmission, organizationId, ownerId } from '../record-codecs';
+import { closeFixtures } from '../testing/close-fixtures';
 import { createManifest, createRun, FixtureClock, unwrapReply } from '../testing/fixtures';
-import { bootstrapSqliteStores, openSqliteStores } from './open-stores';
+import { createStoreDirectory, findStoreDirectory } from '../testing/store-directory';
+import {
+  bootstrapSqliteStores as bootstrapStores,
+  openSqliteStores as openStored,
+} from './open-stores';
 import { DOWN, MIGRATIONS, validateDatabase } from './schema';
 
-const directories: string[] = [];
-afterEach(() => {
-  for (const directory of directories.splice(0))
-    rmSync(directory, { recursive: true, force: true });
+const directories: ReturnType<typeof createStoreDirectory>[] = [];
+afterEach(async () => {
+  // Proof: I1-H2 bypassed this actual hook's provider disposal; its earlier-work-failure child failed STORE-DIRECTORY-I1-03. Exact restoration passed.
+  await closeFixtures(directories.splice(0));
 });
+async function bootstrapSqliteStores(...parameters: Parameters<typeof bootstrapStores>) {
+  const stores = await bootstrapStores(...parameters);
+  return findStoreDirectory(directories, parameters[0].path).retainStore(stores);
+}
+async function openSqliteStores(...parameters: Parameters<typeof openStored>) {
+  const stores = await openStored(...parameters);
+  return findStoreDirectory(directories, parameters[0].path).retainStore(stores);
+}
+function inspectDatabase(
+  path: string,
+  options?: ConstructorParameters<typeof Database>[1],
+): Database {
+  return findStoreDirectory(directories, path).retainProbe(new Database(path, options));
+}
 function options() {
   const directory = mkdtempSync(join(tmpdir(), 'runs-open-'));
-  directories.push(directory);
+  directories.push(createStoreDirectory(directory, { recursive: true, force: true }));
   return {
     path: join(directory, 'runs.sqlite'),
     organizationId: organizationId('organization'),
@@ -52,7 +70,7 @@ test('bootstrap refuses existing bytes and open retains organization capacity le
   const owner = unwrapReply(await stores.runs.acquireOwnership(ownerId('owner'), 0));
   unwrapReply(await stores.runs.retainManifest(owner, createManifest()));
   unwrapReply(await stores.runs.createRun(owner, createRun()));
-  stores.close();
+  await stores.close();
   const before = readFileSync(configuration.path);
   await rejects(bootstrapSqliteStores(configuration), new RegExp('exists'));
   expect(readFileSync(configuration.path)).toEqual(before);
@@ -65,7 +83,7 @@ test('bootstrap refuses existing bytes and open retains organization capacity le
   const reopened = await openSqliteStores(configuration);
   expect(reopened.ownership.owner).toEqual(owner);
   expect((await reopened.runs.readRun(createRun().runId)).run).toEqual(createRun());
-  reopened.close();
+  await reopened.close();
 });
 test('open refuses corrupt unknown missing and malformed trusted state', async () => {
   for (const fault of [
@@ -84,10 +102,10 @@ test('open refuses corrupt unknown missing and malformed trusted state', async (
     const owner = unwrapReply(await stores.runs.acquireOwnership(ownerId('owner'), 0));
     unwrapReply(await stores.runs.retainManifest(owner, createManifest()));
     unwrapReply(await stores.runs.createRun(owner, createRun()));
-    stores.close();
+    await stores.close();
     if (fault === 'bytes') writeFileSync(configuration.path, 'broken sqlite');
     else {
-      const database = new Database(configuration.path);
+      const database = inspectDatabase(configuration.path);
       if (fault === 'version') database.run('UPDATE run_meta SET schema_version=99');
       if (fault === 'table') database.run('DROP TABLE run_reservation');
       if (fault === 'record') database.run(`UPDATE run_record SET record='{"version":99}'`);
@@ -107,7 +125,7 @@ test('open reports unreadable database and parent under a non-root uid', async (
   if (process.getuid?.() === 0) throw new Error('unreadability proofs require a non-root uid');
   for (const parent of [false, true]) {
     const configuration = options();
-    (await bootstrapSqliteStores(configuration)).close();
+    await (await bootstrapSqliteStores(configuration)).close();
     const path = parent ? join(configuration.path, '..') : configuration.path;
     expect(existsSync(configuration.path)).toBe(true);
     chmodSync(path, 0);
@@ -181,8 +199,8 @@ for (const [fault, sql] of Object.entries(corruptions))
       ),
     );
     expect((await stores.runs.readRun(run.runId)).capacity.reserved).toBe(1);
-    stores.close();
-    const database = new Database(configuration.path);
+    await stores.close();
+    const database = inspectDatabase(configuration.path);
     try {
       database.run('PRAGMA foreign_keys=OFF');
       if (fault === 'manifest key')
@@ -198,7 +216,7 @@ for (const [fault, sql] of Object.entries(corruptions))
 for (const setting of ['foreign_keys', 'journal_mode', 'synchronous'])
   test(`open verifies selected ${setting} durability setting`, async () => {
     const configuration = options();
-    (await bootstrapSqliteStores(configuration)).close();
+    await (await bootstrapSqliteStores(configuration)).close();
     const descriptor = Object.getOwnPropertyDescriptor(Database.prototype, 'run');
     if (descriptor === undefined) throw new Error('Database.run descriptor absent');
     const original = descriptor.value as Database['run'];
@@ -231,8 +249,8 @@ for (const setting of ['foreign_keys', 'journal_mode', 'synchronous'])
   });
 test('migration down chain removes exactly the provider schema', async () => {
   const configuration = options();
-  (await bootstrapSqliteStores(configuration)).close();
-  const database = new Database(configuration.path);
+  await (await bootstrapSqliteStores(configuration)).close();
+  const database = inspectDatabase(configuration.path);
   try {
     const tables = () =>
       database
@@ -281,8 +299,8 @@ for (const [column, sql] of Object.entries({
 }))
   test(`open rejects unsafe persisted ${column} before configuration matching`, async () => {
     const configuration = options();
-    (await bootstrapSqliteStores(configuration)).close();
-    const database = new Database(configuration.path);
+    await (await bootstrapSqliteStores(configuration)).close();
+    const database = inspectDatabase(configuration.path);
     try {
       database.run(`UPDATE run_meta SET ${column}=${sql}`);
       expect(database.query('SELECT * FROM run_meta').all()).toHaveLength(1);
@@ -299,7 +317,7 @@ for (const [column, sql] of Object.entries({
   });
 test('open requires a successful SQLite integrity diagnostic', async () => {
   const configuration = options();
-  (await bootstrapSqliteStores(configuration)).close();
+  await (await bootstrapSqliteStores(configuration)).close();
   const descriptor = Object.getOwnPropertyDescriptor(Database.prototype, 'query');
   if (descriptor === undefined) throw new Error('Database.query descriptor absent');
   const original = descriptor.value as Database['query'];
@@ -327,7 +345,7 @@ test('open requires a successful SQLite integrity diagnostic', async () => {
 test('bootstrap publication preserves an independently initialized winner', async () => {
   const configuration = options();
   const peer = options();
-  (await bootstrapSqliteStores(peer)).close();
+  await (await bootstrapSqliteStores(peer)).close();
   const expected = readFileSync(peer.path);
   const descriptor = Object.getOwnPropertyDescriptor(Database.prototype, 'run');
   if (descriptor === undefined) throw new Error('Database.run descriptor absent');
@@ -394,8 +412,8 @@ for (const [fault, sql] of Object.entries(structuralFaults))
     const configuration = options();
     const stores = await bootstrapSqliteStores(configuration);
     expect(stores.ownership.epoch).toBe(0);
-    stores.close();
-    const database = new Database(configuration.path);
+    await stores.close();
+    const database = inspectDatabase(configuration.path);
     let before: unknown[];
     try {
       database.run(sql);
@@ -408,9 +426,9 @@ for (const [fault, sql] of Object.entries(structuralFaults))
     }
     await rejects(async () => {
       const reopened = await openSqliteStores(configuration);
-      reopened.close();
+      await reopened.close();
     }, 'open must reject altered required physical schema even when tables are empty');
-    const inspected = new Database(configuration.path);
+    const inspected = inspectDatabase(configuration.path);
     try {
       expect(
         inspected

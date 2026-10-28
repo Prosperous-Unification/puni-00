@@ -1,10 +1,8 @@
 import { parseOrThrow, type } from '@shared/validation';
 import { selectWorkflowActivity } from '@twilight-burokrat/contracts';
-import { readRuntimeState, validateSchema } from '@wbs/contracts';
 
 import { PreparationCodec } from '../agents/execution-codecs';
 import type { ExecutorKind, Preparation } from '../agents/execution-records';
-import { verifyArtifactContent } from './artifact-integrity';
 import type { ArtifactStore } from './artifact-store';
 import type { PreparationIntent, TargetObservation } from './claim-records';
 import { PreparationIntentCodec, TargetObservationCodec } from './execution-codecs';
@@ -14,6 +12,7 @@ import type { ArtifactRef, Attempt, ExecutionCommandId, WorkItemId } from './rec
 import type { AttemptGuard, RunStore, StoreReply } from './run-store';
 import { equalRuntimeScopes, scopeCodec } from './runtime-codecs';
 import type { RuntimeScope } from './runtime-records';
+import { readRuntimeStateArtifact } from './runtime-state';
 import { ArtifactRefCodec, ExecutionCommandIdCodec } from './value-codecs';
 
 export interface PreparationInput {
@@ -52,18 +51,7 @@ export async function readTargetObservation(
 ): Promise<TargetObservation> {
   const reference = structuredClone(parseOrThrow(ArtifactRefCodec, evidence));
   const expected = structuredClone(target);
-  // Proof: Task2 F26 removed/broke this dependency; 'preparation requires JSON media type' failed with Missing expected rejection. Restored subset passed; helper rejection only, no provider-publication inference.
-  if (reference.mediaType !== 'application/json')
-    throw new Error('runtime state requires application/json');
-  const content = new Uint8Array(await artifacts.readArtifact(reference));
-  // Proof: Task2 F27 removed/broke this dependency; 'preparation validates target and canonical bytes independently' failed with Missing expected rejection. Restored subset passed; helper rejection only, no provider-publication inference.
-  verifyArtifactContent(content, reference);
-  // Proof: Task2 F28 removed/broke this dependency; 'preparation embedded invalid UTF8 remains parseable' failed with Missing expected rejection. Restored subset passed; helper rejection only, no provider-publication inference.
-  const wire: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(content));
-  // Proof: Task2 F29 removed/broke this dependency; 'preparation refuses actual state schema' failed with Missing expected rejection. Restored subset passed; helper rejection only, no provider-publication inference.
-  const checked = await validateSchema(readRuntimeState.responses[0].schema, wire);
-  if (checked.issues !== undefined) throw new Error('runtime state schema differs');
-  const state = checked.value;
+  const state = await readRuntimeStateArtifact(artifacts, reference);
   // Proof: Task2 F30 removed/broke this dependency; 'preparation refuses actual state scope' failed with Missing expected rejection. Restored subset passed; helper rejection only, no provider-publication inference.
   if (!equalRuntimeScopes(state.scope, expected.scope))
     throw new Error('runtime state scope differs');

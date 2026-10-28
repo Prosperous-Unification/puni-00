@@ -106,7 +106,7 @@ for (const fault of [
       ).toEqual(before.history);
       expect(await stores.runs.readRuntimeScope(setup.scope)).toEqual(before.scope);
     } finally {
-      stores.close();
+      await stores.close();
     }
   });
 
@@ -154,7 +154,7 @@ for (const field of ['claimId', 'actorId', 'basisAfter'] as const)
           await stores.runs.readExecutionHistory(setup.run.runId, setup.admission.attemptId),
         ).toEqual(history);
       } finally {
-        stores.close();
+        await stores.close();
       }
     },
   );
@@ -200,7 +200,7 @@ test('verified claim acceptance snapshots guard intent evidence and mutable byte
     });
     expect(content.every((byte) => byte === 0)).toBe(true);
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -240,7 +240,7 @@ test('claim stage snapshots state reference and request before history and artif
       command: { observation: { evidence: setup.preparationInput.stateEvidence } },
     });
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -275,7 +275,7 @@ test('authority-only methods refuse claim stages and acceptances even as exact r
       }),
     ).toEqual({ kind: 'refused', reason: 'state_conflict' });
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -310,7 +310,7 @@ test('claim helper verifies returned history target before staging an otherwise 
     ).toEqual(before);
     expect(await stores.runs.readRuntimeScope(setup.scope)).toEqual(scope);
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 for (const fault of ['selection', 'observation'] as const)
@@ -367,8 +367,8 @@ for (const fault of ['selection', 'observation'] as const)
           await stores.runs.readExecutionHistory(setup.run.runId, setup.attempt.attemptId),
         ).toEqual(before);
       } finally {
-        original.close();
-        stores.close();
+        await original.close();
+        await stores.close();
       }
     },
   );
@@ -413,7 +413,7 @@ test('missing preparation retains its intentional diagnostic without invoking st
       await stores.runs.readExecutionHistory(setup.run.runId, setup.attempt.attemptId),
     ).toEqual(before);
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 test('verified history checks returned target before reading retained binding', async () => {
@@ -445,6 +445,6 @@ test('verified history checks returned target before reading retained binding', 
       await stores.runs.readExecutionHistory(setup.run.runId, setup.attempt.attemptId),
     ).toEqual(before);
   } finally {
-    stores.close();
+    await stores.close();
   }
 });

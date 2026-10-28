@@ -15,6 +15,7 @@ import {
   stageFixtureTurn,
   unwrapReply,
 } from '../testing/fixtures';
+import { createStoreDirectory } from '../testing/store-directory';
 import { bootstrapSqliteStores, openSqliteStores } from './open-stores';
 
 async function createFixture() {
@@ -35,30 +36,35 @@ async function createFixture() {
 
 test('probe current claim corruption against intact historical execution', async () => {
   const fixture = await createFixture();
-  const setup = await prepareTurn(fixture);
-  const database = new Database(fixture.options.path);
-  try {
+  const owner = createStoreDirectory(fixture.directory, { recursive: true });
+  owner.retainStore(fixture);
+  // Proof: I1-D1 bypassed this actual owner's finally cleanup; its earlier-work-failure child failed STORE-DIRECTORY-I1-03. Exact restoration passed.
+  await owner.runTest(async () => {
+    const database = owner.retainProbe(new Database(fixture.options.path));
+    const setup = await prepareTurn(fixture);
     database.run(
       "UPDATE run_attempt SET record=json_set(record,'$.state.execution.binding.projection.actorId','corrupt-person')",
     );
     await rejects(fixture.runs.readRun(setup.run.runId), /corrupt current attempt provenance/);
-    fixture.close();
+    await fixture.close();
     await rejects(openSqliteStores(fixture.options), /corrupt/);
-  } finally {
-    database.close();
-    rmSync(fixture.directory, { recursive: true });
-  }
+  });
 });
 
 import { receiptsContract } from '../testing/receipts-contract';
 import { signalsContract } from '../testing/signals-contract';
 async function createContractFixture() {
   const fixture = await createFixture();
+  let closing: Promise<void> | undefined;
   return {
     ...fixture,
-    close() {
-      fixture.close();
-      rmSync(fixture.directory, { recursive: true });
+    close(): Promise<void> {
+      if (closing !== undefined) return closing;
+      closing = (async () => {
+        await fixture.close();
+        rmSync(fixture.directory, { recursive: true });
+      })();
+      return closing;
     },
   };
 }
@@ -133,7 +139,7 @@ for (const fault of ['receipt', 'consumption', 'reservation'] as const)
           : stores.runs.consumeDecision(guard, setup.decision.decisionId);
       await rejects(apply(), new RegExp(`injected ${fault} fault`));
       expect(physicalSnapshot(database)).toEqual(physical);
-      stores.close();
+      await stores.close();
       const reopening = openSqliteStores(fixture.options);
       await doesNotReject(reopening);
       stores = {
@@ -146,7 +152,7 @@ for (const fault of ['receipt', 'consumption', 'reservation'] as const)
       database.run('DROP TRIGGER injected_abort');
       expect((await apply()).kind).toBe('applied');
       const after = await stores.runs.readRun(setup.run.runId);
-      stores.close();
+      await stores.close();
       stores = {
         ...(await openSqliteStores(fixture.options)),
         clock: fixture.clock,
@@ -158,7 +164,7 @@ for (const fault of ['receipt', 'consumption', 'reservation'] as const)
       expect(await stores.runs.readRun(setup.run.runId)).toEqual(after);
     } finally {
       database.close();
-      stores.close();
+      await stores.close();
       rmSync(fixture.directory, { recursive: true });
     }
   });
@@ -193,7 +199,7 @@ test('consumed decisions retain original replies across later waits reopen and h
     );
     unwrapReply(await stores.runs.recordExecution(await currentGuard(stores.runs, setup), next));
     const before = await stores.runs.readRun(setup.run.runId);
-    stores.close();
+    await stores.close();
     stores = {
       ...(await openSqliteStores(fixture.options)),
       clock: fixture.clock,
@@ -231,7 +237,7 @@ test('consumed decisions retain original replies across later waits reopen and h
     ).toEqual({ kind: 'duplicate', value: original });
     expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
   } finally {
-    stores.close();
+    await stores.close();
     rmSync(fixture.directory, { recursive: true });
   }
 });
@@ -251,7 +257,7 @@ test('lost acknowledgement fake source reconciles recorded command after reopen 
         evidence: setup.quiescence.evidence,
       }),
     ).toThrow();
-    stores.close();
+    await stores.close();
     stores = {
       ...(await openSqliteStores(fixture.options)),
       clock: fixture.clock,
@@ -265,7 +271,7 @@ test('lost acknowledgement fake source reconciles recorded command after reopen 
     const terminal = unwrapReply(
       await reconcileReceipt(stores.runs, stores.artifacts, guard, receipt),
     );
-    stores.close();
+    await stores.close();
     stores = {
       ...(await openSqliteStores(fixture.options)),
       clock: fixture.clock,
@@ -281,7 +287,7 @@ test('lost acknowledgement fake source reconciles recorded command after reopen 
     expect(after.pendingIntents).toEqual([]);
     expect(after.capacity.reserved).toBe(0);
   } finally {
-    stores.close();
+    await stores.close();
     rmSync(fixture.directory, { recursive: true });
   }
 });
@@ -299,7 +305,7 @@ for (const operation of ['decision', 'receipt'] as const)
       database
         .query('UPDATE run_artifact SET content=? WHERE digest=?')
         .run(new TextEncoder().encode('corrupted'), setup.quiescence.evidence.digest);
-      stores.close();
+      await stores.close();
       stores = {
         ...(await openSqliteStores(fixture.options)),
         clock: fixture.clock,
@@ -315,7 +321,7 @@ for (const operation of ['decision', 'receipt'] as const)
       expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
     } finally {
       database.close();
-      stores.close();
+      await stores.close();
       rmSync(fixture.directory, { recursive: true });
     }
   });
@@ -350,7 +356,7 @@ for (const operation of ['decision', 'receipt'] as const)
         });
       }
     } finally {
-      fixture.close();
+      await fixture.close();
       rmSync(fixture.directory, { recursive: true });
     }
   });
@@ -386,7 +392,7 @@ test('old failed receipt survives reopen while an independent run becomes active
         }).commandId,
       },
     });
-    stores.close();
+    await stores.close();
     stores = {
       ...(await openSqliteStores(fixture.options)),
       clock: fixture.clock,
@@ -417,7 +423,7 @@ test('old failed receipt survives reopen while an independent run becomes active
       ),
     );
     const terminal = await stores.runs.readRun(second.run.runId);
-    stores.close();
+    await stores.close();
     stores = {
       ...(await openSqliteStores(fixture.options)),
       clock: fixture.clock,
@@ -434,7 +440,7 @@ test('old failed receipt survives reopen while an independent run becomes active
       ...terminal.receipts,
     ]).toHaveLength(2);
   } finally {
-    stores.close();
+    await stores.close();
     rmSync(fixture.directory, { recursive: true });
   }
 });

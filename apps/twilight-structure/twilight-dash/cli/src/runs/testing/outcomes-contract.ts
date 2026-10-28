@@ -78,7 +78,7 @@ export function outcomeContract(name: string, create: () => Promise<OutcomeFixtu
           ),
         ).toEqual({ kind: 'refused', reason: 'state_conflict' });
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     test('completion refuses stale revisions wrong claim outcome mismatch and unsettled effects without mutations', async () => {
@@ -146,7 +146,7 @@ export function outcomeContract(name: string, create: () => Promise<OutcomeFixtu
         );
         expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
   });

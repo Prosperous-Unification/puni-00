@@ -24,15 +24,20 @@ async function createExecutionDatabase() {
   };
   try {
     const stores = await bootstrapSqliteStores(options);
+    let closing: Promise<void> | undefined;
     return {
       ...stores,
       connection: stores,
       directory,
       options,
       clock,
-      close() {
-        stores.close();
-        rmSync(directory, { recursive: true, force: true });
+      close(): Promise<void> {
+        if (closing !== undefined) return closing;
+        closing = (async () => {
+          await stores.close();
+          rmSync(directory, { recursive: true, force: true });
+        })();
+        return closing;
       },
     };
   } catch (cause) {
@@ -50,7 +55,7 @@ test('execution history bootstrap declares format3', async () => {
     });
   } finally {
     database.close();
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -70,7 +75,7 @@ test('sqlite renewal audits lost execution history after owner fencing', async (
     );
   } finally {
     database.close();
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -114,7 +119,7 @@ test('history rejects preparation owner earlier than admission with otherwise co
     ).rejects.toThrow('corrupt preparation owner');
   } finally {
     database.close();
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -152,7 +157,7 @@ test('history rejects same epoch reattachment label change below current ownersh
     ).rejects.toThrow('corrupt execution command transition');
   } finally {
     database.close();
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -234,7 +239,7 @@ for (const fault of ['earlier epoch', 'same epoch different label'] as const)
       ).rejects.toThrow('corrupt claim stage consequence');
     } finally {
       database.close();
-      stores.close();
+      await stores.close();
     }
   });
 
@@ -348,7 +353,7 @@ for (const cut of [
       ).rejects.toThrow(message);
     } finally {
       database.close();
-      stores.close();
+      await stores.close();
     }
   });
 
@@ -379,7 +384,7 @@ test('original turn acknowledgement survives later grant and owner takeover with
       ).executions.at(-1)?.context,
     ).toEqual({ version: 1, scopeRevision: 4 });
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -400,7 +405,13 @@ async function prepareCoupled(kind: CoupledCommand['kind']) {
     });
     return { stores, ...prepared };
   } catch (cause) {
-    stores.close();
+    try {
+      await stores.close();
+    } catch (cleanupCause) {
+      throw new AggregateError([cause, cleanupCause], 'store setup and cleanup failed', {
+        cause: cleanupCause,
+      });
+    }
     throw cause;
   }
 }
@@ -457,7 +468,7 @@ for (const kind of ['stage_claim', 'accept_claim', 'stage_turn'] as const) {
             ),
           ).toEqual(history);
           database.run('DROP TRIGGER abort_coupled');
-          fixture.stores.connection.close();
+          await fixture.stores.connection.close();
           const reopened = await openSqliteStores(fixture.stores.options);
           try {
             expect(captureRows(database)).toEqual(before);
@@ -483,11 +494,11 @@ for (const kind of ['stage_claim', 'accept_claim', 'stage_turn'] as const) {
               pendingCommandId: kind === 'stage_claim' ? 'wire-claim' : null,
             });
           } finally {
-            reopened.close();
+            await reopened.close();
           }
         } finally {
           database.close();
-          fixture.stores.close();
+          await fixture.stores.close();
         }
       },
     );
@@ -501,6 +512,7 @@ import { Database } from 'bun:sqlite';
 import { openSqliteStores } from ${JSON.stringify(new URL('./open-stores.ts', import.meta.url).pathname)};
 const packet=JSON.parse(process.env.RUN_COUPLED_CHILD);
 const stores=await openSqliteStores({...packet.options,clock:{read:()=>1000}});
+try {
 writeSync(1,JSON.stringify({phase:'ready'})+'\\n');
 let timer;
 try {
@@ -536,6 +548,7 @@ const reply=packet.command.kind==='stage_claim'?await stores.runs.stageClaim(pac
 assert.equal(reply.kind,'applied');
 writeSync(1,JSON.stringify({phase:'committed',reply})+'\\n');
 const deadline=Date.now()+10000;while(Date.now()<deadline) await Bun.sleep(5);throw new Error('coupled after COMMIT kill barrier timed out');
+} finally { await stores.close(); }
 `;
 function spawnCoupledChild(packet: unknown) {
   const argv = [process.execPath, '-e', coupledChildSource];
@@ -676,7 +689,7 @@ async function prepareCoupledProcess(kind: CoupledCommand['kind'], mode: 'before
       .query('SELECT scope_count,intent_count,acceptance_count FROM run_format')
       .get();
     database.close();
-    fixture.stores.connection.close();
+    await fixture.stores.connection.close();
     child = spawnCoupledChild({
       mode,
       options: fixture.stores.options,
@@ -690,10 +703,16 @@ async function prepareCoupledProcess(kind: CoupledCommand['kind'], mode: 'before
     return { fixture, child, before, history };
   } catch (cause) {
     try {
-      if (child !== undefined) await child.close();
-    } finally {
-      database.close();
-      fixture.stores.close();
+      try {
+        if (child !== undefined) await child.close();
+      } finally {
+        database.close();
+        await fixture.stores.close();
+      }
+    } catch (cleanupCause) {
+      throw new AggregateError([cause, cleanupCause], 'store setup and cleanup failed', {
+        cause: cleanupCause,
+      });
     }
     throw cause;
   }
@@ -710,7 +729,7 @@ for (const kind of ['stage_claim', 'accept_claim', 'stage_turn'] as const)
           try {
             await prepared.child.close();
           } finally {
-            prepared.fixture.stores.close();
+            await prepared.fixture.stores.close();
           }
         }
       });
@@ -764,7 +783,7 @@ for (const kind of ['stage_claim', 'accept_claim', 'stage_turn'] as const)
             }
           } finally {
             database.close();
-            reopened.close();
+            await reopened.close();
           }
         },
       );
@@ -809,7 +828,7 @@ for (const kind of ['stage_claim', 'accept_claim', 'stage_turn'] as const)
       );
     } finally {
       database.close();
-      fixture.stores.close();
+      await fixture.stores.close();
     }
   });
 
@@ -852,7 +871,7 @@ for (const kind of ['stage_claim', 'accept_claim', 'stage_turn'] as const)
               ?.command,
           ).toEqual(expected);
         } finally {
-          fixture.stores.close();
+          await fixture.stores.close();
         }
       },
     );
@@ -891,7 +910,7 @@ for (const kind of ['stage_claim', 'accept_claim', 'stage_turn'] as const)
       );
     } finally {
       database.close();
-      fixture.stores.close();
+      await fixture.stores.close();
     }
   });
 
@@ -1001,7 +1020,7 @@ describe('retained history owner', () => {
         retained.set(kind, structuredClone(readHistory(database).catalog));
       } finally {
         database.close();
-        stores.close();
+        await stores.close();
       }
     }
   });
@@ -1578,7 +1597,7 @@ test('remaining sqlite outbox orphan rejects before public read publication', as
     expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
   } finally {
     database.close();
-    stores.close();
+    await stores.close();
   }
 });
 test('remaining sqlite supplied attempt projection must match audited history', async () => {
@@ -1598,7 +1617,7 @@ test('remaining sqlite supplied attempt projection must match audited history', 
     ).toThrow('corrupt current attempt provenance');
   } finally {
     database.close();
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -1631,7 +1650,7 @@ for (const fault of ['version', 'unknown key'] as const)
       expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
     } finally {
       database.close();
-      stores.close();
+      await stores.close();
     }
   });
 for (const field of ['attempt', 'run'] as const)
@@ -1657,7 +1676,7 @@ for (const field of ['attempt', 'run'] as const)
         ).toThrow('corrupt completion identity');
       } finally {
         database.close();
-        stores.close();
+        await stores.close();
       }
     },
   );
@@ -1683,7 +1702,7 @@ test('storage boundary execution record rejects forbidden reply shadow', async (
     expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
   } finally {
     database.close();
-    stores.close();
+    await stores.close();
   }
 });
 test('storage boundary execution decoder rejects mismatched original reply family', async () => {
@@ -1711,7 +1730,7 @@ test('storage boundary execution decoder rejects mismatched original reply famil
     expect(() => decodeExecutionRow({ ...row, reply: JSON.stringify(reply) })).toThrow();
   } finally {
     database.close();
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -1738,7 +1757,7 @@ test('sqlite shared history audit rejects queued reservation loss before public 
     expect((await stores.runs.readRun(setup.run.runId)).capacity.reserved).toBe(1);
   } finally {
     database.close();
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -1777,6 +1796,6 @@ test('sqlite shared history audit rejects queued run revision drift before publi
     expect(await stores.runs.readRun(setup.run.runId)).toEqual(snapshot);
   } finally {
     database.close();
-    stores.close();
+    await stores.close();
   }
 });

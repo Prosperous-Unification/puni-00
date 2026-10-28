@@ -73,6 +73,7 @@ async function createFixture() {
   async function record(command: ExecutionSubmission) {
     return unwrapReply(await replay(await setup.currentGuard(), command));
   }
+  let closing: Promise<void> | undefined;
   return {
     ...setup,
     stores,
@@ -84,10 +85,14 @@ async function createFixture() {
     record,
     replay,
     preparing,
-    close() {
-      database.close();
-      stores.close();
-      rmSync(directory, { recursive: true });
+    close(): Promise<void> {
+      if (closing !== undefined) return closing;
+      closing = (async () => {
+        database.close();
+        await stores.close();
+        rmSync(directory, { recursive: true });
+      })();
+      return closing;
     },
   };
 }
@@ -137,7 +142,7 @@ for (const kind of ['interrupted', 'waiting', 'outcome'] as const)
           reservations: setup.database.query('SELECT * FROM run_reservation').all(),
         };
         if (operation === 'open') {
-          setup.stores.close();
+          await setup.stores.close();
           await rejects(
             openSqliteStores(setup.options),
             hasCause('corrupt attempt quiescence operation'),
@@ -162,7 +167,7 @@ for (const kind of ['interrupted', 'waiting', 'outcome'] as const)
           reservations: setup.database.query('SELECT * FROM run_reservation').all(),
         }).toEqual(before);
       } finally {
-        setup.close();
+        await setup.close();
       }
     });
 
@@ -259,14 +264,14 @@ for (const [kind, path, replacement] of replyFaults)
           .query('UPDATE run_execution SET reply=json_set(reply,?,?) WHERE command_id=?')
           .run(path, replacement, command.commandId);
         if (operation === 'open') {
-          setup.stores.close();
+          await setup.stores.close();
           await rejects(openSqliteStores(setup.options), hasCause(message));
         } else {
           await rejects(setup.replay(guard, command), new RegExp(message));
           expect(projection()).toEqual(before);
         }
       } finally {
-        setup.close();
+        await setup.close();
       }
     });
 
@@ -286,13 +291,13 @@ for (const field of ['scope.projectId', 'workItemId'] as const)
           'different-target',
           setup.preparing.command.commandId,
         );
-      setup.stores.close();
+      await setup.stores.close();
       await rejects(
         openSqliteStores(setup.options),
         hasCause('corrupt execution command transition'),
       );
     } finally {
-      setup.close();
+      await setup.close();
     }
   });
 
@@ -325,7 +330,7 @@ test('portable terminal decoding binds quiescence to its attempt operation', asy
       }),
     ).toThrow('corrupt attempt quiescence operation');
   } finally {
-    setup.close();
+    await setup.close();
   }
 });
 
@@ -353,7 +358,7 @@ for (const kind of [
           ),
         );
       const current = await setup.runs.readRun(guard.runId);
-      setup.stores.close();
+      await setup.stores.close();
       const reopened = await openSqliteStores(setup.options);
       try {
         expect(
@@ -377,10 +382,10 @@ for (const kind of [
         });
         expect(await reopened.runs.readRun(guard.runId)).toEqual(current);
       } finally {
-        reopened.close();
+        await reopened.close();
       }
     } finally {
-      setup.close();
+      await setup.close();
     }
   });
 
@@ -403,6 +408,7 @@ async function createIndexedFixture() {
     { kind: 'recovery_required', reason: 'lost preparation' },
     'indexed-command',
   );
+  let closing: Promise<void> | undefined;
   return {
     ...setup,
     stores,
@@ -412,10 +418,14 @@ async function createIndexedFixture() {
     async record(command: typeof claimCommand) {
       return unwrapReply(await stores.runs.recordExecution(await setup.currentGuard(), command));
     },
-    close() {
-      database.close();
-      stores.close();
-      rmSync(directory, { recursive: true });
+    close(): Promise<void> {
+      if (closing !== undefined) return closing;
+      closing = (async () => {
+        database.close();
+        await stores.close();
+        rmSync(directory, { recursive: true });
+      })();
+      return closing;
     },
   };
 }
@@ -442,7 +452,7 @@ test('replay rejects an indexed execution whose history read omits its required 
     );
   } finally {
     Object.defineProperty(Database.prototype, 'query', descriptor);
-    setup.close();
+    await setup.close();
   }
 });
 
@@ -476,7 +486,7 @@ test('required indexed command cannot disappear behind a reset admitted projecti
     );
   } finally {
     Object.defineProperty(Database.prototype, 'query', descriptor);
-    setup.close();
+    await setup.close();
   }
 });
 
@@ -491,6 +501,6 @@ test('fresh illegal execution state remains a typed refusal after transition ext
     await doesNotReject(reply);
     expect(await reply).toEqual({ kind: 'refused', reason: 'state_conflict' });
   } finally {
-    setup.close();
+    await setup.close();
   }
 });

@@ -26,15 +26,16 @@ function options(path: string) {
 artifactStoreContract('sqlite artifacts', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'run-artifacts-'));
   const stores = await bootstrapSqliteStores(options(join(directory, 'store.sqlite')));
-  let isClosed = false;
+  let closing: Promise<void> | undefined;
   return {
     ...stores,
-    close() {
-      if (!isClosed) {
-        isClosed = true;
-        stores.close();
+    close(): Promise<void> {
+      if (closing !== undefined) return closing;
+      closing = (async () => {
+        await stores.close();
         rmSync(directory, { recursive: true });
-      }
+      })();
+      return closing;
     },
   };
 });
@@ -49,7 +50,7 @@ for (const fault of ['bytes', 'length', 'metadata', 'declared length'] as const)
         'text/plain',
       );
       if (retained.kind !== 'retained') throw new Error('expected retained artifact');
-      stores.close();
+      await stores.close();
       const database = new Database(configuration.path);
       if (fault === 'bytes')
         database.query('UPDATE run_artifact SET content=?').run(new TextEncoder().encode('jello'));
@@ -78,7 +79,7 @@ for (const fault of ['bytes', 'length', 'metadata', 'declared length'] as const)
           /artifact integrity/,
         );
     } finally {
-      stores.close();
+      await stores.close();
       rmSync(directory, { recursive: true });
     }
   });
@@ -99,7 +100,7 @@ test('sqlite artifact retention reads back a suppressed insert and throws withou
     expect(database.query('SELECT * FROM run_artifact').all()).toEqual([]);
   } finally {
     database.close();
-    stores.close();
+    await stores.close();
     rmSync(directory, { recursive: true });
   }
 });
