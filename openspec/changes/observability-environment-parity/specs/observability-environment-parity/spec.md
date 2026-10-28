@@ -710,3 +710,67 @@ Image inspection SHALL accept a supported omitted descriptor platform only when 
 - **WHEN** a new or retained supported container observation has missing, malformed, unsupported or contradictory descriptor platform
 - **THEN** it refuses through the existing exact manifest/platform/source join
 - **AND** image inspection compatibility alone does not justify inferred container platform, helper functionality, full admission or observability acceptance
+
+### Requirement: Fresh CronJob syntax is validated before conditional source accounting
+
+The native inventory SHALL validate supplied CronJob schedule and timeZone fields on its existing full-source prepass before provider, missing-bound or unsupported-lifecycle shortcuts. Malformed supplied fields SHALL throw. The provider adapter SHALL preserve pinned Kubernetes1.36.4 fresh-source schedule predicates and robfig3.0.1 field/descriptor/Go1.26.0 duration semantics. Validation SHALL remain separate from recurrence charging. No runtime calendar engine or source authority is implied.
+
+#### Scenario: Malformed late CronJob cannot hide behind another incomplete owner
+
+- **GIVEN** an earlier owner has unresolved ordinal, resource or provider conditions and a later CronJob has a missing, null, nonstring or malformed schedule/timeZone
+- **WHEN** `readRehearsalNativeCosts` validates all source frames
+- **THEN** it throws on the malformed trusted source before returning an incomplete inventory
+- **AND** absent timeZone remains explicitly absent rather than becoming UTC
+
+#### Scenario: Pinned syntax and duration semantics preserve valid unsupported schedules
+
+- **GIVEN** the retained337-case Go1.26.0/robfig3.0.1 corpus and original code points
+- **WHEN** the actual production parser is compared under Bun
+- **THEN** applicable fresh-source schedule predicates, field masks including bit63, descriptor identity, exact duration nanoseconds and Every delay semantics agree with the independently retained reference
+- **AND** all embedded uppercase TZ forms are rejected by the fresh Kubernetes predicate even where raw robfig accepts them
+- **AND** raw panic inputs become controlled refusal; direct raw-TZ and host-only zone lookups are diagnostic reference evidence, not a broader raw ParseStandard compatibility claim
+- **AND** valid syntax outside the separately declared charging subset stays unsupported rather than receiving invented capacity
+
+#### Scenario: Timezone knowledge stays distinct from malformed input
+
+- **GIVEN** a supplied timezone satisfies pinned fresh-source component predicates but is absent from the exact598-name Go1.26.0 catalogue
+- **WHEN** the source calendar is decoded
+- **THEN** it returns an explicit outside-catalogue state and inventory retains a named timezone-knowledge blocker
+- **AND** it neither defaults the zone nor declares that catalogue absence proves universal Kubernetes invalidity
+- **AND** known non-UTC zones remain valid source syntax but unsupported for the initial UTC charging subset
+
+### Requirement: CronJob rehearsal horizons bind conditional full-attempt charges
+
+The native-only capacity companion SHALL bind optional declared CronJob horizons to independently verified native source inputs. Malformed or mismatched bindings SHALL throw before incomplete/provider shortcuts. Missing or valid unsupported scenarios SHALL remain named incomplete, preserving existing calls, Job semantics, other contributors and independent blockers.
+
+#### Scenario: Supplied horizons cannot detach from their source
+
+- **GIVEN** optional `RehearsalCronJobHorizons` containing closed declared windows
+- **WHEN** the native-only reader validates the horizon with its required source contract
+- **THEN** each window binds exact source selection, resource identity, frame, pointer and jobTemplate bytes
+- **AND** malformed, duplicate, unknown-owner or mismatched bindings throw before incomplete/provider shortcuts
+- **AND** calls without horizons preserve existing standalone Job and other-contributor facts and independent blockers
+
+#### Scenario: Supported UTC windows charge every scheduled retry slot
+
+- **GIVEN** an unsuspended source CronJob with supported serial NonIndexed Job policy, declared source or controller UTC, cadence `*/d * * * *` for a positive divisor d of60 or `* * * * *`, and bound interval `(L,U]`
+- **WHEN** the conditional lifecycle is calculated
+- **THEN** ticks equal `floor(U/P)-floor(L/P)`, where P is60000d milliseconds
+- **AND** it reserves N times B+1 full normalized Pod slots for N ticks and effective backoff B, including failed/terminating attempts
+- **AND** Forbid, deadlines, TTL/history and cleanup assumptions do not discount those charges
+- **AND** slots and provenance remain accounting coordinates rather than observed Job or Pod identities
+
+#### Scenario: Valid large or absent scenarios remain visibly incomplete
+
+- **GIVEN** a missing horizon, unknown timezone knowledge, suspended/Replace/non-UTC/other valid calendar, unsupported Job policy or safe computed envelope exceeding256 slots
+- **WHEN** source accounting runs
+- **THEN** it retains exact named incomplete conditions without truncating demand or inventing a horizon
+- **AND** malformed supplied fields and bindings still throw before those classifications
+
+#### Scenario: Declared windows never supply runtime admission authority
+
+- **GIVEN** a supported declared horizon and source-derived slot subtotal
+- **WHEN** lifecycle provenance and readiness are emitted
+- **THEN** fresh creation afterL, bounded controller clock while creation remains possible, stable source/calendar/timezone/controller generation and one JobUID per nominal tick remain explicit conditions
+- **AND** prior/missed-beforeL/manual/adopted/recreated Jobs, Helm/Flux generations, retained history/log/device/volume growth and actual window enforcement remain independent unobserved obligations
+- **AND** source completeness, whole-attempt fit, creation and runtime authority remain false until their own evidence is verified

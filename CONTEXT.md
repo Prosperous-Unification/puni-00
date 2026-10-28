@@ -2484,6 +2484,10 @@ _Avoid_: matching observations, F9 acceptance, cold-start success
 
 ### Local fleet creation
 
+**Rehearsal horizon**:
+A source-bound declared time interval used to calculate a conditional rehearsal resource scenario. It does not observe or enforce runtime expiry.
+_Avoid_: lifetime bound, execution deadline, admission window
+
 **Creation attempt**:
 One invocation that tries to create a local fleet lab, identified independently of later invocations
 and bound to one Docker daemon.
