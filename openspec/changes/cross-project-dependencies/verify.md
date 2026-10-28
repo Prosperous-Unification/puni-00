@@ -7757,3 +7757,7 @@ unverified or held; parent task checkboxes are unchanged.
 ## Finite public parser comparison evidence — 2026-10-28
 
 [Separately frozen stock/candidate observations](verify-finite-public-parity.md) records exact byte equality for the finite 16/48/228 scopes. Exercised root names are distinguished from complete schema-branch coverage; remaining endpoint, factory and comparator/admission proofs are explicit. These historical source epochs are not relabeled as later main integration or full feature acceptance.
+
+## Pooled reader image-smoke fixture correction — 2026-10-28
+
+[Observed CI failure, transaction-settlement correction and watched proofs](verify-ci92-pooled-smoke-20261028.md) records the reviewed fixture change after main introduced pooled readers. Focused checks passed; a corrected real Docker smoke and fresh full CI remain unverified until the new published head runs. Architectural main adoption and deployment remain held.

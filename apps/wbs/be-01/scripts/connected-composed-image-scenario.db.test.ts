@@ -16,11 +16,17 @@ import { localCommandAccess } from '@wbs/core/testing/organization-access-fixtur
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import { captureConnectedQuestion } from '@wbs/store-sqlite/connected-question-identity';
+import { openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { expect, test } from 'bun:test';
+import { sql } from 'drizzle-orm';
 
 import { BACKEND_DEPENDENCY_CAPABILITY } from '../src/runtime/dependency-support';
 import { buildServices } from '../src/services';
-import { openComposedImageFixture, TARGET_PROJECT_ID } from './connected-composed-image-scenario';
+import {
+  openComposedImageFixture,
+  TARGET_PROJECT_ID,
+  trackComposedImageReaders,
+} from './connected-composed-image-scenario';
 
 test('disposable composed image fixture captures a feasible priority improvement with exact foreign pins', async () => {
   const folder = mkdtempSync(join(tmpdir(), 'connected-image-fixture-'));
@@ -96,6 +102,156 @@ test('disposable composed image fixture captures a feasible priority improvement
   } finally {
     await services.optimizer?.stop();
     await source.close();
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('composed image admission permits idle pooled readers and source close drains them', async () => {
+  const folder = mkdtempSync(join(tmpdir(), 'connected-image-pooled-'));
+  const path = await openComposedImageFixture(folder);
+  const readers = trackComposedImageReaders();
+  const source = openSqliteSource({
+    dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+    openReadOnlyConnection: readers.openConnection,
+  });
+  try {
+    const observation = await source.stores.claims.observeProject(TARGET_PROJECT_ID, {
+      kind: 'scoped',
+      scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+    });
+    expect(observation).toBeDefined();
+    expect(() => {
+      readers.assertClosed();
+    }).toThrow('source retained a physical read connection');
+    readers.assertSettled();
+  } finally {
+    await source.close();
+    readers.assertClosed();
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('composed image admission refuses active read transactions until real commit or rollback', async () => {
+  const folder = mkdtempSync(join(tmpdir(), 'connected-image-transaction-'));
+  const path = await openComposedImageFixture(folder);
+  const readers = trackComposedImageReaders();
+  const connection = readers.openConnection(path);
+  try {
+    expect(() => {
+      readers.assertSettled();
+    }).toThrow('fixture read transaction was not observed');
+    for (const terminal of ['COMMIT', 'ROLLBACK']) {
+      connection.db.run(sql.raw('BEGIN DEFERRED'));
+      connection.db.all(sql.raw('SELECT id FROM project'));
+      expect(() => {
+        readers.assertSettled();
+      }).toThrow();
+      connection.db.run(sql.raw(terminal));
+      readers.assertSettled();
+    }
+  } finally {
+    connection.close();
+    readers.assertClosed();
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('COMMIT rejected by its real run logger keeps the composed image transaction unsettled', async () => {
+  const folder = mkdtempSync(join(tmpdir(), 'connected-image-failed-commit-'));
+  const path = await openComposedImageFixture(folder);
+  const readers = trackComposedImageReaders((filename, logger) =>
+    openReadOnlyConnection(filename, {
+      logQuery(query, parameters) {
+        logger?.logQuery(query, parameters);
+        if (query.trim().toUpperCase() === 'COMMIT')
+          throw new Error('injected real COMMIT refusal');
+      },
+    }),
+  );
+  const connection = readers.openConnection(path);
+  try {
+    connection.db.run(sql.raw('BEGIN DEFERRED'));
+    connection.db.all(sql.raw('SELECT id FROM project'));
+    expect(() => connection.db.run(sql.raw('COMMIT'))).toThrow('injected real COMMIT refusal');
+    expect(() => {
+      readers.assertSettled();
+    }).toThrow();
+    connection.db.run(sql.raw('ROLLBACK'));
+    readers.assertSettled();
+  } finally {
+    connection.close();
+    readers.assertClosed();
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('composed image admission refuses absent transaction instrumentation', async () => {
+  const folder = mkdtempSync(join(tmpdir(), 'connected-image-no-observation-'));
+  const path = await openComposedImageFixture(folder);
+  const readers = trackComposedImageReaders((filename) => openReadOnlyConnection(filename));
+  const connection = readers.openConnection(path);
+  try {
+    expect(() => connection.db.run(sql.raw('BEGIN DEFERRED'))).toThrow(
+      'fixture read statement was not observed',
+    );
+    expect(() => {
+      readers.assertSettled();
+    }).toThrow('fixture read transaction was not observed');
+  } finally {
+    connection.close();
+    readers.assertClosed();
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('composed image admission refuses missing instrumentation on a second physical reader', async () => {
+  const folder = mkdtempSync(join(tmpdir(), 'connected-image-mixed-readers-'));
+  const path = await openComposedImageFixture(folder);
+  let opened = 0;
+  const readers = trackComposedImageReaders((filename, logger) => {
+    opened++;
+    return openReadOnlyConnection(filename, opened === 1 ? logger : undefined);
+  });
+  const first = readers.openConnection(path);
+  const second = readers.openConnection(path);
+  try {
+    first.db.run(sql.raw('BEGIN DEFERRED'));
+    first.db.run(sql.raw('COMMIT'));
+    readers.assertSettled();
+    expect(() => second.db.run(sql.raw('BEGIN DEFERRED'))).toThrow(
+      'fixture read statement was not observed',
+    );
+    expect(() => {
+      readers.assertSettled();
+    }).toThrow();
+  } finally {
+    first.close();
+    second.close();
+    readers.assertClosed();
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('settling one physical reader cannot hide another active transaction', async () => {
+  const folder = mkdtempSync(join(tmpdir(), 'connected-image-overlapping-readers-'));
+  const path = await openComposedImageFixture(folder);
+  const readers = trackComposedImageReaders();
+  const first = readers.openConnection(path);
+  const second = readers.openConnection(path);
+  try {
+    first.db.run(sql.raw('BEGIN DEFERRED'));
+    second.db.run(sql.raw('BEGIN DEFERRED'));
+    first.db.run(sql.raw('COMMIT'));
+    expect(() => {
+      readers.assertSettled();
+    }).toThrow();
+    second.db.run(sql.raw('ROLLBACK'));
+    readers.assertSettled();
+  } finally {
+    first.close();
+    second.close();
+    readers.assertClosed();
     rmSync(folder, { recursive: true, force: true });
   }
 });

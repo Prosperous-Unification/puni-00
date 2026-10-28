@@ -127,6 +127,81 @@ export async function openComposedImageFixture(folder: string): Promise<string> 
 }
 
 /**
+ * Observes real read-transaction settlement in this disposable packaging fixture.
+ * Idle physical readers may remain pooled until source.close. Borrowed-handle expiry
+ * is proved separately by the owning SQLite source/pool tests, not this counter.
+ */
+export function trackComposedImageReaders(open = openReadOnlyConnection) {
+  let physicalReaders = 0;
+  let begun = 0;
+  let settled = 0;
+  const active = new Set<ReturnType<typeof open>>();
+  const unobserved = new Set<ReturnType<typeof open>>();
+  return {
+    openConnection: (filename: string) => {
+      let statement = '';
+      const connection = open(filename, {
+        logQuery(query) {
+          statement = query;
+        },
+      });
+      physicalReaders++;
+      const run = connection.db.run.bind(connection.db);
+      const db = new Proxy(connection.db, {
+        get(target, key, receiver): unknown {
+          if (key === 'run')
+            return (...parameters: Parameters<typeof run>) => {
+              statement = '';
+              const executed = run(...parameters);
+              // Proof: omitting this refusal hid missing instrumentation on the second
+              // physical reader in connected-composed-image-scenario.db.test.ts (2026-10-28).
+              if (statement === '') {
+                unobserved.add(connection);
+                throw new Error('fixture read statement was not observed');
+              }
+              // Drizzle logs before execution: only a successful original run settles state.
+              // Proof: moving settlement into logQuery made the logger-rejected COMMIT
+              // test accept an unsettled transaction (2026-10-28).
+              const control = statement.trim().toUpperCase();
+              if (control === 'BEGIN DEFERRED') {
+                begun++;
+                active.add(connection);
+              } else if (control === 'COMMIT' || control === 'ROLLBACK') {
+                settled++;
+                active.delete(connection);
+              }
+              return executed;
+            };
+          const member: unknown = Reflect.get(target, key, receiver);
+          return member;
+        },
+      });
+      return {
+        db,
+        close: () => {
+          connection.close();
+          physicalReaders--;
+          active.delete(connection);
+        },
+      };
+    },
+    assertSettled: () => {
+      // Proof: omitting this admission invariant hid active/overlapping transactions
+      // and missing instrumentation in the owning DB suite (2026-10-28).
+      assert.ok(begun > 0, 'fixture read transaction was not observed');
+      assert.equal(unobserved.size, 0, 'fixture read statement observation was lost');
+      assert.equal(active.size, 0, 'installed admission retained an active read transaction');
+      assert.equal(settled, begun, 'fixture read transaction settlement was not observed');
+    },
+    assertClosed: () => {
+      // Proof: omitting this check made the idle-pooled-reader owning test accept
+      // an open physical connection before source.close (2026-10-28).
+      assert.equal(physicalReaders, 0, 'source retained a physical read connection');
+    },
+  };
+}
+
+/**
  * Joins installed service composition and durable publication to authenticated Python children.
  * Pri and Time use the smoke host's explicit two-container allowance, preserving real admission.
  * The caller-owned inventory records each actual admission token before any host request.
@@ -137,6 +212,7 @@ export async function runComposedImageScenario(options: {
   readonly inventoryPath: string;
 }): Promise<void> {
   const folder = mkdtempSync(join(tmpdir(), 'wbs-connected-image-'));
+  const readers = trackComposedImageReaders();
   let services: BeServices | undefined;
   let source: SqliteSource | undefined;
   let sqlite: ReturnType<typeof openDatabase> | undefined;
@@ -149,22 +225,11 @@ export async function runComposedImageScenario(options: {
     sqlite = openDatabase(path);
     const errors: string[] = [];
     const launched: ReservedSpawnRequest[] = [];
-    let borrowedReaders = 0;
     let bound: ReturnType<SqliteSource['bindLivePlans']> | undefined;
     source = openSqliteSource({
       dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
       dbPath: path,
-      openReadOnlyConnection: (filename) => {
-        const connection = openReadOnlyConnection(filename);
-        borrowedReaders++;
-        return {
-          ...connection,
-          close: () => {
-            connection.close();
-            borrowedReaders--;
-          },
-        };
-      },
+      openReadOnlyConnection: readers.openConnection,
     });
     const spawn = solverSupervisorSpawner({
       unix: options.unix,
@@ -197,7 +262,7 @@ export async function runComposedImageScenario(options: {
         optimizer: {
           ...installed,
           spawn: async (asked) => {
-            assert.equal(borrowedReaders, 0, 'installed admission retained its capture reader');
+            readers.assertSettled();
             assert.equal(asked.kind, 'connected');
             assert.equal(launched.length < 2, true, 'same question launched an extra attempt');
             appendFileSync(options.inventoryPath, `${asked.admission.attemptToken}\n`);
@@ -352,6 +417,7 @@ export async function runComposedImageScenario(options: {
     assert.deepEqual(ledger(), settled);
     await services.optimizer.stop();
     await source.close();
+    readers.assertClosed();
     source = openSqliteSource({
       dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
       dbPath: path,
@@ -373,5 +439,6 @@ export async function runComposedImageScenario(options: {
     sqlite?.close();
     rmSync(folder, { recursive: true, force: true });
     clearTimeout(timeout);
+    readers.assertClosed();
   }
 }
