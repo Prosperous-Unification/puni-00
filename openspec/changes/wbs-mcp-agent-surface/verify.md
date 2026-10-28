@@ -2456,17 +2456,17 @@ and the helper re-runs. Revocation follows the same path, except the re-run cann
 
 All on 2026-10-28 with `env -u CLAUDECODE`:
 
-| Command                                                                                              | Result                                       |
-| ---------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| laptop: `bun apps/wbs/mcp-01/src/load/pool-swarm-rehearsal.ts` at 0b3d13127                          | exit 0, 136 of 136                           |
-| laptop: the same with `--fault=skip-reimport`, `--fault=skip-revoke`, and the production fault above | exit 1 each                                  |
-| laptop: `bun test --timeout=10000` in `apps/wbs/mcp-01` (whole suite, the boot test included)        | 723 pass, 0 fail                             |
-| h2puni (H2PUNI_PLACEHOLDER)                                                                          | H2PUNI_RESULT                                |
-| `bunx tsc --build --force` for `apps/wbs/mcp-01` and `apps/wbs/be-01`                                | exit 0                                       |
-| `bunx eslint` on the four new files                                                                  | no problems                                  |
-| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`          | exit 0                                       |
-| `bunx openspec validate --all --json`                                                                | 301 items, 301 passed                        |
-| `bunx prettier --check` on every changed file                                                        | "All matched files use Prettier code style!" |
+| Command                                                                                                                                                                                                                                                        | Result                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| laptop: `bun apps/wbs/mcp-01/src/load/pool-swarm-rehearsal.ts` at 0b3d13127                                                                                                                                                                                    | exit 0, 136 of 136                                                                         |
+| laptop: the same with `--fault=skip-reimport`, `--fault=skip-revoke`, and the production fault above                                                                                                                                                           | exit 1 each                                                                                |
+| laptop: `bun test --timeout=10000` in `apps/wbs/mcp-01` (whole suite, the boot test included)                                                                                                                                                                  | 723 pass, 0 fail                                                                           |
+| h2puni (`ubuntu-8gb-hel1-1`, bun 1.4.4), 0b3d13127 in a detached worktree of `~/puni-00-gate-tbf` (removed after), `bun install --frozen-lockfile`, under `bin/with-heavy-lock.sh` (waited 0 s): the rehearsal, then `--fault=skip-revoke`, then the boot test | exit 0, 136 of 136 (revoke at 10155 ms, sweep settled at 10173 ms); exit 1; 2 pass, 0 fail |
+| `bunx tsc --build --force` for `apps/wbs/mcp-01` and `apps/wbs/be-01`                                                                                                                                                                                          | exit 0                                                                                     |
+| `bunx eslint` on the four new files                                                                                                                                                                                                                            | no problems                                                                                |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                                                                                                                    | exit 0                                                                                     |
+| `bunx openspec validate --all --json`                                                                                                                                                                                                                          | 301 items, 301 passed                                                                      |
+| `bunx prettier --check` on every changed file                                                                                                                                                                                                                  | "All matched files use Prettier code style!"                                               |
 
 Not run:
 
