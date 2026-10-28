@@ -1488,3 +1488,95 @@ test('Task60 reference roster rejects unreferenced duplicate declarations before
     ),
   ).toThrow('Native ordinal source malformed');
 });
+
+function createHostReader(name: string, mountPath: string) {
+  return {
+    name,
+    image: 'example.invalid/host-reader:1',
+    resources: { requests: { memory: '1Mi', cpu: '1m' }, limits: { memory: '1Mi', cpu: '1' } },
+    securityContext: { readOnlyRootFilesystem: true },
+    volumeMounts: [{ name: 'proc', mountPath, readOnly: true }],
+  };
+}
+for (const duplicate of ['application', 'init', 'application/init'] as const)
+  test(`Task60 consumer identity duplicate ${duplicate} precedes earlier nonhost claim collision`, async () => {
+    const packet = await lateHostReferencePacket((document) => {
+      if (duplicate === 'application')
+        document.addIn(
+          ['spec', 'template', 'spec', 'containers'],
+          createHostReader('node-exporter', '/host/proc'),
+        );
+      else
+        document.setIn(
+          ['spec', 'template', 'spec', 'initContainers'],
+          duplicate === 'init'
+            ? [
+                createHostReader('init-reader', '/init/proc'),
+                createHostReader('init-reader', '/init/proc'),
+              ]
+            : [createHostReader('node-exporter', '/init/proc')],
+        );
+    });
+    expect(() =>
+      readRehearsalNativeCosts(
+        packet.stages,
+        packet.expansions,
+        packet.contract,
+        lock,
+        [],
+        packet.topology,
+      ),
+    ).toThrow('Native ordinal source malformed');
+  });
+test('Task60 consumer identity distinct application and init readers retain their exact facts', async () => {
+  const ledger = await deriveNodeExporter((document) => {
+    document.addIn(
+      ['spec', 'template', 'spec', 'containers'],
+      createHostReader('app-reader', '/app/proc'),
+    );
+    document.setIn(
+      ['spec', 'template', 'spec', 'initContainers'],
+      [createHostReader('init-reader', '/init/proc')],
+    );
+  });
+  expect(
+    ledger.hostPathConsumers
+      ?.find((host) => host.name === 'proc')
+      ?.mounts.map((mount) => [mount.role, mount.container, mount.mountPath]),
+  ).toEqual([
+    ['containers', 'node-exporter', '/host/proc'],
+    ['containers', 'app-reader', '/app/proc'],
+    ['initContainers', 'init-reader', '/init/proc'],
+  ]);
+  expect(ledger.blockers).toContainEqual({
+    owner: nodeExporterIdentity,
+    missingFact: 'workload-volume-unsupported',
+  });
+});
+test('Task60 consumer identity no-host duplicate preserves earlier claim collision diagnostic', () => {
+  const earlier = claimCollisionFixture();
+  const later = fixture((document) => {
+    document.setIn(['metadata', 'name'], 'later');
+    document.addIn(['spec', 'template', 'spec', 'containers'], {
+      name: 'app',
+      image: 'example.invalid/duplicate:1',
+    });
+  });
+  const stages = [
+    ...earlier.stages,
+    {
+      ...later.stages[0],
+      stage: 'later',
+      path: 'infra/later',
+      declarationPath: 'stages/later.yaml',
+    },
+  ];
+  const contract = {
+    ...captureRehearsalFrames(stages, {}),
+    bootstrapSources: earlier.contract.bootstrapSources,
+    provenance: earlier.contract.provenance,
+  };
+  expect(() => readRehearsalNativeCosts(stages, {}, contract, lock, [], earlier.topology)).toThrow(
+    'Cold start claim-template-volume-collision',
+  );
+});

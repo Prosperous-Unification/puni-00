@@ -3692,7 +3692,7 @@ positive covering run. No effective fault was replayed.
 The first clean committed-adapter comparison at
 `b1a28688a5b50bddb94fa5f54cf1ef659255d879` failed a harness provenance assertion
 (exit 1, 5.882s; `retained-control.{json,log}`). The harness incorrectly expected
-`/1`, the same-named Service's pointer. Actual two full charges correctly used the
+`/1`, the same-named ServiceAccount's pointer. Actual two full charges correctly used the
 DaemonSet's `/13`. That failed script/log/receipt remain retained, and no passing
 control was replayed. A normal fixture-provenance correction adds a portable raw
 manifest hash and exact DaemonSet coordinate assertion. Independent setup resolves

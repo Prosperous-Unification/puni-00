@@ -74,7 +74,7 @@ interface HostSpec {
     readonly volumeMounts?: readonly HostMount[];
   }[];
 }
-/** Decode host bodies and, only for host-bearing Pods, require each app/init mount to name exactly one declaration.
+/** Decode host bodies and, only for host-bearing Pods, require unique app/init consumer names and one declaration per mount.
  * Claim-template names come from the validated source inventory; they supply reference context without invented volumes or bounds.
  * Modes/propagation are validated by the source mount schema; no runtime state is inferred. */
 export function readHostPathConsumers(
@@ -140,6 +140,10 @@ export function readHostPathConsumers(
   });
   // Proof: Task60 roster-scope corruption validated no-host input early and changed its existing claim-collision diagnostic; the production-reader control failed.
   if (consumers.length > 0) {
+    const containers = [...spec.containers, ...(spec.initContainers ?? [])];
+    // Proof: Task60 round1 consumer-name-unique removal let an earlier claim collision hide duplicate app/init and cross-role names; all three native-reader negatives failed.
+    if (new Set(containers.map((container) => container.name)).size !== containers.length)
+      refuse('workload-container-duplicate');
     const declarations = [
       ...(spec.volumes ?? []).map((volume) => volume.name),
       ...claimTemplateNames,
