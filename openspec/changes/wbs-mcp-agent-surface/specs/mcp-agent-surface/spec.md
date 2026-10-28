@@ -261,12 +261,30 @@ and a `humanOnly` shape matching no operation SHALL fail startup.
 - **WHEN** any MCP principal calls `tools/list`
 - **THEN** no tool reaches machine credentials, trusted issuers, agent pools, provisioning
   tokens, memberships, invitations, join requests, domains, SSO connections, session policy,
-  the limits read, the capacity-mode switch, restore approvals or onboarding
+  the limits read, the capacity-mode switch, restore approvals, onboarding or compute provider
+  administration (list, register, update, remove)
 
 #### Scenario: The capacity report is a tool
 
 - **WHEN** a provider reporter's machine token calls the capacity report tool
 - **THEN** be-01 records it; a consented agent gets `not_an_agent_principal`
+
+### Requirement: Human-only policy travels in the required generated artifact
+
+The same generated OpenAPI artifact SHALL carry the required top-level
+`x-wbs-human-only-operations` list derived from its input shape table. Runtime
+SHALL validate method/path/operationId records without loading schema validators;
+missing or malformed metadata SHALL refuse startup rather than become an empty policy.
+
+#### Scenario: Artifact policy cannot silently disappear
+
+- **WHEN** production startup reads an artifact with absent or malformed human-only metadata
+- **THEN** tool derivation refuses before exposing tools, including when the operation table is otherwise valid
+
+#### Scenario: Required artifact stays independent of runtime schemas
+
+- **WHEN** the same-checkout emitter generates the document from tagged shapes
+- **THEN** runtime consumes its policy and operations from that artifact, excludes every tagged route and the dependency-capability operation, and starts without importing contract validators
 
 ### Requirement: Tool path values cannot traverse
 

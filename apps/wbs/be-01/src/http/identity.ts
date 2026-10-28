@@ -38,13 +38,18 @@ export const NO_MCP_SERVICE: McpServiceIdentity = {
 };
 
 /**
- * Whether `presented` equals `expected`, comparing SHA-256 digests with
+ * Whether a presented secret equals `expected`, comparing SHA-256 digests with
  * `timingSafeEqual`, so the time taken does not depend on where the two
  * differ or on the presented length. An absent side never matches.
+ * `expected` is a configured secret, so its digest is computed once here
+ * rather than on every request (`wbs-mcp-agent-surface` task 4.5).
  */
-export function secretMatches(presented: string | null, expected: string | null): boolean {
-  if (presented === null || expected === null) return false;
-  return timingSafeEqual(digestOf(presented), digestOf(expected));
+export function secretMatcher(expected: string | null): (presented: string | null) => boolean {
+  const expectedDigest = expected === null ? null : digestOf(expected);
+  return (presented) =>
+    presented !== null &&
+    expectedDigest !== null &&
+    timingSafeEqual(digestOf(presented), expectedDigest);
 }
 
 function digestOf(value: string): Buffer {
@@ -59,7 +64,7 @@ function digestOf(value: string): Buffer {
  * secret or, until the cutover's second release, x-internal-auth
  * (`mcp-internal`), and the dedicated secret alone where grants are issued
  * (`mcp-dedicated`); either missing or wrong is `internal_unauthorized`.
- * Every secret is compared in constant time ({@link secretMatches}).
+ * Every secret is compared in constant time ({@link secretMatcher}).
  * Unknown verifier/account failures reject unchanged.
  * A Bearer credential declaring itself a delegation is judged by `delegation`
  * alone, for the exact MCP or direct audience declared by its signed claims;
@@ -75,10 +80,12 @@ export function identityResolver(
   credentialEvidence?: VerifiedCredentialOf,
   mcp: McpServiceIdentity = NO_MCP_SERVICE,
 ): IdentityResolver {
+  const isInternalSecret = secretMatcher(internalAuthSecret);
+  const isMcpSecret = secretMatcher(mcp.secret);
   const internalSecretOf = (request: { readonly headers: Headers }) =>
-    secretMatches(request.headers.get('x-internal-auth'), internalAuthSecret);
+    isInternalSecret(request.headers.get('x-internal-auth'));
   const mcpSecretOf = (request: { readonly headers: Headers }) =>
-    secretMatches(request.headers.get(MCP_INTERNAL_SECRET_HEADER), mcp.secret);
+    isMcpSecret(request.headers.get(MCP_INTERNAL_SECRET_HEADER));
   return async (requirement, request) => {
     if (requirement === 'internal') {
       // Proof: bypassing this comparison returned 200 instead of 401 in the
@@ -148,7 +155,7 @@ export function identityResolver(
     // Proof: Bearer-only resolution selected grace instead of cookie account
     // ada; a second call failed expected 1/received 2; catch(() => null) changed
     // both account-store outage tests from 500 to 401 (elysia/identity.test.ts).
-    const principal = await delegatedOrSession(auth, delegation, mcp, request.headers);
+    const principal = await delegatedOrSession(auth, delegation, mcp, isMcpSecret, request.headers);
     // Proof: inventing a fallback account returned 200 instead of 401 in the
     // mounted absent/invalid/retired-credential test (elysia/identity.test.ts).
     if (principal === null) return { ok: false, status: 401, body: { error: 'unauthenticated' } };
@@ -204,6 +211,7 @@ async function delegatedOrSession(
   auth: AuthService,
   delegation: DelegationVerifier,
   mcp: McpServiceIdentity,
+  isMcpSecret: (presented: string | null) => boolean,
   headers: Headers,
 ): Promise<
   AuthenticatedUser | AuthenticationRefusal | 'internal_unauthorized' | 'unknown_grant_key' | null
@@ -217,8 +225,7 @@ async function delegatedOrSession(
     // Proof: with this check removed, `refuses a grant without the secret, or
     // with a wrong one, internal_unauthorized` (machine-grant.controller.db.test.ts)
     // answered 200 with the projects; watched 2026-10-26.
-    if (!secretMatches(headers.get(MCP_INTERNAL_SECRET_HEADER), mcp.secret))
-      return 'internal_unauthorized';
+    if (!isMcpSecret(headers.get(MCP_INTERNAL_SECRET_HEADER))) return 'internal_unauthorized';
     // A grant is the request's only credential, as a delegation is.
     // Proof: with this check removed, `refuses a grant beside a session
     // cookie` (machine-grant.controller.db.test.ts) answered 200; watched

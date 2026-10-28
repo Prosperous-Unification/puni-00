@@ -208,9 +208,13 @@ Use L1–L6 in verify.md in an isolated proof checkout, never on the frozen runt
 
 Native disposal is synchronous here; the meaningful delayed completion proof is a real SQLite held writer, actual queued production operations and observed native close invocation. A fake Promise returned by Database.close would violate its real contract and is not proof of network disposal.
 
-- [ ] **Step 6: Review the complete diff and finish parent-owned verification.**
+- [x] **Step 6: Review the complete diff and finish parent-owned verification.**
 
 Compare per-operation and transact executable text against the baseline byte-for-byte; only adjacent observed Proof comments may change there. Other adapter changes are limited to the documented factory JSDoc/signature/state/close body. Confirm no changes to guards, schema, bootstrap, versions, provider selection or unrelated owners. Report actual commands, failures, restored passes and skipped checks; root updates verify.md. Parent runs format with --all, OpenSpec validation and canonical host gate on the reviewed final SHA, and owns any commit/review/publication. Reconcile accepted boot callers after the separate runtime patch is integrated, without editing its active checkout.
+
+Parent-owned publication and the accepted boot callers are complete through
+[PR #766](https://github.com/Prosperous-Unification/puni-00/pull/766); the exact-source
+gate, actual-merge CI and retained coverage limits are recorded in [verify.md](verify.md).
 
 ## Complete test-only helper
 

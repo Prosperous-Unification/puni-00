@@ -27,6 +27,14 @@ const batch = defineEndpointShape({
 });
 
 describe('documentFromShapes', () => {
+  test('emits human-only policy from the same shapes with document method and path spelling', () => {
+    const document = documentFromShapes([{ ...batch, humanOnly: true }]);
+    expect(document['x-wbs-human-only-operations']).toEqual([
+      { method: 'post', path: '/api/projects/{id}/commands', operationId: 'applyPlanCommands' },
+    ]);
+    expect(documentFromShapes([batch])['x-wbs-human-only-operations']).toEqual([]);
+  });
+
   test('emits inline object bodies with intact nested union arms and optional fields', () => {
     const document = documentFromShapes([batch]);
     expect(document.openapi).toBe('3.1.0');

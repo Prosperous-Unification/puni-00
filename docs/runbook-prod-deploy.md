@@ -207,6 +207,11 @@ nothing. A version 9 file the outgoing colour exports imports into green, carryi
 resources, capacities or demands. Rule: during the swap window, import a green export only
 into green; after a rollback, re-export from the older image rather than importing a v10 file.
 
+Agent pools (`20261028100000_add_agent_pool`) have one silent gap in the window: the outgoing
+be-01 reads machine credentials without the pool, so it admits an expired pool's keys until the
+swap commits. Rule: create no pool with a near `expiresAt`, and revoke (rather than let expire)
+a pool that must stop during the swap window.
+
 **Rollback.** `migrate-down-cli.ts --to=<the migration before 20261019120000_add_claim>`
 runs each down in its own transaction, newest first: it reverses the two binding migrations
 (`20261019130100_add_external_identity_person`, `20261019130000_add_person_account`, each

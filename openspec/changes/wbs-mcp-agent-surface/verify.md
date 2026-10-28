@@ -1363,29 +1363,40 @@ Each check was watched failing with the fault injected, then restored; the `Proo
 sits beside the check or its test. "Boot" is `mcp-token.boot.test.ts`, "helper"
 `token-command.test.ts`, "provider" `workload-provider.test.ts`.
 
-| #   | Check                                                | Fault injected                                         | Test that observed it failing                                                                                                                 |
-| --- | ---------------------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| F1  | the helper keeps no cache (2.4's helper negative)    | a module-level memo of the bearer, printed once set    | boot `a re-run 0.6 s after a 401 on the token it served issues a new token`: the re-run printed the rejected token (`not.toBe(first)`)        |
-| F2  | one issuance per run, under M10                      | each run sends its token request twice                 | boot `100 staggered issuances…`: a helper met M10's 429 and reached its wait                                                                  |
-| F3  | `wbs_run` sent                                       | `form.set('wbs_run', …)` removed                       | boot `a run is signed into the token as wbs_run`: no `wbs_run` claim                                                                          |
-| F4  | `Retry-After` capped at the budget                   | the whole `Retry-After` waited                         | helper `with Retry-After: 30, 2 s into the run, waits 7 s and retries once`: slept 30000                                                      |
-| F5  | no retry when the capped wait is ≤ 0                 | the `wait <= 0` check removed                          | helper `a 429 whose capped wait is zero or less is not retried`: retried and printed a token                                                  |
-| F6  | one retry, never a loop                              | retry while `429`                                      | helper `retried once and refused again exits non-zero`: printed the third answer's token                                                      |
-| F7  | exactly one credential                               | `chosen.length === 0`                                  | helper `refuses no credential or two…` (`--key-file` with `--assertion-file`): issued                                                         |
-| F8  | `https:` or loopback only                            | any protocol admitted                                  | helper `refuses a plain-HTTP resource off loopback`: issued                                                                                   |
-| F9  | the key file holds a `wbs_mk_` key                   | shape check disabled                                   | helper `refuses a key file that holds no wbs_mk_ key, never echoing it`: issued                                                               |
-| F10 | owner-only key file                                  | `readOwnerOnly`'s mode check skipped                   | helper `refuses a group-readable key file`: issued from a 0640 file                                                                           |
-| F11 | Actions variables required                           | an unset variable admitted                             | helper `refuses an unset ACTIONS_ID_TOKEN_REQUEST_TOKEN, naming it`: a request was sent                                                       |
-| F12 | no dynamic registration (2.4's test)                 | `clientInformation()` returns undefined                | boot `connects and calls a tool without a dynamic registration request`: "OAuth client information must be saveable for dynamic registration" |
-| F13 | the provider re-fetches after a 401 (its negative)   | `tokens()` keeps serving the first token               | boot `re-fetches after a 401`: "Server returned 401 after successful authentication"                                                          |
-| F14 | a fresh assertion per request (2.2's moved negative) | the first assertion cached                             | boot `a run outlives its workload token`: the SDK's `InvalidGrantError`                                                                       |
-| F15 | short tokens are served (note 2)                     | a flat 5-minute margin                                 | boot `a run outlives its workload token`: "Server returned 401 after successful authentication"                                               |
-| F16 | drop the token when the SDK asks for a new one       | `prepareTokenRequest` keeps the cache                  | provider `drops its token when the SDK asks for a new one, or invalidates it`                                                                 |
-| F17 | the provider's `Retry-After` capped at 60 s          | cap removed                                            | provider `waits a token endpoint Retry-After, capped at 60 s, and retries once`: slept 90000                                                  |
-| F18 | a token needs `expires_in`                           | check disabled                                         | provider `refuses a token without expires_in`: no throw                                                                                       |
-| F19 | `entrypoint.ts` dispatches `mcp`                     | dispatch disabled                                      | boot `the entrypoint prints only the header map, and a refusal names no key`: exit 1                                                          |
-| F20 | no key in any output                                 | the refusal names the request's `authorization` header | boot, the same test: stderr held `error: refused for Basic …`                                                                                 |
-| F21 | the issuer is mcp-01's (note 5)                      | `<origin>/oauth` stamped                               | boot `connects and calls a tool…`: "OAuth client information is bound to authorization server …/oauth and is not presented to …/mcp/oauth"    |
+| #   | Check                                                       | Fault injected                                          | Test that observed it failing                                                                                                              |
+| --- | ----------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| F1  | the helper keeps no cache (2.4's helper negative)           | a module-level memo of the bearer, printed once set     | boot `a re-run 0.6 s after a 401 on the token it served issues a new token`: the re-run printed the rejected token (`not.toBe(first)`)     |
+| F2  | one issuance per run, under M10                             | each run sends its token request twice                  | boot `100 staggered issuances…`: a helper met M10's 429 and reached its wait                                                               |
+| F3  | `wbs_run` sent                                              | `form.set('wbs_run', …)` removed                        | boot `a run is signed into the token as wbs_run`: no `wbs_run` claim                                                                       |
+| F4  | `Retry-After` capped at the budget                          | the whole `Retry-After` waited                          | helper `with Retry-After: 30, 2 s into the run, waits 7 s and retries once`: slept 30000                                                   |
+| F5  | no retry when the capped wait is ≤ 0                        | the `wait <= 0` check removed                           | helper `a 429 whose capped wait is zero or less is not retried`: retried and printed a token                                               |
+| F6  | one retry, never a loop                                     | retry while `429`                                       | helper `retried once and refused again exits non-zero`: printed the third answer's token                                                   |
+| F7  | exactly one credential                                      | `chosen.length === 0`                                   | helper `refuses no credential or two…` (`--key-file` with `--assertion-file`): issued                                                      |
+| F8  | `https:` or loopback only                                   | any protocol admitted                                   | helper `refuses a plain-HTTP resource off loopback`: issued                                                                                |
+| F9  | the key file holds a `wbs_mk_` key                          | shape check disabled                                    | helper `refuses a key file that holds no wbs_mk_ key, never echoing it`: issued                                                            |
+| F10 | owner-only key file                                         | `readOwnerOnly`'s mode check skipped                    | helper `refuses a group-readable key file`: issued from a 0640 file                                                                        |
+| F11 | Actions variables required                                  | an unset variable admitted                              | helper `refuses an unset ACTIONS_ID_TOKEN_REQUEST_TOKEN, naming it`: a request was sent                                                    |
+| F12 | the replaced generation is removed                          | the sweep skipped (re-run after review: G10)            | the same test: two generations of pool-a                                                                                                   |
+| F13 | the provider re-fetches after a 401 (its negative)          | `tokens()` keeps serving the first token                | boot `re-fetches after a 401`: "Server returned 401 after successful authentication"                                                       |
+| F14 | a `pool-<poolId>` this Dash did not write is never replaced | `assertImportedPool` accepts a non-link                 | `refuses to replace a pool directory it did not write`: "pool pool-a could not be written; the store keeps what it had" instead            |
+| G1  | a stray generation of the pool is swept (S2-1)              | the sweep spares the stray generation                   | `sweeps a stray generation of the pool, its key file included`                                                                             |
+| G2  | an overtaken import exits non-zero (S2-1)                   | the re-read check disabled                              | `an import replaced concurrently exits non-zero and keeps no key of its own`: resolved                                                     |
+| G3  | a failed write leaves no partial generation (S3-2)          | the generation's removal dropped from the catch         | `a write that fails leaves no partial generation, and the pool as it was`                                                                  |
+| G4  | the store's missing parents are `0700` (S2-2)               | parents created without a mode, the store itself `0700` | `creates a missing store and its parents 0700`: 509 (0775, umask 002) for 448                                                              |
+| G5  | a store that is a link is refused (S3-4)                    | `statSync` for `lstatSync`                              | `refuses a store that is a link`: resolved                                                                                                 |
+| G6  | a pool link elsewhere (`/etc`) is refused (S3-4)            | any link target accepted                                | `refuses a pool link it did not make, to /etc, leaving both alone`: resolved                                                               |
+| G7  | a `429` is retried at most three times, 60 s each (S3-1)    | the bound disabled                                      | `a 429 not waited out within its bound aborts, saying how long to wait`: resolved                                                          |
+| G8  | the mode refusal names `chmod 600 <path>` (S2-2)            | the old message                                         | `refuses a group-readable pool key file, naming the chmod`                                                                                 |
+| G9  | a `429` is waited out (S3-1)                                | the sleep dropped                                       | `waits out a 429 per its Retry-After and imports` and the bound test                                                                       |
+| G10 | every other generation is removed after the switch          | the sweep skipped                                       | `a re-import replaces the pool keys…`: two generations; `sweeps a stray generation…`                                                       |
+| G11 | the Dash document matches `agentPoolKeys` (S3-3)            | `mcpResource` removed from `pool-keys.v1.json`          | contracts `accepts the document Twilight Dash's pool import is tested with`: `allows` false                                                |
+| F15 | short tokens are served (note 2)                            | a flat 5-minute margin                                  | boot `a run outlives its workload token`: "Server returned 401 after successful authentication"                                            |
+| F16 | drop the token when the SDK asks for a new one              | `prepareTokenRequest` keeps the cache                   | provider `drops its token when the SDK asks for a new one, or invalidates it`                                                              |
+| F17 | the provider's `Retry-After` capped at 60 s                 | cap removed                                             | provider `waits a token endpoint Retry-After, capped at 60 s, and retries once`: slept 90000                                               |
+| F18 | a token needs `expires_in`                                  | check disabled                                          | provider `refuses a token without expires_in`: no throw                                                                                    |
+| F19 | `entrypoint.ts` dispatches `mcp`                            | dispatch disabled                                       | boot `the entrypoint prints only the header map, and a refusal names no key`: exit 1                                                       |
+| F20 | no key in any output                                        | the refusal names the request's `authorization` header  | boot, the same test: stderr held `error: refused for Basic …`                                                                              |
+| F21 | the issuer is mcp-01's (note 5)                             | `<origin>/oauth` stamped                                | boot `connects and calls a tool…`: "OAuth client information is bound to authorization server …/oauth and is not presented to …/mcp/oauth" |
 
 ### Review of PR #767 (Fable, high), how each item is addressed
 
@@ -1421,3 +1432,1122 @@ fail (6 files); `tool-devsync` `sync.test.ts -t "boot-commit convergence"` 8 pas
 (a8b233254's fixture fix); `openspec validate --all --json` 301 of 301; `check-indexes working .
 HEAD` exit 0; prettier clean. The full Dash and tool-devsync suites were not rerun; CI runs
 them.
+
+## Slice 7: the grant-client timeout and human-only tools by policy (tasks 4.4, 5.1, 5.2)
+
+Built on branch `feat/wbs-mcp-human-only-7` from main at 6b4e05823 (slices 1 to 6 merged
+through #751 and #769), 2026-10-28, for the plan branch `plan/wbs-mcp-agent-surface-2`. Every
+test below ran under `env -u CLAUDECODE` on the laptop; nothing ran on h2puni, and no host was
+touched.
+
+What landed:
+
+- **4.4.** `machineGrantClient` (`apps/wbs/mcp-01/src/machine-grant-client.ts`) bounds its fetch
+  to be-01's grant route, body included, by `BE_CALL_TIMEOUT_MS` (35 s, the tool-call bound of
+  section 4 note 15), raced with `untilAborted` (now exported by `wbs-client.ts`) so a fetch that
+  ignores its signal cannot hold the request. A timeout is `MachineGrantTimedOut`, a
+  `MachineGrantDefect`: the token endpoint reports it and answers `502 server_error`, and the
+  request's `finally` releases its pending slot and reservation as for any other defect. The
+  third parameter sets the bound for tests.
+- **5.1.** `EndpointShape.humanOnly` (`libs/wbs/domain/contracts/src/http/endpoint-shape.ts`)
+  tags 45 shapes. `EXCLUDED_PATHS` (`apps/wbs/mcp-01/src/openapi-tools.ts`) shrinks to
+  `/api/auth/*`, `/internal/*`, `/api/smoke/echo` and `/api/organization/active`.
+  `toolsFromDocument(document, humanOnly = HUMAN_ONLY_OPERATIONS)` skips every operation
+  whose method and path a `humanOnly` shape declares, and throws when one matches nothing.
+  `main.ts` derives its tools at startup, so that throw fails the boot. The capacity report,
+  `putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report`, is a tool. The
+  tool count goes from 104 to 76: 29 newly tagged operations leave the list, the capacity report
+  joins it, and the README says so.
+- **5.2.** `organization-delegation.boot.test.ts` lists tools at one mcp-01, against the booted
+  be-01, as a consented human (dany), a consented agent (claire) and a machine token. The three
+  answers (names, descriptions and input schemas) are equal, and they are the whole derived set.
+
+### Slice 7 notes (assumptions taken, and gaps in the design)
+
+1. **The covered set.** It is the spec delta's list: machine credentials (4), trusted issuers
+   (3), provisioning tokens (4), memberships and the members routes (1 and 3), invitations (3,
+   plus the onboarding accept), join requests (3), domains (5), SSO connections (4), the session
+   policy (2), the limits read (1), the capacity-mode switch (`patchApiOrganization`; the read
+   `getApiOrganization` stays a tool), restore approvals (1) and onboarding (5). Compute provider
+   administration (4) is tagged as well. The spec does not name it, but it was excluded before
+   and is administration of the same kind; leaving it untagged would have exposed it when
+   `EXCLUDED_PATHS` shrank. Agent pools do not exist yet: task 6.2 tags their routes, and
+   `generated-document.test.ts`'s pinned `HUMAN_ONLY` list gains them then.
+2. **Where the tag lives.** It is a field on the shape (`humanOnly?: true`), not a
+   `RequestPolicy` kind. be-01's adapters read `policies` to authorize a request, and this tag
+   authorizes nothing in be-01. mcp-01 reads it from `httpShapes`, not from the emitted
+   document, so the OpenAPI document is unchanged. An external fixture document passes its own
+   `humanOnly` list: the fixture tests pass a one-entry list, or `[]` where the fixture tags
+   nothing.
+3. **"Matching nothing".** A tagged shape matches by method and the document's `{name}` path.
+   `documentPathOf` is now exported by `@wbs/contracts` for this, and the emitter uses it too. In
+   production the document is generated from the same table, so the startup throw guards a
+   document that drifted from the shapes, as the `EXCLUDED_PATHS` stale check does.
+4. **The capacity report's two halves.** A provider reporter's machine token reaching be-01
+   through the tool is `machine-admission.boot.test.ts`'s new test against the booted grant
+   backend, which gains two fixture routes. A consented agent's `not_an_agent_principal` is
+   be-01's existing `refuses a browser session and an MCP delegation, storing nothing`
+   (`compute-provider.controller.db.test.ts`). An MCP delegation is the principal a consent
+   session's call carries, and nothing in this slice changes it.
+5. **The machine token in the parity test.** The delegation backend holds no grant keys, so the
+   test's mcp-01 composes machine grants over a stand-in for be-01's grant route.
+   `tools/list` asks be-01 nothing, so the stand-in grant is never sent to be-01. The consent
+   tokens are the real booted ones.
+6. **The 5.2 negative is the machine half.** The injected fault hides write tools from a caller
+   whose `authInfo` carries a machine caller. A human and an agent consent carry the same
+   `authInfo` shape (subject, scopes, session id), so no realistic fault separates them in the
+   `tools/list` handler. The test still asserts agent equals human.
+7. **A timeout is reported, not `temporarily_unavailable`.** A be-01 that accepts the connection
+   and never answers is a deployment fault no one else reports, as `BeCallTimedOut` is for a tool
+   call. `unavailable` (503) stays for a be-01 that refuses connections or answers 5xx, and be-01
+   reports those failures itself.
+8. **A delegated claimant's members test.** The agent-consent test in
+   `organization-delegation.boot.test.ts` asserted that `getApiOrganizationMembers` answered
+   `insufficient_scope`. That tool no longer exists, so the test now asserts it is absent from
+   the agent's `tools/list`.
+
+### Commands and results, slice 7
+
+All on 2026-10-28 at the head of this branch, with `env -u CLAUDECODE` and `--skip-nx-cache`:
+
+| Command                                                                                     | Result                                                           |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `bunx nx run-many -t typecheck lint -p wbs-mcp-01 wbs-contracts wbs-be-01`                  | exit 0                                                           |
+| `bunx nx run-many -t test -p wbs-contracts`                                                 | 609 pass, 0 fail (60 files)                                      |
+| `bunx nx run-many -t test -p wbs-mcp-01`                                                    | 720 pass, 0 fail (32 files)                                      |
+| `bunx nx run-many -t test -p wbs-be-01`                                                     | 3784 pass, 0 fail (3787 tests, 259 files, 1331.2 s)              |
+| `bunx openspec validate --all --json`                                                       | exit 0; 301 items, 301 passed                                    |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` | exit 0 (the existing store-memory and plan-commands review debt) |
+| `bunx prettier --check` on every changed file                                               | "All matched files use Prettier code style!"                     |
+
+Not run: the h2puni gate, fe-01 and its e2e (no fe-01 file changed, and the shape type gains
+one optional field), gw-01, and `tool-devsync`. The tool-devsync tests were skipped because
+mcp-01's OAuth metadata is unchanged (`bin/dev-mcp-probe.sh` checks only the metadata) and no
+env or deploy file changed. No migration changed.
+
+### Failure-proof table, slice 7
+
+Each check was watched failing with the fault injected, then restored. The `Proof:` comment
+sits beside the check or its test.
+
+| #   | Check                                                    | Fault injected                                                                   | Test that observed it failing                                                                                                                                                                                                                |
+| --- | -------------------------------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G1  | the grant fetch is raced against its timeout (4.4)       | the race removed; the signal only handed to a fetch that ignores it              | limits `frees the pending slot of a grant request be-01 never answers, after the timeout`: timed out after 5000 ms                                                                                                                           |
+| G2  | a timeout is `MachineGrantTimedOut`                      | the `signal.aborted` mapping disabled                                            | the same test: reported `could not send the request to be-01 …: TimeoutError`, not `MachineGrantTimedOut`                                                                                                                                    |
+| H1  | a `humanOnly` shape is no tool (5.1, "untag a route")    | `humanOnly: true` removed from `listMembers` (`organization-shapes.ts`)          | `tags exactly the covered set humanOnly, and offers none of it as a tool`, `pins every generated MCP operation name…` and the README count (76 vs 77)                                                                                        |
+| H2  | the derivation skips a tagged operation                  | the `continue` after a `humanOnly` match removed                                 | `emits no tool for any of D1’s three exclusion classes` (the fixture's `getApiOrganizationMemberships` became a tool); deriving the generated document threw at `POST /api/organization/machine-credentials` (17 tests across the two files) |
+| H3  | a tagged shape matching no operation fails startup (5.1) | the `unmatched.length > 0` throw disabled                                        | `refuses to start when a humanOnly shape matches no operation` (fixture), `…whose method the document serves under no such path`, and `…of the generated document`                                                                           |
+| H4  | the capacity report is a tool (5.1)                      | `/api/compute-providers/*` put back in `EXCLUDED_PATHS`                          | `machine-admission.boot.test.ts` `an agent's machine token reports capacity through the tool, and be-01 stores it`: `mcp-01 has no tool named …Capacity-report`                                                                              |
+| P1  | one tool list for every principal (5.2)                  | the `tools/list` handler hides non-GET tools from a caller with a machine caller | `organization-delegation.boot.test.ts` `a consented human, a consented agent and a machine token list the same tools`                                                                                                                        |
+
+## Slice 8: agent pools (tasks 6.0, 6.1 and 6.2)
+
+Built on branch `feat/wbs-agent-pools-8` from `plan/wbs-mcp-agent-surface-2` at 6b4e05823,
+2026-10-28. Every test below ran under `env -u CLAUDECODE` on the laptop; nothing ran on h2puni.
+
+**Assumptions Dany may reverse (tasks.md 0.2).** M7 is built as designed, with API-key pools
+only (no OIDC pool in v1). M16 (g): `parent_claim_foreign` and D7 stay exactly as they are
+today, so every agent of a pool (all bound to the creating admin) may claim under another's
+subtree claim.
+
+What landed:
+
+- **6.0** Five account-keyed checks the M16 table lacked are added to design.md M16: claim
+  identity (`refuseIdentity`), a member's machine-credential reach, consent agents
+  (`agentsBoundTo`), saved-plan rename and delete (`mayTouchSavedPlan`), and project owner
+  edits (`canEditProjectInOrganization`). None changes behaviour here.
+- **6.1** `20261028100000_add_agent_pool` (the `agent_pool` table, its live-name index and
+  `machine_credential.agent_pool_id`) and `20261028100100_widen_organization_audit_agent_pools`
+  (`agent_pool_created`, `agent_pool_revoked`, `agent_pool_rekeyed` and the subject kind
+  `agent_pool`, by compatible rebuild). The rebuild and its `down.sql` both recreate task 1.2's
+  two partial unique indexes. Both `down.sql` files refuse by name: the first while any pool
+  exists, the second while any pool audit row exists. The credential read now joins the pool,
+  so `admitMachineCredential` judges a pool's `expiresAt` (slice 1 note 3's constant is gone).
+  Every test pinning the migration list or rollback order carries the two names.
+- **6.2** `AgentPools` (`@wbs/core` `ports/agent-pools.ts`), `AgentPoolRepository`
+  (`@wbs/store-sqlite` `agent-pool.ts`), and `agentPoolRoutes` (`@wbs/core`
+  `http/agent-pool.routes.ts`) behind four shapes in `@wbs/contracts` `agent-pool-shapes.ts`:
+  `GET`/`POST /api/organization/agent-pools`, `POST …/:id/rekey` and
+  `DELETE …/:id?removePersons=true`. They are wired in `app.ts`, `boot.ts` and both organization
+  harnesses, kept out of the MCP tools (`EXCLUDED_PATHS`), and listed in the route inventory.
+  Refusal codes `pool_changed` and `persons_not_removed` are added to `refusal.ts`.
+
+### Slice 8 notes (assumptions taken, and gaps in the design)
+
+1. **"Through `addPerson`'s cap check".** The pool's persons, keys, pool row and audit rows are
+   written in one `BEGIN IMMEDIATE` transaction of the SQLite repository. Running them as a
+   directory command batch would have needed the batch's unit of work to carry machine
+   credentials. The cap is judged by the same reading and decision `addPerson` uses:
+   `readAgentPersonCapIn` (extracted from `OrganizationLimitGaugeRepository`, which now
+   delegates to it) and `refuseLimit`, once for the whole pool, inside that transaction. The gap:
+   no directory announcement is pushed for the new persons, so an open people list shows them
+   on its next read. Each person's root name is its own opaque id, as for `addPersonWithin`.
+2. **Names.** The agent at index `i` is `<name>-<i+1>` in the organization, and its
+   credential takes the same name. The pool name is 1–60 characters and not shaped like a
+   secret. A live pool, an organization person or a live credential holding any of these names
+   gives `409 name_taken`. Revoking a pool frees its name.
+3. **Keys document (for 6.4).** Create and re-key answer `201` with one document: `format:
+'wbs-agent-pool-keys'`, `version: 1`, `organizationId`, `poolId`, `name`, `expiresAt`,
+   `issuedAt`, and `agents[]`, each with `personId`, `personName`, `credentialId` and `key`, in
+   name order. The keys are minted in the route and only digests reach the store. Nothing
+   logs them: the create test spies on the console and checks that no secret, digest or
+   `wbs_mk_` reaches the list, the audit or a log line.
+4. **Audit detail.** Each key gets `machine_credential_created` or `machine_credential_revoked`
+   with today's detail plus `agentPoolId`. The pool row carries `size`, `expiresAt`, `personIds`
+   and `credentialIds` (created), `credentialIds` (re-keyed), or `credentialIds` and `personIds`
+   (revoked). It never carries a name, a key, a secret or a digest.
+5. **Re-key is two reads.** The route reads the pool's persons, mints one key each, and the
+   store re-checks inside its transaction that the keys name exactly those persons. A person
+   removed in between gives `409 pool_changed`, and nothing is written. Pool persons are the
+   persons its credentials name, so a person removed alone leaves the pool smaller. Re-keying
+   keeps the persons' leases, because each keeps a live credential.
+6. **`removePersons`** is a query flag on `DELETE` (`?removePersons=true`), not a body. The
+   revocation commits first; the route then runs one directory batch of `deletePerson`
+   (`cascade: true`) for the pool's persons as the admin (A24). A refused batch answers
+   `409 persons_not_removed` with the pool revoked and its persons kept. The design's later
+   `DELETE …/agent-pools/:id/persons` is not built: a revoked pool's persons can still be
+   removed one at a time with `deletePerson`.
+7. **Revocation ends both secrets of a rotated pool key.** A pool key can still be rotated
+   through the single-credential route, and the pool revoke ends every secret that is
+   unexpired at the revoke. A pool person who also holds a key issued alone keeps its leases.
+8. **OIDC pools** are refused by the schema (`source` may only be `'api_key'`) as
+   `400 invalid_body`. Size, a past `expiresAt` and one more than 90 days ahead get the same
+   answer.
+9. **Who may act.** Only a current `admin` or `super_admin`, checked inside each act's
+   transaction; a member or viewer gets `403 forbidden`. Every delegation, grant and machine
+   key gets `403 insufficient_scope` (`sessionOrganizationOf`). The test drives this with an
+   API key on `/api`; a separate delegation case was not written, because the same
+   `principal.delegation` guard decides both.
+10. **The listing** (`GET`) is admin-only. It shows every pool, revoked ones included, each
+    with its live credentials and no secret.
+11. **Memory parity.** The memory source has no activated organization, and organization
+    administration ports are SQLite-only, as `MachineCredentialAdministration` is. No plan
+    store port grew, so store-memory and the conformance suite are unchanged.
+12. **No new env key.** Dev needs nothing seeded for this slice; its two migrations are
+    additive and run at deploy.
+13. **Expired pools.** A token request with an expired pool's key reaches be-01's grant route
+    as `401 unknown_identity`; mcp-01 maps that to `invalid_client` (`machine-token.test.ts`
+    `maps unknown_identity and not_activated to invalid_client…`, in the mcp-01 run below). The lease then lapses at its own end and is
+    released as `lease expired`.
+14. **Human-only (M8, slice 7 / #770).** After merging the plan branch with #770, all four pool
+    shapes carry `humanOnly: true`, and mcp-01's pinned `HUMAN_ONLY` list in
+    `generated-document.test.ts` names them. The `EXCLUDED_PATHS` entries this slice first added
+    were dropped, because #770 replaced those credential exclusions with the tag. P14 is now the
+    tag (see below).
+
+### Commands and results, slice 8
+
+All on 2026-10-28 with `env -u CLAUDECODE` and `--skip-nx-cache`, on the laptop:
+
+| Command                                                                                                                                                    | Result                                                                                                                                                                                                                                                                                                              |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run-many -t typecheck lint -p wbs-contracts wbs-core wbs-store-sqlite wbs-be-01 wbs-mcp-01 wbs-domain wbs-store-memory wbs-conformance wbs-fe-01` | "Successfully ran targets typecheck, lint for 9 projects and 3 tasks they depend on", exit 0                                                                                                                                                                                                                        |
+| `bunx nx run-many -t test -p wbs-domain wbs-contracts wbs-core wbs-store-sqlite wbs-store-memory wbs-conformance wbs-mcp-01 --parallel=1`                  | every project green but store-sqlite: 2001 pass, 2 fail (`audit.test.ts`, which requires `auditOnCreate` on every drizzle insert, and `runtime-ledger.db.test.ts`, whose old-branch fixture has no `machine_credential`). Both were fixed (note 15), then store-sqlite was rerun: 2003 pass, 0 fail, 1 skip, exit 0 |
+| `bunx nx run wbs-be-01:test`                                                                                                                               | 3808 pass, 1 fail, 3 skipped, 3812 tests in 261 files (1257 s). The failure was `runtime-authority.db.test.ts`'s fixed `-13` migration window; it became `-15`, and that file was rerun: 30 pass, 0 fail                                                                                                            |
+| `bun test src/` (mcp-01, after the fixture updates)                                                                                                        | 712 pass, 0 fail                                                                                                                                                                                                                                                                                                    |
+| `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts` on the four new SQL files                                                                       | exit 0                                                                                                                                                                                                                                                                                                              |
+| `bunx openspec validate --all --json`                                                                                                                      | 301 items, 301 passed                                                                                                                                                                                                                                                                                               |
+| `bunx prettier --check` on every changed file but the SQL                                                                                                  | "All matched files use Prettier code style!"                                                                                                                                                                                                                                                                        |
+
+The be-01 suite was not rerun in full after the `-15` fix; only the changed file was. Not run:
+the h2puni gate, fe-01's tests and browser e2e (no fe-01 source changed), gw-01, and the
+tool-devsync workspace tests (no env key changed). CI runs them.
+
+15. **Two store-sqlite checks met by this slice.** `audit.test.ts` requires
+    `auditOnCreate` on every drizzle insert. `person_organization` carries no audit columns, so
+    the pool now writes it with raw SQL, as `mapInOrganization` does. `runtime-ledger.db.test.ts`
+    builds an old branch without `machine_credential`, so its fixture now leaves out
+    `20261028100000_add_agent_pool`, which alters that table.
+
+### Failure-proof table, slice 8
+
+Each check was watched failing with the fault injected, then restored. The `Proof:` comment
+sits beside the check or its test. "Controller" is `agent-pool.controller.db.test.ts`, "store" is
+`agent-pool.db.test.ts` (store-sqlite), and "migration" is `agent-pool-migration.db.test.ts`.
+
+| #   | Check                                                 | Fault injected                                      | Test that observed it failing                                                                                                           |
+| --- | ----------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| P1  | the forward rebuild recreates task 1.2's `_run` index | the index left out of `…agent_pools/migration.sql`  | migration `keeps task 1.2's issuance insert preparing after the rebuild`: "ON CONFLICT clause does not match any … UNIQUE constraint"   |
+| P2  | the `down.sql` rebuild recreates it                   | the index left out of `…agent_pools/down.sql`       | migration `keeps task 1.2's issuance insert preparing after rolling the rebuild back`, and `restores the schema it left, byte for byte` |
+| P3  | `add_agent_pool`'s guard                              | the count replaced by `0 = 0`                       | migration `refuses rollback while a pool exists`: exit 0, the pool dropped                                                              |
+| P4  | the audit widening's guard                            | the filter replaced by `WHERE 0`                    | migration `refuses rollback over one pool audit row of each action`: the narrow CHECK, not the named guard                              |
+| P5  | the cap judged inside the transaction                 | the cap read before the write turn                  | store `never holds more agent persons than the cap…` (`fc.asyncModelRun`, seed 20261028): `[CreateRacing(3, 6)]`, 9 agents of 8         |
+| P6  | only an admin creates                                 | `poolAdministratorRefusal` admits every member role | controller `refuses a member and a viewer forbidden…`: 201 with the keys                                                                |
+| P7  | every live key revoked                                | `live.slice(1)` revoked                             | controller `revokes every key of the pool…`: the skipped agent's claim survived the sweep                                               |
+| P8  | re-key creates no person                              | a fresh person minted per key in `rekey`            | controller `re-keys the same persons at the cap, creating none…`: eight new person ids                                                  |
+| P9  | `removePersons` removes them                          | the directory batch skipped                         | controller `removes the pool's persons with removePersons…`: `removedPersons: 0`, eight persons kept                                    |
+| P10 | the cap refusal                                       | refusal disabled                                    | controller `refuses a pool crossing the agent-person cap…`: 201 instead of 409                                                          |
+| P11 | re-key keys name exactly the pool's persons           | `pool_changed` refusal disabled                     | store `refuses keys that do not name exactly the pool's persons`: `rekeyed` for a one-person set                                        |
+| P12 | `expiresAt` at most 90 days ahead                     | the bound multiplied by 1000                        | controller `refuses a size of 0 or 101, … one past 90 days`: the 91-day pool created                                                    |
+| P13 | the pool's expiry reaches admission                   | `findById` answers `expiresAt: null`                | controller `an expired pool…`: the expired key admitted                                                                                 |
+| P14 | pool routes are no MCP tools                          | both `EXCLUDED_PATHS` entries removed               | mcp-01 `generated-document.test.ts` `keeps agent pool administration out of the generated MCP tools`                                    |
+| P15 | boot wires the pools                                  | the `agentPools` binding removed                    | `boot.db.test.ts` `serves agent pools from the shared database once activated`: "boot did not wire agent pools"                         |
+| P16 | no key in a log line                                  | the create route logs the minted keys               | controller `makes eight agent persons…`: `not.toContain` over the console capture                                                       |
+
+16. **P14 after #770.** With `humanOnly` removed from `createAgentPool`, three mcp-01 tests
+    failed: `tags exactly the covered set humanOnly…`, `pins every generated MCP operation
+name…` and `keeps agent pool administration out of the generated MCP tools`. After the
+    merge, the full mcp-01 `bun test src/` gave 721 pass, 0 fail. README's tool count (76) is
+    unchanged, because no pool route is a tool.
+
+Every negative is restored in the tree. Two of them also stay as permanent tests, run on edited
+copies of the folder: `fails task 1.2's insert when the forward rebuild omits an issuance index`
+and `… after a rollback whose rebuild omits an issuance index`.
+
+17. **The claims history does not keep a removed person's name.** M7 said it did. After
+    `removePersons`, the claim history still names the person's id, but `holder.name` reads
+    `null`, because names are read from the directory at read time. The controller test pins
+    what is true today; snapshotting the name is a separate change. M7 is amended to say so.
+
+### Review of PR #771 (Fable, high), how each item is addressed
+
+| Item | Fix                                                                                                                                                                                                                                                                   | Fault injected                                            | Test that observed it failing                                                                                        |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 1    | the merge of #770 was already finished in 4ff14e478: four shapes `humanOnly`, the pinned `HUMAN_ONLY` list, the `EXCLUDED_PATHS` entries gone; note 14 and P14 updated                                                                                                | `humanOnly` removed from `createAgentPool`                | mcp-01 `tags exactly the covered set humanOnly…` and two more (note 16)                                              |
+| S2-1 | re-key takes an optional `expiresAt` (create's bound, `isAgentPoolExpiryWithinBounds`) and stores it; without one, an expired pool is `409 pool_expired`                                                                                                              | the `pool_expired` refusal disabled                       | controller `refuses re-keying an expired pool unless a new expiry is given`                                          |
+| S2-1 | the same 90-day bound on the re-key body                                                                                                                                                                                                                              | the bound check removed from the route                    | controller `re-keys an expired pool with a new expiry within 90 days, and refuses one past them`: 201 instead of 400 |
+| S2-2 | the re-key set is the persons holding a live pool key (`poolPersons(…, 'live')`); revoke keeps the unfiltered read (`'any'`). An assumption Dany may reverse, stated in M7 and the spec                                                                               | the live filter dropped                                   | controller `re-keys only the agents holding a live pool key`: three keys, not two                                    |
+| S3-2 | M7 amended (shared cap reading, listing, no `/persons` route, re-key semantics, keys document, history names); spec scenarios for listing, name bounds, keys answered once, `pool_changed`, `pool_expired`, a refused removal                                         | — (text)                                                  | —                                                                                                                    |
+| S3-3 | the keys document carries `authorizationServer` and `mcpResource` (v1), and both 201s are `Cache-Control: no-store`                                                                                                                                                   | `noStore` dropped from `createAgentPool`                  | controller `is answered no-store on create and re-key`                                                               |
+| S4-1 | the composed harness takes a `logDestination`, used by the services logger and the app's `makeLogger` at `trace`; the create test checks the pino lines, and the audit-failure test proves the capture is live (it holds `unexpected endpoint failure`, no `wbs_mk_`) | not injected separately (the console negative P16 stands) | —                                                                                                                    |
+| S4-2 | the `persons_not_removed` 409 carries `poolId` and `revokedCredentials` (a detail code in `refusal.ts`)                                                                                                                                                               | the body narrowed back to its error                       | controller `answers persons_not_removed with the pool and its revoked keys…`: the answer failed its own schema, 500  |
+| S4-3 | the claims history test pins the removed person's id (and the name gap, note 17); the shape JSDoc names `isSecretShaped`'s rule; `runbook-prod-deploy.md` has the swap-window rule (the outgoing release ignores pool expiry)                                         | —                                                         | —                                                                                                                    |
+
+Commands for the fixes, 2026-10-28 with `env -u CLAUDECODE`: `bunx nx run-many -t typecheck lint`
+over contracts, core, store-sqlite, be-01, mcp-01 and fe-01; targeted tests, recorded below in
+the PR's commit message.
+
+## Slice 9: the fe-01 agent pools panel (task 6.3)
+
+Built on branch `feat/wbs-pool-panel-9` from `plan/wbs-mcp-agent-surface-2` at 1c0664ce9,
+2026-10-28. Every command below ran under `env -u CLAUDECODE` on the laptop; nothing ran on
+h2puni. No be-01 change was needed.
+
+What landed:
+
+- `AgentPoolsSlot` and `AgentPoolsPanel` (`apps/wbs/fe-01/src/components/organization/
+agent-pools-panel.tsx`), composed on the organization page after machine credentials. The
+  slot draws nothing for a member or viewer, who send no pools request, and nothing without
+  organizations. A failed role read draws an alert with retry.
+- The panel reads `GET /api/organization/agent-pools` and `GET /api/organization/limits`
+  together. Each pool shows its name, standing (Live, Expired, Revoked), agents, live keys,
+  expiry (or revocation) and creation. Loading, empty, failure with retry, and `forbidden`
+  (no panel) are rendered states. A loss refusal gives the page up.
+- **Create** is a dialog: name, agents (1–100), and an optional expiry day. Before confirming,
+  it states the persons it creates (`<name>-1` to `<name>-N`) and the organization's agent
+  persons against their cap, and it disables the confirm button when the pool does not fit.
+  `agent_person_limit` (409) names the cap, the current count and what fits.
+- **Keys once.** The `201` document goes straight into a blob (`openAgentPoolKeysFile` in
+  `agent-pool-keys-file.ts`), and the panel saves it at once through an anchor attached to the
+  document for the click. The reply is never put in state, the query layer, a log or browser
+  storage. The panel holds only the blob and its object URL, until the admin presses Done, the
+  next write starts, or the panel unmounts; then the URL is revoked. Until then "Save the file
+  again" saves the same blob with no request. The note gives the file name and key count, says
+  the keys are not shown, to save again before Done if no file appeared, and gives the two
+  import commands: `chmod 600 <file>`, then `twilight-dash pool import <file> --store
+~/.config/wbs/pools`, then delete the file. (Amended by the review of PR #774, S2-1.)
+- **Re-key** confirms in the row: how many live keys stop working, how many new keys are
+  saved, and how many agents without a live key stay keyless. The body is always JSON: `{}`
+  keeps the expiry, `{ expiresAt }` replaces it. `409 pool_expired` (or a pool the list
+  already shows expired) makes the new expiry required, with the reason in an alert.
+  `pool_changed` and `not_found` are said in place.
+- **Revoke** confirms in the row with the counts. "Also remove the N agent persons" is
+  opt-in and starts off, and `?removePersons=true` is sent only when it is checked.
+  `409 persons_not_removed` is drawn as a partial success: the pool is revoked, its keys no
+  longer work, and its persons stay and still count toward the limit.
+- Every refusal the five shapes model has a sentence in `agentPoolRefusal`
+  (`agent-pool-refusal.ts`). An impossible reply or a thrown write reaches the Error Boundary.
+- `e2e/agent-pools.spec.ts`: the panel in Chromium at 1280 and 375 px, every `/api` answered at
+  the browser as `organization.spec.ts` does. It checks one `download` event named
+  `pool-pool-new.keys.json`, no `wbs_mk_` in the page, and nothing sideways, and it saves a
+  screenshot of each state.
+
+### Slice 9 notes (assumptions taken)
+
+1. **File name.** M7 names the download `pool-<id>.keys.json`; the panel uses exactly that
+   (`pool-<poolId>.keys.json`), not a name built from the pool name.
+2. **Expiry is a UTC day.** The expiry control is a date input. The keys stop at 00:00 UTC on
+   the chosen day, which is how every instant on this page is shown (`minuteOf`). The days
+   offered run from tomorrow to 89 days ahead, so 00:00 UTC on the last day is always within
+   be-01's 90-day bound, whatever minute the form is sent.
+3. **Counts come from the last read.** The headroom shown before creating is the limits read
+   taken with the list, which every write rereads. A race past it still meets be-01's cap
+   check, and that answer is drawn (`agent_person_limit`).
+4. **A failed limits read fails the panel.** The panel does not draw pools without the counts a
+   create must state, so a limits failure is the panel's failure with retry, and a limits
+   `forbidden` hides the panel as the pools `forbidden` does.
+5. **Re-key needs a live key.** Re-key is disabled when no agent of the pool holds a live key,
+   since it would issue no key (M7: only agents holding a live pool key are re-keyed).
+6. **No new design token.** The partial-success box uses the `destructive/40` border the
+   existing confirm boxes use; the design system has no warning colour.
+7. **The keys file is held until Done (ASSUMED, review of PR #774 S2-1; Dany may reverse).** A
+   browser save can fail with no signal to the page: a cancelled Save-as, Chrome blocking an
+   automatic download that arrives after the click's transient activation (a slow 100-key
+   create), or Safari or Firefox losing a URL revoked straight after the click. So the panel
+   keeps the blob (never the parsed document, never its text in React state) and its object
+   URL until Done, the next write, or unmount, and offers "Save the file again" from that same
+   blob. be-01 still answers the keys once; M7's delivery wording and the agent-pools spec say
+   so now. The next write releases the previous file, because its note goes away with it.
+8. **An unreadable 201.** A create or re-key whose 2xx reply fails the contract
+   (`invalid_response`) may have made the pool. The panel says "The keys could not be read; the
+   pool may exist — refresh and re-key it." and rereads the list.
+9. **Rereads after a moved pool.** `pool_expired`, `pool_changed` and `not_found` on re-key,
+   and `not_found` on revoke, reread the list so the row matches the sentence. A confirmation
+   whose pool the reread shows revoked or gone is closed; `not_found` is then said at the panel.
+10. **Expiry days are judged when a form opens** (`Draft.openedAt`, `Rekeying.openedAt`), not at
+    the list's read time. Row chips still use the read time. The `invalid_body` sentences say
+    "up to 90 days ahead".
+11. **The keys note survives a reread that hides the panel** (`forbidden`): only the note is
+    drawn until Done.
+
+### Reviewed by eye
+
+The browser spec's screenshots at 1280 and 375 px were reviewed: the empty list, the populated
+list (Live, Expired, Revoked), the create dialog with its counts, the "keys downloaded" note,
+the re-key confirmation, the `pool_expired` state, the revoke confirmation, and the
+persons-kept state. The first pass put the actions beside the facts, so the dates wrapped and
+the revoked row's columns did not line up. The actions moved onto the name line, the facts got
+the full width, and dates take a full line on a phone. The persons-kept sentence no longer
+repeats its heading, and the Revoked chip is muted, with only Expired drawn as needing action.
+
+### Commands and results, slice 9
+
+All on 2026-10-28 with `env -u CLAUDECODE`, on the laptop:
+
+| Command                                                                                                                                                                        | Result                                                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `bun nx run-many -t lint typecheck -p wbs-fe-01`                                                                                                                               | "Successfully ran targets lint, typecheck for project wbs-fe-01 and 1 task it depends on"          |
+| `bun nx run wbs-fe-01:test`                                                                                                                                                    | unit 1079 pass (87 files); UTC 4694 pass (237 files); zoned 5 pass (4 files); exit 0               |
+| `TZ=Pacific/Auckland bunx vitest run src/components/organization/agent-pools-panel.test.tsx`                                                                                   | 31 pass (the zoned config only collects `*.zoned.test.*`, so this was run by hand)                 |
+| `bunx playwright test -c tmp/pool-shots.config.ts` (a local config that serves only Vite on :7480 and runs `e2e/agent-pools.spec.ts`; every `/api` is answered at the browser) | 8 pass, at 1280 and 375 px                                                                         |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                                    | exit 0 (review debt only in two existing indexes: store-memory 53/40 and core plan-commands 48/40) |
+| `bunx openspec validate --all --json`                                                                                                                                          | 301 items, 301 passed                                                                              |
+| `bunx prettier --check` and `plaintext-secrets.ts` on every changed file                                                                                                       | clean, exit 0                                                                                      |
+
+Not run: the h2puni gate, the ordinary `bun run e2e` stack locally (CI runs the new spec there), and be-01 or mcp-01 suites (neither changed).
+
+### Failure-proof table, slice 9
+
+Each fault was injected into the production file, the panel's test file was run, and the fault was then reverted. The `Proof:` comment sits beside the check. "Panel" is `agent-pools-panel.test.tsx`.
+
+| #   | Check                                              | Fault injected                                           | Test that observed it failing                                                                                     |
+| --- | -------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Q1  | keys never reach the DOM                           | the first key rendered in a hidden span of the keys note | panel `creates a pool, downloads its keys exactly once and never renders them`: the page held `wbs_mk_`           |
+| Q2  | one download per 201                               | `downloadAgentPoolKeys` called twice on create           | the same test: 2 files saved, 1 expected                                                                          |
+| Q3  | re-key always sends a JSON body                    | `body` dropped when the expiry is kept                   | panel `re-keys with a JSON body, {} …` and four more re-key cases: no request was sent and no keys note was drawn |
+| Q4  | `removePersons` starts off                         | the checkbox starts checked                              | panel `revokes without removing persons unless asked…` and four more revoke cases                                 |
+| Q5  | `?removePersons=true` only when asked              | the query sent always                                    | panel `revokes without removing persons…`: `search` was `?removePersons=true`                                     |
+| Q6  | counts gate the create                             | `fits` ignores the headroom                              | panel `states the counts and holds a pool that does not fit`: the button was enabled                              |
+| Q7  | no counts without the limits read                  | only the pool reply judged                               | panel `renders a failed limits read as the panel failure…`: no alert                                              |
+| Q8  | `pool_expired` asks for a new expiry               | sent to the in-place sentence                            | panel `offers a new expiry when the pool expired`: no required `New expiry` field                                 |
+| Q9  | `persons_not_removed` is a partial success         | sent to the alert                                        | panel `renders persons_not_removed as revoked with persons kept`: no partial-success state                        |
+| Q10 | a read's `forbidden` hides the panel               | drawn as a failure                                       | panel `renders no panel when … answers forbidden` (pools and limits)                                              |
+| Q11 | members and viewers send nothing                   | the slot draws for every role                            | panel `sends no pools request and renders no panel for a member` (and a viewer)                                   |
+| Q12 | a failed role read is rendered                     | the slot draws nothing                                   | panel `renders a failed role read with retry, and recovers`                                                       |
+| Q13 | late replies from another organization are dropped | the generation fence removed                             | panel `never shows the previous organization's pools after a switch`                                              |
+| Q14 | writes are serialized                              | the `isPending` admission removed                        | panel `serializes a double-clicked re-key`: 2 re-key POSTs                                                        |
+| Q15 | `name_taken` has its own sentence                  | the `not_found` sentence used                            | panel `renders name_taken on create and keeps the draft, never as success`                                        |
+| Q16 | the page composes the slot                         | `AgentPoolsSlot` removed from the page                   | `organization-page.test.tsx` `composes the agent pools panel for an admin`                                        |
+
+### Review of PR #774 (Fable, high), how each item is addressed
+
+| Item | Fix                                                                                                                                                                                                                                                                                    | Fault injected                                         | Test that observed it failing                                                                                                                                                                        |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1 | the keys file is held as a blob until Done, the next write or unmount, and saved again from that blob; the anchor is attached for the click; the URL is revoked on release, not after the click (note 7)                                                                               | no revoke on Done                                      | panel `saves the same file again without a request, and releases it on Done`                                                                                                                         |
+| S2-1 | same                                                                                                                                                                                                                                                                                   | an empty unmount cleanup                               | panel `releases the held file when the panel unmounts`                                                                                                                                               |
+| S2-1 | same                                                                                                                                                                                                                                                                                   | "Save the file again" saves nothing                    | panel `saves the same file again…` (1 save, 2 expected)                                                                                                                                              |
+| S2-1 | same                                                                                                                                                                                                                                                                                   | the anchor clicked detached                            | panel `creates a pool, downloads its keys exactly once…` (`attached: [false]`)                                                                                                                       |
+| S2-1 | same                                                                                                                                                                                                                                                                                   | no release when the next write starts                  | panel `releases the previous file when the next write starts`                                                                                                                                        |
+| S2-1 | same                                                                                                                                                                                                                                                                                   | `deliver` saves twice                                  | panel `creates a pool…`, `re-keys with a JSON body…`, `saves the same file again…`, `serializes a double-clicked re-key`                                                                             |
+| S2-1 | Q1 rechecked on the new path                                                                                                                                                                                                                                                           | the first key appended to the note's file name         | panel `creates a pool…` and `re-keys with a JSON body…`: the page held `wbs_mk_`                                                                                                                     |
+| S3-1 | reread after re-key `pool_expired`                                                                                                                                                                                                                                                     | the reread skipped                                     | panel `rereads after pool_expired so the row says Expired`: the row said Live                                                                                                                        |
+| S3-1 | reread after re-key `not_found`, said at the panel                                                                                                                                                                                                                                     | the reread skipped                                     | panel `says a re-keyed pool is gone, rereads, and drops its row`                                                                                                                                     |
+| S3-1 | reread after revoke `not_found`                                                                                                                                                                                                                                                        | the reread skipped                                     | panel `renders a refused revoke in place and rereads after not_found`                                                                                                                                |
+| S3-1 | a confirmation for a revoked or gone pool is closed after a reread; the panel JSDoc says which writes reread                                                                                                                                                                           | the closing removed                                    | panel `closes a re-key whose pool the reread shows revoked`                                                                                                                                          |
+| S3-2 | unreadable 2xx keys reply: the sentence and a reread (note 8)                                                                                                                                                                                                                          | drawn as the dialog's sentence                         | panel `says the keys could not be read and rereads`: no reread                                                                                                                                       |
+| S3-2 | the mutate-side generation fence now has its negative                                                                                                                                                                                                                                  | the fence after the create POST removed                | panel `never saves a create's keys after an organization switch`: org-a's keys were saved                                                                                                            |
+| S3-3 | a save that throws reaches the Error Boundary                                                                                                                                                                                                                                          | — (the test is the negative: `createObjectURL` throws) | panel `a save that throws reaches the error boundary`                                                                                                                                                |
+| S3-3 | re-key `invalid_body` and `insufficient_scope`, revoke `insufficient_scope` and a transport failure                                                                                                                                                                                    | — (rendered-state tests)                               | panel `renders invalid_body on re-key in place`, `renders insufficient_scope on re-key in place`, `renders insufficient_scope on revoke`, `renders a transport failure on revoke and keeps the pool` |
+| S4   | `agentPoolRefusalText` takes the operation; the effect's ref copy is `fence`; `isPending` and `isSending` are documented; expiry bounds come from the form's open time (note 10); `invalid_body` says "up to 90 days ahead"; an expired pool's confirmation says its keys have expired | —                                                      | existing tests, copy updated                                                                                                                                                                         |
+| S4   | the keys note survives a `forbidden` reread (note 11)                                                                                                                                                                                                                                  | `absent` returns null with a note held                 | panel `keeps the keys note when the reread hides the panel`                                                                                                                                          |
+| S4   | a Refresh keeps the keys note                                                                                                                                                                                                                                                          | the note cleared on refresh                            | panel `creates a pool…`: no note after Refresh                                                                                                                                                       |
+
+The browser spec now saves the file again (a second `download` event with the same name) and
+checks the reread's Expired chip after `pool_expired`. Its stub marks the pool lapsed when it
+answers `pool_expired`. The screenshots of the note and the `pool_expired` state were taken
+again and reviewed. The `/api/onboarding` answer in this spec is `selection_required`, unlike
+`organization.spec.ts`'s `onboarding_inactive`, because the panel needs an activated
+organization; CI's ordinary e2e job ran it (see the PR).
+
+Commands for the fixes, 2026-10-28 with `env -u CLAUDECODE`, on the laptop:
+`bun nx run-many -t lint typecheck -p wbs-fe-01 --skip-nx-cache` succeeded;
+`bun nx run wbs-fe-01:test --skip-nx-cache` gave unit 1079, UTC 4707 and zoned 5 passing, exit 0;
+`agent-pools-panel.test.tsx` 44 pass; the browser spec 8 pass at 1280 and 375 px;
+`openspec validate --all --json` 301 of 301.
+
+**Cross-PR finding from the #772 review (S2-2).** The note's import hint was
+`twilight-dash pool import <file>`, which fails the CLI's usage (`--store <dir>` is required),
+and a browser saves the file 0644, which the import refuses (it needs owner-only 0600). The
+note now shows two commands, `chmod 600 <file>` and `twilight-dash pool import <file> --store
+~/.config/wbs/pools`, and still says to delete the file. `~/.config/wbs/pools` is a placeholder
+store until a canonical one is named. The create test pins both lines exactly; the screenshot
+was taken again (the commands scroll inside their own box at 375 px; the page does not).
+
+## Slice 10: `twilight-dash pool import` (task 6.4)
+
+Built on branch `feat/dash-pool-import-10` from `plan/wbs-mcp-agent-surface-2` at 1c0664ce9,
+2026-10-28. Every test below ran under `env -u CLAUDECODE` on the laptop; nothing ran on h2puni.
+
+What landed:
+
+- `twilight-dash pool import <pool-keys.json> --store <directory>`
+  ([`pool-import.ts`](../../../apps/twilight-structure/twilight-dash/cli/src/mcp/pool-import.ts)),
+  dispatched by `entrypoint.ts` beside `mcp`, so it never loads `cli.ts`'s command graph.
+- `machine-token.ts` gains `ApiKey.of` (a key from a validated document), `ApiKey.credentialId`,
+  `ApiKey.writeNew` (a new `0600` file, never following a link), `IssuedToken`, and
+  `postTokenRequest`, the redirect-refusing POST that `mcp token` used inline and now shares
+  with the import's proof issuance. Its `Proof:` comment moved with it.
+- The Dash README's [`pool import`](../../../apps/twilight-structure/twilight-dash/cli/README.md#pool-import)
+  section, an agent-pools spec requirement with four scenarios, and design.md M7's delivery
+  bullet naming the store and the run.
+
+### Slice 10 notes (assumptions taken)
+
+1. **The store is the key files `mcp token --key-file` reads, not a second store.** `mcp token`
+   has no store of its own: it reads an owner-only file named by `--key-file`. The import
+   writes exactly that file per agent, plus a `--mcp-config` file per agent whose
+   `headersHelper` names it, under a required `--store` directory (no default: a missing
+   location is not guessed; the README's convention is `~/.config/wbs/pools`). The
+   directory is created with any missing parents `0700`, and refused when it is a link or other
+   users can enter it.
+2. **The run is `pool-<poolId>/<personId>`, fixed per agent, not per process start.** M15 needs
+   a run that survives re-fetches, and mcp-01 caps distinct runs per credential per day, so a
+   fresh run per process start would orphan leases on every restart and spend that budget. A
+   deterministic run also survives a re-key, so 8.1's "re-key mid-run" keeps the agents'
+   leases. Two processes started on one config share a run; the README says to start one per
+   config. Ids are held to `[A-Za-z0-9_-]{1,100}` (be-01 mints UUIDs), so the run is at most
+   206 characters and never secret-shaped.
+3. **Every key is proven before anything is written.** The proof is one `client_credentials`
+   token request per agent, with its run, through the same `postTokenRequest` as `mcp token`;
+   the bearer is dropped (never stored or printed, valid until it expires). Sequential. A pool
+   of N spends N issuances of mcp-01's per-source bucket (`machine-limits.ts` `M10_LIMITS`:
+   burst 100, 5 a second), which every agent on the host shares: a pool of 100 empties the
+   burst, and agents started right after meet `429`s. The import waits out a `429` per its
+   `Retry-After`, at most 60 s and three times per agent, then aborts with `wait N s and rerun`;
+   the README says to wait about N/5 s after a large import before starting agents.
+4. **Atomic replacement by a link switch.** `rename(2)` cannot replace a non-empty directory,
+   so `pool-<poolId>` is a link to a generation `.pool-<poolId>.<16 hex>`; a re-import writes a
+   new generation and renames a new link over the old one, then removes every other generation
+   of the pool and every pending link (a crashed import's leftovers included). Key
+   paths in the configs name the link, so a helper started before a re-key reads the new key
+   on its next run. A `pool-<poolId>` that is not such a link is refused, never replaced.
+5. **The downloaded file must be `0600`** (the most restrictive reading). A browser saves it
+   `0644`; the refusal names the fix with the path, `run: chmod 600 '<path>'` (the path is not
+   secret: a key pasted as the path is refused before). **Standard input is not accepted**: a pipe has no
+   owner or mode to check, and the panel's download is a file anyway.
+6. **`authorizationServer` must equal `<mcpResource>/oauth`**, the issuer `mcp token` derives.
+   Otherwise the proof would test one server and the helpers would ask another.
+7. **Dash keeps its own copy of the document shape.** The product fence refuses
+   `@wbs/contracts` in Dash's `mcp/` (lint: "can only depend on libs tagged with
+   product:twilight-dash, product:shared"), so `PoolKeys` mirrors `agentPoolKeys` and narrows
+   it. The two are pinned by a committed document,
+   `cli/src/mcp/testing/pool-keys.v1.json`: Dash's tests import it, and contracts'
+   `agent-pool-shapes.test.ts` reads its bytes (no import across the fence; contracts lint is
+   clean) and requires `agentPoolKeys.allows` it. Its secrets are 43 `*`, so the
+   plaintext-secrets hook (which has no allowlist) does not match; Dash's test substitutes
+   real-shaped ones. The contracts `test` targets list it as an input.
+8. **No file locking; a lost race is loud and leaves no key.** Each import removes, after its
+   switch, every generation of the pool but the one `pool-<poolId>` links to, then re-reads the
+   link: when it is not its own generation (or its generation is gone), it exits non-zero
+   (`another import replaced pool … concurrently`). The overtaken import's generation, and any
+   generation a concurrent import was still writing, is removed (that import's write or rename
+   then fails, or its re-read does). The race is proven through a `PoolFiles.rename` seam that
+   switches the link right after this import's switch. An operator still runs one import at a
+   time.
+9. **The cleanup of a partial generation** is now proven through the `PoolFiles.writeNewText`
+   seam failing with ENOSPC after the first key file (G3).
+10. The output names the pool name, each agent's person name, id, run and config path, and
+    the downloaded file to delete. `pool.json` and the configs hold no key.
+
+### Commands and results, slice 10
+
+All on 2026-10-28 with `env -u CLAUDECODE`, on the laptop:
+
+| Command                                                                           | Result                                                               |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `bunx nx run-many -t typecheck lint -p twilight-dash --skip-nx-cache`             | "Successfully ran targets typecheck, lint for project twilight-dash" |
+| `bun test … src/mcp/pool-import.test.ts src/mcp/token-command.test.ts` (Dash cli) | 35 pass, 0 fail                                                      |
+| `bun test … src/mcp/mcp-token.boot.test.ts` (real be-01 + mcp-01)                 | 9 pass, 0 fail                                                       |
+| Burokrat `check-indexes working . HEAD` (after the commit)                        | exit 0                                                               |
+| `bunx openspec validate --all --json`                                             | 301 items, 301 passed                                                |
+| `bunx prettier --check` on every changed file                                     | "All matched files use Prettier code style!"                         |
+| CI run 40622098433 on ad3d85fcc                                                   | success (gate workspace, gate twilight, pixels)                      |
+
+After the review fixes (2026-10-28, `env -u CLAUDECODE`):
+
+| Command                                                                                              | Result                                                    |
+| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `bun test … src/mcp/` (Dash cli: pool import, token command, machine token, workload provider, boot) | 66 pass, 0 fail                                           |
+| `bunx nx run-many -t typecheck lint -p twilight-dash wbs-contracts --skip-nx-cache`                  | "Successfully ran targets typecheck, lint for 2 projects" |
+| `bunx nx run wbs-contracts:test --skip-nx-cache`                                                     | 610 pass, 0 fail                                          |
+| `bunx openspec validate --all --json`                                                                | 301 items, 301 passed                                     |
+| `bunx prettier --check` on every changed file                                                        | "All matched files use Prettier code style!"              |
+
+The full local `nx run twilight-dash:test` ran, but its output was filtered badly and its
+summary lost, so it is not claimed; CI's `gate twilight` and `gate workspace` carry it. Not run:
+the h2puni gate, other projects' suites (only Dash changed), tool-devsync (no tool touched).
+
+### Failure-proof table, slice 10
+
+Each check was watched failing with the fault injected into `pool-import.ts` (F13: into
+`machine-token.ts`), running `pool-import.test.ts`, then restored (`diff` against the saved copy
+empty). The `Proof:` comment sits beside the check or its test.
+
+| #   | Check                                                       | Fault injected                                                 | Test that observed it failing                                                                                                                                                          |
+| --- | ----------------------------------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1  | a key that fails to issue aborts the import                 | `proveIssues(…).catch(() => undefined)` in the loop            | `a key that fails to issue aborts the import with nothing written` and `a refused re-import keeps the pool as it was` resolved; the entrypoint test's refused import exited 0 (3 fail) |
+| F2  | each agent its own run                                      | `runOf(\`pool-${poolId}\`)` for every agent                    | `stores each agent its key file and MCP config, each with its own run`                                                                                                                 |
+| F3  | no key in the output                                        | `deps.write(JSON.stringify(pool.agents))` before the last line | the same test (`not.toContain('wbs_mk_')`) and the entrypoint's `prints no key on success or refusal…`                                                                                 |
+| F4  | an unknown version is refused naming it                     | the version gate disabled                                      | `refuses an unknown document version…`: "Validation failed for version" instead                                                                                                        |
+| F5  | the pool key file is owner-only                             | `readFileSync` for `readOwnerOnly`                             | `refuses a group-readable pool key file`                                                                                                                                               |
+| F6  | `authorizationServer` is the one `mcp token` asks           | the check disabled                                             | `refuses an authorizationServer that mcp token would not ask`                                                                                                                          |
+| F7  | a key is of its credential                                  | the check disabled                                             | `refuses a key that names another credential, and an agent listed twice`                                                                                                               |
+| F8  | an agent is listed once                                     | the check disabled                                             | the same test: "pool pool-a could not be written; the store keeps what it had" (EEXIST) instead                                                                                        |
+| F9  | the store is `0700` and the user's                          | the check disabled                                             | `refuses a store other users can enter`: the import resolved                                                                                                                           |
+| F10 | a key pasted where the path belongs is refused unechoed     | the check disabled                                             | `refuses a key pasted where the file belongs`: "the pool key file does not exist" instead                                                                                              |
+| F11 | a re-import switches the pool in one rename                 | the rename only on a first import                              | `a re-import replaces the pool keys, and an agent absent from it loses its key`: fleet-1's first key read                                                                              |
+| F12 | the replaced generation is removed                          | the sweep skipped (re-run after review: G10)                   | the same test: two generations of pool-a                                                                                                                                               |
+| F13 | `ApiKey.of` admits only a `wbs_mk_` key                     | its check disabled                                             | `refuses a document whose key is no wbs_mk_ key, never echoing it`                                                                                                                     |
+| F14 | a `pool-<poolId>` this Dash did not write is never replaced | `assertImportedPool` accepts a non-link                        | `refuses to replace a pool directory it did not write`: "pool pool-a could not be written; the store keeps what it had" instead                                                        |
+
+The boot test `twilight-dash pool import (task 6.4)` in `mcp-token.boot.test.ts` adds the real
+path: be-01's grant route and mcp-01's production entrypoint issue the proof token; the stored
+`headersHelper`, run by `sh -c`, prints a bearer whose `wbs_run` is `pool-pool-boot/claire` and
+which calls `getApiProjects` (200); after the fixture revokes the key, re-importing the same
+document is refused after one `401` and the stored key file is unchanged. No fault was injected
+into it separately: it exercises the checks F1 to F13 already prove.
+
+### Review of PR #772 (Fable, high), how each item is addressed
+
+No S1. The review confirmed the secret core: the key only through `--key-file`, 0600 and 0700,
+`O_EXCL | O_NOFOLLOW` independent of umask, proof before write for every agent, and the quoting.
+
+| Item | Fix                                                                                                                                                                                                                                                                                  | Proof       |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
+| S2-1 | after the switch, every `.pool-<poolId>.<16 hex>` (and pending `.link`) but the link's target is removed; the link is re-read and an import overtaken by another exits non-zero; note 8 rewritten                                                                                    | G1, G2, G10 |
+| S2-2 | the mode refusal names `run: chmod 600 '<path>'`; `--store` parents are created `0700`; README and tasks.md give the two lines `chmod 600 <file>` and `twilight-dash pool import <file> --store <dir>`, with the documented store `~/.config/wbs/pools` (the fe-01 panel's, slice 9) | G4, G8      |
+| S3-1 | note 3 corrected (a pool of N spends N issuances of the per-source bucket); a `429` is waited out per `Retry-After`, at most 60 s and three times per agent, then `wait N s and rerun`; README: wait about N/5 s before starting the agents                                          | G7, G9      |
+| S3-2 | a `PoolFiles` seam (`writeNewText`, `rename`; production passes `systemPoolFiles`); ENOSPC after the first key file leaves the store exactly as it was                                                                                                                               | G3          |
+| S3-3 | `cli/src/mcp/testing/pool-keys.v1.json`, used by `pool-import.test.ts` and read (not imported) by contracts' new `agent-pool-shapes.test.ts`; contracts lint is clean                                                                                                                | G11         |
+| S3-4 | negatives for a linked `--store` and a `pool-<id>` link to `/etc` (refused; `/etc` and the link untouched)                                                                                                                                                                           | G5, G6      |
+| S4   | the dead `isAbsolute` check is gone; `proveIssues`' JSDoc says each proof mints a discarded bearer; `MOST_AGENTS` names the 64 KiB cap (100 agents measured at 32,802 bytes); README: after a Bun upgrade that moves `bun`, re-key and re-import or fix the configs' path            | —           |
+
+## Slice 11: load evidence (task 4.3)
+
+**Result.** Every M10 fence holds exactly against real processes, and nothing failed, busied
+SQLite or logged an error. **The design load itself does not hold:** one be-01 sustained
+85.9 of the 200 calls a second, with p50 1.1 s. be-01's CPU per call is the binding limit, not
+any M10 fence (see the deviation below). 40 agents (80 calls a second) hold, with be-01 already
+near one core.
+
+### How it ran
+
+- **Driver.** `apps/wbs/mcp-01/src/load/m10-load.ts` (its JSDoc lists the phases). be-01 is
+  `apps/wbs/be-01/src/testing/mcp-load-backend.ts`: production `buildServices` and `buildApp`
+  from the composed organization harness, over a freshly migrated SQLite file in `/tmp`, with
+  machine grants and a load-only `/__load/delay` hold on `/api`. mcp-01 is
+  `src/load/mcp-01-loopback.ts`: `startMcpApplication` composed as `main.ts` composes it, with
+  `MachineTrafficLimits` built by `mcpOAuthFromEnv`, bound to `127.0.0.1`. Each runs as its own
+  Bun process. The driver is a third process speaking raw HTTP: `client_credentials` with Basic
+  and `wbs_run=load-run-<person>`, then single JSON-RPC `tools/call` posts to `/mcp`, stateless.
+- **Seed.** org-a has 100 agent persons bound to one super admin, org-b has 10, and each agent
+  has one API key and its own leaf in its organization's one project. All are written into
+  SQLite the way the tests do it. Every secret (the be-01↔mcp-01 secret, the grant key, the RSA
+  signing key, the store key, the API keys) is generated per run and never printed. The temp
+  directory is removed at the end.
+- **Source address.** `MCP_TRUSTED_PROXY_HOPS=1`, and every token request sets one
+  `X-Forwarded-For` entry from TEST-NET-2, one address per phase.
+- **Host.** h2puni (AMD EPYC-Genoa, 8 vCPU, 15 GiB, shared: load average 9.2 at the 100-agent
+  start, 5.6 at the 40-agent start). Bun 1.4.4. The checkout was a detached `git worktree`
+  (`~/puni-00-load-tbf`) of the gate tree's repository at **16bf197ee** (this branch's driver commit on plan head 12a51df0b; the later merge of af44c632d, PR #772, changed no be-01 or mcp-01 runtime file), with
+  `bun install --frozen-lockfile`. It has been removed since.
+- **Command**, via `~/m10-load-runs/run.sh` started with `nohup setsid`:
+  `HEAVY_LOCK_LABEL=m10-load:16bf197ee HEAVY_LOCK_WAIT_SECONDS=3600 bin/with-heavy-lock.sh --
+env -u CLAUDECODE bun apps/wbs/mcp-01/src/load/m10-load.ts --agents=100 --steady-seconds=300`.
+  The first attempt gave up after its 3600 s queue behind a gate (`bd4a837f`, exit 75, nothing
+  ran). The second waited 1951 s, ran, and **exited 1** on one expectation: `steady: at least
+95% of the design rate`. `--agents=40 --steady-seconds=120` then exited 0, with all 18
+  expectations holding.
+- **What "in flight" means here.** It is the driver's outstanding `/mcp` requests per
+  organization, an upper bound on mcp-01's slots. CPU and RSS are sampled from `/proc` every
+  1 s (every 100 ms in the burst). A CPU figure over 100% is Bun's other threads (GC, I/O).
+
+### 1. Issuance burst (100 agents, source `198.51.100.10`)
+
+| Measure                    | Value                                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------- |
+| issued at once             | 100 of 100, wall 169 ms                                                                     |
+| latency p50 / p95 / p99    | 159.5 / 165.7 / 165.8 ms (max 168.5)                                                        |
+| the 101st, at once after   | **429**, `{"error":"invalid_request","error_description":"rate_limited"}`, `Retry-After: 1` |
+| be-01 CPU mean / peak, RSS | 81.9% / 85.1%, 414 MiB                                                                      |
+| mcp-01 CPU mean / peak     | 140.5% / 170.3%, 435 MiB (RS256 signing of 100 tokens)                                      |
+| 40 agents (second run)     | 40 of 40, p50 108 ms, p99 112 ms                                                            |
+
+### 2. Steady design load (100 agents, 300 s)
+
+Each agent runs claim → `postApiClaimsRenew` → `getApiProjectsByIdClaims` → release on its own
+leaf, one call each 500 ms, sequentially (no catch-up), with its own token and `wbs_run`.
+
+| Measure                     | 100 agents (design: 200 calls/s)     | 40 agents (80 calls/s)     |
+| --------------------------- | ------------------------------------ | -------------------------- |
+| calls, achieved rate        | 26,048 in 303 s, **85.9/s**          | 9,720 in 122 s, 79.7/s     |
+| outcomes                    | 26,048 ok; 0 tool errors, 0 HTTP 429 | 9,720 ok                   |
+| latency all p50 / p95 / p99 | **1,117 / 1,804 / 2,004 ms**         | 68.6 / 309 / 404 ms        |
+| commands (claim, release)   | p50 1,290, p99 2,120 ms              | p50 140, p99 434 ms        |
+| heartbeat                   | p50 1,078, p99 1,935 ms              | p50 55, p99 339 ms         |
+| claims read                 | p50 919, p99 1,895 ms                | p50 7.5, p99 28 ms         |
+| org-a in flight, peak, mean | 100 (of 128), 99.2                   | 36, 8.0                    |
+| be-01 CPU mean / peak, RSS  | 115.9% / 164.9%, peak 1,427 MiB      | 97.6% / 146%, peak 910 MiB |
+| mcp-01 CPU mean / peak, RSS | 15.4% / 40%, 451 MiB                 | 14.5% / 32%, 401 MiB       |
+| driver CPU mean             | 4.2%                                 | 3.8%                       |
+| SQLite busy, error lines    | 0, 0 (both logs)                     | 0, 0                       |
+
+### 3. Fences (100-agent run; the 40-agent run's figures are the same)
+
+| Fence                                       | Sent                                                                                    | Observed                                                                                                                            |
+| ------------------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| per credential, 10/s burst 20, single calls | 40 at once by `org-a-agent-1`, while the other 99 kept their pace                       | 20 ran, 20 were **HTTP 429**, `Retry-After: 1`, `{"error":"rate_limited"}`; the 99 made 1,268 calls with 0 failures                 |
+| per credential, a batch                     | one JSON-RPC batch of 30, after refill                                                  | HTTP 200 array: 20 ran, 10 tool errors `getApiProjectsByIdClaims could not be called: rate_limited (429). Retry after 1 s.`         |
+| org in flight, 128                          | be-01 held 1.5 s per `/api` call; 150 calls at once from 15 org-a credentials (10 each) | **exactly 128 ran, 22 were HTTP 429**, `Retry-After: 1`; org-b's 10 agents meanwhile: 40 calls, 0 failures (p50 1,517 ms, the hold) |
+| org in flight, undelayed (observed only)    | 200 calls at once from 20 org-a credentials                                             | 128 ok, 72 HTTP 429 (p50 117 ms, p99 460 ms): be-01's queue alone holds 128 calls                                                   |
+| failed auth per IP, 30/min                  | 40 unknown credentials, one by one, from `198.51.100.30`                                | 30 × 401 `invalid_client`, then 10 × 429 `rate_limited`; a valid org-b client from `198.51.100.31`: 200                             |
+| failed auth per `(client_id, IP)`, 5/min    | 6 wrong secrets for `org-a-agent-2`'s real id from `198.51.100.40`                      | 401 × 5, then 429; the holder's right secret from `.40`: 429 (the failure buckets are read first, M10); from `.41`: 200             |
+
+### Deviation from M10: one be-01 carries about 85 calls a second, not 200
+
+- **What was seen.** At 100 agents every call queued in be-01. Throughput was 85.9 calls a
+  second, latency was about 1.1 s, and the agents' in-flight count sat at 100. It stayed under
+  128 only because each agent waits for its answer. With about 130 such agents, the
+  organization would meet `too_many_in_flight` at the same 86 calls a second, and the
+  per-replica fence would be refusing load that be-01 could not serve anyway. M10's "about 60
+  in flight at the design load" assumes 300 ms calls at 200 a second. On this host the service
+  time is 11 to 12 ms of be-01 CPU per call, about 86 a second for one core.
+- **The cause: be-01 CPU per call.** mcp-01 stayed at about 15%, and the driver at about 4%.
+  A local 40-agent run with `bun --cpu-prof-md` on be-01 (a one-off, not committed) gave, by
+  share of be-01's samples (seeding included):
+  - drizzle building SQL per query (`buildQueryFromSourceParams`, 31% total) and SQLite
+    statement preparation per query (`prepare`, 16% self). No hot statement is prepared once.
+  - endpoint lookup (`mount.ts` `onRequest`: `matchPath` over every endpoint, then a sort, for
+    every request), about 10%.
+  - per-request rereads: the machine credential (`findById`, 8%), the activation marker
+    (`readOrganizationActivation`, 6%), organization access (`resolve`, about 3%).
+  - `secretMatches` hashing both sides on each request (`mcpSecretOf`, 3.5%).
+  - the load backend's own request copy (`mcp-load-backend.ts` fetch wrapper, about 5% self).
+    Production be-01 has no such wrapper, so the harness overstates be-01's cost by about that
+    much.
+  - At 40 agents, reads took 7.5 ms at p50 while claim and release took 140 ms. Writes also
+    wait their turn on the serialized write path.
+- **Proposed fixes** (not in this PR; for the lead to schedule):
+  1. Prepare the hot statements once (the credential reread, the activation marker, the claims
+     reads and the lease renewal), or cache drizzle's prepared queries.
+  2. Index the endpoint table once by method and segment count (or a literal-prefix trie)
+     rather than matching every endpoint per request.
+  3. Cache the activation marker with the existing marker-change signal, and compute the
+     expected secret's SHA-256 once in `identityResolver`.
+  4. Re-run this driver after each. Until then, document the measured per-replica capacity
+     (about 85 calls a second on h2puni) beside M10's table, and size swarms to it. Under
+     M10's 2 calls a second per agent, that is about 40 agents per be-01.
+
+  Retuning a fence would not help: the fences are right, and be-01 is the bottleneck.
+
+- **Not a deviation.** The HTTP 429 body says `rate_limited` for `too_many_in_flight` too (only
+  `Retry-After` differs). This is section 4 note 6's documented form, and the batch form names
+  the reason.
+
+### Proofs for the driver
+
+| Check                                   | Fault injected                                                   | Observed                                                                                  |
+| --------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| exit 1 on a violated expectation        | the in-flight expectation raised to the limit + 1                | 20-agent local run exited 1 naming `in-flight fence: 150 org-a calls…`                    |
+| the error-line scan reads pino's labels | `"level":"(info\|fatal)"` in place of `"level":"(error\|fatal)"` | 20-agent local run exited 1 on `no error line in either log`, counting mcp-01's 161 lines |
+| (real) the design-rate expectation      | none: the 100-agent h2puni run                                   | exited 1 on `steady: at least 95% of the design rate`                                     |
+
+be-01 writes only its port line to stdout at `info` during the run, so be-01 contention would
+show up as failed calls (counted per outcome) rather than in its log. The `SQLITE_BUSY` scan
+has no injected-fault proof.
+
+### Commands and results, slice 11
+
+All on 2026-10-28 with `env -u CLAUDECODE`, on the laptop unless marked:
+
+| Command                                                                                                    | Result                                                                      |
+| ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| h2puni, under the heavy lock: `bun apps/wbs/mcp-01/src/load/m10-load.ts --agents=100 --steady-seconds=300` | exit 1, 17 of 18 expectations hold (the design rate does not); tables above |
+| h2puni, under the heavy lock: the same with `--agents=40 --steady-seconds=120`                             | exit 0, 18 of 18                                                            |
+| local smoke `--agents=20 --steady-seconds=10`                                                              | exit 0, 17 of 17 (before the error-line expectation was added)              |
+| `bunx tsc --build --force apps/wbs/mcp-01/tsconfig.json`, and the same for be-01                           | exit 0, exit 0                                                              |
+| `bunx eslint apps/wbs/mcp-01/src/load apps/wbs/be-01/src/testing/mcp-load-backend.ts`                      | exit 0                                                                      |
+| `bunx prettier --check` on every changed file                                                              | "All matched files use Prettier code style!"                                |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                | exit 0                                                                      |
+| `bunx openspec validate --all --json`                                                                      | 301 items, 301 passed                                                       |
+
+Not run:
+
+- the h2puni gate;
+- the mcp-01 and be-01 test suites (no production file changed; the new files hold no
+  tests);
+- a multi-replica run, and anything through Caddy, which the source address only simulates;
+- OIDC (`jwt_bearer`) issuance under load (API keys only);
+- the per-IP failure overshoot under concurrency (the flood was sent one by one);
+- a run of the production `main.ts` be-01 (the harness composition was used);
+- a repeat of the 100-agent run on a quiet host.
+
+## Slice 12: be-01 call capacity (task 4.5)
+
+**Result.** One be-01 now carries **120.6 calls a second** at 100 agents on h2puni, up from
+**86.2** in the same lock window on the plan head (+40%). Every M10 fence holds exactly in both
+runs; the design rate (200 a second) still does not, so M10's sizing is restated in design.md
+(about 60 agents per be-01). No request-time security state is cached across requests; the
+one precomputed value is each configured service secret's digest, derived from configuration
+for the process's lifetime (there is no reload path).
+
+### What changed, and why it is safe
+
+1. **Statements stay compiled** (`libs/wbs/adapters/store-sqlite/src/db.ts`,
+   `STATEMENT_CACHE_SIZE`). Drizzle's Bun adapter compiles through `Database.query`, whose
+   per-connection cache held 20; one call issues about 80 distinct statements, so nearly every
+   statement was compiled again (a local count over a 20-agent run: 80 distinct SQL texts,
+   55,902 executions). The bound is now 1,024. The cache is private to its `Database`, so a
+   replaced handle starts empty, and SQLite recompiles a cached statement after another
+   connection's schema change (both observed in `db.db.test.ts`).
+2. **Observation connections are reused** (`poolReadConnections`, wired in `source.ts`). After
+   (1), `prepare` was still 10% of be-01's samples: every claims read and live-plan
+   observation opened a read-only connection (a local count: 931 `BEGIN DEFERRED` compiles in
+   10 s at 20 agents), compiled its statements and closed it. The pool lends an idle connection
+   to one caller at a time. A connection released inside a transaction, beyond eight idle, or
+   after the pool closed is closed, so no snapshot outlives its observation, and each
+   observation's `BEGIN DEFERRED` reads what was committed by then. The source's `close` drains
+   it. This is not the reader pool the ports-and-adapters history declined (2026-09-05 §10):
+   no read runs in parallel, the same per-observation connections are kept open between uses.
+   The two schedule handoff tests now count open snapshots (connections in a read
+   transaction), since an idle pooled connection is open by design.
+3. **Endpoint lookup is indexed** (`apps/wbs/be-01/src/http/endpoint-index.ts`). `mount.ts`
+   matched every endpoint and sorted the matches per request; `indexEndpoints` buckets the table
+   once by method (`HEAD` also reaching `GET`) and segment count, each bucket sorted by the same
+   precedence, and takes the first match. The JSDoc states why that equals the old choice. Both
+   production tables (145 and 151 endpoints) hold no two same-method paths one request could
+   both match.
+4. **Configured secrets are digested once** (`secretMatcher` in `http/identity.ts`). The
+   presented secret is still digested and compared with `timingSafeEqual` per request.
+5. `M10_LOAD_BE_PROFILE_DIR` lets the driver write a be-01 `--cpu-prof-md` profile.
+
+**Not changed, on purpose.** The credential row, revocation, pool expiry, membership and
+organization access are reread on every request, as before. The activation marker is not
+cached: it is read inside the transactions it guards (about 60 call sites), and a cache would
+need an invalidation proof across processes (blue/green share the file), so it was skipped. Its
+two reads are now compiled once, which removes most of their cost. Durability is unchanged:
+`synchronous` stays 2 (FULL) under WAL. `COMMIT`'s `run` is about 7% of be-01's samples, much
+of it the WAL sync, and is left as is.
+
+**Claim and release.** `EXPLAIN QUERY PLAN` over every hot statement found no table scan on a
+per-request path except `SCAN project` (covering index) in `findCrossReferences` and
+`SCAN step_blockage` in the step-blockage read, both over tiny tables here; no index was added.
+Their 140 ms p50 at 40 agents (slice 11) was queueing: they load the whole project and run the
+cross-reference check inside one serialized write turn. Locally at 40 agents they now take
+p50 13 ms (73 ms on the plan head).
+
+### Profile (local, 40 agents, before and after)
+
+`prepare` fell from 12.8% of be-01's samples to under 0.1%; endpoint lookup (`matchPath` and
+the mount filter) from about 6% to about 1.5%. What is left is mostly drizzle building SQL and
+mapping rows for each query (about 25% self time in drizzle-orm), SQLite executing (`values`,
+`all`, about 16%), `COMMIT` (about 7%) and Elysia's request handling. Removing drizzle's per-query build means `.prepare()` with placeholders for each hot
+query, a per-repository change not made here.
+
+Laptop runs (24 threads, not quiet; `--agents=40 --steady-seconds=60`, 80 calls a second
+each), be-01 process CPU per call: plan head 9.97 ms; after (1)+(3) 8.57 ms; after all 8.25 ms
+(a run with only the pool experiment added gave 7.61 ms). Laptop noise is about ±0.5 ms.
+
+### h2puni, 100 agents, 300 s
+
+`~/m10-load-runs/run12.sh` under `nohup setsid`: one `bin/with-heavy-lock.sh` session
+(label `m10-load:04c774afb`, `HEAVY_LOCK_WAIT_SECONDS=14400`) ran
+`env -u CLAUDECODE bun apps/wbs/mcp-01/src/load/m10-load.ts --agents=100 --steady-seconds=300`
+in two detached worktrees of the gate tree's repository, `~/puni-00-load-tbf` at **04c774afb**
+(this branch) and then `~/puni-00-load-base-tbf` at **5c403a1d9** (plan head), each with
+`bun install --frozen-lockfile`. Both worktrees have been removed. A first attempt gave up after
+its 3600 s queue behind the plan branch's gate (exit 75, nothing ran). Host: AMD EPYC-Genoa,
+8 vCPU, shared; load average 8.8 at the first start, 7.0 at the last end.
+
+| Measure                     | plan head 5c403a1d9           | this branch 04c774afb          |
+| --------------------------- | ----------------------------- | ------------------------------ |
+| calls, achieved rate        | 26,196 in 303.8 s, **86.2/s** | 36,480 in 302.4 s, **120.6/s** |
+| outcomes                    | 26,196 ok                     | 36,480 ok                      |
+| latency all p50 / p95 / p99 | 1,175 / 1,702 / 2,003 ms      | **809 / 1,158 / 1,447 ms**     |
+| commands p50 / p99          | 1,439 / 2,096 ms              | 873 / 1,481 ms                 |
+| heartbeat p50 / p99         | 1,117 / 1,901 ms              | 795 / 1,434 ms                 |
+| claims read p50 / p99       | 731 / 1,784 ms                | 711 / 1,384 ms                 |
+| be-01 CPU mean / peak       | 114.6% / 182%                 | 117.1% / 178.9%                |
+| be-01 CPU per call          | 13.3 ms                       | **9.7 ms**                     |
+| be-01 RSS peak / end        | 1,454 / 1,337 MiB             | 1,390 / 1,187 MiB              |
+| mcp-01 CPU mean, RSS peak   | 15.8%, 464 MiB                | 20.9%, 470 MiB                 |
+| org-a in flight peak, mean  | 100, 99.3                     | 100, 98.8                      |
+| expectations                | 17 of 18 (design rate fails)  | 17 of 18 (design rate fails)   |
+| exit                        | 1                             | 1                              |
+
+Both runs saturate be-01 (100 agents always in flight), so the achieved rate is be-01's
+capacity: 1 / 120.6 s is about 8.3 ms per call at saturation (from throughput). Every fence observed the same as in
+slice 11 in both runs: per credential 20 admitted and 20 HTTP 429; the batch 20 ran and 10
+tool errors; in flight exactly 128 and 22 HTTP 429, org-b 40 ok; failures 30 × 401 then 10 ×
+429; `(client_id, IP)` 5 × 401 then 429, holder elsewhere 200; 0 error lines, 0 SQLite busy.
+
+### Proofs
+
+| Check                                                  | Fault injected                                                       | Observed                                                                                                      |
+| ------------------------------------------------------ | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| statement cache keeps a request's statements           | `Database.MAX_QUERY_CACHE_SIZE` assignment removed                   | `keeps a request-sized set of statements compiled` failed `toBe`                                              |
+| index precedence (synthetic ambiguous table)           | buckets sorted `comparePaths(right, left)`                           | property failed, counterexample `GET /api/projects/active`                                                    |
+| index takes the first match                            | last match returned                                                  | property failed, counterexample `GET /api/projects/%E0%A4%A`                                                  |
+| `HEAD` reaches `GET` (synthetic)                       | `methods.add('HEAD')` dropped                                        | property failed, counterexample `HEAD /api/projects/active`                                                   |
+| index over both production tables                      | `methods.add('HEAD')` dropped; bucketing the untrimmed pathname      | failed on `HEAD /api/projects/register/runtime-commands/0`; on `GET /health/`                                 |
+| production tables and precedence                       | reverse sort (as above)                                              | passed: no ambiguous pair exists there, so precedence is proved on the synthetic table only                   |
+| pool never keeps a snapshot                            | pooled regardless of `isInTransaction`                               | `closes a connection released inside a transaction` counted 1 open, expected 0                                |
+| pool idle limit                                        | `idle.length >= idleLimit` dropped                                   | `keeps at most its idle limit…` counted 3 open, expected 2                                                    |
+| pool closes late releases                              | `closed` test dropped                                                | the same test counted 1 open after close, expected 0                                                          |
+| source drains its pool                                 | `reads.close()` dropped from the source's `close`                    | `reuses one read connection and closes every pooled one with the source` counted 1, expected 0                |
+| no snapshot at the optimizer handoffs (schedule tests) | `observeCommitted`'s commit omitted **and** the pool's guard dropped | both `closes the …` cases failed (Retry 500; [1, 1] snapshots at the handoffs)                                |
+| (same, single faults)                                  | commit omitted alone; guard dropped alone                            | both passed: either layer alone leaves no snapshot (the pool closes a connection released in its transaction) |
+| secret matcher uses the configured secret              | compared the presented digest with itself                            | 3 failed: both machine-grant `internal_unauthorized` cases and the internal-secret identity test              |
+| an absent configured secret matches nothing            | absent expected digested as `''`                                     | `matches a secret only against a configured one…` failed on `''`                                              |
+| an absent presented secret matches nothing             | presented-absent test dropped                                        | the same test threw on `null`                                                                                 |
+
+Revocation, pool expiry, member removal and deactivation still take effect on the next request
+because nothing about them is cached; their existing tests ran unchanged in CI. No new cache of security state was added, so no new negative of that kind was
+needed.
+
+### Commands and results, slice 12
+
+All on 2026-10-28 with `env -u CLAUDECODE`, on the laptop unless marked:
+
+| Command                                                                                                                              | Result                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| h2puni, under the heavy lock: the two 100-agent runs above                                                                           | exit 1 each, 17 of 18 (the design rate)      |
+| `bun apps/wbs/mcp-01/src/load/m10-load.ts --agents=40 --steady-seconds=60`, plan head, this branch at each step                      | exit 0 each; CPU per call above              |
+| the same with `M10_LOAD_BE_PROFILE_DIR` (before and after)                                                                           | exit 0; profiles above (not committed)       |
+| `bun nx run wbs-store-sqlite:test --skip-nx-cache`                                                                                   | 2012 tests across 150 files, success         |
+| `bun test` on be-01's `src/http/`, `src/app.routes.test.ts`, `schedule-organization`, `machine-grant`, elysia `identity`, `internal` | 132 pass; 73 pass; 45 pass; 0 fail           |
+| `bun nx run-many -t typecheck lint -p wbs-be-01 wbs-store-sqlite wbs-mcp-01 --skip-nx-cache`                                         | success                                      |
+| CI `ci` on 04c774afb (run 40656467339)                                                                                               | success                                      |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                          | exit 0                                       |
+| `bunx openspec validate --all --json`                                                                                                | 301 items, 301 passed                        |
+| `bunx prettier --check` on every changed file                                                                                        | "All matched files use Prettier code style!" |
+
+### Review of PR #776
+
+A Fable-high review found no S1. Its findings and what was done:
+
+| Finding                                                                            | Change                                                                                                                                                                                                                                                                                                                                                                        | Proof                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1: the pool's lent/idle/closed ownership needs a model-based test               | `db.pool.model.db.test.ts`: `fc.modelRun` over acquire, a read transaction on a lent connection, release (committed or inside its transaction), a second release, a failing `open` and pool close; idle limit 0–3; 300 runs. States, events and invariants added to the `poolReadConnections` JSDoc. Named `.db.test.ts` so `test:api` runs it beside the other SQLite tests. | Each sabotage failed (fast-check's shrunk counterexample, first element the idle limit; seeds vary): released guard dropped → `[3, acquire, release(0, as is), releaseAgain(0), closePool]` (the second release closed it again, so open fell below idle plus lent); `closed` test dropped → `[3, acquire, closePool, release(0, as is)]`; idle limit dropped → `[2, acquire, acquire, acquire, release(0, …) × 3]`; in-transaction test dropped → `[2, acquire, read(0), release(0, as is)]` |
+| S3-2: `observeCommitted`'s JSDoc let a read keep the handle, which a pool lends on | JSDoc corrected (answers are plain data and must not keep `db`); a lent handle is a proxy that throws on any use after its release                                                                                                                                                                                                                                            | handing out the connection's own `db` made `refuses a pooled handle used after its release` read through it                                                                                                                                                                                                                                                                                                                                                                                   |
+| S3-3: no negative for the common path, a thrown read whose rollback succeeds       | `reuses a connection after a failed read and sees later commits`: pooled and reused (`{ now: 1, ever: 1 }`), the next observation sees the writer's insert, a full checkpoint runs                                                                                                                                                                                            | closing every released connection gave `{ now: 0, ever: 2 }`; omitting the rollback gave `{ now: 1, ever: 2 }` (released inside its transaction, so closed)                                                                                                                                                                                                                                                                                                                                   |
+| S4: wording                                                                        | verify.md: the configured secret's digest is precomputed for the process's lifetime; design M10: "about 8.3 ms per call at saturation (from throughput)"; JSDoc: `MAX_QUERY_CACHE_SIZE` is a process-global static set on import, and pooled readers keep the old file on a rename-replace (a restore stops be-01 first)                                                      | none needed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Optional: a failed rollback masked the read's failure in `observeCommitted`        | an AggregateError of both, as `observeNow` does                                                                                                                                                                                                                                                                                                                               | rethrowing the read's failure alone failed `reports a read failure and its failed rollback together`                                                                                                                                                                                                                                                                                                                                                                                          |
+| Optional: drop the `$client` cast                                                  | kept: the exported `Drizzle` type has no `$client`, and widening `Connection.db` to carry it would let every caller reach the raw client                                                                                                                                                                                                                                      | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+
+Not run:
+
+- the h2puni gate;
+- be-01's and mcp-01's whole suites on the laptop (CI ran them);
+- a two-be-01 run, so the restated sizing's second process is unmeasured;
+- drizzle `.prepare()` per hot query, the next step if more is needed;
+- a run on a quiet host.
+
+## Slice 13 — pool swarm rehearsal (8.1 pre-dev)
+
+Task 8.1's scenario on a throwaway stack, every part a real process over loopback HTTP, so the dev
+run (waiting on a pool in the dev web app) is a formality. 8.1 stays open.
+
+- be-01: `apps/wbs/be-01/src/testing/pool-swarm-backend.ts`, the composed harness (production
+  `buildServices` and `buildApp`, fresh migrated SQLite in a temp directory), machine grants with
+  a generated key, the claim lease sweep started as boot starts it, one activated organization.
+  Its admin acts only through be-01's routes, as a browser session.
+- mcp-01: the production entrypoint `src/main.ts`, standalone, `MCP_PUBLIC_URL`
+  `http://127.0.0.1:<port>/mcp`, M10 limits, `MCP_TRUSTED_PROXY_HOPS=0`.
+- Dash: the real CLI. `pool import` writes the store, and each agent's stored `headersHelper`
+  runs `mcp token`.
+- Agents: `apps/wbs/mcp-01/src/load/pool-swarm-agent.ts`, one process each, MCP SDK 1.31.0
+  Streamable HTTP clients. Each runs its `<personId>.mcp.json` `headersHelper` through `sh -c` the
+  way Claude Code does: when connecting, and again on an HTTP 401, then resends; never on an
+  in-band tool error.
+- Driver: `apps/wbs/mcp-01/src/load/pool-swarm-rehearsal.ts`. It exits 1 on any failed
+  expectation. Boot test: `apps/wbs/mcp-01/src/pool-swarm.boot.test.ts` runs it clean, then with
+  `--fault=skip-revoke`, in about 21 s.
+
+The resource model:
+
+- two divisible resources, RAM (capacity 24 GiB) and disk (40 GiB);
+- six leaves, each demanding 8 GiB RAM and 10 GiB disk, so exactly three fit at once;
+- each agent claims with `assign: true`;
+- each agent registers a reported resource use (its disk copy) under its run.
+
+### Timeline (laptop, 0b3d13127, 2026-10-28)
+
+Times are milliseconds from the driver's start; the first 4.2 s is boot.
+
+| ms   | Actor       | Event                                                                                                                                    |
+| ---- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 4335 | admin       | `agent_pool_created`: pool `fleet`, 3 persons, 3 keys (201)                                                                              |
+| 4520 | Dash        | `pool import`: exit 0, every key issued one proof token, no key printed                                                                  |
+| 4726 | agents (3)  | `headersHelper` → `mcp token` issues; tools listed                                                                                       |
+| 5240 | agents      | claimed: three distinct leaves, the losers of each race met `already_claimed` and took the next                                          |
+| 5275 | agents      | resource uses registered (`active`)                                                                                                      |
+| 5280 | agents      | heartbeat × 3: `leases: 2` each (its own two step claims, not the pool's six)                                                            |
+| 5996 | agents      | released; resource uses → `cleanup_pending`                                                                                              |
+| 6080 | agents      | claimed again (round 2)                                                                                                                  |
+| 6087 | admin       | `agent_pool_rekeyed` (201): same persons, 3 new credentials                                                                              |
+| 6218 | Dash        | `mcp token` with an old key: exit 1, `HTTP 401 invalid_client`                                                                           |
+| 6393 | Dash        | `pool import` of the new document into the same store: exit 0                                                                            |
+| 6402 | each agent  | heartbeat with its old bearer: tool error `machine_credential_refused`                                                                   |
+| 6404 | each agent  | next heartbeat: HTTP 401, helper re-runs (new key through the store link), new jti, heartbeat ok                                         |
+| 6831 | agents      | heartbeat × 3 ok; the claims kept their ids, holders and runs                                                                            |
+| 7522 | agents      | released                                                                                                                                 |
+| 7586 | agents      | claimed (round 3), copies registered, heartbeat × 3 ok                                                                                   |
+| 8255 | admin       | `agent_pool_revoked` (200): `revokedCredentials: 3, removedPersons: 0`                                                                   |
+| 8268 | be-01       | the lease sweep settled: 0 claims left. Leases ended in the revoke, and the tick the revoke asked for released them                      |
+| 8298 | each agent  | heartbeat: `machine_credential_refused`, then HTTP 401, then the helper exits 1 (`HTTP 401 invalid_client`)                              |
+| 8900 | 2 agents    | one more helper run the agents did not ask for (origin not traced; likely the SDK transport after the failed call), refused the same way |
+| 8974 | admin, Dash | spare pool of 1 created and imported; its agent claims                                                                                   |
+| 9231 | admin       | `agent_pool_revoked` with `removePersons=true`: `revokedCredentials: 1, removedPersons: 1`                                               |
+
+### Assertions (136, all held; laptop and h2puni)
+
+| Area          | Assertion                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Create        | 201; `pool import` exits 0 and prints no key; the cap's `agentPersons` rises by 3; the listing shows 3 live credentials; each run is `pool-<poolId>/<personId>`                                                                                                                                                                                                                                                                                                                                                                            |
+| Tools         | each agent lists `getApiProjectsByIdStartable`, `postApiProjectsByIdCommands`, `postApiClaimsRenew` and `postApiProjectsByIdResourceUses`, and none of `HUMAN_ONLY_OPERATIONS`; the four pool operations are in that set                                                                                                                                                                                                                                                                                                                   |
+| Claims        | every claim succeeds on a distinct leaf, acquiring 8 GiB RAM and 10 GiB disk; the admin's `/claims` shows each held by its pool person under its own distinct run; `/startable` shows the holder as assignee; RAM 24 and disk 30 occupied; the other three leaves `doesNotFit`; person work lists the claim under the run                                                                                                                                                                                                                  |
+| Heartbeat     | each answers `ok` with `leases` equal to its own claim count (run scoping, M15)                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Release       | every unit is freed, no claim is left, and each resource use goes to `cleanup_pending`                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Re-key        | 201, the same persons with disjoint credentials; no agent person consumed; the old key issues nothing; the listing shows exactly the new credentials; each agent's sequence is `[machine_credential_refused, ok]` with one 401 and one `after_401` helper run between; the claims keep id, holder and run, are unrevoked, and their lease is not earlier                                                                                                                                                                                   |
+| Revoke        | 200 `{revokedCredentials: 3, removedPersons: 0}`; after the sweep settles there are no claims, every unit is free, and the cap counts 0 claims; claim history has a `credential_revoked` release per agent under its run; each resource use is `cleanup_pending` (never released automatically, per `wbs-resource-release-tracking`); each agent sees `[machine_credential_refused, helper_failed:1]`; the latest key issues nothing; the listing shows `revokedAt` and no live credential; the revoked persons still count toward the cap |
+| removePersons | 200 `{revokedCredentials: 1, removedPersons: 1}`; `agentPersons` drops by 1 and the claim goes with the person                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Audit         | `agent_pool_created` × 2, `agent_pool_rekeyed` × 1, `agent_pool_revoked` × 2; `machine_token_issued` names all six fleet credentials of both generations, with exactly one row per credential and run however many times the helper ran; no row carries a key                                                                                                                                                                                                                                                                              |
+
+What the design says about re-keying, and what was observed: re-key revokes the old keys without
+ending leases (`AgentPoolRepository.rekey` never calls `endLeasesOfUncredentialed`), so the claims
+continue. An outstanding bearer of an old key is refused on its next call. be-01 rereads the
+credential on every call, so that call is an in-band `machine_credential_refused`; it does not
+live until its TTL. Its `jti` then enters mcp-01's refused set, so the next request is HTTP 401
+and the helper re-runs. Revocation follows the same path, except the re-run cannot issue.
+
+### Proofs (R5)
+
+| Injected fault                                                                                                                                 | Observed                                                                                                                                                                                                                                                                                |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--fault=skip-reimport`: re-key without importing the new document                                                                             | exit 1. Every agent got `[machine_credential_refused, helper_failed:1]`, the round-2 heartbeats and releases failed, and audit counted 4 of 6 credentials. The three round-2 claims were stranded until their lease runs out, which is what a fleet that misses the re-import would see |
+| `--fault=skip-revoke`                                                                                                                          | exit 1 on the lease checks: claims left, RAM 24 / disk 30 held, the cap at 3, no `credential_revoked` history, uses `active`, the agents still `ok`                                                                                                                                     |
+| production fault: `endLeasesOfUncredentialed` commented out of `AgentPoolRepository.revoke` (libs/wbs/adapters/store-sqlite/src/agent-pool.ts) | exit 1 on the same nine lease checks (the revoke answered 200, but nothing ended); reverted                                                                                                                                                                                             |
+
+`Proof:` comments sit beside the two checks in `pool-swarm-rehearsal.ts`. The boot test runs
+`--fault=skip-revoke` on every CI run, so the lease checks stay breakable.
+
+### Commands and results, slice 13
+
+All on 2026-10-28 with `env -u CLAUDECODE`:
+
+| Command                                                                                                                                                                                                                                                        | Result                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| laptop: `bun apps/wbs/mcp-01/src/load/pool-swarm-rehearsal.ts` at 0b3d13127                                                                                                                                                                                    | exit 0, 136 of 136                                                                         |
+| laptop: the same with `--fault=skip-reimport`, `--fault=skip-revoke`, and the production fault above                                                                                                                                                           | exit 1 each                                                                                |
+| laptop: `bun test --timeout=10000` in `apps/wbs/mcp-01` (whole suite, the boot test included)                                                                                                                                                                  | 723 pass, 0 fail                                                                           |
+| h2puni (`ubuntu-8gb-hel1-1`, bun 1.4.4), 0b3d13127 in a detached worktree of `~/puni-00-gate-tbf` (removed after), `bun install --frozen-lockfile`, under `bin/with-heavy-lock.sh` (waited 0 s): the rehearsal, then `--fault=skip-revoke`, then the boot test | exit 0, 136 of 136 (revoke at 10155 ms, sweep settled at 10173 ms); exit 1; 2 pass, 0 fail |
+| `bunx tsc --build --force` for `apps/wbs/mcp-01` and `apps/wbs/be-01`                                                                                                                                                                                          | exit 0                                                                                     |
+| `bunx eslint` on the four new files                                                                                                                                                                                                                            | no problems                                                                                |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                                                                                                                    | exit 0                                                                                     |
+| `bunx openspec validate --all --json`                                                                                                                                                                                                                          | 301 items, 301 passed                                                                      |
+| `bunx prettier --check` on every changed file                                                                                                                                                                                                                  | "All matched files use Prettier code style!"                                               |
+
+Not run:
+
+- the dev run itself (8.1), which waits on a pool in the dev web app;
+- real Claude Code. The agent replays its `headersHelper` contract (run at connect and on HTTP 401)
+  with the SDK, so Claude Code's actual retry timing is unobserved;
+- lease expiry by time (15 minutes) and pool expiry (`expiresAt`); covered by existing tests, not
+  by this run;
+- several mcp-01 replicas. Each replica learns a revocation at its own first refused call (M3);
+  one replica ran here;
+- the h2puni gate (`bin/h2puni-gate.sh`); CI runs the full suites;
+- the origin of the unrequested helper run after a failed helper, which was not traced.
+
+## Fresh-main artifact policy reconciliation (2026-10-28)
+
+Private merge: tested checkpoint `766ce699dc14eb9a157f8b7ad2b4fe2b91380fe7` and main
+`25b873b1d49c2d2cd3e130958af682e309e9f844`. This joins M8 with artifact-only startup:
+the emitter writes required `x-wbs-human-only-operations` into the same document;
+runtime validates that list without importing the contract validators. Explicit fixture
+overrides remain intentional. Actual emitted union: 156 endpoints, 49 human-only entries,
+79 tools. Historical finite parser captures remain evidence of their earlier exact sources,
+not post-merge behavior equivalence.
+
+TDD: the owning emitter test first failed on expected policy records versus `undefined`
+(terminal `4c478b`, 0 pass/1 fail); it passed after emission was implemented. The actual
+consumer then failed at its explicit unimplemented seam (`a4313c`, 0 pass/2 fail), followed
+by the combined emitter/consumer GREEN (22 pass, 83 expectations).
+
+Five finite producer/consumer omissions were watched failing through actual owning paths:
+omitting emitted tags exposed `getMembers` in a generated subset; missing-list-as-empty
+returned protected tools; removing the record guard gave null an incidental destructuring
+error instead of the modeled refusal; removing field validation admitted an empty operation
+identity; removing unmatched-policy refusal accepted a deleted protected operation. Every
+case exited 1 at its named assertion, then restored exact original source bytes. Receipt and
+raw logs: `/tmp/puni-r18-freshmain-reconcile-20261028/policy-omission-receipt.json` and
+`omit-policy-{emission,required-list,record,fields,unmatched}.log`. Restored GREEN:
+54 pass, 206 expectations across `artifact-policy`, `generated-document`,
+`startup-document` and `document-from-shapes` tests. This qualifies these finite guard
+groups, not old comparison/admission harnesses or every field predicate independently.
+
+Focused union evidence, with raw logs in that private directory:
+
+| Owner/check                                                                                                | Observed result                                                                                        |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Seven MCP artifact, startup, tool, token and limit owners (`mcp-focused-green.log`)                        | 126 pass, 1537 expectations                                                                            |
+| SQLite initialization, pool, unpooled claim, capability and writer-authority owners (`sqlite-focused.log`) | 66 pass, 5852 expectations                                                                             |
+| Migration/index/identity joins (`joins-focused.log`)                                                       | 117 pass, 4506 expectations                                                                            |
+| Six migration conflict owners (`migration-conflicts.log`)                                                  | 77 pass, 565 expectations                                                                              |
+| Pooled snapshot/launcher lifetimes (`schedule-pool-lifetimes.log`)                                         | 10 pass, 27 expectations                                                                               |
+| AgentPool controller (`agent-pool-combined-green.log`)                                                     | 20 pass, 210 expectations                                                                              |
+| Exact fresh-main upgrade (`fresh-main-upgrade.log`)                                                        | 1 pass, 654 expectations; full 100-migration main ledger to 104, restoring only four feature additions |
+| Existing positive pool-swarm owner (`pool-swarm-union-green.log`)                                          | 1 pass, 4 wrapper expectations, including equality and non-vacuity of more than 100 child checks       |
+
+The new main remove-persons route initially answered 500 because it passed an id where the
+runner requires the original authenticated principal; the owning RED preceded that one-argument
+fix. Pool fixtures initially met `prerequisites_unmet` by claiming every workflow step; the
+controller fixture now selects the actual first step and the agent forwards the eligible
+`startable.stepIds` it already read. Production prerequisite checks remain intact. The swarm's
+positive owner failed before that forwarding change and passed after it. The first redirect
+test's sandbox loopback EPERM was retained as setup evidence, then its exact local-loopback
+rerun and the combined MCP owner passed. No guard, assertion or time bound was relaxed.
+
+All sixteen merge conflicts were resolved individually. Main pooling retains borrow invalidation,
+no retained transaction, idle drain on source close and outstanding-loan close on later release;
+the four direct unpooled claim tests retain native-close assertions. All 104 migration identities
+and both upstream pool up/down pairs are retained.
+
+Scoped static checks passed using actual nonempty compiler programs with
+`bunx tsc --noEmit --incremental false -p`: contracts/spec, SQLite/spec, be-01/spec,
+mcp-01/lib and spec, fe-01/app and spec, and Dash CLI/lib and spec. The original
+137-file lint process exhausted Node's default 4 GiB heap; the same 137 files then
+passed in eight owning-project invocations, with the initial failure retained.
+The fresh Nx graph was present, so module-boundary rules were exercised. OpenSpec
+validation passed this change (1/1); its existing agent-pool length warning and
+unrelated archive-readiness informational messages remain explicit.
+
+Policy receipt SHA256:
+`aff846d0426d7030e52d46341dd9040ad4a4eaa040e10179ee3188f2b2049774`.
+Independent five-proof review:
+`/tmp/puni-r18-freshmain-policy-five-proofs-actual-independent-review-20261028.md`,
+SHA256 `5bf84911ab64adfd0d6dfff9535b2d63cb5e5abc9f107c1442719035be97d256`.
+Final integration gate/CI remain the integration owner's next checks, not results
+of this slice. No deployment, activation, complete native restoration or full
+public parity acceptance follows.

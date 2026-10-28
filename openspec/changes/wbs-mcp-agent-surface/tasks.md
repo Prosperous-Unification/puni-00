@@ -268,22 +268,35 @@
   - leftmost XFF;
   - one bucket for successes and failures;
   - counting HTTP requests.
-- [ ] 4.3 Load evidence on h2puni under the heavy lock, recorded in verify.md.
-- [ ] 4.4 Bound mcp-01's grant-client fetch to be-01 at the token endpoint with a timeout (it
+- [x] 4.3 Load evidence on h2puni under the heavy lock, recorded in verify.md. (Slice 11,
+      `apps/wbs/mcp-01/src/load/m10-load.ts`: every fence holds; the design load does not,
+      because one be-01 carries about 85 calls a second; see 4.5.)
+- [x] 4.4 Bound mcp-01's grant-client fetch to be-01 at the token endpoint with a timeout (it
       holds a pending slot while it waits; review of PR #765). Negative: a never-answering be-01
-      frees the slot.
+      frees the slot. (Slice 7: `BE_CALL_TIMEOUT_MS`, raced; verify.md, slice 7.)
+- [x] 4.5 Raise one be-01's capacity toward M10's design load (200 tool calls a second), or
+      restate M10's sizing to the measured one (slice 11: about 85 a second on h2puni, bound by
+      be-01 CPU per call). Candidates from the profile: prepare hot statements once, index the
+      endpoint table, cache the activation marker and the expected secret's digest. Evidence:
+      re-run `m10-load.ts --agents=100` under the heavy lock. (Slice 12: 86.2 → 120.6 calls a second
+      on h2puni; M10's sizing restated to about 60 agents per be-01. The activation marker is not
+      cached.)
 
 ## 5. Human-only tools by policy
 
-- [ ] 5.1 The `humanOnly` policy, `EXCLUDED_PATHS` shrunk, the capacity report as a tool.
-      Negatives: untag a route; leave a tagged shape with no operation.
-- [ ] 5.2 One tool list for a consented human, a consented agent and a machine token.
+- [x] 5.1 The `humanOnly` policy, `EXCLUDED_PATHS` shrunk, the capacity report as a tool.
+      Negatives: untag a route; leave a tagged shape with no operation. (Slice 7; agent pools'
+      routes are tagged when task 6.2 adds them.)
+- [x] 5.2 One tool list for a consented human, a consented agent and a machine token. (Slice 7.)
+- [x] 5.3 Reconcile artifact-only startup with same-document human-only metadata:
+      owning emitter/consumer RED→GREEN, missing/malformed/unmatched negatives,
+      cold startup and watched consumer omissions before final integration checks.
 
 ## 6. Pools and account-keyed state (waits for `fix/wbs-undo-per-person`)
 
-- [ ] 6.0 Grep every check keyed by `userId` or account, and add any that M16's table is
-      missing.
-- [ ] 6.1 Migrations:
+- [x] 6.0 Grep every check keyed by `userId` or account, and add any that M16's table is
+      missing. (Five rows added to M16, 2026-10-28; verify.md slice 8.)
+- [x] 6.1 Migrations:
   - `add_agent_pool` and `machine_credential.agent_pool_id`;
   - the audit actions `agent_pool_created`, `agent_pool_revoked` and `agent_pool_rekeyed`, by
     compatible rebuild (`machine_token_issued` shipped in task 1.2). Both the rebuild and its
@@ -292,19 +305,27 @@
     the `down.sql`, and the same insert fails after rolling 6.1 back;
   - guarded `down.sql` files.
 
-  Negative: drop each guard.
+  Negative: drop each guard. (Landed as `20261028100000_add_agent_pool` and
+  `20261028100100_widen_organization_audit_agent_pools`; verify.md slice 8.)
 
-- [ ] 6.2 Pool routes: create (through `addPerson`'s cap check), re-key, and revoke with
+- [x] 6.2 Pool routes: create (through `addPerson`'s cap check), re-key, and revoke with
       `removePersons`. Tests: every agent-pools scenario. Negatives:
   - the cap check outside the transaction (`fc.asyncModelRun`);
   - a member allowed to create;
   - one credential skipped in revoke;
   - re-key creating persons;
   - `removePersons` leaving the count unchanged.
-- [ ] 6.3 The fe-01 pool panel (keys once as a download, counts before confirming, rendered
-      states, reviewed by eye).
-- [ ] 6.4 `twilight-dash pool import <file>`, giving each agent process its own `wbs_run`.
-      Test: a key that fails to issue aborts the import.
+
+  Tag the pool routes `humanOnly` (M8) and add them to the pinned human-only list.
+
+  (verify.md slice 8: `removePersons` is a query flag; pool persons are written by the pool's
+  own transaction with `addPerson`'s reading and decision, not through a directory batch.)
+
+- [x] 6.3 The fe-01 pool panel (keys once as a download, counts before confirming, rendered
+      states, reviewed by eye). (verify.md slice 9.)
+- [x] 6.4 `twilight-dash pool import <file> --store <dir>`, giving each agent process its own
+      `wbs_run`; the admin runs `chmod 600 <file>` first. Test: a key that fails to issue aborts
+      the import. (verify.md slice 10.)
 
 ## 7. REST stops being an agent surface (gated: claire fleets on MCP, observed on dev)
 
@@ -327,6 +348,8 @@
       with `twilight-dash mcp token`, each with its own `wbs_run`: they claim, heartbeat and
       release. Re-key mid-run, then revoke, and observe the leases end. Record it. This gates
       slice 7.
+      (Not done: the dev run waits on a pool in the dev web app. Its rehearsal on a throwaway stack,
+      `apps/wbs/mcp-01/src/load/pool-swarm-rehearsal.ts`, passed; verify.md slice 13.)
 - [ ] 8.2 Prod runbook:
   - seed `WBS_MACHINE_GRANT_SIGNING_KEY_*`, `MCP_BE_INTERNAL_SECRET` and
     `WBS_MCP_AUTHORIZATION_SERVER`;

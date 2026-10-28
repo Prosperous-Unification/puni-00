@@ -59,6 +59,8 @@ describe('runtime ledger lifecycle', () => {
       '20261022120000_scope_trusted_issuer_audience',
       '20261022130000_add_organization_limits',
       '20261022130100_widen_organization_audit_organization_limits',
+      // Alters `machine_credential`, which this old branch never had.
+      '20261028100000_add_agent_pool',
     ]);
     for (const name of readdirSync(migrations)) {
       if (mainAdditions.has(name)) continue;

@@ -1,4 +1,10 @@
 import {
+  createAgentPool,
+  listAgentPools,
+  rekeyAgentPool,
+  revokeAgentPool,
+} from './agent-pool-shapes';
+import {
   completeAuth0Link,
   completeOidcLogin,
   listAuthMethods,
@@ -229,6 +235,10 @@ const ordinaryHttpShapes = [
   createMachineCredential,
   rotateMachineCredential,
   revokeMachineCredential,
+  listAgentPools,
+  createAgentPool,
+  rekeyAgentPool,
+  revokeAgentPool,
   listTrustedIssuers,
   registerTrustedIssuer,
   removeTrustedIssuer,

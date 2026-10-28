@@ -3361,3 +3361,75 @@ commands, source snapshots, restoration and failure artifacts:
 and applicable CI, fresh publication preflight, ordinary protected main merge
 and full actual-merge CI remain required. Full S0/S7a and the unaccepted outcome/
 recovery/format4 choices remain open. No production deployment.
+
+## Runtime dispatch publication — 2026-10-28
+
+[PR #766](https://github.com/Prosperous-Unification/puni-00/pull/766) merged normally
+at00:44:30UTC as `c9759620b3b313a69f2a537149c5c02943b30ee4`,
+tree `cab2de29c037a1792031b56f07137d16c283b8ca`. Its ordered parents are incoming
+main `6b4e0582309563eecd941ef1bc6cb8d6c36b14d1` and reviewed source
+`25716dd9ee286294e82fd88d3f9466bd1b523bfe` (tree
+`2feb857a578f9cd34b5db13ffd1402d527e6288e`). Normal hooks, commit and push
+preserved the reviewed source. Independent incoming-main review verified103
+feature paths and two dev-MCP-probe paths with zero overlap, all12,416 leaves
+and2,275 directory objects. No source conflict resolution was needed.
+
+The canonical isolated h2 invocation of
+`bin/h2puni-gate.sh 25716dd9ee286294e82fd88d3f9466bd1b523bfe` completed
+00:38:52UTC with actual SSH0, one exact pin under the host lock and all five
+phases. OpenSpec301/301/0,669warnings/25info; solver3pass/0fail/15expect and both
+feasible answers were verified against both raw streams and their hashes.
+Two earlier queue-only invocations ended SSH75 without checks. Historical
+f35's h4 pass remains separate. Exact source PRCI40589137085 attempt1 also
+completed/success; its synthetic checkout evidence does not replace merge CI.
+
+Actual-merge [CI40610692186](https://github.com/Prosperous-Unification/puni-00/actions/runs/40610692186),
+attempt1, completed/success. Both required `gate`122588111847 and
+`pixels`122567786607 checks match actualc975 and GitHub Actions app15368.
+All ten non-skipped jobs and their required steps passed, including full-mode
+workspace, Twilight, the packed package suite, solver image smoke, secrets and
+migration checks, OpenSpec and its schema graph. Inspected workflow source
+forwards Nx and annotation exits; reducer environments match their successful
+upstream scopes. The separate read-only dev health check returned `status:ok`
+and both checkout/bootCommit=c975 at00:50:41UTC; this is backend boot identity,
+not a live coordinator or backend-adapter demonstration.
+
+All three bounded Bun observation windows closed with actual native0.
+Root and independent final review verified1,201 frozen artifact records plus
+three manifests,80 raw API snapshots with independently recomputed coherence,
+355command receipts/710stream references:340fresh GitHub commands/680original
+streams plus15 byte-exact same-native-job copies. There were ten unique job-log
+downloads and eight literal full-SHA checkout command/output pairs, all at
+actualc975. No workflow rerun, cross-head reuse or repeated log download occurred.
+Five balanced browser reporter scopes show648scheduled=608passed+40skipped,
+zero failed/flaky/interrupted/not-run. The repaired hint case passed4.6s.
+
+Skipped coverage remains explicit: `gate docs`; the PR-only CI-selection upload;
+three workspace external ToolWiki diagnostic/provision/audit steps; activated
+organization context on shards2/3/4 (it ran on shard1); and40 browser cases
+(36rendering baselines, three large-plan scroll cases, one Gantt drag).
+ToolWiki activation remains uncertified. Healthy uploaded Nx payload artifacts
+were not downloaded; exact unit totals and complete unit-skip counts are not
+inferred from quoted child stdout or compact host summaries. Earlier Node/Python
+collection deviations and failed trials above remain retained, not relabeled.
+
+Final independent review has no Critical or Important finding. Two collector
+metadata Minors remain: `pin.event` overwrites console event labels, and a
+resumed `pin.at` overwrites `terminal.at`. Actual owner-native closure receipts,
+`terminal.reason` and raw API coherence establish completion; C's actual owner
+closure is02:07:03.486UTC, distinct from its stale01:14:45.706UTC field. Original
+fields are preserved. No false CI acceptance or new app R5 credit is inferred.
+
+Root acceptance: `/tmp/puni-c975-final-root-acceptance-20261028.json`.
+Independent review: `/tmp/puni-c975-final-ci-review-20261028.md` and its JSON.
+Source gate evidence: `/tmp/puni25716-canonical-h2-gate-20261027b/`.
+Actual-merge evidence: `/tmp/puni-pr766-mergeci-c975-20261028{a,b,c}/`.
+WBS notes were updated/read back with all earlier history preserved;030.08,
+150.3,010.01 and030.12 remain in_progress.
+
+This closes runtime dispatch, awaited lifecycle integration and retained-reader
+publication. Full S0/S7a still requires exact outcome/write/release, heartbeat
+and business-attempt/budget mapping, supported logical and physical recovery,
+operator transitions, remaining adapters/full conformance, second durable
+provider/transfer and CTT consumption. New outcome/recovery/history/format,
+inspection and engine choices remain unaccepted. No production deployment.

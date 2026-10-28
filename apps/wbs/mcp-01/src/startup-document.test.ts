@@ -99,6 +99,37 @@ test('startup survives poisoned contracts and core runtime barrels', async () =>
   expect(compilation.success).toBe(true);
 });
 
+test('default runtime refuses absent and malformed same-artifact human-only policy', () => {
+  const emission = Bun.spawnSync(
+    ['bun', 'apps/wbs/be-01/src/openapi/emit-openapi-cli.ts', artifact],
+    { cwd: root },
+  );
+  expect(emission.exitCode).toBe(0);
+  const complete = readFileSync(artifact, 'utf8');
+  const document: unknown = JSON.parse(complete);
+  if (typeof document !== 'object' || document === null)
+    throw new Error('emitted policy fixture is not a document');
+  try {
+    for (const policy of [
+      undefined,
+      null,
+      {},
+      [null],
+      [{ method: 'get', path: '/api/organization/memberships', operationId: '' }],
+    ]) {
+      writeFileSync(
+        artifact,
+        JSON.stringify({ ...document, 'x-wbs-human-only-operations': policy }),
+      );
+      const startup = boot();
+      expect(startup.exitCode).not.toBe(0);
+      expect(startup.stderr).toContain('human-only operation policy');
+    }
+  } finally {
+    writeFileSync(artifact, complete);
+  }
+});
+
 // Proof: deleting the document emitter COPY from the MCP Dockerfile made this production-stage fixture fail with "Module not found".
 for (const [index, dockerfile] of [
   'apps/wbs/mcp-01/Dockerfile',

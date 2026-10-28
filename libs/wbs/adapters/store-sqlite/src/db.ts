@@ -8,6 +8,25 @@ export { SQLiteError };
 const BUSY_TIMEOUT_MS = 5000;
 
 /**
+ * Compiled statements each connection keeps, raised from Bun's default of 20.
+ *
+ * Drizzle's Bun adapter compiles every statement through `Database.query`, which keeps the
+ * most recent `Database.MAX_QUERY_CACHE_SIZE` statements per connection, keyed by SQL text.
+ * One authenticated tool call issues about 80 distinct statements, so at 20 each was compiled
+ * again on every request: `prepare` was 12.8% of be-01's CPU in the M10 load run
+ * (`wbs-mcp-agent-surface` task 4.5). The bound stays, so SQL text that varies by value
+ * (an `IN` list's length) cannot grow the cache without limit.
+ *
+ * The cache is private to its `Database`, so a replaced handle starts empty, and SQLite
+ * recompiles a cached statement when another connection changed the schema (blue/green share
+ * the file); `db.db.test.ts` observes both. `Database.MAX_QUERY_CACHE_SIZE` is a process-global
+ * static that Bun reads on every miss, so importing this file sets it for every `Database` in the
+ * process, including ones opened elsewhere.
+ */
+export const STATEMENT_CACHE_SIZE = 1024;
+Database.MAX_QUERY_CACHE_SIZE = STATEMENT_CACHE_SIZE;
+
+/**
  * The only place a SQLite connection is opened. An ESLint rule enforces that
  * (`bun:sqlite` is restricted everywhere else under `apps/wbs/be-01/src`), because
  * two of the three pragmas below are per-*connection* rather than stored in
@@ -315,7 +334,7 @@ export function drizzleOuterTransaction(db: Drizzle): {
  * capture's to commit or to roll back. `boot.ts` opens exactly one connection
  * for the process and `bun:sqlite` has no pool, so "a connection nothing else
  * is using" means one the caller opened for itself with {@link openConnection}
- * and closes afterwards. See `openspec/changes/saved-plans/design.md`,
+ * and closes afterwards, or one {@link poolReadConnections} lent it alone. See `openspec/changes/saved-plans/design.md`,
  * "The topology found".
  */
 export function drizzleReadTransaction(db: Drizzle): {
@@ -367,8 +386,15 @@ export function openReadOnlyDatabase(dbPath: string): Database {
  * Runs `read` on a connection of its own inside one `BEGIN DEFERRED` read
  * transaction, then commits and closes it: the committed state at one
  * instant, never a batch's uncommitted writes on the process connection and
- * never another process's commit landing between two of its statements. What
- * `read` answers must not borrow the connection, which is closed on return.
+ * never another process's commit landing between two of its statements.
+ *
+ * What `read` answers must be plain data and must not keep `db`: on return the
+ * connection is closed or, when it came from {@link poolReadConnections}, lent
+ * to the next observation, where a kept handle would read inside another
+ * caller's snapshot. A pooled handle throws on any use after its release.
+ *
+ * @throws what `read` throws; an AggregateError of that and the rollback's
+ * failure when the rollback fails too.
  */
 export async function observeCommitted<T>(
   openConnection: () => Connection,
@@ -386,7 +412,17 @@ export async function observeCommitted<T>(
       return captured;
     } catch (failure) {
       // Proof: omitting rollback failed the owned claim trusted-state read failure: its close saw an active transaction.
-      transaction.rollback();
+      try {
+        transaction.rollback();
+      } catch (rollbackFailure) {
+        // Proof: rethrowing the read's failure alone made `reports a read failure and its failed
+        // rollback together` (db.db.test.ts) lose the rollback's; watched 2026-10-28.
+        throw new AggregateError(
+          [failure, rollbackFailure],
+          'an observation failed and its read transaction did not roll back',
+          { cause: rollbackFailure },
+        );
+      }
       throw failure;
     }
   } finally {
@@ -394,4 +430,80 @@ export async function observeCommitted<T>(
     // claim lifecycle tests also require a closed native handle on refusal, throw, and BEGIN failure.
     connection.close();
   }
+}
+
+/** Read-only connections one source lifetime reuses; see {@link poolReadConnections}. */
+export interface ReadConnectionPool {
+  /** An idle connection, or a new one: the caller's alone until it calls `close`. */
+  acquire(): Connection;
+  /** Closes every idle connection; a connection released afterwards is closed too. */
+  close(): void;
+}
+
+/**
+ * Reuses the read-only connections {@link observeCommitted} opens, so each observation does not
+ * open a file and compile its statements again (about a tenth of be-01's CPU per call under the
+ * M10 load run, `wbs-mcp-agent-surface` task 4.5).
+ *
+ * States: each connection `open()` made is idle, lent or closed; the pool is open or closed.
+ * Events: `acquire` lends an idle connection (or a new one; none while closed); a lent handle's
+ * first `close` releases it, back to idle only while the pool is open, below `idleLimit` idle
+ * and outside a transaction, else closed; later `close` calls do nothing; the pool's `close`
+ * closes every idle one. Invariants, held by `db.pool.model.db.test.ts`: connections open equal
+ * idle plus lent; none is lent twice; none is idle once the pool closed; and with no lent
+ * connection inside a transaction, no snapshot blocks a full WAL checkpoint, so the next
+ * `BEGIN DEFERRED` reads the state committed by then.
+ *
+ * A lent handle's `db` throws on any use after its release, so a handle a read kept cannot read
+ * inside the next borrower's snapshot. The pool belongs to one source, whose `close` drains
+ * idle connections; outstanding loans close physically when released afterwards. Like the process connection,
+ * a pooled one keeps the file it opened: a database replaced by rename while be-01 runs stays
+ * unseen by both, which is why a restore stops be-01 first.
+ *
+ * @throws from `acquire` whatever `open` throws, and when the pool is closed.
+ */
+export function poolReadConnections(open: () => Connection, idleLimit = 8): ReadConnectionPool {
+  const idle: Connection[] = [];
+  let closed = false;
+  return {
+    acquire() {
+      if (closed) throw new Error('the read connection pool is closed');
+      const connection = idle.pop() ?? open();
+      let released = false;
+      // Proof: handing out `connection.db` itself made `refuses a pooled handle used after its
+      // release` (db.db.test.ts) read through it; watched 2026-10-28.
+      const db = new Proxy(connection.db, {
+        get(target, key, receiver) {
+          if (released) throw new Error('a pooled read connection was used after its release');
+          return Reflect.get(target, key, receiver) as unknown;
+        },
+      });
+      return {
+        db,
+        close: () => {
+          if (released) return;
+          released = true;
+          // Proof: pooling regardless of this test made `closes a connection released inside a
+          // transaction` (db.db.test.ts) count it still open; watched 2026-10-28.
+          if (closed || idle.length >= idleLimit || isInTransaction(connection)) connection.close();
+          else idle.push(connection);
+        },
+      };
+    },
+    close() {
+      closed = true;
+      for (const connection of idle.splice(0)) connection.close();
+    },
+  };
+}
+
+/**
+ * Whether `connection` holds an open transaction. A connection whose client cannot be read
+ * counts as holding one, so it is closed rather than reused.
+ */
+function isInTransaction(connection: Connection): boolean {
+  // Drizzle's Bun adapter keeps the `Database` it was given as `$client`; this file is the one
+  // place allowed to read it, and an absent client answers true above.
+  const client = (connection.db as Drizzle & { readonly $client?: Database }).$client;
+  return client?.inTransaction !== false;
 }

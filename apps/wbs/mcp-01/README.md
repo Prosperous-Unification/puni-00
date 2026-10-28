@@ -1,7 +1,10 @@
 # mcp-01
 
 Streamable HTTP MCP server over be-01. Tools are derived from
-the shared HTTP descriptors in `@wbs/contracts`; auth, internal, operational, and browser organization-selection routes are excluded.
+the shared HTTP descriptors in `@wbs/contracts`; auth, internal, operational, and browser organization-selection routes are excluded,
+and so is every shape tagged `humanOnly`: organization administration and onboarding, which a
+person does in the browser (`wbs-mcp-agent-surface` M8). Every principal (a consented human, a
+consented agent, a machine token) sees the same list.
 Before organization activation every tool call forwards the caller's upstream
 Bearer token to be-01, so the same issuer, identity, scope, journal, and owner
 rules govern MCP and browser calls. After it, a session is bound at consent to
@@ -18,7 +21,7 @@ created by its ref. The directory has no project, so its edits alone have
 `postApiDirectoryCommands`. Step edits may address a node with `stepNodeId` from
 a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 
-107 tools in all:
+79 tools in all:
 
 - the reads (the timezone list among them), the work-item page and single work-item reads;
 - bounded project discovery, project-qualified dependency endpoint lookup and address resolution;
@@ -46,22 +49,16 @@ a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
   seeded and any it defined, written with the `createMeasure`, `patchMeasure` and `deleteMeasure`
   directory commands, which only an organization admin or super-admin may send);
 - the two person-load reads, the project rank read and move;
-- the organization's capacity-mode read and switch (the switch refuses every delegated caller and
-  so answers an MCP client with 403);
-- the shared people restore-approval route;
+- the organization's capacity-mode read;
+- the capacity report
+  (`putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report`), which only a
+  machine token of an agent person may send: a consent session is refused
+  `not_an_agent_principal`;
 - the two batches, undo, redo, the project and step routes, the export, the import;
 - the six saved-plan routes: the five that create, list, read, rename and delete a snapshot, plus
   `getApiProjectsByIdSaved-plansCompare`, which answers what changed between two of them;
 - the four calendar-marker routes that list, add, edit and delete a dated annotation on a
   project's axis;
-- the three membership routes that list, promote or demote, and remove members of the active
-  organization (which, like the onboarding routes, refuse every delegated caller and so answer an
-  MCP client with 403);
-- three invitation administration routes, three join-request administration routes, the
-  organization domain-claim routes, the four enterprise SSO connection routes, the two
-  session-policy routes and the organization limits read (which refuse every delegated caller
-  and so answer an MCP client with 403);
-- six onboarding routes, which refuse every delegated caller and so answer an MCP client with 403;
 - the ten space routes that list, create, read, rename and delete a space, add, remove and move
   its projects, and read its projects' roll-ups and the work in progress across it;
 - one call that retries a failed or corrupt optimized variant; Retry is a project lifecycle action
@@ -72,10 +69,7 @@ a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 `applyRuntimeCommands` accepts one exact claim or a restricted claimed write, guarded by that
 authority and basis. `lookupRuntimeReceipt` reconciles a command through its immutable receipt.
 
-`postApiOrganizationSharedPeopleRestoreApprovals` is discoverable but refuses every delegated
-caller with `403 insufficient_scope`. A personally authenticated super-admin can use its HTTP
-route to record approval for one operation and backup digest in the active organization;
-approval alone restores no modes or ranks. The marker and space writes are not batched with the rest: neither is a plan edit, so no `commands`
+The marker and space writes are not batched with the rest: neither is a plan edit, so no `commands`
 command creates one. One call drafts a plan:
 
 ```json

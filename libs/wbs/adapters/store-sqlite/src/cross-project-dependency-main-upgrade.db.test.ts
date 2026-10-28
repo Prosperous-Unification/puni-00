@@ -10,7 +10,7 @@ import { runMigrations } from './migrate';
 import { readMigrationFolders } from './migrate-down';
 import { parseMigrationSetCapture } from './migration-set';
 
-const MAIN = 'dacf0f10f384ec3a21bde70db0500ba0b7a38d90';
+const MAIN = '25b873b1d49c2d2cd3e130958af682e309e9f844';
 const REPOSITORY = new URL('../../../../../', import.meta.url).pathname;
 const APP = join(REPOSITORY, 'apps/wbs/be-01');
 const OLDER_DEPENDENCIES = [
@@ -19,7 +19,7 @@ const OLDER_DEPENDENCIES = [
   '20261022212000_add_cross_project_dependency_activation',
   '20261022213000_add_optimization_boundary_certificates',
 ];
-const ADDED = [...OLDER_DEPENDENCIES, '20261026130000_widen_organization_audit_machine_tokens'];
+const ADDED = OLDER_DEPENDENCIES;
 
 function gitBytes(...arguments_: string[]): Buffer {
   const child = Bun.spawnSync(['git', ...arguments_], {
@@ -168,7 +168,7 @@ async function runCli(root: string, dbPath: string, file: string, arguments_: re
   return stdout;
 }
 
-test('upgrades the exact main measure database with four older dependency identities and later machine-token audit identity and restores only those additions', async () => {
+test('upgrades the exact fresh main pool database with four older dependency identities and restores only those additions', async () => {
   const root = mkdtempSync(join(tmpdir(), 'wbs-main-dependency-upgrade-'));
   try {
     const mainMigrations = join(root, 'main-drizzle');
@@ -180,10 +180,14 @@ test('upgrades the exact main measure database with four older dependency identi
     runMigrations(dbPath, mainMigrations);
     seedMain(dbPath);
     const baseline = ledgerAt(dbPath);
+    expect(baseline).toHaveLength(100);
+    expect(baseline.map(({ name, hash }) => ({ name, hash }))).toEqual(
+      readMigrationFolders(mainMigrations).map(({ name, hash }) => ({ name, hash })),
+    );
     const values = mainValuesAt(dbPath);
     const schema = schemaAt(dbPath);
     expect(baseline.some(({ name }) => name === '20261022121000_add_runtime_commands')).toBe(true);
-    expect(baseline.at(-1)?.name).toBe('20261026120000_add_command_journal_person');
+    expect(baseline.at(-1)?.name).toBe('20261028100100_widen_organization_audit_agent_pools');
     expect(baseline.filter(({ name }) => name.startsWith('20261023'))).toHaveLength(5);
     expect(values.project).toMatchObject([{ budget_factor: 2.75 }]);
     expect(values.definitions).toHaveLength(5);
@@ -240,7 +244,7 @@ test('upgrades the exact main measure database with four older dependency identi
     expect(
       upgraded.filter(({ name }) => ADDED.includes(name)).map(({ name, hash }) => ({ name, hash })),
     ).toEqual(capture.pending.map(({ name, hash }) => ({ name, hash })));
-    expect(upgraded).toHaveLength(baseline.length + 5);
+    expect(upgraded).toHaveLength(104);
     expect(
       schemaAt(dbPath)
         .filter(

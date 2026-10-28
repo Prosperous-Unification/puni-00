@@ -16,6 +16,7 @@ import {
   type Connection,
   openConnection as openDatabaseConnection,
   openReadOnlyConnection,
+  poolReadConnections,
 } from './db';
 import {
   authorizeImportIn,
@@ -130,10 +131,15 @@ function openSqliteSourceWithSeams(
   // from the bound public catalog, `does not see an open batch's claim (plain
   // source)` and `(bound source)` (claim-observation.db.test.ts) each saw
   // the batch's claim (6 pass, 1 fail each); watched 2026-10-23.
-  const claimObservation = {
-    openConnection: () =>
-      (options.openReadOnlyConnection ?? openReadOnlyConnection)(options.dbPath),
-  };
+  // Both owned observations borrow from one pool of read-only connections, which this source's
+  // close drains (`poolReadConnections`).
+  // Proof: with `reads.close()` dropped from close, `reuses one read connection and closes
+  // every pooled one with the source` (claim-observation.db.test.ts) counted one connection
+  // still open; watched 2026-10-28.
+  const reads = poolReadConnections(() =>
+    (options.openReadOnlyConnection ?? openReadOnlyConnection)(options.dbPath),
+  );
+  const claimObservation = { openConnection: () => reads.acquire() };
   const stores = buildStores(process.db, coordinator, lateWrite, undefined, claimObservation);
   const admitted = { ...buildStores(process.db, OPEN, lateWrite), ...limits };
   /** Intersects immutable binary support with fresh durable authority on the exact admitted writer. */
@@ -160,8 +166,7 @@ function openSqliteSourceWithSeams(
         ...scheduling,
         captureRead,
         kind: 'owned',
-        openConnection: () =>
-          (options.openReadOnlyConnection ?? openReadOnlyConnection)(options.dbPath),
+        openConnection: () => reads.acquire(),
       });
       return {
         ...this,
@@ -277,6 +282,7 @@ function openSqliteSourceWithSeams(
       if (closed) return Promise.resolve();
       closed = true;
       try {
+        reads.close();
         process.close();
         return Promise.resolve();
       } catch (cause) {

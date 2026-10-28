@@ -76,6 +76,7 @@ export const listMachineCredentials = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/machine-credentials',
   operationId: 'getApiOrganizationMachine-credentials',
+  humanOnly: true,
   policies: [...readPolicy, { kind: 'organization-resource', operation: 'read' }],
   query: requestSchema(type({ 'personId?': 'string > 0', 'include?': "'revoked'" })),
   responses: [
@@ -104,6 +105,7 @@ export const createMachineCredential = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/machine-credentials',
   operationId: 'postApiOrganizationMachine-credentials',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   body: requestSchema(
     type({ source: "'api_key'", name: '0 < string <= 80', personId: 'string > 0' }).or({
@@ -176,6 +178,7 @@ export const rotateMachineCredential = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/machine-credentials/:id/rotate',
   operationId: 'postApiOrganizationMachine-credentialsByIdRotate',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [
@@ -208,6 +211,7 @@ export const revokeMachineCredential = defineEndpointShape({
   method: 'DELETE',
   path: '/api/organization/machine-credentials/:id',
   operationId: 'deleteApiOrganizationMachine-credentialsById',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
@@ -257,6 +261,7 @@ export const listTrustedIssuers = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/trusted-issuers',
   operationId: 'getApiOrganizationTrusted-issuers',
+  humanOnly: true,
   policies: [...readPolicy, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     {
@@ -294,6 +299,7 @@ export const registerTrustedIssuer = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/trusted-issuers',
   operationId: 'postApiOrganizationTrusted-issuers',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   body: requestSchema(
     type({
@@ -329,6 +335,7 @@ export const removeTrustedIssuer = defineEndpointShape({
   method: 'DELETE',
   path: '/api/organization/trusted-issuers/:id',
   operationId: 'deleteApiOrganizationTrusted-issuersById',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],

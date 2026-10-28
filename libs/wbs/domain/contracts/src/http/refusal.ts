@@ -732,6 +732,11 @@ type BareRefusalCode =
   // `wbs-mcp-agent-surface` M2: an audience that is not WBS's authorization
   // server or under it after a `/`.
   | 'audience_not_wbs'
+  // Agent pools (`wbs-mcp-agent-surface` M7): a pool person removed while a
+  // re-key minted its keys; a re-key of a pool past its expiry with no new
+  // one. `persons_not_removed` carries detail, below.
+  | 'pool_changed'
+  | 'pool_expired'
   // Delivery observation (`track-work-delivery`): every provider read slot
   // stayed taken for the bounded wait.
   | 'delivery_busy';
@@ -822,6 +827,12 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     provider_mismatch: { providerId: string | null };
     /** A capacity report not newer than the stored one, naming the stored instant. */
     report_superseded: { storedObservedAt: number };
+    /**
+     * A revoked agent pool whose persons' removal the directory batch refused
+     * (`wbs-mcp-agent-surface` M7): the pool, and how many keys the revocation
+     * ended before the refusal.
+     */
+    persons_not_removed: { poolId: string; revokedCredentials: number };
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };
     // Proof: omitted registry entry made removeStep fail TS2345 in the smallest step-module typecheck, 2026-10-17.

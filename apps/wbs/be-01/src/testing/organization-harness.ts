@@ -48,6 +48,7 @@ import { createLogger } from '@wbs/observability';
 import { SqliteResourceRuntime } from '@wbs/store-sqlite';
 import { SqliteResourceUses } from '@wbs/store-sqlite';
 import {
+  AgentPoolRepository,
   computeProvidersOver,
   currentMembershipAccess,
   DomainClaimRepository,
@@ -624,6 +625,7 @@ export class OrganizationHarness {
         canonicalUserName: (raw) => canonicalOidcEmail(raw),
       },
       machineCredentials: new MachineCredentialAdministrationRepository(db, gate),
+      agentPools: new AgentPoolRepository(db, gate, TEST_ORGANIZATION_DEFAULT_LIMITS),
       mcpAuthorizationServer: TEST_MCP_AUTHORIZATION_SERVER,
       computeProviders: computeProvidersOver(db, gate),
       resourceUses: new SqliteResourceUses(db, gate),
@@ -750,6 +752,7 @@ export class OrganizationHarness {
     upstreamCredential,
     trustedIssuers,
     machineGrants,
+    logDestination,
     delegationKey,
     migrate = (path) => {
       runMigrations(path, FOLDER);
@@ -800,7 +803,10 @@ export class OrganizationHarness {
       source,
       clock,
       commandAccess,
-      logger: createLogger({ service: 'be-01' }),
+      logger: createLogger({
+        service: 'be-01',
+        ...(logDestination === undefined ? {} : { level: 'trace', destination: logDestination }),
+      }),
       jwtKey: TEST_JWT_KEY,
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: internalAuthSecret ?? 's'.repeat(32),
@@ -845,130 +851,127 @@ export class OrganizationHarness {
           }
         : {}),
     });
-    const app = buildApp({
-      projectAddressSearch: new ProjectAddressSearch(
-        new ProjectAddressSearchRepository({
-          openConnection: () => (openReadOnlyConnection ?? openAddressConnection)(path),
-          activeOrganizationOf: (snapshot) =>
-            selection === undefined
-              ? userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null))
-              : organizationSelection(
-                  new SqliteOrganizationSelection(snapshot),
-                  organizationCookieBinding(TEST_JWT_KEY),
-                  new SqliteBrowserCredentialRevocations(snapshot, OPEN),
-                  (principal, organizationId) =>
-                    new SqliteOrganizationAccess(snapshot, selection.activeOrganizationOf, () =>
-                      services.clock.now(),
-                    ).admitTo(principal, organizationId),
-                ).activeOrganizationOf,
-          now: () => services.clock.now(),
-        }),
-        nodeDigest,
-      ),
-      appOrigin,
-      ...(delivery === undefined ? {} : { delivery }),
-      ...(deliveryLimits === undefined ? {} : { deliveryLimits }),
-      clock: services.clock,
-      migrationsApplied: true,
-      ...(provider === undefined ? {} : { oidc: provider.routeOptions('http://localhost') }),
-      auth: services.auth,
-      loginThrottle: services.loginThrottle,
-      projects: services.projects,
-      organizations: {
-        resolve: async (principal) => {
-          const access = await organizationAccess.resolve(principal);
-          afterResolve?.();
-          return access;
+    const app = buildApp(
+      {
+        projectAddressSearch: new ProjectAddressSearch(
+          new ProjectAddressSearchRepository({
+            openConnection: () => (openReadOnlyConnection ?? openAddressConnection)(path),
+            activeOrganizationOf: (snapshot) =>
+              selection === undefined
+                ? userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null))
+                : organizationSelection(
+                    new SqliteOrganizationSelection(snapshot),
+                    organizationCookieBinding(TEST_JWT_KEY),
+                    new SqliteBrowserCredentialRevocations(snapshot, OPEN),
+                    (principal, organizationId) =>
+                      new SqliteOrganizationAccess(snapshot, selection.activeOrganizationOf, () =>
+                        services.clock.now(),
+                      ).admitTo(principal, organizationId),
+                  ).activeOrganizationOf,
+            now: () => services.clock.now(),
+          }),
+          nodeDigest,
+        ),
+        appOrigin,
+        ...(delivery === undefined ? {} : { delivery }),
+        ...(deliveryLimits === undefined ? {} : { deliveryLimits }),
+        clock: services.clock,
+        migrationsApplied: true,
+        ...(provider === undefined ? {} : { oidc: provider.routeOptions('http://localhost') }),
+        auth: services.auth,
+        loginThrottle: services.loginThrottle,
+        projects: services.projects,
+        organizations: {
+          resolve: async (principal) => {
+            const access = await organizationAccess.resolve(principal);
+            afterResolve?.();
+            return access;
+          },
         },
-      },
-      ...(selection === undefined ? {} : { organizationSelection: selection.endpoints }),
-      // As `boot.ts` wires it: an upstream Bearer is judged as evidence on
-      // every request, so a machine token reaches that path here too.
-      ...(selection === undefined && upstreamCredential === undefined
-        ? {}
-        : {
-            credentialEvidence: organizationCredentialEvidence(
-              services.auth,
-              TEST_JWT_KEY,
-              upstreamCredential === undefined
-                ? undefined
-                : oidcCredentialEvidence(upstreamCredential.verifier, upstreamCredential),
-            ),
-          }),
-      memberships: new OrganizationRepository(source.db, services.gate),
-      sharedPeopleRestoreApprovals: new SharedPeopleRestoreApprovalRepository(
-        source.db,
-        services.gate,
-      ),
-      domains: new DomainClaimRepository(source.db, services.gate),
-      enterpriseConnections: new EnterpriseConnectionRepository(source.db, services.gate),
-      machineCredentials: new MachineCredentialAdministrationRepository(source.db, services.gate),
-      // As boot wires `WBS_MCP_AUTHORIZATION_SERVER`: the machine grants' own
-      // when composed, else the tests' fixed one.
-      mcpAuthorizationServer:
-        machineGrants === undefined
-          ? TEST_MCP_AUTHORIZATION_SERVER
-          : machineGrants.authorizationServer,
-      claimLeases: services.claimLeases,
-      computeProviders: computeProvidersOver(source.db, services.gate),
-      resourceUses: new SqliteResourceUses(source.db, services.gate),
-      resourceRuntime: new SqliteResourceRuntime(source.db, services.gate),
-      // As `boot.ts` wires it, so the composed boundary serves the limits read too.
-      // Proof: without it, `swarm-end-to-end.db.test.ts` read the limits 403
-      // no_active_organization on an activated organization; watched 2026-10-23.
-      organizationLimits: new OrganizationLimitsRepository(
-        source.db,
-        TEST_ORGANIZATION_DEFAULT_LIMITS,
-      ),
-      ...(trustedIssuers === undefined
-        ? {}
-        : {
-            trustedIssuers: {
-              administration: new TrustedIssuerAdministrationRepository(source.db, services.gate),
-              discovery: trustedIssuerDiscovery({ fetch: trustedIssuers.fetch }),
-              configuredIssuer: () => Promise.resolve(trustedIssuers.configuredIssuer),
-            },
-          }),
-      onboarding: new OnboardingRepository(source.db, services.gate),
-      emailVerification: new EmailVerificationRepository(source.db, services.gate),
-      invitations: new InvitationRepository(source.db, services.gate),
-      joinRequests: new JoinRequestRepository(source.db, services.gate),
-      spaces: new SpaceRepository(source.db, services.gate),
-      projectRanks: services.projectRanks,
-      ...(supportedCapacityModes === undefined ? {} : { supportedCapacityModes }),
-      emailDelivery: {
-        deliver: () => Promise.reject(new Error('composed harness mail sink refuses delivery')),
-      },
-      steps: services.steps,
-      calendarMarkers: services.calendarMarkers,
-      stepParallels: source.stores.stepParallels,
-      workItems: services.workItems,
-      optimizer: services.optimizer,
-      savedPlans: services.savedPlans,
-      directory: services.directory,
-      capacity: services.capacity,
-      priorityBands: services.priorityBands,
-      history: services.history,
-      replay: services.replay,
-      admitDependencyClient,
-      probeDatabase: () => 'ok',
-      writes: {
-        commandAccess,
-        imports: services.imports,
-        uow: services.uow,
-        batch:
-          syntheticExternalCommands !== true
-            ? services.batch
-            : (
-                scope,
-                broadcast,
-                admission,
-                dependencies,
-                beforeProjectUpdate,
-                beforeStepRemoval,
-                beforeStepWrite,
-              ) => ({
-                ...services.batch(
+        ...(selection === undefined ? {} : { organizationSelection: selection.endpoints }),
+        // As `boot.ts` wires it: an upstream Bearer is judged as evidence on
+        // every request, so a machine token reaches that path here too.
+        ...(selection === undefined && upstreamCredential === undefined
+          ? {}
+          : {
+              credentialEvidence: organizationCredentialEvidence(
+                services.auth,
+                TEST_JWT_KEY,
+                upstreamCredential === undefined
+                  ? undefined
+                  : oidcCredentialEvidence(upstreamCredential.verifier, upstreamCredential),
+              ),
+            }),
+        memberships: new OrganizationRepository(source.db, services.gate),
+        sharedPeopleRestoreApprovals: new SharedPeopleRestoreApprovalRepository(
+          source.db,
+          services.gate,
+        ),
+        domains: new DomainClaimRepository(source.db, services.gate),
+        enterpriseConnections: new EnterpriseConnectionRepository(source.db, services.gate),
+        machineCredentials: new MachineCredentialAdministrationRepository(source.db, services.gate),
+        agentPools: new AgentPoolRepository(
+          source.db,
+          services.gate,
+          TEST_ORGANIZATION_DEFAULT_LIMITS,
+        ),
+        // As boot wires `WBS_MCP_AUTHORIZATION_SERVER`: the machine grants' own
+        // when composed, else the tests' fixed one.
+        mcpAuthorizationServer:
+          machineGrants === undefined
+            ? TEST_MCP_AUTHORIZATION_SERVER
+            : machineGrants.authorizationServer,
+        claimLeases: services.claimLeases,
+        computeProviders: computeProvidersOver(source.db, services.gate),
+        resourceUses: new SqliteResourceUses(source.db, services.gate),
+        resourceRuntime: new SqliteResourceRuntime(source.db, services.gate),
+        // As `boot.ts` wires it, so the composed boundary serves the limits read too.
+        // Proof: without it, `swarm-end-to-end.db.test.ts` read the limits 403
+        // no_active_organization on an activated organization; watched 2026-10-23.
+        organizationLimits: new OrganizationLimitsRepository(
+          source.db,
+          TEST_ORGANIZATION_DEFAULT_LIMITS,
+        ),
+        ...(trustedIssuers === undefined
+          ? {}
+          : {
+              trustedIssuers: {
+                administration: new TrustedIssuerAdministrationRepository(source.db, services.gate),
+                discovery: trustedIssuerDiscovery({ fetch: trustedIssuers.fetch }),
+                configuredIssuer: () => Promise.resolve(trustedIssuers.configuredIssuer),
+              },
+            }),
+        onboarding: new OnboardingRepository(source.db, services.gate),
+        emailVerification: new EmailVerificationRepository(source.db, services.gate),
+        invitations: new InvitationRepository(source.db, services.gate),
+        joinRequests: new JoinRequestRepository(source.db, services.gate),
+        spaces: new SpaceRepository(source.db, services.gate),
+        projectRanks: services.projectRanks,
+        ...(supportedCapacityModes === undefined ? {} : { supportedCapacityModes }),
+        emailDelivery: {
+          deliver: () => Promise.reject(new Error('composed harness mail sink refuses delivery')),
+        },
+        steps: services.steps,
+        calendarMarkers: services.calendarMarkers,
+        stepParallels: source.stores.stepParallels,
+        workItems: services.workItems,
+        optimizer: services.optimizer,
+        savedPlans: services.savedPlans,
+        directory: services.directory,
+        capacity: services.capacity,
+        priorityBands: services.priorityBands,
+        history: services.history,
+        replay: services.replay,
+        admitDependencyClient,
+        probeDatabase: () => 'ok',
+        writes: {
+          commandAccess,
+          imports: services.imports,
+          uow: services.uow,
+          batch:
+            syntheticExternalCommands !== true
+              ? services.batch
+              : (
                   scope,
                   broadcast,
                   admission,
@@ -976,67 +979,80 @@ export class OrganizationHarness {
                   beforeProjectUpdate,
                   beforeStepRemoval,
                   beforeStepWrite,
-                ),
-                workItems: new WorkItemService({
-                  ...scope.stores,
-                  clock,
-                  scheduler: services.scheduler,
-                  schedulerMode: 'capture',
-                  admission,
-                  dependencyContext: { kind: 'bound', context: dependencies },
-                  externalDependencyAuthoring: { state: 'active' },
-                  broadcast,
+                ) => ({
+                  ...services.batch(
+                    scope,
+                    broadcast,
+                    admission,
+                    dependencies,
+                    beforeProjectUpdate,
+                    beforeStepRemoval,
+                    beforeStepWrite,
+                  ),
+                  workItems: new WorkItemService({
+                    ...scope.stores,
+                    clock,
+                    scheduler: services.scheduler,
+                    schedulerMode: 'capture',
+                    admission,
+                    dependencyContext: { kind: 'bound', context: dependencies },
+                    externalDependencyAuthoring: { state: 'active' },
+                    broadcast,
+                  }),
                 }),
-              }),
-        announcements: services.announcements,
-        committedFanout: services.committedFanout,
-      },
-      internalAuthSecret: internalAuthSecret ?? 'x'.repeat(32),
-      ...(delegationKey === undefined
-        ? {}
-        : {
-            delegation: delegationVerifier(
-              delegationKey,
-              async (pair) => {
-                const userId = await new ExternalIdentityRepository(source.db, OPEN).findUserId(
-                  pair,
-                );
-                if (userId === null) return null;
-                return new UserRepository(source.db, OPEN).findById(userId);
-              },
-              (issuer, jti, expiresAt, at) =>
-                new SqliteDelegationUse(source.db, services.gate).consume(
-                  issuer,
-                  jti,
-                  expiresAt,
-                  at,
-                ),
-              () => services.clock.now(),
-              (userId) => new UserRepository(source.db, OPEN).findById(userId),
-            ),
-          }),
-      ...(machineGrants === undefined
-        ? {}
-        : {
-            mcpService: {
-              secret: machineGrants.secret,
-              verifyGrant:
-                machineGrants.keys === null
-                  ? null
-                  : machineGrantVerifier(machineGrants.keys, () => services.clock.now()),
-              grantKeySecrets: [],
-            },
-            machineGrants: machineGrantAuthority({
-              activationState: () => readOrganizationActivation(source.db),
-              keys: machineGrants.keys,
-              authorizationServer: machineGrants.authorizationServer,
-              admitProof: (presented) => services.auth.admitMachineProof(presented),
-              audit: new MachineTokenAuditRepository(source.db, services.gate),
-              now: () => services.clock.now(),
-              ...(machineGrants.newId === undefined ? {} : { newId: machineGrants.newId }),
+          announcements: services.announcements,
+          committedFanout: services.committedFanout,
+        },
+        internalAuthSecret: internalAuthSecret ?? 'x'.repeat(32),
+        ...(delegationKey === undefined
+          ? {}
+          : {
+              delegation: delegationVerifier(
+                delegationKey,
+                async (pair) => {
+                  const userId = await new ExternalIdentityRepository(source.db, OPEN).findUserId(
+                    pair,
+                  );
+                  if (userId === null) return null;
+                  return new UserRepository(source.db, OPEN).findById(userId);
+                },
+                (issuer, jti, expiresAt, at) =>
+                  new SqliteDelegationUse(source.db, services.gate).consume(
+                    issuer,
+                    jti,
+                    expiresAt,
+                    at,
+                  ),
+                () => services.clock.now(),
+                (userId) => new UserRepository(source.db, OPEN).findById(userId),
+              ),
             }),
-          }),
-    });
+        ...(machineGrants === undefined
+          ? {}
+          : {
+              mcpService: {
+                secret: machineGrants.secret,
+                verifyGrant:
+                  machineGrants.keys === null
+                    ? null
+                    : machineGrantVerifier(machineGrants.keys, () => services.clock.now()),
+                grantKeySecrets: [],
+              },
+              machineGrants: machineGrantAuthority({
+                activationState: () => readOrganizationActivation(source.db),
+                keys: machineGrants.keys,
+                authorizationServer: machineGrants.authorizationServer,
+                admitProof: (presented) => services.auth.admitMachineProof(presented),
+                audit: new MachineTokenAuditRepository(source.db, services.gate),
+                now: () => services.clock.now(),
+                ...(machineGrants.newId === undefined ? {} : { newId: machineGrants.newId }),
+              }),
+            }),
+      },
+      logDestination === undefined
+        ? createLogger
+        : (options) => createLogger({ ...options, level: 'trace', destination: logDestination }),
+    );
     const harness = new OrganizationHarness(
       dir,
       app,
@@ -1281,6 +1297,28 @@ export class OrganizationHarness {
     );
   }
 
+  /** {@link call}, answering the raw response, for tests that read its headers. */
+  respond(username: string, method: string, path: string, body?: unknown): Promise<Response> {
+    const userId = this.ids.get(username);
+    const organizationId = userId === undefined ? undefined : this.bound.get(userId);
+    return Promise.resolve(
+      this.app.handle(
+        new Request(`http://localhost${path}`, {
+          method,
+          headers: {
+            ...(method === 'GET' ? {} : { origin: 'http://localhost' }),
+            ...(organizationId === undefined
+              ? {}
+              : { 'X-WBS-Expected-Organization': organizationId }),
+            authorization: `Bearer ${this.tokens.get(username) ?? 'none'}`,
+            ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+          },
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        }),
+      ),
+    );
+  }
+
   /** {@link call} with an explicit Bearer credential, and any extra headers a caller forges. */
   async callWith(
     token: string,
@@ -1319,6 +1357,8 @@ export interface ComposedHarnessOptions {
   readonly syntheticTransferImports?: true;
   /** Replaces only the admitted command WorkItemService with explicit fixture authority. */
   readonly syntheticExternalCommands?: true;
+  /** Where the services logger writes, at `trace`, for tests that read the log; stdout at `info` otherwise. */
+  readonly logDestination?: { write(chunk: string): void };
   /** Trusted external delivery reader; absent exercises production composition. */
   readonly delivery?: DeliveryReader;
   /** Delivery gate limits; absent uses the production defaults. */

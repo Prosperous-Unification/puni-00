@@ -489,21 +489,39 @@ _Alternatives:_ per-principal filtering, or descriptions per principal (two cont
 **M7. Agent pools: API-key bulk issuance, re-keyable, delivered once.**
 
 - _Creation._ An admin's browser session posts `{ name, size ≤ 100, expiresAt? }`. In one
-  transaction this creates `size` agent persons bound to the admin's account, through
-  **`addPerson`'s own agent-person cap check**, and one API key each.
-- _Delivery._ fe-01 shows the keys once, as a single download (`pool-<id>.keys.json`), never
-  stored server-side. Dash imports it with `twilight-dash pool import <file>` into its secret
-  store, verifies every key by issuing one token each, and tells the admin to delete the file.
-  It gives each agent process its own `wbs_run` (M15).
+  transaction this creates `size` agent persons `<name>-1…N` bound to the admin's account,
+  and one API key each. The agent-person cap is judged once for the pool with the reading and
+  decision `addPerson` uses (`readAgentPersonCapIn` and `refuseLimit`), inside the pool's own
+  transaction, not through `addPerson` itself or a directory batch. `name` is 1–60 characters
+  and never shaped like a secret.
+- _Listing._ `GET …/agent-pools` (admin only) lists every pool, revoked ones included, with its
+  live credentials and no secret.
+- _Delivery._ be-01 answers the keys once, `Cache-Control: no-store`, as one document
+  (`wbs-agent-pool-keys` v1: the authorization server, the MCP resource, and one entry per
+  agent with its person, name, credential and key). fe-01 saves it as one file
+  (`pool-<id>.keys.json`) and holds that file's bytes, never its text, until the admin presses
+  Done, so a save that did not happen (a cancelled dialog, a blocked automatic download) can be
+  repeated without another request; nothing stores it server-side. Dash imports it with
+  `twilight-dash pool import <file> --store <dir>` into its secret store (the owner-only key
+  files `mcp token --key-file` reads, one MCP config per agent), verifies every key by issuing
+  one token each before writing any, and tells the admin to delete the file. It gives each
+  agent process its own `wbs_run` (M15), `pool-<poolId>/<personId>`, stable across re-keys
+  (verify.md slice 10).
 - _Re-keying._ `POST …/agent-pools/:id/rekey` revokes every key and issues fresh ones for the
   **same** persons, so `agent_person_limit` is not consumed again and a leaked file is answered
-  without recreating the swarm.
+  without recreating the swarm. Only the persons holding a **live** pool key at re-key time are
+  re-keyed: an agent whose key an admin revoked alone stays keyless (the most restrictive
+  reading; an assumption Dany may reverse). A pool past its `expiresAt` is refused
+  `pool_expired` unless the body gives a new `expiresAt`, held to the create bound (≤ 90 days).
 - _Fixed after creation._ A pool never gains a person or a right. A machine, a delegation or a
   grant can never reach the pool routes.
 - _Cleanup._ A revoked pool's persons still count toward `agent_person_limit`. Revoking with
   `removePersons: true`, or a later `DELETE …/agent-pools/:id/persons`, removes them through
-  the existing `deletePerson` cascade (A24: an admin's reach). That releases the cap, while
-  the claims history keeps their names.
+  the existing `deletePerson` cascade (A24: an admin's reach) as a second step after the
+  revocation commits; a refused removal answers `persons_not_removed` with the pool revoked.
+  That releases the cap. The claims history keeps the removed persons' ids, but their names
+  read null once the person is gone (verify.md slice 8 note 17). The separate
+  `DELETE …/agent-pools/:id/persons` route is not in v1.
 - _Blast radius, stated honestly._ Dash holds all N keys. A compromised Dash is all N agents,
   each capped at `member`, until the pool is revoked or re-keyed. Agents themselves see only
   their 12 h token.
@@ -517,10 +535,23 @@ children (laundering, rejected); (c) subject patterns (deferred); (d) one admin 
 **M8. Human-only is an endpoint policy.**
 
 - A `humanOnly` policy on endpoint shapes excludes them from tools for every principal. The
-  covered set is the one listed in the spec.
+  covered set is the one listed in the spec, including compute provider administration: a
+  provider's host locator decides where every project's capacity reports come from, so only
+  a human admin registers or removes one.
+- Matching is on the document's canonical method and path; the pinned operation-name test
+  catches a second spelling of a tagged route.
+- The token endpoint's grant call to be-01 uses the tool-call bound (`BE_CALL_TIMEOUT_MS`,
+  35 s) deliberately: one bound for every be-01 call, and a stalled be-01 holds a pending slot
+  at most that long.
 - `EXCLUDED_PATHS` keeps auth, internal, smoke and `/api/organization/active`.
 - The capacity report becomes a tool.
 - A `humanOnly` shape matching nothing fails startup.
+- The same generated OpenAPI artifact carries required top-level
+  `x-wbs-human-only-operations` records (`method`, canonical `path`, `operationId`),
+  derived from the same shape table. Runtime validates this list and matches its
+  method/path entries against that document; it never imports runtime validators.
+  Missing or malformed metadata refuses startup; an explicit empty generated list
+  is valid. Explicit external-fixture policy arguments remain deliberate overrides.
 
 _Alternatives:_ the path list; admin tools for consented humans.
 
@@ -569,6 +600,14 @@ _Alternatives:_ keep accepting (two surfaces in fact); a deprecation header peri
 | `tools/call` messages per credential  | 10 / s, burst 20     | a batch of 100 counts 100                                                                                                     |
 | In-flight tool calls per organization | 128                  | about 60 at the design load (100 agents × 2 calls/s × 300 ms); 2× headroom                                                    |
 
+- _Measured sizing (task 4.5)._ The fences hold at the design load, but one be-01 does not
+  serve it. On h2puni (8 shared vCPU, load 7 to 9) one be-01 carried 120.6 calls a second at
+  100 agents, about 8.3 ms per call at saturation (from throughput; 9.7 ms of process CPU with Bun's other
+  threads), up from 86.2 before task 4.5 (verify.md, slice 12). Size to that: **about 60 agents
+  per be-01** at M10's 2 calls a second each. The design load of 200 a second then needs two
+  be-01 processes, which share one SQLite writer, so commands still take turns; no
+  two-process run has been measured. Above the measured rate calls queue in be-01 (p50 0.8 s
+  at 100 agents) rather than fail; the in-flight fence stays 128.
 - With R replicas, the effective organization in-flight limit is 128 × R. These are
   per-replica fences; the authoritative fences are be-01's transactional caps.
 - `/mcp` refusals are HTTP `429` with `Retry-After` when the request ran no call and its one
@@ -741,6 +780,18 @@ _Alternative:_ the stated invariant of the earlier draft (unenforceable).
 | `created_by` and audit actors                        | account                              | accepted; the person is in the claim and audit detail                                                                                                                                                                                                                                                                                                                                                                                    |
 | Project-opened and recents                           | account                              | shared, harmless                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Claim cap and leases                                 | person, plus run when opted in (M15) | unaffected                                                                                                                                                                                                                                                                                                                                                                                                                               |
+
+Task 6.0's grep (2026-10-28, `libs/wbs` and be-01 for `accountId`, `userId`, `actorId` and
+`createdById` comparisons) found five more account-keyed checks. None changes in this change;
+each is stated so a pool's N persons, all bound to one admin, are not a surprise:
+
+| State                                                                                                   | Keyed by | Decision                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claim identity (`refuseIdentity`, domain `claim.ts`: `person_not_bound`)                                | account  | intended; a credential's pin (`credential_not_for_person`, D6) then narrows it to the credential's person, so a pool agent claims as itself only                                        |
+| A member's machine-credential reach (`reachable`, `pinRefusal`, store-sqlite)                           | account  | intended (A7); pool persons are bound to an admin, who reaches every agent anyway, and only an admin reaches the pool routes                                                            |
+| Consent agents (`agentsBoundTo(userId)`, store-sqlite `consent-credential.ts`)                          | account  | accepted: the admin's own consent flow lists the pool's persons among its agents; a consent acting as one is that person, capped at `member`                                            |
+| Saved-plan rename and delete (`mayTouchSavedPlan`, `createdById`)                                       | account  | accepted: plans one pool agent saves can be renamed or deleted by every agent of the same account, as the M16 row for `created_by` already implies                                      |
+| Project owner edits and the super-admin recovery reads (`canEditProjectInOrganization`, `scope.userId`) | account  | accepted: a pool agent edits every project its admin owns, as the owner (`canEditProject` compares the account); the super-admin arm needs the role, capped at `member` (A23), so never |
 
 Task 6.0 greps every `userId` key and adds any check missing from this table before slice 6.
 

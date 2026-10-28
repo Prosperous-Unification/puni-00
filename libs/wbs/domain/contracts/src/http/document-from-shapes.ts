@@ -30,6 +30,11 @@ export interface DocumentOperation {
 export interface ShapeDocument {
   openapi: '3.1.0';
   info: { title: string; version: string };
+  'x-wbs-human-only-operations': {
+    method: string;
+    path: string;
+    operationId: string;
+  }[];
   paths: Record<string, Record<string, DocumentOperation | undefined> | undefined>;
 }
 
@@ -68,7 +73,7 @@ export function documentFromShapes(shapes: readonly EndpointShape[]): ShapeDocum
       throw new Error(`missing or duplicate operationId: ${shape.operationId}`);
     }
     names.add(shape.operationId);
-    const path = shape.path.replace(/:([^/]+)/g, '{$1}');
+    const path = documentPathOf(shape.path);
     const method = shape.method.toLowerCase();
     const operations = paths[path] ?? {};
     // Proof: omitting this guard silently replaced the converted-path operation
@@ -175,7 +180,25 @@ export function documentFromShapes(shapes: readonly EndpointShape[]): ShapeDocum
     };
     paths[path] = operations;
   }
-  return { openapi: '3.1.0', info: { title: 'WBS API', version: '1.0.0' }, paths };
+  return {
+    openapi: '3.1.0',
+    info: { title: 'WBS API', version: '1.0.0' },
+    // Proof: emitting no tagged entries exposed getMembers through the generated-subset
+    // artifact reader/consumer in artifact-policy.test.ts (2026-10-28).
+    'x-wbs-human-only-operations': shapes
+      .filter((shape) => shape.humanOnly === true)
+      .map((shape) => ({
+        method: shape.method.toLowerCase(),
+        path: documentPathOf(shape.path),
+        operationId: shape.operationId,
+      })),
+    paths,
+  };
+}
+
+/** A shape's `:name` path as the document's `{name}` template. */
+export function documentPathOf(path: string): string {
+  return path.replace(/:([^/]+)/g, '{$1}');
 }
 
 /** Parameters require named properties; a union cannot be flattened without losing constraints. */

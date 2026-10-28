@@ -104,6 +104,13 @@ export interface EndpointShape {
   defaultResponseHeaders?: readonly (readonly [string, string])[];
   /** `description` is the OpenAPI operation's longer text, emitted only when given. */
   document: { summary: string; description?: string };
+  /**
+   * Administration a person does in the browser: never an MCP tool, for any principal
+   * (`wbs-mcp-agent-surface` M8). mcp-01 reads the tag from the shared shape table and refuses
+   * to start when a tagged shape matches no operation of the document it serves. be-01 ignores
+   * it: the route is authorized by its `policies` alone.
+   */
+  humanOnly?: true;
 }
 
 /**

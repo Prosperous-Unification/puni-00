@@ -153,7 +153,9 @@ describe(MACHINE_TOKENS, () => {
     const down = await rollBack(root, dbPath, JOURNAL_PERSON);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${MACHINE_TOKENS}\n`);
+    expect(down.stdout).toContain(
+      `rolled back: 20261028100100_widen_organization_audit_agent_pools, 20261028100000_add_agent_pool, ${MACHINE_TOKENS}\n`,
+    );
     expect(auditActions(dbPath)).toEqual(['compute_provider_registered']);
     expect(() => {
       run(dbPath, [issued('x1', MORNING, 'cred-1')]);

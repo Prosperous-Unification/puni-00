@@ -35,6 +35,7 @@ export const listJoinRequests = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/join-requests',
   operationId: 'getApiOrganizationJoinRequests',
+  humanOnly: true,
   policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     {
@@ -61,6 +62,7 @@ export const approveJoinRequest = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/join-requests/:id/approve',
   operationId: 'postApiOrganizationJoinRequestsByIdApprove',
+  humanOnly: true,
   policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   // Proof: 2026-09-28, admitting `admin` failed `rejects an admin approval role at the HTTP boundary` (400 became success).
@@ -80,6 +82,7 @@ export const denyJoinRequest = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/join-requests/:id/deny',
   operationId: 'postApiOrganizationJoinRequestsByIdDeny',
+  humanOnly: true,
   policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],

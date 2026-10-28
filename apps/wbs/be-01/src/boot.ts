@@ -12,6 +12,7 @@ import type { Logger } from '@wbs/observability';
 import { SqliteResourceRuntime } from '@wbs/store-sqlite';
 import { SqliteResourceUses } from '@wbs/store-sqlite';
 import {
+  AgentPoolRepository,
   computeProvidersOver,
   ConsentCredentialRepository,
   currentMembershipAccess,
@@ -768,6 +769,14 @@ export async function bootBe01(
               // credentials`: the fallback answers every route
               // no_active_organization; watched 2026-10-22.
               machineCredentials: new MachineCredentialAdministrationRepository(db, services.gate),
+              // Proof: omitting this binding made `serves agent pools from the
+              // shared database once activated` (boot.db.test.ts) throw `boot
+              // did not wire agent pools`; watched 2026-10-28.
+              agentPools: new AgentPoolRepository(
+                db,
+                services.gate,
+                opts.organizationDefaultLimits,
+              ),
               mcpAuthorizationServer: mcpService.authorizationServer,
               claimLeases: claimLeaseSweep,
               // Proof: omitting this binding made `serves trusted issuer

@@ -4,7 +4,7 @@ import { ProjectService } from '@wbs/core/module/project/project.resource';
 import type { SavedComparisonSide } from '@wbs/core/module/saved-plans/saved-plan-comparison';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { schedule } from '@wbs/domain';
-import { openConnection, openReadOnlyConnection } from '@wbs/store-sqlite/db';
+import { type Connection, openConnection, openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { allocateGeneration } from '@wbs/store-sqlite/optimization-generation';
 import { enqueueSolverRequest } from '@wbs/store-sqlite/optimization-queue';
 import { SavedPlanCaptureRepository } from '@wbs/store-sqlite/saved-plan-capture';
@@ -783,6 +783,42 @@ describe('shared transactional consumers', () => {
   });
 });
 
+/**
+ * A read-only connection factory that counts the snapshots its connections hold: connections
+ * inside a read transaction. The source pools idle connections, which hold none
+ * (`poolReadConnections`), so an open connection is not an open snapshot.
+ * Proof: with `observeCommitted`'s commit omitted and the pool's in-transaction test dropped,
+ * both `closes the …` cases below failed (the Retry answered 500; the display saw [1, 1]
+ * snapshots at its handoffs instead of [0, 0]); watched 2026-10-28. Either fault alone leaves no
+ * snapshot: the pool closes a connection released inside its transaction.
+ */
+function snapshotCounting(): {
+  readonly open: typeof openReadOnlyConnection;
+  readonly openSnapshots: () => number;
+} {
+  const open = new Set<Connection>();
+  return {
+    open: (dbPath) => {
+      const connection = openReadOnlyConnection(dbPath);
+      open.add(connection);
+      return {
+        db: connection.db,
+        close: () => {
+          connection.close();
+          open.delete(connection);
+        },
+      };
+    },
+    openSnapshots: () =>
+      [...open].filter(
+        // The test reads the Bun client drizzle keeps on every connection it made.
+        (connection) =>
+          (connection.db as unknown as { $client: { inTransaction: boolean } }).$client
+            .inTransaction,
+      ).length,
+  };
+}
+
 async function seedSharedPlans(
   withOptimizer = false,
   afterResolve?: () => void,
@@ -1131,27 +1167,17 @@ describe('shared displayed cache evidence', () => {
   });
 
   it('closes the human Retry snapshot before a matching-hash launcher handoff', async () => {
-    let openReads = 0;
+    const reads = snapshotCounting();
     const admittedOpenReads: number[] = [];
     const { lower } = await seedSharedPlans(
       true,
       undefined,
       () => {
-        admittedOpenReads.push(openReads);
+        admittedOpenReads.push(reads.openSnapshots());
         return new Promise<never>(() => undefined);
       },
       '0.4.0',
-      (dbPath) => {
-        const connection = openReadOnlyConnection(dbPath);
-        openReads += 1;
-        return {
-          db: connection.db,
-          close: () => {
-            connection.close();
-            openReads -= 1;
-          },
-        };
-      },
+      reads.open,
     );
     const tree = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
     const inputHash = (tree.body as { optimization: { inputHash: string } }).optimization.inputHash;
@@ -1169,7 +1195,7 @@ describe('shared displayed cache evidence', () => {
       ).status,
     ).toBe(202);
     expect(admittedOpenReads).toEqual([0]);
-    expect(openReads).toBe(0);
+    expect(reads.openSnapshots()).toBe(0);
   });
 
   it('Retry rejects an upstream-only old hash and launches the matching holder-bearing input', async () => {
@@ -1288,27 +1314,17 @@ describe('shared displayed cache evidence', () => {
   });
 
   it('closes the shared observation before admitting while retaining its display', async () => {
-    let openReads = 0;
+    const reads = snapshotCounting();
     const admittedOpenReads: number[] = [];
     const { lower } = await seedSharedPlans(
       true,
       undefined,
       () => {
-        admittedOpenReads.push(openReads);
+        admittedOpenReads.push(reads.openSnapshots());
         return new Promise<never>(() => undefined);
       },
       '0.4.0',
-      (dbPath) => {
-        const connection = openReadOnlyConnection(dbPath);
-        openReads += 1;
-        return {
-          db: connection.db,
-          close: () => {
-            connection.close();
-            openReads -= 1;
-          },
-        };
-      },
+      reads.open,
     );
     h.sqlite.run(
       "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
@@ -1320,7 +1336,7 @@ describe('shared displayed cache evidence', () => {
     expect(answer.status).toBe(200);
     expect(answer.body).toMatchObject({ optimization: { variants: { pri: { state: 'idle' } } } });
     expect(admittedOpenReads).toEqual([0, 0]);
-    expect(openReads).toBe(0);
+    expect(reads.openSnapshots()).toBe(0);
     expect(h.sqlite.query('SELECT project_id FROM solver_slot').all()).toEqual([
       { project_id: lower },
       { project_id: lower },

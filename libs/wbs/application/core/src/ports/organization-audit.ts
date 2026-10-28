@@ -30,6 +30,9 @@ export const ORGANIZATION_AUDIT_ACTIONS = [
   'compute_provider_removed',
   'machine_token_issued',
   'machine_token_issued_overflow',
+  'agent_pool_created',
+  'agent_pool_revoked',
+  'agent_pool_rekeyed',
 ] as const;
 
 export type OrganizationAuditAction = (typeof ORGANIZATION_AUDIT_ACTIONS)[number];
@@ -44,7 +47,8 @@ export type OrganizationAuditSubjectKind =
   | 'machine_credential'
   | 'trusted_issuer'
   | 'organization_limits'
-  | 'compute_provider';
+  | 'compute_provider'
+  | 'agent_pool';
 
 /**
  * The detail one audit row keeps: flat values only, so it is reviewable at a

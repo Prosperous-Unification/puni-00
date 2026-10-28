@@ -36,7 +36,10 @@ import { OrganizationHarness } from './organization-harness';
  * - `POST /__fixture/rotate-grant-key` replaces the grant key with a fresh one
  *   and keeps no previous key: a rotation that dropped `_PREVIOUS` early, so
  *   every grant already issued is `unknown_grant_key` (task 3.2);
- * - `GET /__fixture/audit` lists the organization audit rows.
+ * - `GET /__fixture/audit` lists the organization audit rows;
+ * - `POST /__fixture/compute-provider` registers an SSH host in org-a as dany and points a new
+ *   divisible resource at it: `{ providerId, resourceId }`;
+ * - `GET /__fixture/capacity-reports` lists the stored capacity reports.
  */
 const secret = process.env['MCP_TEST_BE_SECRET'];
 const authorizationServer = process.env['MCP_TEST_AUTHORIZATION_SERVER'];
@@ -171,6 +174,36 @@ async function fixture(request: Request, path: string): Promise<Response | undef
     failNextIssuance = true;
     return Response.json({ armed: true });
   }
+  if (request.method === 'POST' && path === '/__fixture/compute-provider') {
+    const provider = await h.call('dany', 'POST', '/api/organization/compute-providers', {
+      kind: 'ssh_host',
+      name: `host ${crypto.randomUUID()}`,
+      locator: 'puni1@h4claw',
+    });
+    if (provider.status !== 201) return Response.json(provider, { status: 500 });
+    const providerId = (provider.body as { id: string }).id;
+    const declared = await h.call('dany', 'POST', '/api/directory/commands', {
+      commands: [
+        { kind: 'createResource', name: 'h4claw ram', resourceKind: 'divisible', unitLabel: 'GB' },
+      ],
+    });
+    const resourceId = (declared.body as { results?: { id?: string }[] }).results?.at(0)?.id;
+    if (declared.status !== 200 || resourceId === undefined)
+      return Response.json(declared, { status: 500 });
+    const referenced = await h.call('dany', 'POST', '/api/directory/commands', {
+      commands: [{ kind: 'patchResource', resourceId, patch: { providerId } }],
+    });
+    if (referenced.status !== 200) return Response.json(referenced, { status: 500 });
+    return Response.json({ providerId, resourceId });
+  }
+  if (request.method === 'GET' && path === '/__fixture/capacity-reports')
+    return Response.json(
+      h.sqlite
+        .query(
+          'SELECT provider_id AS providerId, resource_id AS resourceId FROM resource_capacity_report',
+        )
+        .all(),
+    );
   if (request.method === 'GET' && path === '/__fixture/audit')
     return Response.json(
       h.sqlite.query('SELECT action, detail FROM organization_audit ORDER BY created_at, id').all(),

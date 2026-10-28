@@ -346,6 +346,8 @@ describe('the optimizer migration', () => {
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
         '20261026130000_widen_organization_audit_machine_tokens',
         '20261026120000_add_command_journal_person',
         '20261025130000_add_resource_runtime',
@@ -463,6 +465,7 @@ describe('the optimizer migration', () => {
             name !== 'resource_runtime_event' &&
             name !== 'resource_runtime_use' &&
             name !== 'resource_use' &&
+            name !== 'agent_pool' &&
             name !== 'resource_use_event' &&
             name !== 'shared_people_restore_operation' &&
             name !== 'shared_people_restore_receipt' &&

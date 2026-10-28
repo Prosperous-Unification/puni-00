@@ -41,6 +41,10 @@ _Avoid_: agent API, public API, REST for agents
 be-01's signed statement that one machine credential, acting in one run, was verified; mcp-01 presents it on every be-01 call it makes for that credential until it expires.
 _Avoid_: machine delegation, introspection token, service token
 
+**Human-only route**:
+An endpoint shape marked `humanOnly`, which mcp-01 never offers as a tool to any principal; organization administration and credential minting stay with people.
+_Avoid_: admin tool, excluded path
+
 **Agent pool**:
 An admin-approved set of agent persons and their machine credentials, created in one act, fixed after creation and revocable as a unit.
 _Avoid_: seat pool, fleet, swarm account
