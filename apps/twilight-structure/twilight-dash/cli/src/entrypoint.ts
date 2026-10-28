@@ -32,6 +32,15 @@ try {
       environment: process.env,
       write: (text) => process.stdout.write(text),
     });
+  } else if (argv[0] === 'pool') {
+    const { runPoolCommand, systemPoolFiles } = await import('./mcp/pool-import');
+    await runPoolCommand(argv.slice(1), {
+      send: (input, init) => fetch(input, init),
+      write: (text) => process.stdout.write(text),
+      helper: [process.execPath, import.meta.path],
+      sleep: (milliseconds) => Bun.sleep(milliseconds),
+      files: systemPoolFiles,
+    });
   } else {
     const { runDash, runFleetPlan } = await import('./cli');
     await runDash(argv, {

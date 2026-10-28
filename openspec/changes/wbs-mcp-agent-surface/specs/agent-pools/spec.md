@@ -134,3 +134,44 @@ under those credentials SHALL lapse at their own lease end with reason `lease ex
 - **WHEN** the clock passes a pool's `expiresAt`
 - **THEN** a token request with any of its keys is `401 invalid_client`, and its claims are
   released at most one lease period later with reason `lease expired`
+
+### Requirement: Dash imports a pool's keys whole, each agent with its own run
+
+`twilight-dash pool import <file> --store <directory>` SHALL read the keys document from an
+owner-only (`0600`) file (refusing any other with `chmod 600 <file>` named), refuse an unknown `format` or `version`, and refuse an
+`authorizationServer` other than the one `twilight-dash mcp token` derives from `mcpResource`.
+It SHALL issue one token per agent with that agent's key and run before writing anything, and
+SHALL write nothing when any key fails to issue. Each agent SHALL get its own `wbs_run`
+(`pool-<poolId>/<personId>`), an owner-only key file `mcp token --key-file` reads, and an MCP
+config whose `headersHelper` runs `mcp token` with that key file and run. No output or refusal
+SHALL carry a key.
+
+#### Scenario: A pool of three imported
+
+- **WHEN** an admin imports the keys document of a pool of 3 whose keys all issue
+- **THEN** each agent has its own key file, MCP config and run, three distinct runs, and the
+  output names the agents, their runs and the file to delete, never a key
+
+#### Scenario: A key that fails to issue
+
+- **WHEN** one agent's key of the document is refused at the token endpoint
+- **THEN** the import exits non-zero naming that agent and the OAuth error, and the store is
+  exactly as it was
+
+#### Scenario: Re-importing after a re-key
+
+- **WHEN** the document of a re-key that left one agent keyless (revoked alone) is imported
+  over the pool's earlier import
+- **THEN** the pool's key files are replaced in one rename, the keyless agent's key file is
+  gone, every other agent keeps its run and paths, and other pools are untouched
+
+#### Scenario: Leftover generations
+
+- **WHEN** a crashed or concurrent import left another generation of the pool in the store
+- **THEN** an import that switches the pool removes every generation but the current one, and
+  an import whose switch another import overtook exits non-zero
+
+#### Scenario: An unknown document version
+
+- **WHEN** the document's `version` is 2
+- **THEN** the import is refused naming the version, and no token request is sent

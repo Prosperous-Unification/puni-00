@@ -1,4 +1,4 @@
-import { parseSecretsOrThrow, type } from '@shared/validation';
+import { parseSecretsOrThrow } from '@shared/validation';
 
 import type { Monotonic } from '../clock';
 import {
@@ -7,8 +7,10 @@ import {
   type AssertionReader,
   type FetchLike,
   gitHubActionsReader,
+  IssuedToken,
   JWT_BEARER_GRANT,
   mcpEndpointOf,
+  postTokenRequest,
   refusalOf,
   retryAfterSecondsOf,
   runOf,
@@ -48,8 +50,6 @@ type Presentation =
 /** A value shaped like a `wbs_mk_` key, or like a JWT (three base64url parts, header `{"`). */
 const SECRET_SHAPE = /wbs_mk_[0-9a-f]{8}-/;
 const JWT_SHAPE = /^eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/;
-
-const IssuedToken = type({ access_token: 'string > 0', token_type: /^[Bb]earer$/ });
 
 /**
  * `twilight-dash mcp token`: prints `{"Authorization":"Bearer <token>"}` for Claude Code's
@@ -116,24 +116,8 @@ export async function runMcpCommand(
   // claim (2026-10-27).
   if (run !== undefined) form.set('wbs_run', run);
 
-  // A redirect is never followed: Bun re-sends a POST body, the assertion included, to a
-  // 307's target, whatever its origin.
-  const request = async (): Promise<Response> => {
-    const answer = await deps.send(endpoint.tokenUrl, {
-      method: 'POST',
-      headers,
-      body: form,
-      redirect: 'manual',
-    });
-    // Proof: following redirects (no `redirect: 'manual'`, no check) made `is never followed`
-    // print the other origin's token instead of refusing (2026-10-27).
-    if (answer.status >= 300 && answer.status < 400) {
-      throw new Error(
-        `the MCP token endpoint answered a redirect (HTTP ${String(answer.status)}); a token request is never redirected`,
-      );
-    }
-    return answer;
-  };
+  const request = (): Promise<Response> =>
+    postTokenRequest(deps.send, endpoint.tokenUrl, headers, form);
   let response = await request();
   if (response.status === 429) {
     const retryAfter = retryAfterSecondsOf(response);
