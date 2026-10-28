@@ -269,15 +269,16 @@
   - one bucket for successes and failures;
   - counting HTTP requests.
 - [ ] 4.3 Load evidence on h2puni under the heavy lock, recorded in verify.md.
-- [ ] 4.4 Bound mcp-01's grant-client fetch to be-01 at the token endpoint with a timeout (it
+- [x] 4.4 Bound mcp-01's grant-client fetch to be-01 at the token endpoint with a timeout (it
       holds a pending slot while it waits; review of PR #765). Negative: a never-answering be-01
-      frees the slot.
+      frees the slot. (Slice 7: `BE_CALL_TIMEOUT_MS`, raced; verify.md, slice 7.)
 
 ## 5. Human-only tools by policy
 
-- [ ] 5.1 The `humanOnly` policy, `EXCLUDED_PATHS` shrunk, the capacity report as a tool.
-      Negatives: untag a route; leave a tagged shape with no operation.
-- [ ] 5.2 One tool list for a consented human, a consented agent and a machine token.
+- [x] 5.1 The `humanOnly` policy, `EXCLUDED_PATHS` shrunk, the capacity report as a tool.
+      Negatives: untag a route; leave a tagged shape with no operation. (Slice 7; agent pools'
+      routes are tagged when task 6.2 adds them.)
+- [x] 5.2 One tool list for a consented human, a consented agent and a machine token. (Slice 7.)
 
 ## 6. Pools and account-keyed state (waits for `fix/wbs-undo-per-person`)
 
@@ -301,6 +302,9 @@
   - one credential skipped in revoke;
   - re-key creating persons;
   - `removePersons` leaving the count unchanged.
+
+  Tag the pool routes `humanOnly` (M8) and add them to the pinned human-only list.
+
 - [ ] 6.3 The fe-01 pool panel (keys once as a download, counts before confirming, rendered
       states, reviewed by eye).
 - [ ] 6.4 `twilight-dash pool import <file>`, giving each agent process its own `wbs_run`.

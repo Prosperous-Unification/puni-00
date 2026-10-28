@@ -11,7 +11,12 @@ import { loadConfig, type McpConfig } from './config';
 import type { DeploymentFaultReporter } from './deployment-fault';
 import { type McpOAuthHandler, startHttpServer } from './http';
 import { mcpOAuthFromEnv, type OAuthRouteEvidence } from './oauth';
-import { type OpenApiDocument, readDocument, toolsFromDocument } from './openapi-tools';
+import {
+  HUMAN_ONLY_OPERATIONS,
+  type OpenApiDocument,
+  readDocument,
+  toolsFromDocument,
+} from './openapi-tools';
 import { createServer } from './server';
 import { createUnexpectedToolFailureReporter } from './unexpected-tool-failure';
 import type { FetchLike } from './wbs-client';
@@ -77,7 +82,7 @@ export function startMcpApplication(deps: McpApplicationDeps = productionDeps): 
   readonly toolCount: number;
 } {
   const config = deps.loadConfig();
-  const tools = deps.toolsFromDocument(deps.readDocument());
+  const tools = deps.toolsFromDocument(deps.readDocument(), HUMAN_ONLY_OPERATIONS);
   const secrets = [
     config.WBS_BASIC_AUTH,
     config.INTERNAL_AUTH_SECRET,
