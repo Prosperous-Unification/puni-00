@@ -2,8 +2,14 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'bun:test';
 
-import type { DerivedTool } from './openapi-tools';
-import { EXCLUDED_PATHS, isExcluded, readDocument, toolsFromDocument } from './openapi-tools';
+import type { DerivedTool, HumanOnlyOperation, OpenApiDocument } from './openapi-tools';
+import {
+  EXCLUDED_PATHS,
+  HUMAN_ONLY_OPERATIONS,
+  isExcluded,
+  readDocument,
+  toolsFromDocument,
+} from './openapi-tools';
 
 interface FixtureBodySchema {
   type?: string;
@@ -36,41 +42,6 @@ const fixture = (): FixtureDocument => ({
     '/api/smoke/echo': { post: { operationId: 'postApiSmokeEcho' } },
     '/api/organization/memberships': { get: { operationId: 'getApiOrganizationMemberships' } },
     '/api/organization/active': { post: { operationId: 'postApiOrganizationActive' } },
-    '/api/organization/provisioning-tokens': {
-      post: { operationId: 'postApiOrganizationProvisioningTokens' },
-    },
-    '/api/organization/provisioning-tokens/{id}': {
-      delete: { operationId: 'deleteApiOrganizationProvisioningTokensById' },
-    },
-    '/api/organization/agent-pools': {
-      post: { operationId: 'postApiOrganizationAgent-pools' },
-    },
-    '/api/organization/agent-pools/{id}': {
-      delete: { operationId: 'deleteApiOrganizationAgent-poolsById' },
-    },
-    '/api/organization/machine-credentials': {
-      post: { operationId: 'postApiOrganizationMachine-credentials' },
-    },
-    '/api/organization/machine-credentials/{id}': {
-      delete: { operationId: 'deleteApiOrganizationMachine-credentialsById' },
-    },
-    '/api/organization/trusted-issuers': {
-      post: { operationId: 'postApiOrganizationTrusted-issuers' },
-    },
-    '/api/organization/trusted-issuers/{id}': {
-      delete: { operationId: 'deleteApiOrganizationTrusted-issuersById' },
-    },
-    '/api/organization/compute-providers': {
-      post: { operationId: 'postApiOrganizationCompute-providers' },
-    },
-    '/api/organization/compute-providers/{id}': {
-      delete: { operationId: 'deleteApiOrganizationCompute-providersById' },
-    },
-    '/api/compute-providers/{providerId}/resources/{resourceId}/capacity-report': {
-      put: {
-        operationId: 'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
-      },
-    },
     '/api/auth/login': { post: { operationId: 'postApiAuthLogin' } },
     '/internal/forward': { post: { operationId: 'postInternalForward' } },
     '/api/projects/': {
@@ -111,6 +82,19 @@ const fixture = (): FixtureDocument => ({
   },
 });
 
+/** The fixture's own `humanOnly` policy: its one administration route. */
+const FIXTURE_HUMAN_ONLY: readonly HumanOnlyOperation[] = [
+  {
+    method: 'get',
+    path: '/api/organization/memberships',
+    operationId: 'getApiOrganizationMemberships',
+  },
+];
+
+/** {@link toolsFromDocument} on a fixture, under the fixture's policy. */
+const derive = (document: OpenApiDocument): DerivedTool[] =>
+  toolsFromDocument(document, FIXTURE_HUMAN_ONLY);
+
 const byName = (tools: DerivedTool[], name: string): DerivedTool => {
   const tool = tools.find((candidate) => candidate.name === name);
   if (tool === undefined) throw new Error(`no tool named ${name} was derived`);
@@ -119,7 +103,7 @@ const byName = (tools: DerivedTool[], name: string): DerivedTool => {
 
 describe('toolsFromDocument, on a fixture document', () => {
   it('names each tool after its operationId and keeps its method and path', () => {
-    const band = byName(toolsFromDocument(fixture()), 'putBand');
+    const band = byName(derive(fixture()), 'putBand');
     expect(band.method).toBe('put');
     expect(band.path).toBe('/api/projects/{id}/bands/{stepId}');
     expect(band.description).toContain('Set a band');
@@ -133,13 +117,11 @@ describe('toolsFromDocument, on a fixture document', () => {
   it('throws on an operation with no operationId rather than synthesising one', () => {
     const document = fixture();
     delete document.paths['/api/projects/{id}']?.['get']?.operationId;
-    expect(() => toolsFromDocument(document)).toThrow(
-      /GET \/api\/projects\/\{id\} has no operationId/,
-    );
+    expect(() => derive(document)).toThrow(/GET \/api\/projects\/\{id\} has no operationId/);
   });
 
   it('emits no tool for any of D1’s three exclusion classes', () => {
-    const names = toolsFromDocument(fixture()).map((tool) => tool.name);
+    const names = derive(fixture()).map((tool) => tool.name);
     expect(names).not.toContain('getHealth');
     expect(names).not.toContain('getMetrics');
     expect(names).not.toContain('postApiSmokeEcho');
@@ -156,15 +138,13 @@ describe('toolsFromDocument, on a fixture document', () => {
   it('throws when an exclusion entry matches nothing in the document', () => {
     const document = fixture();
     delete document.paths['/internal/forward'];
-    expect(() => toolsFromDocument(document)).toThrow('exclusion list names');
+    expect(() => derive(document)).toThrow('exclusion list names');
   });
 
   it('excludes a whole prefix, not just the path that was named', () => {
     const document = fixture();
     document.paths['/internal/resume'] = { post: { operationId: 'postInternalResume' } };
-    expect(toolsFromDocument(document).map((tool) => tool.name)).not.toContain(
-      'postInternalResume',
-    );
+    expect(derive(document).map((tool) => tool.name)).not.toContain('postInternalResume');
   });
 
   // Task 2.4's other half: a route the document gained must appear, not be
@@ -172,11 +152,11 @@ describe('toolsFromDocument, on a fixture document', () => {
   it('emits a route the document gained rather than filtering it silently', () => {
     const document = fixture();
     document.paths['/api/invented'] = { get: { operationId: 'getApiInvented' } };
-    expect(toolsFromDocument(document).map((tool) => tool.name)).toContain('getApiInvented');
+    expect(derive(document).map((tool) => tool.name)).toContain('getApiInvented');
   });
 
   it('merges body properties with path parameters and keeps both sides required', () => {
-    const band = byName(toolsFromDocument(fixture()), 'putBand');
+    const band = byName(derive(fixture()), 'putBand');
     expect(Object.keys(band.inputSchema.properties).sort()).toEqual([
       'floor',
       'id',
@@ -190,7 +170,7 @@ describe('toolsFromDocument, on a fixture document', () => {
   });
 
   it('leaves an optional query parameter optional', () => {
-    const list = byName(toolsFromDocument(fixture()), 'getApiProjects');
+    const list = byName(derive(fixture()), 'getApiProjects');
     expect(list.locations).toEqual({ q: 'query' });
     expect(list.inputSchema.required).toBeUndefined();
   });
@@ -202,7 +182,7 @@ describe('toolsFromDocument, on a fixture document', () => {
       in: 'header',
       schema: { type: 'string' },
     });
-    expect(() => toolsFromDocument(document)).toThrow(/"x-tenant" in "header"/);
+    expect(() => derive(document)).toThrow(/"x-tenant" in "header"/);
   });
 
   it('refuses a name claimed by both a parameter and a body property', () => {
@@ -211,25 +191,49 @@ describe('toolsFromDocument, on a fixture document', () => {
     const properties = body?.content?.['application/json']?.schema?.properties;
     if (properties === undefined) throw new Error('the fixture lost its body schema');
     properties['id'] = { type: 'string' };
-    expect(() => toolsFromDocument(document)).toThrow(
+    expect(() => derive(document)).toThrow(
       /"id" is declared as both a path input and a body input/,
     );
   });
 
   it('passes a request body’s own description through unedited (D8)', () => {
-    expect(byName(toolsFromDocument(fixture()), 'putBand').description).toContain(
+    expect(byName(derive(fixture()), 'putBand').description).toContain(
       'The schema here is documentation, not validation.',
     );
   });
 
   it('says so when the document carries no prose, rather than inventing any', () => {
-    expect(byName(toolsFromDocument(fixture()), 'getApiProjectsById').description).toBe(
+    expect(byName(derive(fixture()), 'getApiProjectsById').description).toBe(
       'GET /api/projects/{id} — the OpenAPI document carries no prose for this operation.',
     );
   });
 
   it('refuses a document with no paths', () => {
-    expect(() => toolsFromDocument({})).toThrow(/no paths/);
+    expect(() => derive({})).toThrow(/no paths/);
+  });
+
+  // M8: an untagged administration route is a tool like any other, which is what the tag is for.
+  it('offers an untagged route as a tool', () => {
+    expect(toolsFromDocument(fixture(), []).map((tool) => tool.name)).toContain(
+      'getApiOrganizationMemberships',
+    );
+  });
+
+  it('refuses to start when a humanOnly shape matches no operation', () => {
+    const document = fixture();
+    delete document.paths['/api/organization/memberships'];
+    expect(() => derive(document)).toThrow(
+      'the humanOnly shapes GET /api/organization/memberships (getApiOrganizationMemberships) match no operation',
+    );
+  });
+
+  // A tag names a method too: the same path under another method is not the tagged route.
+  it('refuses a humanOnly shape whose method the document serves under no such path', () => {
+    const document = fixture();
+    document.paths['/api/organization/memberships'] = {
+      post: { operationId: 'getApiOrganizationMemberships' },
+    };
+    expect(() => derive(document)).toThrow('match no operation');
   });
 });
 
@@ -247,7 +251,10 @@ describe('toolsFromDocument, on the generated document', () => {
     const expected = Object.entries(document.paths ?? {})
       .flatMap(([path, item]) =>
         Object.values(item ?? {}).map((operation) =>
-          isExcluded(path) ? undefined : operation?.operationId,
+          isExcluded(path) ||
+          HUMAN_ONLY_OPERATIONS.some((tagged) => tagged.operationId === operation?.operationId)
+            ? undefined
+            : operation?.operationId,
         ),
       )
       .filter((id): id is string => id !== undefined);
@@ -289,7 +296,7 @@ describe('toolsFromDocument, on the generated document', () => {
       'workItems',
     ]);
     expect(JSON.stringify(importDocument.inputSchema)).not.toContain('"$ref"');
-    expect(EXCLUDED_PATHS).toHaveLength(16);
+    expect(EXCLUDED_PATHS).toHaveLength(4);
   });
 
   it('never offers the sign-in method list as a tool', () => {

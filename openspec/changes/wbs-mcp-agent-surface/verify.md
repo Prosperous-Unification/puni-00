@@ -1422,6 +1422,113 @@ fail (6 files); `tool-devsync` `sync.test.ts -t "boot-commit convergence"` 8 pas
 HEAD` exit 0; prettier clean. The full Dash and tool-devsync suites were not rerun; CI runs
 them.
 
+## Slice 7: the grant-client timeout and human-only tools by policy (tasks 4.4, 5.1, 5.2)
+
+Built on branch `feat/wbs-mcp-human-only-7` from main at 6b4e05823 (slices 1 to 6 merged
+through #751 and #769), 2026-10-28, for the plan branch `plan/wbs-mcp-agent-surface-2`. Every
+test below ran under `env -u CLAUDECODE` on the laptop; nothing ran on h2puni, and no host was
+touched.
+
+What landed:
+
+- **4.4.** `machineGrantClient` (`apps/wbs/mcp-01/src/machine-grant-client.ts`) bounds its fetch
+  to be-01's grant route, body included, by `BE_CALL_TIMEOUT_MS` (35 s, the tool-call bound of
+  section 4 note 15), raced with `untilAborted` (now exported by `wbs-client.ts`) so a fetch that
+  ignores its signal cannot hold the request. A timeout is `MachineGrantTimedOut`, a
+  `MachineGrantDefect`: the token endpoint reports it and answers `502 server_error`, and the
+  request's `finally` releases its pending slot and reservation as for any other defect. The
+  third parameter sets the bound for tests.
+- **5.1.** `EndpointShape.humanOnly` (`libs/wbs/domain/contracts/src/http/endpoint-shape.ts`)
+  tags 45 shapes. `EXCLUDED_PATHS` (`apps/wbs/mcp-01/src/openapi-tools.ts`) shrinks to
+  `/api/auth/*`, `/internal/*`, `/api/smoke/echo` and `/api/organization/active`.
+  `toolsFromDocument(document, humanOnly = HUMAN_ONLY_OPERATIONS)` skips every operation
+  whose method and path a `humanOnly` shape declares, and throws when one matches nothing.
+  `main.ts` derives its tools at startup, so that throw fails the boot. The capacity report,
+  `putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report`, is a tool. The
+  tool count goes from 104 to 76: 29 newly tagged operations leave the list, the capacity report
+  joins it, and the README says so.
+- **5.2.** `organization-delegation.boot.test.ts` lists tools at one mcp-01, against the booted
+  be-01, as a consented human (dany), a consented agent (claire) and a machine token. The three
+  answers (names, descriptions and input schemas) are equal, and they are the whole derived set.
+
+### Slice 7 notes (assumptions taken, and gaps in the design)
+
+1. **The covered set.** It is the spec delta's list: machine credentials (4), trusted issuers
+   (3), provisioning tokens (4), memberships and the members routes (1 and 3), invitations (3,
+   plus the onboarding accept), join requests (3), domains (5), SSO connections (4), the session
+   policy (2), the limits read (1), the capacity-mode switch (`patchApiOrganization`; the read
+   `getApiOrganization` stays a tool), restore approvals (1) and onboarding (5). Compute provider
+   administration (4) is tagged as well. The spec does not name it, but it was excluded before
+   and is administration of the same kind; leaving it untagged would have exposed it when
+   `EXCLUDED_PATHS` shrank. Agent pools do not exist yet: task 6.2 tags their routes, and
+   `generated-document.test.ts`'s pinned `HUMAN_ONLY` list gains them then.
+2. **Where the tag lives.** It is a field on the shape (`humanOnly?: true`), not a
+   `RequestPolicy` kind. be-01's adapters read `policies` to authorize a request, and this tag
+   authorizes nothing in be-01. mcp-01 reads it from `httpShapes`, not from the emitted
+   document, so the OpenAPI document is unchanged. An external fixture document passes its own
+   `humanOnly` list: the fixture tests pass a one-entry list, or `[]` where the fixture tags
+   nothing.
+3. **"Matching nothing".** A tagged shape matches by method and the document's `{name}` path.
+   `documentPathOf` is now exported by `@wbs/contracts` for this, and the emitter uses it too. In
+   production the document is generated from the same table, so the startup throw guards a
+   document that drifted from the shapes, as the `EXCLUDED_PATHS` stale check does.
+4. **The capacity report's two halves.** A provider reporter's machine token reaching be-01
+   through the tool is `machine-admission.boot.test.ts`'s new test against the booted grant
+   backend, which gains two fixture routes. A consented agent's `not_an_agent_principal` is
+   be-01's existing `refuses a browser session and an MCP delegation, storing nothing`
+   (`compute-provider.controller.db.test.ts`). An MCP delegation is the principal a consent
+   session's call carries, and nothing in this slice changes it.
+5. **The machine token in the parity test.** The delegation backend holds no grant keys, so the
+   test's mcp-01 composes machine grants over a stand-in for be-01's grant route.
+   `tools/list` asks be-01 nothing, so the stand-in grant is never sent to be-01. The consent
+   tokens are the real booted ones.
+6. **The 5.2 negative is the machine half.** The injected fault hides write tools from a caller
+   whose `authInfo` carries a machine caller. A human and an agent consent carry the same
+   `authInfo` shape (subject, scopes, session id), so no realistic fault separates them in the
+   `tools/list` handler. The test still asserts agent equals human.
+7. **A timeout is reported, not `temporarily_unavailable`.** A be-01 that accepts the connection
+   and never answers is a deployment fault no one else reports, as `BeCallTimedOut` is for a tool
+   call. `unavailable` (503) stays for a be-01 that refuses connections or answers 5xx, and be-01
+   reports those failures itself.
+8. **A delegated claimant's members test.** The agent-consent test in
+   `organization-delegation.boot.test.ts` asserted that `getApiOrganizationMembers` answered
+   `insufficient_scope`. That tool no longer exists, so the test now asserts it is absent from
+   the agent's `tools/list`.
+
+### Commands and results, slice 7
+
+All on 2026-10-28 at the head of this branch, with `env -u CLAUDECODE` and `--skip-nx-cache`:
+
+| Command                                                                                     | Result                                                           |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `bunx nx run-many -t typecheck lint -p wbs-mcp-01 wbs-contracts wbs-be-01`                  | exit 0                                                           |
+| `bunx nx run-many -t test -p wbs-contracts`                                                 | 609 pass, 0 fail (60 files)                                      |
+| `bunx nx run-many -t test -p wbs-mcp-01`                                                    | 720 pass, 0 fail (32 files)                                      |
+| `bunx nx run-many -t test -p wbs-be-01`                                                     | 3784 pass, 0 fail (3787 tests, 259 files, 1331.2 s)              |
+| `bunx openspec validate --all --json`                                                       | exit 0; 301 items, 301 passed                                    |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` | exit 0 (the existing store-memory and plan-commands review debt) |
+| `bunx prettier --check` on every changed file                                               | "All matched files use Prettier code style!"                     |
+
+Not run: the h2puni gate, fe-01 and its e2e (no fe-01 file changed, and the shape type gains
+one optional field), gw-01, and `tool-devsync`. The tool-devsync tests were skipped because
+mcp-01's OAuth metadata is unchanged (`bin/dev-mcp-probe.sh` checks only the metadata) and no
+env or deploy file changed. No migration changed.
+
+### Failure-proof table, slice 7
+
+Each check was watched failing with the fault injected, then restored. The `Proof:` comment
+sits beside the check or its test.
+
+| #   | Check                                                    | Fault injected                                                                   | Test that observed it failing                                                                                                                                                                                                                |
+| --- | -------------------------------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G1  | the grant fetch is raced against its timeout (4.4)       | the race removed; the signal only handed to a fetch that ignores it              | limits `frees the pending slot of a grant request be-01 never answers, after the timeout`: timed out after 5000 ms                                                                                                                           |
+| G2  | a timeout is `MachineGrantTimedOut`                      | the `signal.aborted` mapping disabled                                            | the same test: reported `could not send the request to be-01 …: TimeoutError`, not `MachineGrantTimedOut`                                                                                                                                    |
+| H1  | a `humanOnly` shape is no tool (5.1, "untag a route")    | `humanOnly: true` removed from `listMembers` (`organization-shapes.ts`)          | `tags exactly the covered set humanOnly, and offers none of it as a tool`, `pins every generated MCP operation name…` and the README count (76 vs 77)                                                                                        |
+| H2  | the derivation skips a tagged operation                  | the `continue` after a `humanOnly` match removed                                 | `emits no tool for any of D1’s three exclusion classes` (the fixture's `getApiOrganizationMemberships` became a tool); deriving the generated document threw at `POST /api/organization/machine-credentials` (17 tests across the two files) |
+| H3  | a tagged shape matching no operation fails startup (5.1) | the `unmatched.length > 0` throw disabled                                        | `refuses to start when a humanOnly shape matches no operation` (fixture), `…whose method the document serves under no such path`, and `…of the generated document`                                                                           |
+| H4  | the capacity report is a tool (5.1)                      | `/api/compute-providers/*` put back in `EXCLUDED_PATHS`                          | `machine-admission.boot.test.ts` `an agent's machine token reports capacity through the tool, and be-01 stores it`: `mcp-01 has no tool named …Capacity-report`                                                                              |
+| P1  | one tool list for every principal (5.2)                  | the `tools/list` handler hides non-GET tools from a caller with a machine caller | `organization-delegation.boot.test.ts` `a consented human, a consented agent and a machine token list the same tools`                                                                                                                        |
+
 ## Slice 8: agent pools (tasks 6.0, 6.1 and 6.2)
 
 Built on branch `feat/wbs-agent-pools-8` from `plan/wbs-mcp-agent-surface-2` at 6b4e05823,
@@ -1511,12 +1618,11 @@ What landed:
     as `401 unknown_identity`; mcp-01 maps that to `invalid_client` (`machine-token.test.ts`
     `maps unknown_identity and not_activated to invalid_client…`, in the mcp-01 run below). The lease then lapses at its own end and is
     released as `lease expired`.
-14. **Follow-up at merge with slice 7 (#770, open when this PR opened).** #770 adds
-    `EndpointShape.humanOnly?: true` and mcp-01 hides tagged routes from every tool list. The
-    pool routes (create, re-key, revoke, and the admin listing) mint or reveal keys and must be
-    tagged `humanOnly`, and mcp-01 `generated-document.test.ts`'s pinned `HUMAN_ONLY` list must
-    name them. Until then they are kept out of the tools by `EXCLUDED_PATHS` (F-table P10); when
-    both land, the coordinator tags them at merge and decides whether the exclusion entries stay.
+14. **Human-only (M8, slice 7 / #770).** After merging the plan branch with #770, all four pool
+    shapes carry `humanOnly: true`, and mcp-01's pinned `HUMAN_ONLY` list in
+    `generated-document.test.ts` names them. The `EXCLUDED_PATHS` entries this slice first added
+    were dropped, because #770 replaced those credential exclusions with the tag. P14 is now the
+    tag (see below).
 
 ### Commands and results, slice 8
 
@@ -1566,6 +1672,12 @@ sits beside the check or its test. "Controller" is `agent-pool.controller.db.tes
 | P14 | pool routes are no MCP tools                          | both `EXCLUDED_PATHS` entries removed               | mcp-01 `generated-document.test.ts` `keeps agent pool administration out of the generated MCP tools`                                    |
 | P15 | boot wires the pools                                  | the `agentPools` binding removed                    | `boot.db.test.ts` `serves agent pools from the shared database once activated`: "boot did not wire agent pools"                         |
 | P16 | no key in a log line                                  | the create route logs the minted keys               | controller `makes eight agent persons…`: `not.toContain` over the console capture                                                       |
+
+16. **P14 after #770.** With `humanOnly` removed from `createAgentPool`, three mcp-01 tests
+    failed: `tags exactly the covered set humanOnly…`, `pins every generated MCP operation
+name…` and `keeps agent pool administration out of the generated MCP tools`. After the
+    merge, the full mcp-01 `bun test src/` gave 721 pass, 0 fail. README's tool count (76) is
+    unchanged, because no pool route is a tool.
 
 Every negative is restored in the tree. Two of them also stay as permanent tests, run on edited
 copies of the folder: `fails task 1.2's insert when the forward rebuild omits an issuance index`

@@ -77,7 +77,7 @@ export class ToolCallCancelled extends Error {
  * `work` raced against `signal`: it rejects with the signal's reason once the signal aborts,
  * even when `work` itself never settles (a fetch that ignores its signal).
  */
-async function untilAborted<T>(signal: AbortSignal, work: () => Promise<T>): Promise<T> {
+export async function untilAborted<T>(signal: AbortSignal, work: () => Promise<T>): Promise<T> {
   let stop: (() => void) | undefined;
   const aborted = new Promise<never>((_resolve, reject) => {
     const abort = () => {

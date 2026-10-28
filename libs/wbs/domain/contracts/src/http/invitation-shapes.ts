@@ -39,6 +39,7 @@ export const listInvitations = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/invitations',
   operationId: 'getApiOrganizationInvitations',
+  humanOnly: true,
   policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     { kind: 'json', status: 200, schema: responseSchema(type({ invitations: summary.array() })) },
@@ -52,6 +53,7 @@ export const createInvitation = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/invitations',
   operationId: 'postApiOrganizationInvitations',
+  humanOnly: true,
   policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   // Proof: 2026-09-28, admitting super_admin here failed `rejects malformed recipient addresses and a super-admin offer` (403 instead of 400).
   body: requestSchema(type({ email: 'string', role: "'admin' | 'member' | 'viewer'" })),
@@ -70,6 +72,7 @@ export const revokeInvitation = defineEndpointShape({
   method: 'DELETE',
   path: '/api/organization/invitations/:id',
   operationId: 'deleteApiOrganizationInvitationsById',
+  humanOnly: true,
   policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
@@ -88,6 +91,7 @@ export const acceptInvitation = defineEndpointShape({
   method: 'POST',
   path: '/api/onboarding/invitations/accept',
   operationId: 'postApiOnboardingInvitationsAccept',
+  humanOnly: true,
   policies: [...writePolicies, { kind: 'organization-control' }],
   body: requestSchema(type({ token: 'string' })),
   responses: [

@@ -3,7 +3,7 @@ import { type } from '@wbs/validation';
 
 import { McpDeploymentFault } from './deployment-fault';
 import type { Concealed } from './token-request';
-import type { FetchLike } from './wbs-client';
+import { BE_CALL_TIMEOUT_MS, type FetchLike, untilAborted } from './wbs-client';
 
 /** One machine grant request, as mcp-01's token endpoint sends it to be-01 (M3). */
 export interface MachineGrantRequest {
@@ -61,6 +61,14 @@ export interface MachineGrantClient {
  */
 export class MachineGrantDefect extends McpDeploymentFault {}
 
+/**
+ * be-01 did not answer the grant route, body included, within the client's bound
+ * ({@link BE_CALL_TIMEOUT_MS} unless composed otherwise). A fault of the deployment, as a
+ * defect is: the token request answers `server_error` and is reported, and the request's
+ * pending slot and reservation end with it (`wbs-mcp-agent-surface` task 4.4).
+ */
+export class MachineGrantTimedOut extends MachineGrantDefect {}
+
 const ISSUED = type({
   grant: 'string',
   credentialId: 'string',
@@ -86,40 +94,59 @@ export function machineGrantClient(
     readonly MCP_BE_INTERNAL_SECRET: string;
   },
   fetchImpl: FetchLike = fetch,
+  timeoutMs: number = BE_CALL_TIMEOUT_MS,
 ): MachineGrantClient {
   const url = `${config.WBS_API_URL.replace(/\/+$/, '')}${ROUTE}`;
   return {
     async issue(request) {
+      const signal = AbortSignal.timeout(timeoutMs);
       let response: Response;
+      let text: string;
       try {
-        response = await fetchImpl(url, {
-          method: 'POST',
-          // Never followed: the key and the secret stay with be-01, and a 3xx is a defect.
-          // Proof: following redirects made `never follows a redirect…` (machine-token.test.ts)
-          // see the secret at the other origin; watched 2026-10-27.
-          redirect: 'manual',
-          headers: {
-            // Proof: sending it as x-internal-auth failed `sends the key with the dedicated
-            // secret…` (machine-token.test.ts); watched 2026-10-27.
-            [MCP_INTERNAL_SECRET_HEADER]: config.MCP_BE_INTERNAL_SECRET,
-            'content-type': 'application/json',
-            ...(config.WBS_BASIC_AUTH === undefined
-              ? {}
-              : {
-                  'proxy-authorization': `Basic ${Buffer.from(config.WBS_BASIC_AUTH, 'utf8').toString('base64')}`,
-                }),
-          },
-          body: JSON.stringify({
-            issuer: request.issuer,
-            credential:
-              request.credential.kind === 'api_key'
-                ? { kind: 'api_key', key: request.credential.key.reveal() }
-                : { kind: 'oidc', assertion: request.credential.assertion.reveal() },
-            expiresAt: request.expiresAt,
-            ...(request.run === null ? {} : { run: request.run }),
-          }),
+        // Raced, so a fetch that ignores its signal, or a body that never ends, cannot hold the
+        // request's pending slot (M10).
+        // Proof: with the race removed (the signal only handed to a fetch that ignores it),
+        // `frees the pending slot of a grant request be-01 never answers, after the timeout`
+        // (machine-limits.test.ts) hung past its 5 s bound; watched 2026-10-28.
+        [response, text] = await untilAborted(signal, async () => {
+          const answered = await fetchImpl(url, {
+            signal,
+            method: 'POST',
+            // Never followed: the key and the secret stay with be-01, and a 3xx is a defect.
+            // Proof: following redirects made `never follows a redirect…` (machine-token.test.ts)
+            // see the secret at the other origin; watched 2026-10-27.
+            redirect: 'manual',
+            headers: {
+              // Proof: sending it as x-internal-auth failed `sends the key with the dedicated
+              // secret…` (machine-token.test.ts); watched 2026-10-27.
+              [MCP_INTERNAL_SECRET_HEADER]: config.MCP_BE_INTERNAL_SECRET,
+              'content-type': 'application/json',
+              ...(config.WBS_BASIC_AUTH === undefined
+                ? {}
+                : {
+                    'proxy-authorization': `Basic ${Buffer.from(config.WBS_BASIC_AUTH, 'utf8').toString('base64')}`,
+                  }),
+            },
+            body: JSON.stringify({
+              issuer: request.issuer,
+              credential:
+                request.credential.kind === 'api_key'
+                  ? { kind: 'api_key', key: request.credential.key.reveal() }
+                  : { kind: 'oidc', assertion: request.credential.assertion.reveal() },
+              expiresAt: request.expiresAt,
+              ...(request.run === null ? {} : { run: request.run }),
+            }),
+          });
+          return [answered, await answered.text()] as const;
         });
       } catch (cause) {
+        // Proof: without this mapping, `frees the pending slot…` (machine-limits.test.ts) was
+        // reported the misleading "could not send the request to be-01 …: TimeoutError" defect
+        // instead of MachineGrantTimedOut; watched 2026-10-28.
+        if (signal.aborted)
+          throw new MachineGrantTimedOut(
+            `be-01 ${ROUTE} did not answer within ${String(timeoutMs / 1_000)} s`,
+          );
         // Proof: rethrowing failed `answers 503 temporarily_unavailable when be-01 fails or cannot
         // be reached` (machine-token.test.ts); admitting every TypeError made `throws a defect…
         // for a request fetch refused to send` answer 503; watched 2026-10-27.
@@ -130,7 +157,6 @@ export function machineGrantClient(
           `could not send the request to be-01 ${ROUTE}: ${cause instanceof Error ? cause.name : typeof cause}`,
         );
       }
-      const text = await response.text();
       if (response.status === 200) return { kind: 'issued', ...parsedIssued(text) };
       // Proof: with this removed, `answers 503 temporarily_unavailable…` (machine-token.test.ts)
       // threw a defect; watched 2026-10-27.

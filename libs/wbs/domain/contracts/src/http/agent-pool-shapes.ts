@@ -70,6 +70,7 @@ export const listAgentPools = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/agent-pools',
   operationId: 'getApiOrganizationAgent-pools',
+  humanOnly: true,
   policies: [...readPolicy, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     {
@@ -97,6 +98,10 @@ export const createAgentPool = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/agent-pools',
   operationId: 'postApiOrganizationAgent-pools',
+  // Proof: with this tag removed, mcp-01's `tags exactly the covered set humanOnly…`,
+  // `pins every generated MCP operation name…` and `keeps agent pool administration out of
+  // the generated MCP tools` failed (3 fail); watched 2026-10-28.
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   body: requestSchema(
     type({
@@ -135,6 +140,7 @@ export const rekeyAgentPool = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/agent-pools/:id/rekey',
   operationId: 'postApiOrganizationAgent-poolsByIdRekey',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [{ kind: 'json', status: 201, schema: responseSchema(agentPoolKeys) }],
@@ -159,6 +165,7 @@ export const revokeAgentPool = defineEndpointShape({
   method: 'DELETE',
   path: '/api/organization/agent-pools/:id',
   operationId: 'deleteApiOrganizationAgent-poolsById',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   query: requestSchema(type({ 'removePersons?': "'true' | 'false'" })),

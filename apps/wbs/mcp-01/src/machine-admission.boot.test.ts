@@ -306,6 +306,30 @@ describe('a headless agent on /mcp', () => {
     expect(tokenRequests).toBe(1);
   });
 
+  // M8: the capacity report is a tool now, and be-01 accepts it from a machine principal alone
+  // (a consent session's `not_an_agent_principal` is be-01's `compute-provider.controller.db.test.ts`
+  // `refuses a browser session and an MCP delegation, storing nothing`).
+  // Proof: with `/api/compute-providers/*` put back in EXCLUDED_PATHS (openapi-tools.ts), the
+  // call was refused `mcp-01 has no tool named …` and nothing was stored; watched 2026-10-28.
+  test("an agent's machine token reports capacity through the tool, and be-01 stores it", async () => {
+    const { providerId, resourceId } = await fixture<{ providerId: string; resourceId: string }>(
+      'compute-provider',
+    );
+    const reported = await call(
+      'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
+      {
+        providerId,
+        resourceId,
+        observedAt: Date.now() - 1_000,
+        cadenceSeconds: 300,
+        outcome: { kind: 'measured', capacityUnits: 15, usageUnits: 8 },
+      },
+    );
+    expect(reported.isError).toBe(false);
+    const stored = (await (await fetch(`${beUrl}/__fixture/capacity-reports`)).json()) as unknown;
+    expect(stored).toEqual([{ providerId, resourceId }]);
+  });
+
   test('re-fetches at expiry: the next request gets 401, the provider asks again, the call succeeds', async () => {
     const before = tokenRequests;
     const expired = currentToken();
