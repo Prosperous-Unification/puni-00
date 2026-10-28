@@ -282,9 +282,9 @@
 
 ## 6. Pools and account-keyed state (waits for `fix/wbs-undo-per-person`)
 
-- [ ] 6.0 Grep every check keyed by `userId` or account, and add any that M16's table is
-      missing.
-- [ ] 6.1 Migrations:
+- [x] 6.0 Grep every check keyed by `userId` or account, and add any that M16's table is
+      missing. (Five rows added to M16, 2026-10-28; verify.md slice 8.)
+- [x] 6.1 Migrations:
   - `add_agent_pool` and `machine_credential.agent_pool_id`;
   - the audit actions `agent_pool_created`, `agent_pool_revoked` and `agent_pool_rekeyed`, by
     compatible rebuild (`machine_token_issued` shipped in task 1.2). Both the rebuild and its
@@ -293,9 +293,10 @@
     the `down.sql`, and the same insert fails after rolling 6.1 back;
   - guarded `down.sql` files.
 
-  Negative: drop each guard.
+  Negative: drop each guard. (Landed as `20261028100000_add_agent_pool` and
+  `20261028100100_widen_organization_audit_agent_pools`; verify.md slice 8.)
 
-- [ ] 6.2 Pool routes: create (through `addPerson`'s cap check), re-key, and revoke with
+- [x] 6.2 Pool routes: create (through `addPerson`'s cap check), re-key, and revoke with
       `removePersons`. Tests: every agent-pools scenario. Negatives:
   - the cap check outside the transaction (`fc.asyncModelRun`);
   - a member allowed to create;
@@ -304,6 +305,9 @@
   - `removePersons` leaving the count unchanged.
 
   Tag the pool routes `humanOnly` (M8) and add them to the pinned human-only list.
+
+  (verify.md slice 8: `removePersons` is a query flag; pool persons are written by the pool's
+  own transaction with `addPerson`'s reading and decision, not through a directory batch.)
 
 - [ ] 6.3 The fe-01 pool panel (keys once as a download, counts before confirming, rendered
       states, reviewed by eye).

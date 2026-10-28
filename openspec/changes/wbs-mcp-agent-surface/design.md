@@ -489,21 +489,34 @@ _Alternatives:_ per-principal filtering, or descriptions per principal (two cont
 **M7. Agent pools: API-key bulk issuance, re-keyable, delivered once.**
 
 - _Creation._ An admin's browser session posts `{ name, size ≤ 100, expiresAt? }`. In one
-  transaction this creates `size` agent persons bound to the admin's account, through
-  **`addPerson`'s own agent-person cap check**, and one API key each.
-- _Delivery._ fe-01 shows the keys once, as a single download (`pool-<id>.keys.json`), never
-  stored server-side. Dash imports it with `twilight-dash pool import <file>` into its secret
+  transaction this creates `size` agent persons `<name>-1…N` bound to the admin's account,
+  and one API key each. The agent-person cap is judged once for the pool with the reading and
+  decision `addPerson` uses (`readAgentPersonCapIn` and `refuseLimit`), inside the pool's own
+  transaction, not through `addPerson` itself or a directory batch. `name` is 1–60 characters
+  and never shaped like a secret.
+- _Listing._ `GET …/agent-pools` (admin only) lists every pool, revoked ones included, with its
+  live credentials and no secret.
+- _Delivery._ be-01 answers the keys once, `Cache-Control: no-store`, as one document
+  (`wbs-agent-pool-keys` v1: the authorization server, the MCP resource, and one entry per
+  agent with its person, name, credential and key). fe-01 offers it as a single download
+  (`pool-<id>.keys.json`); nothing stores it server-side. Dash imports it with `twilight-dash pool import <file>` into its secret
   store, verifies every key by issuing one token each, and tells the admin to delete the file.
   It gives each agent process its own `wbs_run` (M15).
 - _Re-keying._ `POST …/agent-pools/:id/rekey` revokes every key and issues fresh ones for the
   **same** persons, so `agent_person_limit` is not consumed again and a leaked file is answered
-  without recreating the swarm.
+  without recreating the swarm. Only the persons holding a **live** pool key at re-key time are
+  re-keyed: an agent whose key an admin revoked alone stays keyless (the most restrictive
+  reading; an assumption Dany may reverse). A pool past its `expiresAt` is refused
+  `pool_expired` unless the body gives a new `expiresAt`, held to the create bound (≤ 90 days).
 - _Fixed after creation._ A pool never gains a person or a right. A machine, a delegation or a
   grant can never reach the pool routes.
 - _Cleanup._ A revoked pool's persons still count toward `agent_person_limit`. Revoking with
   `removePersons: true`, or a later `DELETE …/agent-pools/:id/persons`, removes them through
-  the existing `deletePerson` cascade (A24: an admin's reach). That releases the cap, while
-  the claims history keeps their names.
+  the existing `deletePerson` cascade (A24: an admin's reach) as a second step after the
+  revocation commits; a refused removal answers `persons_not_removed` with the pool revoked.
+  That releases the cap. The claims history keeps the removed persons' ids, but their names
+  read null once the person is gone (verify.md slice 8 note 17). The separate
+  `DELETE …/agent-pools/:id/persons` route is not in v1.
 - _Blast radius, stated honestly._ Dash holds all N keys. A compromised Dash is all N agents,
   each capped at `member`, until the pool is revoked or re-keyed. Agents themselves see only
   their 12 h token.
@@ -748,6 +761,18 @@ _Alternative:_ the stated invariant of the earlier draft (unenforceable).
 | `created_by` and audit actors                        | account                              | accepted; the person is in the claim and audit detail                                                                                                                                                                                                                                                                                                                                                                                    |
 | Project-opened and recents                           | account                              | shared, harmless                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Claim cap and leases                                 | person, plus run when opted in (M15) | unaffected                                                                                                                                                                                                                                                                                                                                                                                                                               |
+
+Task 6.0's grep (2026-10-28, `libs/wbs` and be-01 for `accountId`, `userId`, `actorId` and
+`createdById` comparisons) found five more account-keyed checks. None changes in this change;
+each is stated so a pool's N persons, all bound to one admin, are not a surprise:
+
+| State                                                                                                   | Keyed by | Decision                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claim identity (`refuseIdentity`, domain `claim.ts`: `person_not_bound`)                                | account  | intended; a credential's pin (`credential_not_for_person`, D6) then narrows it to the credential's person, so a pool agent claims as itself only                                        |
+| A member's machine-credential reach (`reachable`, `pinRefusal`, store-sqlite)                           | account  | intended (A7); pool persons are bound to an admin, who reaches every agent anyway, and only an admin reaches the pool routes                                                            |
+| Consent agents (`agentsBoundTo(userId)`, store-sqlite `consent-credential.ts`)                          | account  | accepted: the admin's own consent flow lists the pool's persons among its agents; a consent acting as one is that person, capped at `member`                                            |
+| Saved-plan rename and delete (`mayTouchSavedPlan`, `createdById`)                                       | account  | accepted: plans one pool agent saves can be renamed or deleted by every agent of the same account, as the M16 row for `created_by` already implies                                      |
+| Project owner edits and the super-admin recovery reads (`canEditProjectInOrganization`, `scope.userId`) | account  | accepted: a pool agent edits every project its admin owns, as the owner (`canEditProject` compares the account); the super-admin arm needs the role, capped at `member` (A23), so never |
 
 Task 6.0 greps every `userId` key and adds any check missing from this table before slice 6.
 

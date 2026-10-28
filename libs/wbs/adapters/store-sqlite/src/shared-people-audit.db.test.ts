@@ -133,6 +133,8 @@ describe('shared people audit', () => {
     expect(
       rollbackTo(path, MIGRATIONS_FOLDER, '20261011120000_add_browser_auth_lifecycle'),
     ).toEqual([
+      '20261028100100_widen_organization_audit_agent_pools',
+      '20261028100000_add_agent_pool',
       '20261026130000_widen_organization_audit_machine_tokens',
       '20261026120000_add_command_journal_person',
       '20261025130000_add_resource_runtime',

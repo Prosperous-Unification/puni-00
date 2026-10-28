@@ -43,6 +43,8 @@ const newerMigrations = [
   '20261025130000_add_resource_runtime',
   '20261026120000_add_command_journal_person',
   '20261026130000_widen_organization_audit_machine_tokens',
+  '20261028100000_add_agent_pool',
+  '20261028100100_widen_organization_audit_agent_pools',
 ];
 const receipt: StepBlockageReceipt = {
   protocol: 'step-blockage-activation',
