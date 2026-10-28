@@ -638,3 +638,45 @@ The current local receiver SHALL preserve opaque Alertmanager webhook bytes and 
 - **THEN** exact pinned BusyBox/httpd behavior, arbitrary transport children/buffers, actual traffic fit, effective resource/storage enforcement and host admission remain separately required
 - **AND** the one-writer cap only bounds application serialization/spooling; same-Pod restart retention is distinct from Pod replacement and power-loss durability
 - **AND** fixture-receiver-cannot-certify-stack-readiness, full stored-signal/isolation/history/recovery and live-dev criteria remain open
+
+### Requirement: Effective image observations retain identity roles and provider provenance
+
+The shared image-identity concepts SHALL distinguish index, manifest and config identities without assuming a provider uses one as its object ID. A dedicated provider adapter SHALL bind observed objects to selected content and retain provenance. Missing, contradictory or unsupported trusted observations SHALL refuse before mutation or sealing.
+
+#### Scenario: Supported observations use different object roles
+
+- **WHEN** a supported provider reports an index or manifest object instead of a config object, or image inspection and container inspection report different object roles
+- **THEN** both observations must bind the same selected child manifest, exact configured reference, platform and daemon through corroborating descriptors and the source selection
+- **AND** helper config identity is inferred only from its independently verified selected manifest/config tuple; it is not mislabeled as a direct runtime config-byte observation
+- **AND** arbitrary digest membership or version-only inference cannot substitute for that binding
+
+#### Scenario: Runtime pins do not declare a config identity
+
+- **WHEN** a nonhelper source pin declares only the executable image identity
+- **THEN** preserve that source-root pin and the provider-observed selected child with exact provenance
+- **AND** config identity remains explicitly unobserved rather than manufactured from an object ID
+
+#### Scenario: A provider or identity graph cannot be validated
+
+- **WHEN** source/lock, daemon, capability/store contract, role, descriptor, configured reference, repository, platform or expected/runtime graph is missing, malformed, conflicting or unsupported
+- **THEN** the production creation/read boundary refuses before creating or sealing resources
+- **AND** a failed projection is not retried through an unqualified fallback and missing fields are not supplied from defaults
+
+#### Scenario: New creation and retained history have explicit versions
+
+- **WHEN** new creation records effective image evidence
+- **THEN** plans, inputs, permanent/transient observations and closure use the explicit version3 contract with neutral image identities and separate provider binding provenance
+- **AND** every join validates the exact same independently selected content and daemon
+- **AND** unknown versions, mixed cohorts, omitted observations and false provenance refuse
+
+#### Scenario: Authentic prior receipts are used for teardown
+
+- **WHEN** a version1 or version2 receipt satisfies its original closed schema and identity semantics
+- **THEN** its existing exact-ID, attachment and retained-volume teardown remains available under those original rules
+- **AND** old bytes and configId meanings are not rewritten, upgraded or defaulted into version3, and legacy formats cannot certify new forward acceptance
+
+#### Scenario: Identity compatibility does not authorize the full rehearsal
+
+- **WHEN** role-aware source checks and selected provider components pass
+- **THEN** all existing configured-reference, daemon/container/mount/network, anonymous-volume, transient lifecycle, sealing/history and source-authority checks remain required
+- **AND** actual selected-helper capture, complete physical/runtime image costs, host admission and full observability acceptance remain separately unresolved
