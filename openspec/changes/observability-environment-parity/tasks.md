@@ -212,4 +212,17 @@ runtime and full3.1 acceptance remain open.
 
 ### Task66 retained collector and node-agent ephemeral policy within3.1
 
-- [ ] Declare and enforce shared current collector16Mi/64Mi and Velero node-agent256Mi/2Gi ephemeral policies plus the same existing scratch1Gi through pinned chart values. Ordered TDD starts with actual current-validator missing-policy RED; cover absent/null/malformed/zero/contradictory maps and scratch, historical structural/image compatibility, ignored/changed render values, exact named roles and local/production parity. Preserve CPU/memory/pins/security/persistence/host paths/retention/Deployment postrenderer and old captures. Reuse existing resource/quantity/correspondence boundaries without another patch engine/calculator. Watch only changed safety boundaries fail/restored with adjacent Proof, run focused covering/selected/scoped checks and real selected pinned chart renders, retain commands/raw outputs/timings and normal commits, then independent scoped review. No full canonical recapture or old proof/control replay, quota/history/host/Secret/floor/CI change or runtime/full admission claim.
+- [x] Declare and enforce shared current collector16Mi/64Mi and Velero node-agent256Mi/2Gi ephemeral policies plus the same existing scratch1Gi through pinned chart values. Ordered TDD starts with actual current-validator missing-policy RED; cover absent/null/malformed/zero/contradictory maps and scratch, historical structural/image compatibility, ignored/changed render values, exact named roles and local/production parity. Preserve CPU/memory/pins/security/persistence/host paths/retention/Deployment postrenderer and old captures. Reuse existing resource/quantity/correspondence boundaries without another patch engine/calculator. Watch only changed safety boundaries fail/restored with adjacent Proof, run focused covering/selected/scoped checks and real selected pinned chart renders, retain commands/raw outputs/timings and normal commits, then independent scoped review. No full canonical recapture or old proof/control replay, quota/history/host/Secret/floor/CI change or runtime/full admission claim.
+
+Task66 source workflow is independently approved at0b7f9537, SOURCE3108efc3.
+Root read the complete review and report, rehashed315 retained artifacts and all11
+committed source paths, verified79 command-stream hashes and all29 intended raw
+fault observations with the final restored check. Three faults establish historical
+compatibility;26 establish invalid-input/forwarding refusal. Selected output and
+declaration preservation were inspected without rerunning tests, proofs or charts.
+Whole-source current production parity, runtime sufficiency, physical admission
+and full3.1 remain open.
+
+### Task67 deterministic cache-publication verification within3.1
+
+- [ ] Fix only the existing concurrent Helm cache-publication test's unstable original inode comparison by holding the original read-only archive handle across both child preparations and closing it in finally. Preserve replacement/digest/private-executable/preservation assertions and unchanged fixture behavior. Use actual94ee CI failure as RED; verify the focused test and one intended omission-of-publication fault/restoration with cached locked inputs, necessary scoped statics, normal commit and independent review. No full job replay, timeout/routing changes, network installation, source-policy or runtime claim. This test correction restores the existing precise atomic-publication contract and uses the R4 exception for fixes without behavior changes.

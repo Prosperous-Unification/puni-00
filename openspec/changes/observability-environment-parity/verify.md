@@ -4282,3 +4282,51 @@ history/device/writer/enforcement closure, host admission and live convergence s
 unverified. No install, provider/network/SSH/Docker/live/Secret/history/floor/CI action,
 push or merge occurred. Canonical3.1 and canonical4/11 remain open; parent owns task
 checkboxes, independent review and publication. Source-only STOP follows evidence.
+
+## Task66 independent review and Task67 CI diagnosis
+
+Independent specification and quality review approved94ee760c8→0b7f95373
+with no findings. Root read the complete report/review and proof/preservation/
+selected-output scripts, rehashed315 artifacts (8,110,010B), all11 source paths
+against SOURCE3108efc3 and79 command-stream pairs. Root read all29 intended raw
+failures:3 historical compatibility regressions and26 invalid-admission/forwarding
+faults, including the final selector fault/restored pass bound to committed bytes.
+The earlier verify prefix and3 cached tool hashes match. No check, proof, capture
+or render was replayed for review. The source-only checkbox closes; whole-source
+current production parity, physical/writer/history/enforcement, runtime/live and
+full3.1 remain open. Tool Wiki remains inactive/uncertified as disclosed above.
+
+Published94ee ordinary infra40687402171 failed in fleet-check122813194029:
+controller build passed, tool-fleet:test ran12m7s, then the concurrent tool cache
+test failed at observability-tools.test.ts:172 because the final inode equaled
+the original unretained inode10013067. Child exits/private executables/digest
+reads completed before that assertion; later assertions did not run. Deploy
+checks and K3s rehearsal were skipped. Raw780713B SHA256
+`c93f7c31664cd62a9f9943cd42ec4a607b99705485151712b561a6956031b8df`
+is retained in the private task-67-ci-diagnosis directory.
+
+The fixture/test had no0e336→94ee change. Root inspected both completely:
+each child publishes by same-filesystem rename, but the test releases the
+original file identity before comparing a reusable numeric inode. The
+[Linux unlink contract](https://man7.org/linux/man-pages/man2/unlink.2.html)
+keeps an unlinked file alive until its last open descriptor closes. Task67
+will retain that original handle while checking replacement, preserving the
+assertion and fixture behavior. Actual CI observed equal IDs, without an
+allocation trace; the local minimal probe showed later inode recycling but
+did not reproduce original-ID reuse. No exact local reproduction is claimed.
+No CI rerun, policy/timeout change or broad gate was performed. A focused
+test correction restoring the documented contract is within the R4 exception.
+
+For published94ee, pixels122825150724 and Twilight122813440596 are now success;
+workspace122813440509 remains in progress at the latest read. These are94ee
+verdicts, not verification of unpublished66 or pending67. The previous0e336
+terminal runs were not polled again.
+
+Task65's reviewed86-file/2.36MB packet remains local. Automatic approval review
+rejected publication before process creation because the prior authorization
+did not explicitly cover exporting this particular derived infrastructure
+payload. Explicit user approval for only the new artifact feature branch is
+pending; no retry, workaround, publication, approved execution release, staging
+or client operation occurred. Unaffected source work continues. No h3mon resize,
+hardware purchase, Secret or live rollout change was made. The original16GiB/
+120GiB rehearsal values remain distinct from permanent monitoring sizing.
