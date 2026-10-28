@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 
@@ -7,7 +8,7 @@ import { parseDocument } from 'yaml';
 
 import { runChecked } from './check-cli';
 import { authenticatePreparedHelm } from './check-provision';
-import { readToolchain, type Toolchain } from './contracts';
+import { decodeRetainedToolchain, type Toolchain } from './contracts';
 import { readMemoryMiB } from './observability-capacity';
 import {
   type RehearsalStageBuild,
@@ -464,6 +465,10 @@ export function readRehearsalSource(
     }
   }
   const entries: Entry[] = [];
+  const releaseViews: (RehearsalStageBuild['releases'][number] & {
+    declaration: Record<string, unknown>;
+    entry: Entry;
+  })[] = [];
   const seen = new Map<string, { entry: Entry; manifest: Record<string, unknown> }>();
   const approved = lockedImageReferences(lock);
   // Proof: Task25c2a helper-hidden removal lost the required explicit helper obligation.
@@ -618,6 +623,8 @@ export function readRehearsalSource(
       )
         throw new Error('Rehearsal release declaration closure differs');
       entry.expansionOwner = owner;
+      // Proof: Task58 source-release-view omission lost the actual eight-trait production-reader contribution.
+      releaseViews.push({ ...release, declaration: manifest, entry });
     }
     if (nativeAPI !== undefined) {
       const path =
@@ -785,6 +792,8 @@ export function readRehearsalSource(
     native: [...seen.values()].filter(
       ({ entry }) => entry.category === 'native-template' || entry.category === 'claim',
     ),
+    resources: [...seen.values()],
+    releases: releaseViews,
   };
 }
 
@@ -826,14 +835,13 @@ export async function prepareRehearsalInventory(
   );
   const bootstrapFrames = buildRehearsalBootstrap(bootstrap, bootstrap.policyBytes);
   const contract = captureRehearsalFrames(stages, expansions, bootstrapFrames);
-  const lock = await readToolchain(join(directory, 'infra/versions/toolchain.json'));
-  const { inventory, native } = readRehearsalSource(
-    stages,
-    expansions,
-    contract,
-    lock,
-    bootstrapFrames,
-  );
+  const runtimeLock = await readFile(join(directory, 'infra/versions/toolchain.json'), 'utf8');
+  const coordinates = receipt.files.filter((file) => file.path === 'infra/versions/toolchain.json');
+  // Proof: Task58 prepared-coordinate removal admitted a duplicate packet toolchain entry; prepared-producer negative failed.
+  if (coordinates.length !== 1) throw new Error('Rehearsal runtime lock coordinate differs');
+  const lock = decodeRetainedToolchain(Buffer.from(runtimeLock), coordinates[0].sha256);
+  const source = readRehearsalSource(stages, expansions, contract, lock, bootstrapFrames);
+  const { inventory, native } = source;
   const obligations = readRehearsalObligations(lock, receipt);
   const provenance = {
     sourceRevision: receipt.sourceRevision,
@@ -869,6 +877,15 @@ export async function prepareRehearsalInventory(
     topologyEvidence: {
       ...bootstrap.topologyEvidence,
       selection: { sourceRevision: receipt.sourceRevision, artifactSHA256: receipt.artifactSHA256 },
+    },
+    capacityEvidence: {
+      source,
+      runtimeLock,
+      packet: {
+        sourceRevision: receipt.sourceRevision,
+        artifactSHA256: receipt.artifactSHA256,
+        files: receipt.files,
+      },
     },
   };
 }

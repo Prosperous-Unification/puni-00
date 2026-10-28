@@ -316,7 +316,7 @@ function expandDeployment(
 }
 
 function deriveNativeCosts(
-  source: ReturnType<typeof readRehearsalSource>,
+  source: Pick<ReturnType<typeof readRehearsalSource>, 'inventory' | 'native'>,
   lock: Toolchain,
   topology?: ReturnType<typeof readDaemonTopology>,
   horizons?: ReturnType<typeof readCronJobHorizons>,
@@ -943,6 +943,23 @@ function deriveNativeCosts(
   };
 }
 
+/** Consume already validated source views; bind raw topology/horizons against their explicit independent contract before arithmetic. */
+export function deriveRehearsalNativeCosts(
+  source: Pick<ReturnType<typeof readRehearsalSource>, 'inventory' | 'native'>,
+  contract: Parameters<typeof readDaemonTopology>[0],
+  lock: Toolchain,
+  topology?: RehearsalTopologyEvidence,
+  horizons?: RehearsalCronJobHorizons,
+) {
+  return deriveNativeCosts(
+    source,
+    lock,
+    readDaemonTopology(contract, topology),
+    // Proof: Task56 native-horizon forwarding omission lost the actual fourteen-slot reader contribution.
+    readCronJobHorizons(contract, source.native, horizons),
+  );
+}
+
 /** Decode every independently bound source frame before conditional lifecycle accounting.
  * Reuses {@link normalizeNativeOwner} and {@link expandNativeOwner}; no filtered receipt or scenario assertion grants admission.
  * One full normalized Pod remains charged through process recovery and ordinary graceful same-template ordinal replacement.
@@ -982,13 +999,7 @@ export function readRehearsalNativeCosts(
 ) {
   const [stages, expansions, contract, lock, bootstrap, evidence, horizons] = input;
   const source = readRehearsalSource(stages, expansions, contract, lock, bootstrap);
-  return deriveNativeCosts(
-    source,
-    lock,
-    readDaemonTopology(contract, evidence),
-    // Proof: Task56 native-horizon forwarding omission lost the actual fourteen-slot reader contribution.
-    readCronJobHorizons(contract, source.native, horizons),
-  );
+  return deriveRehearsalNativeCosts(source, contract, lock, evidence, horizons);
 }
 
 /** Share the canonical eleven-stage producer once; horizons remain native-only declared accounting inputs. */

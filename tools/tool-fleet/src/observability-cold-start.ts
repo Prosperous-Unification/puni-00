@@ -226,7 +226,7 @@ export function expandNativeOwner({
   name: string;
   pods: number;
   templates: readonly (typeof Claim.infer)[];
-  model: ReturnType<typeof normalizeWorkload>;
+  model: Pick<ReturnType<typeof normalizeWorkload>, 'memoryMiB' | 'cpuMilli' | 'ephemeralMiB'>;
   source: NativeCharge['source'];
   claimPointer: (template: typeof Claim.infer, index: number) => string;
 }): NativeCharge[] {

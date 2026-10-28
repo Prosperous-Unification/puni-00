@@ -6,10 +6,11 @@ import { parseDocument } from 'yaml';
 
 import { readCPUMilli, readMemoryMiB } from './observability-capacity';
 import { assertPodResources } from './observability-pod-resources';
-import type { ObservabilitySource } from './observability-source';
 import { type ColdStartInventory, readColdStartSource } from './observability-source-inventory';
+import type { ObservabilitySourceIndex } from './observability-source-render';
 import {
   readObservabilitySelectedResources,
+  type SelectedCapacitySource,
   type SelectedRole,
 } from './observability-source-resources';
 import { normalizeWorkload, SourceWorkloadSpec } from './observability-workload';
@@ -64,7 +65,7 @@ export interface SelectedRuntimeFrame {
  * Throws on malformed source/maps/claims or byte/provider/runtime drift; valid unmodeled surfaces remain named facts.
  */
 export function deriveSelectedCapacityTraits(
-  source: ObservabilitySource,
+  source: SelectedCapacitySource,
   rendered: Record<string, string>,
   inventory: readonly ColdStartInventory[],
   runtime: SelectedRuntimeFrame,
@@ -79,10 +80,13 @@ export function deriveSelectedCapacityTraits(
     runtime,
   );
 }
-/** Consume the same validated source/index value as the native ledger; callers must use {@link readColdStartSource}. */
+/** Consume the source/index closure established by {@link readColdStartSource} or the full retained rehearsal traversal. */
 export function deriveSelectedCapacityInputs(
-  source: ObservabilitySource,
-  validated: ReturnType<typeof readColdStartSource>,
+  source: SelectedCapacitySource,
+  validated: {
+    readonly indexed: ObservabilitySourceIndex;
+    readonly inventory: readonly ColdStartInventory[];
+  },
   runtime: SelectedRuntimeFrame,
 ) {
   const { indexed, inventory } = validated;
@@ -142,7 +146,7 @@ export function deriveSelectedCapacityInputs(
     // Proof: Task25b2 source-release-identity removal admitted a foreign release chart identity.
     if (release.length !== 1 || release[0].chart !== chartName) refuse('source-owner');
     const manifest = type({ spec: { chart: { spec: { version: 'string' } } } }).assert(
-      parseDocument(release[0].manifest).toJSON(),
+      release[0].declaration ?? parseDocument(release[0].manifest).toJSON(),
     );
     // Proof: Task25b2 service-chart removal admitted a changed selected source chart version.
     if (manifest.spec.chart.spec.version !== chart.version) refuse('provider-chart');

@@ -4,6 +4,7 @@ import { type } from 'arktype';
 import { parseDocument } from 'yaml';
 
 import { assertCandidatePodResources } from './observability-pod-resources';
+import type { ObservabilityRenderRelease } from './observability-render';
 import type { ObservabilitySource } from './observability-source';
 import type { ObservabilitySourceIndex } from './observability-source-render';
 
@@ -78,13 +79,22 @@ function requireScratch(input: unknown, names: string[]): void {
     ),
   );
 }
+/** The selected decoder consumes namespace and retained release declarations, without requiring a fabricated assembly. */
+export interface SelectedCapacitySource {
+  readonly instances: readonly { readonly namespace: string }[];
+  readonly releases: readonly (Pick<ObservabilityRenderRelease, 'owner' | 'chart' | 'manifest'> & {
+    /** Already decoded and matched to manifest by the retained source traversal; legacy string-only callers retain their decoder. */
+    readonly declaration?: Record<string, unknown>;
+  })[];
+}
+
 /** Conservative selected provider inputs only, never effective Pods or enforcement evidence.
  * The role contract follows ECK 3.5.0 and Prometheus Operator 0.94.0; a provider upgrade requires fresh role review.
  * Throws when selected role maps, scratch, provider pins or shared reloader flags differ.
  * ECK named overrides preserve default commands/mounts; Prometheus extra volumes append rather than replace generated config-out.
  */
 export function readObservabilitySelectedResources(
-  source: ObservabilitySource,
+  source: SelectedCapacitySource,
   indexed: ObservabilitySourceIndex,
 ) {
   const roles: SelectedRole[] = [];
@@ -96,8 +106,12 @@ export function readObservabilitySelectedResources(
     // Proof: removing provider pin binding admitted a changed provider version with obsolete role assumptions.
     requireSelected(
       release !== undefined &&
-        readPath(parseDocument(release.manifest).toJSON(), ['spec', 'chart', 'spec', 'version']) ===
-          version,
+        readPath(release.declaration ?? parseDocument(release.manifest).toJSON(), [
+          'spec',
+          'chart',
+          'spec',
+          'version',
+        ]) === version,
     );
   }
   for (const instance of source.instances) {
