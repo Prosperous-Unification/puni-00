@@ -171,9 +171,16 @@ an ancestor kind. _Made normative 2026-10-24 after review:_ the effective-level 
 carries `AND r.object_kind IN (<kinds for the target>)` (organization: `organization`;
 project: `organization`, `project`; work package: all three), so a `package-*` role granted
 at organization scope never satisfies a project or organization permission; without the
-filter its level 3 would read as `project.manage_settings`. Custom roles later add rows with `organization_id` and an
-`access_role_permission` table, and `may` switches from a threshold to set membership;
-grants reference `role_id` unchanged. Deny later adds `access_denial` with the same subject
+filter its level 3 would read as `project.manage_settings`. _Revised 2026-10-25 by Dany (`wbs-custom-permissions` CP1):_ `may` is **set membership from
+slice 1**, not a threshold: every role, built-in or custom, is a row set in
+`access_role_permission` (built-ins seeded from permission-matrix.md), `EffectiveRole` carries
+the union of the reaching grants' sets after P5's transformation (that change's CP18), and
+`level` stays only on built-ins for display order; no decision reads it. The kind filter
+above becomes a property of the stored sets: every permission of a role has metadata kind
+`any` or the role's kind or a kind beneath it, refused on write and thrown on read
+(`PermissionKindRow`, CP7, CP9, CP16), so a `package-*` role holds no project permission to
+contribute. Custom roles, their routes and lifecycle
+are that change's; grants reference `role_id` unchanged. Deny later adds `access_denial` with the same subject
 and scope columns, evaluated as an exclusion; grants are untouched. Neither reshapes
 `access_grant`.
 
@@ -206,10 +213,21 @@ cost `wbs-measure-budgets` D47 removed from the command refusals and
 (`organization.manage_organization_roles`); `org-admin` grants and revokes project and
 package roles at any scope and administers access groups (`organization.manage_access`);
 `project-manager` grants and revokes package roles inside its project (`project.grant`). A
-granter never binds a role whose level exceeds their own effective level at the target
-scope for that role's kind, evaluated without P5's restriction rule (the Kubernetes
-escalation rule, today's `mayAdministerMembership`). Revoking the last `org-super-admin` grant, or removing that
-member, is refused `409 last_super_admin` in the store's transaction. Removing a member needs
+granter never binds a role whose permission set is not a subset of their grant-comparison
+set at the target scope: the full sets of their grants at that scope and its ancestors,
+without P5's transformation and without the cap (the Kubernetes escalation rule, today's
+`mayAdministerMembership`; `wbs-custom-permissions` CP5, CP13). Adding a member to or
+removing one from an access group, and deleting a group, are authority changes under the
+same rule for every grant naming the group, and a grant to the organization-members
+subject needs `organization.manage_organization_roles` whatever its role, so membership
+administration never delegates privilege (CP13). _Revised 2026-10-25 (CP14):_ at least
+one current member, never a machine credential, holds the built-in `org-super-admin`
+through a direct `user` grant at organization scope; group-held and custom-role authority
+never count. Every write that can remove such a grant or its holder (revoke, member
+removal including SCIM and leaving, group deletion, group member removal, credential
+revocation) checks the count after the write in its transaction and rolls back
+`409 last_super_admin`. Was: "revoking the last `org-super-admin` grant, or removing that
+member, is refused". Removing a member needs
 `organization.manage_members`; removing one who holds an organization-role grant directly
 (`org-admin` or `org-super-admin`) also needs `organization.manage_organization_roles`, as
 revoking that grant does (review PM-11). A member's removal
@@ -219,15 +237,15 @@ Invitations and join-request approvals carry an optional initial grant from the 
 scope, or none); SCIM-provisioned and onboarding-created members arrive with none, except
 the organization's creator, who is `org-super-admin`.
 
-**P12. Machine cap at check and at grant.** The evaluator applies `cap = 2` when the
-principal's `authentication.kind` is `machine` or `consent`, `5` otherwise:
-`MIN(MAX(level), cap)`. A machine principal's only subject is its credential (P17), so
+**P12. Machine cap at check and at grant.** The evaluator intersects the effective set with `CONTRIBUTOR_CAP` (the union of the
+seeded `project-contributor` and `package-contributor` sets, `wbs-custom-permissions` CP8)
+when the principal's `authentication.kind` is `machine` or `consent`; otherwise no cap. A machine principal's only subject is its credential (P17), so
 groups and the organization-members subject never reach it; the cap holds over the
 credential's own grants.
 A grant write by a machine principal is refused `403 forbidden` naming the grant permission
-before any row is read, because every grant permission needs level 3 or more. A grant
+before any row is read, because no grant permission is in `CONTRIBUTOR_CAP`. A grant
 naming a machine credential as its subject is an ordinary grant write by a human granter
-(P17). `package.claim_for_others` needs level 3, which
+(P17). `package.claim_for_others` is outside the cap, which
 keeps A23's "no claim-admin bypass for a machine".
 
 **P13. One port, one query, one listing.** `@wbs/domain` gains the pure
@@ -376,15 +394,24 @@ All additive, one migration `add_access_grants` with `down.sql`; names are SQLit
 
 ```sql
 CREATE TABLE access_role (
-  id              text PRIMARY KEY,   -- 'org-super-admin' … 'package-viewer'
+  id              text PRIMARY KEY,   -- built-in: the name ('org-super-admin' …); custom: ULID
+  name            text NOT NULL,      -- built-in: = id (wbs-custom-permissions CP7)
   object_kind     text NOT NULL CHECK (object_kind IN ('organization','project','work_package')),
-  level           integer NOT NULL CHECK (level BETWEEN 1 AND 5),
-  organization_id text REFERENCES organization(id),   -- NULL = built-in; custom roles later
-  UNIQUE (object_kind, level, organization_id)
+  level           integer CHECK (level BETWEEN 1 AND 5),   -- built-ins only, display order (CP1)
+  organization_id text REFERENCES organization(id),   -- NULL = built-in
+  created_at integer NOT NULL, updated_at integer, created_by text REFERENCES users(id),
+  CHECK ((organization_id IS NULL) = (level IS NOT NULL)),
+  UNIQUE (organization_id, name)
 );
--- seeded: org-super-admin 5, org-admin 4, org-viewer 1 (organization);
---         project-manager 3, project-contributor 2, project-viewer 1 (project);
---         package-manager 3, package-contributor 2, package-viewer 1 (work_package)
+CREATE TABLE access_role_permission (
+  role_id    text NOT NULL REFERENCES access_role(id) ON DELETE CASCADE,
+  permission text NOT NULL,           -- validated at the boundary, thrown on read if unknown (CP9)
+  PRIMARY KEY (role_id, permission)
+);
+-- seeded: the nine built-ins (org-super-admin 5, org-admin 4, org-viewer 1; project-manager 3,
+--         project-contributor 2, project-viewer 1; package-manager 3, package-contributor 2,
+--         package-viewer 1) and their sets from permission-matrix.md, asserted equal by test;
+--         a trigger refuses a custom name equal to a built-in id (reserved_name)
 
 CREATE TABLE access_group (
   id text PRIMARY KEY, organization_id text NOT NULL REFERENCES organization(id),
@@ -436,11 +463,23 @@ Invariants the store checks in the grant's transaction (each with a negative):
 - A duplicate grant answers `409 already_granted` and writes nothing.
 - The granter's permission and level (P11); the last-super-admin rule (P11); the machine
   cap (P12).
-- `down.sql` refuses while any grant with `origin <> 'backfill'` or any access group
-  exists; otherwise it drops the four tables. `organization_membership.role` is not
-  touched by this change; dropping it is a later cleanup once no release reads it.
+- `down.sql` refuses, through named guards, while any grant with `origin <> 'backfill'`,
+  any access group, any custom role or any permission row of a custom role exists
+  (built-in roles and their seed rows are removable); otherwise it drops the five tables
+  in dependency order: `access_grant`, `access_group_member`, `access_group`,
+  `access_role_permission`, `access_role` (`wbs-custom-permissions` "Tables").
+  `organization_membership.role` is not touched by this change; dropping it is a later
+  cleanup once no release reads it.
 
 ## Permission vocabulary
+
+_Amended 2026-10-25 (`wbs-custom-permissions` CP1, CP4, CP16):_ a permission's "minimum
+level" below describes which built-ins are seeded with it (permission-matrix.md is the
+seed); the decision itself is set membership. The vocabulary is the enumerated ids of the
+table below, the 22 permissions of the matrix (P19 `organization.manage_settings` included);
+tests compare ids, never a count. The "Kind" column is each permission's metadata, read by
+role validation and administration, never the id's prefix; `organization.navigate` is
+`any`. A new permission is a new row plus a seed for the built-ins that imply it.
 
 Twenty-two permissions over four evaluation kinds (P19 added `organization.manage_settings`).
 The full inventory of every plan-command kind (61), every directory command (21 of those 61)
@@ -493,7 +532,7 @@ change adds behaviour without renumbering.
 // @wbs/domain
 type Permission = (typeof PERMISSIONS)[number]['id'];
 interface EffectiveRole {
-  level: 1 | 2 | 3 | 4 | 5;
+  permissions: ReadonlySet<Permission>; // union of the reaching roles' sets, kind-filtered, cap-intersected (CP1, CP8)
   via: GrantProvenance[];
 }
 function may(effective: EffectiveRole | null, permission: Permission): boolean;
@@ -535,9 +574,9 @@ type AccessTarget =
   | { kind: 'project'; chain: ScopeChain }
   | { kind: 'work_package'; chain: ScopeChain & { workPackageId: string }; restricted: boolean };
 interface AccessDecisions {
-  /** null = invisible; evaluated with the principal's cap, inside the caller's transaction when on the admitted turn's stores. */
+  /** null = invisible: the target's read permission is not in the set (CP17); evaluated with the principal's cap, inside the caller's transaction when on the admitted turn's stores. */
   effectiveRoleAt(principal: ScopedPrincipal, target: AccessTarget): Promise<EffectiveRole | null>;
-  /** one statement; fast path when any organization-scope grant exists */
+  /** one statement; fast path when an organization-scope grant's transformed set holds package.read (CP17) */
   readablePackageIds(
     principal: ScopedPrincipal,
     organizationId: string,
@@ -557,8 +596,10 @@ function authorize(
 ```
 
 `authorize` answers `not_found` when `effectiveRoleAt` is null and the target is not the
-organization, `forbidden` with the permission when the level is short, `ok` otherwise
-(P10). Until #698 slice 2 a work package has no project, so slices 1 and 2 build its
+organization, `forbidden` with the permission when it is not in the effective set, `ok`
+otherwise (P10). `effectiveRoleAt` is null when the target's read permission
+(`package.read`, `project.read`) is absent, never merely when the set is empty
+(`wbs-custom-permissions` CP17). Until #698 slice 2 a work package has no project, so slices 1 and 2 build its
 target with the organization and package rows only (a store-private
 `{ organizationId, workPackageId }` reader; no project grant can exist yet); slice 3
 switches every caller to `ScopeChain`. Every existing check becomes one call:
@@ -584,6 +625,15 @@ switches every caller to `ScopeChain`. Every existing check becomes one call:
 | store-side `super_admin` reads (domains, SSO, session policy, provisioning, shared-people restore) | `organization.manage_security` evaluated in the same transaction                                                                                                                                                                                        |
 
 ### Effective level of one principal on one work package
+
+_Superseded 2026-10-25 (`wbs-custom-permissions` CP1, CP9, CP18):_ the statement below is
+the level form, kept as the record. The shipped statement is that change's "Effective
+set": one statement returning each reaching grant's raw permission rows; `@wbs/domain`
+then validates every row (`UnknownPermissionRow`, `PermissionKindRow`, `EmptyRoleSet`),
+applies P5 per grant (unchanged for project and package grants, built-in `org-admin` and
+`org-super-admin` at organization scope intersected with `organization.navigate`,
+`project.read`, `package.read`, every other organization-scope grant skipped) and the cap.
+The negatives below are replaced by task 1.3's.
 
 ```sql
 WITH subject(kind, id) AS (   -- :machine = 1 for authentication kind machine or consent (P17)
@@ -618,14 +668,20 @@ the organization target keeps the `organization` row and kind only. Project and
 organization targets bind `:restricted = 0` (only a work package carries the flag). The
 `any` kind drops the `scope` join and the kind filter. `:cap` is 2 for a machine principal,
 5 otherwise. SQLite's two-argument `MIN` is NULL when `MAX` is, and NULL is "invisible".
-Negatives (task 1.3): drop the kind filter and a `package-manager` grant at organization
-scope satisfies `project.manage_settings`; drop the P5 clause and an `org-viewer` reads a
-restricted package; drop the `CASE` and an `org-admin` writes one; drop the `:machine = 0`
-guards and an `org-admin`'s agent writes a work package no grant of its credential names.
+Negatives of the level form (replaced by task 1.3's set-form negatives): drop the kind
+filter and a `package-manager` grant at organization scope satisfies
+`project.manage_settings`; drop the P5 clause and an `org-viewer` reads a restricted
+package; drop the `CASE` and an `org-admin` writes one; drop the `:machine = 0` guards and
+an `org-admin`'s agent writes a work package no grant of its credential names.
 `:user` stays the bound account for a machine principal, so the membership `EXISTS` holds
 for both kinds.
 
 ### Listing without N queries
+
+_Superseded 2026-10-25 (`wbs-custom-permissions` CP17):_ the statement below admits a
+package through any reaching grant, which was sound only while every role held
+`package.read`. The shipped statement is that change's listing: a reaching grant admits a
+package only when its set, after P5, contains `package.read`, and corrupt role rows throw.
 
 ```sql
 WITH subject(kind, id) AS (…as above…)
