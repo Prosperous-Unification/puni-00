@@ -138,22 +138,38 @@ const routesOf = (sent: ReturnType<typeof stubServer>) => sent.map((request) => 
  * Captures every file the page saves, by the anchor click a download is.
  * The production download runs unchanged up to the click.
  */
-function captureDownloads(): { blobs: Blob[]; names: string[] } {
-  const blobs: Blob[] = [];
-  const names: string[] = [];
+interface Downloads {
+  /** Every blob handed to `createObjectURL`. */
+  blobs: Blob[];
+  /** The file name of every save, in order. */
+  names: string[];
+  /** The URL of every save, in order. */
+  hrefs: string[];
+  /** Whether each save's anchor was in the document when clicked. */
+  attached: boolean[];
+  /** Every URL revoked. */
+  revoked: string[];
+}
+
+function captureDownloads(): Downloads {
+  const saved: Downloads = { blobs: [], names: [], hrefs: [], attached: [], revoked: [] };
   const urls = URL as unknown as {
     createObjectURL: (blob: Blob) => string;
     revokeObjectURL: (url: string) => void;
   };
   urls.createObjectURL = (blob: Blob) => {
-    blobs.push(blob);
-    return `blob:pool-keys-${String(blobs.length)}`;
+    saved.blobs.push(blob);
+    return `blob:pool-keys-${String(saved.blobs.length)}`;
   };
-  urls.revokeObjectURL = () => undefined;
+  urls.revokeObjectURL = (url: string) => {
+    saved.revoked.push(url);
+  };
   HTMLAnchorElement.prototype.click = function capture(this: HTMLAnchorElement) {
-    names.push(this.download);
+    saved.names.push(this.download);
+    saved.hrefs.push(this.href);
+    saved.attached.push(this.isConnected);
   };
-  return { blobs, names };
+  return saved;
 }
 
 /** A blob's text through `FileReader`: jsdom's Blob has no `text()`. */
@@ -171,7 +187,7 @@ const readBlobText = (blob: Blob): Promise<string> =>
     reader.readAsText(blob);
   });
 
-let downloads: { blobs: Blob[]; names: string[] };
+let downloads: Downloads;
 
 beforeEach(() => {
   downloads = captureDownloads();
@@ -426,7 +442,7 @@ describe('agent pools panel create', () => {
     const note = await screen.findByRole('status', { name: 'Keys downloaded' });
     expect(note).toHaveTextContent('Keys downloaded as pool-pool-9.keys.json');
     expect(note).toHaveTextContent(
-      'Created swarm-c: 3 keys were saved to that file. They are not shown here and cannot be downloaded again; if the file is lost, re-key the pool.',
+      'Created swarm-c: 3 keys were saved to that file. They are not shown here. If no file appeared, save it again before pressing Done; after Done it cannot be saved again, and a lost file means re-keying the pool.',
     );
     expect(note).toHaveTextContent(
       'Import it with twilight-dash pool import pool-pool-9.keys.json, then delete the file.',
@@ -443,10 +459,163 @@ describe('agent pools panel create', () => {
     expectNoKeyAnywhere(logged, stored);
     expect(downloads.names).toEqual(['pool-pool-9.keys.json']);
     expect(JSON.parse(await readBlobText(downloads.blobs[0]))).toEqual(keys);
+    expect(downloads.attached).toEqual([true]);
     fireEvent.click(screen.getByRole('button', { name: 'Refresh agent pools' }));
     await row('swarm-c');
     expect(downloads.names).toHaveLength(1);
+    // A refresh keeps the note: its file may still need saving.
+    expect(screen.getByRole('status', { name: 'Keys downloaded' })).toBeDefined();
     expectNoKeyAnywhere(logged, stored);
+  });
+
+  it('saves the same file again without a request, and releases it on Done', async () => {
+    const sent = stub({
+      [LIST]: [listing()],
+      [CREATE]: [() => answer(201, keysOf('pool-9', 'swarm-c', 3))],
+    });
+    mount();
+    const dialog = await openCreate();
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'swarm-c' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create and download keys' }));
+    const note = await screen.findByRole('status', { name: 'Keys downloaded' });
+    fireEvent.click(within(note).getByRole('button', { name: 'Save the file again' }));
+    expect(downloads.names).toEqual(['pool-pool-9.keys.json', 'pool-pool-9.keys.json']);
+    expect(downloads.hrefs[1]).toBe(downloads.hrefs[0]);
+    expect(downloads.blobs).toHaveLength(1);
+    expect(routesOf(sent).filter((route) => route === CREATE)).toHaveLength(1);
+    expect(downloads.revoked).toEqual([]);
+    fireEvent.click(within(note).getByRole('button', { name: 'Done' }));
+    expect(downloads.revoked).toEqual(['blob:pool-keys-1']);
+    expect(screen.queryByRole('status', { name: 'Keys downloaded' })).toBeNull();
+  });
+
+  it('releases the held file when the panel unmounts', async () => {
+    stub({
+      [LIST]: [listing()],
+      [CREATE]: [() => answer(201, keysOf('pool-9', 'swarm-c', 3))],
+    });
+    mount();
+    const dialog = await openCreate();
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'swarm-c' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create and download keys' }));
+    await screen.findByRole('status', { name: 'Keys downloaded' });
+    expect(downloads.revoked).toEqual([]);
+    cleanup();
+    expect(downloads.revoked).toEqual(['blob:pool-keys-1']);
+  });
+
+  it('releases the previous file when the next write starts', async () => {
+    stub({
+      [LIST]: [listing(swarm)],
+      [REKEY('pool-1')]: [() => answer(201, keysOf('pool-1', 'swarm-a', 8))],
+      [REVOKE('pool-1')]: [
+        () => answer(200, { poolId: 'pool-1', revokedCredentials: 8, removedPersons: 0 }),
+      ],
+    });
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Re-key swarm-a' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Re-key and download keys' }));
+    await screen.findByRole('status', { name: 'Keys downloaded' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Revoke swarm-a' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke pool' }));
+    await screen.findByText(/Revoked swarm-a/);
+    expect(downloads.revoked).toEqual(['blob:pool-keys-1']);
+  });
+
+  it('a save that throws reaches the error boundary', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    stub({
+      [LIST]: [listing()],
+      [CREATE]: [() => answer(201, keysOf('pool-9', 'swarm-c', 3))],
+    });
+    (URL as unknown as { createObjectURL: () => string }).createObjectURL = () => {
+      throw new Error('fixture: no object URLs here');
+    };
+    render(
+      <AppFaultBoundary>
+        <OrganizationResourcesProvider scope={scopeOf('org-a')}>
+          <AgentPoolsPanel onAccessLost={vi.fn()} />
+        </OrganizationResourcesProvider>
+      </AppFaultBoundary>,
+    );
+    const dialog = await openCreate();
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'swarm-c' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create and download keys' }));
+    await waitFor(() => {
+      expect(document.querySelector('[data-app-fault]')).not.toBeNull();
+    });
+  });
+
+  it('says the keys could not be read and rereads', async () => {
+    const sent = stub({
+      [LIST]: [listing(), listing(poolOf({ id: 'pool-9', name: 'swarm-c', size: 3 }))],
+      [CREATE]: [() => answer(201, { pool: 'unexpected' })],
+    });
+    mount();
+    const dialog = await openCreate();
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'swarm-c' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create and download keys' }));
+    expect(await within(await region()).findByRole('alert')).toHaveTextContent(
+      'The keys could not be read; the pool may exist — refresh and re-key it.',
+    );
+    expect(await row('swarm-c')).toBeDefined();
+    expect(routesOf(sent).filter((route) => route === LIST)).toHaveLength(2);
+    expect(downloads.names).toEqual([]);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it("never saves a create's keys after an organization switch", async () => {
+    stubServer({ [LIST]: [listing()], [LIMITS]: [limitsOf(3)] });
+    const original = vi.mocked(fetch).getMockImplementation();
+    if (original === undefined) throw new Error('stub missing');
+    let release: ((reply: Response) => void) | undefined;
+    vi.mocked(fetch).mockImplementation((url, init) => {
+      if (init?.method === 'POST')
+        return new Promise<Response>((resolve) => {
+          release = resolve;
+        });
+      return original(url, init);
+    });
+    const panelUnder = (organizationId: string) => (
+      <OrganizationResourcesProvider scope={scopeOf(organizationId)}>
+        <AgentPoolsPanel onAccessLost={() => undefined} />
+      </OrganizationResourcesProvider>
+    );
+    const mounted = renderBare(panelUnder('org-a'));
+    const dialog = await openCreate();
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'swarm-c' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create and download keys' }));
+    await waitFor(() => {
+      expect(release).toBeDefined();
+    });
+    mounted.rerender(panelUnder('org-b'));
+    await act(async () => {
+      release?.(answer(201, keysOf('pool-9', 'swarm-c', 3)));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(downloads.names).toEqual([]);
+    expect(screen.queryByRole('status', { name: 'Keys downloaded' })).toBeNull();
+  });
+
+  it('keeps the keys note when the reread hides the panel', async () => {
+    stub({
+      [LIST]: [listing(), () => answer(403, { error: 'forbidden' })],
+      [CREATE]: [() => answer(201, keysOf('pool-9', 'swarm-c', 3))],
+    });
+    mount();
+    const dialog = await openCreate();
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'swarm-c' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create and download keys' }));
+    const note = await screen.findByRole('status', { name: 'Keys downloaded' });
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Create agent pool' })).toBeNull();
+    });
+    expect(within(note).getByRole('button', { name: 'Save the file again' })).toBeDefined();
+    fireEvent.click(within(note).getByRole('button', { name: 'Done' }));
+    expect(screen.queryByRole('region', { name: 'Agent pools' })).toBeNull();
   });
 
   it('sends a chosen expiry as 00:00 UTC on that day', async () => {
@@ -492,7 +661,7 @@ describe('agent pools panel create', () => {
       'invalid_body',
       400,
       {},
-      'Choose a plain name of at most 60 characters that does not look like a key, from 1 to 100 agents, and an expiry within 90 days. Nothing was created.',
+      'Choose a plain name of at most 60 characters that does not look like a key, from 1 to 100 agents, and an expiry up to 90 days ahead. Nothing was created.',
     ],
   ] as const)(
     'renders %s on create and keeps the draft, never as success',
@@ -594,7 +763,12 @@ describe('agent pools panel re-key', () => {
 
   it.each([
     ['pool_changed', 409, /An agent of this pool was removed while its keys were being issued/],
-    ['not_found', 404, /This pool is revoked or no longer exists/],
+    ['invalid_body', 400, 'Choose an expiry up to 90 days ahead. No key was replaced.'],
+    [
+      'insufficient_scope',
+      403,
+      'This sign-in is read-only here. Sign in to WBS again to make changes.',
+    ],
   ] as const)('renders %s on re-key in place', async (error, status, text) => {
     stub({ [LIST]: [listing(swarm)], [REKEY('pool-1')]: [() => answer(status, { error })] });
     mount();
@@ -603,6 +777,54 @@ describe('agent pools panel re-key', () => {
     fireEvent.click(within(confirm).getByRole('button', { name: 'Re-key and download keys' }));
     expect(await within(confirm).findByRole('alert')).toHaveTextContent(text);
     expect(downloads.names).toEqual([]);
+  });
+
+  it('says a re-keyed pool is gone, rereads, and drops its row', async () => {
+    const sent = stub({
+      [LIST]: [listing(swarm, partlyKeyed), listing(partlyKeyed)],
+      [REKEY('pool-1')]: [() => answer(404, { error: 'not_found' })],
+    });
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Re-key swarm-a' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Re-key and download keys' }));
+    expect(await within(await region()).findByRole('alert')).toHaveTextContent(
+      'This pool is revoked or no longer exists. Refresh the list.',
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole('listitem', { name: 'swarm-a' })).toBeNull();
+    });
+    expect(routesOf(sent).filter((route) => route === LIST)).toHaveLength(2);
+  });
+
+  it('rereads after pool_expired so the row says Expired', async () => {
+    const lapsed = { ...swarm, expiresAt: Date.now() - DAY };
+    stub({
+      [LIST]: [listing(swarm), listing(lapsed)],
+      [REKEY('pool-1')]: [() => answer(409, { error: 'pool_expired' })],
+    });
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Re-key swarm-a' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Re-key and download keys' }));
+    const first = await row('swarm-a');
+    expect(await within(first).findByText('Expired')).toBeDefined();
+    expect(within(first).getByLabelText('New expiry')).toBeRequired();
+  });
+
+  it('closes a re-key whose pool the reread shows revoked', async () => {
+    const gone = { ...swarm, revokedAt: Date.now(), credentials: [] };
+    stub({
+      [LIST]: [listing(swarm), listing(gone)],
+      [REKEY('pool-1')]: [() => answer(409, { error: 'pool_changed' })],
+    });
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Re-key swarm-a' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Re-key and download keys' }));
+    await waitFor(() => {
+      expect(
+        within(screen.getByRole('listitem', { name: 'swarm-a' })).getAllByText('Revoked'),
+      ).toHaveLength(2);
+    });
+    expect(screen.queryByRole('form', { name: 'Re-key swarm-a' })).toBeNull();
   });
 
   it('serializes a double-clicked re-key', async () => {
@@ -715,9 +937,9 @@ describe('agent pools panel revoke', () => {
     expect(within(await row('swarm-a')).getAllByText('Revoked')).toHaveLength(2);
   });
 
-  it('renders a refused revoke in place', async () => {
-    stub({
-      [LIST]: [listing(swarm)],
+  it('renders a refused revoke in place and rereads after not_found', async () => {
+    const sent = stub({
+      [LIST]: [listing(swarm), listing()],
       [REVOKE('pool-1')]: [() => answer(404, { error: 'not_found' })],
     });
     mount();
@@ -726,5 +948,32 @@ describe('agent pools panel revoke', () => {
     expect(await within(await region()).findByRole('alert')).toHaveTextContent(
       'This pool is revoked or no longer exists. Refresh the list.',
     );
+    await waitFor(() => {
+      expect(screen.queryByRole('listitem', { name: 'swarm-a' })).toBeNull();
+    });
+    expect(routesOf(sent).filter((route) => route === LIST)).toHaveLength(2);
+  });
+
+  it('renders insufficient_scope on revoke', async () => {
+    stub({
+      [LIST]: [listing(swarm)],
+      [REVOKE('pool-1')]: [() => answer(403, { error: 'insufficient_scope' })],
+    });
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Revoke swarm-a' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke pool' }));
+    expect(await within(await region()).findByRole('alert')).toHaveTextContent(
+      'This sign-in is read-only here. Sign in to WBS again to make changes.',
+    );
+  });
+
+  it('renders a transport failure on revoke and keeps the pool', async () => {
+    stub({ [LIST]: [listing(swarm)], [REVOKE('pool-1')]: [() => answer(503, {})] });
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Revoke swarm-a' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke pool' }));
+    expect(await within(await region()).findByRole('alert')).toBeDefined();
+    expect(within(await row('swarm-a')).getByText('Live')).toBeDefined();
+    expect(screen.queryByRole('status')).toBeNull();
   });
 });

@@ -498,8 +498,10 @@ _Alternatives:_ per-principal filtering, or descriptions per principal (two cont
   live credentials and no secret.
 - _Delivery._ be-01 answers the keys once, `Cache-Control: no-store`, as one document
   (`wbs-agent-pool-keys` v1: the authorization server, the MCP resource, and one entry per
-  agent with its person, name, credential and key). fe-01 offers it as a single download
-  (`pool-<id>.keys.json`); nothing stores it server-side. Dash imports it with `twilight-dash pool import <file>` into its secret
+  agent with its person, name, credential and key). fe-01 saves it as one file
+  (`pool-<id>.keys.json`) and holds that file's bytes, never its text, until the admin presses
+  Done, so a save that did not happen (a cancelled dialog, a blocked automatic download) can be
+  repeated without another request; nothing stores it server-side. Dash imports it with `twilight-dash pool import <file>` into its secret
   store, verifies every key by issuing one token each, and tells the admin to delete the file.
   It gives each agent process its own `wbs_run` (M15).
 - _Re-keying._ `POST …/agent-pools/:id/rekey` revokes every key and issues fresh ones for the

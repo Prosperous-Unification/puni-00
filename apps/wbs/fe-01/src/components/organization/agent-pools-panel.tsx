@@ -20,7 +20,13 @@ import {
 import { failureMessage, unreachable } from '@/lib/http';
 import { useResourceClient } from '@/runtime/organization-resources';
 
-import { downloadAgentPoolKeys } from './agent-pool-keys-file';
+import {
+  type AgentPoolKeys,
+  type AgentPoolKeysFile,
+  closeAgentPoolKeysFile,
+  openAgentPoolKeysFile,
+  saveAgentPoolKeysFile,
+} from './agent-pool-keys-file';
 import {
   agentHeadroom,
   type AgentPoolOperation,
@@ -80,15 +86,20 @@ type View =
       kind: 'ready';
       pools: readonly AgentPool[];
       capacity: AgentCapacity;
-      /** When the list was read: what a pool's standing and the expiry bounds are judged at. */
+      /** When the list was read: what each row's standing chip is drawn at. */
       readAt: number;
     };
 
-/** The create form as typed: `size` and `expiry` (a `YYYY-MM-DD` UTC day, or empty) are read on send. */
+/**
+ * The create form as typed: `size` and `expiry` (a `YYYY-MM-DD` UTC day, or
+ * empty) are read on send. `openedAt` is when the form opened, which the
+ * expiry days it offers are judged at.
+ */
 interface Draft {
   name: string;
   size: string;
   expiry: string;
+  openedAt: number;
 }
 
 /**
@@ -100,6 +111,8 @@ interface Rekeying {
   expiry: string;
   isExpired: boolean;
   message: string;
+  /** When the confirmation opened: what its expiry days are judged at. */
+  openedAt: number;
 }
 
 /** A revocation being confirmed; `removePersons` is opt-in and starts off. */
@@ -110,7 +123,7 @@ interface Revocation {
 
 /**
  * What the panel says after a write. `delivered` names the file the keys were
- * saved as, never a key; `persons_kept` is `persons_not_removed`, a partial
+ * saved as, never a key (the file itself is held apart, until Done); `persons_kept` is `persons_not_removed`, a partial
  * success: the pool is revoked and its persons stay.
  */
 type Outcome =
@@ -187,7 +200,23 @@ export function administersAgentPools(role: OrganizationRole): boolean {
   }
 }
 
-const EMPTY_DRAFT: Draft = { name: '', size: '8', expiry: '' };
+function emptyDraft(now: number): Draft {
+  return { name: '', size: '8', expiry: '', openedAt: now };
+}
+
+/** What the panel says when a 2xx keys reply could not be read: the pool may exist. */
+export const KEYS_UNREAD =
+  'The keys could not be read; the pool may exist — refresh and re-key it.';
+
+/** Whether a failed create or re-key reply was a success be-01 sent but the client could not read. */
+function isUnreadKeys(failure: { code: string; status?: number }): boolean {
+  return (
+    failure.code === 'invalid_response' &&
+    failure.status !== undefined &&
+    failure.status >= 200 &&
+    failure.status < 300
+  );
+}
 
 /**
  * The agent pools panel once the caller's role is known: nothing without
@@ -245,8 +274,15 @@ export function AgentPoolsSlot({
  * them; every act states its counts before it is confirmed; revoke removes the
  * persons only when asked.
  *
- * Nothing here is optimistic: every write rereads the list and the limits,
- * and a refused write leaves both as they were with the sentence in place.
+ * The keys file of the last create or re-key is held until the admin presses
+ * Done, the next write starts, or the panel unmounts, so a save that did not
+ * happen can be repeated; be-01 still answers the keys once.
+ *
+ * Nothing here is optimistic: every write that may have changed a pool
+ * rereads the list and the limits, a successful one, `persons_not_removed`,
+ * and the re-key and revoke refusals that say the pool moved (`pool_expired`,
+ * `pool_changed`, `not_found`). A confirmation for a pool the reread shows
+ * revoked or gone is closed.
  */
 export function AgentPoolsPanel({
   onAccessLost,
@@ -262,9 +298,23 @@ export function AgentPoolsPanel({
   const [rekeying, setRekeying] = useState<Rekeying | null>(null);
   const [revocation, setRevocation] = useState<Revocation | null>(null);
   const [fault, setFault] = useState<Error | null>(null);
+  /** Whether a write is in flight, for drawing: controls are disabled while it is. */
   const [isSending, setIsSending] = useState(false);
+  /**
+   * The same fact, read synchronously: the admission a second click or submit
+   * meets before React has rendered `isSending`.
+   */
   const isPending = useRef(false);
   const generation = useRef(0);
+  /** The keys file of the last create or re-key, for "Save the file again" until Done. */
+  const keysFile = useRef<AgentPoolKeysFile | null>(null);
+
+  /** Revokes the held keys file's URL and drops it. */
+  const releaseKeys = useCallback(() => {
+    const held = keysFile.current;
+    keysFile.current = null;
+    if (held !== null) closeAgentPoolKeysFile(held);
+  }, []);
 
   /** Gives the page up on a loss, hides the panel on a read's `forbidden`, else says the sentence through `say`. */
   const sayRefusal = useCallback(
@@ -327,6 +377,13 @@ export function AgentPoolsPanel({
         },
         readAt: Date.now(),
       });
+      const live = new Set(
+        pools.body.pools.filter((pool) => pool.revokedAt === null).map((pool) => pool.id),
+      );
+      // Proof: 2026-10-28, keeping every open confirmation failed `closes a re-key
+      // whose pool the reread shows revoked`: the form stayed under a Revoked row.
+      setRekeying((current) => (current !== null && live.has(current.poolId) ? current : null));
+      setRevocation((current) => (current !== null && live.has(current.poolId) ? current : null));
     },
     [client, sayRefusal],
   );
@@ -334,7 +391,10 @@ export function AgentPoolsPanel({
   const refresh = useCallback(async () => {
     if (isPending.current) return;
     setMessage('');
-    setOutcome(null);
+    // A delivered note stays: its file may still need saving.
+    // Proof: 2026-10-28, clearing it failed `creates a pool, downloads its keys
+    // exactly once…`: the note was gone after Refresh.
+    setOutcome((current) => (current?.kind === 'delivered' ? current : null));
     setRekeying(null);
     setRevocation(null);
     setView({ kind: 'loading' });
@@ -355,15 +415,41 @@ export function AgentPoolsPanel({
 
   useEffect(() => {
     observe(refresh(), 'read');
-    const version = generation;
+    const fence = generation;
     return () => {
-      version.current++;
+      fence.current++;
       isPending.current = false;
       setIsSending(false);
     };
   }, [refresh, observe]);
+  // Proof: 2026-10-28, an empty cleanup failed `releases the held file when the
+  // panel unmounts`: no URL was revoked.
+  useEffect(() => releaseKeys, [releaseKeys]);
   if (fault !== null) throw fault;
-  if (view.kind === 'absent') return null;
+  // A held keys file outlives a reread that hides the panel: its note stays.
+  // Proof: 2026-10-28, returning null for every `absent` failed `keeps the keys
+  // note when the reread hides the panel`.
+  if (view.kind === 'absent' && outcome?.kind !== 'delivered') return null;
+
+  /**
+   * Turns a 201's keys into the held file and saves it once; the reply is
+   * dropped by the caller. Only the file name and the count reach state.
+   */
+  function deliver(keys: AgentPoolKeys, act: 'created' | 'rekeyed') {
+    releaseKeys();
+    const file = openAgentPoolKeysFile(keys);
+    keysFile.current = file;
+    // Proof: 2026-10-28, saving twice here failed `creates a pool, downloads
+    // its keys exactly once and never renders them` (2 files saved, expected 1).
+    saveAgentPoolKeysFile(file);
+    setOutcome({
+      kind: 'delivered',
+      act,
+      poolName: keys.name,
+      fileName: file.fileName,
+      keys: keys.agents.length,
+    });
+  }
 
   async function mutate(mutation: Mutation) {
     // Proof: 2026-10-28, removing this admission sent two re-key POSTs in
@@ -373,6 +459,10 @@ export function AgentPoolsPanel({
     const version = ++generation.current;
     setIsSending(true);
     setMessage('');
+    // A new write ends the previous keys note and its file.
+    // Proof: 2026-10-28, leaving this out failed `releases the previous file when
+    // the next write starts`: nothing was revoked.
+    releaseKeys();
     setOutcome(null);
     try {
       switch (mutation.kind) {
@@ -388,27 +478,24 @@ export function AgentPoolsPanel({
               ...(sent.expiry === '' ? {} : { expiresAt: startOfUtcDay(sent.expiry) }),
             },
           });
+          // Proof: 2026-10-28, removing this fence failed `never saves a create's
+          // keys after an organization switch`: org-a's late keys were saved.
           if (version !== generation.current) return;
           switch (reply.kind) {
-            case 'success': {
-              // The reply is handed to the download and dropped: only the file
-              // name and the count are kept to say what happened.
-              // Proof: 2026-10-28, calling the download a second time here failed
-              // `creates a pool, downloads its keys exactly once and never renders
-              // them` (2 files saved, expected 1).
-              const fileName = downloadAgentPoolKeys(reply.body);
+            case 'success':
+              deliver(reply.body, 'created');
               setDraft(null);
-              setOutcome({
-                kind: 'delivered',
-                act: 'created',
-                poolName: reply.body.name,
-                fileName,
-                keys: reply.body.agents.length,
-              });
               await read(version);
               return;
-            }
             case 'failure':
+              // Proof: 2026-10-28, drawing this as the dialog's sentence failed
+              // `says the keys could not be read and rereads`: no reread was sent.
+              if (isUnreadKeys(reply.failure)) {
+                setDraft(null);
+                setMessage(KEYS_UNREAD);
+                await read(version);
+                return;
+              }
               if (reply.failure.code !== 'cancelled')
                 setDraftMessage(failureMessage(reply.failure));
               return;
@@ -432,20 +519,18 @@ export function AgentPoolsPanel({
           });
           if (version !== generation.current) return;
           switch (reply.kind) {
-            case 'success': {
-              const fileName = downloadAgentPoolKeys(reply.body);
+            case 'success':
+              deliver(reply.body, 'rekeyed');
               setRekeying(null);
-              setOutcome({
-                kind: 'delivered',
-                act: 'rekeyed',
-                poolName: reply.body.name,
-                fileName,
-                keys: reply.body.agents.length,
-              });
               await read(version);
               return;
-            }
             case 'failure':
+              if (isUnreadKeys(reply.failure)) {
+                setRekeying(null);
+                setMessage(KEYS_UNREAD);
+                await read(version);
+                return;
+              }
               if (reply.failure.code !== 'cancelled')
                 setRekeying((current) =>
                   current === null ? null : { ...current, message: failureMessage(reply.failure) },
@@ -453,22 +538,45 @@ export function AgentPoolsPanel({
               return;
             case 'refusal': {
               const refusal = reply.body;
-              // Proof: 2026-10-28, sending `pool_expired` to the sentence alone
-              // failed `offers a new expiry when the pool expired`: no required
-              // `New expiry` field was drawn.
-              if (refusal.error === 'pool_expired') {
-                setRekeying({
-                  poolId: pool.id,
-                  expiry,
-                  isExpired: true,
-                  message: agentPoolRefusalText(refusal),
-                });
-                return;
+              switch (refusal.error) {
+                case 'pool_expired': {
+                  // Proof: 2026-10-28, sending `pool_expired` to the sentence alone
+                  // failed `offers a new expiry when the pool expired`: no required
+                  // `New expiry` field was drawn.
+                  const text = agentPoolRefusalText(refusal, 'rekey');
+                  setRekeying((current) =>
+                    current === null
+                      ? null
+                      : { ...current, expiry, isExpired: true, message: text },
+                  );
+                  // Proof: 2026-10-28, skipping this reread failed `rereads after
+                  // pool_expired so the row says Expired`: the row still said Live.
+                  await read(version);
+                  return;
+                }
+                case 'pool_changed': {
+                  const text = agentPoolRefusalText(refusal, 'rekey');
+                  setRekeying((current) =>
+                    current === null ? null : { ...current, message: text },
+                  );
+                  await read(version);
+                  return;
+                }
+                case 'not_found':
+                  setRekeying(null);
+                  setMessage(agentPoolRefusalText(refusal, 'rekey'));
+                  // Proof: 2026-10-28, skipping this reread failed `says a re-keyed
+                  // pool is gone, rereads, and drops its row`: the row stayed.
+                  await read(version);
+                  return;
+                default:
+                  sayRefusal(refusal, 'rekey', (text) => {
+                    setRekeying((current) =>
+                      current === null ? null : { ...current, message: text },
+                    );
+                  });
+                  return;
               }
-              sayRefusal(refusal, 'rekey', (text) => {
-                setRekeying((current) => (current === null ? null : { ...current, message: text }));
-              });
-              return;
             }
             default:
               return unreachable(reply);
@@ -507,12 +615,15 @@ export function AgentPoolsPanel({
                 setOutcome({
                   kind: 'persons_kept',
                   poolName: pool.name,
-                  text: agentPoolRefusalText(refusal),
+                  text: agentPoolRefusalText(refusal, 'revoke'),
                 });
                 await read(version);
                 return;
               }
               sayRefusal(refusal, 'revoke', setMessage);
+              // Proof: 2026-10-28, skipping this reread failed `renders a refused
+              // revoke in place and rereads after not_found`: the row stayed.
+              if (refusal.error === 'not_found') await read(version);
               return;
             }
             default:
@@ -535,45 +646,63 @@ export function AgentPoolsPanel({
 
   return (
     <OrganizationSection id="agent-pools-heading" title="Agent pools">
-      <p className={STATUS_CLASS}>
-        A pool is a set of agent persons made in one act, each with its own API key, for Twilight
-        Dash to run. The keys are saved once as a file and never shown here.
-      </p>
-      {view.kind === 'failure' && (
-        <p role="alert" className={ALERT_CLASS}>
-          {view.message}
-        </p>
+      {view.kind === 'absent' ? null : (
+        <>
+          <p className={STATUS_CLASS}>
+            A pool is a set of agent persons made in one act, each with its own API key, for
+            Twilight Dash to run. The keys are saved once as a file and never shown here.
+          </p>
+          {view.kind === 'failure' && (
+            <p role="alert" className={ALERT_CLASS}>
+              {view.message}
+            </p>
+          )}
+          <div className={ROW_ACTIONS_CLASS}>
+            {view.kind === 'ready' && (
+              <Button
+                type="button"
+                className={CONTROL_HEIGHT}
+                disabled={isSending}
+                onClick={() => {
+                  setDraftMessage('');
+                  setDraft(emptyDraft(Date.now()));
+                }}
+              >
+                Create agent pool
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              className={CONTROL_HEIGHT}
+              disabled={isSending || view.kind === 'loading'}
+              onClick={() => {
+                observe(refresh(), 'refresh');
+              }}
+            >
+              {view.kind === 'failure' ? 'Retry agent pools' : 'Refresh agent pools'}
+            </Button>
+          </div>
+        </>
       )}
-      <div className={ROW_ACTIONS_CLASS}>
-        {view.kind === 'ready' && (
-          <Button
-            type="button"
-            className={CONTROL_HEIGHT}
-            disabled={isSending}
-            onClick={() => {
-              setDraftMessage('');
-              setDraft(EMPTY_DRAFT);
-            }}
-          >
-            Create agent pool
-          </Button>
-        )}
-        <Button
-          type="button"
-          variant="outline"
-          className={CONTROL_HEIGHT}
-          disabled={isSending || view.kind === 'loading'}
-          onClick={() => {
-            observe(refresh(), 'refresh');
-          }}
-        >
-          {view.kind === 'failure' ? 'Retry agent pools' : 'Refresh agent pools'}
-        </Button>
-      </div>
       {outcome !== null && (
         <OutcomeNote
           outcome={outcome}
+          onSaveAgain={() => {
+            const held = keysFile.current;
+            if (held === null) {
+              setFault(new Error('A keys note was drawn without its file'));
+              return;
+            }
+            // The same blob and URL: no request, no new keys.
+            // Proof: 2026-10-28, dropping this save failed `saves the same file
+            // again without a request, and releases it on Done` (1 save, 2 expected).
+            saveAgentPoolKeysFile(held);
+          }}
           onDismiss={() => {
+            // Proof: 2026-10-28, not releasing here failed `saves the same file
+            // again without a request, and releases it on Done`: nothing revoked.
+            releaseKeys();
             setOutcome(null);
           }}
         />
@@ -597,18 +726,19 @@ export function AgentPoolsPanel({
                 key={pool.id}
                 pool={pool}
                 standing={standingOf(pool, view.readAt)}
-                now={view.readAt}
                 isSending={isSending}
                 rekeying={rekeying?.poolId === pool.id ? rekeying : null}
                 revocation={revocation?.poolId === pool.id ? revocation : null}
                 onAskRekey={() => {
                   setMessage('');
                   setRevocation(null);
+                  const now = Date.now();
                   setRekeying({
                     poolId: pool.id,
                     expiry: '',
-                    isExpired: standingOf(pool, Date.now()) === 'expired',
+                    isExpired: standingOf(pool, now) === 'expired',
                     message: '',
+                    openedAt: now,
                   });
                 }}
                 onRekeying={setRekeying}
@@ -631,7 +761,7 @@ export function AgentPoolsPanel({
         <CreateDialog
           draft={draft}
           capacity={view.capacity}
-          now={view.readAt}
+          now={draft.openedAt}
           isSending={isSending}
           message={draftMessage}
           onDraft={setDraft}
@@ -648,8 +778,8 @@ export function AgentPoolsPanel({
 }
 
 /** The sentence of a refusal the panel draws as its own state; a loss there is impossible. */
-function agentPoolRefusalText(refusal: AgentPoolRefusal): string {
-  const reading = agentPoolRefusal(refusal, 'rekey');
+function agentPoolRefusalText(refusal: AgentPoolRefusal, operation: AgentPoolOperation): string {
+  const reading = agentPoolRefusal(refusal, operation);
   if (reading.kind !== 'message') throw new Error(`A ${refusal.error} refusal read as a page loss`);
   return reading.text;
 }
@@ -657,9 +787,11 @@ function agentPoolRefusalText(refusal: AgentPoolRefusal): string {
 /** The note after a write: what was saved and how to use it, or what a revocation did. */
 function OutcomeNote({
   outcome,
+  onSaveAgain,
   onDismiss,
 }: {
   outcome: Outcome;
+  onSaveAgain: () => void;
   onDismiss: () => void;
 }): React.JSX.Element {
   switch (outcome.kind) {
@@ -676,7 +808,8 @@ function OutcomeNote({
           <p className="m-0 text-sm">
             {outcome.act === 'created' ? 'Created' : 'Re-keyed'} {outcome.poolName}:{' '}
             {plural(outcome.keys, 'key was', 'keys were')} saved to that file. They are not shown
-            here and cannot be downloaded again; if the file is lost, re-key the pool.
+            here. If no file appeared, save it again before pressing Done; after Done it cannot be
+            saved again, and a lost file means re-keying the pool.
           </p>
           <p className="m-0 text-sm">
             Import it with{' '}
@@ -685,14 +818,19 @@ function OutcomeNote({
             </code>
             , then delete the file.
           </p>
-          <Button
-            type="button"
-            variant="outline"
-            className={`self-start ${CONTROL_HEIGHT}`}
-            onClick={onDismiss}
-          >
-            Done
-          </Button>
+          <div className={ROW_ACTIONS_CLASS}>
+            <Button
+              type="button"
+              variant="outline"
+              className={CONTROL_HEIGHT}
+              onClick={onSaveAgain}
+            >
+              Save the file again
+            </Button>
+            <Button type="button" className={CONTROL_HEIGHT} onClick={onDismiss}>
+              Done
+            </Button>
+          </div>
         </div>
       );
     case 'revoked':
@@ -758,7 +896,6 @@ function Fact({
 function PoolRow({
   pool,
   standing,
-  now,
   isSending,
   rekeying,
   revocation,
@@ -771,7 +908,6 @@ function PoolRow({
 }: {
   pool: AgentPool;
   standing: PoolStanding;
-  now: number;
   isSending: boolean;
   rekeying: Rekeying | null;
   revocation: Revocation | null;
@@ -856,8 +992,11 @@ function PoolRow({
           }}
         >
           <p className="m-0 text-sm">
-            Re-key {pool.name}? Its {plural(liveKeys, 'live key stops', 'live keys stop')} working
-            now, and {plural(liveKeys, 'new key is', 'new keys are')} saved once as a file. No agent
+            Re-key {pool.name}?{' '}
+            {rekeying.isExpired
+              ? `Its ${plural(liveKeys, 'key has', 'keys have')} expired and ${liveKeys === 1 ? 'is' : 'are'} replaced`
+              : `Its ${plural(liveKeys, 'live key stops', 'live keys stop')} working now`}
+            , and {plural(liveKeys, 'new key is', 'new keys are')} saved once as a file. No agent
             person is created.
             {keyless > 0 &&
               ` ${plural(keyless, 'agent', 'agents')} without a live key ${keyless === 1 ? 'stays' : 'stay'} keyless.`}
@@ -878,7 +1017,7 @@ function PoolRow({
                 : `Leave empty to keep ${pool.expiresAt === null ? 'no expiry' : minuteOf(pool.expiresAt)}.`
             }
             value={rekeying.expiry}
-            now={now}
+            now={rekeying.openedAt}
             isRequired={rekeying.isExpired}
             isSending={isSending}
             onChange={(expiry) => {

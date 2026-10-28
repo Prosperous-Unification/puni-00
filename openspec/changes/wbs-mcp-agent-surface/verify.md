@@ -1726,11 +1726,14 @@ agent-pools-panel.tsx`), composed on the organization page after machine credent
   it states the persons it creates (`<name>-1` to `<name>-N`) and the organization's agent
   persons against their cap, and it disables the confirm button when the pool does not fit.
   `agent_person_limit` (409) names the cap, the current count and what fits.
-- **Keys once.** The `201` document goes straight to `downloadAgentPoolKeys`
-  (`agent-pool-keys-file.ts`), a blob and an anchor click with the object URL revoked at
-  once. The reply is never put in state, the query layer, a log or browser storage. The
-  panel keeps only the file name and the key count, and says the keys are not shown and
-  cannot be downloaded again, and that `twilight-dash pool import <file>` reads the file.
+- **Keys once.** The `201` document goes straight into a blob (`openAgentPoolKeysFile` in
+  `agent-pool-keys-file.ts`), and the panel saves it at once through an anchor attached to the
+  document for the click. The reply is never put in state, the query layer, a log or browser
+  storage. The panel holds only the blob and its object URL, until the admin presses Done, the
+  next write starts, or the panel unmounts; then the URL is revoked. Until then "Save the file
+  again" saves the same blob with no request. The note gives the file name and key count, says
+  the keys are not shown, to save again before Done if no file appeared, and that
+  `twilight-dash pool import <file>` reads the file. (Amended by the review of PR #774, S2-1.)
 - **Re-key** confirms in the row: how many live keys stop working, how many new keys are
   saved, and how many agents without a live key stay keyless. The body is always JSON: `{}`
   keeps the expiry, `{ expiresAt }` replaces it. `409 pool_expired` (or a pool the list
@@ -1765,6 +1768,25 @@ agent-pools-panel.tsx`), composed on the organization page after machine credent
    since it would issue no key (M7: only agents holding a live pool key are re-keyed).
 6. **No new design token.** The partial-success box uses the `destructive/40` border the
    existing confirm boxes use; the design system has no warning colour.
+7. **The keys file is held until Done (ASSUMED, review of PR #774 S2-1; Dany may reverse).** A
+   browser save can fail with no signal to the page: a cancelled Save-as, Chrome blocking an
+   automatic download that arrives after the click's transient activation (a slow 100-key
+   create), or Safari or Firefox losing a URL revoked straight after the click. So the panel
+   keeps the blob (never the parsed document, never its text in React state) and its object
+   URL until Done, the next write, or unmount, and offers "Save the file again" from that same
+   blob. be-01 still answers the keys once; M7's delivery wording and the agent-pools spec say
+   so now. The next write releases the previous file, because its note goes away with it.
+8. **An unreadable 201.** A create or re-key whose 2xx reply fails the contract
+   (`invalid_response`) may have made the pool. The panel says "The keys could not be read; the
+   pool may exist — refresh and re-key it." and rereads the list.
+9. **Rereads after a moved pool.** `pool_expired`, `pool_changed` and `not_found` on re-key,
+   and `not_found` on revoke, reread the list so the row matches the sentence. A confirmation
+   whose pool the reread shows revoked or gone is closed; `not_found` is then said at the panel.
+10. **Expiry days are judged when a form opens** (`Draft.openedAt`, `Rekeying.openedAt`), not at
+    the list's read time. Row chips still use the read time. The `invalid_body` sentences say
+    "up to 90 days ahead".
+11. **The keys note survives a reread that hides the panel** (`forbidden`): only the note is
+    drawn until Done.
 
 ### Reviewed by eye
 
@@ -1814,3 +1836,39 @@ Each fault was injected into the production file, the panel's test file was run,
 | Q14 | writes are serialized                              | the `isPending` admission removed                        | panel `serializes a double-clicked re-key`: 2 re-key POSTs                                                        |
 | Q15 | `name_taken` has its own sentence                  | the `not_found` sentence used                            | panel `renders name_taken on create and keeps the draft, never as success`                                        |
 | Q16 | the page composes the slot                         | `AgentPoolsSlot` removed from the page                   | `organization-page.test.tsx` `composes the agent pools panel for an admin`                                        |
+
+### Review of PR #774 (Fable, high), how each item is addressed
+
+| Item | Fix                                                                                                                                                                                                                                                                                    | Fault injected                                         | Test that observed it failing                                                                                                                                                                        |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1 | the keys file is held as a blob until Done, the next write or unmount, and saved again from that blob; the anchor is attached for the click; the URL is revoked on release, not after the click (note 7)                                                                               | no revoke on Done                                      | panel `saves the same file again without a request, and releases it on Done`                                                                                                                         |
+| S2-1 | same                                                                                                                                                                                                                                                                                   | an empty unmount cleanup                               | panel `releases the held file when the panel unmounts`                                                                                                                                               |
+| S2-1 | same                                                                                                                                                                                                                                                                                   | "Save the file again" saves nothing                    | panel `saves the same file again…` (1 save, 2 expected)                                                                                                                                              |
+| S2-1 | same                                                                                                                                                                                                                                                                                   | the anchor clicked detached                            | panel `creates a pool, downloads its keys exactly once…` (`attached: [false]`)                                                                                                                       |
+| S2-1 | same                                                                                                                                                                                                                                                                                   | no release when the next write starts                  | panel `releases the previous file when the next write starts`                                                                                                                                        |
+| S2-1 | same                                                                                                                                                                                                                                                                                   | `deliver` saves twice                                  | panel `creates a pool…`, `re-keys with a JSON body…`, `saves the same file again…`, `serializes a double-clicked re-key`                                                                             |
+| S2-1 | Q1 rechecked on the new path                                                                                                                                                                                                                                                           | the first key appended to the note's file name         | panel `creates a pool…` and `re-keys with a JSON body…`: the page held `wbs_mk_`                                                                                                                     |
+| S3-1 | reread after re-key `pool_expired`                                                                                                                                                                                                                                                     | the reread skipped                                     | panel `rereads after pool_expired so the row says Expired`: the row said Live                                                                                                                        |
+| S3-1 | reread after re-key `not_found`, said at the panel                                                                                                                                                                                                                                     | the reread skipped                                     | panel `says a re-keyed pool is gone, rereads, and drops its row`                                                                                                                                     |
+| S3-1 | reread after revoke `not_found`                                                                                                                                                                                                                                                        | the reread skipped                                     | panel `renders a refused revoke in place and rereads after not_found`                                                                                                                                |
+| S3-1 | a confirmation for a revoked or gone pool is closed after a reread; the panel JSDoc says which writes reread                                                                                                                                                                           | the closing removed                                    | panel `closes a re-key whose pool the reread shows revoked`                                                                                                                                          |
+| S3-2 | unreadable 2xx keys reply: the sentence and a reread (note 8)                                                                                                                                                                                                                          | drawn as the dialog's sentence                         | panel `says the keys could not be read and rereads`: no reread                                                                                                                                       |
+| S3-2 | the mutate-side generation fence now has its negative                                                                                                                                                                                                                                  | the fence after the create POST removed                | panel `never saves a create's keys after an organization switch`: org-a's keys were saved                                                                                                            |
+| S3-3 | a save that throws reaches the Error Boundary                                                                                                                                                                                                                                          | — (the test is the negative: `createObjectURL` throws) | panel `a save that throws reaches the error boundary`                                                                                                                                                |
+| S3-3 | re-key `invalid_body` and `insufficient_scope`, revoke `insufficient_scope` and a transport failure                                                                                                                                                                                    | — (rendered-state tests)                               | panel `renders invalid_body on re-key in place`, `renders insufficient_scope on re-key in place`, `renders insufficient_scope on revoke`, `renders a transport failure on revoke and keeps the pool` |
+| S4   | `agentPoolRefusalText` takes the operation; the effect's ref copy is `fence`; `isPending` and `isSending` are documented; expiry bounds come from the form's open time (note 10); `invalid_body` says "up to 90 days ahead"; an expired pool's confirmation says its keys have expired | —                                                      | existing tests, copy updated                                                                                                                                                                         |
+| S4   | the keys note survives a `forbidden` reread (note 11)                                                                                                                                                                                                                                  | `absent` returns null with a note held                 | panel `keeps the keys note when the reread hides the panel`                                                                                                                                          |
+| S4   | a Refresh keeps the keys note                                                                                                                                                                                                                                                          | the note cleared on refresh                            | panel `creates a pool…`: no note after Refresh                                                                                                                                                       |
+
+The browser spec now saves the file again (a second `download` event with the same name) and
+checks the reread's Expired chip after `pool_expired`. Its stub marks the pool lapsed when it
+answers `pool_expired`. The screenshots of the note and the `pool_expired` state were taken
+again and reviewed. The `/api/onboarding` answer in this spec is `selection_required`, unlike
+`organization.spec.ts`'s `onboarding_inactive`, because the panel needs an activated
+organization; CI's ordinary e2e job ran it (see the PR).
+
+Commands for the fixes, 2026-10-28 with `env -u CLAUDECODE`, on the laptop:
+`bun nx run-many -t lint typecheck -p wbs-fe-01 --skip-nx-cache` succeeded;
+`bun nx run wbs-fe-01:test --skip-nx-cache` gave unit 1079, UTC 4707 and zoned 5 passing, exit 0;
+`agent-pools-panel.test.tsx` 44 pass; the browser spec 8 pass at 1280 and 375 px;
+`openspec validate --all --json` 301 of 301.

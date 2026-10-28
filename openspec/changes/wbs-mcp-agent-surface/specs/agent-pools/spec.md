@@ -33,6 +33,13 @@ OIDC pool exists in v1.
 - **THEN** the answer is `201` with `Cache-Control: no-store` and one document naming the
   authorization server, the MCP resource and, per agent, its person, name, credential and key
 
+#### Scenario: The keys file can be saved again until Done
+
+- **WHEN** fe-01 receives a pool's keys document
+- **THEN** it saves it as `pool-<id>.keys.json` at once and offers to save the same file again,
+  without another request, until the admin presses Done; it never shows the keys, and Done,
+  the next write or leaving the page releases the file
+
 ### Requirement: Pools are listed without secrets
 
 `GET /api/organization/agent-pools` (admin only) SHALL list every pool of the organization,

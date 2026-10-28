@@ -95,7 +95,11 @@ async function answerAsAdmin(
     if (rekey !== null) {
       const pool = pools.find((each) => each.id === rekey[1]);
       if (pool === undefined) return json({ error: 'not_found' }, 404);
-      if (answers.rekey === 'pool_expired') return json({ error: 'pool_expired' }, 409);
+      if (answers.rekey === 'pool_expired') {
+        // The pool lapsed while the admin looked: the reread says Expired.
+        pool.expiresAt = Date.now() - 60_000;
+        return json({ error: 'pool_expired' }, 409);
+      }
       return json(keysBody(pool), 201);
     }
     if (revoke !== null) {
@@ -287,7 +291,10 @@ for (const width of [1280, 375]) {
       const download = await saved;
       expect(download.suggestedFilename()).toBe('pool-pool-new.keys.json');
       const note = panel.getByRole('status', { name: 'Keys downloaded' });
-      await expect(note).toContainText('cannot be downloaded again');
+      await expect(note).toContainText('If no file appeared, save it again before pressing Done');
+      const again = page.waitForEvent('download');
+      await note.getByRole('button', { name: 'Save the file again' }).click();
+      expect((await again).suggestedFilename()).toBe('pool-pool-new.keys.json');
       await capture(page, panel, testInfo, shot('created'));
     });
 
@@ -308,6 +315,12 @@ for (const width of [1280, 375]) {
       await confirm.getByRole('button', { name: 'Re-key and download keys' }).click();
       await expect(confirm.getByRole('alert')).toContainText('This pool has expired.');
       await expect(confirm.getByLabel('New expiry')).toHaveAttribute('required', '');
+      // The reread after the refusal: the row says what the sentence says.
+      await expect(
+        panel
+          .getByRole('listitem', { name: 'nightly-reviewers' })
+          .getByText('Expired', { exact: true }),
+      ).toBeVisible();
       await capture(
         page,
         panel.getByRole('listitem', { name: 'nightly-reviewers' }),

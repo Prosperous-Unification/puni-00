@@ -68,10 +68,10 @@ export function agentPoolRefusal(
       switch (operation) {
         case 'create':
           return said(
-            'Choose a plain name of at most 60 characters that does not look like a key, from 1 to 100 agents, and an expiry within 90 days. Nothing was created.',
+            'Choose a plain name of at most 60 characters that does not look like a key, from 1 to 100 agents, and an expiry up to 90 days ahead. Nothing was created.',
           );
         case 'rekey':
-          return said('Choose an expiry within the next 90 days. No key was replaced.');
+          return said('Choose an expiry up to 90 days ahead. No key was replaced.');
         case 'read':
         case 'revoke':
           return said(RELOAD);
