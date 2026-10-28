@@ -25,12 +25,17 @@ runStoreContract('sqlite', async () => {
     maxBusyAttempts: 10,
     busyDelayMilliseconds: 1,
   });
+  let closing: Promise<void> | undefined;
   return {
     ...stores,
     clock,
-    close() {
-      stores.close();
-      rmSync(directory, { recursive: true, force: true });
+    close(): Promise<void> {
+      if (closing !== undefined) return closing;
+      closing = (async () => {
+        await stores.close();
+        rmSync(directory, { recursive: true, force: true });
+      })();
+      return closing;
     },
   };
 });
@@ -61,14 +66,19 @@ async function durableFixture(capacity = 1) {
     },
     ordinal: 1,
   });
+  let closing: Promise<void> | undefined;
   return {
     options,
     stores,
     guard: { ownership, runId: run.runId, expectedRevision: 0 },
     admission,
-    close() {
-      stores.close();
-      rmSync(directory, { recursive: true, force: true });
+    close(): Promise<void> {
+      if (closing !== undefined) return closing;
+      closing = (async () => {
+        await stores.close();
+        rmSync(directory, { recursive: true, force: true });
+      })();
+      return closing;
     },
   };
 }
@@ -87,7 +97,7 @@ test('reservation trigger abort rolls back attempt revision and capacity across 
     );
     expect(database.query('SELECT * FROM run_attempt').all()).toEqual([]);
     expect(database.query('SELECT * FROM run_reservation').all()).toEqual([]);
-    fixture.stores.close();
+    await fixture.stores.close();
     const reopened = await openSqliteStores(fixture.options);
     try {
       expect(await reopened.runs.readRun(fixture.guard.runId)).toEqual(before);
@@ -100,11 +110,11 @@ test('reservation trigger abort rolls back attempt revision and capacity across 
       expect(admitted.run.revision).toBe(1);
       expect(admitted.capacity.reserved).toBe(1);
     } finally {
-      reopened.close();
+      await reopened.close();
     }
   } finally {
     database.close();
-    fixture.close();
+    await fixture.close();
   }
 });
 test('held write lock exhausts asynchronous retry budget without changing work', async () => {
@@ -131,7 +141,7 @@ test('held write lock exhausts asynchronous retry budget without changing work',
     expect(await fixture.stores.runs.readRun(fixture.guard.runId)).toEqual(before);
   } finally {
     database.close();
-    fixture.close();
+    await fixture.close();
   }
 });
 test('clock is observed after lock acquisition so waiting cannot renew an expired lease', async () => {
@@ -156,7 +166,7 @@ test('clock is observed after lock acquisition so waiting cannot renew an expire
     expect((await fixture.stores.runs.readRun(fixture.guard.runId)).capacity.reserved).toBe(0);
   } finally {
     database.close();
-    fixture.close();
+    await fixture.close();
   }
 });
 
@@ -202,7 +212,7 @@ for (const fault of ['throw', 'skip'] as const)
     } finally {
       Object.defineProperty(Database.prototype, 'run', descriptor);
       database.close();
-      fixture.close();
+      await fixture.close();
     }
   });
 test('reservation counts above persisted capacity throw during reads and reopen', async () => {
@@ -223,7 +233,7 @@ test('reservation counts above persisted capacity throw during reads and reopen'
     expect((await fixture.stores.runs.readRun(fixture.guard.runId)).capacity.reserved).toBe(2);
     database.run('UPDATE run_meta SET capacity=1');
     await rejects(fixture.stores.runs.readRun(fixture.guard.runId), /corrupt reservation capacity/);
-    fixture.stores.close();
+    await fixture.stores.close();
     await rejects(
       openSqliteStores({ ...fixture.options, capacity: 1 }),
       (cause: unknown) =>
@@ -233,7 +243,7 @@ test('reservation counts above persisted capacity throw during reads and reopen'
     );
   } finally {
     database.close();
-    fixture.close();
+    await fixture.close();
   }
 });
 
@@ -256,7 +266,7 @@ test('stale ownership refuses manifest and run mutations before decoding corrupt
     });
   } finally {
     database.close();
-    fixture.close();
+    await fixture.close();
   }
 });
 
@@ -264,7 +274,7 @@ test('exclusive lifecycle lock exhausts contention instead of misclassifying cor
   const fixture = await durableFixture();
   try {
     const before = await fixture.stores.runs.readRun(fixture.guard.runId);
-    fixture.stores.close();
+    await fixture.stores.close();
     const database = new Database(fixture.options.path);
     let yielded = false;
     const timer = setTimeout(() => {
@@ -285,10 +295,10 @@ test('exclusive lifecycle lock exhausts contention instead of misclassifying cor
     try {
       expect(await reopened.runs.readRun(fixture.guard.runId)).toEqual(before);
     } finally {
-      reopened.close();
+      await reopened.close();
     }
   } finally {
-    fixture.close();
+    await fixture.close();
   }
 });
 
@@ -348,7 +358,7 @@ for (const request of ['renewal', 'manifest', 'run', 'admission'] as const) {
     } finally {
       if (database.inTransaction) database.run('ROLLBACK');
       database.close();
-      fixture.close();
+      await fixture.close();
     }
   });
 }

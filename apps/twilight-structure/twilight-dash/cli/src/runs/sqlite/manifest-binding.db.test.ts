@@ -31,15 +31,16 @@ function options(path: string) {
 manifestBindingContract('sqlite manifest binding', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'manifest-binding-'));
   const stores = await bootstrapSqliteStores(options(join(directory, 'store.sqlite')));
-  let isClosed = false;
+  let closing: Promise<void> | undefined;
   return {
     ...stores,
-    close() {
-      if (!isClosed) {
-        isClosed = true;
-        stores.close();
+    close(): Promise<void> {
+      if (closing !== undefined) return closing;
+      closing = (async () => {
+        await stores.close();
         rmSync(directory, { recursive: true });
-      }
+      })();
+      return closing;
     },
   };
 });
@@ -69,7 +70,7 @@ test('sqlite close/reopen keeps original binding and BOM prompt after source fil
     const retained = initial.manifest;
     await stores.artifacts.retainArtifact(readFileSync(promptPath), 'text/plain');
     await retainBinding(stores, retained);
-    stores.close();
+    await stores.close();
     writeFileSync(bindingPath, '{"changed":true}');
     writeFileSync(promptPath, 'changed prompt');
     stores = await openSqliteStores(configuration);
@@ -79,7 +80,7 @@ test('sqlite close/reopen keeps original binding and BOM prompt after source fil
     expect(recovered.binding.prompts[1].bytesBase64).toBe('77u/cAo=');
     expect(recovered.binding.prompts[1].text).toBe('p\n');
   } finally {
-    stores.close();
+    await stores.close();
     rmSync(directory, { recursive: true });
   }
 });
@@ -92,7 +93,7 @@ test('sqlite recovery refuses corrupt retained bytes after reopen', async () => 
     const { manifest } = createBindingFixture();
     await stores.artifacts.retainArtifact(originalPrompt, 'text/plain');
     await retainBinding(stores, manifest);
-    stores.close();
+    await stores.close();
     const database = new Database(configuration.path);
     try {
       database.query('UPDATE run_artifact SET content=?').run(new Uint8Array([1, 2, 3, 4, 5]));
@@ -105,7 +106,7 @@ test('sqlite recovery refuses corrupt retained bytes after reopen', async () => 
       /artifact integrity/,
     );
   } finally {
-    stores.close();
+    await stores.close();
     rmSync(directory, { recursive: true });
   }
 });

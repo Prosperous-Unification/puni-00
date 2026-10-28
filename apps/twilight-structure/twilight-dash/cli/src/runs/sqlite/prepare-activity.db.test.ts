@@ -27,15 +27,20 @@ async function create() {
   };
   try {
     const connection = await bootstrapSqliteStores(options);
+    let closing: Promise<void> | undefined;
     return {
       ...connection,
       connection,
       clock,
       options,
       directory,
-      close() {
-        connection.close();
-        rmSync(directory, { recursive: true, force: true });
+      close(): Promise<void> {
+        if (closing !== undefined) return closing;
+        closing = (async () => {
+          await connection.close();
+          rmSync(directory, { recursive: true, force: true });
+        })();
+        return closing;
       },
     };
   } catch (cause) {
@@ -83,7 +88,7 @@ for (const checkpoint of ['preparing', 'prepared'] as const)
           new AbortController().signal,
         );
         expect(first.kind).toBe(checkpoint === 'preparing' ? 'pending' : 'prepared');
-        stores.connection.close();
+        await stores.connection.close();
         reopened = await openSqliteStores(stores.options);
         const history = await reopened.runs.readExecutionHistory(
           setup.run.runId,
@@ -108,8 +113,8 @@ for (const checkpoint of ['preparing', 'prepared'] as const)
         expect(opens).toBe(1);
         expect((await reopened.runs.readRun(setup.run.runId)).capacity.reserved).toBe(1);
       } finally {
-        reopened?.close();
-        stores.close();
+        await reopened?.close();
+        await stores.close();
       }
     },
   );

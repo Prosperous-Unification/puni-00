@@ -126,7 +126,7 @@ export function executionHistoryContract(
         ]);
         expect((await stores.runs.readRun(setup.run.runId)).run.revision).toBe(7);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     test('admission starts one version2 queued checkpoint at revision zero', async () => {
@@ -144,7 +144,7 @@ export function executionHistoryContract(
         expect(snapshot.version).toBe(2);
         expect(snapshot.run.revision).toBe(1);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
 
@@ -219,7 +219,7 @@ export function executionHistoryContract(
         ).toEqual({ kind: 'refused', reason: 'authority_conflict' });
         expect((await stores.runs.readRun(setup.run.runId)).capacity.reserved).toBe(1);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
 
@@ -294,7 +294,7 @@ export function executionHistoryContract(
                   ),
                 ).toEqual({ kind: 'refused', reason: 'owner_stale' });
             } finally {
-              stores.close();
+              await stores.close();
             }
           },
         );
@@ -387,7 +387,7 @@ export function executionHistoryContract(
                   ),
                 ).toEqual({ kind: 'refused', reason: 'authority_conflict' });
             } finally {
-              stores.close();
+              await stores.close();
             }
           },
         );
@@ -534,7 +534,7 @@ export function executionHistoryContract(
                 await stores.runs.recordExecution(await setup.currentGuard(), command),
               ).toEqual({ kind: 'duplicate', value: observed });
             } finally {
-              stores.close();
+              await stores.close();
             }
           },
         );
@@ -593,7 +593,7 @@ function claimGuardContract(create: () => Promise<OutcomeFixture>): void {
       ).toEqual(history);
       expect(await stores.runs.readRuntimeScope(setup.scope)).toEqual(scope);
     } finally {
-      stores.close();
+      await stores.close();
     }
   });
   test('claim acceptance replay remains original after later turn and refuses a second local association or scope', async () => {
@@ -627,7 +627,7 @@ function claimGuardContract(create: () => Promise<OutcomeFixture>): void {
         await stores.runs.readExecutionHistory(setup.run.runId, setup.attempt.attemptId),
       ).toEqual(history);
     } finally {
-      stores.close();
+      await stores.close();
     }
   });
 
@@ -697,7 +697,7 @@ function claimGuardContract(create: () => Promise<OutcomeFixture>): void {
           expect(await stores.runs.readRuntimeScope(setup.scope)).toEqual(scope);
           expect((await stores.runs.readRun(setup.run.runId)).capacity.reserved).toBe(1);
         } finally {
-          stores.close();
+          await stores.close();
         }
       },
     );
@@ -743,7 +743,7 @@ function claimGuardContract(create: () => Promise<OutcomeFixture>): void {
         ).toEqual(history);
         expect(await stores.runs.readRuntimeScope(setup.scope)).toEqual(scope);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
   for (const field of [
@@ -772,7 +772,7 @@ function claimGuardContract(create: () => Promise<OutcomeFixture>): void {
         ).toEqual(history);
         expect(await stores.runs.readRuntimeScope(setup.scope)).toEqual(scope);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
   test('claim wire identity is unbounded and local replay retains its immutable detached acknowledgement', async () => {
@@ -828,7 +828,7 @@ function claimGuardContract(create: () => Promise<OutcomeFixture>): void {
         ).executions.at(-1)?.reply,
       ).toEqual(original);
     } finally {
-      stores.close();
+      await stores.close();
     }
   });
   for (const fault of [
@@ -899,7 +899,7 @@ function claimGuardContract(create: () => Promise<OutcomeFixture>): void {
         expect(await stores.runs.readRuntimeScope(setup.scope)).toEqual(scope);
         expect((await stores.runs.readRun(setup.run.runId)).capacity.reserved).toBe(1);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
 }
@@ -923,7 +923,7 @@ function preparationGuardContract(create: () => Promise<OutcomeFixture>): void {
         await stores.runs.readExecutionHistory(setup.run.runId, setup.attempt.attemptId),
       ).toEqual(history);
     } finally {
-      stores.close();
+      await stores.close();
     }
   });
   for (const field of [
@@ -976,8 +976,8 @@ function preparationGuardContract(create: () => Promise<OutcomeFixture>): void {
         ).toEqual(before);
         expect((await stores.runs.readRun(setup.run.runId)).capacity.reserved).toBe(1);
       } finally {
-        original.close();
-        stores.close();
+        await original.close();
+        await stores.close();
       }
     });
   test('preparation creation key cannot be reused by another independent attempt for the same executor', async () => {
@@ -1003,7 +1003,7 @@ function preparationGuardContract(create: () => Promise<OutcomeFixture>): void {
       ).toEqual(before);
       expect((await stores.runs.readRun(second.run.runId)).capacity.reserved).toBe(2);
     } finally {
-      stores.close();
+      await stores.close();
     }
   });
   test('claim wire association is globally unique across independent prepared attempts', async () => {
@@ -1029,7 +1029,7 @@ function preparationGuardContract(create: () => Promise<OutcomeFixture>): void {
       ).toEqual(before);
       expect(await stores.runs.readRuntimeScope(second.scope)).toEqual(scope);
     } finally {
-      stores.close();
+      await stores.close();
     }
   });
   test('claim acceptance cannot reopen a settled interrupted claiming checkpoint', async () => {
@@ -1073,7 +1073,7 @@ function preparationGuardContract(create: () => Promise<OutcomeFixture>): void {
       expect(await stores.runs.readRuntimeScope(setup.scope)).toEqual(scope);
       expect((await stores.runs.readRun(setup.run.runId)).capacity.reserved).toBe(0);
     } finally {
-      stores.close();
+      await stores.close();
     }
   });
 }
@@ -1174,7 +1174,7 @@ function coupledProviderContract(create: () => Promise<OutcomeFixture>): void {
             revision: scope.revision,
           });
         } finally {
-          stores.close();
+          await stores.close();
         }
       },
     );
@@ -1209,7 +1209,7 @@ function coupledDecoderContract(create: () => Promise<OutcomeFixture>): void {
             expect(await stores.runs.readRun(setup.run.runId)).toEqual(run);
             expect((await invokeCoupledProvider(stores.runs, guard, command)).kind).toBe('applied');
           } finally {
-            stores.close();
+            await stores.close();
           }
         },
       );
@@ -1263,7 +1263,7 @@ function reviewGuardContract(create: () => Promise<OutcomeFixture>): void {
           await stores.runs.readExecutionHistory(setup.run.runId, setup.attempt.attemptId),
         ).toEqual(history);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
   test('review guard authority acceptance refuses coupled claim replay', async () => {
@@ -1295,7 +1295,7 @@ function reviewGuardContract(create: () => Promise<OutcomeFixture>): void {
         await stores.runs.readExecutionHistory(setup.run.runId, setup.attempt.attemptId),
       ).toEqual(history);
     } finally {
-      stores.close();
+      await stores.close();
     }
   });
   test('review guard claim acceptance rejects different submitted intent', async () => {
@@ -1327,7 +1327,7 @@ function reviewGuardContract(create: () => Promise<OutcomeFixture>): void {
       ).toEqual(history);
       expect(await stores.runs.readRuntimeScope(setup.scope)).toEqual(scope);
     } finally {
-      stores.close();
+      await stores.close();
     }
   });
   test('review guard claim acceptance refuses reconciling prepared checkpoint', async () => {
@@ -1389,7 +1389,7 @@ function reviewGuardContract(create: () => Promise<OutcomeFixture>): void {
       ).toEqual(history);
       expect(await stores.runs.readRuntimeScope(setup.scope)).toEqual(scope);
     } finally {
-      stores.close();
+      await stores.close();
     }
   });
   for (const fault of [
@@ -1454,7 +1454,7 @@ function reviewGuardContract(create: () => Promise<OutcomeFixture>): void {
           reconstructRuntimeScope({ ...retained, revision }, intents, acceptances, ownership),
         ).toThrow('corrupt runtime claim authority');
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
 }

@@ -1,5 +1,109 @@
 ## ADDED Requirements
 
+### Requirement: Receiver response evidence is correlated with its original call
+
+The bridge SHALL pair each shared-client reply with that call's original Response body
+bytes. Concurrent calls SHALL keep independent captures. Parsed replies SHALL NOT be
+reserialized as original evidence. Injected transport configuration SHALL remain external
+to credential and deployment ownership. Capture alone SHALL establish neither receipt
+correspondence, authenticated acceptance nor current authority.
+
+#### Scenario: Receiver calls complete in reverse order
+
+- **WHEN** two actual shared-client calls return distinct complete receipts in reverse order
+- **THEN** each reply carries only its own original bytes and status, including compatible additive body fields
+
+#### Scenario: Original response bytes are unavailable
+
+- **WHEN** the transport returns a parsed-only reply or reading the original body fails
+- **THEN** configuration error or the shared client's modeled transport failure is preserved without reserialization or automatic retry
+
+#### Scenario: Request fails preflight
+
+- **WHEN** shared request validation or pre-dispatch cancellation rejects the request
+- **THEN** transport is not invoked and the failed exchange carries no response evidence
+
+#### Scenario: Transport returns after cancellation
+
+- **WHEN** transport returns an actual Response after the request signal is already aborted
+- **THEN** the original Response reaches shared cancellation/discard without cloning or waiting for capture, and the exchange carries no captured bytes
+
+### Requirement: Authority delivery follows durable intent election
+
+The bridge SHALL commit the exact immutable authority request before sending it. Only fresh
+local staging SHALL elect one authority POST; duplicate staging SHALL return verified original
+acceptance or look up the original command. Unconfirmed replies SHALL preserve the pending
+intent. Original accepted evidence SHALL survive concurrent compatible response representations.
+Historical acceptance SHALL NOT establish a current receiver lease or a new local epoch grant.
+
+#### Scenario: Fresh authority intent waits for commit and ownership renewal
+
+- **WHEN** local staging or subsequent ownership renewal has not completed
+- **THEN** no authority POST is sent, and cancellation or renewal refusal after staging retains the pending identity
+
+#### Scenario: Lost response is reconciled
+
+- **WHEN** an authority response is lost and the same retained request is submitted again
+- **THEN** the bridge looks up its exact ledger and command without another POST, and accepts only independently verified original receipt bytes
+
+#### Scenario: Receipt is currently absent or refused
+
+- **WHEN** duplicate reconciliation returns404, a validated refusal, cancellation or transport uncertainty
+- **THEN** the original request remains pending without clearing, rebasing or treating absence as proof an earlier request cannot commit
+
+#### Scenario: Compatible receipt representations race
+
+- **WHEN** concurrent responses for the same accepted command contain different compatible JSON byte representations
+- **THEN** both acknowledgements use the first persisted verified acceptance artifact without replacing its original bytes
+
+#### Scenario: An old epoch request is acknowledged
+
+- **WHEN** a current local owner reconciles an exact authority request staged by an earlier local epoch
+- **THEN** acknowledgement remains historical and does not map that request into a current-epoch grant
+
+#### Scenario: Unexpected receipt or persistence fault follows staging
+
+- **WHEN** original evidence, complete correspondence or trusted persistence fails unexpectedly after the intent is known
+- **THEN** the bridge throws a fixed-message error retaining detached immutable intent correlation and original private cause without a new POST or pending release
+
+### Requirement: Prepared claim delivery preserves fixed input and coupled acknowledgement
+
+The bridge SHALL construct a claim for the retained prepared session and deliver its fixed
+canonical request with stable distinct local stage and acceptance identities. Only fresh
+staging SHALL elect a conditional claim POST. Duplicate delivery SHALL use verified original
+acknowledgement or exact lookup. Local revision checks SHALL never silently refresh during
+receipt reconciliation. Historical acknowledgement SHALL NOT grant current turn permission.
+
+#### Scenario: Initial claim construction uses a retained prepared target
+
+- **WHEN** verified execution and runtime history and an actual state artifact identify the prepared target and selected local-epoch grant
+- **THEN** construction uses that target, parent and actual prepared session binding, refreshing only basis and evidence without sending or granting execution permission
+
+#### Scenario: Fresh claim staging commits
+
+- **WHEN** the exact prepared request is newly staged and current ownership and cancellation checks allow dispatch
+- **THEN** one conditional claim POST follows the commit, and receipt acceptance uses submitted run/scope revisions advanced once plus the staged attempt revision
+
+#### Scenario: Duplicate delivery has an old pre-stage guard
+
+- **WHEN** exact duplicate staging returns its historical acknowledgement and lookup finds a valid receipt under the old submitted guard
+- **THEN** acceptance preserves that guard unchanged and its revision conflict stays pending until the caller explicitly observes state and submits current revisions with identical fixed inputs
+
+#### Scenario: State changes during lookup
+
+- **WHEN** an intervening local fact changes the submitted acceptance revisions while lookup is pending
+- **THEN** acceptance refuses without an internal refresh or overwrite of the new fact
+
+#### Scenario: Compatible claim receipts race
+
+- **WHEN** different compatible receipt bytes race for the same stable local acceptance ID and complete runtime intent
+- **THEN** acknowledgements retain the first complete paired ClaimAcceptAck and original artifact, while another local acceptance ID remains an identity conflict
+
+#### Scenario: Late old-owner claim is acknowledged
+
+- **WHEN** a current owner explicitly reconciles a valid late receipt for the original pending claim
+- **THEN** original intent and attachment provenance survive, no turn or capacity release follows, and uncertain404/refusal/transport results remain pending
+
 ### Requirement: Dash claims, reports and releases through WBS as one agent person
 
 Twilight Dash SHALL read startable work and write claims, progress, measures, releases and
@@ -304,3 +408,37 @@ For already boundary-validated runtime values, contracts SHALL compare a receipt
 - **WHEN** all retained fields match an earlier accepted request
 - **THEN** correspondence does not refresh a current grant or authorize another effect
 - **AND** authenticated transport and existing current permission checks remain separate requirements
+
+### Requirement: A retained RuntimeState can be read without a target projection
+
+`readRuntimeStateArtifact` SHALL detach an already validated ArtifactRef before IO and return the full existing RuntimeState. It SHALL preserve the current media, integrity, fatal UTF-8, JSON and public-schema checks in their original order, propagate dependency failures unchanged, and claim no freshness, authenticity or execution permission.
+
+#### Scenario: Retained state has authority and claim inventory
+
+- WHEN the reader consumes valid retained state
+- THEN the full public value, including authority/claims/facts/basis/scope/ledger, is returned rather than the smaller TargetObservation projection.
+
+#### Scenario: Caller mutates its reference while IO is held
+
+- GIVEN a valid already decoded reference and held artifact read
+- WHEN the caller mutates its own reference after invocation
+- THEN the read verifies and returns the original referenced state using its detached snapshot.
+
+#### Scenario: Trusted retained bytes cannot be consumed
+
+- WHEN evidence is missing, unreadable, wrong-media, wrong-digest/length, malformed UTF8/JSON or invalid public schema
+- THEN the reader throws with the inherited cause/error behavior; it never defaults state.
+
+### Requirement: Existing target observation behavior is preserved
+
+readTargetObservation SHALL retain its original reference parse/snapshot then target snapshot synchronously before first await, delegate only the retained full-state decoding stage, and keep all existing scope/work/step/code comparisons and error order unchanged. It SHALL continue to return the same TargetObservation record. No caller migration to a different target contract is required.
+
+#### Scenario: Target or reference aliases change during the read
+
+- WHEN a caller mutates its original target/reference during retained-state IO
+- THEN the original target/reference controls the projection and the same existing valid/invalid target outcomes hold.
+
+#### Scenario: Extraction is invoked by real preparation
+
+- WHEN recordPreparation receives invalid state or target through the existing provider path
+- THEN it throws before recordExecution and retained history remains unchanged, as before extraction.

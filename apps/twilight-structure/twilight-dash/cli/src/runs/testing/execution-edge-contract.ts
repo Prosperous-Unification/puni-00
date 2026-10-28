@@ -64,7 +64,7 @@ export function executionEdgeContract(name: string, create: () => Promise<Outcom
         }
         expect((await stores.runs.readRun(setup.run.runId)).capacity.reserved).toBe(0);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     test('successful effects cannot retry and missing attempts throw without mutations', async () => {
@@ -124,7 +124,7 @@ export function executionEdgeContract(name: string, create: () => Promise<Outcom
           ),
         ).toEqual({ kind: 'refused', reason: 'state_conflict' });
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     test('unresolved and recovery preserve the exact running locator and held reservation', async () => {
@@ -181,7 +181,7 @@ export function executionEdgeContract(name: string, create: () => Promise<Outcom
           ).kind,
         ).toBe('applied');
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     for (const kind of ['failed', 'cancelled'] as const)
@@ -214,7 +214,7 @@ export function executionEdgeContract(name: string, create: () => Promise<Outcom
           ).toBe('applied');
           expect((await stores.runs.readRun(setup.run.runId)).capacity.reserved).toBe(0);
         } finally {
-          stores.close();
+          await stores.close();
         }
       });
   });

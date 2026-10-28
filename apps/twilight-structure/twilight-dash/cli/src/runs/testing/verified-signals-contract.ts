@@ -40,7 +40,7 @@ export function verifiedSignalsContract(name: string, create: () => Promise<Outc
             expect((await stores.runs.reconcileReceipt(guard, receipt)).kind).toBe('applied');
           }
         } finally {
-          stores.close();
+          await stores.close();
         }
       });
       test(`verified ${operation} snapshots authority target and payload before awaiting artifact reads`, async () => {
@@ -99,7 +99,7 @@ export function verifiedSignalsContract(name: string, create: () => Promise<Outc
             expect((await stores.runs.readRun(setup.run.runId)).receipts).toEqual([setup.receipt]);
           }
         } finally {
-          stores.close();
+          await stores.close();
         }
       });
     }

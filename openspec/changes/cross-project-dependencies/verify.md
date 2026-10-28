@@ -7745,3 +7745,7 @@ unverified or held; parent task checkboxes are unchanged.
 ## Machine grant caller compatibility — 2026-10-28
 
 [Observed real caller semantic-header RED/GREEN proof](verify-main-r18-machine-grant-caller-20261028.md) records the tested issuance boundary, actual whole-file unit/backend results and explicit pending native, whole-MCP and current gate/CI checks.
+
+## Fresh-main compatibility and gate fixtures, 2026-10-28
+
+[Fresh-main verification](verify-main-reconciliation-20261028.md) records the metadata union, observed workflow refusal/restoration, real ENABLED worker V1 proof, complete fifteen-case owner and two gate-fixture corrections. Old-source passes and failed host results retain their exact scope; final integrated target facts, gate, CI, parity and activation acceptance remain open.

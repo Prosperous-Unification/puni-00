@@ -74,7 +74,7 @@ export function signalEdgeContract(name: string, create: () => Promise<OutcomeFi
           reason: 'owner_stale',
         });
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     test('missing named attempts throw before inbox or receipt mutation', async () => {
@@ -105,7 +105,7 @@ export function signalEdgeContract(name: string, create: () => Promise<OutcomeFi
         );
         expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     test('cross run and cross attempt consumption refuse before any reservation', async () => {
@@ -128,7 +128,7 @@ export function signalEdgeContract(name: string, create: () => Promise<OutcomeFi
         ).toEqual({ kind: 'refused', reason: 'decision_conflict' });
         expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     test('receipt state target revisions and expired owner cannot mutate a wait', async () => {
@@ -165,7 +165,7 @@ export function signalEdgeContract(name: string, create: () => Promise<OutcomeFi
         });
         expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     for (const scenario of [
@@ -232,7 +232,7 @@ export function signalEdgeContract(name: string, create: () => Promise<OutcomeFi
           expect(reply).toEqual({ kind: 'refused', reason: scenario.reason });
           expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
         } finally {
-          stores.close();
+          await stores.close();
         }
       });
     test('receipt cross run guard cannot retarget a pending command', async () => {
@@ -254,7 +254,7 @@ export function signalEdgeContract(name: string, create: () => Promise<OutcomeFi
         expect(await pending).toEqual({ kind: 'refused', reason: 'authority_conflict' });
         expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     test('historical receipt retries refuse changed evidence or authority and expired owner', async () => {
@@ -282,7 +282,7 @@ export function signalEdgeContract(name: string, create: () => Promise<OutcomeFi
         });
         expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
   });

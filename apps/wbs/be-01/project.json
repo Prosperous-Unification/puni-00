@@ -57,7 +57,12 @@
         "{workspaceRoot}/apps/wbs/gw-01/src/**/*",
         "{workspaceRoot}/apps/wbs/fe-01/src/**/*",
         "{workspaceRoot}/apps/wbs/fe-01/tsconfig.app.json",
-        "{workspaceRoot}/apps/wbs/fe-01/tsconfig.json"
+        "{workspaceRoot}/apps/wbs/fe-01/tsconfig.json",
+        "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/runs/**/*",
+        "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/bridge/**/*",
+        "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/agents/**/*",
+        "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/clock.ts",
+        "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/cli/src/contracts/**/*"
       ],
       "options": {
         "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",
@@ -114,7 +119,10 @@
       "dependsOn": ["build-host-restore"],
       "options": {
         "command": "bun test ./apps/wbs/be-01/scripts/shared-people-host-artifact.smoke.ts ./apps/wbs/be-01/scripts/shared-people-host-restore.rehearsal.ts --timeout=60000",
-        "env": { "CLAUDECODE": "0", "AGENT": "0" }
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        }
       }
     },
     "acceptance:historical-plan-reader": {

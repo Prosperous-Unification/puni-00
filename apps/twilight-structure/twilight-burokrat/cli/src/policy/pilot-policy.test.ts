@@ -492,6 +492,8 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // Both original shipped policies reproduced that refusal; exact-file declarations restored
     // binary classification and both still refused a same-byte unlisted gzip control.
     // See openspec/changes/burokrat-workflow-binding-validation/evidence/inventory-repair.json.
+    // Proof (2026-10-27): P2 removed only the five BE inputs from the full declaration;
+    // production lint emitted fact check.be-01.test authority-selector mismatch.
     expect(invocation.exitCode, output(invocation)).toBe(0);
     expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
       mode: 'observe',

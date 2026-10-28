@@ -142,7 +142,7 @@ test('bootstrap requires valid configuration and clock and closed stores reject 
     }),
   ).toThrow('Validation failed');
   const fixture = await createAdmissionFixture({ capacity: 1, leaseMilliseconds: 100 });
-  fixture.close();
+  const closing = fixture.close();
   const operations = [
     () => fixture.runs.acquireOwnership(ownerId('owner'), 1),
     () => fixture.runs.renewOwnership(fixture.ownership),
@@ -157,6 +157,7 @@ test('bootstrap requires valid configuration and clock and closed stores reject 
       ),
   ];
   for (const operation of operations) await rejects(operation(), /closed/);
+  await closing;
 });
 
 test('trusted missing records and arithmetic overflow throw without reservations', async () => {

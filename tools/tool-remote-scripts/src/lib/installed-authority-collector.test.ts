@@ -568,22 +568,32 @@ test('executable digests bind the opened inode in internal, relevant and late op
   const observed = await python(String.raw`
 import builtins,tempfile,shutil
 with tempfile.TemporaryDirectory(prefix='authority-exe-fd-') as directory:
-    executable_a=directory+'/sleep-a';executable_b=directory+'/sleep-b';database=directory+'/database'
+    # Proof: h2's same-byte sleep-a probe exited 1 with "coreutils: unknown program 'sleep-a'".
+    # Keep the multicall applet basename while retaining separate executable inodes.
+    os.mkdir(directory+'/a');os.mkdir(directory+'/b')
+    executable_a=directory+'/a/sleep';executable_b=directory+'/b/sleep';database=directory+'/database'
     shutil.copyfile('/bin/sleep',executable_a);shutil.copyfile('/bin/sleep',executable_b)
     os.chmod(executable_a,0o755);os.chmod(executable_b,0o755)
     assert os.stat(executable_a).st_ino!=os.stat(executable_b).st_ino
     with open(executable_a,'rb') as source_a,open(executable_b,'rb') as source_b:
         assert digest(source_a.read())==digest(source_b.read())
     with open(database,'wb+') as selected:
-        child=subprocess.Popen([executable_a,'20'],pass_fds=(selected.fileno(),),stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        child=subprocess.Popen([executable_a,'20'],pass_fds=(selected.fileno(),),stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
         try:
             base='/proc/'+str(child.pid);exe=base+'/exe'
             expected_command=os.fsencode(executable_a)+b'\x0020\x00'
             # Proof: exe-only readiness admitted empty-to-full cmdline drift in 6/300 real startups;
             # waiting for the exact argv yielded 900 unchanged production captures (2026-10-26).
             for attempt in range(100):
-                with open(base+'/cmdline','rb') as stream:command=stream.read()
-                if os.readlink(exe)==executable_a and command==expected_command:break
+                try:
+                    with open(base+'/cmdline','rb') as stream:command=stream.read()
+                    executable=os.readlink(exe)
+                except FileNotFoundError as failure:
+                    status=child.poll()
+                    assert child.stderr is not None
+                    diagnostic=child.stderr.read(4096) if status is not None else b'<owned child still running; stderr not drained>'
+                    raise AssertionError('owned child readiness failed: pid='+str(child.pid)+' executable='+executable_a+' exit='+str(status)+' stderr='+repr(diagnostic)) from failure
+                if executable==executable_a and command==expected_command:break
                 time.sleep(0.005)
             else:raise AssertionError('owned child did not start')
             assert identity(os.stat(exe))==identity(os.stat(executable_a))

@@ -125,9 +125,7 @@ export async function createAdmissionFixture(options: {
     ownership,
     run,
     admission,
-    close: () => {
-      stores.close();
-    },
+    close: () => stores.close(),
   };
 }
 
@@ -136,7 +134,7 @@ export interface OutcomeFixture {
   readonly artifacts: ArtifactStore;
   readonly ownership: { readonly epoch: number };
   readonly clock: FixtureClock;
-  close(): void;
+  close(): Promise<void>;
 }
 
 export async function prepareAttempt(stores: OutcomeFixture) {
