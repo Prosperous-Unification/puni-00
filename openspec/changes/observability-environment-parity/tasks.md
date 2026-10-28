@@ -99,3 +99,10 @@ Read [proposal.md](proposal.md), [specification](specs/observability-environment
 Task44 implementation clarification: version3 forward support is limited to the corroborated Docker29.7.2 containerd/API1.55 profile; classic version3 remains explicitly unsupported. Scope explicit API requests to version3 identity operations. Preserve authentic version1/2 teardown without a new API or Git dependency. Version3 retained readers must restore the original locally available Git revision/lock for independent hash/schema/selection validation, or refuse pending manual inspection. Forward closure reuses its independent lock selection; no serialized proof framework, pins, fetch or fallback is added.
 
 Task44 source implementation and watched new guard proofs are recorded in [verify.md](verify.md#task44--image-roles-docker-adapter-and-version3-source-verification-2026-10-28). Source verification and independent specification/quality review are complete; separately admitted actual provider corroboration remains open.
+
+### Task48 observed image-platform prerequisite within3.1
+
+- [ ] Normalize image platform through actual safe image fields, preserving descriptor absence/presence and variants. Use actual helper witnesses and native CLI field formatting; do not borrow requested/source platform or relax runtime descriptor-platform checks.
+- [ ] Introduce explicit adapter4 binding/observation provenance within outer3, recompute raw-to-normalized joins, reject mixed/unknown formats, and preserve old adapter3 and outer1/2 retained teardown semantics. New forward producers/sealers require4.
+- [ ] Cover ordinary/witnessed creation, callback/import/closure/retained seams and selected legacy controls; watch changed safety dependencies fail/restored, retain exact hashes/commands/timings, and obtain scoped independent review. Reuse original RED/old proofs/immutableff0b workload capture.
+- [ ] Rebind the private component to reviewed immutable source/dependencies and corroborate selected helper/nonhelper identities under its separately recorded bounded release. Keep complete capacity, actual helper races and all Kubernetes/common-stack/live acceptance open.

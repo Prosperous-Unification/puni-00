@@ -680,3 +680,33 @@ The shared image-identity concepts SHALL distinguish index, manifest and config 
 - **WHEN** role-aware source checks and selected provider components pass
 - **THEN** all existing configured-reference, daemon/container/mount/network, anonymous-volume, transient lifecycle, sealing/history and source-authority checks remain required
 - **AND** actual selected-helper capture, complete physical/runtime image costs, host admission and full observability acceptance remain separately unresolved
+
+### Requirement: Image platform observations retain their provider origin
+
+Image inspection SHALL accept a supported omitted descriptor platform only when explicit observed image platform fields establish the selected content platform and satisfy source/request agreement. Provider records SHALL retain safe raw observations and their normalization origin without changing prior receipt meanings.
+
+#### Scenario: Direct helper descriptors omit platform
+
+- **WHEN** normal and platform-selected image inspections report the exact selected manifest, explicit supported image OS/architecture and an explicitly observed empty image variant, while descriptor platform is omitted
+- **THEN** the adapter derives known content platform from those observed image fields and retains descriptor-platform absence and image-field origin
+- **AND** digest/media/size, normal/selected, configured reference, repository, daemon, source/config and volume joins remain required
+- **AND** requested or source platform is never substituted for an observed field
+
+#### Scenario: Image platform evidence is missing or contradictory
+
+- **WHEN** an image field is absent, unreadable, malformed or unsupported, image variant is nonempty, descriptor platform is null/malformed, or a present descriptor platform conflicts with image/source/request evidence
+- **THEN** the production boundary refuses before creation or sealing without an unqualified retry or fabricated default
+
+#### Scenario: Provider provenance has a discriminated format
+
+- **WHEN** new forward image evidence is produced or sealed
+- **THEN** binding and container observations use closed adapter4 records inside outer creation3 and preserve mandatory raw-to-normalized provenance
+- **AND** omitted provenance, mixed3/4 pairs or cohorts and unknown formats refuse
+- **AND** complete old adapter3 pairs retain their original supported teardown semantics without new raw fields or silent upgrades
+- **AND** outer1/2 teardown and outer3 independent Git source validation keep their existing requirements
+
+#### Scenario: Container descriptor platform remains mandatory
+
+- **WHEN** a new or retained supported container observation has missing, malformed, unsupported or contradictory descriptor platform
+- **THEN** it refuses through the existing exact manifest/platform/source join
+- **AND** image inspection compatibility alone does not justify inferred container platform, helper functionality, full admission or observability acceptance
