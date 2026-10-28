@@ -3956,9 +3956,10 @@ Scoped Fleet lib/spec no-emit and Deploy lib no-emit checks pass; changed-file
 ESLint passes. Initial spec/lint failures were corrected typed test boundaries,
 not safety proofs. Strict OpenSpec, final format/diff and the one committed-source
 canonical capture are recorded in the following evidence update. Root approved
-the existing inseparable canonical API's one necessary11-stage/selected-chart
-rebuild after the source commit; no authenticated public reuse seam exists and
-no cache/second producer is introduced. Full3.1, current writers/devices,
+one canonical invocation after the source commit; its existing preparation plus
+inventory protocol contains two11-stage build passes and one selected-chart
+render. No authenticated public reuse seam exists; no cache or second producer
+is introduced. Full3.1, current writers/devices,
 initialization/reconciliation/recovery sufficiency and effective runtime/storage
 admission remain open; finite authored caps grant no creation/runtime authority.
 
@@ -3970,11 +3971,14 @@ and an explicitly selected already-cached Helm archive were authenticated throug
 the existing seams; no downloads, tool upgrades, external provisioning, provider, network,
 cluster, playbook or runtime operation was invoked. Helm's unchanged authentication
 seam privately extracts the prepared archive for executable-byte comparison.
-Root approved one necessary coupled build because the public canonical inventory
-API inseparably validates all11 stages and renders all12 selected releases; no
-public authenticated reuse-input seam exists. There was exactly one validator
-build call, one release-render call and one bootstrap-frame call. No second
-producer/cache or repeated capture was introduced.
+Root approved one necessary canonical invocation: the existing preparation and
+inventory API protocol runs two11-stage build passes and renders all12 selected
+releases once. No public authenticated reuse-input seam exists. Observers recorded
+one inventory-phase validator/build call, one release-render call and one
+bootstrap-frame call. Preparation had already performed its required
+validation/build pass, so the whole invocation contains two build passes, one
+Helm render and one frame production; see the authoritative round1 correction
+below. No second producer/cache or repeated capture was introduced.
 
 The one command (`34-canonical-command.json`) passed1test/0fail in12.539s command
 wall. The complete new packet remains retained alongside its receipt, stage and
