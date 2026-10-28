@@ -309,8 +309,8 @@
   (verify.md slice 8: `removePersons` is a query flag; pool persons are written by the pool's
   own transaction with `addPerson`'s reading and decision, not through a directory batch.)
 
-- [ ] 6.3 The fe-01 pool panel (keys once as a download, counts before confirming, rendered
-      states, reviewed by eye).
+- [x] 6.3 The fe-01 pool panel (keys once as a download, counts before confirming, rendered
+      states, reviewed by eye). (verify.md slice 9.)
 - [ ] 6.4 `twilight-dash pool import <file>`, giving each agent process its own `wbs_run`.
       Test: a key that fails to issue aborts the import.
 
