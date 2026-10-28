@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { Database, SQLiteError } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { assertPragmas, openDatabase, switchToWal } from './db';
+import { assertPragmas, openDatabase, STATEMENT_CACHE_SIZE, switchToWal } from './db';
 
 let dir: string;
 
@@ -75,6 +75,45 @@ describe('openDatabase', () => {
     expect(() => {
       assertPragmas(db);
     }).toThrow(/foreign_keys/);
+    db.close();
+  });
+});
+
+describe('statement cache', () => {
+  // Proof: with the `Database.MAX_QUERY_CACHE_SIZE` assignment in db.ts removed, Bun's default
+  // of 20 recompiled the first statement and this test failed `toBe` (watched 2026-10-28).
+  it('keeps a request-sized set of statements compiled', () => {
+    const db = openDatabase(join(dir, 'test.db'));
+    db.run('CREATE TABLE t (a INTEGER)');
+    const first = db.query('SELECT a FROM t WHERE a = 0');
+    for (let n = 1; n < 200; n += 1) db.query(`SELECT a FROM t WHERE a = ${String(n)}`).all();
+    expect(db.query('SELECT a FROM t WHERE a = 0')).toBe(first);
+    expect(STATEMENT_CACHE_SIZE).toBeGreaterThanOrEqual(200);
+    db.close();
+  });
+
+  it('never shares a compiled statement with a replaced handle', () => {
+    const path = join(dir, 'test.db');
+    const before = openDatabase(path);
+    before.run('CREATE TABLE t (a INTEGER)');
+    const statement = before.query('SELECT a FROM t');
+    before.close();
+    const after = openDatabase(path);
+    expect(after.query('SELECT a FROM t')).not.toBe(statement);
+    expect(after.query('SELECT a FROM t').all()).toEqual([]);
+    after.close();
+  });
+
+  it('answers in the new shape after another connection changed the schema', () => {
+    const path = join(dir, 'test.db');
+    const db = openDatabase(path);
+    db.run('CREATE TABLE t (a INTEGER)');
+    db.run('INSERT INTO t VALUES (1)');
+    expect(db.query('SELECT * FROM t').all()).toEqual([{ a: 1 }]);
+    const other = openDatabase(path);
+    other.run('ALTER TABLE t ADD COLUMN b INTEGER DEFAULT 7');
+    other.close();
+    expect(db.query('SELECT * FROM t').all()).toEqual([{ a: 1, b: 7 }]);
     db.close();
   });
 });

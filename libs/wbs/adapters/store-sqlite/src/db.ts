@@ -8,6 +8,24 @@ export { SQLiteError };
 const BUSY_TIMEOUT_MS = 5000;
 
 /**
+ * Compiled statements each connection keeps, raised from Bun's default of 20.
+ *
+ * Drizzle's Bun adapter compiles every statement through `Database.query`, which keeps the
+ * most recent `Database.MAX_QUERY_CACHE_SIZE` statements per connection, keyed by SQL text.
+ * One authenticated tool call issues about 80 distinct statements, so at 20 each was compiled
+ * again on every request: `prepare` was 12.8% of be-01's CPU in the M10 load run
+ * (`wbs-mcp-agent-surface` task 4.5). The bound stays, so SQL text that varies by value
+ * (an `IN` list's length) cannot grow the cache without limit.
+ *
+ * The cache is private to its `Database`, so a replaced handle starts empty, and SQLite
+ * recompiles a cached statement when another connection changed the schema (blue/green share
+ * the file); `db.db.test.ts` observes both. Bun reads this static on every miss, so setting it
+ * once here covers every connection this file opens.
+ */
+export const STATEMENT_CACHE_SIZE = 1024;
+Database.MAX_QUERY_CACHE_SIZE = STATEMENT_CACHE_SIZE;
+
+/**
  * The only place a SQLite connection is opened. An ESLint rule enforces that
  * (`bun:sqlite` is restricted everywhere else under `apps/wbs/be-01/src`), because
  * two of the three pragmas below are per-*connection* rather than stored in
