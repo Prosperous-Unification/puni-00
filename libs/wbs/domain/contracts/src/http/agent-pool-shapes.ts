@@ -21,13 +21,17 @@ export const agentPoolSummary = type({
  * The keys of one pool act, answered once and stored nowhere
  * (`pool-<poolId>.keys.json`, M7): one entry per agent, in name order, each
  * with its person, its organization-local name, its credential and its key
- * `wbs_mk_<credentialId>.<secret>`. `format` and `version` name this document
- * for `twilight-dash pool import`.
+ * `wbs_mk_<credentialId>.<secret>`. `authorizationServer` is the issuer the keys
+ * are exchanged at (`WBS_MCP_AUTHORIZATION_SERVER`) and `mcpResource` the MCP
+ * endpoint the agents call. `format` and `version` name this document for
+ * `twilight-dash pool import`.
  */
 export const agentPoolKeys = type({
   format: "'wbs-agent-pool-keys'",
   version: '1',
   organizationId: 'string',
+  authorizationServer: 'string',
+  mcpResource: 'string',
   poolId: 'string',
   name: 'string',
   expiresAt: 'number | null',
@@ -64,6 +68,8 @@ const malformed = {
   ),
 } as const;
 const notFound = { status: 404, schema: responseSchema(type({ error: "'not_found'" })) } as const;
+/** A pool's keys are answered once: no cache on the way may keep them. */
+const noStore = [['cache-control', 'no-store']] as const;
 
 /** Lists the active organization's agent pools, revoked ones included, for its admins. */
 export const listAgentPools = defineEndpointShape({
@@ -87,8 +93,10 @@ export const listAgentPools = defineEndpointShape({
  * Creates a pool in one act, for an admin's browser session only: `size` (1
  * to 100) agent persons named `<name>-1` … `<name>-<size>`, bound to the
  * caller's account, and one API key each issued by the caller, answered once
- * as {@link agentPoolKeys}. Only `api_key` pools exist (`source` is optional
- * and may say nothing else). `expiresAt`, when given, is in the future and at
+ * as {@link agentPoolKeys}. `name` is 1 to 60 characters and never shaped like
+ * a secret (`isSecretShaped`: a `wbs_mk_` or `wbs_scim_` prefix, 64 hex
+ * characters, or a `|`-separated subject), else `invalid_body`. Only `api_key`
+ * pools exist (`source` is optional and may say nothing else). `expiresAt`, when given, is in the future and at
  * most 90 days ahead; every key of the pool is refused from then on. The
  * agent-person cap is judged for the whole pool (`agent_person_limit`); a
  * live pool, a person or a live credential already holding a name is
@@ -111,6 +119,7 @@ export const createAgentPool = defineEndpointShape({
       'expiresAt?': 'number.integer',
     }),
   ),
+  defaultResponseHeaders: noStore,
   responses: [{ kind: 'json', status: 201, schema: responseSchema(agentPoolKeys) }],
   refusals: [
     ...common,
@@ -129,12 +138,14 @@ export const createAgentPool = defineEndpointShape({
 });
 
 /**
- * Revokes every live key of a live pool and issues one fresh key per
- * existing pool person in one act, creating no person, so the agent-person
- * cap is not consumed again; the new keys are answered once as
- * {@link agentPoolKeys}. A revoked pool or another organization's is
- * `not_found`; a pool person removed while the keys were being minted is
- * `pool_changed`, and nothing was written.
+ * Revokes every live key of a live pool and issues one fresh key per pool
+ * person holding a live pool key in one act, creating no person, so the
+ * agent-person cap is not consumed again; an agent whose key was revoked alone
+ * stays keyless. The new keys are answered once as {@link agentPoolKeys}.
+ * `expiresAt`, when given, replaces the pool's within the same 90-day bound as
+ * a new pool's; without it, a pool past its expiry is `pool_expired`. A
+ * revoked pool or another organization's is `not_found`; a pool person removed
+ * while the keys were being minted is `pool_changed`. A refusal writes nothing.
  */
 export const rekeyAgentPool = defineEndpointShape({
   method: 'POST',
@@ -143,12 +154,14 @@ export const rekeyAgentPool = defineEndpointShape({
   humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
+  body: requestSchema(type({ 'expiresAt?': 'number.integer' })),
+  defaultResponseHeaders: noStore,
   responses: [{ kind: 'json', status: 201, schema: responseSchema(agentPoolKeys) }],
   refusals: [
     ...common,
     malformed,
     notFound,
-    { status: 409, schema: responseSchema(type({ error: "'pool_changed'" })) },
+    { status: 409, schema: responseSchema(type({ error: "'pool_changed' | 'pool_expired'" })) },
   ],
   document: { summary: 'Re-key an agent pool for its existing persons, shown once.' },
 });
@@ -159,7 +172,7 @@ export const rekeyAgentPool = defineEndpointShape({
  * `removePersons=true` then removes the pool's persons through the
  * `deletePerson` cascade, which releases the agent-person cap; when that
  * removal is refused the pool stays revoked, its persons stay, and the answer
- * is `persons_not_removed`.
+ * is `persons_not_removed` with the pool and how many keys were revoked.
  */
 export const revokeAgentPool = defineEndpointShape({
   method: 'DELETE',
@@ -184,7 +197,9 @@ export const revokeAgentPool = defineEndpointShape({
     notFound,
     {
       status: 409,
-      schema: responseSchema(type({ error: "'persons_not_removed'" })),
+      schema: responseSchema(
+        type({ error: "'persons_not_removed'", poolId: 'string', revokedCredentials: 'number' }),
+      ),
     },
   ],
   document: { summary: 'Revoke an agent pool and, optionally, remove its persons.' },

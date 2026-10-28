@@ -120,6 +120,7 @@ export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
     outcome: { kind: 'unreachable', reason: 'route-probe' },
   },
   'postApiOrganizationAgent-pools': { name: 'route-probe', size: 1 },
+  'postApiOrganizationAgent-poolsByIdRekey': {},
   'postApiOrganizationMachine-credentials': {
     source: 'api_key',
     name: 'route-probe',

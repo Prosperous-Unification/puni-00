@@ -489,21 +489,34 @@ _Alternatives:_ per-principal filtering, or descriptions per principal (two cont
 **M7. Agent pools: API-key bulk issuance, re-keyable, delivered once.**
 
 - _Creation._ An admin's browser session posts `{ name, size ≤ 100, expiresAt? }`. In one
-  transaction this creates `size` agent persons bound to the admin's account, through
-  **`addPerson`'s own agent-person cap check**, and one API key each.
-- _Delivery._ fe-01 shows the keys once, as a single download (`pool-<id>.keys.json`), never
-  stored server-side. Dash imports it with `twilight-dash pool import <file>` into its secret
+  transaction this creates `size` agent persons `<name>-1…N` bound to the admin's account,
+  and one API key each. The agent-person cap is judged once for the pool with the reading and
+  decision `addPerson` uses (`readAgentPersonCapIn` and `refuseLimit`), inside the pool's own
+  transaction, not through `addPerson` itself or a directory batch. `name` is 1–60 characters
+  and never shaped like a secret.
+- _Listing._ `GET …/agent-pools` (admin only) lists every pool, revoked ones included, with its
+  live credentials and no secret.
+- _Delivery._ be-01 answers the keys once, `Cache-Control: no-store`, as one document
+  (`wbs-agent-pool-keys` v1: the authorization server, the MCP resource, and one entry per
+  agent with its person, name, credential and key). fe-01 offers it as a single download
+  (`pool-<id>.keys.json`); nothing stores it server-side. Dash imports it with `twilight-dash pool import <file>` into its secret
   store, verifies every key by issuing one token each, and tells the admin to delete the file.
   It gives each agent process its own `wbs_run` (M15).
 - _Re-keying._ `POST …/agent-pools/:id/rekey` revokes every key and issues fresh ones for the
   **same** persons, so `agent_person_limit` is not consumed again and a leaked file is answered
-  without recreating the swarm.
+  without recreating the swarm. Only the persons holding a **live** pool key at re-key time are
+  re-keyed: an agent whose key an admin revoked alone stays keyless (the most restrictive
+  reading; an assumption Dany may reverse). A pool past its `expiresAt` is refused
+  `pool_expired` unless the body gives a new `expiresAt`, held to the create bound (≤ 90 days).
 - _Fixed after creation._ A pool never gains a person or a right. A machine, a delegation or a
   grant can never reach the pool routes.
 - _Cleanup._ A revoked pool's persons still count toward `agent_person_limit`. Revoking with
   `removePersons: true`, or a later `DELETE …/agent-pools/:id/persons`, removes them through
-  the existing `deletePerson` cascade (A24: an admin's reach). That releases the cap, while
-  the claims history keeps their names.
+  the existing `deletePerson` cascade (A24: an admin's reach) as a second step after the
+  revocation commits; a refused removal answers `persons_not_removed` with the pool revoked.
+  That releases the cap. The claims history keeps the removed persons' ids, but their names
+  read null once the person is gone (verify.md slice 8 note 17). The separate
+  `DELETE …/agent-pools/:id/persons` route is not in v1.
 - _Blast radius, stated honestly._ Dash holds all N keys. A compromised Dash is all N agents,
   each capped at `member`, until the pool is revoked or re-keyed. Agents themselves see only
   their 12 h token.

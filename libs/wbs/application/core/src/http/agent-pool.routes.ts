@@ -5,14 +5,15 @@ import {
   type AgentPoolIssued,
   type AgentPoolKeyDraft,
   type AgentPools,
-  MOST_AGENT_POOL_LIFETIME_MS,
+  isAgentPoolExpiryWithinBounds,
+  mcpResourceOfAuthorizationServer,
 } from '../ports/agent-pools';
 import type { Clock } from '../ports/clock';
 import type { OrganizationAccess } from '../ports/organization-access';
 import { type AuditedAct, isSecretShaped } from '../ports/organization-audit';
 import { digestMachineSecret, newMachineKey } from '../service/machine-key';
 import { bind, type HttpReply } from './endpoint';
-import { sessionOrganizationOf } from './machine-credential.routes';
+import { activeAudienceRoot, sessionOrganizationOf } from './machine-credential.routes';
 import { organizationRefusal } from './organization-refusal';
 
 const forbidden = { ok: false, status: 403, body: { error: 'forbidden' } } as const;
@@ -53,12 +54,15 @@ function keysDocument(
   issued: AgentPoolIssued,
   minted: readonly MintedKey[],
   issuedAt: number,
+  authorizationServer: string,
 ) {
   const keyOf = new Map(minted.map((each) => [each.draft.credentialId, each.key]));
   return {
     format: 'wbs-agent-pool-keys' as const,
     version: 1 as const,
     organizationId,
+    authorizationServer,
+    mcpResource: mcpResourceOfAuthorizationServer(authorizationServer),
     poolId: issued.pool.id,
     name: issued.pool.name,
     expiresAt: issued.pool.expiresAt,
@@ -84,6 +88,7 @@ export function agentPoolRoutes(
   organizations: OrganizationAccess,
   pools: AgentPools,
   runner: Pick<PlanCommandRunner, 'runDirectoryWithin'>,
+  audienceRoot: string | null,
   clock: Pick<Clock, 'now'>,
   afterRevoke: () => void,
 ) {
@@ -124,10 +129,7 @@ export function agentPoolRoutes(
         // oidc source, a past expiry or one past 90 days, writing nothing`
         // (agent-pool.controller.db.test.ts) created the 91-day pool (201);
         // watched 2026-10-28.
-        if (
-          body.expiresAt !== undefined &&
-          (body.expiresAt <= now || body.expiresAt > now + MOST_AGENT_POOL_LIFETIME_MS)
-        )
+        if (body.expiresAt !== undefined && !isAgentPoolExpiryWithinBounds(body.expiresAt, now))
           return invalidBody;
         const organizationId = await sessionOrganizationOf(organizations, principal);
         if (typeof organizationId !== 'string') return organizationId;
@@ -169,14 +171,30 @@ export function agentPoolRoutes(
             return {
               ok: true,
               status: 201,
-              body: keysDocument(organizationId, created.issued, minted, stamped.stamp.at),
+              body: keysDocument(
+                organizationId,
+                created.issued,
+                minted,
+                stamped.stamp.at,
+                activeAudienceRoot(audienceRoot),
+              ),
             };
         }
       },
     ),
     bind(
       rekeyAgentPool,
-      async ({ principal, params }): Promise<HttpReply<typeof rekeyAgentPool>> => {
+      async ({ principal, params, body }): Promise<HttpReply<typeof rekeyAgentPool>> => {
+        // The same bound as a new pool's.
+        // Proof: with this check removed, `re-keys an expired pool with a new
+        // expiry within 90 days, and refuses one past them` in
+        // `agent-pool.controller.db.test.ts` answered 201 instead of 400;
+        // watched 2026-10-28.
+        if (
+          body.expiresAt !== undefined &&
+          !isAgentPoolExpiryWithinBounds(body.expiresAt, clock.now())
+        )
+          return invalidBody;
         const organizationId = await sessionOrganizationOf(organizations, principal);
         if (typeof organizationId !== 'string') return organizationId;
         const persons = await pools.personsOf(organizationId, principal.id, params.id);
@@ -189,7 +207,10 @@ export function agentPoolRoutes(
           organizationId,
           principal.id,
           params.id,
-          minted.map((each) => each.draft),
+          {
+            keys: minted.map((each) => each.draft),
+            ...(body.expiresAt === undefined ? {} : { expiresAt: body.expiresAt }),
+          },
           stamped,
         );
         switch (rekeyed.kind) {
@@ -200,12 +221,19 @@ export function agentPoolRoutes(
           case 'not_found':
             return notFound;
           case 'pool_changed':
-            return { ok: false, status: 409, body: { error: 'pool_changed' } };
+          case 'pool_expired':
+            return { ok: false, status: 409, body: { error: rekeyed.kind } };
           case 'rekeyed':
             return {
               ok: true,
               status: 201,
-              body: keysDocument(organizationId, rekeyed.issued, minted, stamped.stamp.at),
+              body: keysDocument(
+                organizationId,
+                rekeyed.issued,
+                minted,
+                stamped.stamp.at,
+                activeAudienceRoot(audienceRoot),
+              ),
             };
         }
       },
@@ -259,7 +287,16 @@ export function agentPoolRoutes(
           })),
           resolved.access,
         );
-        if (!removed.ok) return { ok: false, status: 409, body: { error: 'persons_not_removed' } };
+        if (!removed.ok)
+          return {
+            ok: false,
+            status: 409,
+            body: {
+              error: 'persons_not_removed',
+              poolId: params.id,
+              revokedCredentials: revoked.revokedCredentials,
+            },
+          };
         return {
           ok: true,
           status: 200,

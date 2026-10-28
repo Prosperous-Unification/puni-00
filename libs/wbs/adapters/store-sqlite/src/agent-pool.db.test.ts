@@ -206,7 +206,7 @@ describe('re-keying a pool', () => {
       [fresh(first.personId), fresh(crypto.randomUUID())],
       [fresh(first.personId), fresh(second.personId), fresh(crypto.randomUUID())],
     ])
-      expect(await real.rekey('org-a', 'dany', draft.id, keys, act())).toEqual({
+      expect(await real.rekey('org-a', 'dany', draft.id, { keys }, act())).toEqual({
         kind: 'pool_changed',
       });
     const sqlite = openDatabase(path);
@@ -227,7 +227,7 @@ describe('re-keying a pool', () => {
           'org-a',
           'dany',
           draft.id,
-          [fresh(second.personId), fresh(first.personId)],
+          { keys: [fresh(second.personId), fresh(first.personId)] },
           act(),
         )
       ).kind,

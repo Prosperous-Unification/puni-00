@@ -650,6 +650,7 @@ export function mountedEndpoints(
       opts.organizations,
       opts.agentPools ?? INACTIVE_AGENT_POOLS,
       commands,
+      opts.mcpAuthorizationServer ?? null,
       opts.clock,
       () => opts.claimLeases?.requestSweep(),
     ),

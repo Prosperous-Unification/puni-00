@@ -4,6 +4,7 @@ import {
   type AgentPoolDraft,
   type AgentPoolKeyDraft,
   agentPoolPersonName,
+  type AgentPoolRenewal,
   type AgentPools,
   type AgentPoolSummary,
   type AuditedAct,
@@ -98,13 +99,17 @@ function livePool(
 }
 
 /**
- * The persons `poolId`'s credentials name, live or revoked, that still
- * exist, with their organization-local names, in name order.
+ * The persons `poolId`'s credentials name that still exist, with their
+ * organization-local names, in name order: every such person for a
+ * revocation (`'any'`), only those holding a live pool credential for a
+ * re-key (`'live'`), so an agent whose key an admin revoked alone is not
+ * re-armed (M7).
  */
 function poolPersons(
   tx: Transaction,
   organizationId: string,
   poolId: string,
+  holding: 'any' | 'live',
 ): { personId: string; personName: string }[] {
   return tx
     .selectDistinct({ personId: machineCredential.personId, personName: personOrganization.name })
@@ -116,7 +121,16 @@ function poolPersons(
         eq(personOrganization.organizationId, organizationId),
       ),
     )
-    .where(eq(machineCredential.agentPoolId, poolId))
+    .where(
+      and(
+        eq(machineCredential.agentPoolId, poolId),
+        // Proof: with this filter dropped (every pool person re-keyed),
+        // `re-keys only the agents holding a live pool key` in
+        // `agent-pool.controller.db.test.ts` answered three keys for a pool
+        // whose second key an admin had revoked alone; watched 2026-10-28.
+        holding === 'live' ? isNull(machineCredential.revokedAt) : undefined,
+      ),
+    )
     .orderBy(asc(personOrganization.name), asc(machineCredential.personId))
     .all();
 }
@@ -408,7 +422,7 @@ export class AgentPoolRepository implements AgentPools {
       const refused = poolAdministratorRefusal(tx, organizationId, actorId);
       if (refused !== null) return refused;
       if (livePool(tx, organizationId, poolId) === undefined) return 'not_found';
-      return poolPersons(tx, organizationId, poolId);
+      return poolPersons(tx, organizationId, poolId, 'live');
     });
   }
 
@@ -416,16 +430,28 @@ export class AgentPoolRepository implements AgentPools {
     organizationId: string,
     actorId: string,
     poolId: string,
-    keys: readonly AgentPoolKeyDraft[],
+    renewal: AgentPoolRenewal,
     act: AuditedAct,
   ): ReturnType<AgentPools['rekey']> {
+    const { keys } = renewal;
     assertDigests(keys);
     return this.write((tx) => {
       const refused = poolAdministratorRefusal(tx, organizationId, actorId);
       if (refused !== null) return { kind: refused };
-      const pool = livePool(tx, organizationId, poolId);
-      if (pool === undefined) return { kind: 'not_found' };
-      const persons = poolPersons(tx, organizationId, poolId);
+      const found = livePool(tx, organizationId, poolId);
+      if (found === undefined) return { kind: 'not_found' };
+      // Proof: with this refusal disabled, `refuses re-keying an expired pool
+      // unless a new expiry is given` (agent-pool.controller.db.test.ts) got
+      // keys no admission would accept instead of 409; watched 2026-10-28.
+      if (
+        renewal.expiresAt === undefined &&
+        found.expiresAt !== null &&
+        found.expiresAt <= act.stamp.at
+      )
+        return { kind: 'pool_expired' };
+      const pool =
+        renewal.expiresAt === undefined ? found : { ...found, expiresAt: renewal.expiresAt };
+      const persons = poolPersons(tx, organizationId, poolId, 'live');
       // Exactly the pool's persons, each once: a re-key never creates or
       // adds a person (M7), and never leaves one keyless.
       // Proof: with this refusal disabled, `refuses keys that do not name
@@ -458,7 +484,13 @@ export class AgentPoolRepository implements AgentPools {
         detail: { credentialIds: agents.map((each) => each.credentialId) },
         at: act.stamp.at,
       });
-      tx.update(agentPool).set(auditOnUpdate(act.stamp)).where(eq(agentPool.id, poolId)).run();
+      tx.update(agentPool)
+        .set({
+          ...(renewal.expiresAt === undefined ? {} : { expiresAt: renewal.expiresAt }),
+          ...auditOnUpdate(act.stamp),
+        })
+        .where(eq(agentPool.id, poolId))
+        .run();
       agents.sort((a, b) => (a.personName < b.personName ? -1 : 1));
       return { kind: 'rekeyed', issued: { pool: checkedPool(pool), agents } } as const;
     });
@@ -481,7 +513,7 @@ export class AgentPoolRepository implements AgentPools {
       // `agent-pool.controller.db.test.ts` kept that agent's claim through
       // the sweep; watched 2026-10-28.
       revokePoolKeys(tx, organizationId, poolId, live, act);
-      const personIds = poolPersons(tx, organizationId, poolId).map((each) => each.personId);
+      const personIds = poolPersons(tx, organizationId, poolId, 'any').map((each) => each.personId);
       // Each person's last live credential takes its leases with it (L8); a
       // pool person also keyed alone keeps them.
       for (const personId of personIds) endLeasesOfUncredentialed(tx, personId, at);

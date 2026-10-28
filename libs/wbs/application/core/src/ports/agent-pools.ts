@@ -29,6 +29,16 @@ export interface AgentPoolDraft {
   readonly agents: readonly AgentPoolKeyDraft[];
 }
 
+/**
+ * What a re-key issues: one key per person {@link AgentPools.personsOf}
+ * answered, and a new `expiresAt` when the admin gives one (already checked
+ * against {@link MOST_AGENT_POOL_LIFETIME_MS} by the caller).
+ */
+export interface AgentPoolRenewal {
+  readonly keys: readonly AgentPoolKeyDraft[];
+  readonly expiresAt?: number;
+}
+
 /** One agent of a pool: its person, that person's organization-local name, and its live key's credential. */
 export interface AgentPoolAgent {
   readonly personId: string;
@@ -104,9 +114,10 @@ export interface AgentPools {
     | ({ readonly kind: 'agent_person_limit' } & LimitCrossed)
   >;
   /**
-   * The persons of the live pool `poolId`, in name order: those its
-   * credentials name, live or revoked, that still exist. `not_found` for a
-   * revoked pool or another organization's.
+   * The persons of the live pool `poolId` a re-key keys, in name order: those
+   * holding a live credential of the pool now, so an agent whose key an admin
+   * revoked alone stays keyless (M7). `not_found` for a revoked pool or
+   * another organization's.
    */
   personsOf(
     organizationId: string,
@@ -118,21 +129,23 @@ export interface AgentPools {
     | 'not_found'
   >;
   /**
-   * Revokes every live key of the live pool `poolId` and issues `keys`, one
-   * per person {@link personsOf} answers, creating no person. `pool_changed`
-   * when `keys` no longer name exactly those persons (one was removed since
-   * they were read). One `machine_credential_revoked` row per old key, one
+   * Revokes every live key of the live pool `poolId` and issues
+   * `renewal.keys`, one per person {@link personsOf} answers, creating no
+   * person, and sets `renewal.expiresAt` when given. `pool_expired` when the
+   * pool's `expiresAt` has passed at `act.stamp.at` and no new one is given;
+   * `pool_changed` when the keys no longer name exactly those persons. One
+   * `machine_credential_revoked` row per old key, one
    * `machine_credential_created` per new, and one `agent_pool_rekeyed`.
    */
   rekey(
     organizationId: string,
     actorId: string,
     poolId: string,
-    keys: readonly AgentPoolKeyDraft[],
+    renewal: AgentPoolRenewal,
     act: AuditedAct,
   ): Promise<
     | { readonly kind: 'rekeyed'; readonly issued: AgentPoolIssued }
-    | { readonly kind: AgentPoolActorRefusal | 'not_found' | 'pool_changed' }
+    | { readonly kind: AgentPoolActorRefusal | 'not_found' | 'pool_changed' | 'pool_expired' }
   >;
   /**
    * Revokes the live pool `poolId` and every live key of it at
@@ -154,6 +167,25 @@ export interface AgentPools {
       }
     | { readonly kind: AgentPoolActorRefusal | 'not_found' }
   >;
+}
+
+/** Whether `expiresAt` is in the future at `now` and at most {@link MOST_AGENT_POOL_LIFETIME_MS} ahead. */
+export function isAgentPoolExpiryWithinBounds(expiresAt: number, now: number): boolean {
+  return expiresAt > now && expiresAt <= now + MOST_AGENT_POOL_LIFETIME_MS;
+}
+
+/**
+ * The MCP resource whose authorization server is `authorizationServer`
+ * (`<MCP_PUBLIC_URL>/oauth`, `mcpAuthorizationServerOf`): the URL an agent
+ * connects to.
+ *
+ * @throws when `authorizationServer` does not end in `/oauth`; boot refuses
+ * such a setting, so this is a composition fault.
+ */
+export function mcpResourceOfAuthorizationServer(authorizationServer: string): string {
+  if (!authorizationServer.endsWith('/oauth'))
+    throw new Error('WBS_MCP_AUTHORIZATION_SERVER does not end in /oauth');
+  return authorizationServer.slice(0, -'/oauth'.length);
 }
 
 /**
