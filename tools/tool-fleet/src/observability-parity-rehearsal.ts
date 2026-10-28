@@ -709,7 +709,7 @@ async function validateBuilds(
   return stages;
 }
 
-/** Validate actual Kustomize stage builds and byte-for-byte source/generator provenance; success is a source receipt only. */
+/** Validate actual Kustomize stage and bootstrap builds against retained source/generator provenance; success is a source receipt only. */
 export async function validateObservabilityRehearsalBuilds(
   root: string,
   tools: string,
@@ -749,7 +749,12 @@ export async function validateObservabilityRehearsalBuilds(
     [join(tools, 'kubectl'), 'kustomize', join(directory, rehearsalBootstrapPaths.retainedPolicy)],
     root,
   ).toString();
-  return { receipt: expected.receipt, stages, bootstrap: { ...bootstrap, policyBytes } };
+  // Proof: Task62 retained-build-directory substitution failed the structural canonical seam test; runtime acceptance remains unobserved.
+  const fluxBytes = execute(
+    [join(tools, 'kubectl'), 'kustomize', join(directory, rehearsalBootstrapPaths.fluxOverlay)],
+    root,
+  ).toString();
+  return { receipt: expected.receipt, stages, bootstrap: { ...bootstrap, policyBytes, fluxBytes } };
 }
 
 /** Preserve the legacy receipt while sharing the complete validation/build pass with source inventory. */

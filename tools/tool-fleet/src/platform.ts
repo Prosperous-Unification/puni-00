@@ -6,6 +6,7 @@ import { type } from 'arktype';
 import { parse, parseDocument, stringify } from 'yaml';
 
 import { purposeCapabilities, readToolchain } from './contracts';
+import { assertFluxPolicy } from './flux-policy';
 import { assertObservability } from './observability';
 import { assertReceiverCandidate } from './observability-receiver';
 import { assertBackupTransport } from './platform-backup-tls';
@@ -623,6 +624,12 @@ export async function validatePlatform(root: string): Promise<{
     // of reject on 2026-09-17.
     throw new Error('Flux install manifest differs from the toolchain lock');
   }
+
+  // Proof: Task62 platform-policy-call removal let the missing required overlay production negative resolve.
+  assertFluxPolicy(
+    await readFile(join(root, 'infra/platform/flux/kustomization.yaml'), 'utf8'),
+    fluxInstall.toString(),
+  );
 
   const platformPlaybook = await readFile(
     join(root, 'infra/ansible/playbooks/platform.yml'),

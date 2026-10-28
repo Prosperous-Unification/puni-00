@@ -335,3 +335,50 @@ test.each(['undeclared-reference', 'malformed-embedded'] as const)(
     );
   },
 );
+
+test('historical raw Flux coordinates remain explicit while current overlay origins retain both identities', () => {
+  const historical = fixture();
+  const old = readRehearsalInventory(
+    historical.stages,
+    {},
+    historical.contract,
+    lock,
+    historical.bootstrap,
+  );
+  expect(old.entries.find((entry) => entry.name === 'source-controller')?.source).toMatchObject({
+    sourcePath: 'infra/platform/flux/install.yaml',
+    path: 'infra/platform/flux/install.yaml',
+  });
+  const current = fixture();
+  current.bootstrap[0] = {
+    ...current.bootstrap[0],
+    sourcePath: 'infra/platform/flux',
+    path: 'infra/platform/flux',
+    sources: [
+      ...current.bootstrap[0].sources,
+      {
+        sourcePath: 'infra/platform/flux/kustomization.yaml',
+        artifactPath: 'infra/platform/flux/kustomization.yaml',
+        sha256: hash('authored-overlay'),
+      },
+    ],
+  };
+  const inventory = readRehearsalInventory(
+    current.stages,
+    {},
+    captureRehearsalFrames(current.stages, {}, current.bootstrap),
+    lock,
+    current.bootstrap,
+  );
+  expect(
+    inventory.entries.find((entry) => entry.name === 'source-controller')?.source,
+  ).toMatchObject({
+    sourcePath: 'infra/platform/flux',
+    path: 'infra/platform/flux',
+    sources: current.bootstrap[0].sources,
+  });
+  expect(inventory.entries.filter((entry) => entry.owner === 'bootstrap/flux')).toHaveLength(1);
+  expect(inventory.frames.filter((frame) => frame.owner === 'bootstrap/flux')).toHaveLength(1);
+  expect(inventory.creationAuthority).toBe(false);
+  expect(inventory.runtimeRehearsal).toBe(false);
+});

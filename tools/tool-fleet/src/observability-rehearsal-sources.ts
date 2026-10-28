@@ -6,12 +6,14 @@ import { type } from 'arktype';
 import { parseAllDocuments, parseDocument } from 'yaml';
 
 import type { Toolchain } from './contracts';
+import { assertFluxPolicy } from './flux-policy';
 import { readObjectStoreLock } from './object-store-image';
 import { decodeRenderedResources } from './rendered-resources';
 
 const hash = (bytes: string | Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 export const rehearsalBootstrapPaths = {
   flux: 'infra/platform/flux/install.yaml',
+  fluxOverlay: 'infra/platform/flux',
   topology: 'infra/local/platform.k3d.yaml',
   objectStore: 'infra/versions/object-store.json',
   policy: 'infra/platform/policy',
@@ -96,7 +98,8 @@ export async function collectRehearsalBootstrap(
 ) {
   const paths = rehearsalBootstrapPaths;
   // Proof: Task25c2b collect-flux/topology/objectStore/policy omissions each failed the retained-input positive.
-  await collector.collect(paths.flux);
+  // Proof: Task62 collector-overlay substitution lost the retained overlay coordinate in the forward positive.
+  await collector.collect(paths.fluxOverlay);
   await collector.collect(paths.topology);
   await collector.collect(paths.objectStore);
   await collector.collect(paths.policy, { source: paths.policy, artifact: paths.retainedPolicy });
@@ -142,7 +145,10 @@ export function assertRehearsalSource(source: RehearsalSource) {
   if (source.sourcePath !== expectedSource)
     throw new Error('Rehearsal bootstrap source coordinates differ');
 }
-/** Read only retained packet inputs. Hash/lock closure precedes decoding; no runner-root fallback exists. */
+/** Read current retained inputs, requiring raw vendor and authored overlay before building.
+ * Hash/lock closure precedes decoding; no runner-root or forward raw-vendor fallback exists.
+ * Already captured historical frames retain their explicit coordinates in the inventory reader.
+ */
 export async function readRehearsalBootstrap(
   directory: string,
   sources: readonly RehearsalSource[],
@@ -151,13 +157,17 @@ export async function readRehearsalBootstrap(
   const paths = rehearsalBootstrapPaths;
   const topologySource = sources.find((source) => source.artifactPath === paths.topology);
   // Proof: Task25c2b source-closure removal lost the omitted-coordinate refusal.
+  // Proof: Task62 forward-coordinate removal lost the precise missing-overlay closure refusal; later decoding still refused.
   // Proof: Task25c3g topology-selection removal lost the omitted topology coordinate closure diagnostic.
   if (
     topologySource === undefined ||
     new Set(sources.map((source) => source.artifactPath)).size !== sources.length ||
-    ![paths.flux, paths.objectStore, `${paths.retainedPolicy}/kustomization.yaml`].every((path) =>
-      sources.some((source) => source.artifactPath === path),
-    )
+    ![
+      paths.flux,
+      `${paths.fluxOverlay}/kustomization.yaml`,
+      paths.objectStore,
+      `${paths.retainedPolicy}/kustomization.yaml`,
+    ].every((path) => sources.some((source) => source.artifactPath === path))
   )
     throw new Error('Rehearsal bootstrap source closure differs');
   const files = new Map<string, string>();
@@ -175,6 +185,11 @@ export async function readRehearsalBootstrap(
     throw new Error('Rehearsal Flux manifest lock differs');
   // Proof: Task25c2b flux-decoder omission admitted coherently hashed malformed Flux YAML.
   decodeRenderedResources(flux);
+  // Proof: Task62 retained-policy-call removal admitted a coherently rehashed malformed overlay before build.
+  assertFluxPolicy(
+    type('string>0').assert(files.get(`${paths.fluxOverlay}/kustomization.yaml`)),
+    flux,
+  );
   const topologyBytes = type('string>0').assert(files.get(paths.topology));
   const topology = readRehearsalTopology(topologyBytes);
   // Proof: Task25c2b object-lock-reader bypass admitted an empty coherently hashed object-store lock.
@@ -201,20 +216,25 @@ export interface RehearsalBootstrapBuild {
   readonly bytes: string;
   readonly sha256: string;
 }
-/** Preserve original policy build and locked native Flux bytes as independently decoded frames. */
+/** Bind actual current Flux and original policy builds to their retained input coordinates. Historical frames keep their original coordinates. */
 export function buildRehearsalBootstrap(
   bootstrap: Awaited<ReturnType<typeof readRehearsalBootstrap>>,
   policyBytes: string,
+  fluxBytes: string,
 ): RehearsalBootstrapBuild[] {
   const paths = rehearsalBootstrapPaths;
   return [
     {
       bootstrap: 'flux',
-      sourcePath: paths.flux,
-      path: paths.flux,
-      sources: bootstrap.sources.filter((source) => source.artifactPath === paths.flux),
-      bytes: bootstrap.flux,
-      sha256: hash(bootstrap.flux),
+      sourcePath: paths.fluxOverlay,
+      path: paths.fluxOverlay,
+      // Proof: Task62 frame-source-identity substitution lost the overlay input in the current-frame positive.
+      sources: bootstrap.sources.filter((source) =>
+        source.artifactPath.startsWith(`${paths.fluxOverlay}/`),
+      ),
+      // Proof: Task62 frame-built-bytes substitution failed actual-byte/hash equality in the current-frame positive.
+      bytes: fluxBytes,
+      sha256: hash(fluxBytes),
     },
     {
       bootstrap: 'policy',

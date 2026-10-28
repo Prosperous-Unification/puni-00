@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
@@ -102,6 +102,7 @@ test('canonical eleven-stage public entry inventories actual pinned releases wit
   );
   for (const path of [
     'infra/platform/flux/install.yaml',
+    'infra/platform/flux/kustomization.yaml',
     'infra/local/platform.k3d.yaml',
     'infra/versions/object-store.json',
     'infra/rehearsal/bootstrap/policy/namespaces.yaml',
@@ -142,3 +143,21 @@ test('canonical eleven-stage public entry inventories actual pinned releases wit
   assertNetworkingCapture(expansions, receipt);
   assertVeleroCapture(expansions['puni-backup/velero'], receipt);
 }, 30_000);
+
+test('canonical bootstrap seam builds retained Flux and forwards its own bytes', async () => {
+  const builds = await readFile(
+    join(root, 'tools/tool-fleet/src/observability-parity-rehearsal.ts'),
+    'utf8',
+  );
+  expect(builds).toContain(
+    "[join(tools, 'kubectl'), 'kustomize', join(directory, rehearsalBootstrapPaths.fluxOverlay)]",
+  );
+  expect(builds).toContain('bootstrap: { ...bootstrap, policyBytes, fluxBytes }');
+  const inventory = await readFile(
+    join(root, 'tools/tool-fleet/src/observability-rehearsal-inventory.ts'),
+    'utf8',
+  );
+  expect(inventory).toMatch(
+    /buildRehearsalBootstrap\(\s*bootstrap,\s*bootstrap.policyBytes,\s*bootstrap.fluxBytes,?\s*\)/,
+  );
+});

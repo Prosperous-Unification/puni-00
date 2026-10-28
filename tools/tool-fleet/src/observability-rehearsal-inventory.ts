@@ -833,7 +833,12 @@ export async function prepareRehearsalInventory(
     releases,
     helmArchive,
   );
-  const bootstrapFrames = buildRehearsalBootstrap(bootstrap, bootstrap.policyBytes);
+  // Proof: Task62 inventory-built-bytes substitution failed the structural forwarding test.
+  const bootstrapFrames = buildRehearsalBootstrap(
+    bootstrap,
+    bootstrap.policyBytes,
+    bootstrap.fluxBytes,
+  );
   const contract = captureRehearsalFrames(stages, expansions, bootstrapFrames);
   const runtimeLock = await readFile(join(directory, 'infra/versions/toolchain.json'), 'utf8');
   const coordinates = receipt.files.filter((file) => file.path === 'infra/versions/toolchain.json');

@@ -8,6 +8,7 @@ import { expect, test } from 'bun:test';
 
 import { readToolchain } from './contracts';
 import {
+  buildRehearsalBootstrap,
   collectRehearsalBootstrap,
   createRehearsalCollector,
   readRehearsalBootstrap,
@@ -18,6 +19,7 @@ const hash = (bytes: string | Uint8Array) => createHash('sha256').update(bytes).
 const policy = 'infra/platform/policy';
 const retained = 'infra/rehearsal/bootstrap/policy';
 const flux = 'infra/platform/flux/install.yaml';
+const overlay = 'infra/platform/flux/kustomization.yaml';
 const topology = 'infra/local/platform.k3d.yaml';
 const objectStore = 'infra/versions/object-store.json';
 const namespace = 'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: source-only\n';
@@ -28,7 +30,8 @@ async function fixture() {
   const packet = join(directory, 'packet');
   const lock = await readToolchain(join(root, 'infra/versions/toolchain.json'));
   const inputs = new Map<string, Buffer>([
-    [flux, Buffer.from(namespace)],
+    [flux, await readFile(join(root, flux))],
+    [overlay, await readFile(join(root, overlay))],
     [topology, await readFile(join(root, topology))],
     [objectStore, await readFile(join(root, objectStore))],
     [
@@ -52,7 +55,7 @@ async function fixture() {
     await mkdir(join(packet, path, '..'), { recursive: true });
     await writeFile(join(packet, path), bytes);
   }
-  lock.manifests.fluxInstall.sha256 = hash(namespace);
+
   return { exported, packet, files, sources: [...collector.sources.values()], lock };
 }
 
@@ -66,8 +69,8 @@ test('bootstrap collector retains original policy independently from generated s
     sha256: hash(namespace),
   });
   const bootstrap = await readRehearsalBootstrap(selected.packet, selected.sources, selected.lock);
-  expect(bootstrap.flux).toBe(namespace);
-  expect(bootstrap.sources).toHaveLength(5);
+  expect(bootstrap.flux).toBe(await readFile(join(root, flux), 'utf8'));
+  expect(bootstrap.sources).toHaveLength(6);
   expect(bootstrap.topology.image).toBe('${K3S_IMAGE}');
   expect(bootstrap.objectStore.image).toBe(selected.lock.runtimeImages.objectStore.name);
 });
@@ -103,7 +106,7 @@ test('bootstrap refuses source hash drift and independently wrong Flux lock', as
   const selected = await fixture();
   await writeFile(join(selected.packet, flux), namespace + '\n');
   await rejects(readRehearsalBootstrap(selected.packet, selected.sources, selected.lock), /hash/);
-  await writeFile(join(selected.packet, flux), namespace);
+  await writeFile(join(selected.packet, flux), await readFile(join(root, flux)));
   selected.lock.manifests.fluxInstall.sha256 = '0'.repeat(64);
   await rejects(readRehearsalBootstrap(selected.packet, selected.sources, selected.lock), /Flux/);
 });
@@ -232,5 +235,77 @@ test('native topology companion retains bootstrap bytes and original coordinates
     servers: 1,
     agents: 0,
     candidateNodes: 1,
+  });
+});
+
+test('new forward bootstrap requires overlay source coordinate without raw-vendor fallback', async () => {
+  const selected = await fixture();
+  expect(selected.files.has(overlay)).toBe(true);
+  await rejects(
+    readRehearsalBootstrap(
+      selected.packet,
+      selected.sources.filter((source) => source.artifactPath !== overlay),
+      selected.lock,
+    ),
+    /closure/,
+  );
+});
+test.each([
+  'missing',
+  'unreadable',
+  'hash drift',
+  'coherent malformed',
+  'substituted original',
+] as const)('retained Flux overlay %s refuses before build', async (fault) => {
+  const selected = await fixture();
+  const path = join(selected.packet, overlay);
+  let sources = selected.sources;
+  if (fault === 'missing') {
+    const { unlink } = await import('node:fs/promises');
+    await unlink(path);
+  }
+  if (fault === 'unreadable') await chmod(path, 0);
+  if (fault === 'hash drift' || fault === 'coherent malformed')
+    await writeFile(path, 'kind: [invalid');
+  if (fault === 'coherent malformed')
+    sources = sources.map((source) =>
+      source.artifactPath === overlay ? { ...source, sha256: hash('kind: [invalid') } : source,
+    );
+  if (fault === 'substituted original')
+    sources = sources.map((source) =>
+      source.artifactPath === overlay
+        ? { ...source, sourcePath: 'infra/platform/foreign/kustomization.yaml' }
+        : source,
+    );
+  try {
+    await rejects(
+      readRehearsalBootstrap(selected.packet, sources, selected.lock),
+      fault === 'missing'
+        ? { code: 'ENOENT' }
+        : fault === 'unreadable'
+          ? { code: 'EACCES' }
+          : fault === 'hash drift'
+            ? /hash/
+            : fault === 'substituted original'
+              ? /coordinates/
+              : /malformed/,
+    );
+  } finally {
+    if (fault === 'unreadable') await chmod(path, 0o600);
+  }
+});
+test('current bootstrap emits one actual Flux build with both input identities', async () => {
+  const selected = await fixture();
+  const bootstrap = await readRehearsalBootstrap(selected.packet, selected.sources, selected.lock);
+  const built = namespace.replace('source-only', 'actual-flux-build');
+  const frames = buildRehearsalBootstrap(bootstrap, namespace, built);
+  expect(frames.filter((frame) => frame.bootstrap === 'flux')).toHaveLength(1);
+  expect(frames[0]).toEqual({
+    bootstrap: 'flux',
+    sourcePath: 'infra/platform/flux',
+    path: 'infra/platform/flux',
+    sources: selected.sources.filter((source) => [flux, overlay].includes(source.artifactPath)),
+    bytes: built,
+    sha256: hash(built),
   });
 });

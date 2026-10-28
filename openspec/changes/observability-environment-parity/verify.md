@@ -3918,3 +3918,46 @@ physical quota is claimed. The smaller rehearsal-only proposal is historical and
 not applied. No new measurement, old proof/control/render or provider action was
 needed to choose this initial policy. Actual scoped source verification and one
 justified changed-input build/capture still remain to implement and verify.
+
+## Task62 shared Flux policy source slice — 2026-10-28
+
+Review BASE `0e336dfd9130020b42a6602f0b10e0149e99418d`; clean SOURCESTART
+`d0aae6d042e53fae5bfc27a64e61631512a1e122` includes the prior four-artifact intent.
+One shared authored overlay adds only the selected13 ephemeral/scratch scalars to
+four exact identity-tested Flux controller targets. Raw Flux2.9.5 vendor bytes and
+toolchain pins remain unchanged. `validatePlatform` requires the narrow closed
+policy; all3 forward callers apply its directory, retaining vendor authentication
+and existing lifecycle behavior. The collector retains vendor+overlay; current
+bootstrap frames carry both identities and actual retained kubectl build bytes.
+Historical already-captured raw frames retain their explicit original coordinates.
+
+The initial required production-validator RED resolved with no overlay, rather than
+rejecting (raw `01-red.log`, exit1). Focused final coverage passes44tests with
+31Bun assertions plus Node refusal assertions (`21-focused-final.log`, exit0,
+9.235s command wall). This includes required policy shape/targets/identity order,
+operation closure, absence/unreadability, coherent malformed inputs, scalar
+syntax/positivity/contradictions, unchanged vendor guard, actual k3d fake-executable
+argv/vendor/wait behavior, structured Ansible and cutover source assertions,
+retained-input/frame integration and explicit historical-coordinate compatibility.
+Ansible/cutover and canonical forwarding assertions are structural; they do not
+execute those environments or prove runtime behavior.
+
+Only new Task62 guards/dependencies were faulted:23 initial mutations restored
+exact source bytes; an additional coherent operation-count fault demonstrates
+extra-op closure. Original malformed extra-op setup was masked by the operation
+schema and is not credited for that guard; the corrected test passed before the
+watched count removal failed. The forward-coordinate mutation proves the precise
+closure diagnostic (later schema decoding still refuses); four forwarding/caller
+faults are explicitly structural. Adjacent `Proof:` comments name the observed
+checks. No old fault matrix,337-oracle/control or retained-render producer replay.
+Raw commands/logs/restoration hashes remain privately under `/tmp/puni-task62`.
+
+Scoped Fleet lib/spec no-emit and Deploy lib no-emit checks pass; changed-file
+ESLint passes. Initial spec/lint failures were corrected typed test boundaries,
+not safety proofs. Strict OpenSpec, final format/diff and the one committed-source
+canonical capture are recorded in the following evidence update. Root approved
+the existing inseparable canonical API's one necessary11-stage/selected-chart
+rebuild after the source commit; no authenticated public reuse seam exists and
+no cache/second producer is introduced. Full3.1, current writers/devices,
+initialization/reconciliation/recovery sufficiency and effective runtime/storage
+admission remain open; finite authored caps grant no creation/runtime authority.

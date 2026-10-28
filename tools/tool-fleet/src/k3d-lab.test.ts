@@ -1,10 +1,13 @@
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { rejects } from 'node:assert/strict';
+import { chmod, cp, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
+import { type } from 'arktype';
 import { describe, expect, it } from 'bun:test';
 
 import {
+  bootstrapLab,
   decodeK3dLabRecord,
   decodeLabResources,
   decodeMemAvailable,
@@ -361,4 +364,59 @@ it('refuses legacy commands for the reserved strict namespace even without a mar
   expect(() =>
     parseK3dLabRequest(['down', '--profile', 'app', '--id', 'c123456789abcdef']),
   ).toThrow('creation-v1');
+});
+
+it('Flux bootstrap authenticates vendor before applying shared overlay and waits afterward', async () => {
+  const directory = await scratchAsync('flux-bootstrap-');
+  await cp(join(ROOT, 'infra'), join(directory, 'infra'), { recursive: true });
+  const log = join(directory, 'kubectl.jsonl');
+  const kubectl = join(directory, 'kubectl');
+  await writeFile(
+    kubectl,
+    `#!/usr/bin/env bun\nimport {appendFileSync} from 'node:fs';\nappendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2))+'\\n');\n`,
+  );
+  await chmod(kubectl, 0o700);
+  const clusters = [
+    {
+      name: 'owned-platform',
+      role: 'platform' as const,
+      clusterId: 'platform-local',
+      context: 'owned-platform',
+      kubeconfig: '/owned/kubeconfig',
+      apiPort: 40001,
+    },
+  ];
+  const bootstrap = () =>
+    bootstrapLab(directory, { k3d: 'unused', kubectl }, 'owned', clusters, true, () =>
+      Promise.resolve(),
+    );
+  await bootstrap();
+  const calls: string[][] = (await readFile(log, 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => type('string[]').assert(JSON.parse(line)));
+  const fluxCall = calls.findIndex((args) => args.includes(join(directory, 'infra/platform/flux')));
+  expect(calls[fluxCall]?.slice(4)).toEqual([
+    'apply',
+    '--server-side',
+    '-k',
+    join(directory, 'infra/platform/flux'),
+  ]);
+  expect(calls[fluxCall + 1]?.slice(4)).toEqual([
+    'wait',
+    '--for=condition=Available',
+    'deployment',
+    '--all',
+    '--namespace=flux-system',
+    '--timeout=300s',
+  ]);
+  await writeFile(join(directory, 'infra/platform/flux/install.yaml'), 'changed');
+  await rejects(bootstrap(), /not the locked digest/);
+  const after = (await readFile(log, 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => type('string[]').assert(JSON.parse(line)));
+  expect(
+    after.filter((args) => args.includes(join(directory, 'infra/platform/flux'))),
+  ).toHaveLength(1);
 });

@@ -1,4 +1,5 @@
-import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { rejects } from 'node:assert/strict';
+import { chmod, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
@@ -19,6 +20,29 @@ import {
 import { readVeleroPatch } from './platform-velero-patch';
 
 const repositoryRoot = join(import.meta.dir, '../../..');
+const FluxOverlayFixture = type({
+  apiVersion: 'string',
+  kind: 'string',
+  resources: 'string[]',
+  'namePrefix?': 'string',
+  patches: type({
+    target: {
+      group: 'string',
+      version: 'string',
+      kind: 'string',
+      name: 'string',
+      namespace: 'string',
+      'labelSelector?': 'string',
+    },
+    patch: 'string',
+    'path?': 'string',
+  }).array(),
+});
+function fluxOperations(overlay: typeof FluxOverlayFixture.infer) {
+  return type({ op: 'string', path: 'string', 'value?': 'unknown', 'from?': 'string' })
+    .array()
+    .assert(parse(overlay.patches[0].patch));
+}
 
 async function mutablePlatform(): Promise<string> {
   const root = await scratchAsync('tool-fleet-platform-');
@@ -70,6 +94,12 @@ async function removeExternalSecret(root: string, cluster: string, name: string)
 }
 
 describe('validatePlatform', () => {
+  it('rejects missing required Flux scratch overlay', async () => {
+    const root = await mutablePlatform();
+    await rm(join(root, 'infra/platform/flux/kustomization.yaml'), { force: true });
+    await rejects(validatePlatform(root), { code: 'ENOENT' });
+  });
+
   it('accepts the locked ordered platform graph for every cluster overlay', async () => {
     const platform = await validatePlatform(repositoryRoot);
     expect(platform).toEqual({
@@ -90,6 +120,202 @@ describe('validatePlatform', () => {
       workloadImages: 13,
       secrets: 0,
     });
+  });
+
+  it.each([
+    [
+      'foreign root',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        overlay.namePrefix = 'foreign-';
+      },
+    ],
+    [
+      'wrong resource',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        overlay.resources = ['../foreign.yaml'];
+      },
+    ],
+    [
+      'duplicate role',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        overlay.patches[3] = overlay.patches[0];
+      },
+    ],
+    [
+      'missing role',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        overlay.patches.pop();
+      },
+    ],
+    [
+      'wrong target',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        overlay.patches[0].target.namespace = 'foreign';
+      },
+    ],
+    [
+      'foreign selector',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        overlay.patches[0].target.labelSelector = 'foreign';
+      },
+    ],
+    [
+      'external patch',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        overlay.patches[0].path = 'foreign.yaml';
+      },
+    ],
+    [
+      'late identity',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        ops.push(...ops.splice(0, 1));
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    [
+      'wrong manager',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        ops[4].value = 'foreign';
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    [
+      'wrong volume',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        type({ name: 'string', emptyDir: 'object' }).array().assert(ops[5].value)[0].name =
+          'foreign';
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    [
+      'foreign operation',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        ops.push({ op: 'remove', path: '/spec/replicas', value: null });
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    [
+      'wrong addition',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        ops[6].path = '/spec/replicas';
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    [
+      'replace addition',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        ops[6].op = 'replace';
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    [
+      'extra operation field',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        ops[6].from = '/foreign';
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    [
+      'missing ephemeral',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        ops.splice(6, 1);
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    [
+      'duplicate addition',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        ops[7] = ops[6];
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    ...['0', '-1Mi', 'unknown', '9'.repeat(400) + 'Gi', 42].map(
+      (value) =>
+        [
+          'invalid quantity ' + String(value).slice(0, 12),
+          (overlay: typeof FluxOverlayFixture.infer) => {
+            const ops = fluxOperations(overlay);
+            ops[6].value = value;
+            overlay.patches[0].patch = stringify(ops);
+          },
+        ] as const,
+    ),
+    [
+      'zero scratch',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        ops[8].value = '0';
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    [
+      'contradictory limits',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        ops[7].value = '1Mi';
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    [
+      'malformed patch',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        overlay.patches[0].patch = '[invalid';
+      },
+    ],
+    [
+      'duplicate patch key',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        overlay.patches[0].patch = overlay.patches[0].patch.replace(
+          '"op": "test"',
+          '"op": "add", "op": "test"',
+        );
+      },
+    ],
+    [
+      'multiple patch documents',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        overlay.patches[0].patch += '\n---\n[]\n';
+      },
+    ],
+  ])('rejects Flux scratch policy %s', async (_name, corrupt) => {
+    const root = await mutablePlatform();
+    const path = join(root, 'infra/platform/flux/kustomization.yaml');
+    const overlay = FluxOverlayFixture.assert(parse(await readFile(path, 'utf8')));
+    corrupt(overlay);
+    await writeFile(path, stringify(overlay));
+    await rejects(validatePlatform(root));
+  });
+  it('rejects unreadable Flux scratch policy', async () => {
+    const root = await mutablePlatform();
+    const path = join(root, 'infra/platform/flux/kustomization.yaml');
+    await chmod(path, 0);
+    try {
+      await rejects(validatePlatform(root), { code: 'EACCES' });
+    } finally {
+      await chmod(path, 0o600);
+    }
+  });
+  it('rejects coherent duplicate Flux overlay keys', async () => {
+    const root = await mutablePlatform();
+    const path = join(root, 'infra/platform/flux/kustomization.yaml');
+    await writeFile(path, (await readFile(path, 'utf8')) + '\nresources: [install.yaml]\n');
+    await rejects(validatePlatform(root), /malformed or ambiguous YAML/);
+  });
+  it('rejects malformed or ambiguous Flux overlay YAML', async () => {
+    for (const bytes of ['kind: [invalid', 'resources: []\nresources: []\n', '---\n{}\n---\n{}']) {
+      const root = await mutablePlatform();
+      await writeFile(join(root, 'infra/platform/flux/kustomization.yaml'), bytes);
+      await rejects(validatePlatform(root));
+    }
   });
 
   it('rejects a platform claim outside the retained class', async () => {
@@ -1689,4 +1915,55 @@ it('Task25c3d owning declarations carry the candidate bounds and original patch'
       limits: { cpu: '1', memory: '256Mi', 'ephemeral-storage': '128Mi' },
     });
   }
+});
+
+it('all forward Flux callers use shared overlay and preserve vendor authentication/lifecycle', async () => {
+  const playbook = type({
+    tasks: type({
+      'ansible.builtin.copy?': { dest: 'string' },
+      'ansible.builtin.command?': { 'argv?': 'unknown[]' },
+    }).array(),
+  })
+    .array()
+    .assert(
+      parse(await readFile(join(repositoryRoot, 'infra/ansible/playbooks/platform.yml'), 'utf8')),
+    );
+  const tasks = playbook.flatMap((play) => play.tasks);
+  const copies = tasks.flatMap((task) => {
+    const destination = task['ansible.builtin.copy']?.dest;
+    return destination !== undefined &&
+      ['/var/cache/puni/flux/install.yaml', '/var/cache/puni/flux/kustomization.yaml'].includes(
+        destination,
+      )
+      ? [destination]
+      : [];
+  });
+  expect(copies.sort()).toEqual([
+    '/var/cache/puni/flux/install.yaml',
+    '/var/cache/puni/flux/kustomization.yaml',
+  ]);
+  const commands = tasks.flatMap((task) => {
+    const arguments_ = task['ansible.builtin.command']?.argv;
+    return arguments_ === undefined ? [] : [arguments_];
+  });
+  expect(commands).toContainEqual(['sha256sum', '/var/cache/puni/flux/install.yaml']);
+  expect(commands).toContainEqual(['k3s', 'kubectl', 'apply', '-k', '/var/cache/puni/flux']);
+  const cutover = await readFile(
+    join(repositoryRoot, 'tools/tool-deploy/src/k8s/cutover-rehearsal.ts'),
+    'utf8',
+  );
+  const install = cutover.slice(
+    cutover.indexOf('async function installFlux()'),
+    cutover.indexOf('async function installFlux()') + 1400,
+  );
+  expect(install).toContain("const path = join(ROOT, 'infra/platform/flux/install.yaml')");
+  expect(install.indexOf('digest !== lock.manifests.fluxInstall.sha256')).toBeLessThan(
+    install.indexOf("await k(['apply'"),
+  );
+  expect(install).toContain(
+    "await k(['apply', '--server-side', '-k', join(ROOT, 'infra/platform/flux')])",
+  );
+  expect(install).toContain(
+    "'helm-controller',\n    'notification-controller',\n    '--replicas=0'",
+  );
 });

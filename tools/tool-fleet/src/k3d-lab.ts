@@ -653,7 +653,8 @@ async function bootstrapCluster(
     if (digest !== toolchain.manifests.fluxInstall.sha256) {
       throw new Error(`infra/platform/flux/install.yaml sha256 ${digest} is not the locked digest`);
     }
-    await kubectl(['apply', '--server-side', '-f', join(root, 'infra/platform/flux/install.yaml')]);
+    // Proof: Task62 k3d-raw-bypass failed the actual bootstrap fake-executable argv expectation.
+    await kubectl(['apply', '--server-side', '-k', join(root, 'infra/platform/flux')]);
     // `kubectl rollout status` takes no `--all` (kubectl v1.36.4 refused it live); `wait` does.
     await kubectl([
       'wait',
