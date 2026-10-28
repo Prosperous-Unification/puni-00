@@ -204,7 +204,7 @@ export function captureRehearsalFrames(
   };
 }
 /** Validate the known claim quantity through the shared reader, retaining its exact source string. */
-function readClaimStorage(input: unknown): string {
+export function readClaimStorage(input: unknown): string {
   const storage = Claim.assert(input).resources.requests.storage;
   // Proof: Task25c2a claim-quantity-reader substitution admitted invalid, negative and overflowing source strings.
   const amount = readMemoryMiB(storage, () => {

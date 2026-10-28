@@ -17,6 +17,7 @@ import {
   prepareRehearsalInventory,
   readRehearsalSource,
 } from './observability-rehearsal-inventory';
+import { deriveStandaloneClaims } from './observability-source-claims';
 import type { ObservabilitySourceIndex } from './observability-source-render';
 import type { SelectedCapacitySource } from './observability-source-resources';
 
@@ -175,6 +176,8 @@ function deriveCapacityCosts(
   options: RehearsalCapacityOptions,
   bound: ReturnType<typeof bindRuntimeLock> & { lock: Toolchain },
 ) {
+  // Proof: Task64 prepass-order relocation let an earlier native collision mask late malformed volumeMode.
+  const standalone = deriveStandaloneClaims(source);
   const native = deriveRehearsalNativeCosts(
     source,
     contract,
@@ -270,12 +273,21 @@ function deriveCapacityCosts(
   const covered = new Set(
     generatedTraits.filter((trait) => trait.perReplica !== null).map((trait) => trait.identity),
   );
+  const reserved = new Set(standalone.standaloneEntries.map((claim) => claim.identity));
   const blockers = [
     // Proof: Task58 generic-blocker-overreach fault erased an unsupported owner obligation; null-trait test failed.
     ...native.blockers.filter(
       (blocker) =>
-        !(covered.has(blocker.owner) && blocker.missingFact === 'provider-or-unclassified-demand'),
+        !(
+          covered.has(blocker.owner) && blocker.missingFact === 'provider-or-unclassified-demand'
+        ) &&
+        // Proof: Task64 covered-refusal omission retained the charged generic refusal; overreach erased an unsupported PVC refusal.
+        !(
+          reserved.has(blocker.owner) &&
+          blocker.missingFact === 'claim-owner-and-retention-unaccounted'
+        ),
     ),
+    ...standalone.blockers,
     ...generatedTraits.flatMap((trait) =>
       [
         ...trait.missingFacts,
@@ -289,7 +301,12 @@ function deriveCapacityCosts(
   ];
   const generatedKnownContributions = sumCapacity(generatedEntries);
   // Proof: Task58 combined-sum omission lost generated amounts from the native-preserving total.
-  const knownContributions = sumCapacity([...native.entries, ...generatedEntries]);
+  // Proof: Task64 aggregate omission lost the full 71680Mi disk delta in the existing combined reader.
+  const knownContributions = sumCapacity([
+    ...native.entries,
+    ...generatedEntries,
+    ...standalone.standaloneEntries,
+  ]);
   const closure = {
     native,
     sourceInventorySHA256: native.sourceInventorySHA256,
@@ -300,6 +317,8 @@ function deriveCapacityCosts(
     generatedLifecycles,
     generatedEntries,
     generatedKnownContributions,
+    // Proof: Task64 closure omission hid a declaration provenance change; the independent closure-snapshots reader test failed.
+    ...standalone,
     knownContributions,
     blockers,
     conditions,
@@ -310,6 +329,7 @@ function deriveCapacityCosts(
     generatedLifecycles,
     generatedEntries,
     generatedKnownContributions,
+    ...standalone,
     knownContributions,
     blockers,
     closureSHA256: hash(JSON.stringify(closure)),
@@ -319,9 +339,11 @@ function deriveCapacityCosts(
   };
 }
 
-/** Validate the retained packet lock and full source once, then add conditional generated costs to exact native facts.
+/** Validate the retained packet lock and full source once, then add conditional generated and standalone claim costs to exact native facts.
  * Logical cohorts reserve two full Pods and one unchanged claim per selected persistent slot; they observe no operator maximum,
  * Pod/PVC identity, effective template, generation/history, startup sufficiency or physical enforcement.
+ * Standalone declarations reserve once independently of declared consumers, under explicit fresh-attempt/unchanged-claim conditions.
+ * Their history, physical identities, retention, writers, mounts and enforcement remain unobserved.
  * Unsupported traits remain null and uncharged. Missing/malformed binding state throws before incomplete classifications.
  */
 export function readRehearsalCapacityCosts(
