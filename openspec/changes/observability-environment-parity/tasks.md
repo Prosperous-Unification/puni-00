@@ -129,7 +129,7 @@ Task58 independent specification/quality review approved actual2d9→700a with n
 
 ### Task60 read-only host-path source accounting within3.1
 
-- [ ] Add the closed source hostPath/mount boundary and exact internal read-only policy for the selected node-exporter, preserving default normalization/cutover strictness. Ordered TDD: actual native-reader missing-charge RED; malformed-late state before unsupported/absent/provider/lifecycle/collision shortcuts; exact provider/frame/template/path/type/mount/propagation and all app/init readOnly tuples; absent/empty/None snapshots; no-policy/cutover refusal and writable OTel/Velero incompleteness; full conditional2N charges with independent device/writer/runtime/history obligations. Watch new changed safety dependencies fail/restored with adjacent Proof comments, classifying masked/dependency experiments. Replace the sole invalid hostPath:{} unsupported fixture with a valid unsupported body. Run covering tests and selected relevant compatibility/statics, normal source commit, one changed committed-adapter retained-input comparison with old artifacts preserved, then independent source review. No owning workload/resource/pin/floor/persistence/CI/cutover-projector change, duplicate calculator, fabricated device/quota/effective observation or old passing proof/render replay.
+- [x] Add the closed source hostPath/mount boundary and exact internal read-only policy for the selected node-exporter, preserving default normalization/cutover strictness. Ordered TDD: actual native-reader missing-charge RED; malformed-late state before unsupported/absent/provider/lifecycle/collision shortcuts; exact provider/frame/template/path/type/mount/propagation and all app/init readOnly tuples; absent/empty/None snapshots; no-policy/cutover refusal and writable OTel/Velero incompleteness; full conditional2N charges with independent device/writer/runtime/history obligations. Watch new changed safety dependencies fail/restored with adjacent Proof comments, classifying masked/dependency experiments. Replace the sole invalid hostPath:{} unsupported fixture with a valid unsupported body. Run covering tests and selected relevant compatibility/statics, normal source commit, one changed committed-adapter retained-input comparison with old artifacts preserved, then independent source review. No owning workload/resource/pin/floor/persistence/CI/cutover-projector change, duplicate calculator, fabricated device/quota/effective observation or old passing proof/render replay.
 
 Task60 implementation evidence: source `b1a28688a5b50bddb94fa5f54cf1ef659255d879`,
 exact native fixture provenance correction/validated adapter
@@ -157,3 +157,15 @@ replaying prior faults. M1 corrects `/1` to ServiceAccount in the evidence narra
 actual failed artifacts are retained. Historical retained comparison remains
 pinned to `077e04e366012339e56ead033719c3f28679d84e`, without replay. Root-owned
 scoped re-review still controls the open Task60 checkbox.
+
+Task60 independent specification and quality re-review approved final source workflow
+at `7143383a5ac49d49c17cd403c52d405f1202f2ee`. I1/M1 are addressed, with no new
+findings; root inspected retained round1 logs and the effective new guard fault.
+All34 new safety experiments are restored. Earlier full raw/hash/control audits
+remain valid and were not rerun. The successful retained comparison still belongs
+to adapter `077e04e366012339e56ead033719c3f28679d84e`. This closes only Task60 source
+workflow, not runtime or full3.1 acceptance.
+
+### Task63 retained packet commitment correction within3.1
+
+- [ ] Add the complete canonical ordered files-list commitment check at the retained combined-reader boundary before toolchain decode, reusing the existing producer encoding/hash seam. Ordered TDD: exact coherent toolchain bytes/file-row substitution with unchanged independently retained artifact tag must first fail as a missing refusal; self-consistent synthetic unit packets must pass; preserve original projection provenance separately and deliberately reseal lower-guard negatives; independently verify authentic full84-row ff0b/d96a metadata. Watch only the new production-path commitment guard fail/restored with adjacent Proof. Run covering combined-reader tests and affected scoped statics, retain exact commands/raw outputs/hashes/timings and normal commits, then independent scoped specification/quality review. No packet format/version, owning source/resource/graph/pin/CI changes, old proof/control/chart/canonical/provider replay or runtime acceptance claim.

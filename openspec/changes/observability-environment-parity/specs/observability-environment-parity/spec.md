@@ -807,6 +807,13 @@ The full rehearsal capacity companion SHALL consume its independently validated 
 - **THEN** the retained packet's unique toolchain file hash authenticates them and packet source/artifact identity equals inventory provenance before decoding
 - **AND** absent/duplicate/wrong coordinates, changed bytes, malformed locks, selection drift and substituted decoded locks refuse; a historical bootstrap source is not invented
 
+#### Scenario: Retained file metadata matches its artifact commitment
+
+- **WHEN** a retained packet accompanies the combined capacity reader
+- **THEN** its complete ordered files list hashes to its independently retained artifact identity using the existing canonical two-space JSON encoding plus trailing newline, before its toolchain bytes are decoded
+- **AND** coherently changing toolchain bytes and their file row while preserving the original packet/inventory artifact identity refuses; a partial file list cannot borrow a full packet identity
+- **AND** self-consistent supported packets remain accepted, and lower lock-coordinate, lock-schema and pinned-default checks remain independently exercised with deliberately resealed synthetic packets
+
 #### Scenario: First replacement remains a conditional budget
 
 - **WHEN** a selected supported one-replica trait has finite per-replica costs

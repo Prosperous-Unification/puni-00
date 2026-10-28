@@ -10,7 +10,7 @@ Dev uses Compose and planned production uses Kubernetes/Flux, with different pip
 - Prepare and rehearse a retained-history migration from the dev Compose stack. Continue using it until its replacement passes the common checks; record it as transitional rather than claiming parity.
 - Report source parity, rehearsal evidence and live convergence separately.
 - Inventory stage, chart and bootstrap contributors; bound container resources, scratch, read-only host-path consumers, alert-receiver input/history and conditional native/operator lifecycles and CronJob horizons through shared accounting and validated patches, retaining provider and enforcement provenance.
-- Retain verified archives, helper identity roles and observed platform provenance; version provider records explicitly, preserve prior teardown, derive bounded layer facts and import without implicit builds.
+- Validate packet commitments; retain verified archives, helper identity roles and observed platform provenance; version provider records explicitly, preserve prior teardown, derive bounded layer facts and import without implicit builds.
 
 ## Non-Goals
 
