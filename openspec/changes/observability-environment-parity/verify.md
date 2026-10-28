@@ -4489,3 +4489,43 @@ current budget implementation, selected tests and preflight contract. No behavio
 resource policy, safety guard or runtime changed; no application tests, render,
 host probe or old fault matrix was required or run for this documentation correction.
 The documentation remains local while the published head's ordinary CI finishes.
+
+## Current Fleet evidence and runtime prerequisites — 2026-10-28
+
+Published head 49857aa29 passed Fleet job 122911791369 at 15:44:20 UTC after 20m48s.
+The actual checkout c5b427e3e6d35a02aaba0f124bc0e686069918d3 has parents
+e3f7d5ba37e80ce4d04e82c546792f17892e4069 and
+49857aa2903fa56feea389211a36624c26bbdb19, independently joined through checkout
+log and commit API. Fleet reported 3937 pass / 7 opt-in skips / 0 fail across 3944 tests,
+108 files, 1046.82s; Deploy reported 828 pass / 0 fail across 32 files, 68.20s. Fleet
+check/lint/typecheck/artifacts and Deploy checks completed successfully.
+
+The actual manifest refusal, archive positive, creator abort and cache-publication
+cases passed. Seven authenticated-backend component tests remained skipped because
+PUNI_AUTH_ELASTIC_LAB was absent, matching the previously recorded opt-in set.
+Earlier Task 5 component evidence was not replayed; these skips do not establish
+current live backend authority or common-stack Kubernetes acceptance.
+
+The retained raw log is 986071 bytes, SHA256
+bba481786f9a7346793b040758840d18aa65f3f56ca1ecabd56cb586df25aa78.
+Initial log retrieval stopped at gh terminal-escape protection; successful capture
+retained bytes privately and printed only JSON-escaped summaries. This was a
+read-only capture retry, not a CI/test failure or rerun.
+
+At 15:49:47 UTC all four browser shards and stable pixels are success, along with
+CodeQL and Fleet. Main workspace/Twilight and the deployment/Traefik Kubernetes
+job remain running. The existing watcher 45274 is live. These jobs continue
+independently; none was cancelled, restarted or manually rerun. Their pending
+results cannot establish full CI success or common-stack runtime acceptance.
+
+Full progress remains 4/11. The same runtime prerequisites remain unresolved
+across successive goal turns: explicit permission for the exact prepared generated
+packet publication after automatic review rejected its export, and selection of a
+larger isolated host for complete physical admission/rehearsal. No such approval
+or host has been supplied. Current h3/h4 counters fail the unchanged floor; no
+purchase/resize or unowned-workload change is authorized. Remaining authenticated
+Flux/Kubernetes/effective-Pod/CNI/storage, stored signals/operator views/isolation,
+history/recovery and live dev acceptance require those prerequisites. A source or
+component success cannot substitute for them. Production activation, persistent
+Secret changes, destructive storage retirement and final merge remain separately
+authorized operations. The working dev service and retained history are unchanged.
