@@ -201,11 +201,11 @@ _Avoid_: claim row, active claim, slot
 ### Spaces
 
 **Space**:
-An organization-owned, named lens over an ordered set of that organization's projects, to which persons and teams may also belong. It owns nothing and grants nothing: removing a project, a person or a team from it, or deleting it, changes no project and no access.
-_Avoid_: portfolio, program, folder, workspace, department
+An organizational unit of the organization, a department or a team of people, that holds projects, persons and service teams and carries settings resolved by the projects beneath it. It owns no project lifecycle and grants no access: deleting it deletes no project. It holds its own local settings.
+_Avoid_: portfolio, program, folder, workspace
 
 **Space membership**:
-One project's, person's or team's place in one space: the pair and, for a project, its position. A project, a person or a team may sit in many spaces.
+One project's, person's or service team's place in one space: the pair and, for a project, its position. A project sits in one space or none; a person or a service team may sit in many spaces.
 _Avoid_: link, assignment, space access
 
 **All projects**:
@@ -261,13 +261,6 @@ One client engagement: an organization's named collection of work packages, owni
 settings they share, the dependencies between them and the budgets that bound several of
 them. Every project belongs to exactly one organization.
 _Avoid_: engagement, programme, portfolio, project (for one WBS)
-
-**Default project**:
-The one project of each organization that receives a work package created or imported without
-naming a project. Every organization has exactly one. It can be renamed, emptied and replaced
-by another project as the default; it cannot be deleted while it holds work packages or is the
-organization's only project.
-_Avoid_: root project, unfiled, inbox
 
 **Work item**:
 One unit of work in a work package, holding a name, notes and a place in the tree; once it has
@@ -336,7 +329,9 @@ A named kind of work a project defines once for all its work packages, each esti
 separately; unique by name within the project and carrying a **step code**; every project
 starts with `Dev` and `QA`
 ([spec](openspec/changes/archive/2026-08-30-steps-not-phases/specs/wbs-domain/spec.md)). A
-definition, not an occurrence: its work within one leaf is a **step node**.
+definition, not an occurrence: its work within one leaf is a **step node**. Today a step
+belongs to one work package; lifting it to the project waits for `wbs-step-catalogue` (#698
+E21, deferred 2026-10-25).
 _Avoid_: discipline, type, category
 
 **Step code**:
@@ -344,7 +339,9 @@ A step's short, immutable name for references, unique within its project — `de
 `review`: a
 lowercase letter, then lowercase letters, digits or hyphens. Suggested from the name when the
 step is created; renaming the step keeps it. Codes shaped `s<digits>` or `s<digits>-…` are
-reserved for ordinal references.
+reserved for ordinal references. Who defines steps and their codes, the work package as
+today or the project, is pending the separate `wbs-step-catalogue` design (#698 E21,
+deferred 2026-10-25).
 _Avoid_: slug, step key, step id (which is the stored identity)
 
 **Step node**:
@@ -434,9 +431,10 @@ _Avoid_: roster, address book, org chart, users
 
 **Service team**:
 A team work can be labelled with, unique by name across the directory: a label on the work,
-never a constraint on who may be assigned it. How many may be at work at once is a per-project
+never a constraint on who may be assigned it. How many may be at work at once is a per-work-package
 [Capacity](openspec/changes/archive/2026-08-30-capacity-per-project/specs/wbs-domain/spec.md),
-not a property of the team.
+not a property of the team. It is a label on the work, not an organizational unit; a
+department or a team of people is a space. A service team may be linked to a space.
 _Avoid_: department, squad, group
 
 **Service**:
@@ -823,13 +821,6 @@ is in the cell — a box holding the focus with no search open is where a reader
 moment after taking a value, and the `+` has to open from there. It never takes the keyboard
 itself.
 _Avoid_: plus, add affordance, new button, opener
-
-**Work package owner**:
-The account that created a work package. Under scoped grants it holds a direct
-`package-manager` grant from creation, which is what lets it keep editing a restricted work
-package; a super-admin's recovery is the audited clearing of the restriction, not an edit. An
-account, never a person from the directory. A project has no owner.
-_Avoid_: project owner, author, creator, user
 
 **Work package entry**:
 One work package as the picker offers it: the name it is chosen by, followed by its entry
@@ -1313,8 +1304,9 @@ _Avoid_: priority scheme, priority config, priority scale
 
 **Project settings**:
 The configuration a project defines for all its work packages: timezone, calendar markers and
-PERT weights, which a work package may override, and step codes, work item types and budget
-factor, which it may not. Also the surface where they are edited.
+PERT weights, which a work package may override, and the allowed work item types and budget
+factor, which it may not. Step codes are not a setting; who defines them waits for
+`wbs-step-catalogue`. Also the surface where they are edited.
 _Avoid_: project config, shared settings, defaults
 
 **Work package settings**:
@@ -1326,7 +1318,9 @@ _Avoid_: project settings (for this), settings dialog, Teams dialog, Priorities 
 
 **Setting provenance**:
 The level — organization, space, project, work package or the catalogue default — and the id
-a resolved setting value came from, answered with every settings read.
+a resolved setting value came from, answered with every settings read. A setting resolved
+nearest-wins has one provenance; an additive setting (calendar markers) has one per
+contribution, each marker naming the level that holds it.
 _Avoid_: source, origin, inherited flag
 
 **Rank**:
