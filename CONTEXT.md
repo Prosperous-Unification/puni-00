@@ -1324,7 +1324,7 @@ A work package's five bands, in rank order: a vocabulary and never a constraint
 _Avoid_: priority scheme, priority config, priority scale
 
 **Project settings**:
-The configuration a project defines for all its work packages: timezone, calendar markers and
+The configuration a project defines for all its work packages: timezone, calendar periods and
 PERT weights, which a work package may override, and the allowed work item types and budget
 factor, which it may not. Step codes are not a setting; who defines them waits for
 `wbs-step-catalogue`. Also the surface where they are edited.
@@ -1429,10 +1429,28 @@ minutes per cell — offered only while the panel would draw at most 2,500 marks
 offered is a rendered state.
 _Avoid_: zoom level, slider position, minute view
 
-**Calendar marker**:
-A named annotation on an absolute calendar date, defined by a project for all its work
-packages or by one work package for itself. Not a work item and not visible to the scheduler.
-_Avoid_: milestone, date tag, annotation
+**Calendar period**:
+A named, coloured span of one or more absolute calendar days, end inclusive, defined at an
+organization, its optional space, a project or a work package for every work package beneath
+it. Not a work item; whether the scheduler sees it is its period kind's decision. The planning
+change is still named `wbs-calendar-ranges`.
+_Avoid_: range, marker, calendar marker, milestone, date tag
+
+**Period kind**:
+What a calendar period means to the schedule: `note`, which only labels the chart, or
+`non_working`, which takes its days out of the work calendar of every work package beneath its
+scope. In release 1 that covers every slice; the agent-kind exemption of ADR 0043 is release 2.
+_Avoid_: period type, marker type, category
+
+**Non-working period**:
+A calendar period of kind `non_working`: an organization holiday, a department's off-days, a
+project closure. In release 1 every slice beneath its scope skips it.
+_Avoid_: holiday (one use of it), blackout
+
+**Work calendar**:
+The set of dates a work package's slices may not occupy: weekends and the dates of its
+effective non-working periods. It is held as excluded dates, not as available days.
+_Avoid_: business calendar, holiday calendar, working-day set
 
 **Workday axis**:
 The Gantt panel's horizontal scale on a plan with **no** start date: one unit per workday,

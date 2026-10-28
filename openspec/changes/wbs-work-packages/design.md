@@ -383,6 +383,10 @@ scope_id, date, name, color, …)` replaces `work_package_id`; a work package's 
   2026-10-25 after the Codex review (F7):_ markers are the catalogue's one additive key; they
   live only in `calendar_marker`, each read carries its own provenance, and a level's write
   adds or removes only its own markers (E43).
+  _Generalised 2026-10-25 by Dany:_ multi-day calendar periods with scheduling kinds, at
+  every level, are designed in `openspec/changes/wbs-calendar-ranges` (PR #726, term
+  **Calendar period**, migration inside slice 3a's window per its CR11); until it lands,
+  slice 3a ships point markers as described here.
 - **E20. What the slice 3a migration lifts.** `work_package.timezone` and the three
   `pert_weight_*` columns move into `setting_value` rows at the work package level **only
   where the stored value differs from the catalogue default** (`UTC`; 1, 4, 1); equal values
