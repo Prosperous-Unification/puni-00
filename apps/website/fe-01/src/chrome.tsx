@@ -225,33 +225,21 @@ export function SiteHeader({
 export function SiteFooter() {
   return (
     <footer className="site-footer">
-      <div className="footer-top">
-        <div className="footer-lead">
-          <FooterWordmark />
-          <p>Clear software starts with a clear request.</p>
-          <a className="button secondary" href={`${siteOrigin}/#request`}>
-            Describe your project
-          </a>
+      <nav aria-label="Footer" className="footer-links">
+        <div>
+          <h2>Explore</h2>
+          <a href={`${siteOrigin}/services/`}>Services</a>
+          <a href={`${siteOrigin}/blog/`}>Blog</a>
         </div>
-        <nav aria-label="Footer" className="footer-links">
-          <div>
-            <h2>Explore</h2>
-            <a href={`${siteOrigin}/services/`}>Services</a>
-            <a href={`${siteOrigin}/blog/`}>Blog</a>
-          </div>
-          <div>
-            <h2>PUNI</h2>
-            <a href={`${siteOrigin}/#request`}>Start a Request</a>
-            <a href={`${siteOrigin}/privacy/`}>Privacy</a>
-          </div>
-        </nav>
-      </div>
-      <p className="footer-mark" aria-hidden="true">
-        PUNI
-      </p>
+        <div>
+          <h2>Get in touch</h2>
+          <a href={`${siteOrigin}/#request`}>Start a Request</a>
+          <a href={`${siteOrigin}/privacy/`}>Privacy</a>
+        </div>
+      </nav>
       <div className="footer-base">
         <span>© {new Date().getFullYear()} PUNI</span>
-        <span>A person reviews every request.</span>
+        <FooterWordmark />
       </div>
     </footer>
   );

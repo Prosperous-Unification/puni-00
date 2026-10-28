@@ -31,7 +31,6 @@ export class AppErrorBoundary extends React.Component<
     return (
       <main className="build-layout boundary" role="alert" id="main">
         <div className="build-state">
-          <p className="eyebrow">PUNI</p>
           <h1>This page needs your attention.</h1>
           <p className="lead">{this.state.message}</p>
           <button
