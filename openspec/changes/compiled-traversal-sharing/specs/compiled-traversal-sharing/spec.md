@@ -18,6 +18,18 @@ The candidate SHALL register only the authenticated `@ark/schema@0.56.2` patch a
 - **AND** its exact native-derived empty regular marker is separately checked without wildcard acceptance
 - **AND** top-level0.56.0 remains stock; marker bookkeeping never replaces canonical-file checks
 
+#### Scenario: Install the registered patch in WBS images
+
+- **WHEN** an application or lab MCP image installs the registered root package and lock
+- **THEN** its dependency stage includes the unchanged registered patch at its package-relative path before the frozen install
+- **AND** the install retains its existing frozen and production policy without removing the registration or falling back
+
+#### Scenario: Classify the declared dependency patch
+
+- **WHEN** either shipped repository policy classifies the registered patch in a candidate
+- **THEN** that exact path is vendored content with its actual Git mode and blob identity
+- **AND** the same patch bytes at an unlisted path remain refused as unclassified content
+
 ### Requirement: Reuse requires an exact eligible reference closure
 
 A callback SHALL be borrowed only for a precompiled node outside the current owning scope, or with no owning scope, whose complete non-self reference closure is reusable. Every represented reference SHALL match the same object at its ID in the current reference map. Cyclic nodes, aliases, an ineligible descendant, an identity mismatch or a visiting nonalias cycle SHALL cause conservative original code generation for affected nodes rather than borrowed callbacks.

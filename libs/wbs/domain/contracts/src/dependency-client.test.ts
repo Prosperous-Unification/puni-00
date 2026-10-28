@@ -188,6 +188,7 @@ test('pins the complete protected and exempt operation matrix', () => {
       'postInternalGatewayDependencyAdmission',
       'postInternalGatewayProjectAccess',
       'postInternalGatewayProjectBrowserAccess',
+      'postInternalMcpMachineGrants',
       'postInternalMcpOrganizations',
       'postInternalResume',
       'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',

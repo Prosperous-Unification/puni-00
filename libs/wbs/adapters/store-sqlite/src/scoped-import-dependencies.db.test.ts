@@ -666,7 +666,7 @@ describe('scoped import transaction lifetime and effects', () => {
       /select.*from "machine_credential"/i.test(statement),
     );
     const member = statements.findIndex((statement) =>
-      /select.*organization_membership/i.test(statement),
+      /\bfrom\s+"?organization_membership\b/i.test(statement),
     );
     const capture = statements.indexOf('-- import capture');
     expect(begin).toBeGreaterThanOrEqual(0);

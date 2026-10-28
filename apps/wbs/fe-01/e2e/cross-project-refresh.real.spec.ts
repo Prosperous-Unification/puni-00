@@ -186,7 +186,9 @@ test('A completion refreshes admitted B and C through their own real trees and r
     await expect(corner(b.page)).toHaveAttribute('data-node-reading', 'waiting');
     await b.context.setOffline(false);
     await expect(corner(b.page)).toHaveAttribute('data-node-reading', 'unknown');
-    expect(b.reads.at(-1)?.workItems[0]?.nodeReadings[b.project.step]).toBe('unknown');
+    await expect
+      .poll(() => b.reads.at(-1)?.workItems[0]?.nodeReadings[b.project.step])
+      .toBe('unknown');
     expect(b.frames.filter((frame) => frame.message?.type === 'elsewhere_changed')).toHaveLength(2);
     await b.page.route(`**/api/projects/${b.project.id}/work-items`, async (route) => {
       await route.fulfill({ status: 503, body: 'injected refresh outage' });

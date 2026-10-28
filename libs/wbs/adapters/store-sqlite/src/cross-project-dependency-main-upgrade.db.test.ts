@@ -13,12 +13,13 @@ import { parseMigrationSetCapture } from './migration-set';
 const MAIN = 'dacf0f10f384ec3a21bde70db0500ba0b7a38d90';
 const REPOSITORY = new URL('../../../../../', import.meta.url).pathname;
 const APP = join(REPOSITORY, 'apps/wbs/be-01');
-const ADDED = [
+const OLDER_DEPENDENCIES = [
   '20261022210000_add_project_abbreviations',
   '20261022211000_add_external_dependencies',
   '20261022212000_add_cross_project_dependency_activation',
   '20261022213000_add_optimization_boundary_certificates',
 ];
+const ADDED = [...OLDER_DEPENDENCIES, '20261026130000_widen_organization_audit_machine_tokens'];
 
 function gitBytes(...arguments_: string[]): Buffer {
   const child = Bun.spawnSync(['git', ...arguments_], {
@@ -167,7 +168,7 @@ async function runCli(root: string, dbPath: string, file: string, arguments_: re
   return stdout;
 }
 
-test('upgrades the exact main measure database with four older dependency identities and restores only those additions', async () => {
+test('upgrades the exact main measure database with four older dependency identities and later machine-token audit identity and restores only those additions', async () => {
   const root = mkdtempSync(join(tmpdir(), 'wbs-main-dependency-upgrade-'));
   try {
     const mainMigrations = join(root, 'main-drizzle');
@@ -227,7 +228,9 @@ test('upgrades the exact main measure database with four older dependency identi
         .map(({ name, hash, downHash }) => ({ name, hash, downHash })),
     );
     expect(capture.pending.map(({ name }) => name)).toEqual(ADDED);
-    expect(capture.pending.every(({ name }) => name < '20261023100000_add_claim_lease')).toBe(true);
+    const older = capture.pending.filter(({ name }) => name < '20261023100000_add_claim_lease');
+    expect(older.map(({ name }) => name)).toEqual(OLDER_DEPENDENCIES);
+    expect(older).toHaveLength(4);
     const capturePath = join(root, 'capture.json');
     writeFileSync(capturePath, captureBytes);
     const captureHash = createHash('sha256').update(readFileSync(capturePath)).digest('hex');
@@ -237,7 +240,7 @@ test('upgrades the exact main measure database with four older dependency identi
     expect(
       upgraded.filter(({ name }) => ADDED.includes(name)).map(({ name, hash }) => ({ name, hash })),
     ).toEqual(capture.pending.map(({ name, hash }) => ({ name, hash })));
-    expect(upgraded).toHaveLength(baseline.length + 4);
+    expect(upgraded).toHaveLength(baseline.length + 5);
     expect(
       schemaAt(dbPath)
         .filter(

@@ -20,7 +20,10 @@ import {
   oidcTokenVerifierFromEnv,
   type TokenVerifier,
 } from '@wbs/auth';
-import { canonicalMcpResourceOf, mcpAuthorizationServerOf } from '@wbs/contracts';
+import {
+  canonicalMcpResourceOf,
+  mcpAuthorizationServerOf,
+} from '@wbs/contracts/mcp-authorization-server';
 // Proof: restoring the core barrel failed the poisoned-barrel startup test.
 import { credentialRuleRefusal } from '@wbs/core/ports/credential-rules';
 import {

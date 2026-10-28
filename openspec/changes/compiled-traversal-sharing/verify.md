@@ -59,7 +59,7 @@ No new runtime safety check is implemented by this three-file proposal beyond th
 
 The first five mutation rows summarize the read qualification/pre-memory reports; their individual raw traces were not replayed or re-audited here. No new adjacent completed Proof comment is invented. Any future changed safety check needs its own production-path watched failure/omission/restoration and explicit evidence before completion.
 
-## Required current-candidate checks — all NOT RUN
+## Validation requirements at the original proposal (historical)
 
 - Ordinary frozen materialization of the exact integrated candidate under normal policy; unchanged package/lock/patch afterward; complete canonical nested package/marker and stock top-level package.
 - Broader type-negative checks, normal contracts typing, actual current consumer/dependency resolution and no old dist/source alias substitution.
@@ -69,3 +69,13 @@ The first five mutation rows summarize the read qualification/pre-memory reports
 - If separately authorized normal candidate validation includes the unchanged memory test, record it under that scope and preserve strict<500MB. No new memory/cost campaign, resampling, tuning, profiling or GC/retention experiment is granted.
 
 No OpenSpec validation was run on these separate private drafts; local structure/word-count inspection is not CLI acceptance. Architecture, MAIN, PR630, deployment, adoption and broader gates remain held.
+
+## R18 image packaging correction applied; image verification pending
+
+At private checkpoint `9f682a350957363a59562c9f50d82d74841aff0e`, CI checks job122559351051 reached the backend image dependency stage and failed its unchanged `bun install --frozen-lockfile --production` with `patch file not found: patches/@ark%2Fschema@0.56.2.patch`. The five image install contexts copied the root package and lock but omitted the registered patch. The reviewed correction is now applied and copies `patches` before those existing frozen installs. Dagger already includes the directory in its build context. Package, lock and patch bytes remain unchanged. This applied source correction supplies no image, gate or adoption success; the real smoke and affected image builds require fresh execution after review and application. Earlier three-file scope describes the original compiler-registration proposal, not complete image packaging.
+
+## R18 declared-patch classification and ordinary checks
+
+Old-checkpoint CI exposed a separate packaging omission: both shipped wiki policies rejected the exact registered patch as matching zero content rules. The correction adds only `patches/@ark%2Fschema@0.56.2.patch` to their existing vendored rules; unknown-content and multiple-match guards are unchanged. Production CLI regression cases failed for both unchanged policies (0 pass/2 fail/14 expectations). After exact-path registration, the same cases passed2/0/28, including same-byte unlisted-patch refusals. The complete classification file then passed28/0/324. The adjacent Proof records this observed failure/restoration. This neither grants patch execution authority nor accepts all patch paths.
+
+The ordinary R18 checks separately passed full OpenSpec validation306/306, the protected-operation matrix2/0/6, six-file lint and native MCP spec typing. The first configured whole MCP target failed820/3 across823 tests. After reviewed startup/header/headless fixture corrections, the subsequent configured target passed823/0; full contracts passed726/0. Their exact commands and scope are recorded in the cross-project verification supplement. These results retain their actual source epochs and do not establish complete compiler parity, current full gates, image builds, adoption or deployment. Earlier proposal-only statements above describe their original historical boundary.

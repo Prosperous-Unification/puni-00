@@ -14,7 +14,7 @@ No second optimization, generic compiler/allocator framework, fork, upgrade, wea
 
 ## Constraints
 
-The reversible runtime proposal changes exactly root `package.json`, three native `bun.lock` registration lines and the unchanged version-qualified patch. Every unrelated current R16 byte/value remains; inverse edits must recover the current manifests exactly. Native generation and two-materialization allowances are consumed.
+The reversible compiler proposal changes exactly root `package.json`, three native `bun.lock` registration lines and the unchanged version-qualified patch. Image packaging also copies the registered patch directory before frozen installs in the four WBS application Dockerfiles and the lab MCP Dockerfile; Dagger consumes the application Dockerfiles without a separate installer. Every unrelated current R16 byte/value remains; inverse edits must recover the current manifests exactly. Native generation and two-materialization allowances are consumed.
 
 Historical candidate readings381/379/384MB passed unchanged strict<500MB; baseline509/513MB retained expected failures. These are rounded RSS increments, not total/peak RSS, retained heap or512MiB pod headroom. Aggregate validation cost rose13.02%, within its predeclared1.20 budget; raw Standard Schema rose40.16%. Registry sharing strongly retains callbacks and their old tables.
 

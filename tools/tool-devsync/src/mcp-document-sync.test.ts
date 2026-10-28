@@ -94,6 +94,7 @@ beforeAll(async () => {
       'MCP_STORE_KEY_CURRENT=fixture',
       'MCP_STORE_PATH=/data/mcp-session.sqlite',
       'MCP_ACCESS_TOKEN_TTL=3600',
+      'MCP_TRUSTED_PROXY_HOPS=1',
     ].join('\n'),
     { mode: 0o600 },
   );

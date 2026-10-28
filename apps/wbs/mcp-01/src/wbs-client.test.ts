@@ -253,6 +253,7 @@ describe('buildRequest', () => {
       'x-mcp-internal-auth': 'secret',
     });
     expect(request.headers).toEqual({
+      'X-WBS-Dependency-Semantics': 'cross-project-dependencies-v1',
       authorization: 'Bearer grant',
       'x-mcp-internal-auth': 'secret',
     });

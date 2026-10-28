@@ -7,18 +7,19 @@ import type {
   OAuthClientInformationMixed,
   OAuthTokens,
 } from '@modelcontextprotocol/sdk/shared/auth.js';
+import { DEPENDENCY_SEMANTICS, DEPENDENCY_SEMANTICS_HEADER } from '@wbs/contracts/dependency-claim';
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
 import { decodeJwt } from 'jose';
 
 import type { McpConfig } from './config';
 import { mcpFetchHandler } from './http';
-import { machineGrantClient } from './machine-grant-client';
+import { machineGrantClient, MachineGrantDefect } from './machine-grant-client';
 import { NO_MACHINE_LIMITS } from './machine-limits';
 import { McpOAuthServer, type OAuthRouteEvidence } from './oauth';
 import { readDocument, toolsFromDocument } from './openapi-tools';
 import { createServer } from './server';
 import { McpSessionStore } from './session-store';
-import { JWT_BEARER_GRANT } from './token-request';
+import { Concealed, JWT_BEARER_GRANT } from './token-request';
 
 /**
  * Tasks 2.2 and 2.3 of `wbs-mcp-agent-surface` end to end: mcp-01's token
@@ -563,6 +564,139 @@ describe('secrets never reach logs or reports (task 2.3)', () => {
       expect(text).not.toContain(workload.split('.')[2] ?? workload);
       // The repository's `plaintext-secrets` pattern for a WBS API key.
       expect(text).not.toMatch(/wbs_mk_[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}/);
+    }
+  });
+});
+
+describe('dependency-enabled machine grant issuance', () => {
+  test('the real client claims V1 and changing only that header refuses issuance', async () => {
+    const { key } = await apiKey();
+    await fixture('enable-dependencies', {});
+    const request = {
+      issuer: OAUTH,
+      credential: { kind: 'api_key', key: new Concealed(key) },
+      expiresAt: Math.floor(Date.now() / 1000) + 300,
+      run: null,
+    } as const;
+    const answers: { status: number; body: unknown }[] = [];
+    const createClient = (rewrite?: (headers: Headers) => void, secret = BE_SECRET) =>
+      machineGrantClient(
+        { WBS_API_URL: beUrl, MCP_BE_INTERNAL_SECRET: secret },
+        async (input, init) => {
+          const headers = new Headers(init.headers);
+          rewrite?.(headers);
+          const response = await fetch(input, { ...init, headers });
+          answers.push({ status: response.status, body: await response.clone().json() });
+          return response;
+        },
+      );
+    const before = await fixture<unknown[]>('audit');
+    expect(await createClient().issue(request)).toMatchObject({
+      kind: 'issued',
+      personId: 'claire',
+    });
+    expect(answers.at(-1)?.status).toBe(200);
+    const issued = await fixture<unknown[]>('audit');
+    expect(issued).toHaveLength(before.length + 1);
+    for (const rewrite of [
+      (headers: Headers) => {
+        headers.delete(DEPENDENCY_SEMANTICS_HEADER);
+      },
+      (headers: Headers) => {
+        headers.set(DEPENDENCY_SEMANTICS_HEADER, 'cross-project-dependencies-v2');
+      },
+    ]) {
+      const semanticFailure: unknown = await createClient(rewrite)
+        .issue(request)
+        .then(
+          () => undefined,
+          (cause: unknown) => cause,
+        );
+      expect(semanticFailure).toBeInstanceOf(MachineGrantDefect);
+      expect(answers.at(-1)).toEqual({
+        status: 409,
+        body: { error: 'client_dependency_incompatible', required: DEPENDENCY_SEMANTICS },
+      });
+      expect(await fixture<unknown[]>('audit')).toEqual(issued);
+    }
+    const secretFailure: unknown = await createClient(undefined, 'wrong-dedicated-secret')
+      .issue(request)
+      .then(
+        () => undefined,
+        (cause: unknown) => cause,
+      );
+    expect(secretFailure).toBeInstanceOf(MachineGrantDefect);
+    expect(answers.at(-1)).toEqual({ status: 401, body: { error: 'internal_unauthorized' } });
+    expect(await fixture<unknown[]>('audit')).toEqual(issued);
+    expect(await createClient().issue(request)).toMatchObject({
+      kind: 'issued',
+      personId: 'claire',
+    });
+    expect(await fixture<unknown[]>('audit')).toEqual(issued);
+  });
+
+  test('an immutable unsupported backend refuses even the exact V1 claim without issuance', async () => {
+    const unsupported = Bun.spawn(
+      [process.execPath, 'apps/wbs/be-01/src/testing/mcp-machine-grant-backend.ts'],
+      {
+        cwd: REPO_ROOT,
+        env: {
+          ...process.env,
+          MCP_TEST_BE_SECRET: BE_SECRET,
+          MCP_TEST_AUTHORIZATION_SERVER: OAUTH,
+          MCP_TEST_DEPENDENCY_CAPABILITY: 'unsupported',
+        },
+        stdin: 'ignore',
+        stdout: 'pipe',
+        stderr: 'inherit',
+      },
+    );
+    try {
+      const { port } = JSON.parse(await readBackend(unsupported.stdout)) as { port: number };
+      const url = `http://127.0.0.1:${String(port)}`;
+      async function callFixture(path: string, body?: unknown): Promise<unknown> {
+        const response = await fetch(`${url}/__fixture/${path}`, {
+          method: path === 'audit' ? 'GET' : 'POST',
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        });
+        expect(response.status).toBe(200);
+        return await response.json();
+      }
+      await callFixture('activate', {});
+      const { key } = (await callFixture('api-key', { personId: 'claire' })) as { key: string };
+      await callFixture('enable-dependencies', {});
+      const before = await callFixture('audit');
+      let refusal: { status: number; body: unknown } | undefined;
+      const client = machineGrantClient(
+        { WBS_API_URL: url, MCP_BE_INTERNAL_SECRET: BE_SECRET },
+        async (input, init) => {
+          const headers = new Headers(init.headers);
+          headers.set(DEPENDENCY_SEMANTICS_HEADER, DEPENDENCY_SEMANTICS);
+          const response = await fetch(input, { ...init, headers });
+          refusal = { status: response.status, body: await response.clone().json() };
+          return response;
+        },
+      );
+      const capabilityFailure: unknown = await client
+        .issue({
+          issuer: OAUTH,
+          credential: { kind: 'api_key', key: new Concealed(key) },
+          expiresAt: Math.floor(Date.now() / 1000) + 300,
+          run: null,
+        })
+        .then(
+          () => undefined,
+          (cause: unknown) => cause,
+        );
+      expect(capabilityFailure).toBeInstanceOf(MachineGrantDefect);
+      expect(refusal).toEqual({
+        status: 409,
+        body: { error: 'client_dependency_incompatible', required: DEPENDENCY_SEMANTICS },
+      });
+      expect(await callFixture('audit')).toEqual(before);
+    } finally {
+      unsupported.kill('SIGTERM');
+      await unsupported.exited;
     }
   });
 });

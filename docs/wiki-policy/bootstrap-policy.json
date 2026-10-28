@@ -87,6 +87,10 @@
           {
             "kind": "segment",
             "value": "third-party"
+          },
+          {
+            "kind": "path",
+            "value": "patches/@ark%2Fschema@0.56.2.patch"
           }
         ],
         "exclude": []

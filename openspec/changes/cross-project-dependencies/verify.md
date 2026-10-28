@@ -7741,3 +7741,7 @@ unverified or held; parent task checkboxes are unchanged.
 ## Focused integrated R18 evidence — 2026-10-28
 
 [Selected integration checks and two scoped renewal proofs](verify-main-r18-20261028.md) retain their actual source epochs, ordinary MCP failure and remaining full-gate/adoption limits. Historical results are not promoted into the later proposed source.
+
+## Machine grant caller compatibility — 2026-10-28
+
+[Observed real caller semantic-header RED/GREEN proof](verify-main-r18-machine-grant-caller-20261028.md) records the tested issuance boundary, actual whole-file unit/backend results and explicit pending native, whole-MCP and current gate/CI checks.

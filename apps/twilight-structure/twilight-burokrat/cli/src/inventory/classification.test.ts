@@ -609,6 +609,58 @@ describe('entry classification production CLI', () => {
     ]);
   });
 
+  // Proof: missing exact patch selectors made both production CLI cases fail
+  // (0 pass / 2 fail); registration restored both, including unlisted-patch refusal.
+  test.each(['policy.json', 'bootstrap-policy.json'])(
+    'classifies only the declared dependency patch with docs/wiki-policy/%s',
+    async (policyName) => {
+      const repository = createRepository();
+      const patchPath = 'patches/@ark%2Fschema@0.56.2.patch';
+      const patchBytes = readFileSync(
+        join(import.meta.dir, '../../../../../..', patchPath),
+        'utf8',
+      );
+      write(repository, patchPath, patchBytes);
+      const revision = commitAll(repository);
+      const trustedPolicy = JSON.parse(
+        readFileSync(
+          join(import.meta.dir, '../../../../../..', 'docs/wiki-policy', policyName),
+          'utf8',
+        ),
+      ) as { classificationPolicy: object };
+      const policyPath = writePolicy(repository, trustedPolicy.classificationPolicy);
+      const accepted = await classify(repository, revision, policyPath);
+      expect(accepted.exitCode, output(accepted)).toBe(0);
+      const classified = JSON.parse(standardOutput(accepted)) as {
+        entries: {
+          path: string;
+          mode: string;
+          blob: string;
+          classification: { kind: string; contentClass: string };
+        }[];
+      };
+      expect(classified.entries).toEqual([
+        {
+          path: patchPath,
+          mode: '100644',
+          blob: hash(repository, patchPath),
+          classification: { kind: 'content', contentClass: 'vendored' },
+        },
+      ]);
+
+      const unlistedPatch = 'patches/unlisted.patch';
+      write(repository, unlistedPatch, patchBytes);
+      rmSync(policyPath);
+      const unlistedRevision = commitAll(repository);
+      writePolicy(repository, trustedPolicy.classificationPolicy);
+      const refused = await classify(repository, unlistedRevision, policyPath);
+      expect(refused.exitCode).not.toBe(0);
+      expect(output(refused)).toContain(
+        `ordinary content ${unlistedPatch} matched 0 classification rules`,
+      );
+    },
+  );
+
   test.each(['policy.json', 'bootstrap-policy.json'])(
     'classifies fleet Containerfiles and package NOTICE with docs/wiki-policy/%s',
     async (policyName) => {

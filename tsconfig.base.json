@@ -36,6 +36,10 @@
       "@wbs/config": ["./libs/wbs/adapters/config/src/index.ts"],
       "@wbs/contracts/logger": ["./libs/wbs/domain/contracts/src/logger.ts"],
       "@wbs/contracts/dependency-claim": ["./libs/wbs/domain/contracts/src/dependency-claim.ts"],
+      "@wbs/contracts/mcp-authorization-server": [
+        "./libs/wbs/domain/contracts/src/mcp-authorization-server.ts"
+      ],
+      "@wbs/contracts/mcp-internal-auth": ["./libs/wbs/domain/contracts/src/mcp-internal-auth.ts"],
       "@wbs/contracts": ["./libs/wbs/domain/contracts/src/index.ts"],
       "@wbs/contracts/dependency-runtime": [
         "./libs/wbs/domain/contracts/src/dependency-runtime.ts"

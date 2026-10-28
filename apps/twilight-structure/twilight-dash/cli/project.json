@@ -7,6 +7,7 @@
   "targets": {
     "test": {
       "cache": false,
+      "dependsOn": [{ "projects": ["wbs-mcp-01"], "target": "prepare" }],
       "executor": "nx:run-commands",
       "options": {
         "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../../node_modules bun test --preload ../../../../tools/test/scratch/preload.ts src --timeout=60000",

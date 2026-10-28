@@ -1,6 +1,6 @@
 # PRIVATE, unapproved technical shape
 
-The only runtime edits are the native-generated root package property, its exact three lock registration lines and the unchanged native patch. This is a separate change from Stage B source work. The current R16 package/lock are the authenticated native base: minimal insertions produce the existing native hashes, and inverse insertions recover the complete current bytes. No fresh bookkeeping generation is necessary or allowed by this packet.
+The compiler edits are the native-generated root package property, its exact three lock registration lines and the unchanged native patch. Every WBS image dependency stage must copy `patches` beside the root manifests before its existing frozen install, including the lab MCP image. The Dagger publisher already supplies that directory in its repository context and builds the same application Dockerfiles. This packaging correction changes no compiler bytes or install flags. This is a separate change from Stage B source work. The current R16 package/lock are the authenticated native base: minimal insertions produce the existing native hashes, and inverse insertions recover the complete current bytes. No fresh bookkeeping generation is necessary or allowed by this packet.
 
 ## Version and artifact boundary
 
