@@ -4371,3 +4371,32 @@ runtime/live acceptance was replayed or claimed. Tool Wiki remains visibly
 inactive/uncertified. Actual raw receipts and source binding remain in the
 private task-67 report and /tmp/puni-task67-evidence. Canonical4/11 and full3.1
 remain open; source66+67 can be published together for their own ordinary CI.
+
+## Post-publication CI and live prerequisites — 2026-10-28
+
+For code headb0a38e44, ordinary infrastructure run40698040215 passed. Its actual
+synthetic-merge checkout baf886d0 has b0a38e44 as second parent. The retained job
+log records3937Fleet/828Deploy tests with0fail, lint/typechecks/artifact checks,
+the repaired cache test, the full actual pinned source/parity positive and both
+new full-source Task66 cases. This closes the earlier local-only whole-source
+coverage limitation. It does not establish runtime acceptance. The Kubernetes
+CI job covers deployment/Traefik, not the common observation stack. All browser
+shards and stable pixels passed; the main aggregate gate remains pending at the
+latest read. No manual tests/jobs were repeated for this observation.
+
+Fresh read-only live inventory confirms the immutable target/source identities,
+suspended observation/alert/backup stages, absent dev namespace and empty required
+Secret metadata lists. The root target now reports HealthCheckFailed. Fresh
+machine/daemon/PID-bound observations show both known target hosts remain below
+the16GiB available-memory floor; h4's unrelated workload also has no finite memory
+or CPU cap through its observed ancestors. Both production floor invocations
+refused the captured counters without rendering or provisioning. Quota enforcement,
+complete physical budget and full live preflight remain unverified. No unowned
+workload, history, credential or resource setting was changed. Raw receipts,
+code/test coverage and semantics are retained in the private task-68 report.
+
+The separate generated-packet export remains rejected by automatic approval review
+pending explicit user authorization. A larger existing isolated host has been
+requested for inspection; no machine purchase or h3 resize is authorized. Full
+rehearsal/live cutover remains open. Current source checks cannot substitute for
+those runtime requirements.
