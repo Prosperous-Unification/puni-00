@@ -2041,3 +2041,163 @@ No S1. The review confirmed the secret core: the key only through `--key-file`, 
 | S3-3 | `cli/src/mcp/testing/pool-keys.v1.json`, used by `pool-import.test.ts` and read (not imported) by contracts' new `agent-pool-shapes.test.ts`; contracts lint is clean                                                                                                                | G11         |
 | S3-4 | negatives for a linked `--store` and a `pool-<id>` link to `/etc` (refused; `/etc` and the link untouched)                                                                                                                                                                           | G5, G6      |
 | S4   | the dead `isAbsolute` check is gone; `proveIssues`' JSDoc says each proof mints a discarded bearer; `MOST_AGENTS` names the 64 KiB cap (100 agents measured at 32,802 bytes); README: after a Bun upgrade that moves `bun`, re-key and re-import or fix the configs' path            | —           |
+
+## Slice 11: load evidence (task 4.3)
+
+**Result.** Every M10 fence holds exactly against real processes, and nothing failed, busied
+SQLite or logged an error. **The design load itself does not hold:** one be-01 sustained
+85.9 of the 200 calls a second, with p50 1.1 s. be-01's CPU per call is the binding limit, not
+any M10 fence (see the deviation below). 40 agents (80 calls a second) hold, with be-01 already
+near one core.
+
+### How it ran
+
+- **Driver.** `apps/wbs/mcp-01/src/load/m10-load.ts` (its JSDoc lists the phases). be-01 is
+  `apps/wbs/be-01/src/testing/mcp-load-backend.ts`: production `buildServices` and `buildApp`
+  from the composed organization harness, over a freshly migrated SQLite file in `/tmp`, with
+  machine grants and a load-only `/__load/delay` hold on `/api`. mcp-01 is
+  `src/load/mcp-01-loopback.ts`: `startMcpApplication` composed as `main.ts` composes it, with
+  `MachineTrafficLimits` built by `mcpOAuthFromEnv`, bound to `127.0.0.1`. Each runs as its own
+  Bun process. The driver is a third process speaking raw HTTP: `client_credentials` with Basic
+  and `wbs_run=load-run-<person>`, then single JSON-RPC `tools/call` posts to `/mcp`, stateless.
+- **Seed.** org-a has 100 agent persons bound to one super admin, org-b has 10, and each agent
+  has one API key and its own leaf in its organization's one project. All are written into
+  SQLite the way the tests do it. Every secret (the be-01↔mcp-01 secret, the grant key, the RSA
+  signing key, the store key, the API keys) is generated per run and never printed. The temp
+  directory is removed at the end.
+- **Source address.** `MCP_TRUSTED_PROXY_HOPS=1`, and every token request sets one
+  `X-Forwarded-For` entry from TEST-NET-2, one address per phase.
+- **Host.** h2puni (AMD EPYC-Genoa, 8 vCPU, 15 GiB, shared: load average 9.2 at the 100-agent
+  start, 5.6 at the 40-agent start). Bun 1.4.4. The checkout was a detached `git worktree`
+  (`~/puni-00-load-tbf`) of the gate tree's repository at **16bf197ee** (this branch's driver commit on plan head 12a51df0b; the later merge of af44c632d, PR #772, changed no be-01 or mcp-01 runtime file), with
+  `bun install --frozen-lockfile`. It has been removed since.
+- **Command**, via `~/m10-load-runs/run.sh` started with `nohup setsid`:
+  `HEAVY_LOCK_LABEL=m10-load:16bf197ee HEAVY_LOCK_WAIT_SECONDS=3600 bin/with-heavy-lock.sh --
+env -u CLAUDECODE bun apps/wbs/mcp-01/src/load/m10-load.ts --agents=100 --steady-seconds=300`.
+  The first attempt gave up after its 3600 s queue behind a gate (`bd4a837f`, exit 75, nothing
+  ran). The second waited 1951 s, ran, and **exited 1** on one expectation: `steady: at least
+95% of the design rate`. `--agents=40 --steady-seconds=120` then exited 0, with all 18
+  expectations holding.
+- **What "in flight" means here.** It is the driver's outstanding `/mcp` requests per
+  organization, an upper bound on mcp-01's slots. CPU and RSS are sampled from `/proc` every
+  1 s (every 100 ms in the burst). A CPU figure over 100% is Bun's other threads (GC, I/O).
+
+### 1. Issuance burst (100 agents, source `198.51.100.10`)
+
+| Measure                    | Value                                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------- |
+| issued at once             | 100 of 100, wall 169 ms                                                                     |
+| latency p50 / p95 / p99    | 159.5 / 165.7 / 165.8 ms (max 168.5)                                                        |
+| the 101st, at once after   | **429**, `{"error":"invalid_request","error_description":"rate_limited"}`, `Retry-After: 1` |
+| be-01 CPU mean / peak, RSS | 81.9% / 85.1%, 414 MiB                                                                      |
+| mcp-01 CPU mean / peak     | 140.5% / 170.3%, 435 MiB (RS256 signing of 100 tokens)                                      |
+| 40 agents (second run)     | 40 of 40, p50 108 ms, p99 112 ms                                                            |
+
+### 2. Steady design load (100 agents, 300 s)
+
+Each agent runs claim → `postApiClaimsRenew` → `getApiProjectsByIdClaims` → release on its own
+leaf, one call each 500 ms, sequentially (no catch-up), with its own token and `wbs_run`.
+
+| Measure                     | 100 agents (design: 200 calls/s)     | 40 agents (80 calls/s)     |
+| --------------------------- | ------------------------------------ | -------------------------- |
+| calls, achieved rate        | 26,048 in 303 s, **85.9/s**          | 9,720 in 122 s, 79.7/s     |
+| outcomes                    | 26,048 ok; 0 tool errors, 0 HTTP 429 | 9,720 ok                   |
+| latency all p50 / p95 / p99 | **1,117 / 1,804 / 2,004 ms**         | 68.6 / 309 / 404 ms        |
+| commands (claim, release)   | p50 1,290, p99 2,120 ms              | p50 140, p99 434 ms        |
+| heartbeat                   | p50 1,078, p99 1,935 ms              | p50 55, p99 339 ms         |
+| claims read                 | p50 919, p99 1,895 ms                | p50 7.5, p99 28 ms         |
+| org-a in flight, peak, mean | 100 (of 128), 99.2                   | 36, 8.0                    |
+| be-01 CPU mean / peak, RSS  | 115.9% / 164.9%, peak 1,427 MiB      | 97.6% / 146%, peak 910 MiB |
+| mcp-01 CPU mean / peak, RSS | 15.4% / 40%, 451 MiB                 | 14.5% / 32%, 401 MiB       |
+| driver CPU mean             | 4.2%                                 | 3.8%                       |
+| SQLite busy, error lines    | 0, 0 (both logs)                     | 0, 0                       |
+
+### 3. Fences (100-agent run; the 40-agent run's figures are the same)
+
+| Fence                                       | Sent                                                                                    | Observed                                                                                                                            |
+| ------------------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| per credential, 10/s burst 20, single calls | 40 at once by `org-a-agent-1`, while the other 99 kept their pace                       | 20 ran, 20 were **HTTP 429**, `Retry-After: 1`, `{"error":"rate_limited"}`; the 99 made 1,268 calls with 0 failures                 |
+| per credential, a batch                     | one JSON-RPC batch of 30, after refill                                                  | HTTP 200 array: 20 ran, 10 tool errors `getApiProjectsByIdClaims could not be called: rate_limited (429). Retry after 1 s.`         |
+| org in flight, 128                          | be-01 held 1.5 s per `/api` call; 150 calls at once from 15 org-a credentials (10 each) | **exactly 128 ran, 22 were HTTP 429**, `Retry-After: 1`; org-b's 10 agents meanwhile: 40 calls, 0 failures (p50 1,517 ms, the hold) |
+| org in flight, undelayed (observed only)    | 200 calls at once from 20 org-a credentials                                             | 128 ok, 72 HTTP 429 (p50 117 ms, p99 460 ms): be-01's queue alone holds 128 calls                                                   |
+| failed auth per IP, 30/min                  | 40 unknown credentials, one by one, from `198.51.100.30`                                | 30 × 401 `invalid_client`, then 10 × 429 `rate_limited`; a valid org-b client from `198.51.100.31`: 200                             |
+| failed auth per `(client_id, IP)`, 5/min    | 6 wrong secrets for `org-a-agent-2`'s real id from `198.51.100.40`                      | 401 × 5, then 429; the holder's right secret from `.40`: 429 (the failure buckets are read first, M10); from `.41`: 200             |
+
+### Deviation from M10: one be-01 carries about 85 calls a second, not 200
+
+- **What was seen.** At 100 agents every call queued in be-01. Throughput was 85.9 calls a
+  second, latency was about 1.1 s, and the agents' in-flight count sat at 100. It stayed under
+  128 only because each agent waits for its answer. With about 130 such agents, the
+  organization would meet `too_many_in_flight` at the same 86 calls a second, and the
+  per-replica fence would be refusing load that be-01 could not serve anyway. M10's "about 60
+  in flight at the design load" assumes 300 ms calls at 200 a second. On this host the service
+  time is 11 to 12 ms of be-01 CPU per call, about 86 a second for one core.
+- **The cause: be-01 CPU per call.** mcp-01 stayed at about 15%, and the driver at about 4%.
+  A local 40-agent run with `bun --cpu-prof-md` on be-01 (a one-off, not committed) gave, by
+  share of be-01's samples (seeding included):
+  - drizzle building SQL per query (`buildQueryFromSourceParams`, 31% total) and SQLite
+    statement preparation per query (`prepare`, 16% self). No hot statement is prepared once.
+  - endpoint lookup (`mount.ts` `onRequest`: `matchPath` over every endpoint, then a sort, for
+    every request), about 10%.
+  - per-request rereads: the machine credential (`findById`, 8%), the activation marker
+    (`readOrganizationActivation`, 6%), organization access (`resolve`, about 3%).
+  - `secretMatches` hashing both sides on each request (`mcpSecretOf`, 3.5%).
+  - the load backend's own request copy (`mcp-load-backend.ts` fetch wrapper, about 5% self).
+    Production be-01 has no such wrapper, so the harness overstates be-01's cost by about that
+    much.
+  - At 40 agents, reads took 7.5 ms at p50 while claim and release took 140 ms. Writes also
+    wait their turn on the serialized write path.
+- **Proposed fixes** (not in this PR; for the lead to schedule):
+  1. Prepare the hot statements once (the credential reread, the activation marker, the claims
+     reads and the lease renewal), or cache drizzle's prepared queries.
+  2. Index the endpoint table once by method and segment count (or a literal-prefix trie)
+     rather than matching every endpoint per request.
+  3. Cache the activation marker with the existing marker-change signal, and compute the
+     expected secret's SHA-256 once in `identityResolver`.
+  4. Re-run this driver after each. Until then, document the measured per-replica capacity
+     (about 85 calls a second on h2puni) beside M10's table, and size swarms to it. Under
+     M10's 2 calls a second per agent, that is about 40 agents per be-01.
+
+  Retuning a fence would not help: the fences are right, and be-01 is the bottleneck.
+
+- **Not a deviation.** The HTTP 429 body says `rate_limited` for `too_many_in_flight` too (only
+  `Retry-After` differs). This is section 4 note 6's documented form, and the batch form names
+  the reason.
+
+### Proofs for the driver
+
+| Check                                   | Fault injected                                                   | Observed                                                                                  |
+| --------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| exit 1 on a violated expectation        | the in-flight expectation raised to the limit + 1                | 20-agent local run exited 1 naming `in-flight fence: 150 org-a calls…`                    |
+| the error-line scan reads pino's labels | `"level":"(info\|fatal)"` in place of `"level":"(error\|fatal)"` | 20-agent local run exited 1 on `no error line in either log`, counting mcp-01's 161 lines |
+| (real) the design-rate expectation      | none: the 100-agent h2puni run                                   | exited 1 on `steady: at least 95% of the design rate`                                     |
+
+be-01 writes only its port line to stdout at `info` during the run, so be-01 contention would
+show up as failed calls (counted per outcome) rather than in its log. The `SQLITE_BUSY` scan
+has no injected-fault proof.
+
+### Commands and results, slice 11
+
+All on 2026-10-28 with `env -u CLAUDECODE`, on the laptop unless marked:
+
+| Command                                                                                                    | Result                                                                      |
+| ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| h2puni, under the heavy lock: `bun apps/wbs/mcp-01/src/load/m10-load.ts --agents=100 --steady-seconds=300` | exit 1, 17 of 18 expectations hold (the design rate does not); tables above |
+| h2puni, under the heavy lock: the same with `--agents=40 --steady-seconds=120`                             | exit 0, 18 of 18                                                            |
+| local smoke `--agents=20 --steady-seconds=10`                                                              | exit 0, 17 of 17 (before the error-line expectation was added)              |
+| `bunx tsc --build --force apps/wbs/mcp-01/tsconfig.json`, and the same for be-01                           | exit 0, exit 0                                                              |
+| `bunx eslint apps/wbs/mcp-01/src/load apps/wbs/be-01/src/testing/mcp-load-backend.ts`                      | exit 0                                                                      |
+| `bunx prettier --check` on every changed file                                                              | "All matched files use Prettier code style!"                                |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                | exit 0                                                                      |
+| `bunx openspec validate --all --json`                                                                      | 301 items, 301 passed                                                       |
+
+Not run:
+
+- the h2puni gate;
+- the mcp-01 and be-01 test suites (no production file changed; the new files hold no
+  tests);
+- a multi-replica run, and anything through Caddy, which the source address only simulates;
+- OIDC (`jwt_bearer`) issuance under load (API keys only);
+- the per-IP failure overshoot under concurrency (the flood was sent one by one);
+- a run of the production `main.ts` be-01 (the harness composition was used);
+- a repeat of the 100-agent run on a quiet host.
