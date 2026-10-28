@@ -359,19 +359,29 @@ that file into one key file, one MCP config and one run per agent.
 
 ```sh
 chmod 600 ~/Downloads/pool-<id>.keys.json
-bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts pool import \
-  ~/Downloads/pool-<id>.keys.json --store ~/.config/wbs/pools
+twilight-dash pool import ~/Downloads/pool-<id>.keys.json --store ~/.config/twilight-dash/pools
 ```
 
+`twilight-dash` stands for `bun <checkout>/apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts`
+(the [checkout requirement](#claude-code-for-a-headless-agent-swarm)). The store directory
+documented here, `~/.config/twilight-dash/pools`, is a convention: `--store` has no default.
+
 - **The file must be owned by you with mode `0600`.** A browser saves it `0644`; the command
-  refuses that until you `chmod 600` it, as `--key-file` does. Keys never come from an argument
+  refuses that, as `--key-file` does, and names the fix with your path:
+  `run: chmod 600 '<path>'`. Keys never come from an argument
   or standard input, and a key pasted where the path belongs is refused without echoing it.
 - **Every key is proven before anything is written.** Each agent's key is exchanged for one
   token at the document's authorization server, with the agent's run, exactly as `mcp token`
   will. One refusal (a revoked key, an expired pool, a wrong server) aborts the import naming
   that agent and the OAuth error, and the store is left as it was. The document's
   `authorizationServer` must be `<mcpResource>/oauth`, the one `mcp token` asks.
-- **The store** (`--store`, created `0700` if absent; refused if other users can enter it) holds
+- **A pool of N spends N issuances** from mcp-01's per-source bucket (M10: a burst of 100, then
+  5 a second), shared with every agent on the host. A `429` is waited out per its `Retry-After`
+  (at most 60 s, three times per agent); beyond that the import aborts with `wait N s and rerun`.
+  After importing a large pool, wait about N/5 seconds before starting its agents, or their first
+  tokens meet the same limit.
+- **The store** (`--store`; created with any missing parents `0700`; refused if it is a link or
+  other users can enter it) holds
   per pool a link `pool-<poolId>` to the current generation, with:
   - `<personId>.key`: the agent's key, `0600`, for `mcp token --key-file`;
   - `<personId>.mcp.json`: a config for `claude --mcp-config` whose `headersHelper` runs
@@ -379,13 +389,23 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts pool import \
     and checkout that ran the import (the [checkout requirement](#claude-code-for-a-headless-agent-swarm)
     applies);
   - `pool.json`: the agents, their runs and paths; no key.
+
+  The configs name the `bun` binary that ran the import (`process.execPath`). **After a Bun
+  upgrade** that moves it (a version manager installs each version at its own path), the
+  helpers fail to start: re-key the pool in WBS and import the new document (the old one was
+  deleted, and keys are shown once), or correct the `bun` path in each `<personId>.mcp.json`.
+
 - **Each agent has its own run**, `pool-<poolId>/<personId>`, so its claims and leases are
   scoped to it (M15). The run does not change on a re-key, so a running agent's next token after
   a re-key keeps its leases. Start one agent process per config; two processes on one config
   share a run.
 - **Re-importing after a re-key** writes a new generation and switches the link in one rename:
   a running helper reads either the old keys or the new ones, never a mix. An agent absent from
-  the new document (its key revoked alone) loses its key file. Other pools are untouched.
+  the new document (its key revoked alone) loses its key file. Every other generation of the
+  pool, the replaced one and any a crashed import left, is removed, so no stale key stays on
+  disk. Other pools are untouched. Run one import of a pool at a time: when another import
+  switches the pool while this one finishes, this one exits non-zero (`another import replaced
+pool … concurrently`) and its own generation is removed.
 - **Output** names the pool, each agent's person name, id, run and config path, and asks you to
   delete the downloaded file; it never prints a key. Dash then holds every key of the pool: a
   compromised Dash host is every agent until the pool is re-keyed or revoked (M7).

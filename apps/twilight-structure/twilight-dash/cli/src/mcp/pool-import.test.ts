@@ -5,8 +5,11 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  readlinkSync,
+  renameSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -15,7 +18,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, test } from 'bun:test';
 
 import { urlOf } from './machine-token';
-import { runPoolCommand } from './pool-import';
+import { type PoolFiles, runPoolCommand, systemPoolFiles } from './pool-import';
 
 /**
  * `pool import` against a fake token endpoint that answers as mcp-01 does: `200` with a bearer,
@@ -26,6 +29,13 @@ const ISSUER = 'https://wbs.example/mcp/oauth';
 const TOKEN_URL = `${ISSUER}/token`;
 const HELPER = ['/usr/local/bin/bun', '/srv/puni-00/dash/entrypoint.ts'] as const;
 const ENTRYPOINT = join(import.meta.dir, '../entrypoint.ts');
+/**
+ * The committed v1 document, which `@wbs/contracts`' `agent-pool-shapes.test.ts` checks against
+ * be-01's `agentPoolKeys`. Its secrets are `*` so no secret scanner matches; tests put valid ones in.
+ */
+const FIXTURE = JSON.parse(
+  readFileSync(join(import.meta.dir, 'testing/pool-keys.v1.json'), 'utf8'),
+) as Record<string, unknown> & { agents: { key: string }[] };
 
 const scratch = mkdtempSync(join(tmpdir(), 'dash-pool-import-'));
 afterAll(() => {
@@ -55,15 +65,8 @@ interface DocumentOptions {
 function poolDocument(options: DocumentOptions = {}): Record<string, unknown> {
   const generation = options.generation ?? 1;
   return {
-    format: 'wbs-agent-pool-keys',
-    version: 1,
-    organizationId: 'org-a',
-    authorizationServer: ISSUER,
-    mcpResource: RESOURCE,
+    ...FIXTURE,
     poolId: options.poolId ?? 'pool-a',
-    name: 'fleet',
-    expiresAt: null,
-    issuedAt: 1_800_000_000_000,
     agents: (options.agents ?? [1, 2, 3]).map((n) => ({
       personId: `person-${String(n)}`,
       personName: `fleet-${String(n)}`,
@@ -85,10 +88,26 @@ function keyOfRequest(authorization: string | null): string {
   return atob((authorization ?? '').slice('Basic '.length)).split(':')[1] ?? '';
 }
 
-/** A fake endpoint refusing the keys in `refused`; records every request. */
-function endpoint(refused: ReadonlySet<string> = new Set()) {
+interface EndpointOptions {
+  /** Answered before anything else, one per request, while any remain. */
+  readonly rateLimits?: (string | null)[];
+  readonly files?: PoolFiles;
+}
+
+/** A 429 as mcp-01's M10 refusal answers it. */
+function rateLimited(retryAfter: string | null): Response {
+  return Response.json(
+    { error: 'invalid_request', error_description: 'rate_limited' },
+    { status: 429, headers: retryAfter === null ? {} : { 'retry-after': retryAfter } },
+  );
+}
+
+/** A fake endpoint refusing the keys in `refused`; records every request and sleep. */
+function endpoint(refused: ReadonlySet<string> = new Set(), options: EndpointOptions = {}) {
   const requests: { url: string; form: URLSearchParams; key: string; redirect: unknown }[] = [];
   const printed: string[] = [];
+  const sleeps: number[] = [];
+  const rateLimits = [...(options.rateLimits ?? [])];
   const run = (argv: readonly string[]): Promise<void> =>
     runPoolCommand(argv, {
       send: (input, init) => {
@@ -99,6 +118,7 @@ function endpoint(refused: ReadonlySet<string> = new Set()) {
           key,
           redirect: init?.redirect,
         });
+        if (rateLimits.length > 0) return Promise.resolve(rateLimited(rateLimits.shift() ?? null));
         if (refused.has(key)) {
           return Promise.resolve(Response.json({ error: 'invalid_client' }, { status: 401 }));
         }
@@ -108,8 +128,13 @@ function endpoint(refused: ReadonlySet<string> = new Set()) {
       },
       write: (text) => printed.push(text),
       helper: HELPER,
+      sleep: (milliseconds) => {
+        sleeps.push(milliseconds);
+        return Promise.resolve();
+      },
+      files: options.files ?? systemPoolFiles,
     });
-  return { requests, printed, run };
+  return { requests, printed, sleeps, run };
 }
 
 /** The message `pending` rejects with; fails the test when it resolves. */
@@ -291,13 +316,12 @@ describe('twilight-dash pool import', () => {
     expect(existsSync(store)).toBe(false);
   });
 
-  test('refuses a group-readable pool key file', async () => {
+  test('refuses a group-readable pool key file, naming the chmod', async () => {
     const fake = endpoint();
-    const message = await rejection(
-      fake.run(['import', writeDocument(poolDocument(), 0o644), '--store', fresh('store')]),
-    );
+    const file = writeDocument(poolDocument(), 0o644);
+    const message = await rejection(fake.run(['import', file, '--store', fresh('store')]));
     expect(message).toBe(
-      'the pool key file must be owned by this user with mode 0600 (chmod 600 it first)',
+      `the pool key file must be owned by this user with mode 0600; run: chmod 600 '${file}'`,
     );
     expect(fake.requests).toEqual([]);
   });
@@ -395,6 +419,169 @@ describe('twilight-dash pool import', () => {
     expect(message).toBe('pool import names the pool key file, not its contents');
     expect(message).not.toContain('wbs_mk_');
     expect(await rejection(fake.run(['import', 'file.json']))).toStartWith('usage: pool import');
+  });
+});
+
+const GENERATION = /^\.pool-pool-a\.[0-9a-f]{16}$/;
+
+describe('twilight-dash pool import, the store', () => {
+  test('creates a missing store and its parents 0700', async () => {
+    const top = fresh('parents');
+    const store = join(top, 'config', 'twilight-dash', 'pools');
+    await endpoint().run(['import', writeDocument(poolDocument()), '--store', store]);
+    for (const directory of [top, join(top, 'config'), join(top, 'config', 'twilight-dash'), store])
+      expect(statSync(directory).mode & 0o777).toBe(0o700);
+  });
+
+  test('refuses a store that is a link', async () => {
+    const real = fresh('real-store');
+    mkdirSync(real, { mode: 0o700 });
+    chmodSync(real, 0o700);
+    const store = fresh('linked-store');
+    symlinkSync(real, store);
+    const message = await rejection(
+      endpoint().run(['import', writeDocument(poolDocument()), '--store', store]),
+    );
+    expect(message).toBe(
+      `--store ${store} must be a directory owned by this user with mode 0700, not a link`,
+    );
+    expect(readdirSync(real)).toEqual([]);
+  });
+
+  test('refuses a pool link it did not make, to /etc, leaving both alone', async () => {
+    const store = fresh('store');
+    mkdirSync(store, { mode: 0o700 });
+    chmodSync(store, 0o700);
+    symlinkSync('/etc', join(store, 'pool-pool-a'));
+    const before = readdirSync('/etc').sort();
+    const message = await rejection(
+      endpoint().run(['import', writeDocument(poolDocument()), '--store', store]),
+    );
+    expect(message).toBe(
+      `${join(store, 'pool-pool-a')} is not a pool this Dash imported; move it aside first`,
+    );
+    expect(readlinkSync(join(store, 'pool-pool-a'))).toBe('/etc');
+    expect(readdirSync(store)).toEqual(['pool-pool-a']);
+    expect(readdirSync('/etc').sort()).toEqual(before);
+  });
+
+  test('sweeps a stray generation of the pool, its key file included', async () => {
+    const store = fresh('store');
+    mkdirSync(join(store, '.pool-pool-a.00112233445566ff'), { recursive: true, mode: 0o700 });
+    chmodSync(store, 0o700);
+    writeFileSync(join(store, '.pool-pool-a.00112233445566ff', 'person-9.key'), keyOf(9, 1), {
+      mode: 0o600,
+    });
+    writeFileSync(join(store, '.pool-pool-b.00112233445566ff'), 'another pool');
+    await endpoint().run(['import', writeDocument(poolDocument()), '--store', store]);
+    const entries = readdirSync(store).sort();
+    expect(entries.filter((entry) => GENERATION.test(entry))).toEqual([
+      readlinkSync(join(store, 'pool-pool-a')),
+    ]);
+    expect(filesUnder(store).filter((entry) => entry.endsWith('person-9.key'))).toEqual([]);
+    expect(entries).toContain('.pool-pool-b.00112233445566ff');
+  });
+
+  test('a write that fails leaves no partial generation, and the pool as it was', async () => {
+    const store = fresh('store');
+    await endpoint().run(['import', writeDocument(poolDocument()), '--store', store]);
+    const before = filesUnder(store);
+    // ENOSPC after the first agent's key file: the first write through the seam.
+    const failing: PoolFiles = {
+      ...systemPoolFiles,
+      writeNewText: () => {
+        throw Object.assign(new Error('no space left on device'), { code: 'ENOSPC' });
+      },
+    };
+    const message = await rejection(
+      endpoint(new Set(), { files: failing }).run([
+        'import',
+        writeDocument(poolDocument({ generation: 2 })),
+        '--store',
+        store,
+      ]),
+    );
+    expect(message).toBe('pool pool-a could not be written; the store keeps what it had');
+    expect(filesUnder(store)).toEqual(before);
+    expect(readFileSync(join(store, 'pool-pool-a', 'person-1.key'), 'utf8')).toBe(
+      `${keyOf(1, 1)}\n`,
+    );
+  });
+
+  test('an import replaced concurrently exits non-zero and keeps no key of its own', async () => {
+    const store = fresh('store');
+    // Right after this import's switch, another import switches the pool to its generation.
+    const racing: PoolFiles = {
+      ...systemPoolFiles,
+      rename: (from, to) => {
+        renameSync(from, to);
+        const other = '.pool-pool-a.ffeeddccbbaa9988';
+        mkdirSync(join(store, other), { mode: 0o700 });
+        writeFileSync(join(store, other, 'pool.json'), '{}');
+        symlinkSync(other, join(store, 'other.link'));
+        renameSync(join(store, 'other.link'), to);
+      },
+    };
+    const message = await rejection(
+      endpoint(new Set(), { files: racing }).run([
+        'import',
+        writeDocument(poolDocument()),
+        '--store',
+        store,
+      ]),
+    );
+    expect(message).toBe(
+      `another import replaced pool pool-a concurrently; check ${join(store, 'pool-pool-a')} and rerun`,
+    );
+    expect(readdirSync(store).filter((entry) => GENERATION.test(entry))).toEqual([
+      '.pool-pool-a.ffeeddccbbaa9988',
+    ]);
+    expect(filesUnder(store).filter((entry) => entry.endsWith('.key'))).toEqual([]);
+  });
+});
+
+describe('twilight-dash pool import, rate limits', () => {
+  test('waits out a 429 per its Retry-After and imports', async () => {
+    const fake = endpoint(new Set(), { rateLimits: ['2', '3'] });
+    const store = fresh('store');
+    await fake.run(['import', writeDocument(poolDocument()), '--store', store]);
+    expect(fake.sleeps).toEqual([2_000, 3_000]);
+    expect(fake.requests).toHaveLength(5);
+    expect(storedPool(store).agents).toHaveLength(3);
+  });
+
+  test('a 429 not waited out within its bound aborts, saying how long to wait', async () => {
+    const fake = endpoint(new Set(), { rateLimits: ['1', '1', '1', '7'] });
+    const store = fresh('store');
+    const message = await rejection(
+      fake.run(['import', writeDocument(poolDocument()), '--store', store]),
+    );
+    expect(message).toBe(
+      "agent fleet-1's key did not issue a token, so nothing was imported: the MCP token endpoint is rate limiting issuances; wait 7 s and rerun",
+    );
+    expect(fake.sleeps).toEqual([1_000, 1_000, 1_000]);
+    expect(existsSync(store)).toBe(false);
+    const long = endpoint(new Set(), { rateLimits: ['120'] });
+    expect(
+      await rejection(long.run(['import', writeDocument(poolDocument()), '--store', fresh('s')])),
+    ).toEndWith('wait 120 s and rerun');
+    expect(long.sleeps).toEqual([]);
+  });
+});
+
+describe('twilight-dash pool import, the committed v1 document', () => {
+  test('imports it once its secrets are real-shaped', async () => {
+    const agents = FIXTURE.agents.map((agent) => ({
+      ...agent,
+      key: agent.key.replace(/\.\*{43}$/, `.${'k'.repeat(43)}`),
+    }));
+    const store = fresh('store');
+    const fake = endpoint();
+    await fake.run(['import', writeDocument({ ...FIXTURE, agents }), '--store', store]);
+    expect(fake.requests).toHaveLength(3);
+    expect(
+      storedPool(store, String(FIXTURE['poolId'])).agents.map((agent) => agent.personName),
+    ).toEqual(['fleet-1', 'fleet-2', 'fleet-3']);
   });
 });
 

@@ -7,7 +7,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
 
 import { mcpEndpointOf, urlOf } from './machine-token';
-import { runPoolCommand } from './pool-import';
+import { runPoolCommand, systemPoolFiles } from './pool-import';
 import { startWbsMcpStack, type WbsMcpStack } from './testing/wbs-mcp-stack';
 import { runMcpCommand } from './token-command';
 import { WorkloadJwtBearerProvider } from './workload-provider';
@@ -332,6 +332,8 @@ describe('twilight-dash pool import (task 6.4)', () => {
       send,
       write: () => undefined,
       helper: [process.execPath, ENTRYPOINT],
+      sleep: () => Promise.reject(new Error('no 429 is expected on this path')),
+      files: systemPoolFiles,
     });
 
   test('the stored headersHelper calls a tool with its run; a revoked key aborts the re-import', async () => {

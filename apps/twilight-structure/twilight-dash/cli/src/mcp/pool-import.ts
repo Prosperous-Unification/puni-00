@@ -2,16 +2,18 @@ import { randomBytes } from 'node:crypto';
 import {
   closeSync,
   constants,
+  existsSync,
   lstatSync,
   mkdirSync,
   openSync,
+  readdirSync,
   readlinkSync,
   renameSync,
   rmSync,
   symlinkSync,
   writeSync,
 } from 'node:fs';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 import { parseSecretsOrThrow, type } from '@shared/validation';
 
@@ -24,6 +26,7 @@ import {
   mcpEndpointOf,
   postTokenRequest,
   refusalOf,
+  retryAfterSecondsOf,
   runOf,
 } from './machine-token';
 
@@ -36,12 +39,51 @@ export interface PoolImportDependencies {
    * `headersHelper` runs with `mcp token`.
    */
   readonly helper: readonly string[];
+  /** Waits out a token endpoint `Retry-After` while proving the keys. */
+  readonly sleep: (milliseconds: number) => Promise<void>;
+  /** The store writes a test can fail; production passes {@link systemPoolFiles}. */
+  readonly files: PoolFiles;
 }
+
+/** The two store writes whose failure `pool import` must survive with the store intact. */
+export interface PoolFiles {
+  /** Writes `text` to a new `0600` file, never following a link or replacing a file. */
+  writeNewText(path: string, text: string): void;
+  /** Renames `from` over `to` in one step (`rename(2)`). */
+  rename(from: string, to: string): void;
+}
+
+/** {@link PoolFiles} on the real file system. */
+export const systemPoolFiles: PoolFiles = {
+  writeNewText(path, text) {
+    const descriptor = openSync(
+      path,
+      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+      0o600,
+    );
+    try {
+      writeSync(descriptor, text);
+    } finally {
+      closeSync(descriptor);
+    }
+  },
+  rename: (from, to) => {
+    renameSync(from, to);
+  },
+};
 
 const USAGE = 'usage: pool import <pool-keys.json> --store <directory>';
 const DOCUMENT_FORMAT = 'wbs-agent-pool-keys';
-/** be-01 caps a pool at 100 agents (`createAgentPool`). */
+/**
+ * be-01 caps a pool at 100 agents (`createAgentPool`). A document of 100 fits `readOwnerOnly`'s
+ * 64 KiB cap: each agent entry, pretty-printed with the longest name (64 characters) and UUIDs,
+ * is about 330 bytes, so 100 are 32,802 bytes (measured 2026-10-28).
+ */
 const MOST_AGENTS = 100;
+/** A pool's issuances share one per-source bucket at mcp-01 (M10): a 429 is waited out. */
+const MOST_RATE_LIMIT_RETRIES = 3;
+/** The longest `Retry-After` waited before the import gives up and says how long to wait. */
+const MOST_RETRY_AFTER_SECONDS = 60;
 /** An id that is safe as one path component and inside a `wbs_run`. */
 const ID = /^[A-Za-z0-9_-]{1,100}$/;
 
@@ -145,10 +187,10 @@ export async function runPoolCommand(
   // Proof: continuing past a refused agent (`.catch(() => undefined)`) made `a key that fails to
   // issue aborts the import with nothing written` and `a refused re-import keeps the pool as it
   // was` resolve, importing every agent (2026-10-28).
-  for (const agent of agents) await proveIssues(agent, endpoint, deps.send);
+  for (const agent of agents) await proveIssues(agent, endpoint, deps);
 
   const storeDirectory = openStore(store);
-  const stored = writePool(storeDirectory, pool, endpoint, agents, deps.helper);
+  const stored = writePool(storeDirectory, pool, endpoint, agents, deps);
   deps.write(
     `imported pool ${pool.name} (${pool.poolId}): ${String(stored.length)} agents, every key ` +
       `issued a token, into ${join(storeDirectory, `pool-${pool.poolId}`)}\n`,
@@ -159,17 +201,18 @@ export async function runPoolCommand(
   deps.write(`delete ${file} now: it holds every key of the pool\n`);
 }
 
-/** What a pool key file refusal says for each of `readOwnerOnly`'s reasons; never the path. */
-const POOL_FILE_REFUSALS: Record<ConfigurationRefusal['reason'], string> = {
-  config_absent: 'the pool key file does not exist',
-  config_unreadable: 'the pool key file cannot be read',
-  credential_not_owner_only:
-    'the pool key file must be owned by this user with mode 0600 (chmod 600 it first)',
-  config_malformed: 'the pool key file is over 64 KiB',
-  unsupported_measure: 'the pool key file cannot be read',
-  provider_kind_not_available: 'the pool key file cannot be read',
-  provider_not_implemented: 'the pool key file cannot be read',
-};
+/**
+ * What a pool key file refusal says for each of `readOwnerOnly`'s reasons. Only the mode refusal
+ * names the path, as the command that fixes it: a key pasted as the path is refused before.
+ */
+function poolFileRefusal(reason: ConfigurationRefusal['reason'], path: string): string {
+  if (reason === 'config_absent') return 'the pool key file does not exist';
+  if (reason === 'config_malformed') return 'the pool key file is over 64 KiB';
+  if (reason === 'credential_not_owner_only') {
+    return `the pool key file must be owned by this user with mode 0600; run: chmod 600 ${shellWord(path)}`;
+  }
+  return 'the pool key file cannot be read';
+}
 
 /**
  * The validated document at `path`.
@@ -186,7 +229,9 @@ function readPoolKeys(path: string): PoolKeys {
     text = readOwnerOnly(path);
   } catch (cause) {
     if (!(cause instanceof ConfigurationRefusal)) throw cause;
-    throw new Error(POOL_FILE_REFUSALS[cause.reason], { cause });
+    // Proof: naming no path made `refuses a group-readable pool key file, naming the chmod`
+    // fail (2026-10-28).
+    throw new Error(poolFileRefusal(cause.reason, path), { cause });
   }
   let parsed: unknown;
   try {
@@ -261,10 +306,19 @@ function agentsOf(pool: PoolKeys): PoolAgent[] {
 }
 
 /**
- * Issues one token with the agent's key and run, as `mcp token` would, and drops it.
- * @throws naming the agent and the token endpoint's refusal.
+ * Issues one token with the agent's key and run, as `mcp token` would, and drops it. The proofs
+ * run one after another, and each mints a real bearer that is never stored or printed; it stays
+ * valid until it expires, as any token a helper drops does. A `429` (the pool shares mcp-01's
+ * per-source bucket: burst 100, 5 a second) is waited out per its `Retry-After`, at most
+ * {@link MOST_RATE_LIMIT_RETRIES} times and {@link MOST_RETRY_AFTER_SECONDS} each.
+ * @throws naming the agent and the token endpoint's refusal; for a rate limit not waited out,
+ * how long to wait before rerunning.
  */
-async function proveIssues(agent: PoolAgent, endpoint: McpEndpoint, send: FetchLike) {
+async function proveIssues(
+  agent: PoolAgent,
+  endpoint: McpEndpoint,
+  deps: Pick<PoolImportDependencies, 'send' | 'sleep'>,
+) {
   const form = new URLSearchParams({
     grant_type: 'client_credentials',
     resource: endpoint.resource,
@@ -276,7 +330,21 @@ async function proveIssues(agent: PoolAgent, endpoint: McpEndpoint, send: FetchL
     authorization: agent.key.basicAuthorization(),
   });
   try {
-    const response = await postTokenRequest(send, endpoint.tokenUrl, headers, form);
+    let response = await postTokenRequest(deps.send, endpoint.tokenUrl, headers, form);
+    for (let retry = 0; response.status === 429; retry += 1) {
+      const retryAfter = retryAfterSecondsOf(response) ?? MOST_RETRY_AFTER_SECONDS;
+      // Proof: dropping this bound made `a 429 not waited out within its bound aborts, saying
+      // how long to wait` resolve (2026-10-28).
+      if (retry === MOST_RATE_LIMIT_RETRIES || retryAfter > MOST_RETRY_AFTER_SECONDS) {
+        throw new Error(
+          `the MCP token endpoint is rate limiting issuances; wait ${String(retryAfter)} s and rerun`,
+        );
+      }
+      // Proof: not waiting made `waits out a 429 per its Retry-After and imports` fail
+      // (2026-10-28).
+      await deps.sleep(retryAfter * 1_000);
+      response = await postTokenRequest(deps.send, endpoint.tokenUrl, headers, form);
+    }
     if (response.status !== 200) throw await refusalOf(response);
     parseSecretsOrThrow(IssuedToken, await response.json());
   } catch (cause) {
@@ -289,22 +357,23 @@ async function proveIssues(agent: PoolAgent, endpoint: McpEndpoint, send: FetchL
 }
 
 /**
- * The store directory, created `0700` when absent (its parent must exist).
- * @throws when it is not a directory owned by this user without group or other permissions.
+ * The store directory, created with every missing parent `0700` when absent.
+ * @throws when it is not a directory (a link included) owned by this user without group or
+ * other permissions.
  */
 function openStore(path: string): string {
   const directory = resolve(path);
-  if (!isAbsolute(directory)) throw new Error('--store must resolve to an absolute path');
   try {
-    mkdirSync(directory, { mode: 0o700 });
+    // Proof: creating the parents without a mode made `creates a missing store and its parents
+    // 0700` see a 0775 parent (umask 002) (2026-10-28).
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
   } catch (cause) {
-    if (!(cause instanceof Error && 'code' in cause && cause.code === 'EEXIST')) {
-      throw new Error(`--store ${directory} cannot be created`, { cause });
-    }
+    throw new Error(`--store ${directory} cannot be created`, { cause });
   }
+  // Proof: `statSync` here made `refuses a store that is a link` import through the link
+  // (2026-10-28); dropping the check made `refuses a store other users can enter` resolve,
+  // writing the keys into the 0755 directory (2026-10-28).
   const entry = lstatSync(directory);
-  // Proof: dropping this check made `refuses a store other users can enter` resolve, writing
-  // the keys into the 0755 directory (2026-10-28).
   if (!entry.isDirectory() || entry.uid !== process.getuid?.() || (entry.mode & 0o077) !== 0) {
     throw new Error(
       `--store ${directory} must be a directory owned by this user with mode 0700, not a link`,
@@ -329,12 +398,13 @@ function writePool(
   pool: PoolKeys,
   endpoint: McpEndpoint,
   agents: readonly PoolAgent[],
-  helper: readonly string[],
+  deps: Pick<PoolImportDependencies, 'helper' | 'files'>,
 ): StoredAgent[] {
+  const { helper, files } = deps;
   const current = join(store, `pool-${pool.poolId}`);
   const generationName = `.pool-${pool.poolId}.${randomBytes(8).toString('hex')}`;
   const generation = join(store, generationName);
-  const previous = previousGeneration(current, pool.poolId);
+  assertImportedPool(current, pool.poolId);
   mkdirSync(generation, { mode: 0o700 });
   const stored: StoredAgent[] = [];
   try {
@@ -357,7 +427,7 @@ function writePool(
       ]
         .map(shellWord)
         .join(' ');
-      writeNewText(
+      files.writeNewText(
         join(generation, `${agent.personId}.mcp.json`),
         `${JSON.stringify(
           { mcpServers: { wbs: { type: 'http', url: endpoint.resource, headersHelper } } },
@@ -374,7 +444,7 @@ function writePool(
         mcpConfig,
       });
     }
-    writeNewText(
+    files.writeNewText(
       join(generation, 'pool.json'),
       `${JSON.stringify(
         {
@@ -397,55 +467,65 @@ function writePool(
     symlinkSync(generationName, link);
     // Proof: renaming only on a first import made `a re-import replaces the pool keys, and an
     // agent absent from it loses its key` read fleet-1's first key (2026-10-28).
-    renameSync(link, current);
+    files.rename(link, current);
   } catch (cause) {
+    // Proof: not removing the generation made `a write that fails leaves no partial
+    // generation…` find the first agent's key file in a stray generation (2026-10-28).
     rmSync(generation, { recursive: true, force: true });
     rmSync(`${generation}.link`, { force: true });
     throw new Error(`pool ${pool.poolId} could not be written; the store keeps what it had`, {
       cause,
     });
   }
-  // Proof: keeping the replaced generation made `…loses its key` find two generations of
-  // pool-a (2026-10-28).
-  if (previous !== null) rmSync(join(store, previous), { recursive: true, force: true });
+  const target = readlinkSync(current);
+  sweepGenerations(store, pool.poolId, target);
+  // Proof: dropping this check made `an import replaced concurrently exits non-zero…` resolve
+  // (2026-10-28).
+  if (target !== generationName || !existsSync(join(generation, 'pool.json'))) {
+    throw new Error(
+      `another import replaced pool ${pool.poolId} concurrently; check ${current} and rerun`,
+    );
+  }
   return stored;
 }
 
 /**
- * The generation `current` links to, or null when the pool was never imported.
- * @throws when `current` exists and is not a link to a generation of this pool.
+ * Removes every generation of the pool, and every pending link, but `target`, the one
+ * `pool-<poolId>` links to:
+ * the generation this import replaced, a crashed import's leftovers, and a concurrent import's
+ * generation (that import then fails its own check). None keeps a key on disk.
  */
-function previousGeneration(current: string, poolId: string): string | null {
+function sweepGenerations(store: string, poolId: string, target: string): void {
+  const leftover = new RegExp(`^\\.pool-${poolId}\\.[0-9a-f]{16}(\\.link)?$`);
+  for (const entry of readdirSync(store)) {
+    // Proof: sparing the stray generation made `sweeps a stray generation…` fail; skipping the
+    // sweep made it and `…loses its key` find two generations of pool-a (2026-10-28).
+    if (leftover.test(entry) && entry !== target) {
+      rmSync(join(store, entry), { recursive: true, force: true });
+    }
+  }
+}
+
+/**
+ * Checks that `current` is absent or a link this Dash made to a generation of this pool.
+ * @throws when it is anything else: a directory, or a link elsewhere (`/etc`).
+ */
+function assertImportedPool(current: string, poolId: string): void {
   let entry: ReturnType<typeof lstatSync>;
   try {
     entry = lstatSync(current);
   } catch (cause) {
-    if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return null;
+    if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return;
     throw cause;
   }
   const target = entry.isSymbolicLink() ? readlinkSync(current) : null;
-  // Proof: answering null here made `refuses to replace a pool directory it did not write` get
-  // `pool pool-a could not be written; the store keeps what it had` (2026-10-28).
+  // Proof: accepting a non-link here made `refuses to replace a pool directory it did not
+  // write` get `pool pool-a could not be written; the store keeps what it had` (2026-10-28).
   if (
     target === null ||
     dirname(target) !== '.' ||
     !new RegExp(`^\\.pool-${poolId}\\.[0-9a-f]{16}$`).test(target)
   ) {
     throw new Error(`${current} is not a pool this Dash imported; move it aside first`);
-  }
-  return target;
-}
-
-/** Writes `text` to a new `0600` file at `path`, never following a link or replacing a file. */
-function writeNewText(path: string, text: string): void {
-  const descriptor = openSync(
-    path,
-    constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
-    0o600,
-  );
-  try {
-    writeSync(descriptor, text);
-  } finally {
-    closeSync(descriptor);
   }
 }

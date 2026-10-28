@@ -131,7 +131,7 @@ under those credentials SHALL lapse at their own lease end with reason `lease ex
 ### Requirement: Dash imports a pool's keys whole, each agent with its own run
 
 `twilight-dash pool import <file> --store <directory>` SHALL read the keys document from an
-owner-only (`0600`) file, refuse an unknown `format` or `version`, and refuse an
+owner-only (`0600`) file (refusing any other with `chmod 600 <file>` named), refuse an unknown `format` or `version`, and refuse an
 `authorizationServer` other than the one `twilight-dash mcp token` derives from `mcpResource`.
 It SHALL issue one token per agent with that agent's key and run before writing anything, and
 SHALL write nothing when any key fails to issue. Each agent SHALL get its own `wbs_run`
@@ -157,6 +157,12 @@ SHALL carry a key.
   over the pool's earlier import
 - **THEN** the pool's key files are replaced in one rename, the keyless agent's key file is
   gone, every other agent keeps its run and paths, and other pools are untouched
+
+#### Scenario: Leftover generations
+
+- **WHEN** a crashed or concurrent import left another generation of the pool in the store
+- **THEN** an import that switches the pool removes every generation but the current one, and
+  an import whose switch another import overtook exits non-zero
 
 #### Scenario: An unknown document version
 

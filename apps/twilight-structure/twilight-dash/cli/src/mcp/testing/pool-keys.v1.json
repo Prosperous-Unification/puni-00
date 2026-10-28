@@ -1,0 +1,31 @@
+{
+  "format": "wbs-agent-pool-keys",
+  "version": 1,
+  "organizationId": "org-a",
+  "authorizationServer": "https://wbs.example/mcp/oauth",
+  "mcpResource": "https://wbs.example/mcp",
+  "poolId": "3d1f2a40-6c0b-4e8a-9b5e-1f2a3b4c5d6e",
+  "name": "fleet",
+  "expiresAt": null,
+  "issuedAt": 1800000000000,
+  "agents": [
+    {
+      "personId": "7c2e9b10-1a2b-4c3d-8e9f-000000000001",
+      "personName": "fleet-1",
+      "credentialId": "0b9f6c1e-4a1d-4c5e-9a7b-000000000001",
+      "key": "wbs_mk_0b9f6c1e-4a1d-4c5e-9a7b-000000000001.*******************************************"
+    },
+    {
+      "personId": "7c2e9b10-1a2b-4c3d-8e9f-000000000002",
+      "personName": "fleet-2",
+      "credentialId": "0b9f6c1e-4a1d-4c5e-9a7b-000000000002",
+      "key": "wbs_mk_0b9f6c1e-4a1d-4c5e-9a7b-000000000002.*******************************************"
+    },
+    {
+      "personId": "7c2e9b10-1a2b-4c3d-8e9f-000000000003",
+      "personName": "fleet-3",
+      "credentialId": "0b9f6c1e-4a1d-4c5e-9a7b-000000000003",
+      "key": "wbs_mk_0b9f6c1e-4a1d-4c5e-9a7b-000000000003.*******************************************"
+    }
+  ]
+}

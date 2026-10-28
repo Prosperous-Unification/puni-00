@@ -1363,29 +1363,40 @@ Each check was watched failing with the fault injected, then restored; the `Proo
 sits beside the check or its test. "Boot" is `mcp-token.boot.test.ts`, "helper"
 `token-command.test.ts`, "provider" `workload-provider.test.ts`.
 
-| #   | Check                                                | Fault injected                                         | Test that observed it failing                                                                                                                 |
-| --- | ---------------------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| F1  | the helper keeps no cache (2.4's helper negative)    | a module-level memo of the bearer, printed once set    | boot `a re-run 0.6 s after a 401 on the token it served issues a new token`: the re-run printed the rejected token (`not.toBe(first)`)        |
-| F2  | one issuance per run, under M10                      | each run sends its token request twice                 | boot `100 staggered issuances…`: a helper met M10's 429 and reached its wait                                                                  |
-| F3  | `wbs_run` sent                                       | `form.set('wbs_run', …)` removed                       | boot `a run is signed into the token as wbs_run`: no `wbs_run` claim                                                                          |
-| F4  | `Retry-After` capped at the budget                   | the whole `Retry-After` waited                         | helper `with Retry-After: 30, 2 s into the run, waits 7 s and retries once`: slept 30000                                                      |
-| F5  | no retry when the capped wait is ≤ 0                 | the `wait <= 0` check removed                          | helper `a 429 whose capped wait is zero or less is not retried`: retried and printed a token                                                  |
-| F6  | one retry, never a loop                              | retry while `429`                                      | helper `retried once and refused again exits non-zero`: printed the third answer's token                                                      |
-| F7  | exactly one credential                               | `chosen.length === 0`                                  | helper `refuses no credential or two…` (`--key-file` with `--assertion-file`): issued                                                         |
-| F8  | `https:` or loopback only                            | any protocol admitted                                  | helper `refuses a plain-HTTP resource off loopback`: issued                                                                                   |
-| F9  | the key file holds a `wbs_mk_` key                   | shape check disabled                                   | helper `refuses a key file that holds no wbs_mk_ key, never echoing it`: issued                                                               |
-| F10 | owner-only key file                                  | `readOwnerOnly`'s mode check skipped                   | helper `refuses a group-readable key file`: issued from a 0640 file                                                                           |
-| F11 | Actions variables required                           | an unset variable admitted                             | helper `refuses an unset ACTIONS_ID_TOKEN_REQUEST_TOKEN, naming it`: a request was sent                                                       |
-| F12 | no dynamic registration (2.4's test)                 | `clientInformation()` returns undefined                | boot `connects and calls a tool without a dynamic registration request`: "OAuth client information must be saveable for dynamic registration" |
-| F13 | the provider re-fetches after a 401 (its negative)   | `tokens()` keeps serving the first token               | boot `re-fetches after a 401`: "Server returned 401 after successful authentication"                                                          |
-| F14 | a fresh assertion per request (2.2's moved negative) | the first assertion cached                             | boot `a run outlives its workload token`: the SDK's `InvalidGrantError`                                                                       |
-| F15 | short tokens are served (note 2)                     | a flat 5-minute margin                                 | boot `a run outlives its workload token`: "Server returned 401 after successful authentication"                                               |
-| F16 | drop the token when the SDK asks for a new one       | `prepareTokenRequest` keeps the cache                  | provider `drops its token when the SDK asks for a new one, or invalidates it`                                                                 |
-| F17 | the provider's `Retry-After` capped at 60 s          | cap removed                                            | provider `waits a token endpoint Retry-After, capped at 60 s, and retries once`: slept 90000                                                  |
-| F18 | a token needs `expires_in`                           | check disabled                                         | provider `refuses a token without expires_in`: no throw                                                                                       |
-| F19 | `entrypoint.ts` dispatches `mcp`                     | dispatch disabled                                      | boot `the entrypoint prints only the header map, and a refusal names no key`: exit 1                                                          |
-| F20 | no key in any output                                 | the refusal names the request's `authorization` header | boot, the same test: stderr held `error: refused for Basic …`                                                                                 |
-| F21 | the issuer is mcp-01's (note 5)                      | `<origin>/oauth` stamped                               | boot `connects and calls a tool…`: "OAuth client information is bound to authorization server …/oauth and is not presented to …/mcp/oauth"    |
+| #   | Check                                                       | Fault injected                                          | Test that observed it failing                                                                                                              |
+| --- | ----------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| F1  | the helper keeps no cache (2.4's helper negative)           | a module-level memo of the bearer, printed once set     | boot `a re-run 0.6 s after a 401 on the token it served issues a new token`: the re-run printed the rejected token (`not.toBe(first)`)     |
+| F2  | one issuance per run, under M10                             | each run sends its token request twice                  | boot `100 staggered issuances…`: a helper met M10's 429 and reached its wait                                                               |
+| F3  | `wbs_run` sent                                              | `form.set('wbs_run', …)` removed                        | boot `a run is signed into the token as wbs_run`: no `wbs_run` claim                                                                       |
+| F4  | `Retry-After` capped at the budget                          | the whole `Retry-After` waited                          | helper `with Retry-After: 30, 2 s into the run, waits 7 s and retries once`: slept 30000                                                   |
+| F5  | no retry when the capped wait is ≤ 0                        | the `wait <= 0` check removed                           | helper `a 429 whose capped wait is zero or less is not retried`: retried and printed a token                                               |
+| F6  | one retry, never a loop                                     | retry while `429`                                       | helper `retried once and refused again exits non-zero`: printed the third answer's token                                                   |
+| F7  | exactly one credential                                      | `chosen.length === 0`                                   | helper `refuses no credential or two…` (`--key-file` with `--assertion-file`): issued                                                      |
+| F8  | `https:` or loopback only                                   | any protocol admitted                                   | helper `refuses a plain-HTTP resource off loopback`: issued                                                                                |
+| F9  | the key file holds a `wbs_mk_` key                          | shape check disabled                                    | helper `refuses a key file that holds no wbs_mk_ key, never echoing it`: issued                                                            |
+| F10 | owner-only key file                                         | `readOwnerOnly`'s mode check skipped                    | helper `refuses a group-readable key file`: issued from a 0640 file                                                                        |
+| F11 | Actions variables required                                  | an unset variable admitted                              | helper `refuses an unset ACTIONS_ID_TOKEN_REQUEST_TOKEN, naming it`: a request was sent                                                    |
+| F12 | the replaced generation is removed                          | the sweep skipped (re-run after review: G10)            | the same test: two generations of pool-a                                                                                                   |
+| F13 | the provider re-fetches after a 401 (its negative)          | `tokens()` keeps serving the first token                | boot `re-fetches after a 401`: "Server returned 401 after successful authentication"                                                       |
+| F14 | a `pool-<poolId>` this Dash did not write is never replaced | `assertImportedPool` accepts a non-link                 | `refuses to replace a pool directory it did not write`: "pool pool-a could not be written; the store keeps what it had" instead            |
+| G1  | a stray generation of the pool is swept (S2-1)              | the sweep spares the stray generation                   | `sweeps a stray generation of the pool, its key file included`                                                                             |
+| G2  | an overtaken import exits non-zero (S2-1)                   | the re-read check disabled                              | `an import replaced concurrently exits non-zero and keeps no key of its own`: resolved                                                     |
+| G3  | a failed write leaves no partial generation (S3-2)          | the generation's removal dropped from the catch         | `a write that fails leaves no partial generation, and the pool as it was`                                                                  |
+| G4  | the store's missing parents are `0700` (S2-2)               | parents created without a mode, the store itself `0700` | `creates a missing store and its parents 0700`: 509 (0775, umask 002) for 448                                                              |
+| G5  | a store that is a link is refused (S3-4)                    | `statSync` for `lstatSync`                              | `refuses a store that is a link`: resolved                                                                                                 |
+| G6  | a pool link elsewhere (`/etc`) is refused (S3-4)            | any link target accepted                                | `refuses a pool link it did not make, to /etc, leaving both alone`: resolved                                                               |
+| G7  | a `429` is retried at most three times, 60 s each (S3-1)    | the bound disabled                                      | `a 429 not waited out within its bound aborts, saying how long to wait`: resolved                                                          |
+| G8  | the mode refusal names `chmod 600 <path>` (S2-2)            | the old message                                         | `refuses a group-readable pool key file, naming the chmod`                                                                                 |
+| G9  | a `429` is waited out (S3-1)                                | the sleep dropped                                       | `waits out a 429 per its Retry-After and imports` and the bound test                                                                       |
+| G10 | every other generation is removed after the switch          | the sweep skipped                                       | `a re-import replaces the pool keys…`: two generations; `sweeps a stray generation…`                                                       |
+| G11 | the Dash document matches `agentPoolKeys` (S3-3)            | `mcpResource` removed from `pool-keys.v1.json`          | contracts `accepts the document Twilight Dash's pool import is tested with`: `allows` false                                                |
+| F15 | short tokens are served (note 2)                            | a flat 5-minute margin                                  | boot `a run outlives its workload token`: "Server returned 401 after successful authentication"                                            |
+| F16 | drop the token when the SDK asks for a new one              | `prepareTokenRequest` keeps the cache                   | provider `drops its token when the SDK asks for a new one, or invalidates it`                                                              |
+| F17 | the provider's `Retry-After` capped at 60 s                 | cap removed                                             | provider `waits a token endpoint Retry-After, capped at 60 s, and retries once`: slept 90000                                               |
+| F18 | a token needs `expires_in`                                  | check disabled                                          | provider `refuses a token without expires_in`: no throw                                                                                    |
+| F19 | `entrypoint.ts` dispatches `mcp`                            | dispatch disabled                                       | boot `the entrypoint prints only the header map, and a refusal names no key`: exit 1                                                       |
+| F20 | no key in any output                                        | the refusal names the request's `authorization` header  | boot, the same test: stderr held `error: refused for Basic …`                                                                              |
+| F21 | the issuer is mcp-01's (note 5)                             | `<origin>/oauth` stamped                                | boot `connects and calls a tool…`: "OAuth client information is bound to authorization server …/oauth and is not presented to …/mcp/oauth" |
 
 ### Review of PR #767 (Fable, high), how each item is addressed
 
@@ -1730,7 +1741,8 @@ What landed:
    has no store of its own: it reads an owner-only file named by `--key-file`. The import
    writes exactly that file per agent, plus a `--mcp-config` file per agent whose
    `headersHelper` names it, under a required `--store` directory (no default: a missing
-   location is not guessed). The directory is created `0700` when absent and refused when other
+   location is not guessed; the README's convention is `~/.config/twilight-dash/pools`). The
+   directory is created with any missing parents `0700`, and refused when it is a link or other
    users can enter it.
 2. **The run is `pool-<poolId>/<personId>`, fixed per agent, not per process start.** M15 needs
    a run that survives re-fetches, and mcp-01 caps distinct runs per credential per day, so a
@@ -1741,32 +1753,43 @@ What landed:
    206 characters and never secret-shaped.
 3. **Every key is proven before anything is written.** The proof is one `client_credentials`
    token request per agent, with its run, through the same `postTokenRequest` as `mcp token`;
-   the token is dropped. Sequential: a pool of 100 is 100 issuances, inside M10's 300 a minute
-   and burst of 100 per source address, which a re-import right after another import on one
-   host can still meet; a `429` aborts the import like any refusal (no retry: the operator
-   reruns).
+   the bearer is dropped (never stored or printed, valid until it expires). Sequential. A pool
+   of N spends N issuances of mcp-01's per-source bucket (`machine-limits.ts` `M10_LIMITS`:
+   burst 100, 5 a second), which every agent on the host shares: a pool of 100 empties the
+   burst, and agents started right after meet `429`s. The import waits out a `429` per its
+   `Retry-After`, at most 60 s and three times per agent, then aborts with `wait N s and rerun`;
+   the README says to wait about N/5 s after a large import before starting agents.
 4. **Atomic replacement by a link switch.** `rename(2)` cannot replace a non-empty directory,
    so `pool-<poolId>` is a link to a generation `.pool-<poolId>.<16 hex>`; a re-import writes a
-   new generation and renames a new link over the old one, then removes the old generation. Key
+   new generation and renames a new link over the old one, then removes every other generation
+   of the pool and every pending link (a crashed import's leftovers included). Key
    paths in the configs name the link, so a helper started before a re-key reads the new key
    on its next run. A `pool-<poolId>` that is not such a link is refused, never replaced.
 5. **The downloaded file must be `0600`** (the most restrictive reading). A browser saves it
-   `0644`; the refusal says to `chmod 600` it. **Standard input is not accepted**: a pipe has no
+   `0644`; the refusal names the fix with the path, `run: chmod 600 '<path>'` (the path is not
+   secret: a key pasted as the path is refused before). **Standard input is not accepted**: a pipe has no
    owner or mode to check, and the panel's download is a file anyway.
 6. **`authorizationServer` must equal `<mcpResource>/oauth`**, the issuer `mcp token` derives.
    Otherwise the proof would test one server and the helpers would ask another.
 7. **Dash keeps its own copy of the document shape.** The product fence refuses
    `@wbs/contracts` in Dash's `mcp/` (lint: "can only depend on libs tagged with
    product:twilight-dash, product:shared"), so `PoolKeys` mirrors `agentPoolKeys` and narrows
-   it. Drift is caught only by the boot test's hand-built document and by 8.1 on dev; no test
-   pins the two shapes together. A follow-up could pin them in a WBS-side test.
-8. **No file locking.** Two concurrent imports of one pool each write their own generation; the
-   last rename wins and the loser's old-generation removal may delete nothing. An operator
-   runs one import at a time.
-9. **Not proven by its own negative: the cleanup of a partial generation.** When a write
-   fails after the generation directory exists, `writePool` removes it and rethrows. No
-   production-path input reaches that branch once F8 and F14's checks hold (both faults reached
-   it: their refusal is its rethrow), so no test pins the removal alone.
+   it. The two are pinned by a committed document,
+   `cli/src/mcp/testing/pool-keys.v1.json`: Dash's tests import it, and contracts'
+   `agent-pool-shapes.test.ts` reads its bytes (no import across the fence; contracts lint is
+   clean) and requires `agentPoolKeys.allows` it. Its secrets are 43 `*`, so the
+   plaintext-secrets hook (which has no allowlist) does not match; Dash's test substitutes
+   real-shaped ones. The contracts `test` targets list it as an input.
+8. **No file locking; a lost race is loud and leaves no key.** Each import removes, after its
+   switch, every generation of the pool but the one `pool-<poolId>` links to, then re-reads the
+   link: when it is not its own generation (or its generation is gone), it exits non-zero
+   (`another import replaced pool … concurrently`). The overtaken import's generation, and any
+   generation a concurrent import was still writing, is removed (that import's write or rename
+   then fails, or its re-read does). The race is proven through a `PoolFiles.rename` seam that
+   switches the link right after this import's switch. An operator still runs one import at a
+   time.
+9. **The cleanup of a partial generation** is now proven through the `PoolFiles.writeNewText`
+   seam failing with ENOSPC after the first key file (G3).
 10. The output names the pool name, each agent's person name, id, run and config path, and
     the downloaded file to delete. `pool.json` and the configs hold no key.
 
@@ -1783,6 +1806,16 @@ All on 2026-10-28 with `env -u CLAUDECODE`, on the laptop:
 | `bunx openspec validate --all --json`                                             | 301 items, 301 passed                                                |
 | `bunx prettier --check` on every changed file                                     | "All matched files use Prettier code style!"                         |
 | CI run 40622098433 on ad3d85fcc                                                   | success (gate workspace, gate twilight, pixels)                      |
+
+After the review fixes (2026-10-28, `env -u CLAUDECODE`):
+
+| Command                                                                                              | Result                                                    |
+| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `bun test … src/mcp/` (Dash cli: pool import, token command, machine token, workload provider, boot) | 66 pass, 0 fail                                           |
+| `bunx nx run-many -t typecheck lint -p twilight-dash wbs-contracts --skip-nx-cache`                  | "Successfully ran targets typecheck, lint for 2 projects" |
+| `bunx nx run wbs-contracts:test --skip-nx-cache`                                                     | 610 pass, 0 fail                                          |
+| `bunx openspec validate --all --json`                                                                | 301 items, 301 passed                                     |
+| `bunx prettier --check` on every changed file                                                        | "All matched files use Prettier code style!"              |
 
 The full local `nx run twilight-dash:test` ran, but its output was filtered badly and its
 summary lost, so it is not claimed; CI's `gate twilight` and `gate workspace` carry it. Not run:
@@ -1807,9 +1840,9 @@ empty). The `Proof:` comment sits beside the check or its test.
 | F9  | the store is `0700` and the user's                          | the check disabled                                             | `refuses a store other users can enter`: the import resolved                                                                                                                           |
 | F10 | a key pasted where the path belongs is refused unechoed     | the check disabled                                             | `refuses a key pasted where the file belongs`: "the pool key file does not exist" instead                                                                                              |
 | F11 | a re-import switches the pool in one rename                 | the rename only on a first import                              | `a re-import replaces the pool keys, and an agent absent from it loses its key`: fleet-1's first key read                                                                              |
-| F12 | the replaced generation is removed                          | its removal skipped                                            | the same test: two generations of pool-a                                                                                                                                               |
+| F12 | the replaced generation is removed                          | the sweep skipped (re-run after review: G10)                   | the same test: two generations of pool-a                                                                                                                                               |
 | F13 | `ApiKey.of` admits only a `wbs_mk_` key                     | its check disabled                                             | `refuses a document whose key is no wbs_mk_ key, never echoing it`                                                                                                                     |
-| F14 | a `pool-<poolId>` this Dash did not write is never replaced | `previousGeneration` answers null for a non-link               | `refuses to replace a pool directory it did not write`: "pool pool-a could not be written; the store keeps what it had" instead                                                        |
+| F14 | a `pool-<poolId>` this Dash did not write is never replaced | `assertImportedPool` accepts a non-link                        | `refuses to replace a pool directory it did not write`: "pool pool-a could not be written; the store keeps what it had" instead                                                        |
 
 The boot test `twilight-dash pool import (task 6.4)` in `mcp-token.boot.test.ts` adds the real
 path: be-01's grant route and mcp-01's production entrypoint issue the proof token; the stored
@@ -1817,3 +1850,18 @@ path: be-01's grant route and mcp-01's production entrypoint issue the proof tok
 which calls `getApiProjects` (200); after the fixture revokes the key, re-importing the same
 document is refused after one `401` and the stored key file is unchanged. No fault was injected
 into it separately: it exercises the checks F1 to F13 already prove.
+
+### Review of PR #772 (Fable, high), how each item is addressed
+
+No S1. The review confirmed the secret core: the key only through `--key-file`, 0600 and 0700,
+`O_EXCL | O_NOFOLLOW` independent of umask, proof before write for every agent, and the quoting.
+
+| Item | Fix                                                                                                                                                                                                                                                                       | Proof       |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| S2-1 | after the switch, every `.pool-<poolId>.<16 hex>` (and pending `.link`) but the link's target is removed; the link is re-read and an import overtaken by another exits non-zero; note 8 rewritten                                                                         | G1, G2, G10 |
+| S2-2 | the mode refusal names `run: chmod 600 '<path>'`; `--store` parents are created `0700`; README and tasks.md give the two lines `chmod 600 <file>` and `twilight-dash pool import <file> --store <dir>`, with the documented store `~/.config/twilight-dash/pools`         | G4, G8      |
+| S3-1 | note 3 corrected (a pool of N spends N issuances of the per-source bucket); a `429` is waited out per `Retry-After`, at most 60 s and three times per agent, then `wait N s and rerun`; README: wait about N/5 s before starting the agents                               | G7, G9      |
+| S3-2 | a `PoolFiles` seam (`writeNewText`, `rename`; production passes `systemPoolFiles`); ENOSPC after the first key file leaves the store exactly as it was                                                                                                                    | G3          |
+| S3-3 | `cli/src/mcp/testing/pool-keys.v1.json`, used by `pool-import.test.ts` and read (not imported) by contracts' new `agent-pool-shapes.test.ts`; contracts lint is clean                                                                                                     | G11         |
+| S3-4 | negatives for a linked `--store` and a `pool-<id>` link to `/etc` (refused; `/etc` and the link untouched)                                                                                                                                                                | G5, G6      |
+| S4   | the dead `isAbsolute` check is gone; `proveIssues`' JSDoc says each proof mints a discarded bearer; `MOST_AGENTS` names the 64 KiB cap (100 agents measured at 32,802 bytes); README: after a Bun upgrade that moves `bun`, re-key and re-import or fix the configs' path | —           |
