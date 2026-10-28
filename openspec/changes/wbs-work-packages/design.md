@@ -404,7 +404,7 @@ scope_id, date, name, color, …)` replaces `work_package_id`; a work package's 
   shared configuration. Rejected: keeping the columns as a cache (two sources of truth).
 - **E21. Steps are project entities.** _Deferred 2026-10-25 by Dany to `wbs-step-catalogue`:_
   steps per work item type, configured at the organization and added at space and project,
-  become a separate design (that OpenSpec change does not exist yet). Slice 3b is blocked on
+  become a separate design (PR #725, `openspec/changes/wbs-step-catalogue`). Slice 3b is blocked on
   it; the text below stays as the input that design starts from, not as this change's
   decision. E33 is superseded by that design's SC11–SC13 (Dany, 2026-10-25): every step keeps its id and merged ids are translated on read, never rewritten. _Revised 2026-10-24 after review (option a; was: a
   project-wide code vocabulary over per-work-package step rows, refusing a fresh code with
