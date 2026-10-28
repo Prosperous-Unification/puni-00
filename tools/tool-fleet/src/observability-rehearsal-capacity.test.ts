@@ -65,9 +65,11 @@ async function fixture() {
       manifests.map((manifest) => stringify(manifest)).join('---\n'),
     ]),
   );
+  const files = [{ path: 'infra/versions/toolchain.json', sha256: hash(runtimeLock) }];
+  // This unit packet is synthetic; retained.origin separately preserves the authentic projection receipt.
   const selection = {
-    sourceRevision: retained.origin.sourceRevision,
-    artifactSHA256: retained.origin.artifactSHA256,
+    sourceRevision: 'a'.repeat(40),
+    artifactSHA256: hash(`${JSON.stringify(files, null, 2)}\n`),
   };
   const contract = {
     ...captureRehearsalFrames(stages, expansions),
@@ -75,7 +77,7 @@ async function fixture() {
     provenance: selection,
     packet: {
       ...selection,
-      files: [{ path: 'infra/versions/toolchain.json', sha256: hash(runtimeLock) }],
+      files,
     },
   };
   return { stages, expansions, contract, options: { runtimeLock }, crds: crds.join('---\n') };
@@ -89,6 +91,8 @@ test('combined retained reader derives eight traits and sixteen full generated c
     packet.contract,
     packet.options,
   );
+  expect(packet.contract.packet.artifactSHA256).not.toBe(retained.origin.artifactSHA256);
+  expect(packet.contract.packet.sourceRevision).not.toBe(retained.origin.sourceRevision);
   expect(costs.generatedTraits).toHaveLength(8);
   expect(costs.generatedTraits.map((trait) => trait.perReplica)).toEqual([
     { memoryMiB: 2048, cpuMilli: 500, ephemeralMiB: 1024 },
@@ -119,6 +123,11 @@ function consume(packet: Awaited<ReturnType<typeof fixture>>) {
     packet.contract,
     packet.options,
   );
+}
+function resealPacket(packet: Awaited<ReturnType<typeof fixture>>) {
+  const artifactSHA256 = hash(`${JSON.stringify(packet.contract.packet.files, null, 2)}\n`);
+  packet.contract.packet.artifactSHA256 = artifactSHA256;
+  packet.contract.provenance.artifactSHA256 = artifactSHA256;
 }
 function reseal(packet: Awaited<ReturnType<typeof fixture>>) {
   for (const stage of packet.stages) {
@@ -151,9 +160,17 @@ test('packet lock refuses missing duplicate wrong-path changed bytes and selecti
       packet.options.runtimeLock = '{}';
       packet.contract.packet.files[0].sha256 = hash('{}');
     }
-    expect(() => consume(packet), fault).toThrow(
-      fault === 'malformed' ? undefined : 'Generated rehearsal packet lock binding differs',
-    );
+    if (['missing', 'duplicate', 'path', 'malformed'].includes(fault)) resealPacket(packet);
+    const decode = spyOn(contracts, 'decodeRetainedToolchain');
+    try {
+      expect(() => consume(packet), fault).toThrow(
+        fault === 'malformed' ? /binaries/ : 'Generated rehearsal packet lock binding differs',
+      );
+      if (fault === 'malformed') expect(decode).toHaveBeenCalledTimes(1);
+      else expect(decode).not.toHaveBeenCalled();
+    } finally {
+      decode.mockRestore();
+    }
   }
 });
 
@@ -368,6 +385,7 @@ test('enabled defaults retain pinned origins while explicit disabled null malfor
       lock.charts.kubePrometheusStack.sha256 = 'a'.repeat(64);
       packet.options.runtimeLock = JSON.stringify(lock);
       packet.contract.packet.files[0].sha256 = hash(packet.options.runtimeLock);
+      resealPacket(packet);
     }
     release.manifest = declaration.toString();
     reseal(packet);
@@ -661,3 +679,29 @@ test.each(['nodeSet', 'volume'])(
       ).toHaveLength(2);
   },
 );
+
+test('packet files commitment rejects coherently changed lock bytes and row against the prior artifact', async () => {
+  const packet = await fixture();
+  const priorArtifact = packet.contract.packet.artifactSHA256;
+  const lock = decodeRetainedToolchain(
+    Buffer.from(packet.options.runtimeLock),
+    hash(packet.options.runtimeLock),
+  );
+  const checksum = lock.binaries.k3d.sha256;
+  const changed = (checksum.startsWith('0') ? '1' : '0') + checksum.slice(1);
+  expect(packet.options.runtimeLock.split(checksum)).toHaveLength(2);
+  packet.options.runtimeLock = packet.options.runtimeLock.replace(checksum, changed);
+  packet.contract.packet.files[0].sha256 = hash(packet.options.runtimeLock);
+  expect(hash(`${JSON.stringify(packet.contract.packet.files, null, 2)}\n`)).not.toBe(
+    priorArtifact,
+  );
+  expect(packet.contract.provenance.artifactSHA256).toBe(priorArtifact);
+  expect(packet.contract.packet.artifactSHA256).toBe(priorArtifact);
+  const decode = spyOn(contracts, 'decodeRetainedToolchain');
+  try {
+    expect(() => consume(packet)).toThrow('Generated rehearsal packet files commitment differs');
+    expect(decode).not.toHaveBeenCalled();
+  } finally {
+    decode.mockRestore();
+  }
+});

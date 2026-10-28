@@ -43,6 +43,15 @@ const dependencies: Record<string, string[]> = {
 const hash = (bytes: string | Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 const encode = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 
+/** Commit the complete ordered packet file manifest using the producer's exact two-space JSON and trailing newline.
+ * No sorting or projection occurs here; source collection fixes the row order before this identity is retained.
+ */
+export function hashRehearsalFiles(
+  files: readonly { readonly path: string; readonly sha256: string }[],
+): string {
+  return hash(encode(files));
+}
+
 function execute(arguments_: string[], cwd: string, input?: Uint8Array): Buffer {
   const child = Bun.spawnSync(arguments_, {
     cwd,
@@ -316,7 +325,7 @@ async function buildPacket(root: string, input: unknown) {
         generator: await generatorProvenance(root),
         network: source.network,
         files: hashes,
-        artifactSHA256: hash(encode(hashes)),
+        artifactSHA256: hashRehearsalFiles(hashes),
         stages: Object.keys(dependencies),
         declaredCapacity,
         helmOwners: source.releases.map((release) => release.owner),

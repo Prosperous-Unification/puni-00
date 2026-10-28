@@ -12,6 +12,7 @@ import type {
   RehearsalTopologyEvidence,
 } from './observability-native-daemon';
 import { deriveRehearsalNativeCosts } from './observability-native-ordinal';
+import { hashRehearsalFiles } from './observability-parity-rehearsal';
 import {
   prepareRehearsalInventory,
   readRehearsalSource,
@@ -44,7 +45,7 @@ const generatedAPIs: Readonly<Record<string, string>> = {
   Alertmanager: 'monitoring.coreos.com/v1',
 };
 
-/** The independent packet receipt authenticates the lock separately from bootstrap source coordinates. */
+/** The independent packet artifact commits its complete ordered files list, which authenticates the lock separately from bootstrap coordinates. */
 export interface RehearsalCapacityContract extends NativeSourceContract {
   readonly packet: typeof Packet.infer;
 }
@@ -68,6 +69,9 @@ function bindRuntimeLock(contract: RehearsalCapacityContract, runtimeLock: strin
     hash(bytes) !== coordinates[0].sha256
   )
     throw new Error('Generated rehearsal packet lock binding differs');
+  // Proof: Task63 commitment-guard removal admitted coherent lock/file-row substitution; the retained-reader packet commitment negative failed.
+  if (hashRehearsalFiles(packet.files) !== packet.artifactSHA256)
+    throw new Error('Generated rehearsal packet files commitment differs');
   return { runtime: { bytes, sha256: coordinates[0].sha256 }, packet: structuredClone(packet) };
 }
 
