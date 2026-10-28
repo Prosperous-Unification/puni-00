@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { closeSync, constants, openSync, readFileSync, writeSync } from 'node:fs';
 
 import { parseSecretsOrThrow, type } from '@shared/validation';
 
@@ -112,13 +112,46 @@ export class ApiKey {
   }
 
   /**
+   * `key` as an API key, for a key that arrived in a validated document (`pool import`).
+   * @throws naming `where` and never the value, when it is no `wbs_mk_` key.
+   */
+  public static of(key: string, where: string): ApiKey {
+    // Proof: admitting any value made `refuses a document whose key is no wbs_mk_ key, never
+    // echoing it` (pool-import.test.ts) fail (2026-10-28).
+    if (!MachineKey.test(key)) throw new Error(`${where} holds no wbs_mk_ API key`);
+    return new ApiKey(key);
+  }
+
+  /** The credential id the key names: `wbs_mk_<id>.<secret>`. */
+  public get credentialId(): string {
+    return this.#key.slice('wbs_mk_'.length, this.#key.indexOf('.'));
+  }
+
+  /**
+   * Writes the key, with one trailing newline, to a **new** file at `path` with mode 0600, as
+   * {@link ApiKey.read} reads it back. It never follows a link and never replaces a file.
+   * @throws the `open` error (`EEXIST`, `ENOENT`, …) when the file cannot be created.
+   */
+  public writeNew(path: string): void {
+    const descriptor = openSync(
+      path,
+      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+      0o600,
+    );
+    try {
+      writeSync(descriptor, `${this.#key}\n`);
+    } finally {
+      closeSync(descriptor);
+    }
+  }
+
+  /**
    * HTTP Basic client authentication (`client_secret_basic`, the SDK's default): the key's own
    * id as the user, the whole key as the password. mcp-01 does not form-decode either part,
    * and both hold only unreserved characters.
    */
   public basicAuthorization(): string {
-    const id = this.#key.slice('wbs_mk_'.length, this.#key.indexOf('.'));
-    return `Basic ${btoa(`${id}:${this.#key}`)}`;
+    return `Basic ${btoa(`${this.credentialId}:${this.#key}`)}`;
   }
 
   public toString(): string {
@@ -268,4 +301,29 @@ export function retryAfterSecondsOf(response: Response): number | null {
   // NaN for the HTTP date (2026-10-27).
   if (value === null || !/^\d{1,9}$/.test(value)) return null;
   return Number(value);
+}
+
+/** A token endpoint's success answer, as `mcp token` and `pool import` read it. */
+export const IssuedToken = type({ access_token: 'string > 0', token_type: /^[Bb]earer$/ });
+
+/**
+ * POSTs one token request to `tokenUrl`. A redirect is never followed: Bun re-sends a POST body,
+ * the assertion included, to a 307's target, whatever its origin.
+ * @throws when the endpoint answers a 3xx, naming its status.
+ */
+export async function postTokenRequest(
+  send: FetchLike,
+  tokenUrl: string,
+  headers: Headers,
+  form: URLSearchParams,
+): Promise<Response> {
+  const answer = await send(tokenUrl, { method: 'POST', headers, body: form, redirect: 'manual' });
+  // Proof: following redirects (no `redirect: 'manual'`, no check) made `is never followed`
+  // print the other origin's token instead of refusing (2026-10-27).
+  if (answer.status >= 300 && answer.status < 400) {
+    throw new Error(
+      `the MCP token endpoint answered a redirect (HTTP ${String(answer.status)}); a token request is never redirected`,
+    );
+  }
+  return answer;
 }

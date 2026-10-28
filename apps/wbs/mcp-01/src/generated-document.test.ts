@@ -1,7 +1,7 @@
 import { documentFromShapes, httpShapes } from '@wbs/contracts';
 import { expect, test } from 'bun:test';
 
-import { readDocument, toolsFromDocument } from './openapi-tools';
+import { HUMAN_ONLY_OPERATIONS, readDocument, toolsFromDocument } from './openapi-tools';
 
 test('default MCP document is generated directly from the shared declarations', () => {
   expect(readDocument()).toEqual(documentFromShapes(httpShapes));
@@ -76,6 +76,17 @@ test('keeps machine credential administration out of the generated MCP tools', (
     expect(names).not.toContain(operation);
 });
 
+test('keeps agent pool administration out of the generated MCP tools', () => {
+  const names = toolsFromDocument(readDocument()).map((tool) => tool.name);
+  for (const operation of [
+    'getApiOrganizationAgent-pools',
+    'postApiOrganizationAgent-pools',
+    'postApiOrganizationAgent-poolsByIdRekey',
+    'deleteApiOrganizationAgent-poolsById',
+  ])
+    expect(names).not.toContain(operation);
+});
+
 test('keeps trusted issuer administration out of the generated MCP tools', () => {
   const names = toolsFromDocument(readDocument()).map((tool) => tool.name);
   for (const operation of [
@@ -86,16 +97,103 @@ test('keeps trusted issuer administration out of the generated MCP tools', () =>
     expect(names).not.toContain(operation);
 });
 
-test('keeps compute provider administration and capacity reports out of the generated MCP tools', () => {
+test('keeps compute provider administration out of the generated MCP tools', () => {
   const names = toolsFromDocument(readDocument()).map((tool) => tool.name);
   for (const operation of [
     'getApiOrganizationCompute-providers',
     'postApiOrganizationCompute-providers',
     'patchApiOrganizationCompute-providersById',
     'deleteApiOrganizationCompute-providersById',
-    'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
   ])
     expect(names).not.toContain(operation);
+});
+
+// M8: a capacity report is accepted from a machine principal alone, which `/mcp` now carries.
+test('offers the capacity report as a tool', () => {
+  const report = toolsFromDocument(readDocument()).find(
+    (tool) =>
+      tool.name === 'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
+  );
+  expect(report?.method).toBe('put');
+  expect(report?.locations).toMatchObject({ providerId: 'path', resourceId: 'path' });
+});
+
+/**
+ * The covered set of `wbs-mcp-agent-surface` M8, pinned here rather than read off the tags, so
+ * an untagged shape reddens this test: machine credentials, trusted issuers, provisioning
+ * tokens, memberships and members, invitations, join requests, domains, SSO connections, the
+ * session policy, the limits read, the capacity-mode switch, restore approvals, onboarding, and
+ * compute provider administration, and agent pools (slice 8).
+ */
+const HUMAN_ONLY = [
+  'deleteApiOrganizationAgent-poolsById',
+  'deleteApiOrganizationCompute-providersById',
+  'deleteApiOrganizationDomainsById',
+  'deleteApiOrganizationInvitationsById',
+  'deleteApiOrganizationMachine-credentialsById',
+  'deleteApiOrganizationMembersByUserId',
+  'deleteApiOrganizationProvisioningTokensById',
+  'deleteApiOrganizationSso-connectionsById',
+  'deleteApiOrganizationTrusted-issuersById',
+  'getApiOnboarding',
+  'getApiOrganizationAgent-pools',
+  'getApiOrganizationCompute-providers',
+  'getApiOrganizationDomains',
+  'getApiOrganizationInvitations',
+  'getApiOrganizationJoinRequests',
+  'getApiOrganizationLimits',
+  'getApiOrganizationMachine-credentials',
+  'getApiOrganizationMembers',
+  'getApiOrganizationMemberships',
+  'getApiOrganizationProvisioningTokens',
+  'getApiOrganizationSession-policy',
+  'getApiOrganizationSso-connections',
+  'getApiOrganizationTrusted-issuers',
+  'patchApiOrganization',
+  'patchApiOrganizationCompute-providersById',
+  'patchApiOrganizationMembersByUserId',
+  'patchApiOrganizationSso-connectionsById',
+  'postApiOnboardingEmailChallenges',
+  'postApiOnboardingEmailChallengesConfirm',
+  'postApiOnboardingInvitationsAccept',
+  'postApiOnboardingJoinRequests',
+  'postApiOnboardingOrganizations',
+  'postApiOrganizationAgent-pools',
+  'postApiOrganizationAgent-poolsByIdRekey',
+  'postApiOrganizationCompute-providers',
+  'postApiOrganizationDomainsByIdRotate',
+  'postApiOrganizationDomainsByIdVerify',
+  'postApiOrganizationDomainsChallenges',
+  'postApiOrganizationInvitations',
+  'postApiOrganizationJoinRequestsByIdApprove',
+  'postApiOrganizationJoinRequestsByIdDeny',
+  'postApiOrganizationMachine-credentials',
+  'postApiOrganizationMachine-credentialsByIdRotate',
+  'postApiOrganizationProvisioningTokens',
+  'postApiOrganizationProvisioningTokensByIdRotate',
+  'postApiOrganizationSharedPeopleRestoreApprovals',
+  'postApiOrganizationSso-connections',
+  'postApiOrganizationTrusted-issuers',
+  'putApiOrganizationSession-policy',
+];
+
+test('tags exactly the covered set humanOnly, and offers none of it as a tool', () => {
+  // Proof: with `humanOnly: true` removed from `listMembers` (organization-shapes.ts), this
+  // failed with getApiOrganizationMembers missing from the tagged set, as did the pinned name
+  // list below with it present as a tool; watched 2026-10-28.
+  expect(HUMAN_ONLY_OPERATIONS.map((operation) => operation.operationId).toSorted()).toEqual(
+    HUMAN_ONLY,
+  );
+  const names = new Set(toolsFromDocument(readDocument()).map((tool) => tool.name));
+  expect(HUMAN_ONLY.filter((name) => names.has(name))).toEqual([]);
+});
+
+test('refuses to start when a humanOnly shape matches no operation of the generated document', () => {
+  const document = documentFromShapes(httpShapes);
+  Reflect.deleteProperty(document.paths, '/api/organization/limits');
+  expect(() => toolsFromDocument(document)).toThrow(
+    'the humanOnly shapes GET /api/organization/limits (getApiOrganizationLimits) match no operation',
+  );
 });
 
 test('pins every generated MCP operation name independently of the registry', () => {
@@ -108,10 +206,6 @@ test('pins every generated MCP operation name independently of the registry', ()
   ).toEqual([
     'acquireRuntimeAuthority',
     'applyRuntimeCommands',
-    'deleteApiOrganizationDomainsById',
-    'deleteApiOrganizationInvitationsById',
-    'deleteApiOrganizationMembersByUserId',
-    'deleteApiOrganizationSso-connectionsById',
     'deleteApiProjectsByIdCalendar-markersByMarkerId',
     'deleteApiProjectsByIdStepsByStepId',
     'deleteApiSaved-plansById',
@@ -119,17 +213,9 @@ test('pins every generated MCP operation name independently of the registry', ()
     'deleteApiSpacesByIdProjectsByProjectId',
     'getApiExternal-systems',
     'getApiMeasures',
-    'getApiOnboarding',
     'getApiOrganization',
-    'getApiOrganizationDomains',
-    'getApiOrganizationInvitations',
-    'getApiOrganizationJoinRequests',
-    'getApiOrganizationLimits',
-    'getApiOrganizationMembers',
     'getApiOrganizationProject-rank',
     'getApiOrganizationResourceAuthoritiesByAuthorityId',
-    'getApiOrganizationSession-policy',
-    'getApiOrganizationSso-connections',
     'getApiPeople',
     'getApiPeopleByPersonIdLoad',
     'getApiPeopleLoad',
@@ -166,9 +252,6 @@ test('pins every generated MCP operation name independently of the registry', ()
     'getApiWork-item-types',
     'getPlansBy-solutionBySlug',
     'lookupRuntimeReceipt',
-    'patchApiOrganization',
-    'patchApiOrganizationMembersByUserId',
-    'patchApiOrganizationSso-connectionsById',
     'patchApiProjectsById',
     'patchApiProjectsByIdCalendar-markersByMarkerId',
     'patchApiProjectsByIdStepsByStepId',
@@ -176,22 +259,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'patchApiSpacesById',
     'postApiClaimsRenew',
     'postApiDirectoryCommands',
-    'postApiOnboardingEmailChallenges',
-    'postApiOnboardingEmailChallengesConfirm',
-    'postApiOnboardingInvitationsAccept',
-    'postApiOnboardingJoinRequests',
-    'postApiOnboardingOrganizations',
-    'postApiOrganizationDomainsByIdRotate',
-    'postApiOrganizationDomainsByIdVerify',
-    'postApiOrganizationDomainsChallenges',
-    'postApiOrganizationInvitations',
-    'postApiOrganizationJoinRequestsByIdApprove',
-    'postApiOrganizationJoinRequestsByIdDeny',
     'postApiOrganizationProjectsByIdRank',
-    // Proof: removing approveSharedPeopleRestore only from production httpShapes made
-    // this pin fail with this operation expected-only (0 pass, 1 fail), 2026-10-14.
-    'postApiOrganizationSharedPeopleRestoreApprovals',
-    'postApiOrganizationSso-connections',
     'postApiProjects',
     'postApiProjectsByIdCalendar-markers',
     'postApiProjectsByIdCommands',
@@ -207,8 +275,8 @@ test('pins every generated MCP operation name independently of the registry', ()
     'postApiSpaces',
     'postApiSpacesByIdProjects',
     'postApiSpacesByIdProjectsByProjectIdMove',
+    'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
     'putApiOrganizationResourceAuthoritiesByAuthorityId',
-    'putApiOrganizationSession-policy',
     'putApiResourceAuthoritiesByAuthorityIdAdmissions',
     'putApiResourceAuthoritiesByAuthorityIdEvents',
     'readRuntimeState',

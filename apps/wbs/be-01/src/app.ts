@@ -30,6 +30,7 @@ import type {
   SpaceStore,
 } from '@wbs/core';
 import type {
+  AgentPools,
   CapacityReports,
   ComputeProviderAdministration,
   MachineCredentialAdministration,
@@ -40,10 +41,12 @@ import type {
 } from '@wbs/core';
 import {
   clockOf,
+  INACTIVE_AGENT_POOLS,
   INACTIVE_MACHINE_CREDENTIAL_ADMINISTRATION,
   INACTIVE_TRUSTED_ISSUER_ADMINISTRATION,
   NO_COMPUTE_PROVIDERS,
 } from '@wbs/core';
+import { agentPoolRoutes } from '@wbs/core/http/agent-pool.routes';
 import { capacityModeRoutes } from '@wbs/core/http/capacity-mode.routes';
 import { claimLeaseRoutes } from '@wbs/core/http/claim-lease.routes';
 import { computeProviderRoutes } from '@wbs/core/http/compute-provider.routes';
@@ -252,6 +255,12 @@ export interface AppOptions {
    * organization harnesses wire the SQLite store (`boot.db.test.ts`).
    */
   machineCredentials?: MachineCredentialAdministration;
+  /**
+   * Agent pools (`wbs-mcp-agent-surface` M7). Absent, every route answers as
+   * before activation; production and the organization harnesses wire the
+   * SQLite store (`boot.db.test.ts`).
+   */
+  agentPools?: AgentPools;
   /**
    * The claim lease sweep (`wbs-claim-leases` L8): a revoke asks it for a tick
    * at once. Absent (an app built without boot), a revoked agent's claims go
@@ -633,6 +642,14 @@ export function mountedEndpoints(
     ...machineCredentialRoutes(
       opts.organizations,
       opts.machineCredentials ?? INACTIVE_MACHINE_CREDENTIAL_ADMINISTRATION,
+      opts.mcpAuthorizationServer ?? null,
+      opts.clock,
+      () => opts.claimLeases?.requestSweep(),
+    ),
+    ...agentPoolRoutes(
+      opts.organizations,
+      opts.agentPools ?? INACTIVE_AGENT_POOLS,
+      commands,
       opts.mcpAuthorizationServer ?? null,
       opts.clock,
       () => opts.claimLeases?.requestSweep(),

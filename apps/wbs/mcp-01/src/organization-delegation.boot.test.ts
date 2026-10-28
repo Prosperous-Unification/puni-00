@@ -4,17 +4,22 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { JwksTokenVerifier } from '@wbs/auth';
+import { newMachineKey } from '@wbs/core';
 import { Database } from 'bun:sqlite';
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 
 import type { McpConfig } from './config';
 import { mcpFetchHandler } from './http';
+import { machineGrantClient } from './machine-grant-client';
+import { NO_MACHINE_LIMITS } from './machine-limits';
 import { ActivationMarkersDisagree, McpOAuthServer } from './oauth';
-import { readDocument, toolsFromDocument } from './openapi-tools';
+import { HUMAN_ONLY_OPERATIONS, readDocument, toolsFromDocument } from './openapi-tools';
 import { organizationAuthority } from './organization-authority';
-import { createServer } from './server';
+import { createServer, describeTool } from './server';
 import { McpSessionStore } from './session-store';
+import { CLIENT_CREDENTIALS_GRANT } from './token-request';
+import type { FetchLike } from './wbs-client';
 
 /**
  * Tasks 2.5, 6.4 and 6.6 end to end: mcp-01's real OAuth front, tool surface
@@ -37,6 +42,28 @@ const MCP_URL = 'https://mcp.test/mcp';
 const OAUTH = 'https://mcp.test/mcp/oauth';
 const CALLBACK = 'https://claude.ai/api/mcp/auth_callback';
 const VERIFIER = 'v'.repeat(43);
+/**
+ * The machine token of task 5.2's parity test. This be-01 holds no grant keys, so a stand-in
+ * answers the grant route; `tools/list` asks be-01 nothing, so the token is never sent there.
+ */
+const MACHINE_SECRET = randomBytes(32).toString('base64url');
+const MACHINE_CREDENTIAL = '6f1c2b3a-4d5e-4f60-8a7b-9c0d1e2f3a4b';
+const MACHINE_KEY = newMachineKey(MACHINE_CREDENTIAL).key;
+const grantStandIn: FetchLike = (url) => {
+  if (new URL(url).pathname !== '/internal/mcp/machine-grants')
+    return Promise.reject(new Error(`the grant stand-in answers no ${url}`));
+  return Promise.resolve(
+    Response.json({
+      grant: 'grant-parity',
+      credentialId: MACHINE_CREDENTIAL,
+      personId: 'claire',
+      organizationId: 'org-default',
+      scopes: ['read', 'write'],
+      expiresAt: Math.floor(Date.now() / 1000) + 3_600 + 60,
+      runId: null,
+    }),
+  );
+};
 
 let upstreamKeys: CryptoKeyPair;
 let jwks: ReturnType<typeof Bun.serve>;
@@ -136,6 +163,17 @@ beforeAll(async () => {
       verifyUpstream: (token) => verifier.verify(token),
       organizations: organizationAuthority(config),
       reportFault: (fault) => faults.push(fault),
+      machineGrants: {
+        client: machineGrantClient(
+          { ...config, MCP_BE_INTERNAL_SECRET: MACHINE_SECRET },
+          grantStandIn,
+        ),
+        secret: MACHINE_SECRET,
+        tokenTtlSeconds: 3_600,
+        jitter: () => 0,
+        limit: NO_MACHINE_LIMITS,
+        reportFault: (fault) => faults.push(fault),
+      },
     },
   );
   const tools = toolsFromDocument(readDocument());
@@ -324,6 +362,47 @@ async function tool(
     isError: body.result.isError === true,
     text: body.result.content.map((part) => part.text).join('\n'),
   };
+}
+
+/** One listed tool as `tools/list` answers it. */
+interface ListedTool {
+  readonly name: string;
+  readonly description: string;
+  readonly inputSchema: unknown;
+}
+
+/** `tools/list` through mcp-01's HTTP surface with `access`. */
+async function listTools(access: string): Promise<ListedTool[]> {
+  rpcId += 1;
+  const response = await handle(
+    new Request(MCP_URL, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${access}`,
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: rpcId, method: 'tools/list', params: {} }),
+    }),
+  );
+  if (response.status !== 200) throw new Error(`tools/list answered ${String(response.status)}`);
+  return ((await response.json()) as { result: { tools: ListedTool[] } }).result.tools;
+}
+
+/** A machine token from the token endpoint, its grant from {@link grantStandIn}. */
+async function machineToken(): Promise<string> {
+  const response = await oauthCall(
+    new Request(`${OAUTH}/token`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: `Basic ${btoa(`${MACHINE_CREDENTIAL}:${MACHINE_KEY}`)}`,
+      },
+      body: new URLSearchParams({ resource: MCP_URL, grant_type: CLIENT_CREDENTIALS_GRANT }),
+    }),
+  );
+  if (response.status !== 200) throw new Error(`machine token refused: ${await response.text()}`);
+  return ((await response.json()) as { access_token: string }).access_token;
 }
 
 const projectNames = (text: string) =>
@@ -544,9 +623,10 @@ describe('MCP organization delegation against a booted be-01', () => {
     }[];
     expect(claimed.length).toBeGreaterThan(0);
     expect(new Set(claimed.map((row) => row.personId))).toEqual(new Set(['claire']));
-    const members = await tool(claire.access, 'getApiOrganizationMembers', {});
-    expect(members.isError).toBe(true);
-    expect(members.text).toContain('insufficient_scope');
+    // The members routes are humanOnly (M8): no tool at all, not a refused one.
+    const listed = (await listTools(claire.access)).map(({ name }) => name);
+    expect(listed).toContain('getApiProjects');
+    expect(listed).not.toContain('getApiOrganizationMembers');
   });
 
   // `wbs-claim-own-person`: a claim naming no person is the consent's agent's.
@@ -606,6 +686,28 @@ describe('MCP organization delegation against a booted be-01', () => {
     expect(unnamed.isError).toBe(true);
     expect(unnamed.text).toContain('HTTP 400');
     expect(unnamed.text).toContain('person_required');
+  });
+
+  // Task 5.2: the tool list is the deployment's, never the principal's.
+  // Proof: with the `tools/list` handler (server.ts) hiding non-GET tools from a caller whose
+  // authInfo carries a machine caller, this failed on the machine list missing every write tool;
+  // watched 2026-10-28.
+  test('a consented human, a consented agent and a machine token list the same tools', async () => {
+    const human = await listTools(sessions['dany'] ?? '');
+    const agent = await listTools(claire.access);
+    const machine = await listTools(await machineToken());
+    expect(agent).toEqual(human);
+    expect(machine).toEqual(human);
+    // Non-vacuous: the shared list is the whole derived set, and no humanOnly shape is in it.
+    const derived = toolsFromDocument(readDocument());
+    expect(human.map(({ name, description }) => ({ name, description }))).toEqual(
+      derived.map((each) => ({ name: each.name, description: describeTool(each) })),
+    );
+    const names = new Set(human.map(({ name }) => name));
+    expect(HUMAN_ONLY_OPERATIONS.filter(({ operationId }) => names.has(operationId))).toEqual([]);
+    expect(
+      names.has('putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report'),
+    ).toBe(true);
   });
 
   test('a second consent for the same agent mints a second credential', async () => {

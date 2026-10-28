@@ -1,4 +1,5 @@
 export * from './actual';
+export * from './agent-pool';
 export * from './audit';
 export * from './browser-auth-lifecycle';
 export * from './browser-credential-revocations';

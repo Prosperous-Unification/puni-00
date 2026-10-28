@@ -40,6 +40,7 @@ export const listProvisioningTokens = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/provisioning-tokens',
   operationId: 'getApiOrganizationProvisioningTokens',
+  humanOnly: true,
   policies: [...readPolicy, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     {
@@ -68,6 +69,7 @@ export const issueProvisioningToken = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/provisioning-tokens',
   operationId: 'postApiOrganizationProvisioningTokens',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   responses: [
     {
@@ -96,6 +98,7 @@ export const rotateProvisioningToken = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/provisioning-tokens/:id/rotate',
   operationId: 'postApiOrganizationProvisioningTokensByIdRotate',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [
@@ -133,6 +136,7 @@ export const revokeProvisioningToken = defineEndpointShape({
   method: 'DELETE',
   path: '/api/organization/provisioning-tokens/:id',
   operationId: 'deleteApiOrganizationProvisioningTokensById',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],

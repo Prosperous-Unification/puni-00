@@ -914,7 +914,7 @@ describe('accepted runtime lifecycle', () => {
       receipts: sqlite.db.all('SELECT * FROM runtime_command_receipt ORDER BY rowid'),
     });
     const installed = readInstallation();
-    expect(installed.migrations.slice(-13)).toMatchObject([
+    expect(installed.migrations.slice(-15)).toMatchObject([
       { name: '20261022130000_add_organization_limits' },
       { name: '20261022130100_widen_organization_audit_organization_limits' },
       { name: '20261022140000_add_resource_provider' },
@@ -928,8 +928,12 @@ describe('accepted runtime lifecycle', () => {
       { name: '20261025130000_add_resource_runtime' },
       { name: '20261026120000_add_command_journal_person' },
       { name: '20261026130000_widen_organization_audit_machine_tokens' },
+      { name: '20261028100000_add_agent_pool' },
+      { name: '20261028100100_widen_organization_audit_agent_pools' },
     ]);
     expect(rollbackTo(dbPath, migrations, '20261022121000_add_runtime_commands')).toEqual([
+      '20261028100100_widen_organization_audit_agent_pools',
+      '20261028100000_add_agent_pool',
       '20261026130000_widen_organization_audit_machine_tokens',
       '20261026120000_add_command_journal_person',
       '20261025130000_add_resource_runtime',
@@ -945,7 +949,7 @@ describe('accepted runtime lifecycle', () => {
       '20261022130000_add_organization_limits',
     ]);
     const before = readInstallation();
-    expect(before.migrations).toEqual(installed.migrations.slice(0, -13));
+    expect(before.migrations).toEqual(installed.migrations.slice(0, -15));
     expect(() => rollbackTo(dbPath, migrations, '20261020130000_add_claim_occupancy')).toThrow(
       'runtime history',
     );

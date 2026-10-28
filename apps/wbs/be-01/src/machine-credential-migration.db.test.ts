@@ -154,7 +154,7 @@ describe(MACHINE_CREDENTIAL, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: 20261026130000_widen_organization_audit_machine_tokens, 20261026120000_add_command_journal_person, 20261025130000_add_resource_runtime, 20261025120000_add_resource_use, ${WORK_ITEM_BUDGETS}, ${MEASURE_ESTIMATES}, ${MEASURE_FACTS}, ${MEASURE}, ${CLAIM_LEASE}, ${COMPUTE_PROVIDERS}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, 20261022121000_add_runtime_commands, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}, ${MACHINE_CREDENTIAL}`,
+      `rolled back: 20261028100100_widen_organization_audit_agent_pools, 20261028100000_add_agent_pool, 20261026130000_widen_organization_audit_machine_tokens, 20261026120000_add_command_journal_person, 20261025130000_add_resource_runtime, 20261025120000_add_resource_use, ${WORK_ITEM_BUDGETS}, ${MEASURE_ESTIMATES}, ${MEASURE_FACTS}, ${MEASURE}, ${CLAIM_LEASE}, ${COMPUTE_PROVIDERS}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, 20261022121000_add_runtime_commands, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}, ${MACHINE_CREDENTIAL}`,
     );
     for (const table of TABLES) expect(tablesOf(dbPath)).not.toContain(table);
     runMigrations(dbPath, join(root, 'drizzle'));
