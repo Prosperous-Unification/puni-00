@@ -2,11 +2,32 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { realpath } from 'node:fs/promises';
 import { isDeepStrictEqual } from 'node:util';
 
-import { requireCreationCohort } from './creation-resources';
-import { EffectiveCreationPlan } from './k3d-creation';
+import { decodeRetainedToolchain } from './contracts';
+import {
+  type CreationSource,
+  ImageCreationInputs,
+  requireCreationCohort,
+} from './creation-resources';
+import {
+  captureDockerImageCapabilities,
+  dockerImageApi,
+  dockerManifestProjection,
+  observeDockerContainerImage,
+  requireDockerRuntimeImage,
+} from './docker-image-identity';
+import { ImageContainerObservation, ImageCreationPlan } from './k3d-creation';
 import { helperEnvironment } from './k3d-helper-images';
 
 export const dockerEnvironment = new AsyncLocalStorage<NodeJS.ProcessEnv>();
+
+// Proof: Task44 removing the requested API broke the real CLI identity protocol; requested-api failed.
+/** Pin only new identity operations; legacy teardown retains its original Docker request behavior. */
+export async function requestDockerImageApi<T>(operation: () => Promise<T>): Promise<T> {
+  return dockerEnvironment.run(
+    { ...(dockerEnvironment.getStore() ?? process.env), DOCKER_API_VERSION: dockerImageApi },
+    operation,
+  );
+}
 
 /** Freeze a local Docker transport for every k3d/Docker subprocess; remote capacity is unsupported. */
 export function bindDockerEnvironment(
@@ -96,6 +117,7 @@ const ContainerProjection = type({
   name: 'string',
   image: /^sha256:[a-f0-9]{64}$/,
   configuredImage: 'string',
+  'manifest?': 'unknown',
   networks: 'Record<string, unknown>',
   mounts: type({
     Type: "'volume'|'bind'|'tmpfs'",
@@ -108,18 +130,39 @@ const ContainerProjection = type({
 });
 
 /** Inspect only safe fields by full ID; never let Docker's fallback name lookup replace identity. */
+export function inspectCreatedContainer(id: string, docker: Docker): Promise<ContainerObservation>;
+export function inspectCreatedContainer(
+  id: string,
+  docker: Docker,
+  expected: ImageCreationPlan['expected'][number],
+  daemonId: string,
+): Promise<ImageContainerObservation>;
 export async function inspectCreatedContainer(
   id: string,
   docker: Docker,
-): Promise<ContainerObservation> {
+  expected?: ImageCreationPlan['expected'][number],
+  daemonId?: string,
+): Promise<ContainerObservation | ImageContainerObservation> {
+  // Proof: Task44 omitting this capability read reached ready after engine drift; runtime-profile failed.
+  if (expected !== undefined) {
+    const capabilities = await requestDockerImageApi(() =>
+      captureDockerImageCapabilities(type('string>0').assert(daemonId), docker),
+    );
+    if (!isDeepStrictEqual(capabilities, expected.imageBinding.capabilities))
+      throw new Error('Docker runtime capabilities changed');
+  }
   const projection = ContainerProjection.assert(
     JSON.parse(
-      await docker([
+      await (
+        expected === undefined
+          ? docker
+          : (arguments_: readonly string[]) => requestDockerImageApi(() => docker(arguments_))
+      )([
         'container',
         'inspect',
         id,
         '--format',
-        '{"id":{{json .Id}},"name":{{json .Name}},"image":{{json .Image}},"configuredImage":{{json .Config.Image}},"networks":{{json .NetworkSettings.Networks}},"mounts":{{json .Mounts}}}',
+        `{"id":{{json .Id}},"name":{{json .Name}},"image":{{json .Image}},"configuredImage":{{json .Config.Image}},"networks":{{json .NetworkSettings.Networks}},"mounts":{{json .Mounts}}${expected === undefined ? '' : dockerManifestProjection}}`,
       ]),
     ),
   );
@@ -127,7 +170,7 @@ export async function inspectCreatedContainer(
   const networkIds = Object.values(projection.networks).map(
     (network) => type({ NetworkID: fullId }).assert(network).NetworkID,
   );
-  return ContainerObservation.assert({
+  const observation = ContainerObservation.assert({
     id,
     name: projection.name.replace(/^\//, ''),
     image: projection.image,
@@ -141,6 +184,28 @@ export async function inspectCreatedContainer(
       destination: mount.Destination,
       rw: mount.RW,
     })),
+  });
+  if (expected === undefined) return observation;
+  const imageBinding = observeDockerContainerImage(
+    {
+      image: projection.image,
+      configuredImage: projection.configuredImage,
+      manifest: projection.manifest,
+    },
+    expected.imageBinding,
+    type('string>0').assert(daemonId),
+  );
+  requireDockerRuntimeImage(
+    expected.imageIdentity,
+    expected.imageBinding,
+    imageBinding,
+    type('string>0').assert(daemonId),
+  );
+  return ImageContainerObservation.assert({
+    ...observation,
+    schemaVersion: 3,
+    imageIdentity: imageBinding.identity,
+    imageBinding,
   });
 }
 
@@ -202,9 +267,13 @@ export async function createResourceWitness(
   input: unknown,
   docker: Docker,
   eventCommand?: readonly string[],
+  source?: CreationSource,
 ) {
   // Proof: Task37 forward-plan bypass let the actual witness accept an authentic historical plan.
-  const plan = EffectiveCreationPlan.assert(input);
+  // Proof: Task44 accepting the v2 plan schema made synthetic v2 reach a retained forward witness; forward-witness-version failed.
+  const plan = ImageCreationPlan.assert(input);
+  if (source === undefined)
+    throw new Error('Forward creation requires independent source selection');
   if (plan.daemonId !== identity.daemonId) throw new Error('Creation plan daemon identity changed');
   const path = await reserveResources(directory, identity);
   await appendResource(path, 'plan', plan);
@@ -215,7 +284,7 @@ export async function createResourceWitness(
     profile: plan.profile,
   });
   const creators: { name: string; id: string }[] = [];
-  const transients: ContainerObservation[] = [];
+  const transients: ImageContainerObservation[] = [];
   let networkId: string | undefined;
   let eventIndex = 0;
   const environment = dockerEnvironment.getStore() ?? process.env;
@@ -246,12 +315,13 @@ export async function createResourceWitness(
     if (expected.temporary) {
       // Proof: Task37 callback-daemon omission accepted a daemon change at transient inspection.
       await requireCapturedDaemon(identity.daemonId, docker);
-      const observation = await inspectCreatedContainer(creator.id, docker);
-      if (
-        observation.name !== expected.name ||
-        observation.configuredImage !== expected.image ||
-        observation.image !== expected.configId
-      )
+      const observation = await inspectCreatedContainer(
+        creator.id,
+        docker,
+        expected,
+        identity.daemonId,
+      );
+      if (observation.name !== expected.name || observation.configuredImage !== expected.image)
         // Proof: Task37 callback-image bypass let capture resolve with wrong config/reference/name; three direct callback negatives failed.
         throw new Error('Effective transient image identity differs');
       await appendResource(path, `observation-${creator.id}`, observation);
@@ -314,12 +384,15 @@ export async function createResourceWitness(
       if (expected === undefined || creator === undefined || networkId === undefined)
         // Proof: Removing creator refusal lost the explicit missing-ownership outcome; missing-creator lookup negative failed.
         throw new Error('Object store node has no in-progress creator ownership');
-      const observation = await inspectCreatedContainer(creator.id, docker);
+      const observation = await inspectCreatedContainer(
+        creator.id,
+        docker,
+        expected,
+        identity.daemonId,
+      );
       if (
         observation.name !== expected.name ||
         observation.configuredImage !== expected.image ||
-        // Proof: Task37 import-config bypass accepted a changed effective node ID before import.
-        observation.image !== expected.configId ||
         observation.networkIds.length !== 1 ||
         observation.networkIds[0] !== networkId
       )
@@ -334,11 +407,14 @@ export async function createResourceWitness(
       witness.check();
       if (networkId === undefined) throw new Error('Network identity unresolved');
       await requireCapturedDaemon(identity.daemonId, docker);
-      const snapshots: ContainerObservation[] = [];
+      const snapshots: ImageContainerObservation[] = [];
       for (const creator of creators) {
         const expected = plan.expected.find((candidate) => candidate.name === creator.name);
         if (expected === undefined) throw new Error('Unexpected creator');
-        if (!expected.temporary) snapshots.push(await inspectCreatedContainer(creator.id, docker));
+        if (!expected.temporary)
+          snapshots.push(
+            await inspectCreatedContainer(creator.id, docker, expected, identity.daemonId),
+          );
       }
       const temporaryIds = creators
         .filter((creator) =>
@@ -373,7 +449,7 @@ export async function createResourceWitness(
       await witness.stop();
       witness.check();
       const closure = {
-        schemaVersion: 2 as const,
+        schemaVersion: 3 as const,
         plan,
         creators,
         snapshots,
@@ -383,7 +459,7 @@ export async function createResourceWitness(
         network,
       };
       closeCreation(closure, 'forward');
-      await requireCreationCohort(path, closure);
+      await requireCreationCohort(path, closure, source);
       await appendResource(path, 'closure', closure);
       const sha256 = await sealResources(path);
       await appendResource(state, 'creation-complete', { schemaVersion: 1, sha256 });
@@ -392,12 +468,46 @@ export async function createResourceWitness(
   };
 }
 
+/** Version3 alone requires locally retained original Git source; never fetch or trust a closure copy. */
+async function readCreationSource(root: string, directory: string): Promise<CreationSource> {
+  const inputs = ImageCreationInputs.assert(
+    JSON.parse(await readResourceFile(join(directory, 'inputs.json'))),
+  );
+  try {
+    const process = Bun.spawn(
+      ['git', '-C', root, 'show', `${inputs.sourceRevision}:infra/versions/toolchain.json`],
+      { stdout: 'pipe', stderr: 'pipe' },
+    );
+    const [exit, bytes] = await Promise.all([
+      process.exited,
+      new Response(process.stdout).arrayBuffer(),
+      new Response(process.stderr).arrayBuffer(),
+    ]);
+    // Proof: Task44 removing the exit refusal accepted valid lock stdout from failed Git; git-exit failed.
+    if (exit !== 0) throw new Error('Original Git toolchain object unavailable');
+    // Proof: Task44 replacing this decoded selection with receipt helpers made resealed false source pass down; source-selection-dependency failed.
+    const toolchain = decodeRetainedToolchain(new Uint8Array(bytes), inputs.toolchainSha256);
+    if (!('k3dHelpers' in toolchain)) throw new Error('Version3 source lacks helper selection');
+    return {
+      sourceRevision: inputs.sourceRevision,
+      toolchainSha256: inputs.toolchainSha256,
+      toolchain,
+    };
+  } catch (cause) {
+    throw new Error(
+      'Version3 creation source unavailable or changed; restore the original Git revision and toolchain object before retrying, or inspect exact resources manually',
+      { cause },
+    );
+  }
+}
+
 /** Read the strict consumer contract. Missing, changed, partial or legacy evidence never downgrades. */
 export async function readLabCreationResources(
   directory: string,
   state: string,
   labId: string,
   profile: string,
+  root?: string,
 ) {
   const binding = Binding.assert(
     JSON.parse(await readResourceFile(join(state, 'creation-binding.json'))),
@@ -422,7 +532,12 @@ export async function readLabCreationResources(
     closure.plan.profile !== profile
   )
     throw new Error('Resource closure binding differs');
-  await requireCreationCohort(join(directory, `${identity.attemptId}.resources`), closure);
+  const resourceDirectory = join(directory, `${identity.attemptId}.resources`);
+  const source =
+    'schemaVersion' in closure && closure.schemaVersion === 3
+      ? await readCreationSource(type('string>0').assert(root), resourceDirectory)
+      : undefined;
+  await requireCreationCohort(resourceDirectory, closure, source);
   const closed = closeCreation(closure, 'teardown');
   const network = await readCreationOperation(directory, identity, 'network');
   const registry = await readCreationOperation(directory, identity, 'registry');
@@ -439,7 +554,7 @@ export async function readLabCreationResources(
 }
 
 /** Docker enumerates mount maps in varying order; retain and compare every field as an unordered attachment set. */
-function canonicalContainer(container: ContainerObservation): ContainerObservation {
+function canonicalContainer<T extends ContainerObservation>(container: T): T {
   return {
     ...container,
     networkIds: [...container.networkIds].sort(),
@@ -463,7 +578,16 @@ export async function inspectResourceTeardown(
     // Proof: Removing this comparison accepted an unrelated endpoint without shared volumes; foreign-network caller failed.
     throw new Error('Network attachments changed');
   for (const container of evidence.containers) {
-    const observed = await inspectCreatedContainer(container.id, docker);
+    const expected =
+      'schemaVersion' in evidence.closure && evidence.closure.schemaVersion === 3
+        ? evidence.closure.plan.expected.find((expected) => expected.name === container.name)
+        : undefined;
+    if ('schemaVersion' in container && expected === undefined)
+      throw new Error('Version3 teardown image plan missing');
+    const observed =
+      expected === undefined
+        ? await inspectCreatedContainer(container.id, docker)
+        : await inspectCreatedContainer(container.id, docker, expected, evidence.binding.daemonId);
     if (!isDeepStrictEqual(canonicalContainer(observed), canonicalContainer(container)))
       // Proof: Removing comparison accepted a replaced image; order-only real refusal and permutation RED/GREEN prove canonicalization retains the complete set.
       throw new Error('Container identity or attachments changed');

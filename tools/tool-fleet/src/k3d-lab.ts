@@ -19,9 +19,12 @@ import { createBackupIdentity, provisionBackupIdentity } from './backup-identity
 import { readToolchain } from './contracts';
 import { executeCreationAttempt } from './creation-journal';
 import { executeDirectCreation } from './creation-receipts';
+import type { CreationImageInput } from './creation-resources';
 import { appendResource, hashResource } from './creation-resources';
-import { type CreationPlan, type EffectiveCreationPlan, nameLabHelpers } from './k3d-creation';
-import { helperEnvironment, type ImageObservation, requireHelperImage } from './k3d-helper-images';
+import { captureDockerImageCapabilities, inspectDockerImage } from './docker-image-identity';
+import type { ImageExpectation } from './image-identity';
+import { type CreationPlan, type ImageCreationPlan, nameLabHelpers } from './k3d-creation';
+import { helperEnvironment, selectHelperImage } from './k3d-helper-images';
 import { labNamesOf } from './k3d-lab-names';
 import {
   bindDockerEnvironment,
@@ -30,6 +33,7 @@ import {
   dockerEnvironment,
   inspectResourceTeardown,
   readLabCreationResources,
+  requestDockerImageApi,
   requireCapturedDaemon,
   stopRecordedContainer,
 } from './k3d-resource-runtime';
@@ -900,8 +904,8 @@ async function upLab(
         ],
       }
     : undefined;
-  const images: ImageObservation[] = [];
-  let effectivePlan: EffectiveCreationPlan | undefined;
+  const images: CreationImageInput[] = [];
+  let effectivePlan: ImageCreationPlan | undefined;
   let source: { sourceRevision: string; toolchainSha256: string } | undefined;
   if (strict) {
     if (Object.keys(process.env).some((name) => name.startsWith('K3D_')))
@@ -931,47 +935,47 @@ async function upLab(
     )
       // Proof: Removing collision refusal failed the reused-tools and reused-cache caller negatives.
       throw new Error('Strict creation refuses existing namespace resources');
-    for (const expected of plan?.expected ?? []) {
+    if (plan === undefined) throw new Error('Strict creation plan missing');
+    const identityDocker = (arguments_: readonly string[]) =>
+      requestDockerImageApi(() => run('docker', arguments_));
+    const capabilities = await captureDockerImageCapabilities(plan.daemonId, identityDocker);
+    for (const expected of plan.expected) {
       if (images.some((image) => image.name === expected.image)) continue;
-      const image = type({
-        id: /^sha256:[a-f0-9]{64}$/,
-        volumes: 'Record<string,unknown>|null',
-        os: 'string>0',
-        arch: 'string>0',
-        repoDigests: 'string[]',
-      }).assert(
-        JSON.parse(
-          await run('docker', [
-            'image',
-            'inspect',
-            expected.image,
-            '--format',
-            '{"id":{{json .Id}},"os":{{json .Os}},"arch":{{json .Architecture}},"repoDigests":{{json .RepoDigests}},"volumes":{{json (index .Config "Volumes")}}}',
-          ]),
-        ),
+      const imageIdentity: ImageExpectation =
+        expected.role === 'tools' || expected.role === 'serverlb'
+          ? selectHelperImage(toolchain.k3dHelpers[expected.role])
+          : {
+              kind: 'runtime-pin',
+              pin:
+                expected.role === 'registry'
+                  ? toolchain.runtimeImages.registry
+                  : toolchain.runtimeImages.k3dNode,
+              config: { state: 'unobserved' },
+            };
+      const imageBinding = await inspectDockerImage(
+        imageIdentity,
+        expected.image,
+        { os: 'linux', arch: 'amd64' },
+        capabilities,
+        identityDocker,
       );
-      const observation = {
-        ...image,
-        name: expected.image,
-        id: image.id,
-        volumes: image.volumes === null ? [] : Object.keys(image.volumes),
-      };
-      if (expected.role === 'tools' || expected.role === 'serverlb')
-        requireHelperImage(toolchain.k3dHelpers, observation);
-      images.push(observation);
-      if (expected.temporary && image.volumes !== null && Object.keys(image.volumes).length > 0)
+      images.push({ name: expected.image, imageIdentity, imageBinding });
+      if (expected.temporary && imageBinding.volumes.length > 0)
         // Proof: Removing this refusal accepted an anonymous tools store that pinned startup removes; temporary-anonymous failed.
         throw new Error('Temporary tools image declares anonymous volumes that k3d would remove');
     }
-    if (plan === undefined) throw new Error('Strict creation plan missing');
     effectivePlan = {
       ...plan,
-      schemaVersion: 2,
+      schemaVersion: 3,
       helpers: toolchain.k3dHelpers,
       expected: plan.expected.map((expected) => {
         const observed = images.find((image) => image.name === expected.image);
         if (observed === undefined) throw new Error('Expected precreation image missing');
-        return { ...expected, configId: observed.id };
+        return {
+          ...expected,
+          imageIdentity: observed.imageIdentity,
+          imageBinding: observed.imageBinding,
+        };
       }),
     };
     const sourceRevision = type(/^[a-f0-9]{40}$/).assert(
@@ -1013,8 +1017,14 @@ async function upLab(
       const witness =
         effectivePlan === undefined
           ? undefined
-          : await createResourceWitness(attempts, state, identity, effectivePlan, (arguments_) =>
-              run('docker', arguments_),
+          : await createResourceWitness(
+              attempts,
+              state,
+              identity,
+              effectivePlan,
+              (arguments_) => run('docker', arguments_),
+              undefined,
+              source === undefined ? undefined : { ...source, toolchain },
             );
       try {
         if (witness !== undefined) {
@@ -1023,7 +1033,7 @@ async function upLab(
           );
           if (source === undefined) throw new Error('Strict creation source missing');
           await appendResource(witness.path, 'inputs', {
-            schemaVersion: 2,
+            schemaVersion: 3,
             helpers: toolchain.k3dHelpers,
             ...source,
             ...(objectStore === undefined ? {} : { objectStore }),
@@ -1201,6 +1211,7 @@ async function downLab(root: string, request: K3dLabRequest, tools: LabTools): P
       state,
       request.labId,
       request.profile,
+      root,
     );
     const endpoint = dockerEnvironment.getStore()?.['DOCKER_HOST'];
     if (endpoint === undefined) throw new Error('Captured Docker endpoint missing');

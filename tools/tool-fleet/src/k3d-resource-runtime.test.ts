@@ -7,6 +7,20 @@ import { helperEnvironment } from './k3d-helper-images';
 import { selectedHelpers } from './k3d-helper-images.fixture.test';
 import { bindDockerEnvironment, requireCapturedDaemon } from './k3d-resource-runtime';
 
+function capabilitiesReply(arguments_: readonly string[]): string | undefined {
+  if (arguments_[0] === 'version')
+    return JSON.stringify({ engineVersion: '29.7.2', serverApi: '1.55', minimumApi: '1.40' });
+  if (arguments_[0] === 'info' && arguments_.at(-1) !== '{{.ID}}')
+    return JSON.stringify({
+      daemonId: 'daemon-1',
+      os: 'linux',
+      arch: 'x86_64',
+      driver: 'overlayfs',
+      driverStatus: [['driver-type', 'io.containerd.snapshotter.v1']],
+    });
+  return undefined;
+}
+
 it('pins Docker and k3d to a captured Unix endpoint instead of mutable context', () => {
   const bound = bindDockerEnvironment('unix:///var/run/docker.sock', {
     DOCKER_CONTEXT: 'foreign',
@@ -35,6 +49,7 @@ import { join } from 'node:path';
 import { scratchAsync } from '@tools/test-scratch';
 
 import { createCreationAttempt } from './creation-journal';
+import { imagePlan, imageSource } from './k3d-image-identity.fixture.test';
 import { createResourceWitness } from './k3d-resource-runtime';
 
 it('retains a network receipt but refuses later lifecycle when the actual handshake is absent', async () => {
@@ -68,9 +83,10 @@ it('retains a network receipt but refuses later lifecycle when the actual handsh
     directory,
     directory,
     identity,
-    plan,
+    imagePlan(plan),
     () => Promise.reject(new Error('Unexpected Docker call')),
     [process.execPath, '-e', 'setInterval(()=>{},1000)'],
+    await imageSource(),
   );
   try {
     await rejects(witness.acceptNetwork('a'.repeat(64), 40), new RegExp('handshake'));
@@ -133,21 +149,29 @@ for (const fault of [
         },
       ],
     };
+    const forward = imagePlan(plan);
     const docker = (arguments_: readonly string[]) =>
       Promise.resolve(
-        arguments_[0] === 'info'
-          ? 'daemon-1'
-          : JSON.stringify({
-              id: 'b'.repeat(64),
-              name: fault === 'name' ? '/foreign' : '/server',
-              image: `sha256:${(fault === 'effective-id' ? '9' : 'e').repeat(64)}`,
-              configuredImage: fault === 'image' ? 'foreign:node' : 'locked:node',
-              networks: {
-                lab: { NetworkID: fault === 'network' ? '9'.repeat(64) : 'a'.repeat(64) },
-                ...(fault === 'extra-network' ? { extra: { NetworkID: 'a'.repeat(64) } } : {}),
-              },
-              mounts: [],
-            }),
+        capabilitiesReply(arguments_) ??
+          (arguments_[0] === 'info'
+            ? 'daemon-1'
+            : JSON.stringify({
+                id: 'b'.repeat(64),
+                name: fault === 'name' ? '/foreign' : '/server',
+                image: `sha256:${(fault === 'effective-id' ? '9' : 'e').repeat(64)}`,
+                configuredImage: fault === 'image' ? 'foreign:node' : forward.expected[0].image,
+                manifest: {
+                  mediaType: 'application/vnd.oci.image.manifest.v1+json',
+                  digest: 'sha256:' + 'e'.repeat(64),
+                  size: 610,
+                  platform: { os: 'linux', architecture: 'amd64' },
+                },
+                networks: {
+                  lab: { NetworkID: fault === 'network' ? '9'.repeat(64) : 'a'.repeat(64) },
+                  ...(fault === 'extra-network' ? { extra: { NetworkID: 'a'.repeat(64) } } : {}),
+                },
+                mounts: [],
+              })),
       );
     const event = {
       kind: 'network',
@@ -160,11 +184,19 @@ for (const fault of [
       driver: '',
       image: '',
     };
-    const witness = await createResourceWitness(directory, directory, identity, plan, docker, [
-      process.execPath,
-      '-e',
-      `console.log(${JSON.stringify(JSON.stringify(event))});setInterval(()=>{},1000)`,
-    ]);
+    const witness = await createResourceWitness(
+      directory,
+      directory,
+      identity,
+      forward,
+      docker,
+      [
+        process.execPath,
+        '-e',
+        `console.log(${JSON.stringify(JSON.stringify(event))});setInterval(()=>{},1000)`,
+      ],
+      await imageSource(),
+    );
     try {
       await witness.acceptNetwork('a'.repeat(64), 1000);
       if (fault !== 'missing')
@@ -181,7 +213,11 @@ for (const fault of [
       else
         await rejects(
           witness.requireNode('server'),
-          fault === 'missing' ? /in-progress creator/ : /creator observation/,
+          fault === 'missing'
+            ? /in-progress creator/
+            : fault === 'image' || fault === 'effective-id'
+              ? /Docker runtime/
+              : /creator observation/,
         );
     } finally {
       await witness.stop();
@@ -258,8 +294,11 @@ for (const fault of [
         },
       ],
     };
+    const forward = imagePlan(plan);
     let daemonCalls = 0;
     const docker = (arguments_: readonly string[]): Promise<string> => {
+      const capabilities = capabilitiesReply(arguments_);
+      if (capabilities !== undefined) return Promise.resolve(capabilities);
       if (arguments_[0] === 'info')
         return Promise.resolve(fault === 'daemon' && ++daemonCalls > 1 ? 'foreign' : 'daemon-1');
       if (fault === 'inspection') return Promise.reject(new Error('Container disappeared'));
@@ -268,7 +307,13 @@ for (const fault of [
           id: fault === 'identity' ? '9'.repeat(64) : id,
           name: fault === 'name' ? '/foreign' : '/tools',
           image:
-            fault === 'config' ? 'sha256:' + '9'.repeat(64) : selectedHelpers.tools.configDigest,
+            fault === 'config' ? 'sha256:' + '9'.repeat(64) : selectedHelpers.tools.manifestDigest,
+          manifest: {
+            mediaType: 'application/vnd.oci.image.manifest.v1+json',
+            digest: selectedHelpers.tools.manifestDigest,
+            size: 610,
+            platform: { os: 'linux', architecture: 'amd64' },
+          },
           configuredImage: fault === 'reference' ? 'foreign:tools' : image,
           networks: { lab: { NetworkID: 'a'.repeat(64) } },
           mounts: [],
@@ -286,11 +331,19 @@ for (const fault of [
       driver: '',
       image: '',
     };
-    const witness = await createResourceWitness(directory, directory, identity, plan, docker, [
-      process.execPath,
-      '-e',
-      `console.log(${JSON.stringify(JSON.stringify(event))});setInterval(()=>{},1000)`,
-    ]);
+    const witness = await createResourceWitness(
+      directory,
+      directory,
+      identity,
+      forward,
+      docker,
+      [
+        process.execPath,
+        '-e',
+        `console.log(${JSON.stringify(JSON.stringify(event))});setInterval(()=>{},1000)`,
+      ],
+      await imageSource(),
+    );
     try {
       await witness.acceptNetwork('a'.repeat(64));
       const path = join(witness.path, `observation-${id}.json`);
@@ -312,7 +365,8 @@ for (const fault of [
         expect(await Bun.file(path).json()).toMatchObject({
           id,
           configuredImage: image,
-          image: selectedHelpers.tools.configDigest,
+          image: selectedHelpers.tools.manifestDigest,
+          schemaVersion: 3,
         });
       } else await rejects(capture);
       expect(await Bun.file(join(witness.path, 'creator-0000.json')).exists()).toBe(
@@ -323,3 +377,45 @@ for (const fault of [
     }
   });
 }
+
+it('Task44 actual forward witness refuses synthetic version2 before retaining records', async () => {
+  const directory = await scratchAsync('version2-forward-');
+  const identity = {
+    labId: 'c123456789abcdef',
+    attemptId: '11111111-1111-4111-8111-111111111111',
+    daemonId: 'daemon-1',
+  };
+  await createCreationAttempt(directory, identity);
+  const plan = {
+    schemaVersion: 2,
+    helpers: selectedHelpers,
+    endpoint: 'unix:///run/docker.sock',
+    daemonId: 'daemon-1',
+    profile: 'app',
+    network: 'network',
+    expected: [
+      {
+        name: 'registry',
+        image: 'registry:2',
+        configId: 'sha256:' + 'e'.repeat(64),
+        role: 'registry',
+        temporary: false,
+      },
+    ],
+    binds: [],
+  };
+  await rejects(
+    createResourceWitness(
+      directory,
+      directory,
+      identity,
+      plan,
+      () => Promise.reject(new Error('Must not inspect')),
+      [process.execPath, '-e', 'setInterval(()=>{},1000)'],
+      await imageSource(),
+    ).then(async (witness) => {
+      await witness.stop();
+    }),
+  );
+  expect(await Bun.file(join(directory, 'creation-binding.json')).exists()).toBe(false);
+});

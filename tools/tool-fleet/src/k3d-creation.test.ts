@@ -461,8 +461,9 @@ function effectiveClosure() {
   };
   return { ...historical, schemaVersion: 2, plan, transients: [] as typeof historical.snapshots };
 }
-it('Task37 closes effective evidence through forward acceptance', () => {
-  expect(closeCreation(effectiveClosure(), 'forward').containers).toHaveLength(1);
+it('Task44 preserves version2 teardown and refuses its forward acceptance', () => {
+  expect(closeCreation(effectiveClosure(), 'teardown').containers).toHaveLength(1);
+  expect(() => closeCreation(effectiveClosure(), 'forward')).toThrow();
 });
 it('Task37 historical closure supports teardown but refuses forward acceptance', () => {
   expect(closeCreation(closure(), 'teardown').containers).toHaveLength(1);
@@ -482,7 +483,7 @@ for (const fault of [
     if (fault === 'unknown-version') input.schemaVersion = 3;
     if (fault === 'missing-config') Reflect.deleteProperty(input.plan.expected[0], 'configId');
     if (fault === 'extra-transient') input.transients.push(input.snapshots[0]);
-    expect(() => closeCreation(input, 'forward')).toThrow();
+    expect(() => closeCreation(input, 'teardown')).toThrow();
   });
 }
 
@@ -527,7 +528,7 @@ function transientClosure() {
   return input;
 }
 it('Task37 complete serial transient observations close independently of permanent consumers', () => {
-  expect(closeCreation(transientClosure(), 'forward').containers).toHaveLength(1);
+  expect(closeCreation(transientClosure(), 'teardown').containers).toHaveLength(1);
 });
 for (const fault of [
   'missing',
@@ -557,6 +558,6 @@ for (const fault of [
       input.events.find(
         (event) => event.action === 'destroy' && event.id === '1'.repeat(64),
       )!.time = '21';
-    expect(() => closeCreation(input, 'forward')).toThrow();
+    expect(() => closeCreation(input, 'teardown')).toThrow();
   });
 }

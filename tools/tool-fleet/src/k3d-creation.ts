@@ -1,5 +1,13 @@
+import { isDeepStrictEqual } from 'node:util';
+
 import { type } from 'arktype';
 
+import {
+  DockerContainerImage,
+  DockerImageBinding,
+  requireDockerRuntimeImage,
+} from './docker-image-identity';
+import { ImageExpectation, ImageIdentity } from './image-identity';
 import { K3dHelpers, referenceHelper } from './k3d-helper-images';
 
 /** Existing k3d creation roles; image authority belongs to the selected toolchain. */
@@ -119,7 +127,27 @@ export const EffectiveCreationPlan = HistoricalCreationPlan.merge({
     .atLeastLength(1),
 });
 export type EffectiveCreationPlan = typeof EffectiveCreationPlan.infer;
-export const CreationPlan = HistoricalCreationPlan.or(EffectiveCreationPlan);
+export const ImageCreationPlan = HistoricalCreationPlan.merge({
+  '+': 'reject',
+  schemaVersion: '3',
+  helpers: K3dHelpers,
+  expected: ExpectedCreator.merge({
+    '+': 'reject',
+    imageIdentity: ImageExpectation,
+    imageBinding: DockerImageBinding,
+  })
+    .array()
+    .atLeastLength(1),
+});
+export type ImageCreationPlan = typeof ImageCreationPlan.infer;
+export const ImageContainerObservation = ContainerObservation.merge({
+  '+': 'reject',
+  schemaVersion: '3',
+  imageIdentity: ImageIdentity,
+  imageBinding: DockerContainerImage,
+});
+export type ImageContainerObservation = typeof ImageContainerObservation.infer;
+export const CreationPlan = HistoricalCreationPlan.or(EffectiveCreationPlan).or(ImageCreationPlan);
 export type CreationPlan = typeof CreationPlan.infer;
 const Creator = type({ name: 'string>0', id: fullId, '+': 'reject' });
 export const HistoricalCreationClosure = type({
@@ -137,7 +165,15 @@ export const EffectiveCreationClosure = HistoricalCreationClosure.merge({
   plan: EffectiveCreationPlan,
   transients: ContainerObservation.array(),
 });
-export const CreationClosure = HistoricalCreationClosure.or(EffectiveCreationClosure);
+export const ImageCreationClosure = HistoricalCreationClosure.merge({
+  '+': 'reject',
+  schemaVersion: '3',
+  plan: ImageCreationPlan,
+  snapshots: ImageContainerObservation.array(),
+  transients: ImageContainerObservation.array(),
+});
+export const CreationClosure =
+  HistoricalCreationClosure.or(EffectiveCreationClosure).or(ImageCreationClosure);
 export type CreationClosure = typeof CreationClosure.infer;
 
 const sameSet = (left: readonly string[], right: readonly string[]): boolean =>
@@ -314,16 +350,19 @@ function closeHistoricalCreation(input: unknown): {
   return { containers: active, volumes };
 }
 
-/** Forward acceptance requires effective v2; historical validation is reserved for receipt teardown. */
+/** Forward acceptance requires explicit v3; older evidence retains its original teardown semantics. */
 export function closeCreation(input: unknown, purpose: 'forward' | 'teardown' = 'teardown') {
   const closure = CreationClosure.assert(input);
   if (!('schemaVersion' in closure)) {
     if (purpose === 'forward')
       // Proof: Task37 historical-forward bypass let old closure certify forward acceptance; compatibility negative failed.
-      throw new Error('Forward creation requires effective version 2 evidence');
+      throw new Error('Forward creation requires image version 3 evidence');
     return closeHistoricalCreation(closure);
   }
-  const { plan, transients, snapshots, creators, network } = closure;
+  if (closure.schemaVersion === 3) return closeImageCreation(closure);
+  // Proof: Task44 removing this version refusal made synthetic v2 certify forward acceptance; forward-closure-version failed.
+  if (purpose === 'forward') throw new Error('Forward creation requires image version 3 evidence');
+  const { plan, transients, snapshots, creators } = closure;
   const temporary = creators.filter((creator) =>
     plan.expected.some((expected) => expected.temporary && expected.name === creator.name),
   );
@@ -355,6 +394,92 @@ export function closeCreation(input: unknown, purpose: 'forward' | 'teardown' = 
         throw new Error('Creation plan helper selection differs');
     }
   }
+  const { schemaVersion: _version, helpers: _helpers, expected, ...historicalPlan } = plan;
+  return closeObservedLifecycle({
+    ...closure,
+    plan: { ...historicalPlan, expected: expected.map(({ configId: _config, ...entry }) => entry) },
+  });
+}
+
+function closeImageCreation(closure: typeof ImageCreationClosure.infer) {
+  const { plan, snapshots, transients, creators } = closure;
+  const temporaryIds = creators
+    .filter((creator) =>
+      plan.expected.some((expected) => expected.temporary && expected.name === creator.name),
+    )
+    .map((creator) => creator.id);
+  if (
+    !sameSet(
+      transients.map((observed) => observed.id),
+      temporaryIds,
+    )
+  )
+    // Proof: Task44 removing this set check accepted resealed missing v3 transients; version3-transient-set failed.
+    throw new Error('Missing or conflicting transient observations');
+  for (const observed of [...snapshots, ...transients]) {
+    const creator = creators.find((candidate) => candidate.id === observed.id);
+    const expected = plan.expected.find((candidate) => candidate.name === creator?.name);
+    if (
+      observed.name !== expected?.name ||
+      observed.configuredImage !== expected.image ||
+      observed.image !== observed.imageIdentity.object.digest ||
+      !isDeepStrictEqual(observed.imageIdentity, observed.imageBinding.identity)
+    )
+      // Proof: Task44 dropping raw-object or neutral-copy equality accepted resealed transient substitutions; container-raw-object/container-identity-copy failed.
+      throw new Error('Effective creator image identity differs');
+    if (expected.role === 'serverlb' || expected.role === 'tools') {
+      const selected = plan.helpers[expected.role];
+      const identity = expected.imageIdentity;
+      if (
+        identity.kind !== 'helper' ||
+        expected.image !== referenceHelper(selected) ||
+        identity.selection.reference !== expected.image ||
+        identity.selection.indexDigest !== selected.indexDigest ||
+        identity.selection.manifestDigest !== selected.manifestDigest ||
+        identity.selection.configDigest !== selected.configDigest ||
+        identity.selection.os !== selected.os ||
+        identity.selection.arch !== selected.arch
+      )
+        throw new Error('Creation plan helper selection differs');
+    } else if (expected.imageIdentity.kind !== 'runtime-pin')
+      throw new Error('Creation runtime pin expectation differs');
+    requireDockerRuntimeImage(
+      expected.imageIdentity,
+      expected.imageBinding,
+      observed.imageBinding,
+      plan.daemonId,
+    );
+  }
+  const { schemaVersion: _version, helpers: _helpers, expected, ...historicalPlan } = plan;
+  const stripObservation = ({
+    schemaVersion: _schema,
+    imageIdentity: _identity,
+    imageBinding: _binding,
+    ...observation
+  }: ImageContainerObservation) => observation;
+  const closed = closeObservedLifecycle({
+    ...closure,
+    plan: {
+      ...historicalPlan,
+      expected: expected.map(
+        ({ imageIdentity: _identity, imageBinding: _binding, ...creator }) => creator,
+      ),
+    },
+    snapshots: snapshots.map(stripObservation),
+    transients: transients.map(stripObservation),
+  });
+  return {
+    containers: snapshots.filter((snapshot) =>
+      closed.containers.some((container) => container.id === snapshot.id),
+    ),
+    volumes: closed.volumes,
+  };
+}
+
+function closeObservedLifecycle(
+  closure: typeof HistoricalCreationClosure.infer & { transients: ContainerObservation[] },
+) {
+  const { plan, transients, creators, snapshots, network } = closure;
   for (const observed of transients) {
     if (!sameSet(observed.networkIds, [network.id]))
       // Proof: Task37 transient-network bypass accepted a foreign network; closure negative failed.
@@ -398,9 +523,8 @@ export function closeCreation(input: unknown, purpose: 'forward' | 'teardown' = 
       // Proof: Task37 transient-mount-set bypass accepted an omitted observed mount; closure negative failed.
       throw new Error('Transient mount inventory differs');
   }
-  const { schemaVersion: _version, helpers: _helpers, expected, ...historicalPlan } = plan;
   const closed = closeHistoricalCreation({
-    plan: { ...historicalPlan, expected: expected.map(({ configId: _config, ...entry }) => entry) },
+    plan,
     creators,
     snapshots,
     events: closure.events,

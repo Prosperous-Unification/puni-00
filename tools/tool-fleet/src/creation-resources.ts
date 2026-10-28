@@ -6,14 +6,28 @@ import { isDeepStrictEqual } from 'node:util';
 
 import { type } from 'arktype';
 
+import type { Toolchain } from './contracts';
 import {
   type CreationIdentity,
   readCreationAttempt,
   requireDirectory,
   syncDirectory,
 } from './creation-journal';
-import { ContainerObservation, CreationClosure, CreationEvent, CreationPlan } from './k3d-creation';
-import { ImageObservation, K3dHelpers, requireHelperImage } from './k3d-helper-images';
+import { DockerImageBinding, requireDockerImageBinding } from './docker-image-identity';
+import { ImageExpectation } from './image-identity';
+import {
+  ContainerObservation,
+  CreationClosure,
+  CreationEvent,
+  CreationPlan,
+  ImageContainerObservation,
+} from './k3d-creation';
+import {
+  ImageObservation,
+  K3dHelpers,
+  requireHelperImage,
+  selectHelperImage,
+} from './k3d-helper-images';
 import { ObjectStoreArchiveSchema } from './object-store-archive';
 
 const digest = /^[a-f0-9]{64}$/;
@@ -51,11 +65,27 @@ export const EffectiveCreationInputs = HistoricalCreationInputs.merge({
   toolchainSha256: digest,
   images: ImageObservation.array().atLeastLength(1),
 });
+export const CreationImageInput = type({
+  name: 'string>0',
+  imageIdentity: ImageExpectation,
+  imageBinding: DockerImageBinding,
+  '+': 'reject',
+});
+export type CreationImageInput = typeof CreationImageInput.infer;
+export const ImageCreationInputs = EffectiveCreationInputs.merge({
+  '+': 'reject',
+  schemaVersion: '3',
+  images: CreationImageInput.array().atLeastLength(1),
+});
+export type CreationSource = Pick<
+  typeof ImageCreationInputs.infer,
+  'sourceRevision' | 'toolchainSha256'
+> & { toolchain: Toolchain };
 const recordSchemas: Readonly<Record<string, (input: unknown) => unknown>> = {
   plan: CreationPlan,
   closure: CreationClosure,
   network: type({ id: digest, '+': 'reject' }),
-  inputs: HistoricalCreationInputs.or(EffectiveCreationInputs),
+  inputs: HistoricalCreationInputs.or(EffectiveCreationInputs).or(ImageCreationInputs),
   'creation-binding': type({
     schemaVersion: '1',
     labId: 'string',
@@ -83,7 +113,7 @@ const recordSchemas: Readonly<Record<string, (input: unknown) => unknown>> = {
 };
 function requireRecord(name: string, entry: unknown): void {
   const schema = /^observation-[a-f0-9]{64}$/.test(name)
-    ? ContainerObservation
+    ? ContainerObservation.or(ImageContainerObservation)
     : /^stopped-[a-f0-9]{64}$/.test(name)
       ? type({
           schemaVersion: '1',
@@ -230,6 +260,7 @@ export async function readResources(
 export async function requireCreationCohort(
   directory: string,
   closure: CreationClosure,
+  source?: CreationSource,
 ): Promise<void> {
   // Proof: Task37 retained-cohort bypass made seven sealed-reader mismatches reach teardown; all negatives failed.
   const read = async (name: string): Promise<unknown> =>
@@ -240,25 +271,70 @@ export async function requireCreationCohort(
   if (!('schemaVersion' in closure)) {
     HistoricalCreationInputs.assert(input);
     if ((await readdir(directory)).some((name) => name.startsWith('observation-')))
+      // Proof: Task44 removing this guard let a valid v3 observation record reach historical down; version3-in-historical-cohort failed.
       // Proof: Task37 fix1 removing this guard let a resealed historical fixture with an effective observation reach teardown; the real-down negative failed.
       throw new Error('Historical creation cohort contains effective observations');
     return;
   }
-  const inputs = EffectiveCreationInputs.assert(input);
-  if (!isDeepStrictEqual(inputs.helpers, closure.plan.helpers))
-    throw new Error('Creation selection cohort differs');
-  const names = new Set(closure.plan.expected.map((expected) => expected.image));
-  if (
-    inputs.images.length !== names.size ||
-    new Set(inputs.images.map((image) => image.name)).size !== names.size ||
-    inputs.images.some((image) => !names.has(image.name))
-  )
-    throw new Error('Creation image input set differs');
-  for (const expected of closure.plan.expected) {
-    const image = inputs.images.find((image) => image.name === expected.image);
-    if (image?.id !== expected.configId) throw new Error('Creation config input differs');
-    if (expected.role === 'tools' || expected.role === 'serverlb')
-      requireHelperImage(inputs.helpers, image);
+  // Proof: Task44 substituting receipt helpers for decoded Git source accepted resealed false selection; source-selection-dependency failed.
+  if (closure.schemaVersion === 3) {
+    const inputs = ImageCreationInputs.assert(input);
+    if (
+      source === undefined ||
+      !('k3dHelpers' in source.toolchain) ||
+      source.sourceRevision !== inputs.sourceRevision ||
+      source.toolchainSha256 !== inputs.toolchainSha256 ||
+      !isDeepStrictEqual(source.toolchain.k3dHelpers, inputs.helpers) ||
+      !isDeepStrictEqual(inputs.helpers, closure.plan.helpers)
+    )
+      throw new Error('Creation source selection cohort differs');
+    const names = new Set(closure.plan.expected.map((expected) => expected.image));
+    if (
+      inputs.images.length !== names.size ||
+      new Set(inputs.images.map((image) => image.name)).size !== names.size ||
+      inputs.images.some((image) => !names.has(image.name))
+    )
+      throw new Error('Creation image input set differs');
+    for (const expected of closure.plan.expected) {
+      const image = inputs.images.find((image) => image.name === expected.image);
+      const independent =
+        expected.role === 'tools' || expected.role === 'serverlb'
+          ? selectHelperImage(source.toolchain.k3dHelpers[expected.role])
+          : {
+              kind: 'runtime-pin',
+              pin:
+                expected.role === 'registry'
+                  ? source.toolchain.runtimeImages.registry
+                  : source.toolchain.runtimeImages.k3dNode,
+              config: { state: 'unobserved' },
+            };
+      if (
+        image === undefined ||
+        !isDeepStrictEqual(expected.imageIdentity, independent) ||
+        !isDeepStrictEqual(image.imageIdentity, independent) ||
+        !isDeepStrictEqual(image.imageBinding, expected.imageBinding) ||
+        image.name !== expected.image
+      )
+        throw new Error('Creation source image cohort differs');
+      requireDockerImageBinding(independent, image.imageBinding, closure.plan.daemonId);
+    }
+  } else {
+    const inputs = EffectiveCreationInputs.assert(input);
+    if (!isDeepStrictEqual(inputs.helpers, closure.plan.helpers))
+      throw new Error('Creation selection cohort differs');
+    const names = new Set(closure.plan.expected.map((expected) => expected.image));
+    if (
+      inputs.images.length !== names.size ||
+      new Set(inputs.images.map((image) => image.name)).size !== names.size ||
+      inputs.images.some((image) => !names.has(image.name))
+    )
+      throw new Error('Creation image input set differs');
+    for (const expected of closure.plan.expected) {
+      const image = inputs.images.find((image) => image.name === expected.image);
+      if (image?.id !== expected.configId) throw new Error('Creation config input differs');
+      if (expected.role === 'tools' || expected.role === 'serverlb')
+        requireHelperImage(inputs.helpers, image);
+    }
   }
   const files = await readdir(directory);
   const observationNames = files.filter((name) => name.startsWith('observation-')).sort();
@@ -270,7 +346,9 @@ export async function requireCreationCohort(
   for (const observation of closure.transients)
     if (
       !isDeepStrictEqual(
-        ContainerObservation.assert(await read(`observation-${observation.id}`)),
+        (closure.schemaVersion === 3 ? ImageContainerObservation : ContainerObservation).assert(
+          await read(`observation-${observation.id}`),
+        ),
         observation,
       )
     )

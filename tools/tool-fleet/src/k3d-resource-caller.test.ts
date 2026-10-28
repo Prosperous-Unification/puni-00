@@ -6,8 +6,8 @@ import { scratchAsync } from '@tools/test-scratch';
 import { type } from 'arktype';
 import { expect, it } from 'bun:test';
 
-import { EffectiveCreationInputs } from './creation-resources';
-import { EffectiveCreationClosure, HistoricalCreationClosure } from './k3d-creation';
+import { ImageCreationInputs } from './creation-resources';
+import { HistoricalCreationClosure, ImageCreationClosure } from './k3d-creation';
 import { archiveFixture } from './object-store-archive.fixture.test';
 
 const root = join(import.meta.dir, '../../..');
@@ -45,7 +45,9 @@ const project = fields => console.log(argv.at(-1).replace(/{{json ([^}]+)}}/g, (
 const id = letter => letter.repeat(64);
 const selected = JSON.parse(readFileSync(directory+'/infra/versions/toolchain.json','utf8')).k3dHelpers;
 const reference = role => selected[role].name+'@'+selected[role].manifestDigest;
-const imageId = image => Object.values(selected).find(pin=>pin && typeof pin==='object' && pin.name+'@'+pin.manifestDigest===image)?.configDigest ?? 'sha256:'+id('e');
+const childId = image => Object.values(selected).find(pin=>pin && typeof pin==='object' && pin.name+'@'+pin.manifestDigest===image)?.manifestDigest ?? 'sha256:'+id('e');
+const imageId = image => image.split('@')[1];
+const descriptor = (image,platform) => ({mediaType: platform||imageId(image)===childId(image)?'application/vnd.oci.image.manifest.v1+json':'application/vnd.oci.image.index.v1+json',digest:platform?childId(image):imageId(image),size:610,...(platform||imageId(image)===childId(image)?{platform:{os:'linux',architecture:'amd64'}}:{})});
 const containerFault = (kind,action,attributes) => fault==='temporary-missing-mount'&&kind==='volume'&&action==='mount'&&attributes.container===id('d');
 const event = (kind, action, identity, attributes = {}) => {
  if(identity===id('d')&&kind==='container'&&fault==='temporary-missing-'+action)return;
@@ -90,7 +92,8 @@ if (tool === 'k3d') {
  throw Error('unexpected k3d command');
 }
 if (process.env.DOCKER_CONTEXT || !['unix:///run/docker.sock','unix://'+directory+'/alternate.sock'].includes(process.env.DOCKER_HOST)) throw Error('unbound Docker endpoint');
-if(argv[0]==='info') {console.log(fault==='import-daemon'&&state.containers.length>1?'foreign-daemon':'daemon-1');process.exit(0);}
+if(argv[0]==='version') { if(process.env.DOCKER_API_VERSION!=='1.55')throw Error('IDENTITY_API_NOT_PINNED');project({'.Server.Version':fault==='identity-engine'||fault==='identity-runtime-engine'&&state.containers.length>0?'28.0.0':'29.7.2','.Server.APIVersion':'1.55','.Server.MinAPIVersion':'1.40'});process.exit(0); }
+if(argv[0]==='info') { const daemon=fault==='import-daemon'&&state.containers.length>1?'foreign-daemon':'daemon-1'; if(argv.at(-1)==='{{.ID}}')console.log(daemon);else project({'.ID':daemon,'.OSType':'linux','.Architecture':'x86_64','.Driver':'overlayfs','.DriverStatus':fault==='identity-store'?[]:[['driver-type','io.containerd.snapshotter.v1']]});process.exit(0);}
 if(argv[0]==='events') {
  let offset=0;
  const poll=()=>{if(fault==='stream-disconnect'&&existsSync(directory+'/creator-started'))process.exit(0);const bytes=readFileSync(directory+'/events','utf8');process.stdout.write(bytes.slice(offset));offset=bytes.length;};poll();setInterval(poll,2);
@@ -121,9 +124,9 @@ if(argv[0]==='events') {
  state.network=argv.at(-1);save();if(fault!=='missing-handshake')event('network','create',id('a'),{name:state.network});console.log(id('a'));
 } else if(argv[0]==='run') {
  const volume=id('f');addVolume(volume);addContainer(argv[argv.indexOf('--name')+1],id('1'),argv.at(-1),[mount(volume,'/var/lib/registry')]);console.log(id('1'));
-} else if(argv[0]==='image'&&argv[1]==='inspect') {project({'.Id':fault==='preimage-config'?'sha256:'+id('9'):imageId(argv[2]),'.Os':'linux','.Architecture':fault==='preimage-arch'?'arm64':'amd64','.RepoDigests':fault==='preimage-reference'?[]:[argv[2]],'(index .Config "Volumes")':fault==='temporary-anonymous'?{'/private-store':{}}:null});
+} else if(argv[0]==='image'&&argv[1]==='inspect') {if(process.env.DOCKER_API_VERSION!=='1.55')throw Error('IDENTITY_API_NOT_PINNED');project({'.Descriptor':descriptor(argv[2],argv.includes('--platform')),'.Id':fault==='preimage-config'?'sha256:'+id('9'):(argv.includes('--platform')?childId(argv[2]):imageId(argv[2])),'.Os':'linux','.Architecture':fault==='preimage-arch'?'arm64':'amd64','.RepoDigests':fault==='preimage-reference'?[]:[argv[2].split('@')[0].split(':')[0].replace('docker.io/','').replace('library/','')+'@'+imageId(argv[2])],'(index .Config "Volumes")':fault==='temporary-anonymous'?{'/private-store':{}}:null});
 } else if(argv[0]==='port') {console.log('5000/tcp -> 127.0.0.1:40000');
-} else if(argv[0]==='container'&&argv[1]==='inspect') {const found=state.containers.find(entry=>entry.id===argv[2]);if(found&&found.name.endsWith('-tools'))writeFileSync(directory+'/inspected-'+found.id,'observed');project({'.Id':found.id,'.Name':fault==='import-name'?'/foreign':found.name,'.Image':found.image,'.Config.Image':fault==='import-image'?'foreign:release':found.configuredImage,'.NetworkSettings.Networks':fault==='import-network'?{foreign:{NetworkID:id('9')}}:found.networks,'.Mounts':found.mounts,'.State.Running':false,'.State.ExitCode':0});
+} else if(argv[0]==='container'&&argv[1]==='inspect') {if(argv.at(-1).includes('ImageManifestDescriptor')&&process.env.DOCKER_API_VERSION!=='1.55')throw Error('IDENTITY_API_NOT_PINNED');const found=state.containers.find(entry=>entry.id===argv[2]);if(found&&found.name.endsWith('-tools'))writeFileSync(directory+'/inspected-'+found.id,'observed');project({'.Id':found.id,'.Name':fault==='import-name'?'/foreign':found.name,'.Image':found.image,'.ImageManifestDescriptor':descriptor(found.configuredImage,true),'.Config.Image':fault==='import-image'?'foreign:release':found.configuredImage,'.NetworkSettings.Networks':fault==='import-network'?{foreign:{NetworkID:id('9')}}:found.networks,'.Mounts':found.mounts,'.State.Running':false,'.State.ExitCode':0});
 } else if(argv[0]==='network'&&argv[1]==='inspect') {
  project({'.Id':id('a'),'.Name':state.network,'.Containers':Object.fromEntries(state.containers.map(entry=>[entry.id,{}]))});
 } else if(argv[0]==='volume'&&argv[1]==='inspect') {
@@ -543,10 +546,8 @@ it('Task37 real up persists selection, process environment and every serial effe
   const attempts = join(lab.directory, '.puni/fleet-labs/k3d/.attempts', labId);
   const resources = (await readdir(attempts)).find((name) => name.endsWith('.resources'))!;
   const path = join(attempts, resources);
-  const closure = EffectiveCreationClosure.assert(
-    await Bun.file(join(path, 'closure.json')).json(),
-  );
-  expect(closure.schemaVersion).toBe(2);
+  const closure = ImageCreationClosure.assert(await Bun.file(join(path, 'closure.json')).json());
+  expect(closure.schemaVersion).toBe(3);
   expect(closure.plan.helpers).toEqual(selectedHelpers);
   expect(closure.transients.map((observation) => observation.id)).toEqual([
     'd'.repeat(64),
@@ -554,15 +555,15 @@ it('Task37 real up persists selection, process environment and every serial effe
   ]);
   for (const observation of closure.transients) {
     expect(observation.image).toBe(
-      'sha256:1931b29061730f9c55dca0b88407d914e8794535a11ac0cc492b79b6d2bd9710',
+      'sha256:f18c1e21aba123fe6ff315c514a0feffc005f587aa3db773e89489c2118842dd',
     );
     expect(await Bun.file(join(path, `observation-${observation.id}.json`)).json()).toEqual(
       observation,
     );
   }
   expect(
-    EffectiveCreationInputs.assert(await Bun.file(join(path, 'inputs.json')).json()).schemaVersion,
-  ).toBe(2);
+    ImageCreationInputs.assert(await Bun.file(join(path, 'inputs.json')).json()).schemaVersion,
+  ).toBe(3);
 });
 for (const fault of [
   'preimage-config',
@@ -580,7 +581,7 @@ for (const fault of [
     expect(execution.exit).not.toBe(0);
     expect(execution.stderr).toContain(
       fault.startsWith('preimage')
-        ? 'Selected helper image identity differs'
+        ? 'Docker'
         : fault === 'inherited-override'
           ? 'environment overrides'
           : 'resource state is unknown',
@@ -686,26 +687,32 @@ for (const fault of [
       await Bun.file(join(path, name + '.json')).json(),
     );
     if (fault === 'inputs-version') {
-      const inputs = EffectiveCreationInputs.assert(entry);
+      const inputs = ImageCreationInputs.assert(entry);
       entry['schemaVersion'] = 1;
       delete entry['helpers'];
       delete entry['sourceRevision'];
       delete entry['toolchainSha256'];
-      entry['images'] = inputs.images.map(({ name, id, volumes }) => ({ name, id, volumes }));
+      entry['images'] = inputs.images.map(({ name, imageBinding }) => ({
+        name,
+        id: imageBinding.rootObject.digest,
+        volumes: imageBinding.volumes,
+      }));
     }
     if (fault === 'plan-cohort')
-      type({ expected: type({ configId: 'string' }).array() }).assert(entry).expected[0].configId =
-        'sha256:' + '9'.repeat(64);
+      type({
+        expected: type({ imageBinding: { rootObject: { digest: 'string' } } }).array(),
+      }).assert(entry).expected[0].imageBinding.rootObject.digest = 'sha256:' + '9'.repeat(64);
     if (fault === 'config-cohort')
-      type({ images: type({ id: 'string' }).array() }).assert(entry).images[0].id =
-        'sha256:' + '9'.repeat(64);
+      type({ images: type({ imageBinding: { rootObject: { digest: 'string' } } }).array() }).assert(
+        entry,
+      ).images[0].imageBinding.rootObject.digest = 'sha256:' + '9'.repeat(64);
     if (fault === 'selection-cohort')
       type({ helpers: { tools: { configDigest: 'string' } } }).assert(
         entry,
       ).helpers.tools.configDigest = 'sha256:' + '9'.repeat(64);
     if (fault === 'observation-cohort') entry['image'] = 'sha256:' + '9'.repeat(64);
     if (fault === 'lineage-cohort') entry['id'] = '9'.repeat(64);
-    if (fault === 'unknown-version') entry['schemaVersion'] = 3;
+    if (fault === 'unknown-version') entry['schemaVersion'] = 4;
     await writeFile(join(path, name + '.json'), JSON.stringify(entry));
     if (fault === 'observation-missing') await rm(join(path, name + '.json'));
     const files = [];
@@ -738,30 +745,150 @@ for (const fault of [
   });
 }
 
-it('Task37 historical cohort rejects effective observation records before teardown', async () => {
-  const lab = await fixture();
-  const fixturePath = join(import.meta.dir, 'fixtures/k3d-creation-v1.json');
-  const fixtureBytes = await readFile(fixturePath, 'utf8');
-  const captured = type({
-    labId: 'string',
-    files: 'Record<string,string>',
-    inventory: { containers: 'unknown[]', volumes: 'string[]' },
-  }).assert(JSON.parse(fixtureBytes));
-  for (const [name, bytes] of Object.entries(captured.files)) {
-    await mkdir(join(lab.directory, name, '..'), { recursive: true, mode: 0o700 });
-    await writeFile(join(lab.directory, name), bytes, { mode: 0o600 });
-  }
-  const inventoryBytes = JSON.stringify(captured.inventory);
-  await writeFile(join(lab.directory, 'docker.json'), inventoryBytes);
-  const closureName = Object.keys(captured.files).find((name) =>
-    name.endsWith('.resources/closure.json'),
-  )!;
-  const path = join(lab.directory, closureName, '..');
-  const closure = HistoricalCreationClosure.assert(JSON.parse(captured.files[closureName]));
-  const observation = closure.snapshots[0];
-  await writeFile(join(path, `observation-${observation.id}.json`), JSON.stringify(observation), {
-    mode: 0o600,
+for (const version of [2, 3])
+  it(`${version === 3 ? 'Task44' : 'Task37'} historical cohort rejects ${version === 3 ? 'version3' : 'effective'} observation records before teardown`, async () => {
+    const lab = await fixture();
+    const fixturePath = join(import.meta.dir, 'fixtures/k3d-creation-v1.json');
+    const fixtureBytes = await readFile(fixturePath, 'utf8');
+    const captured = type({
+      labId: 'string',
+      files: 'Record<string,string>',
+      inventory: { containers: 'unknown[]', volumes: 'string[]' },
+    }).assert(JSON.parse(fixtureBytes));
+    for (const [name, bytes] of Object.entries(captured.files)) {
+      await mkdir(join(lab.directory, name, '..'), { recursive: true, mode: 0o700 });
+      await writeFile(join(lab.directory, name), bytes, { mode: 0o600 });
+    }
+    const inventoryBytes = JSON.stringify(captured.inventory);
+    await writeFile(join(lab.directory, 'docker.json'), inventoryBytes);
+    const closureName = Object.keys(captured.files).find((name) =>
+      name.endsWith('.resources/closure.json'),
+    )!;
+    const path = join(lab.directory, closureName, '..');
+    const closure = HistoricalCreationClosure.assert(JSON.parse(captured.files[closureName]));
+    const historicalObservation = closure.snapshots[0];
+    const imageIdentity = {
+      kind: 'config-object',
+      object: { role: 'config', digest: historicalObservation.image },
+      platform: { os: 'linux', arch: 'amd64' },
+    };
+    const observation =
+      version === 3
+        ? {
+            ...historicalObservation,
+            schemaVersion: 3,
+            imageIdentity,
+            imageBinding: {
+              schemaVersion: 3,
+              provider: 'docker',
+              daemonId: closure.plan.daemonId,
+              requestApi: '1.55',
+              reference: historicalObservation.configuredImage,
+              identity: imageIdentity,
+            },
+          }
+        : historicalObservation;
+    await writeFile(join(path, `observation-${observation.id}.json`), JSON.stringify(observation), {
+      mode: 0o600,
+    });
+    const files = [];
+    for (const name of (await readdir(path)).filter((name) => name !== 'complete.json').sort())
+      files.push({
+        name,
+        sha256: createHash('sha256')
+          .update(await readFile(join(path, name)))
+          .digest('hex'),
+      });
+    const seal = JSON.stringify({ schemaVersion: 1, files }) + '\n';
+    await writeFile(join(path, 'complete.json'), seal);
+    const state = join(lab.directory, '.puni/fleet-labs/k3d', captured.labId);
+    await writeFile(
+      join(state, 'creation-complete.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        sha256: createHash('sha256').update(seal).digest('hex'),
+      }),
+    );
+    const execution = await lab.invoke([
+      'down',
+      '--profile',
+      'app',
+      '--id',
+      captured.labId,
+      '--resource-evidence',
+      'creation-v1',
+    ]);
+    expect(execution.exit).not.toBe(0);
+    expect(execution.stderr).toContain(
+      'Historical creation cohort contains effective observations',
+    );
+    expect(await Bun.file(join(state, 'creation-teardown.json')).exists()).toBe(false);
+    expect(await readFile(join(lab.directory, 'docker.json'), 'utf8')).toBe(inventoryBytes);
+    const calls = await readFile(join(lab.directory, 'calls'), 'utf8');
+    for (const mutation of ['kill', 'stop', 'rm', 'delete'])
+      expect(calls).not.toContain(JSON.stringify(mutation));
+    expect(await readFile(fixturePath, 'utf8')).toBe(fixtureBytes);
   });
+
+it('Task44 real up binds manifest preinspect and root-index runtime objects in sealed v3 evidence', async () => {
+  const lab = await fixture('serial-tools');
+  expect(await lab.up()).toMatchObject({ exit: 0, stderr: '' });
+  const attempts = join(lab.directory, '.puni/fleet-labs/k3d/.attempts', await lab.labId());
+  const path = join(
+    attempts,
+    (await readdir(attempts)).find((name) => name.endsWith('.resources'))!,
+  );
+  const closure = type({
+    schemaVersion: '3',
+    plan: {
+      schemaVersion: '3',
+      expected: type({
+        image: 'string',
+        imageIdentity: { kind: 'string' },
+        imageBinding: {
+          rootObject: { digest: 'string' },
+          preinspectIdentity: { object: { digest: 'string' } },
+        },
+      }).array(),
+    },
+    snapshots: type({
+      schemaVersion: '3',
+      image: 'string',
+      imageIdentity: { object: { role: 'string' } },
+    }).array(),
+    transients: type({ schemaVersion: '3' }).array(),
+  }).assert(await Bun.file(join(path, 'closure.json')).json());
+  const node = closure.plan.expected.find((expected) => expected.image.includes('/k3s:'))!;
+  expect(node.imageBinding.rootObject.digest).not.toBe(
+    node.imageBinding.preinspectIdentity.object.digest,
+  );
+  expect(closure.snapshots.some((snapshot) => snapshot.imageIdentity.object.role === 'index')).toBe(
+    true,
+  );
+  expect(closure.transients).toHaveLength(2);
+  expect(
+    await lab.invoke([
+      'down',
+      '--profile',
+      'app',
+      '--id',
+      await lab.labId(),
+      '--resource-evidence',
+      'creation-v1',
+    ]),
+  ).toMatchObject({ exit: 0, stderr: '' });
+});
+for (const fault of ['identity-engine', 'identity-store'])
+  it(`Task44 real up refuses ${fault} before network mutation`, async () => {
+    const lab = await fixture(fault);
+    expect((await lab.up()).exit).not.toBe(0);
+    expect(await readFile(join(lab.directory, 'calls'), 'utf8')).not.toContain('network","create');
+  });
+
+async function resealFixture(
+  lab: Awaited<ReturnType<typeof fixture>>,
+  path: string,
+): Promise<void> {
   const files = [];
   for (const name of (await readdir(path)).filter((name) => name !== 'complete.json').sort())
     files.push({
@@ -771,30 +898,283 @@ it('Task37 historical cohort rejects effective observation records before teardo
         .digest('hex'),
     });
   const seal = JSON.stringify({ schemaVersion: 1, files }) + '\n';
-  await writeFile(join(path, 'complete.json'), seal);
-  const state = join(lab.directory, '.puni/fleet-labs/k3d', captured.labId);
+  await writeFile(join(path, 'complete.json'), seal, { mode: 0o600 });
   await writeFile(
-    join(state, 'creation-complete.json'),
+    join(lab.directory, '.puni/fleet-labs/k3d', await lab.labId(), 'creation-complete.json'),
+    JSON.stringify({ schemaVersion: 1, sha256: createHash('sha256').update(seal).digest('hex') }),
+    { mode: 0o600 },
+  );
+}
+for (const fault of [
+  'source-selection',
+  'source-object',
+  'source-hash',
+  'source-git-exit',
+  'source-git-missing',
+  'mixed-observation',
+  'runtime-graph',
+  'runtime-raw-id',
+  'runtime-identity-copy',
+  'runtime-transient-missing',
+])
+  it(`Task44 sealed v3 reader refuses ${fault} before teardown`, async () => {
+    const lab = await fixture();
+    expect(await lab.up()).toMatchObject({ exit: 0, stderr: '' });
+    const attempts = join(lab.directory, '.puni/fleet-labs/k3d/.attempts', await lab.labId());
+    const path = join(
+      attempts,
+      (await readdir(attempts)).find((name) => name.endsWith('.resources'))!,
+    );
+    const inputs = ImageCreationInputs.assert(await Bun.file(join(path, 'inputs.json')).json());
+    const closure = ImageCreationClosure.assert(await Bun.file(join(path, 'closure.json')).json());
+    if (fault === 'source-selection') {
+      inputs.helpers.tools.configDigest = 'sha256:' + '9'.repeat(64);
+      closure.plan.helpers.tools.configDigest = inputs.helpers.tools.configDigest;
+      for (const expected of closure.plan.expected)
+        if (expected.role === 'tools' && expected.imageIdentity.kind === 'helper')
+          expected.imageIdentity.selection.configDigest = inputs.helpers.tools.configDigest;
+      for (const image of inputs.images)
+        if (image.imageIdentity.kind === 'helper' && image.name.includes('k3d-tools'))
+          image.imageIdentity.selection.configDigest = inputs.helpers.tools.configDigest;
+    }
+    if (fault === 'source-object') inputs.sourceRevision = '9'.repeat(40);
+    if (fault === 'source-hash') inputs.toolchainSha256 = '9'.repeat(64);
+    if (fault === 'source-git-exit' || fault === 'source-git-missing') {
+      const git = join(lab.directory, 'bin/git');
+      await writeFile(
+        git,
+        fault === 'source-git-missing'
+          ? '#!/definitely/unavailable-git\n'
+          : `#!${process.execPath}\nprocess.stdout.write(${JSON.stringify(await readFile(join(lab.directory, 'infra/versions/toolchain.json'), 'utf8'))});process.exit(42);\n`,
+      );
+      await chmod(git, 0o700);
+    }
+
+    if (fault === 'runtime-raw-id' || fault === 'runtime-identity-copy') {
+      const observed = closure.transients[0];
+      observed.image = 'sha256:' + '9'.repeat(64);
+      if (fault === 'runtime-identity-copy' && observed.imageIdentity.kind === 'manifest-object') {
+        observed.imageIdentity.object.digest = observed.image;
+        observed.imageIdentity.manifest.digest = observed.image;
+      }
+      await writeFile(join(path, `observation-${observed.id}.json`), JSON.stringify(observed));
+    }
+    if (fault === 'runtime-transient-missing') {
+      for (const observed of closure.transients)
+        await rm(join(path, `observation-${observed.id}.json`));
+      closure.transients = [];
+    }
+    if (fault === 'runtime-graph') {
+      const observed = closure.transients[0];
+      observed.image = 'sha256:' + '9'.repeat(64);
+      if (
+        observed.imageIdentity.kind !== 'manifest-object' ||
+        observed.imageBinding.identity.kind !== 'manifest-object'
+      )
+        throw new Error('Fixture requires manifest role');
+      observed.imageIdentity.object.digest = observed.image;
+      observed.imageIdentity.manifest.digest = observed.image;
+      observed.imageBinding.identity = structuredClone(observed.imageIdentity);
+      await writeFile(join(path, `observation-${observed.id}.json`), JSON.stringify(observed));
+    }
+    await writeFile(join(path, 'inputs.json'), JSON.stringify(inputs));
+    await writeFile(join(path, 'plan.json'), JSON.stringify(closure.plan));
+    await writeFile(join(path, 'closure.json'), JSON.stringify(closure));
+    if (fault === 'mixed-observation') {
+      const observed = structuredClone(closure.transients[0]);
+      Reflect.set(observed, 'schemaVersion', 2);
+      await writeFile(join(path, `observation-${observed.id}.json`), JSON.stringify(observed));
+    }
+    await resealFixture(lab, path);
+    const execution = await lab.invoke([
+      'down',
+      '--profile',
+      'app',
+      '--id',
+      await lab.labId(),
+      '--resource-evidence',
+      'creation-v1',
+    ]);
+    expect(execution.exit).not.toBe(0);
+    if (fault.startsWith('source-') && fault !== 'source-selection')
+      expect(execution.stderr).toContain('restore the original Git revision');
+    const calls = await readFile(join(lab.directory, 'calls'), 'utf8');
+    for (const mutation of ['kill', 'stop', 'rm', 'delete'])
+      expect(calls).not.toContain(JSON.stringify(mutation));
+  });
+
+it('Task44 real up refuses an unsupported runtime engine after precreation', async () => {
+  const lab = await fixture('identity-runtime-engine');
+  const execution = await lab.up();
+  expect(execution.exit).not.toBe(0);
+  expect(execution.stderr).toContain('resource state is unknown');
+  expect(
+    await Bun.file(
+      join(lab.directory, '.puni/fleet-labs/k3d', await lab.labId(), 'creation-complete.json'),
+    ).exists(),
+  ).toBe(false);
+});
+
+import { EffectiveCreationInputs } from './creation-resources';
+import { EffectiveCreationClosure, EffectiveCreationPlan } from './k3d-creation';
+
+/** Synthetic v2 producer semantics, constructed from historical IDs and exact config identities; no v3 relabeling. */
+async function installSyntheticVersion2(
+  lab: Awaited<ReturnType<typeof fixture>>,
+  fault: string,
+): Promise<void> {
+  const captured = type({
+    labId: 'string',
+    files: 'Record<string,string>',
+    inventory: { containers: 'unknown[]', volumes: 'string[]' },
+  }).assert(await Bun.file(join(import.meta.dir, 'fixtures/k3d-creation-v1.json')).json());
+  for (const [name, bytes] of Object.entries(captured.files)) {
+    await mkdir(join(lab.directory, name, '..'), { recursive: true, mode: 0o700 });
+    await writeFile(join(lab.directory, name), bytes, { mode: 0o600 });
+  }
+  const closurePath = Object.keys(captured.files).find((name) =>
+    name.endsWith('.resources/closure.json'),
+  )!;
+  const path = join(lab.directory, closurePath, '..');
+  const historical = HistoricalCreationClosure.assert(JSON.parse(captured.files[closurePath]));
+  const plan = EffectiveCreationPlan.assert({
+    ...historical.plan,
+    schemaVersion: 2,
+    helpers: selectedHelpers,
+    expected: historical.plan.expected.map((expected) => {
+      const selected =
+        expected.role === 'tools' || expected.role === 'serverlb'
+          ? selectedHelpers[expected.role]
+          : undefined;
+      return {
+        ...expected,
+        image:
+          selected === undefined ? expected.image : `${selected.name}@${selected.manifestDigest}`,
+        configId: selected === undefined ? 'sha256:' + 'e'.repeat(64) : selected.configDigest,
+      };
+    }),
+  });
+  const snapshots = historical.snapshots.map((observed) => {
+    const expected = plan.expected.find((expected) => expected.name === observed.name)!;
+    return { ...observed, configuredImage: expected.image, image: expected.configId };
+  });
+  const tools = plan.expected.find((expected) => expected.role === 'tools')!;
+  const creator = historical.creators.find((creator) => creator.name === tools.name)!;
+  const mount = historical.events.find(
+    (event) =>
+      event.kind === 'volume' && event.action === 'mount' && event.container === creator.id,
+  )!;
+  const volume = historical.volumes.find((volume) => volume.name === mount.id)!;
+  const transient = {
+    id: creator.id,
+    name: tools.name,
+    image: tools.configId,
+    configuredImage: tools.image,
+    networkIds: [historical.network.id],
+    mounts: [
+      {
+        kind: 'volume',
+        name: volume.name,
+        driver: volume.driver,
+        source: volume.mountpoint,
+        destination: mount.destination,
+        rw: true,
+      },
+    ],
+  };
+  const events = historical.events.map((event) =>
+    event.name === tools.name ? { ...event, image: tools.image } : event,
+  );
+  const closure = EffectiveCreationClosure.assert({
+    ...historical,
+    schemaVersion: 2,
+    plan,
+    snapshots,
+    transients: [transient],
+    events,
+  });
+  const inputs = EffectiveCreationInputs.assert({
+    schemaVersion: 2,
+    helpers: selectedHelpers,
+    sourceRevision: 'b'.repeat(40),
+    toolchainSha256: 'a'.repeat(64),
+    configs: [],
+    tools: { k3d: 'a'.repeat(64), kubectl: 'a'.repeat(64) },
+    images: [
+      ...new Map(
+        plan.expected.map((expected) => [
+          expected.image,
+          {
+            name: expected.image,
+            id: expected.configId,
+            os: 'linux',
+            arch: 'amd64',
+            repoDigests: [expected.image],
+            volumes: [],
+          },
+        ]),
+      ).values(),
+    ],
+  });
+  await writeFile(join(path, 'plan.json'), JSON.stringify(plan));
+  await writeFile(join(path, 'inputs.json'), JSON.stringify(inputs));
+  await writeFile(join(path, 'closure.json'), JSON.stringify(closure));
+  await writeFile(
+    join(path, `observation-${creator.id}.json`),
+    JSON.stringify(fault === 'mixed' ? { ...transient, schemaVersion: 3 } : transient),
+    { mode: 0o600 },
+  );
+  if (fault === 'config') {
+    closure.snapshots[0].image = 'sha256:' + '9'.repeat(64);
+    await writeFile(join(path, 'closure.json'), JSON.stringify(closure));
+  }
+  for (const [index, event] of events.entries())
+    await writeFile(
+      join(path, `event-${String(index + 1).padStart(6, '0')}.json`),
+      JSON.stringify(event),
+    );
+  await writeFile(
+    join(lab.directory, 'docker.json'),
     JSON.stringify({
-      schemaVersion: 1,
-      sha256: createHash('sha256').update(seal).digest('hex'),
+      ...captured.inventory,
+      containers: snapshots.map((observed) => ({
+        id: observed.id,
+        name: '/' + observed.name,
+        image: observed.image,
+        configuredImage: observed.configuredImage,
+        networks: { lab: { NetworkID: historical.network.id } },
+        mounts: observed.mounts.map((mount) => ({
+          Type: mount.kind,
+          Name: mount.name,
+          Driver: mount.driver,
+          Source: mount.source,
+          Destination: mount.destination,
+          RW: mount.rw,
+        })),
+      })),
     }),
   );
-  const execution = await lab.invoke([
-    'down',
-    '--profile',
-    'app',
-    '--id',
-    captured.labId,
-    '--resource-evidence',
-    'creation-v1',
-  ]);
-  expect(execution.exit).not.toBe(0);
-  expect(execution.stderr).toContain('Historical creation cohort contains effective observations');
-  expect(await Bun.file(join(state, 'creation-teardown.json')).exists()).toBe(false);
-  expect(await readFile(join(lab.directory, 'docker.json'), 'utf8')).toBe(inventoryBytes);
-  const calls = await readFile(join(lab.directory, 'calls'), 'utf8');
-  for (const mutation of ['kill', 'stop', 'rm', 'delete'])
-    expect(calls).not.toContain(JSON.stringify(mutation));
-  expect(await readFile(fixturePath, 'utf8')).toBe(fixtureBytes);
-});
+  await resealFixture(lab, path);
+  await rm(join(lab.directory, '.git'), { recursive: true });
+}
+for (const fault of ['none', 'config', 'mixed'])
+  it(`Task44 synthetic version2 ${fault === 'none' ? 'teardown keeps original config equality without Git' : `refuses ${fault} before teardown`}`, async () => {
+    const lab = await fixture();
+    await installSyntheticVersion2(lab, fault);
+    const execution = await lab.invoke([
+      'down',
+      '--profile',
+      'app',
+      '--id',
+      await lab.labId(),
+      '--resource-evidence',
+      'creation-v1',
+    ]);
+    if (fault === 'none') expect(execution).toMatchObject({ exit: 0, stderr: '' });
+    else {
+      expect(execution.exit).not.toBe(0);
+      const calls = await readFile(join(lab.directory, 'calls'), 'utf8');
+      for (const mutation of ['kill', 'stop', 'rm', 'delete'])
+        expect(calls).not.toContain(JSON.stringify(mutation));
+    }
+  });

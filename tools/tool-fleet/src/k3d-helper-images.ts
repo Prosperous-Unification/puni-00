@@ -1,5 +1,7 @@
 import { type } from 'arktype';
 
+import type { ImageExpectation } from './image-identity';
+
 const digest = /^sha256:[a-f0-9]{64}$/;
 const Image = type({
   indexDigest: digest,
@@ -53,4 +55,12 @@ export function requireHelperImage(selection: K3dHelpers, observation: ImageObse
   )
     // Proof: Task37 preimage-identity bypass failed config/platform/reference caller negatives before direct creation.
     throw new Error('Selected helper image identity differs');
+}
+
+/** Preserve the reviewed graph while stating that runtime config follows source manifest provenance. */
+export function selectHelperImage(
+  image: K3dHelpers['serverlb'] | K3dHelpers['tools'],
+): ImageExpectation {
+  const { name: _name, ...selection } = image;
+  return { kind: 'helper', selection: { reference: referenceHelper(image), ...selection } };
 }

@@ -289,14 +289,19 @@ export async function readRetainedToolchain(
   path: string,
   expectedSha256: string,
 ): Promise<Toolchain> {
-  const bytes = await readFile(path);
+  return decodeRetainedToolchain(await readFile(path), expectedSha256);
+}
+
+/** Decode exactly the retained bytes whose independent receipt hash was checked, preserving complete lock validation. */
+export function decodeRetainedToolchain(bytes: Uint8Array, expectedSha256: string): Toolchain {
   if (
     !sha256.test(expectedSha256) ||
     createHash('sha256').update(bytes).digest('hex') !== expectedSha256
   )
+    // Proof: Task44 removing this hash join accepted a resealed wrong source hash through real v3 down; source-lock-hash failed.
     // Proof: Task37 retained-hash bypass accepted another receipt hash; retained historical reader failed.
     throw new Error('Retained toolchain source identity differs');
-  const input: unknown = JSON.parse(bytes.toString('utf8'));
+  const input: unknown = JSON.parse(Buffer.from(bytes).toString('utf8'));
   const retained = HistoricalToolchainSchema.or(ToolchainSchema).assert(input);
   const lock = 'k3dHelpers' in retained ? parseToolchain(retained) : retained;
   // Proof: Task37 retained-current missing chart role resolved before this shared completeness check was restored.

@@ -3170,3 +3170,99 @@ Raw final receipt2067904B/SHA256daeec9c21f88941c496abaf2f6d6d88ade950b39642e3d1e
 The cleanup exception also prevented serialization of final in-memory attach buffers. Maximum/NUL stdout mirror bytes and final stderr are consequently unverified; the earlier37B baseline's exact stdout remains valid but does not fill this gap. Component acceptance stays incomplete. The final evidence manifest records3219227B retained evidence; parent rehashed every listed artifact/report, verified all ten raw statuses, exact ordinal/completion coverage and final owned cleanup/preservation. No application source bug, production change or additional deployment acceptance is inferred.
 
 The next source intent now records neutral image identity roles, a dedicated detected Docker adapter and explicit version3 forward receipts before implementation. A fresh read-only capability projection reports h3 daemon91cee18b-c061-4279-a311-1ac86ca3dd97, reported serverAPI1.55/min1.40, Docker29.7.2, overlayfs and driver-type io.containerd.snapshotter.v1; receiptSHA2560845216a8dfd38cbec8dd79fddfbbf0d68b7d1706fc8ac7056e773b12b036b25. This is observed provider provenance, not proof of an unobserved negotiated API or selected-helper execution. No code or full-suite rerun has yet implemented that intent.
+
+## Task44 — image roles, Docker adapter and version3 source verification (2026-10-28)
+
+The source implementation follows committed four-artifact intent `e362561bb90a6071ee8f1a3aeb10a537fe0c9365` and the controller-approved provider/source clarification `5ed49b6f6`. The latter was committed with normal hooks before v3 integration. Neutral `image-identity.ts` distinguishes config, manifest and index objects, helper source selections and runtime pins with `config.state=unobserved`. `docker-image-identity.ts` owns capability decoding, raw image/manifest fields, repository normalization and role-specific provider provenance. Config IDs in helper selections are source-manifest inferences; new containerd observations carry manifest/index identities rather than asserting observed config bytes.
+
+New strict creation emits closed version3 plans/inputs/permanent snapshots/transient observations/closures. Both exact-reference image projections and runtime manifest descriptors corroborate the selected content under the same daemon. Only Docker29.7.2, reported serverAPI1.55/min1.40, Linux/amd64, overlayfs and unambiguous `driver-type=io.containerd.snapshotter.v1` are currently supported. Identity requests explicitly set API1.55 within their scoped execution context; a runtime profile change also refuses. Reported maximum/minimum are distinct from this requested API. Classic version3 forward support remains explicitly unsupported/unverified; no descriptor/config fallback is provided.
+
+Version1/2 schemas and original config equality meanings remain intact for teardown; new forward acceptance requires version3. The shared existing lifecycle/attachment/volume validators are reused only after v3 image validation, without serialized upgrades. The authentic baseline v1 fixture remains byte-identical. No authentic v2 raw receipt is known: v2 teardown/config/mixed-version controls are explicitly synthetic fixtures constructed under the original producer contract, with `.git` removed to prove legacy teardown has no new Git prerequisite.
+
+Version3 retained reading obtains `sourceRevision:infra/versions/toolchain.json` from the existing local Git repository, checks the recorded hash against those same bytes, and decodes through the existing complete Toolchain validator. The thin IO reader passes the independent selection to cohort joins; forward closure reuses its already checked lock. `decodeRetainedToolchain` is a tiny approved extraction in `contracts.ts`; the original file reader delegates to it. Missing Git/executable/object, failed Git with plausible stdout, changed hash and false helper selection refuse before teardown, with a restoration/manual-inspection prerequisite. There is no fetch, Git mutation, temp lock file or second serialized source proof.
+
+### Primary protocol/source evidence
+
+The exact [Moby docker-v29.7.2 image inspection implementation](https://raw.githubusercontent.com/moby/moby/docker-v29.7.2/daemon/containerd/image_inspect.go) selects the stored target normally and the chosen child for a platform request, using that target for ID/Descriptor. Its repository path uses familiar reference forms. [Docker API history](https://docs.docker.com/reference/api/engine/version-history/) documents platform image inspection and container `ImageManifestDescriptor`; [the CLI API documentation](https://docs.docker.com/reference/api/engine/) documents explicit API requests disabling negotiation, and [image inspect documentation](https://docs.docker.com/reference/cli/docker/image/inspect/) describes platform requests. Initial guessed `v29.0.0` source URLs returned404; those failures supplied no semantics. The exact release-tag source above was available and used.
+
+Existing Task43 safe receipt projections, without new host/API/image operations, confirm BusyBox root/index `73aaf090…`, selected manifest `b7f3d86d…`, root size9535, child size610 and Linux/amd64. The complete original full-tag+index configured reference and DockerHub shorthand RepoDigests are modeled in the protocol fixture. The final runtime-pin positive uses those exact index/child digests and descriptor fields with an explicitly synthetic daemon binding. Helper fixtures remain synthetic protocol observations of the source-selected tuple; BusyBox cannot certify actual helpers. Only safe identity/descriptor/platform/configured-image fields were read; no ENV/configuration values were emitted.
+
+### TDD and selected verification
+
+- Reused the untouched authorized production-function RED `/tmp/puni-task44-identity-shape/helper-counterexample.raw-red.log`:0pass/1fail/120ms at the former config-ID equality assumption; no replay.
+- New neutral refusal stubs produced4 expected behavioral failures in9 tests (38ms); generic negative passes at the stub stage were not proofs. Adapter refusal stubs had3 missing-positive-behavior failures and7 runtime fixtures blocked by the stub; those7 are setup failures, not runtime/R5 evidence. No missing-export result was counted.
+- Real CLI RED `/tmp/task44-caller-red.log`:1fail/2pass/2.47s, correctly failing at the old helper identity guard. Its two capability cases were masked by that old guard and were not credited as capability proofs. An initial generated-fixture regex syntax error was corrected before retaining this behavioral RED.
+- Runtime-profile RED `/tmp/task44-runtime-profile-red.log`:0pass/1fail/2.80s, actual controlled CLI up exited0 after engine drift under the same daemon. After adding the v3 profile read, the same case passed (1test/2.09s).
+- Final covering command: `bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/image-identity.test.ts tools/tool-fleet/src/docker-image-identity.test.ts tools/tool-fleet/src/k3d-creation.test.ts tools/tool-fleet/src/k3d-resource-runtime.test.ts tools/tool-fleet/src/k3d-resource-caller.test.ts --test-name-pattern 'Task44'`:78pass/0fail/137filtered/185assertions/47.92s, `/tmp/task44-final-tests.log`. This completed before the final additional v3-in-v1 compatibility case and exact BusyBox fixture refinement; those are verified separately below.
+- Selected compatibility command: `bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/k3d-resource-caller.test.ts tools/tool-fleet/src/k3d-helper-images.test.ts tools/tool-fleet/src/k3d-creation.test.ts --test-name-pattern 'Task21 strict platform caller freezes|Task37 ordinary up|Task37 authentic baseline|Task37 retained historical|Task37 retained current|Task44 historical cohort|Task37 historical closure supports|Task37 real up refuses preimage|refuses temporary-anonymous before direct'`:11pass/0fail/137filtered/102assertions/11.61s, `/tmp/task44-final-compat.log`. This includes actual controlled CLI node import by creator ID without Buildx, ordinary helper references, config/platform/repository precreation refusal, anonymous tools-volume refusal, old toolchain readers and authentic v1 teardown. The old historical forward diagnostic now correctly names version3.
+- After its new watched guard fault, `bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/k3d-resource-caller.test.ts --test-name-pattern 'Task44 historical cohort rejects version3'`:1pass/0fail/962ms, `/tmp/task44-legacy-mixed-restored.log`.
+- Exact retained protocol fixture refinement only: `bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/docker-image-identity.test.ts --test-name-pattern 'root index and child|ambiguous digest'`:2pass/0fail/199ms, `/tmp/task44-exact-protocol-green.log`. No passed fault batch was replayed after replacing the prior runtime stand-in hashes with exact retained BusyBox hashes.
+- Selected callback/import compatibility previously passed18/18 as part of51pass/0fail/3filtered/1.043s across neutral/adapter/runtime files (`/tmp/task44-protocol-runtime-green.log`); this preserves wrong ID/reference/name/daemon, inspection race, occupied observation and environment refusal paths. The successful callback retains its observation before closure. No provider deletion barrier or cleanup change was added.
+- Scoped production `bunx tsc --project tools/tool-fleet/tsconfig.lib.json --noEmit`:exit0,1.58s. Scoped test `bunx tsc --project tools/tool-fleet/tsconfig.spec.json --noEmit`:exit0,1.79s before the exact fixture refinement; its covering final repeat is recorded below. Explicit scoped ESLint across the14 changed TypeScript files:exit0,5.79s; the exact fixture's final ESLint is recorded below. Logs are `/tmp/task44-final-{lib,spec,lint}.log`; `time -p` timings come from fresh command output. Earlier lint/type errors were corrected before these successes.
+
+### Watched new R5 faults
+
+37 individually scoped fault injections produced 44 behavioral failing-test observations; cumulative mutation command wall time 39.356s. Each command targeted only the named new boundary/case, restored source in `finally`, checked byte equality, and retained raw output. Exact command arrays and restoration hashes are in `/tmp/puni-task44-r5/summary.json`. Adjacent `Proof:` comments name these faults. Dependency substitutions/default injections below are labeled as such; they are not falsely described as individual guard-removal bypasses. A temporary mutation-script source-match error and a temporary comment-script syntax error did not count as proofs; source was restored and only the previously unrun version faults continued. Fixture-only failures caused by a shared mutable capability constant and one omitted synthetic volume fault were corrected and are not R5 results.
+
+| Injected fault                        | Behavioral failing tests | Wall time | Raw receipt                                                   |
+| ------------------------------------- | -----------------------: | --------: | ------------------------------------------------------------- |
+| `capability-engine`                   |                        1 |    0.161s | `/tmp/puni-task44-r5/capability-engine.log`                   |
+| `capability-api`                      |                        1 |    0.175s | `/tmp/puni-task44-r5/capability-api.log`                      |
+| `capability-store`                    |                        1 |    0.185s | `/tmp/puni-task44-r5/capability-store.log`                    |
+| `capability-duplicate`                |                        1 |    0.166s | `/tmp/puni-task44-r5/capability-duplicate.log`                |
+| `capability-daemon`                   |                        1 |    0.161s | `/tmp/puni-task44-r5/capability-daemon.log`                   |
+| `projection-daemon`                   |                        1 |    0.173s | `/tmp/puni-task44-r5/projection-daemon.log`                   |
+| `binding-source-role`                 |                        3 |     0.18s | `/tmp/puni-task44-r5/binding-source-role.log`                 |
+| `binding-platform`                    |                        1 |    0.163s | `/tmp/puni-task44-r5/binding-platform.log`                    |
+| `binding-descriptor-size`             |                        1 |    0.184s | `/tmp/puni-task44-r5/binding-descriptor-size.log`             |
+| `repository-alias`                    |                        1 |     0.16s | `/tmp/puni-task44-r5/repository-alias.log`                    |
+| `neutral-source-platform`             |                        1 |     0.16s | `/tmp/puni-task44-r5/neutral-source-platform.log`             |
+| `neutral-runtime-descriptor`          |                        4 |    0.175s | `/tmp/puni-task44-r5/neutral-runtime-descriptor.log`          |
+| `runtime-provenance`                  |                        2 |    0.171s | `/tmp/puni-task44-r5/runtime-provenance.log`                  |
+| `source-lock-hash`                    |                        1 |    4.471s | `/tmp/puni-task44-r5/source-lock-hash.log`                    |
+| `git-exit`                            |                        1 |    4.579s | `/tmp/puni-task44-r5/git-exit.log`                            |
+| `source-selection-dependency`         |                        1 |    4.456s | `/tmp/puni-task44-r5/source-selection-dependency.log`         |
+| `requested-api`                       |                        1 |    1.057s | `/tmp/puni-task44-r5/requested-api.log`                       |
+| `runtime-profile`                     |                        1 |     2.71s | `/tmp/puni-task44-r5/runtime-profile.log`                     |
+| `forward-closure-version`             |                        1 |    0.241s | `/tmp/puni-task44-r5/forward-closure-version.log`             |
+| `forward-witness-version`             |                        1 |    0.355s | `/tmp/puni-task44-r5/forward-witness-version.log`             |
+| `capability-store-type`               |                        1 |    0.158s | `/tmp/puni-task44-r5/capability-store-type.log`               |
+| `capability-missing-store-dependency` |                        1 |    0.184s | `/tmp/puni-task44-r5/capability-missing-store-dependency.log` |
+| `neutral-helper-config`               |                        1 |    0.152s | `/tmp/puni-task44-r5/neutral-helper-config.log`               |
+| `neutral-config-equality`             |                        1 |    0.147s | `/tmp/puni-task44-r5/neutral-config-equality.log`             |
+| `neutral-runtime-root`                |                        1 |    0.151s | `/tmp/puni-task44-r5/neutral-runtime-root.log`                |
+| `neutral-role-discrimination`         |                        1 |    0.156s | `/tmp/puni-task44-r5/neutral-role-discrimination.log`         |
+| `missing-platform-default`            |                        1 |     0.18s | `/tmp/puni-task44-r5/missing-platform-default.log`            |
+| `manifest-variant`                    |                        1 |     0.18s | `/tmp/puni-task44-r5/manifest-variant.log`                    |
+| `root-child-platform`                 |                        1 |    0.183s | `/tmp/puni-task44-r5/root-child-platform.log`                 |
+| `index-child-ambiguity`               |                        1 |    0.184s | `/tmp/puni-task44-r5/index-child-ambiguity.log`               |
+| `image-volume-projections`            |                        1 |     0.17s | `/tmp/puni-task44-r5/image-volume-projections.log`            |
+| `container-reference-daemon`          |                        2 |    0.188s | `/tmp/puni-task44-r5/container-reference-daemon.log`          |
+| `unknown-container-object-default`    |                        1 |    0.175s | `/tmp/puni-task44-r5/unknown-container-object-default.log`    |
+| `container-raw-object`                |                        1 |     4.45s | `/tmp/puni-task44-r5/container-raw-object.log`                |
+| `container-identity-copy`             |                        1 |    4.412s | `/tmp/puni-task44-r5/container-identity-copy.log`             |
+| `version3-transient-set`              |                        1 |    4.177s | `/tmp/puni-task44-r5/version3-transient-set.log`              |
+| `version3-in-historical-cohort`       |                        1 |    4.026s | `/tmp/puni-task44-r5/version3-in-historical-cohort.log`       |
+
+### Final production source hashes
+
+These identify the implementation with adjacent proof comments. The private implementer report pins the eventual normal source commit; this table avoids a self-referential commit hash.
+
+| File                                            | SHA256                                                             |
+| ----------------------------------------------- | ------------------------------------------------------------------ |
+| `tools/tool-fleet/src/image-identity.ts`        | `c2aafbcba29e0664db36bb2c49f4b726b8ac1ece8edffd3d85cda48606d984b9` |
+| `tools/tool-fleet/src/docker-image-identity.ts` | `55928cb4ca8d3fae873d8998828f943ede6366f1ef060d4df62b951f23348cb3` |
+| `tools/tool-fleet/src/contracts.ts`             | `ae7f8a81435f43d7542606394394c28ec990fdf1517aa9c2f92800f311f65ac6` |
+| `tools/tool-fleet/src/creation-resources.ts`    | `efd45981a8f0df4117bc763c3840993a4e41e7a75ff5dc311daff4e435486bcb` |
+| `tools/tool-fleet/src/k3d-creation.ts`          | `22d8fa359369e3144cf73a2a1e7543f27c20df8841ec89b3fdb4541c8209df1e` |
+| `tools/tool-fleet/src/k3d-helper-images.ts`     | `55c90d1089bd34aea8559b971346762bb75246d18db3550b12e35d484f83d52b` |
+| `tools/tool-fleet/src/k3d-lab.ts`               | `30dac4c47670d283a3fb483185f8cf770ca194872d24f1014119078eaf68e357` |
+| `tools/tool-fleet/src/k3d-resource-runtime.ts`  | `0da71ecfbc348e671a0803f8fed3c577d646498b8196c86ad37286b690208a46` |
+
+### Scope and remaining acceptance
+
+No owning workload input, executable image reference, source lock, creation name, memory floor or lifecycle authority changed. Reuse immutable `ff0b0208bc426ad8bc2a4896f15a90f34eb97b89` workload capture; no canonical/charts rerender was run. Full Fleet/Nx/application/browser gates, CI, secret/migration CI checks, SSH/hosts/Docker/pulls/saves/images and provider components were intentionally outside this source release and were not run. Prior CI for another revision is not evidence for this implementation. Final named-file formatting, diff and strict OpenSpec outputs are recorded below after report generation.
+
+Independent Task44 source review remains controller-owned and pending. Exact selected-helper and nonhelper provider projections, classic v3 support, actual helper inspection/deletion races and complete physical/runtime image costs remain unverified here. Full3.1, original canonical4of11 milestones, host admission, authenticated Flux/Kubernetes/CNI/Pod/storage evidence, stored signals/views, isolation, history/recovery and live dev convergence remain open. Controller Task45/46 evidence is outside this implementer's claimed verification.
+
+Final Task44 check receipts: final test noEmit after the exact protocol fixture refinement exited0 in1.66s; final ESLint for that sole changed fixture exited0 in2.85s. The14-file scoped lint previously passed in5.79s and production noEmit in1.58s. Named-file Prettier check passed; `openspec validate observability-environment-parity --strict --json` reported1valid/0failed/0issues (17ms); `git diff --check` passed. `git diff --exit-code e362561bb90a6071ee8f1a3aeb10a537fe0c9365 -- infra deploy tools/tool-fleet/src/fixtures/k3d-creation-v1.json` exited0, confirming unchanged tracked owning inputs and authentic v1 bytes. These commands ran locally in the authorized isolated source worktree; no host gate or source publication was performed.
