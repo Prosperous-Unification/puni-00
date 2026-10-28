@@ -594,6 +594,14 @@ _Alternatives:_ keep accepting (two surfaces in fact); a deprecation header peri
 | `tools/call` messages per credential  | 10 / s, burst 20     | a batch of 100 counts 100                                                                                                     |
 | In-flight tool calls per organization | 128                  | about 60 at the design load (100 agents × 2 calls/s × 300 ms); 2× headroom                                                    |
 
+- _Measured sizing (task 4.5)._ The fences hold at the design load, but one be-01 does not
+  serve it. On h2puni (8 shared vCPU, load 7 to 9) one be-01 carried 120.6 calls a second at
+  100 agents, about 8.3 ms of its event loop per call (9.7 ms of process CPU with Bun's other
+  threads), up from 86.2 before task 4.5 (verify.md, slice 12). Size to that: **about 60 agents
+  per be-01** at M10's 2 calls a second each. The design load of 200 a second then needs two
+  be-01 processes, which share one SQLite writer, so commands still take turns; no
+  two-process run has been measured. Above the measured rate calls queue in be-01 (p50 0.8 s
+  at 100 agents) rather than fail; the in-flight fence stays 128.
 - With R replicas, the effective organization in-flight limit is 128 × R. These are
   per-replica fences; the authoritative fences are be-01's transactional caps.
 - `/mcp` refusals are HTTP `429` with `Retry-After` when the request ran no call and its one
