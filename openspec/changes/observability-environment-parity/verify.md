@@ -4445,3 +4445,31 @@ are not established by these checks. Preliminary 16 GiB available-memory/120 GiB
 store requirements describe rehearsal, not permanent h3mon sizing. No resize,
 production activation, Secret change, storage retirement or final merge occurred.
 The separately rejected generated-packet export still awaits explicit permission.
+
+## CodeQL result on the corrected head — 2026-10-28
+
+At 15:32:11 UTC, the actual check-runs API for published head 49857aa29 records
+separate CodeQL result 122912191913 completed/success, title `No new alerts in
+code changed by this pull request`, zero annotations. The earlier neutral
+missing-JavaScript-configuration result was interim while that analyzer ran;
+it is superseded by this final result. No analyzer success was substituted for
+the result. Task 69's provider-clearance obligation is now complete. This claim
+is limited to new alerts in the changed code, not all existing branch alerts.
+
+Main workspace/Twilight, Fleet and browser checks remain running at that read.
+The same read-only main watcher 45274 is live; no CI restart or manual rerun
+occurred. Raw result, exact head and timestamp are retained privately. Full
+runtime/live acceptance remains open; the deployed dev service is unchanged.
+
+## Capacity scope clarification — 2026-10-28
+
+A source-only extraction at 49857aa29 separates seven authored application
+container limits: dev 5888 MiB (5.75 GiB), production 7936 MiB (7.75 GiB), combined 13.5 GiB.
+All six source hashes were unchanged before/after. This excludes generated/init/
+reloader roles, controllers/agents, platform/host, preserved services, memory
+volumes and migration/lifecycle costs; it is not complete admission or usage.
+Current Elasticsearch store declarations are dev 10 GiB/production 100 GiB. The older
+request-based coexistence budget and conditional full-rehearsal ledger answer
+different questions and cannot certify permanent h3mon sizing. No resource limit,
+retention, floor, workload, host, credential or runtime was changed. Exact receipt
+and remaining steady/migration/rehearsal evidence needs are retained privately.
