@@ -13,6 +13,15 @@ import {
 import { readCronCalendar } from './observability-cron-syntax';
 import { expandNativeCohorts } from './observability-native-cohorts';
 import {
+  deriveCronJobLifecycle,
+  expandCronJob,
+  readCronJob,
+  readCronJobEnvelope,
+  readCronJobHorizons,
+  readUtcCadence,
+  type RehearsalCronJobHorizons,
+} from './observability-native-cronjob';
+import {
   deriveDaemonLifecycle,
   expandDaemon,
   type NativeSourceContract,
@@ -23,6 +32,13 @@ import {
   selectDaemonWorkload,
   supportsDaemonPolicy,
 } from './observability-native-daemon';
+import {
+  defaultFact,
+  deriveJobLifecycle,
+  expandJob,
+  readJob,
+  supportsJobPolicy,
+} from './observability-native-job';
 import {
   prepareRehearsalInventory,
   readRehearsalSource,
@@ -66,16 +82,6 @@ const Controller = type({
 const Grace = type({ 'terminationGracePeriodSeconds?': 'number.integer>=0' });
 function refuse(): never {
   throw new Error('Native ordinal source malformed');
-}
-function defaultFact<Value extends string | number | boolean>(
-  declared: Value | undefined,
-  fallback: Value,
-) {
-  return {
-    declared: declared ?? 'absent',
-    effective: declared ?? fallback,
-    basis: declared === undefined ? ('kubernetes-v1.36.4-default' as const) : ('declared' as const),
-  };
 }
 // Proof: Task25c3b deployment-schema widening lost paused/strategy/progress malformed-source refusals.
 const Deployment = type({
@@ -131,260 +137,6 @@ function readDeployment(manifest: Record<string, unknown>) {
   if ((spec.progressDeadlineSeconds ?? 600) <= (spec.minReadySeconds ?? 0)) refuse();
   return controller;
 }
-// Proof: Task25c3e record-only schema failed eight malformed mode/boolean/restart/replacement/failure-rule negatives.
-const Job = type({
-  metadata: { 'annotations?': 'Record<string,string>|null' },
-  spec: {
-    'parallelism?': Count,
-    'completions?': Count,
-    'backoffLimit?': Count,
-    'backoffLimitPerIndex?': Count,
-    'maxFailedIndexes?': Count,
-    // Proof: Task25c3e deadline widening failed malformed deadline negative and unsafe tests.
-    'activeDeadlineSeconds?': type('number.integer>=0').atMost(Number.MAX_SAFE_INTEGER),
-    'ttlSecondsAfterFinished?': Count,
-    'completionMode?': "'NonIndexed'|'Indexed'",
-    'suspend?': 'boolean',
-    'manualSelector?': 'boolean',
-    'managedBy?': 'string>0',
-    'podReplacementPolicy?': "'TerminatingOrFailed'|'Failed'",
-    'podFailurePolicy?': {
-      'rules?': type({
-        action: "'Count'|'FailJob'|'Ignore'|'FailIndex'",
-        'onExitCodes?': {
-          'containerName?': 'string>0',
-          operator: "'In'|'NotIn'",
-          values: type('number.integer')
-            .atLeast(-2147483648)
-            .atMost(2147483647)
-            .array()
-            .atLeastLength(1)
-            .atMostLength(255),
-        },
-        'onPodConditions?': type({ type: 'string>0', 'status?': "''|'True'|'False'|'Unknown'" })
-          .array()
-          .atMostLength(20),
-      })
-        .array()
-        .atMostLength(20),
-    },
-    'successPolicy?': {
-      rules: type({ 'succeededCount?': Count, 'succeededIndexes?': 'string<=65536' })
-        .array()
-        .atLeastLength(1)
-        .atMostLength(20),
-    },
-    'selector?': {
-      'matchLabels?': 'Record<string,string>',
-      'matchExpressions?': type({
-        key: 'string>0',
-        operator: "'In'|'NotIn'|'Exists'|'DoesNotExist'",
-        'values?': 'string[]',
-      }).array(),
-    },
-    template: {
-      'metadata?': { 'labels?': 'Record<string,string>' },
-      spec: {
-        restartPolicy: "'Never'|'OnFailure'",
-        containers: type({ name: 'string>0' }).array(),
-        'initContainers?': type({ name: 'string>0' }).array(),
-      },
-    },
-  },
-});
-function isJobLabel(value: string) {
-  return value.length <= 63 && /^(?:[A-Za-z0-9](?:[-_.A-Za-z0-9]*[A-Za-z0-9])?)?$/.test(value);
-}
-function isJobKey(value: string) {
-  const parts = value.split('/');
-  const name = parts.pop();
-  return (
-    name !== undefined &&
-    name !== '' &&
-    isJobLabel(name) &&
-    (parts.length === 0 ||
-      (parts.length === 1 &&
-        parts[0].length <= 253 &&
-        parts[0]
-          .split('.')
-          .every((label) => label.length <= 63 && /^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$/.test(label))))
-  );
-}
-/** Decode known Job policy before unsupported/default-provider or resource-bound decisions.
- * Source declarations precede server-generated selectors; absent counts use the conditional v1.36.4 batch defaults.
- * This is a narrow source decoder, not API admission or controller execution.
- */
-function readJob(manifest: Record<string, unknown>) {
-  const controller = Job(manifest);
-  if (controller instanceof type.errors) refuse();
-  const spec = controller.spec;
-  const rules = spec.podFailurePolicy?.rules ?? [];
-  const labels = spec.template.metadata?.labels ?? {};
-  // Proof: Task25c3e object-array bypass failed malformed selector array/labels array and failure shape tests.
-  if (
-    [
-      spec,
-      spec.template.metadata,
-      spec.template.metadata?.labels,
-      spec.selector,
-      spec.selector?.matchLabels,
-      spec.podFailurePolicy,
-      spec.successPolicy,
-      ...rules,
-      ...rules.map((rule) => rule.onExitCodes),
-      ...rules.flatMap((rule) => rule.onPodConditions ?? []),
-      ...(spec.successPolicy?.rules ?? []),
-      ...(spec.selector?.matchExpressions ?? []),
-    ].some(Array.isArray)
-  )
-    refuse();
-  // Proof: Task25c3e foreign-field check removal failed foreign replicas/strategy/claims tests.
-  if (
-    [
-      'replicas',
-      'strategy',
-      'updateStrategy',
-      'podManagementPolicy',
-      'ordinals',
-      'volumeClaimTemplates',
-    ].some((field) => Object.hasOwn(spec, field))
-  )
-    refuse();
-  // Proof: Task25c3e unconditional completions1 admitted the valid unsupported workqueue test.
-  const completions = spec.completions ?? (spec.parallelism === undefined ? 1 : undefined);
-  // Proof: Task25c3e Indexed relationship bypass failed indexed work queue and parallel cap negatives.
-  if (
-    spec.completionMode === 'Indexed' &&
-    (completions === undefined || (spec.parallelism ?? 1) > 100000)
-  )
-    refuse();
-  if (
-    // Proof: Task25c3e Indexed-policy bypass admitted per index nonindexed and success nonindexed negatives.
-    (spec.backoffLimitPerIndex !== undefined || spec.successPolicy !== undefined) &&
-    spec.completionMode !== 'Indexed'
-  )
-    refuse();
-  if (
-    // Proof: Task25c3e max-index bypass failed max failed without index and indexed max failures tests.
-    spec.maxFailedIndexes !== undefined &&
-    (spec.backoffLimitPerIndex === undefined ||
-      completions === undefined ||
-      spec.maxFailedIndexes > completions ||
-      spec.maxFailedIndexes > 100000)
-  )
-    refuse();
-  if (
-    completions !== undefined &&
-    // Proof: Task25c3e high-count guard bypass failed indexed large missing max failures.
-    completions > 100000 &&
-    spec.backoffLimitPerIndex !== undefined &&
-    (spec.maxFailedIndexes === undefined ||
-      spec.maxFailedIndexes > 10000 ||
-      (spec.parallelism ?? 1) > 10000)
-  )
-    refuse();
-  if (
-    // Proof: Task25c3e restart/replacement bypass failed OnFailure and failure replacement contradiction tests.
-    spec.podFailurePolicy !== undefined &&
-    (spec.template.spec.restartPolicy !== 'Never' ||
-      (spec.podReplacementPolicy !== undefined && spec.podReplacementPolicy !== 'Failed'))
-  )
-    refuse();
-  if (
-    // Proof: Task25c3e managedBy validation bypass failed malformed managed controller domain.
-    spec.managedBy !== undefined &&
-    (spec.managedBy.length > 63 ||
-      // Proof: Task25c3e DNS-label bypass failed malformed managed controller empty domain label.
-      !isJobKey(spec.managedBy.split('/')[0] + '/controller') ||
-      !/^[a-z0-9](?:[-.a-z0-9]*[a-z0-9])?\/[A-Za-z0-9/_.~%!$&'()*+,;=:-]+$/.test(spec.managedBy))
-  )
-    refuse();
-  for (const rule of rules) {
-    const codes = rule.onExitCodes;
-    const conditions = rule.onPodConditions ?? [];
-    // Proof: Task25c3e matcher bypass failed failure rule neither and both matchers tests.
-    if ((codes === undefined) === (conditions.length === 0)) refuse();
-    // Proof: Task25c3e qualified-condition check removal failed malformed condition type.
-    if (conditions.some((condition) => !isJobKey(condition.type))) refuse();
-    // Proof: Task25c3e per-index prerequisite removal failed failure index contradiction.
-    if (rule.action === 'FailIndex' && spec.backoffLimitPerIndex === undefined) refuse();
-    if (codes !== undefined) {
-      if (
-        // Proof: Task25c3e exit-code content bypass failed zero, duplicate and unordered negatives.
-        codes.values.some(
-          (code, index) =>
-            (codes.operator === 'In' && code === 0) ||
-            (index > 0 && codes.values[index - 1] >= code),
-        )
-      )
-        refuse();
-      if (
-        // Proof: Task25c3e container lookup bypass failed failure container unknown.
-        codes.containerName !== undefined &&
-        ![...spec.template.spec.containers, ...(spec.template.spec.initContainers ?? [])].some(
-          (container) => container.name === codes.containerName,
-        )
-      )
-        refuse();
-    }
-  }
-  for (const rule of spec.successPolicy?.rules ?? []) {
-    // Proof: Task25c3e required-rule removal failed success empty rule.
-    if (rule.succeededCount === undefined && rule.succeededIndexes === undefined) refuse();
-    let count = 0;
-    let previous = -1;
-    for (const interval of rule.succeededIndexes === undefined || rule.succeededIndexes === ''
-      ? []
-      : rule.succeededIndexes.split(',')) {
-      // Proof: Task25c3e grammar removal admitted success index exponent independently of numeric bounds.
-      if (!/^[0-9]+(?:-[0-9]+)?$/.test(interval)) refuse();
-      const [first, last = first] = interval.split('-').map(Number);
-      if (
-        // Proof: Task25c3e interval guard removal failed success indexes overlap and bound tests.
-        !Number.isSafeInteger(last) ||
-        first <= previous ||
-        last < first ||
-        completions === undefined ||
-        last >= completions
-      )
-        refuse();
-      count += last - first + 1;
-      previous = last;
-    }
-    if (
-      // Proof: Task25c3e count-bound removal failed success count exceeds indexes.
-      rule.succeededCount !== undefined &&
-      (completions === undefined ||
-        rule.succeededCount > completions ||
-        (rule.succeededIndexes !== undefined && rule.succeededCount > count))
-    )
-      refuse();
-  }
-  // Proof: Task25c3e label guard removal failed selector invalid key/value and mismatched template tests.
-  for (const [key, value] of Object.entries(spec.selector?.matchLabels ?? {}))
-    if (!isJobKey(key) || !isJobLabel(value) || labels[key] !== value) refuse();
-  for (const expression of spec.selector?.matchExpressions ?? []) {
-    // Proof: Task25c3e expression grammar removal admitted the matching invalid-label selector test.
-    if (!isJobKey(expression.key) || expression.values?.some((value) => !isJobLabel(value)))
-      refuse();
-    const value = Object.hasOwn(labels, expression.key) ? labels[expression.key] : undefined;
-    if (
-      // Proof: Task25c3e template-match removal failed In, NotIn, Exists and DoesNotExist controls.
-      expression.operator === 'In'
-        ? value === undefined || !expression.values?.includes(value)
-        : expression.operator === 'NotIn'
-          ? value !== undefined && expression.values?.includes(value)
-          : expression.operator === 'Exists'
-            ? value === undefined
-            : value !== undefined
-    )
-      refuse();
-    const hasValues = (expression.values?.length ?? 0) > 0;
-    // Proof: Task25c3e value-cardinality removal admitted Exists with values.
-    if ((expression.operator === 'In' || expression.operator === 'NotIn') !== hasValues) refuse();
-  }
-  return { ...controller, completions };
-}
 
 function readNativeInput(view: ReturnType<typeof readRehearsalSource>['native'][number]) {
   const { entry, manifest } = view;
@@ -414,6 +166,12 @@ function readNativeInput(view: ReturnType<typeof readRehearsalSource>['native'][
       if (
         specification[field] !== undefined &&
         !(entry.kind === 'Job' && field === 'activeDeadlineSeconds') &&
+        // Proof: Task56 root/nested int64-exemption removals rejected valid safe deadlines above int32 in the exact-charge control.
+        !(
+          entry.kind === 'CronJob' &&
+          ((specification === spec && field === 'startingDeadlineSeconds') ||
+            (specification !== spec && field === 'activeDeadlineSeconds'))
+        ) &&
         !Count.allows(specification[field])
       )
         refuse();
@@ -556,128 +314,12 @@ function expandDeployment(
     },
   }));
 }
-/** Keep default provenance and the conditional one-UID envelope separate from runtime admission.
- * At most 256 accounting slots are materialized by this adapter (backoff 0..255), a computational
- * representation limit rather than a Kubernetes, hardware or physical safety bound.
- * Failed/terminating attempts retain full demand; restarts reuse a slot but cumulative logs remain unbounded.
- */
-function deriveJobLifecycle(
-  controller: ReturnType<typeof readJob>,
-  entry: ReturnType<typeof readRehearsalSource>['native'][number]['entry'],
-  identity: string,
-) {
-  const spec = controller.spec;
-  const grace = Grace(spec.template.spec);
-  if (grace instanceof type.errors) refuse();
-  return {
-    owner: identity,
-    // Proof: Task25c3e owner-only template hash failed the full-template/changed-label condition control.
-    templateSHA256: hash(JSON.stringify(spec.template)),
-    source: entry,
-    hooks: entry.hooks,
-    annotations:
-      controller.metadata.annotations === undefined
-        ? ('absent' as const)
-        : controller.metadata.annotations,
-    annotationSource: entry.annotationSource,
-    parallelism: defaultFact(spec.parallelism, 1),
-    completions: defaultFact(spec.completions, 1),
-    // Proof: Task25c3e default backoff7 substitution failed declared-absence/provider provenance control.
-    backoffLimit: defaultFact(spec.backoffLimit, 6),
-    completionMode: defaultFact(spec.completionMode, 'NonIndexed'),
-    suspend: defaultFact(spec.suspend, false),
-    manualSelector: defaultFact(spec.manualSelector, false),
-    podReplacementPolicy: defaultFact(spec.podReplacementPolicy, 'TerminatingOrFailed'),
-    podFailurePolicy: 'absent' as const,
-    successPolicy: 'absent' as const,
-    managedBy: {
-      declared: spec.managedBy ?? 'absent',
-      effective: 'kubernetes.io/job-controller' as const,
-      basis:
-        spec.managedBy === undefined
-          ? ('kubernetes-v1.36.4-controller' as const)
-          : ('declared' as const),
-    },
-    restartPolicy: spec.template.spec.restartPolicy,
-    activeDeadlineSeconds: {
-      declared: spec.activeDeadlineSeconds ?? 'absent',
-      reclamationDeadline: false as const,
-    },
-    ttlSecondsAfterFinished: {
-      declared: spec.ttlSecondsAfterFinished ?? 'absent',
-      reclamationDeadline: false as const,
-    },
-    grace: {
-      ...defaultFact(grace.terminationGracePeriodSeconds, 30),
-      reclamationDeadline: false as const,
-    },
-    maximumPodSlots: (spec.backoffLimit ?? 6) + 1,
-    scenario: 'immutable-source-single-uid-serial-nonindexed-job' as const,
-    // Proof: Task25c3e success-condition omission failed conditions and whole attempt history control.
-    conditions: {
-      source: 'fresh-immutable-attempt',
-      identity: 'one-Job-UID-one-template-unchanged-counts-and-policies',
-      history: 'complete-successful-and-uncertain-creation-reconciliation',
-      initial: 'no-prior-work-or-adoption-and-no-unaccounted-creation',
-      failures:
-        'every-replaced-nonsuccessful-Pod-durably-counted-once-before-next-create-including-finalizers',
-      success: 'no-further-creation-after-first-success',
-      controller: 'reachable-cooperative-controller-with-reconciled-expectations',
-      excluded: [
-        'foreign-mutation',
-        'forced-deletion',
-        'lost-node-execution',
-        'controller-recreation',
-      ],
-      retention: 'full-failed-terminating-and-current-Pod-demand-without-cleanup-credit',
-      restarts: 'reuse-Pod-slot-cumulative-restart-logs-remain-unbounded',
-      admission: 'independently-bind-and-enforce-event-constraints-before-creation',
-      runtimeObserved: false as const,
-    },
-    wholeAttempt: {
-      required: [
-        'Helm-install-upgrade-retry-remediation-invocation-identities',
-        'hook-created-Job-UID-generations',
-        'Flux-forced-recreation-generations',
-        'retained-predecessor-Pod-device-log-histories',
-      ],
-      // Proof: Task25c3e forged multiplier one failed conditions and whole attempt history control.
-      generationMultiplier: 'unobserved' as const,
-      cleanupCredit: false as const,
-      runtimeObserved: false as const,
-    },
-    // Proof: Task25c3e runtimeObserved forgery failed conditions and whole attempt history control.
-    runtimeObserved: false as const,
-  };
-}
-
-/** Materialize full normalized retry accounting slots, never observed Pod names or UIDs. */
-function expandJob(
-  input: Omit<Parameters<typeof expandNativeOwner>[0], 'templates' | 'claimPointer' | 'pods'>,
-  backoff: number,
-) {
-  // Proof: Task25c3e B+1 removal failed backoff0/4/6/10 full-attempt controls.
-  const pods = backoff + 1;
-  return expandNativeOwner({
-    ...input,
-    pods,
-    templates: [],
-    claimPointer: () => {
-      throw new Error('Job claim template impossible');
-    },
-  }).map((charge, slot) => ({
-    ...charge,
-    kind: 'pod' as const,
-    // Proof: Task25c3e slot shift and zeroed retry memory/CPU/disk failed backoff4 full-charge control.
-    identity: `${input.identity}/attempt/${String(slot)}`,
-    concurrency: { phase: 'immutable-source-serial-job-attempts' as const, pods, slot },
-  }));
-}
 
 function deriveNativeCosts(
   source: ReturnType<typeof readRehearsalSource>,
   lock: Toolchain,
   topology?: ReturnType<typeof readDaemonTopology>,
+  horizons?: ReturnType<typeof readCronJobHorizons>,
 ) {
   const entries: ReturnType<typeof expandNativeOwner> = [];
   const deploymentEntries: ReturnType<typeof expandDeployment> = [];
@@ -686,6 +328,8 @@ function deriveNativeCosts(
   const daemonLifecycles: ReturnType<typeof deriveDaemonLifecycle>[] = [];
   const jobEntries: ReturnType<typeof expandJob> = [];
   const jobLifecycles: ReturnType<typeof deriveJobLifecycle>[] = [];
+  const cronJobEntries: ReturnType<typeof expandCronJob> = [];
+  const cronJobLifecycles: ReturnType<typeof deriveCronJobLifecycle>[] = [];
   const blockers: { owner: string; missingFact: string }[] = [];
   const lifecycles: {
     owner: string;
@@ -810,20 +454,7 @@ function deriveNativeCosts(
       return;
     }
     // Proof: Task25c3e serial-policy/provider bypass failed ten unsupported/provider controls.
-    if (
-      !providerMatches ||
-      controller.completions !== 1 ||
-      (spec.parallelism ?? 1) !== 1 ||
-      (spec.completionMode ?? 'NonIndexed') !== 'NonIndexed' ||
-      spec.suspend === true ||
-      spec.manualSelector === true ||
-      spec.selector !== undefined ||
-      spec.podFailurePolicy !== undefined ||
-      spec.successPolicy !== undefined ||
-      spec.backoffLimitPerIndex !== undefined ||
-      (spec.podReplacementPolicy ?? 'TerminatingOrFailed') !== 'TerminatingOrFailed' ||
-      (spec.managedBy !== undefined && spec.managedBy !== 'kubernetes.io/job-controller')
-    ) {
+    if (!providerMatches || !supportsJobPolicy(controller)) {
       missing(identity, 'job-serial-policy');
       return;
     }
@@ -885,6 +516,130 @@ function deriveNativeCosts(
     // Proof: Task25c3e runtime blocker omission failed conditions and whole attempt history control.
     missing(identity, 'job-serial-runtime-binding');
     jobLifecycles.push(deriveJobLifecycle(controller, entry, identity));
+  }
+  function deriveCron(
+    view: ReturnType<typeof readRehearsalSource>['native'][number],
+    cron: ReturnType<typeof readCronJob>,
+  ) {
+    const { entry, manifest } = view;
+    const identity = `${entry.kind}:${entry.namespace ?? '_'}:${entry.name}`;
+    // Proof: Task56 runtime/history-obligation omissions lost independent blockers alongside full charges.
+    missing(identity, 'cronjob-declared-horizon-runtime-binding');
+    missing(
+      identity,
+      'cronjob-prior-missed-manual-adopted-recreated-Job-generations-and-retained-history',
+    );
+    const horizon = horizons?.get(identity);
+    // Proof: Task56 controller-for-source substitution suppressed source UTC with declared Kyiv; effective-zone bypass charged unsupported Kyiv.
+    const zone =
+      cron.calendar.timeZone.kind === 'absent' ? horizon?.controllerZone : cron.calendar.timeZone;
+    // Proof: Task56 outside-catalogue obligation omission concealed unknown effective controller knowledge.
+    if (zone?.kind === 'outside-catalogue')
+      missing(identity, 'cronjob-time-zone-outside-catalogue');
+    let supported = true;
+    // Proof: Task56 source-identity/namespace bypasses lost their named refusals; provider/Job/suspend/Replace bypasses charged unsupported sources.
+    if (hasRuntimeIdentity(manifest)) {
+      missing(identity, 'source-controller-identity-and-generation');
+      supported = false;
+    }
+    if (entry.namespace === null) {
+      missing(identity, 'source-namespace');
+      supported = false;
+    }
+    if (
+      !providerMatches ||
+      !supportsJobPolicy(cron.job) ||
+      cron.spec.suspend === true ||
+      cron.spec.concurrencyPolicy === 'Replace'
+    ) {
+      missing(identity, 'cronjob-job-lifecycle-policy');
+      supported = false;
+    }
+    if (horizon === undefined) {
+      missing(identity, 'cronjob-declared-horizon');
+      supported = false;
+    }
+    if (zone?.kind !== 'known' || zone.name !== 'UTC') {
+      missing(identity, 'cronjob-time-zone-policy');
+      supported = false;
+    }
+    const periodMs = readUtcCadence(cron.calendar.schedule);
+    if (periodMs === undefined) {
+      missing(identity, 'cronjob-calendar-policy');
+      supported = false;
+    }
+    const envelope =
+      horizon === undefined || periodMs === undefined
+        ? undefined
+        : readCronJobEnvelope(horizon, periodMs, cron.job.spec.backoffLimit ?? 6);
+    if (horizon !== undefined && periodMs !== undefined && envelope === undefined) {
+      missing(identity, 'cronjob-attempt-expansion-range');
+      supported = false;
+    }
+    const pod = NativeWorkloadSpec(cron.job.spec.template.spec);
+    if (pod instanceof type.errors) {
+      missing(identity, 'workload-bounds-or-resource-policy');
+      missing(identity, 'CronJob-lifecycle-unaccounted');
+      return;
+    }
+    let model: ReturnType<typeof normalizeNativeOwner>;
+    try {
+      model = normalizeNativeOwner(pod, [], entry.kind, entry.owner, identity, (reason) => {
+        throw new UnboundedSource(reason);
+      });
+    } catch (failure) {
+      if (!(failure instanceof UnsupportedNativeWorkload) && !(failure instanceof UnboundedSource))
+        throw failure;
+      missing(identity, failure.message);
+      missing(identity, 'CronJob-lifecycle-unaccounted');
+      return;
+    }
+    for (const volume of model.volumes.filter((volume) => volume.kind === 'claim'))
+      missing(
+        identity,
+        claims.has(`PersistentVolumeClaim:${entry.namespace ?? '_'}:${volume.reference}`)
+          ? `claim-owner-and-retention:${entry.namespace ?? '_'}/${volume.reference}`
+          : `claim-source:${entry.namespace ?? '_'}/${volume.reference}`,
+      );
+    for (const container of [...pod.containers, ...(pod.initContainers ?? [])])
+      if (container.resources.limits['ephemeral-storage'] === undefined)
+        missing(
+          identity,
+          `ephemeral-storage-limit-absent:${container.name}; writable-logs-and-runtime-state-unobserved`,
+        );
+    if (
+      !supported ||
+      horizon === undefined ||
+      periodMs === undefined ||
+      envelope === undefined ||
+      entry.namespace === null
+    ) {
+      missing(identity, 'CronJob-lifecycle-unaccounted');
+      return;
+    }
+    cronJobEntries.push(
+      ...expandCronJob(
+        {
+          identity,
+          namespace: entry.namespace,
+          name: entry.name,
+          model,
+          // Proof: Task56 Cron frame/pointer substitutions lost exact native charge provenance.
+          source: {
+            owner: entry.owner,
+            sha256: entry.source.frameSHA256,
+            pointer: `${entry.pointer}/spec/jobTemplate/spec/template/spec`,
+          },
+        },
+        horizon,
+        periodMs,
+        envelope.ticks,
+        cron.job.spec.backoffLimit ?? 6,
+      ),
+    );
+    cronJobLifecycles.push(
+      deriveCronJobLifecycle(cron, entry, horizon, periodMs, envelope.ticks, envelope.slots),
+    );
   }
   function deriveDaemon(
     view: ReturnType<typeof readRehearsalSource>['native'][number],
@@ -959,12 +714,17 @@ function deriveNativeCosts(
   }
   // Proof: Task54 prepass-order omission let an earlier ordinal collision mask malformed late CronJob calendar fields.
   // Parsed calendars stay local: Task54 serialization injection failed the native no-bigint JSON controls.
-  const validated = source.native.map((view) => ({
-    ...view,
-    calendar: view.entry.kind === 'CronJob' ? readCronCalendar(view.manifest['spec']) : undefined,
-    pod: readNativeInput(view),
-  }));
-  for (const { entry, manifest, calendar, pod: broadPod } of validated) {
+  const validated = source.native.map((view) => {
+    const calendar =
+      view.entry.kind === 'CronJob' ? readCronCalendar(view.manifest['spec']) : undefined;
+    return {
+      ...view,
+      // Proof: Task56 full-policy prepass omission let the invariant error replace malformed-policy refusal before lifecycle iteration.
+      cron: calendar === undefined ? undefined : readCronJob(view.manifest, calendar),
+      pod: readNativeInput(view),
+    };
+  });
+  for (const { entry, manifest, cron, pod: broadPod } of validated) {
     const identity = `${entry.kind}:${entry.namespace ?? '_'}:${entry.name}`;
     if (entry.category === 'claim') {
       missing(identity, 'claim-owner-and-retention-unaccounted');
@@ -984,13 +744,8 @@ function deriveNativeCosts(
       continue;
     }
     if (entry.kind === 'CronJob') {
-      // Proof: Task54 calendar-invariant broke the prepass dependency; native valid controls refused with the named missing-calendar error.
-      if (calendar === undefined) throw new Error('Cron calendar missing after validation');
-      // Proof: Task54 unknown-blocker omission lost the right/UTC, posix/UTC, Unknown/Zone and utc native knowledge blockers.
-      if (calendar.timeZone.kind === 'outside-catalogue')
-        missing(identity, 'cronjob-time-zone-outside-catalogue');
-      // Proof: Task54 lifecycle-blocker omission hid every valid unsupported CronJob in the native controls.
-      missing(identity, 'CronJob-lifecycle-unaccounted');
+      if (cron === undefined) throw new Error('Cron calendar missing after validation');
+      deriveCron({ entry, manifest }, cron);
       continue;
     }
     if (entry.kind !== 'StatefulSet') {
@@ -1128,6 +883,7 @@ function deriveNativeCosts(
     deploymentLifecycles,
     jobScope: 'immutable-source-serial-job-attempts' as const,
     jobLifecycles,
+    cronJobLifecycles,
     entries: [
       ...entries.map((entry) => ({
         ...entry,
@@ -1135,6 +891,7 @@ function deriveNativeCosts(
       })),
       ...deploymentEntries,
       ...jobEntries,
+      ...cronJobEntries,
       ...daemonEntries,
     ],
     // Proof: Task25c3b combined-total omission lost both Deployment cohorts from shared sums.
@@ -1144,6 +901,8 @@ function deriveNativeCosts(
       ...entries,
       ...deploymentEntries,
       ...jobEntries,
+      // Proof: Task56 Cron total omission lost full retry memory/CPU/disk from shared capacity sums.
+      ...cronJobEntries,
       ...daemonEntries,
     ]),
     blockers,
@@ -1206,24 +965,46 @@ export function readRehearsalNativeCosts(
   topology: RehearsalTopologyEvidence,
 ): ReturnType<typeof deriveNativeCosts>;
 export function readRehearsalNativeCosts(
-  ...input: [...Parameters<typeof readRehearsalSource>, topology?: RehearsalTopologyEvidence]
+  stages: Parameters<typeof readRehearsalSource>[0],
+  expansions: Parameters<typeof readRehearsalSource>[1],
+  contract: NativeSourceContract,
+  lock: Toolchain,
+  bootstrap: Parameters<typeof readRehearsalSource>[4],
+  topology: RehearsalTopologyEvidence | undefined,
+  horizons?: RehearsalCronJobHorizons,
+): ReturnType<typeof deriveNativeCosts>;
+export function readRehearsalNativeCosts(
+  ...input: [
+    ...Parameters<typeof readRehearsalSource>,
+    topology?: RehearsalTopologyEvidence,
+    horizons?: RehearsalCronJobHorizons,
+  ]
 ) {
-  const [stages, expansions, contract, lock, bootstrap, evidence] = input;
+  const [stages, expansions, contract, lock, bootstrap, evidence, horizons] = input;
   const source = readRehearsalSource(stages, expansions, contract, lock, bootstrap);
-  return deriveNativeCosts(source, lock, readDaemonTopology(contract, evidence));
+  return deriveNativeCosts(
+    source,
+    lock,
+    readDaemonTopology(contract, evidence),
+    // Proof: Task56 native-horizon forwarding omission lost the actual fourteen-slot reader contribution.
+    readCronJobHorizons(contract, source.native, horizons),
+  );
 }
 
-/** Share the canonical eleven-stage producer with inventory; this companion does not rerender or serialize raw native bodies. */
+/** Share the canonical eleven-stage producer once; horizons remain native-only declared accounting inputs. */
 export async function deriveObservabilityRehearsalNativeCosts(
-  ...input: Parameters<typeof prepareRehearsalInventory>
+  ...input: [...Parameters<typeof prepareRehearsalInventory>, horizons?: RehearsalCronJobHorizons]
 ) {
-  const source = await prepareRehearsalInventory(...input);
+  const [root, tools, request, directory, helmArchive, horizons] = input;
+  const source = await prepareRehearsalInventory(root, tools, request, directory, helmArchive);
   return {
     ...deriveNativeCosts(
       source,
       source.lock,
-      // Proof: Task25c3g wrapper-forwarding omission failed the retained-input component spy control; this does not prove rendering/runtime.
+      // Proof: Task56 topology forwarding omission hid changed bytes in the single-pass companion control.
       readDaemonTopology(source.inventory, source.topologyEvidence),
+      // Proof: Task56 companion-horizon forwarding omission lost14slots and concealed changed binding; producer receives only its first5 arguments once.
+      readCronJobHorizons(source.inventory, source.native, horizons),
     ),
     sourceInventorySHA256: source.inventory.inventorySHA256,
     provenance: source.inventory.provenance,

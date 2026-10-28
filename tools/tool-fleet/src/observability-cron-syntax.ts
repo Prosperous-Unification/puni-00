@@ -97,6 +97,13 @@ function readField(
   return bits;
 }
 
+/** Tokenize original codepoints with the pinned Go Unicode whitespace used by syntax and cadence. */
+export function readCronFields(source: string) {
+  return source
+    .split(/[\t\n\v\f\r\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/)
+    .filter((field) => field !== '');
+}
+
 /** Fresh Kubernetes1.36.4 schedule boundary; validation-only MIT port of robfig/cron3.0.1 ParseStandard/getField/getRange/parseDescriptor/Every.
  * Sources: https://github.com/robfig/cron/blob/v3.0.1/parser.go and constantdelay.go; exact MIT notice in docs/infra/observability-cron-licenses.md.
  * Pinned parser.go SHA256 3133fdf1d1865fb2e45a0a3362a4d780d97ec7cd975c8c31b1d580005e2c7cf6; constantdelay.go 0a014f614180b2c3e45afc36cff2307ed07141259b45a37fbdc9574d7f329d3b.
@@ -117,9 +124,7 @@ export function readCronSchedule(source: string): CronSchedule {
     return { kind: 'interval', source, intervalNS, delayNS: normalized - (normalized % second) };
   }
   if (source.startsWith('@') && descriptor === undefined) return refuseCron();
-  const fields = (descriptor ?? source)
-    .split(/[\t\n\v\f\r\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/)
-    .filter((field) => field !== '');
+  const fields = readCronFields(descriptor ?? source);
   const [minute, hour, dom, month, dow] = fields;
   // Proof: Task54 field-count removal admitted six fields through the native prepass.
   if (fields.length !== 5) return refuseCron();
