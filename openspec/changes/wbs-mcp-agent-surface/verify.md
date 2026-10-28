@@ -2362,3 +2362,120 @@ Not run:
 - a two-be-01 run, so the restated sizing's second process is unmeasured;
 - drizzle `.prepare()` per hot query, the next step if more is needed;
 - a run on a quiet host.
+
+## Slice 13 — pool swarm rehearsal (8.1 pre-dev)
+
+Task 8.1's scenario on a throwaway stack, every part a real process over loopback HTTP, so the dev
+run (waiting on a pool in the dev web app) is a formality. 8.1 stays open.
+
+- be-01: `apps/wbs/be-01/src/testing/pool-swarm-backend.ts`, the composed harness (production
+  `buildServices` and `buildApp`, fresh migrated SQLite in a temp directory), machine grants with
+  a generated key, the claim lease sweep started as boot starts it, one activated organization.
+  Its admin acts only through be-01's routes, as a browser session.
+- mcp-01: the production entrypoint `src/main.ts`, standalone, `MCP_PUBLIC_URL`
+  `http://127.0.0.1:<port>/mcp`, M10 limits, `MCP_TRUSTED_PROXY_HOPS=0`.
+- Dash: the real CLI. `pool import` writes the store, and each agent's stored `headersHelper`
+  runs `mcp token`.
+- Agents: `apps/wbs/mcp-01/src/load/pool-swarm-agent.ts`, one process each, MCP SDK 1.31.0
+  Streamable HTTP clients. Each runs its `<personId>.mcp.json` `headersHelper` through `sh -c` the
+  way Claude Code does: when connecting, and again on an HTTP 401, then resends; never on an
+  in-band tool error.
+- Driver: `apps/wbs/mcp-01/src/load/pool-swarm-rehearsal.ts`. It exits 1 on any failed
+  expectation. Boot test: `apps/wbs/mcp-01/src/pool-swarm.boot.test.ts` runs it clean, then with
+  `--fault=skip-revoke`, in about 21 s.
+
+The resource model:
+
+- two divisible resources, RAM (capacity 24 GiB) and disk (40 GiB);
+- six leaves, each demanding 8 GiB RAM and 10 GiB disk, so exactly three fit at once;
+- each agent claims with `assign: true`;
+- each agent registers a reported resource use (its disk copy) under its run.
+
+### Timeline (laptop, 0b3d13127, 2026-10-28)
+
+Times are milliseconds from the driver's start; the first 4.2 s is boot.
+
+| ms   | Actor       | Event                                                                                                                                    |
+| ---- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 4335 | admin       | `agent_pool_created`: pool `fleet`, 3 persons, 3 keys (201)                                                                              |
+| 4520 | Dash        | `pool import`: exit 0, every key issued one proof token, no key printed                                                                  |
+| 4726 | agents (3)  | `headersHelper` → `mcp token` issues; tools listed                                                                                       |
+| 5240 | agents      | claimed: three distinct leaves, the losers of each race met `already_claimed` and took the next                                          |
+| 5275 | agents      | resource uses registered (`active`)                                                                                                      |
+| 5280 | agents      | heartbeat × 3: `leases: 2` each (its own two step claims, not the pool's six)                                                            |
+| 5996 | agents      | released; resource uses → `cleanup_pending`                                                                                              |
+| 6080 | agents      | claimed again (round 2)                                                                                                                  |
+| 6087 | admin       | `agent_pool_rekeyed` (201): same persons, 3 new credentials                                                                              |
+| 6218 | Dash        | `mcp token` with an old key: exit 1, `HTTP 401 invalid_client`                                                                           |
+| 6393 | Dash        | `pool import` of the new document into the same store: exit 0                                                                            |
+| 6402 | each agent  | heartbeat with its old bearer: tool error `machine_credential_refused`                                                                   |
+| 6404 | each agent  | next heartbeat: HTTP 401, helper re-runs (new key through the store link), new jti, heartbeat ok                                         |
+| 6831 | agents      | heartbeat × 3 ok; the claims kept their ids, holders and runs                                                                            |
+| 7522 | agents      | released                                                                                                                                 |
+| 7586 | agents      | claimed (round 3), copies registered, heartbeat × 3 ok                                                                                   |
+| 8255 | admin       | `agent_pool_revoked` (200): `revokedCredentials: 3, removedPersons: 0`                                                                   |
+| 8268 | be-01       | the lease sweep settled: 0 claims left. Leases ended in the revoke, and the tick the revoke asked for released them                      |
+| 8298 | each agent  | heartbeat: `machine_credential_refused`, then HTTP 401, then the helper exits 1 (`HTTP 401 invalid_client`)                              |
+| 8900 | 2 agents    | one more helper run the agents did not ask for (origin not traced; likely the SDK transport after the failed call), refused the same way |
+| 8974 | admin, Dash | spare pool of 1 created and imported; its agent claims                                                                                   |
+| 9231 | admin       | `agent_pool_revoked` with `removePersons=true`: `revokedCredentials: 1, removedPersons: 1`                                               |
+
+### Assertions (136, all held; laptop and h2puni)
+
+| Area          | Assertion                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Create        | 201; `pool import` exits 0 and prints no key; the cap's `agentPersons` rises by 3; the listing shows 3 live credentials; each run is `pool-<poolId>/<personId>`                                                                                                                                                                                                                                                                                                                                                                            |
+| Tools         | each agent lists `getApiProjectsByIdStartable`, `postApiProjectsByIdCommands`, `postApiClaimsRenew` and `postApiProjectsByIdResourceUses`, and none of `HUMAN_ONLY_OPERATIONS`; the four pool operations are in that set                                                                                                                                                                                                                                                                                                                   |
+| Claims        | every claim succeeds on a distinct leaf, acquiring 8 GiB RAM and 10 GiB disk; the admin's `/claims` shows each held by its pool person under its own distinct run; `/startable` shows the holder as assignee; RAM 24 and disk 30 occupied; the other three leaves `doesNotFit`; person work lists the claim under the run                                                                                                                                                                                                                  |
+| Heartbeat     | each answers `ok` with `leases` equal to its own claim count (run scoping, M15)                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Release       | every unit is freed, no claim is left, and each resource use goes to `cleanup_pending`                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Re-key        | 201, the same persons with disjoint credentials; no agent person consumed; the old key issues nothing; the listing shows exactly the new credentials; each agent's sequence is `[machine_credential_refused, ok]` with one 401 and one `after_401` helper run between; the claims keep id, holder and run, are unrevoked, and their lease is not earlier                                                                                                                                                                                   |
+| Revoke        | 200 `{revokedCredentials: 3, removedPersons: 0}`; after the sweep settles there are no claims, every unit is free, and the cap counts 0 claims; claim history has a `credential_revoked` release per agent under its run; each resource use is `cleanup_pending` (never released automatically, per `wbs-resource-release-tracking`); each agent sees `[machine_credential_refused, helper_failed:1]`; the latest key issues nothing; the listing shows `revokedAt` and no live credential; the revoked persons still count toward the cap |
+| removePersons | 200 `{revokedCredentials: 1, removedPersons: 1}`; `agentPersons` drops by 1 and the claim goes with the person                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Audit         | `agent_pool_created` × 2, `agent_pool_rekeyed` × 1, `agent_pool_revoked` × 2; `machine_token_issued` names all six fleet credentials of both generations, with exactly one row per credential and run however many times the helper ran; no row carries a key                                                                                                                                                                                                                                                                              |
+
+What the design says about re-keying, and what was observed: re-key revokes the old keys without
+ending leases (`AgentPoolRepository.rekey` never calls `endLeasesOfUncredentialed`), so the claims
+continue. An outstanding bearer of an old key is refused on its next call. be-01 rereads the
+credential on every call, so that call is an in-band `machine_credential_refused`; it does not
+live until its TTL. Its `jti` then enters mcp-01's refused set, so the next request is HTTP 401
+and the helper re-runs. Revocation follows the same path, except the re-run cannot issue.
+
+### Proofs (R5)
+
+| Injected fault                                                                                                                                 | Observed                                                                                                                                                                                                                                                                                |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--fault=skip-reimport`: re-key without importing the new document                                                                             | exit 1. Every agent got `[machine_credential_refused, helper_failed:1]`, the round-2 heartbeats and releases failed, and audit counted 4 of 6 credentials. The three round-2 claims were stranded until their lease runs out, which is what a fleet that misses the re-import would see |
+| `--fault=skip-revoke`                                                                                                                          | exit 1 on the lease checks: claims left, RAM 24 / disk 30 held, the cap at 3, no `credential_revoked` history, uses `active`, the agents still `ok`                                                                                                                                     |
+| production fault: `endLeasesOfUncredentialed` commented out of `AgentPoolRepository.revoke` (libs/wbs/adapters/store-sqlite/src/agent-pool.ts) | exit 1 on the same nine lease checks (the revoke answered 200, but nothing ended); reverted                                                                                                                                                                                             |
+
+`Proof:` comments sit beside the two checks in `pool-swarm-rehearsal.ts`. The boot test runs
+`--fault=skip-revoke` on every CI run, so the lease checks stay breakable.
+
+### Commands and results, slice 13
+
+All on 2026-10-28 with `env -u CLAUDECODE`:
+
+| Command                                                                                                                                                                                                                                                        | Result                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| laptop: `bun apps/wbs/mcp-01/src/load/pool-swarm-rehearsal.ts` at 0b3d13127                                                                                                                                                                                    | exit 0, 136 of 136                                                                         |
+| laptop: the same with `--fault=skip-reimport`, `--fault=skip-revoke`, and the production fault above                                                                                                                                                           | exit 1 each                                                                                |
+| laptop: `bun test --timeout=10000` in `apps/wbs/mcp-01` (whole suite, the boot test included)                                                                                                                                                                  | 723 pass, 0 fail                                                                           |
+| h2puni (`ubuntu-8gb-hel1-1`, bun 1.4.4), 0b3d13127 in a detached worktree of `~/puni-00-gate-tbf` (removed after), `bun install --frozen-lockfile`, under `bin/with-heavy-lock.sh` (waited 0 s): the rehearsal, then `--fault=skip-revoke`, then the boot test | exit 0, 136 of 136 (revoke at 10155 ms, sweep settled at 10173 ms); exit 1; 2 pass, 0 fail |
+| `bunx tsc --build --force` for `apps/wbs/mcp-01` and `apps/wbs/be-01`                                                                                                                                                                                          | exit 0                                                                                     |
+| `bunx eslint` on the four new files                                                                                                                                                                                                                            | no problems                                                                                |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                                                                                                                    | exit 0                                                                                     |
+| `bunx openspec validate --all --json`                                                                                                                                                                                                                          | 301 items, 301 passed                                                                      |
+| `bunx prettier --check` on every changed file                                                                                                                                                                                                                  | "All matched files use Prettier code style!"                                               |
+
+Not run:
+
+- the dev run itself (8.1), which waits on a pool in the dev web app;
+- real Claude Code. The agent replays its `headersHelper` contract (run at connect and on HTTP 401)
+  with the SDK, so Claude Code's actual retry timing is unobserved;
+- lease expiry by time (15 minutes) and pool expiry (`expiresAt`); covered by existing tests, not
+  by this run;
+- several mcp-01 replicas. Each replica learns a revocation at its own first refused call (M3);
+  one replica ran here;
+- the h2puni gate (`bin/h2puni-gate.sh`); CI runs the full suites;
+- the origin of the unrequested helper run after a failed helper, which was not traced.

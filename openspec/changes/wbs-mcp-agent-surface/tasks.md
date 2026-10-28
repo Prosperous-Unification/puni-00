@@ -345,6 +345,8 @@
       with `twilight-dash mcp token`, each with its own `wbs_run`: they claim, heartbeat and
       release. Re-key mid-run, then revoke, and observe the leases end. Record it. This gates
       slice 7.
+      (Not done: the dev run waits on a pool in the dev web app. Its rehearsal on a throwaway stack,
+      `apps/wbs/mcp-01/src/load/pool-swarm-rehearsal.ts`, passed; verify.md slice 13.)
 - [ ] 8.2 Prod runbook:
   - seed `WBS_MACHINE_GRANT_SIGNING_KEY_*`, `MCP_BE_INTERNAL_SECRET` and
     `WBS_MCP_AUTHORIZATION_SERVER`;
