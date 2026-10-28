@@ -233,3 +233,12 @@ replacement assertion, exact fixture restoration precedes the focused pass,
 and affected format/lint/type checks pass. Root audited54 retained artifacts,
 the one-line injected fault, source binding and unchanged cached inputs.
 This closes only the test correction; full CI/runtime acceptance remains open.
+
+### Task69 CodeQL fixture correction within 3.1
+
+- [x] Preserve the manifest's exact one-byte digest fault using explicit byte construction; require its precise production refusal. Pass delayed-child payload separately from static JavaScript, retaining timing, parser and abort/cleanup contracts. Use existing test-contract correction scope, five focused tests, real-byte/child controls, scoped statics, normal hooks and independent review. No sanitizer, suppression, production guard, dependency or CI policy change.
+- [ ] Observe the next ordinary published head's separate CodeQL result; analyzer-job success alone does not close it.
+
+Source 52faa917 is independently approved without findings; root inspected retained
+command outputs and source identities without replaying passing checks. Full
+runtime/live acceptance and the remaining capacity/source prerequisites stay open.

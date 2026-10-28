@@ -4400,3 +4400,48 @@ pending explicit user authorization. A larger existing isolated host has been
 requested for inspection; no machine purchase or h3 resize is authorized. Full
 rehearsal/live cutover remains open. Current source checks cannot substitute for
 those runtime requirements.
+
+## Completed CI and CodeQL fixture corrections — 2026-10-28
+
+The previous b0a38e44 main CI run 40698040166 completed successfully at 15:00:21 UTC,
+including stable gate and pixels. Workspace 122850943372 ran 81m36s: dependency
+installation 9s, formatting 2m27s and its test/lint/typecheck/build step 75m57s.
+Twilight ran 52m10s. These are execution observations, not a queue diagnosis.
+Infrastructure success and its source-parity scope are recorded above.
+
+The separate CodeQL result check 122850216411 failed with two fixture annotations,
+even though workflow 40698028967 and all four analyzer jobs succeeded. The result
+identified first-newline replacement in the deliberately corrupted manifest and
+dynamic JavaScript construction in a delayed child test. Both sources are test
+fixtures; no production vulnerability reproduction is claimed. Retained provider
+annotations and the full rollup establish this distinction.
+
+Source 52faa917 changes only three test files, 8 additions/2 deletions. Explicit
+byte concatenation preserves precisely the original LF-to-space fault without
+changing size, JSON meaning or trusted manifest identity. The archive negative
+now requires the exact production blob identity/size error. A static delayed child
+program receives its original payload through argv instead of generated code;
+200 ms output,1000 ms keepalive,30 ms abort and cleanup assertions remain unchanged.
+This restores existing precise contracts under the R4 correction exception.
+
+Retained final focused verification passed 5 tests/14 assertions in 440 ms. Scoped
+format/lint/file-rooted TypeScript checks passed; this is not a full Fleet typecheck.
+The actual byte control found exactly one changed archive byte and the real child
+control observed its original payload/name/id after 205.65 ms, then killed/reaped it.
+An initial assertion-prefix mismatch is retained and corrected; it is not credited
+as a production safety fault. No production guard changed or old proof matrix ran.
+
+Independent specification/quality review approved without findings. Root read the
+report and retained raw receipts, matched all three committed source hashes and
+verified review SHA256 ec83c1406de145a8eec69a11e4f63cf6e11c28d8f9aa2cff09a0fb0349cb1147.
+Private task-69 report/checks retain exact commands and outputs. No passing test,
+chart or provider run was repeated for parent review. Actual CodeQL clearance
+requires a new result on the next ordinary published head; it remains unverified.
+
+Tool Wiki remains inactive/uncertified because its external activation root is
+unprovisioned. Full 3.1 and canonical 4/11 remain open: complete physical admission,
+authenticated common-stack rehearsal and live signal/history/recovery acceptance
+are not established by these checks. Preliminary 16 GiB available-memory/120 GiB
+store requirements describe rehearsal, not permanent h3mon sizing. No resize,
+production activation, Secret change, storage retirement or final merge occurred.
+The separately rejected generated-packet export still awaits explicit permission.
