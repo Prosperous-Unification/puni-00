@@ -4152,3 +4152,59 @@ The control reserves `puni-registry/registry`50Gi and `puni-backup/object-store`
 All266 original Task62 artifact entries, including packet payloads, retain exact bytes/modes. Before/after preservation manifests both hash to `e5c06b593c56432efb24754f25374dd42b758b158e8a6a0825f81202ed56395f`. New evidence is confined to `/tmp/puni-task64`; its `comparison-summary.json`, `capacity-ledger.json`, `payload-hashes.json`, `old-artifacts-{before,after}.json`, `proofs.json` and receipt index retain raw evidence. The private `task-64-report.md` records the complete commit/command/evidence handoff.
 
 No full Fleet/Nx/app/browser/CI/host gates, old proof matrices/controls, renderer/producer runs, network/provider/runtime/SSH/Docker/Secret/store/hardware actions or final merge ran. Root owns fresh independent review and batched publication. The Task64 checkbox remains pending independent review; canonical runtime/live/physical acceptance remains open.
+
+## Task64 independent approval and reviewed publication — 2026-10-28
+
+Independent review approved specification and quality for complete
+`e1d2b497aaee44dade676ffdc882976bbce2c6c7` →
+`4224638ced8633189b7cc752e6c8e4af7eb202a4`, with no blocking findings.
+Report SHA256 `53e3f16a7b9d14010b6698e0cdf4436a37a7aa8a4274bcee401aed1a0d8f5ff4`.
+The reviewer inspected the complete76374-byte diff and named source classification,
+collision, test-capture and single-preparation risks; no test/proof/control replay.
+Malformed name/namespace cases can stop in existing frame capture and are not new
+reader-proof credit. The first masked source-group attempt is excluded; its lost
+individual log is disclosed, aggregate receipt retained, and corrected proof has
+its own intended raw failure/restoration. The custom-message closure failure was
+confirmed from raw output without replay.
+
+Parent read the complete implementer/reviewer reports, exact comparison/proof
+scripts,44 intended raw fault logs,15 final command receipts/raw outputs and the
+single actual reader result. All95 indexed artifacts(4155503bytes),4 committed
+source files and266 prior entries(219files/45directories/2symlinks) match their
+recorded hashes/modes/targets. The156-entry sum is independently49984Mi memory,
+8670m CPU-request,157376Mi disk;132 native and22 generated entries remain exact,
+with2 standalone claims adding71680Mi. Exactly2 generic refusals become8 concrete
+obligations; consumer retention facts remain. No old passing execution was rerun.
+These are incomplete conditional source totals, not observed usage or a hardware
+purchase specification. Creation/runtime authority remains false.
+
+Published0e336 CI40671174992 is now TERMINAL CANCELLED11:50:16Z. Workspace job
+122758256508 exceeded its90-minute budget (10:19:50→11:50:11), after successful
+test/typecheck/build execution for52 projects/140tasks (reported79m16s,0cache hits).
+Its retained artifact12813431651 is581413bytes, ZIP SHA256
+`ffb3569bedc6f9f23ca6a9705179692d4999a67a83e1eacf992b5ec34dbbea79`;
+the4363893-byte Nx log shows193 unique project:target starts, with no exact
+duplicate starts. All53 lint tasks were launched; their completion and subsequent
+source-lint remain unverified. The last printed target is not proof of the active
+or slow target. Two tool-devsync warnings are visible; no clean full-lint claim.
+No timeout increase, scope reduction, manual cancellation or rerun was requested.
+Twilight122758256446 passed60m15s; infra40671175014 passed. Stable gate122798249355
+failed on cancellation; stable pixels122762921978 failed because browser scope's
+Bun install exceeded10minutes. These verdicts remain specific to0e336. The next
+reviewed batch requires ordinary new-head CI; it cannot inherit passing gate
+verdicts or claim that tests failed when only the job budget is established.
+
+Current authenticated-source preparation is separate from runtime acceptance:
+the actual85-payload765/0a4f packet is retained and independently hashed. A new
+local root artifact commit c793ee89 contains exactly86 files/2356830bytes and no
+monorepo parents/workflows; existing plaintext scan passes and every Git blob
+matches the packet. It is not remotely published here. A19415-byte frozen-code
+bundle is prepared for765 with public0e336 prerequisite; no code-branch push is
+needed merely to stage it. Fresh read-only h4 preflight confirmed the existing
+cached client/image, Docker29.1.3 binding daemon and sufficient component-only
+2GiB/8GiB floors; no Git fetch/container/host/credential mutation occurred. The
+private execution package remains UNRELEASED: review found failure-stream bounds,
+timeout receipt and cleanup-resumption gaps, being corrected before any execution.
+No managed credential changed or copied into Kubernetes. Full goal stays active,
+canonical4/11; production, persistent Secrets, destructive retirement and final
+implementation merge remain separately authorized.
