@@ -49,6 +49,8 @@ function deriveTools(body: SchemaShape<unknown> = commands.body) {
     '/api/organization/provisioning-tokens/fixture',
     '/api/organization/machine-credentials',
     '/api/organization/machine-credentials/fixture',
+    '/api/organization/agent-pools',
+    '/api/organization/agent-pools/fixture',
     '/api/organization/trusted-issuers',
     '/api/organization/trusted-issuers/fixture',
     '/api/organization/compute-providers',

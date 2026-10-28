@@ -810,6 +810,43 @@ describe('bootBe01', () => {
     });
   });
 
+  it('serves agent pools from the shared database once activated', async () => {
+    const dir = tempDir('wbs-agent-pool-boot-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    const seed = openDatabase(dbPath);
+    try {
+      seed.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('ada', 'ada', 'x', 1)",
+      );
+      seed.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
+      seed.run(
+        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
+      );
+      seed.run(
+        "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+      );
+    } finally {
+      seed.close();
+    }
+    let pools: Parameters<typeof buildApp>[0]['agentPools'];
+    running = await bootBe01(bootOptions(dbPath, 0), {
+      openSource: openSqliteSource,
+      makeApp: (options) => {
+        pools = options.agentPools;
+        const app = buildApp(options);
+        app.stop = () => Promise.resolve(app);
+        return app;
+      },
+      startListener: (_app, _port, ready) => {
+        ready();
+      },
+    });
+    if (pools === undefined) throw new Error('boot did not wire agent pools');
+    expect(await pools.list('org-a', 'ada', Date.now())).toEqual([]);
+    expect(await pools.list('org-a', 'nobody', Date.now())).toBe('forbidden');
+  });
+
   it('serves machine credential administration from the shared database once activated', async () => {
     const dir = tempDir('wbs-machine-credential-boot-');
     const dbPath = join(dir, 'test.db');

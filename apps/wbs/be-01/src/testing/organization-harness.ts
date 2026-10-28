@@ -37,6 +37,7 @@ import { createLogger } from '@wbs/observability';
 import { SqliteResourceRuntime } from '@wbs/store-sqlite';
 import { SqliteResourceUses } from '@wbs/store-sqlite';
 import {
+  AgentPoolRepository,
   computeProvidersOver,
   currentMembershipAccess,
   DomainClaimRepository,
@@ -521,6 +522,7 @@ export class OrganizationHarness {
         canonicalUserName: (raw) => canonicalOidcEmail(raw),
       },
       machineCredentials: new MachineCredentialAdministrationRepository(db, gate),
+      agentPools: new AgentPoolRepository(db, gate, TEST_ORGANIZATION_DEFAULT_LIMITS),
       mcpAuthorizationServer: TEST_MCP_AUTHORIZATION_SERVER,
       computeProviders: computeProvidersOver(db, gate),
       resourceUses: new SqliteResourceUses(db, gate),
@@ -759,6 +761,11 @@ export class OrganizationHarness {
       domains: new DomainClaimRepository(source.db, services.gate),
       enterpriseConnections: new EnterpriseConnectionRepository(source.db, services.gate),
       machineCredentials: new MachineCredentialAdministrationRepository(source.db, services.gate),
+      agentPools: new AgentPoolRepository(
+        source.db,
+        services.gate,
+        TEST_ORGANIZATION_DEFAULT_LIMITS,
+      ),
       // As boot wires `WBS_MCP_AUTHORIZATION_SERVER`: the machine grants' own
       // when composed, else the tests' fixed one.
       mcpAuthorizationServer:

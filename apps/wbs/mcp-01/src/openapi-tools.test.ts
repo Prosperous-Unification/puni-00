@@ -42,6 +42,12 @@ const fixture = (): FixtureDocument => ({
     '/api/organization/provisioning-tokens/{id}': {
       delete: { operationId: 'deleteApiOrganizationProvisioningTokensById' },
     },
+    '/api/organization/agent-pools': {
+      post: { operationId: 'postApiOrganizationAgent-pools' },
+    },
+    '/api/organization/agent-pools/{id}': {
+      delete: { operationId: 'deleteApiOrganizationAgent-poolsById' },
+    },
     '/api/organization/machine-credentials': {
       post: { operationId: 'postApiOrganizationMachine-credentials' },
     },
@@ -283,7 +289,7 @@ describe('toolsFromDocument, on the generated document', () => {
       'workItems',
     ]);
     expect(JSON.stringify(importDocument.inputSchema)).not.toContain('"$ref"');
-    expect(EXCLUDED_PATHS).toHaveLength(14);
+    expect(EXCLUDED_PATHS).toHaveLength(16);
   });
 
   it('never offers the sign-in method list as a tool', () => {

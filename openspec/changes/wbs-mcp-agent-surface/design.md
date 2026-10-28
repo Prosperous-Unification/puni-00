@@ -742,6 +742,18 @@ _Alternative:_ the stated invariant of the earlier draft (unenforceable).
 | Project-opened and recents                           | account                              | shared, harmless                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Claim cap and leases                                 | person, plus run when opted in (M15) | unaffected                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
+Task 6.0's grep (2026-10-28, `libs/wbs` and be-01 for `accountId`, `userId`, `actorId` and
+`createdById` comparisons) found five more account-keyed checks. None changes in this change;
+each is stated so a pool's N persons, all bound to one admin, are not a surprise:
+
+| State                                                                                                   | Keyed by | Decision                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claim identity (`refuseIdentity`, domain `claim.ts`: `person_not_bound`)                                | account  | intended; a credential's pin (`credential_not_for_person`, D6) then narrows it to the credential's person, so a pool agent claims as itself only                                        |
+| A member's machine-credential reach (`reachable`, `pinRefusal`, store-sqlite)                           | account  | intended (A7); pool persons are bound to an admin, who reaches every agent anyway, and only an admin reaches the pool routes                                                            |
+| Consent agents (`agentsBoundTo(userId)`, store-sqlite `consent-credential.ts`)                          | account  | accepted: the admin's own consent flow lists the pool's persons among its agents; a consent acting as one is that person, capped at `member`                                            |
+| Saved-plan rename and delete (`mayTouchSavedPlan`, `createdById`)                                       | account  | accepted: plans one pool agent saves can be renamed or deleted by every agent of the same account, as the M16 row for `created_by` already implies                                      |
+| Project owner edits and the super-admin recovery reads (`canEditProjectInOrganization`, `scope.userId`) | account  | accepted: a pool agent edits every project its admin owns, as the owner (`canEditProject` compares the account); the super-admin arm needs the role, capped at `member` (A23), so never |
+
 Task 6.0 greps every `userId` key and adds any check missing from this table before slice 6.
 
 ## Risks / Trade-offs

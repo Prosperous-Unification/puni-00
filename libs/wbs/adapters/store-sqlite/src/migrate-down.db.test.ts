@@ -703,6 +703,8 @@ describe('readMigrationFolders', () => {
       '20261025130000_add_resource_runtime',
       '20261026120000_add_command_journal_person',
       '20261026130000_widen_organization_audit_machine_tokens',
+      '20261028100000_add_agent_pool',
+      '20261028100100_widen_organization_audit_agent_pools',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -778,7 +780,7 @@ describe('rollbackTo, against a real database', () => {
       cpSync(FOLDER, candidateFolder, { recursive: true });
       runMigrations(db.path, FOLDER);
       const originalNames = appliedNames(db.path);
-      expect(originalNames.at(-1)).toBe('20261026130000_widen_organization_audit_machine_tokens');
+      expect(originalNames.at(-1)).toBe('20261028100100_widen_organization_audit_agent_pools');
       const candidate = join(candidateFolder, candidateName);
       mkdirSync(candidate);
       writeFileSync(
@@ -909,11 +911,15 @@ describe('rollbackTo, against a real database', () => {
         '20261025130000_add_resource_runtime',
         '20261026120000_add_command_journal_person',
         '20261026130000_widen_organization_audit_machine_tokens',
+        '20261028100000_add_agent_pool',
+        '20261028100100_widen_organization_audit_agent_pools',
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
         '20261026130000_widen_organization_audit_machine_tokens',
         '20261026120000_add_command_journal_person',
         '20261025130000_add_resource_runtime',
@@ -1132,6 +1138,8 @@ describe('rollbackTo, against a real database', () => {
         '20261025130000_add_resource_runtime',
         '20261026120000_add_command_journal_person',
         '20261026130000_widen_organization_audit_machine_tokens',
+        '20261028100000_add_agent_pool',
+        '20261028100100_widen_organization_audit_agent_pools',
       ]);
     } finally {
       db.cleanup();
@@ -1203,6 +1211,8 @@ describe('rollbackTo, against a real database', () => {
 
       // Proof: omitting restore approvals from production rollback selection failed this complete descending order.
       expect(reversed).toEqual([
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
         '20261026130000_widen_organization_audit_machine_tokens',
         '20261026120000_add_command_journal_person',
         '20261025130000_add_resource_runtime',
@@ -1346,6 +1356,8 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
         '20261026130000_widen_organization_audit_machine_tokens',
         '20261026120000_add_command_journal_person',
         '20261025130000_add_resource_runtime',
@@ -1474,6 +1486,8 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
         '20261026130000_widen_organization_audit_machine_tokens',
         '20261026120000_add_command_journal_person',
         '20261025130000_add_resource_runtime',

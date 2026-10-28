@@ -1,6 +1,7 @@
 export * from './auth-methods';
 export * from './commands/definitions';
 export * from './errors';
+export * from './http/agent-pool-shapes';
 export * from './http/auth-oidc-shapes';
 export * from './http/auth-password-shapes';
 export * from './http/budget-headroom-shapes';

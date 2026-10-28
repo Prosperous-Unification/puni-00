@@ -305,9 +305,7 @@ describe('migration deploy entrypoints', () => {
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe(
-      '20261026130000_widen_organization_audit_machine_tokens',
-    );
+    expect(baselineLedger.at(-1)?.name).toBe('20261028100100_widen_organization_audit_agent_pools');
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
@@ -1166,7 +1164,9 @@ describe('migration deploy entrypoints', () => {
           name !== '20261025120000_add_resource_use' &&
           name !== '20261025130000_add_resource_runtime' &&
           name !== '20261026120000_add_command_journal_person' &&
-          name !== '20261026130000_widen_organization_audit_machine_tokens',
+          name !== '20261026130000_widen_organization_audit_machine_tokens' &&
+          name !== '20261028100000_add_agent_pool' &&
+          name !== '20261028100100_widen_organization_audit_agent_pools',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1241,7 +1241,9 @@ describe('migration deploy entrypoints', () => {
           name !== '20261025120000_add_resource_use' &&
           name !== '20261025130000_add_resource_runtime' &&
           name !== '20261026120000_add_command_journal_person' &&
-          name !== '20261026130000_widen_organization_audit_machine_tokens',
+          name !== '20261026130000_widen_organization_audit_machine_tokens' &&
+          name !== '20261028100000_add_agent_pool' &&
+          name !== '20261028100100_widen_organization_audit_agent_pools',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1278,7 +1280,7 @@ describe('migration deploy entrypoints', () => {
       expect(reversed).not.toContain(`CREATE TABLE \`${table}\``);
     runMigrations(dbPath, MIGRATIONS);
     expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe(
-      '20261026130000_widen_organization_audit_machine_tokens',
+      '20261028100100_widen_organization_audit_agent_pools',
     );
     expect(schemaAt(dbPath).join('\n')).toContain('CREATE TABLE `work_item_resource_demand`');
   }, 60_000);

@@ -18,6 +18,7 @@ import { auditOnUpdate } from './audit';
 import type { Gate } from './gate';
 import { writeImmediately } from './immediate-write';
 import {
+  agentPool,
   MACHINE_CREDENTIAL_SOURCES,
   machineCredential,
   type MachineCredentialRow,
@@ -40,11 +41,16 @@ const boundMembership = and(
 );
 
 /**
- * No credential carries an expiry yet: only agent pools give one
- * (`wbs-mcp-agent-surface` M7), and their migration (task 6.1) adds the column
- * this read then returns in place of this constant.
+ * The pool a credential was issued by, if any: only an agent pool gives a
+ * credential an expiry (`wbs-mcp-agent-surface` M7), read with the credential
+ * so {@link admitMachineCredential} judges it in its one place.
+ *
+ * Proof: with `findById` answering `expiresAt: null` in place of the pool's,
+ * `refuses its keys at admission and lets its leases lapse as lease expired`
+ * (agent-pool.controller.db.test.ts) admitted the expired pool's key; watched
+ * 2026-10-28.
  */
-const NO_CREDENTIAL_EXPIRY = null;
+const issuingPool = eq(agentPool.id, machineCredential.agentPoolId);
 
 /** {@link MachineCredentials} over the shared database. */
 export class MachineCredentialRepository implements MachineCredentials {
@@ -72,10 +78,12 @@ export class MachineCredentialRepository implements MachineCredentials {
         credential: machineCredential,
         boundAccountId: person.accountId,
         boundAccountRole: organizationMembership.role,
+        poolExpiresAt: agentPool.expiresAt,
       })
       .from(machineCredential)
       .innerJoin(person, eq(person.id, machineCredential.personId))
       .leftJoin(organizationMembership, boundMembership)
+      .leftJoin(agentPool, issuingPool)
       .where(eq(machineCredential.id, id))
       .get();
     if (row === undefined) return null;
@@ -101,7 +109,7 @@ export class MachineCredentialRepository implements MachineCredentials {
       boundAccountId: row.boundAccountId,
       boundAccountRole: checkedRole(row.boundAccountRole, id),
       revokedAt: checkedTime(row.credential.revokedAt, id),
-      expiresAt: NO_CREDENTIAL_EXPIRY,
+      expiresAt: checkedTime(row.poolExpiresAt, id),
       trustedIssuerId: row.credential.trustedIssuerId,
       mcpFamilyId: row.credential.mcpFamilyId,
       secrets,
@@ -149,10 +157,12 @@ export class MachineCredentialRepository implements MachineCredentials {
         credential: machineCredential,
         boundAccountId: person.accountId,
         boundAccountRole: organizationMembership.role,
+        poolExpiresAt: agentPool.expiresAt,
       })
       .from(machineCredential)
       .innerJoin(person, eq(person.id, machineCredential.personId))
       .leftJoin(organizationMembership, boundMembership)
+      .leftJoin(agentPool, issuingPool)
       .innerJoin(
         organizationTrustedIssuer,
         and(
@@ -184,7 +194,7 @@ export class MachineCredentialRepository implements MachineCredentials {
         boundAccountId: row.boundAccountId,
         boundAccountRole: checkedRole(row.boundAccountRole, id),
         revokedAt: checkedTime(row.credential.revokedAt, id),
-        expiresAt: NO_CREDENTIAL_EXPIRY,
+        expiresAt: checkedTime(row.poolExpiresAt, id),
         trustedIssuerId: row.credential.trustedIssuerId,
         mcpFamilyId: row.credential.mcpFamilyId,
         secrets: [],

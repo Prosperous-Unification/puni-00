@@ -119,6 +119,7 @@ export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
     cadenceSeconds: 300,
     outcome: { kind: 'unreachable', reason: 'route-probe' },
   },
+  'postApiOrganizationAgent-pools': { name: 'route-probe', size: 1 },
   'postApiOrganizationMachine-credentials': {
     source: 'api_key',
     name: 'route-probe',

@@ -710,6 +710,11 @@ type BareRefusalCode =
   // `wbs-mcp-agent-surface` M2: an audience that is not WBS's authorization
   // server or under it after a `/`.
   | 'audience_not_wbs'
+  // Agent pools (`wbs-mcp-agent-surface` M7): a pool person removed while a
+  // re-key minted its keys; a revoked pool whose persons' removal the
+  // directory batch refused.
+  | 'pool_changed'
+  | 'persons_not_removed'
   // Delivery observation (`track-work-delivery`): every provider read slot
   // stayed taken for the bounded wait.
   | 'delivery_busy';

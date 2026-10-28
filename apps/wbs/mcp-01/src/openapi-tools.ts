@@ -110,6 +110,13 @@ export const EXCLUDED_PATHS: readonly string[] = [
   // 2026-10-22.
   '/api/organization/machine-credentials',
   '/api/organization/machine-credentials/*',
+  // An agent pool mints N credentials in one act (`wbs-mcp-agent-surface`
+  // M7), and be-01 refuses every delegation and grant on its routes.
+  // Proof: removing either entry made `keeps agent pool administration out of
+  // the generated MCP tools` (generated-document.test.ts) expose its tools;
+  // watched 2026-10-28.
+  '/api/organization/agent-pools',
+  '/api/organization/agent-pools/*',
   // A trusted issuer admits machines for every person of its organization,
   // and be-01 refuses every delegation on these routes as well.
   // Proof: removing either entry made `keeps trusted issuer administration

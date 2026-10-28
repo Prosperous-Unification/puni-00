@@ -1421,3 +1421,152 @@ fail (6 files); `tool-devsync` `sync.test.ts -t "boot-commit convergence"` 8 pas
 (a8b233254's fixture fix); `openspec validate --all --json` 301 of 301; `check-indexes working .
 HEAD` exit 0; prettier clean. The full Dash and tool-devsync suites were not rerun; CI runs
 them.
+
+## Slice 8: agent pools (tasks 6.0, 6.1 and 6.2)
+
+Built on branch `feat/wbs-agent-pools-8` from `plan/wbs-mcp-agent-surface-2` at 6b4e05823,
+2026-10-28. Every test below ran under `env -u CLAUDECODE` on the laptop; nothing ran on h2puni.
+
+**Assumptions Dany may reverse (tasks.md 0.2).** M7 is built as designed, with API-key pools
+only (no OIDC pool in v1). M16 (g): `parent_claim_foreign` and D7 stay exactly as they are
+today, so every agent of a pool (all bound to the creating admin) may claim under another's
+subtree claim.
+
+What landed:
+
+- **6.0** Five account-keyed checks the M16 table lacked are added to design.md M16: claim
+  identity (`refuseIdentity`), a member's machine-credential reach, consent agents
+  (`agentsBoundTo`), saved-plan rename and delete (`mayTouchSavedPlan`), and project owner
+  edits (`canEditProjectInOrganization`). None changes behaviour here.
+- **6.1** `20261028100000_add_agent_pool` (the `agent_pool` table, its live-name index and
+  `machine_credential.agent_pool_id`) and `20261028100100_widen_organization_audit_agent_pools`
+  (`agent_pool_created`, `agent_pool_revoked`, `agent_pool_rekeyed` and the subject kind
+  `agent_pool`, by compatible rebuild). The rebuild and its `down.sql` both recreate task 1.2's
+  two partial unique indexes. Both `down.sql` files refuse by name: the first while any pool
+  exists, the second while any pool audit row exists. The credential read now joins the pool,
+  so `admitMachineCredential` judges a pool's `expiresAt` (slice 1 note 3's constant is gone).
+  Every test pinning the migration list or rollback order carries the two names.
+- **6.2** `AgentPools` (`@wbs/core` `ports/agent-pools.ts`), `AgentPoolRepository`
+  (`@wbs/store-sqlite` `agent-pool.ts`), and `agentPoolRoutes` (`@wbs/core`
+  `http/agent-pool.routes.ts`) behind four shapes in `@wbs/contracts` `agent-pool-shapes.ts`:
+  `GET`/`POST /api/organization/agent-pools`, `POST …/:id/rekey` and
+  `DELETE …/:id?removePersons=true`. They are wired in `app.ts`, `boot.ts` and both organization
+  harnesses, kept out of the MCP tools (`EXCLUDED_PATHS`), and listed in the route inventory.
+  Refusal codes `pool_changed` and `persons_not_removed` are added to `refusal.ts`.
+
+### Slice 8 notes (assumptions taken, and gaps in the design)
+
+1. **"Through `addPerson`'s cap check".** The pool's persons, keys, pool row and audit rows are
+   written in one `BEGIN IMMEDIATE` transaction of the SQLite repository. Running them as a
+   directory command batch would have needed the batch's unit of work to carry machine
+   credentials. The cap is judged by the same reading and decision `addPerson` uses:
+   `readAgentPersonCapIn` (extracted from `OrganizationLimitGaugeRepository`, which now
+   delegates to it) and `refuseLimit`, once for the whole pool, inside that transaction. The gap:
+   no directory announcement is pushed for the new persons, so an open people list shows them
+   on its next read. Each person's root name is its own opaque id, as for `addPersonWithin`.
+2. **Names.** The agent at index `i` is `<name>-<i+1>` in the organization, and its
+   credential takes the same name. The pool name is 1–60 characters and not shaped like a
+   secret. A live pool, an organization person or a live credential holding any of these names
+   gives `409 name_taken`. Revoking a pool frees its name.
+3. **Keys document (for 6.4).** Create and re-key answer `201` with one document: `format:
+'wbs-agent-pool-keys'`, `version: 1`, `organizationId`, `poolId`, `name`, `expiresAt`,
+   `issuedAt`, and `agents[]`, each with `personId`, `personName`, `credentialId` and `key`, in
+   name order. The keys are minted in the route and only digests reach the store. Nothing
+   logs them: the create test spies on the console and checks that no secret, digest or
+   `wbs_mk_` reaches the list, the audit or a log line.
+4. **Audit detail.** Each key gets `machine_credential_created` or `machine_credential_revoked`
+   with today's detail plus `agentPoolId`. The pool row carries `size`, `expiresAt`, `personIds`
+   and `credentialIds` (created), `credentialIds` (re-keyed), or `credentialIds` and `personIds`
+   (revoked). It never carries a name, a key, a secret or a digest.
+5. **Re-key is two reads.** The route reads the pool's persons, mints one key each, and the
+   store re-checks inside its transaction that the keys name exactly those persons. A person
+   removed in between gives `409 pool_changed`, and nothing is written. Pool persons are the
+   persons its credentials name, so a person removed alone leaves the pool smaller. Re-keying
+   keeps the persons' leases, because each keeps a live credential.
+6. **`removePersons`** is a query flag on `DELETE` (`?removePersons=true`), not a body. The
+   revocation commits first; the route then runs one directory batch of `deletePerson`
+   (`cascade: true`) for the pool's persons as the admin (A24). A refused batch answers
+   `409 persons_not_removed` with the pool revoked and its persons kept. The design's later
+   `DELETE …/agent-pools/:id/persons` is not built: a revoked pool's persons can still be
+   removed one at a time with `deletePerson`.
+7. **Revocation ends both secrets of a rotated pool key.** A pool key can still be rotated
+   through the single-credential route, and the pool revoke ends every secret that is
+   unexpired at the revoke. A pool person who also holds a key issued alone keeps its leases.
+8. **OIDC pools** are refused by the schema (`source` may only be `'api_key'`) as
+   `400 invalid_body`. Size, a past `expiresAt` and one more than 90 days ahead get the same
+   answer.
+9. **Who may act.** Only a current `admin` or `super_admin`, checked inside each act's
+   transaction; a member or viewer gets `403 forbidden`. Every delegation, grant and machine
+   key gets `403 insufficient_scope` (`sessionOrganizationOf`). The test drives this with an
+   API key on `/api`; a separate delegation case was not written, because the same
+   `principal.delegation` guard decides both.
+10. **The listing** (`GET`) is admin-only. It shows every pool, revoked ones included, each
+    with its live credentials and no secret.
+11. **Memory parity.** The memory source has no activated organization, and organization
+    administration ports are SQLite-only, as `MachineCredentialAdministration` is. No plan
+    store port grew, so store-memory and the conformance suite are unchanged.
+12. **No new env key.** Dev needs nothing seeded for this slice; its two migrations are
+    additive and run at deploy.
+13. **Expired pools.** A token request with an expired pool's key reaches be-01's grant route
+    as `401 unknown_identity`; mcp-01 maps that to `invalid_client` (`machine-token.test.ts`
+    `maps unknown_identity and not_activated to invalid_client…`, in the mcp-01 run below). The lease then lapses at its own end and is
+    released as `lease expired`.
+14. **Follow-up at merge with slice 7 (#770, open when this PR opened).** #770 adds
+    `EndpointShape.humanOnly?: true` and mcp-01 hides tagged routes from every tool list. The
+    pool routes (create, re-key, revoke, and the admin listing) mint or reveal keys and must be
+    tagged `humanOnly`, and mcp-01 `generated-document.test.ts`'s pinned `HUMAN_ONLY` list must
+    name them. Until then they are kept out of the tools by `EXCLUDED_PATHS` (F-table P10); when
+    both land, the coordinator tags them at merge and decides whether the exclusion entries stay.
+
+### Commands and results, slice 8
+
+All on 2026-10-28 with `env -u CLAUDECODE` and `--skip-nx-cache`, on the laptop:
+
+| Command                                                                                                                                                    | Result                                                                                                                                                                                                                                                                                                              |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run-many -t typecheck lint -p wbs-contracts wbs-core wbs-store-sqlite wbs-be-01 wbs-mcp-01 wbs-domain wbs-store-memory wbs-conformance wbs-fe-01` | "Successfully ran targets typecheck, lint for 9 projects and 3 tasks they depend on", exit 0                                                                                                                                                                                                                        |
+| `bunx nx run-many -t test -p wbs-domain wbs-contracts wbs-core wbs-store-sqlite wbs-store-memory wbs-conformance wbs-mcp-01 --parallel=1`                  | every project green but store-sqlite: 2001 pass, 2 fail (`audit.test.ts`, which requires `auditOnCreate` on every drizzle insert, and `runtime-ledger.db.test.ts`, whose old-branch fixture has no `machine_credential`). Both were fixed (note 15), then store-sqlite was rerun: 2003 pass, 0 fail, 1 skip, exit 0 |
+| `bunx nx run wbs-be-01:test`                                                                                                                               | 3808 pass, 1 fail, 3 skipped, 3812 tests in 261 files (1257 s). The failure was `runtime-authority.db.test.ts`'s fixed `-13` migration window; it became `-15`, and that file was rerun: 30 pass, 0 fail                                                                                                            |
+| `bun test src/` (mcp-01, after the fixture updates)                                                                                                        | 712 pass, 0 fail                                                                                                                                                                                                                                                                                                    |
+| `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts` on the four new SQL files                                                                       | exit 0                                                                                                                                                                                                                                                                                                              |
+| `bunx openspec validate --all --json`                                                                                                                      | 301 items, 301 passed                                                                                                                                                                                                                                                                                               |
+| `bunx prettier --check` on every changed file but the SQL                                                                                                  | "All matched files use Prettier code style!"                                                                                                                                                                                                                                                                        |
+
+The be-01 suite was not rerun in full after the `-15` fix; only the changed file was. Not run:
+the h2puni gate, fe-01's tests and browser e2e (no fe-01 source changed), gw-01, and the
+tool-devsync workspace tests (no env key changed). CI runs them.
+
+15. **Two store-sqlite checks met by this slice.** `audit.test.ts` requires
+    `auditOnCreate` on every drizzle insert. `person_organization` carries no audit columns, so
+    the pool now writes it with raw SQL, as `mapInOrganization` does. `runtime-ledger.db.test.ts`
+    builds an old branch without `machine_credential`, so its fixture now leaves out
+    `20261028100000_add_agent_pool`, which alters that table.
+
+### Failure-proof table, slice 8
+
+Each check was watched failing with the fault injected, then restored. The `Proof:` comment
+sits beside the check or its test. "Controller" is `agent-pool.controller.db.test.ts`, "store" is
+`agent-pool.db.test.ts` (store-sqlite), and "migration" is `agent-pool-migration.db.test.ts`.
+
+| #   | Check                                                 | Fault injected                                      | Test that observed it failing                                                                                                           |
+| --- | ----------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| P1  | the forward rebuild recreates task 1.2's `_run` index | the index left out of `…agent_pools/migration.sql`  | migration `keeps task 1.2's issuance insert preparing after the rebuild`: "ON CONFLICT clause does not match any … UNIQUE constraint"   |
+| P2  | the `down.sql` rebuild recreates it                   | the index left out of `…agent_pools/down.sql`       | migration `keeps task 1.2's issuance insert preparing after rolling the rebuild back`, and `restores the schema it left, byte for byte` |
+| P3  | `add_agent_pool`'s guard                              | the count replaced by `0 = 0`                       | migration `refuses rollback while a pool exists`: exit 0, the pool dropped                                                              |
+| P4  | the audit widening's guard                            | the filter replaced by `WHERE 0`                    | migration `refuses rollback over one pool audit row of each action`: the narrow CHECK, not the named guard                              |
+| P5  | the cap judged inside the transaction                 | the cap read before the write turn                  | store `never holds more agent persons than the cap…` (`fc.asyncModelRun`, seed 20261028): `[CreateRacing(3, 6)]`, 9 agents of 8         |
+| P6  | only an admin creates                                 | `poolAdministratorRefusal` admits every member role | controller `refuses a member and a viewer forbidden…`: 201 with the keys                                                                |
+| P7  | every live key revoked                                | `live.slice(1)` revoked                             | controller `revokes every key of the pool…`: the skipped agent's claim survived the sweep                                               |
+| P8  | re-key creates no person                              | a fresh person minted per key in `rekey`            | controller `re-keys the same persons at the cap, creating none…`: eight new person ids                                                  |
+| P9  | `removePersons` removes them                          | the directory batch skipped                         | controller `removes the pool's persons with removePersons…`: `removedPersons: 0`, eight persons kept                                    |
+| P10 | the cap refusal                                       | refusal disabled                                    | controller `refuses a pool crossing the agent-person cap…`: 201 instead of 409                                                          |
+| P11 | re-key keys name exactly the pool's persons           | `pool_changed` refusal disabled                     | store `refuses keys that do not name exactly the pool's persons`: `rekeyed` for a one-person set                                        |
+| P12 | `expiresAt` at most 90 days ahead                     | the bound multiplied by 1000                        | controller `refuses a size of 0 or 101, … one past 90 days`: the 91-day pool created                                                    |
+| P13 | the pool's expiry reaches admission                   | `findById` answers `expiresAt: null`                | controller `an expired pool…`: the expired key admitted                                                                                 |
+| P14 | pool routes are no MCP tools                          | both `EXCLUDED_PATHS` entries removed               | mcp-01 `generated-document.test.ts` `keeps agent pool administration out of the generated MCP tools`                                    |
+| P15 | boot wires the pools                                  | the `agentPools` binding removed                    | `boot.db.test.ts` `serves agent pools from the shared database once activated`: "boot did not wire agent pools"                         |
+| P16 | no key in a log line                                  | the create route logs the minted keys               | controller `makes eight agent persons…`: `not.toContain` over the console capture                                                       |
+
+Every negative is restored in the tree. Two of them also stay as permanent tests, run on edited
+copies of the folder: `fails task 1.2's insert when the forward rebuild omits an issuance index`
+and `… after a rollback whose rebuild omits an issuance index`.
