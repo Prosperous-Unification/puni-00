@@ -790,3 +790,38 @@ The native-only capacity companion SHALL bind optional declared CronJob horizons
 - **THEN** N(B+1) is zero and no retry entry is materialized
 - **AND** declared lifecycle facts and all manual/prior/generation/history/enforcement obligations remain visible
 - **AND** the standalone Job representation bound is unchanged
+
+### Requirement: Generated rehearsal costs reuse bound source traits
+
+The full rehearsal capacity companion SHALL consume its independently validated stage/chart source once and reuse the existing selected generated-role decoder, pinned-provider traits, workload normalizer and capacity arithmetic. It MUST preserve native-only API/output behavior and public source-only inventory. Source-derived selection, exact packet/runtime-lock binding, conditional lifecycle charges and unobserved runtime facts MUST remain distinct.
+
+#### Scenario: Retained frames supply generated roles
+
+- **WHEN** the supported two-instance releases and their shared providers are retained with exact stage/frame/resource identities
+- **THEN** application namespaces/environments and release inputs come from validated declarations and explicit enablement, and all eight generated store traits bind to exact API group/kind/namespace/name, release, frame and pointer
+- **AND** no mutable-checkout reconstruction, fabricated full source object, synthetic effective Pod or second resource calculator is used
+
+#### Scenario: Runtime lock is authenticated independently
+
+- **WHEN** exact toolchain bytes accompany the combined reader
+- **THEN** the retained packet's unique toolchain file hash authenticates them and packet source/artifact identity equals inventory provenance before decoding
+- **AND** absent/duplicate/wrong coordinates, changed bytes, malformed locks, selection drift and substituted decoded locks refuse; a historical bootstrap source is not invented
+
+#### Scenario: First replacement remains a conditional budget
+
+- **WHEN** a selected supported one-replica trait has finite per-replica costs
+- **THEN** the declared fresh-attempt scenario retains one full initial and one full first-replacement Pod charge, including failed/terminating resource and disk costs, through existing cohort arithmetic
+- **AND** source claim slots are charged once under explicit unchanged-claim reuse, without pretending to observe PVC names/UIDs or granting reuse credit across unrelated owners
+- **AND** second/repeated/uncertain creations, adopted/prior children, changed scale/template, new claims, retained history and actual enforcement remain independent blockers; the scenario is not an operator maximum
+
+#### Scenario: Unsupported traits cannot acquire nominal charges
+
+- **WHEN** a valid selected trait has unsupported cost-bearing source shape or unknown concurrency/enforcement
+- **THEN** null per-replica costs never become charges, and concrete trait/lifecycle/runtime blockers preserve incompleteness
+- **AND** only actually covered generated-owner generic blockers are replaced; native entries, totals, lifecycle records and unrelated provider/writer/history obligations remain unchanged
+
+#### Scenario: Combined entry uses the existing producer
+
+- **WHEN** the production companion is invoked
+- **THEN** it prepares the existing canonical packet exactly once and consumes the same validated source and packet/runtime identities for native and generated costs
+- **AND** the combined closure binds exact traits, lifecycle inputs and charges while creation/runtime authority remains false
