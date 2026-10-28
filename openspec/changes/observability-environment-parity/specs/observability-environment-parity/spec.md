@@ -903,3 +903,34 @@ All forward bootstrap callers SHALL apply one authored Kustomize overlay over th
 - **WHEN** the declared Flux policy contributes finite source costs
 - **THEN** existing lifecycle arithmetic accounts full Pod cohorts and retains independent logs/cache/history/concurrency/eviction/device/system/initialization/recovery obligations
 - **AND** successful authenticated fetch, Kustomize/Helm reconciliation, restart/recovery and actual effective Pod/storage enforcement remain required runtime evidence; source bounds never grant creation or runtime authority
+
+### Requirement: Combined source costs reserve standalone storage claims
+
+The existing combined capacity reader and canonical companion SHALL account explicitly declared standalone PersistentVolumeClaims from the same validated source traversal, alongside unchanged native and generated subrecords. They SHALL retain declaration origin, declared consumers and unobserved runtime ownership separately. No third capacity API, second source traversal or resource calculator is introduced.
+
+#### Scenario: Declared claims reserve once under explicit source conditions
+
+- **WHEN** a supported v1 claim has a resolved namespace/name, positive validated storage request, explicit nonempty storage class, ReadWriteOnce and absent or Filesystem volumeMode, without prebinding, selector, data-source or runtime-identity/status inputs
+- **THEN** its full requested storage is reserved exactly once by the existing claim quantity/CapacityCharge/sum helpers, with source identity and declared/default provenance retained
+- **AND** unreferenced declarations still reserve fully; repeated or initial/replacement consumers do not multiply the same logical reservation or establish physical deduplication
+- **AND** reservations remain conditional on a fresh immutable attempt, unchanged same-claim reuse, and no prior/adopted/deleted/recreated/resized/unrelated or hidden claims/history
+
+#### Scenario: Consumers and actual ownership remain distinct
+
+- **WHEN** any supported native family's validated source references a persistent claim, including an unbounded or zero-replica consumer
+- **THEN** the companion retains every source pointer and joins only exact resolved namespace/name to a declaration, independently of successful Pod normalization
+- **AND** missing declarations or unresolved namespaces remain explicit consumer blockers; actual PVC/PV UIDs, Bound status, mounts, devices, ownership, retention and quota/enforcement remain unobserved
+- **AND** only a successfully reserved PVC's exact generic unaccounted-declaration refusal is replaced by concrete physical/history obligations; consumer ownership/retention and all unrelated native/generated/runtime/writer obligations remain
+
+#### Scenario: Known malformed claims cannot disappear
+
+- **WHEN** any recognized claim contains malformed known request/spec/identity/access-mode/volume-mode fields, even after an unsupported or incomplete consumer
+- **THEN** the complete claim prepass throws before incomplete shortcuts; duplicate/conflicting logical identities and collisions with already charged claims refuse
+- **AND** valid unsupported binding/provider/source shapes retain their request evidence and named uncharged obligations rather than nominal capacity, inferred defaults or fabricated effective state
+
+#### Scenario: Existing source APIs gain the corrected total
+
+- **WHEN** the two existing combined entry points are called
+- **THEN** additive standalone declaration/consumer/charge evidence and its sum feed their existing total, blockers and closure through one shared derivation, while native-only APIs, public source inventory and native/generated subrecords remain unchanged
+- **AND** the retained registry50Gi and object-store20Gi add exactly71680Mi disk and zero CPU/memory; they are not already charged by ordinal or generated claims
+- **AND** returned provenance is a snapshot, the canonical producer is invoked once, and state remains incomplete with creation/runtime authority false
