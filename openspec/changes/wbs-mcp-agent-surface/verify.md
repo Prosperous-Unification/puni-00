@@ -1705,3 +1705,73 @@ and `… after a rollback whose rebuild omits an issuance index`.
 Commands for the fixes, 2026-10-28 with `env -u CLAUDECODE`: `bunx nx run-many -t typecheck lint`
 over contracts, core, store-sqlite, be-01, mcp-01 and fe-01; targeted tests, recorded below in
 the PR's commit message.
+
+## Slice 9: the fe-01 agent pools panel (task 6.3)
+
+Built on branch `feat/wbs-pool-panel-9` from `plan/wbs-mcp-agent-surface-2` at 1c0664ce9,
+2026-10-28. Every command below ran under `env -u CLAUDECODE` on the laptop; nothing ran on
+h2puni. No be-01 change was needed.
+
+What landed:
+
+- `AgentPoolsSlot` and `AgentPoolsPanel` (`apps/wbs/fe-01/src/components/organization/
+agent-pools-panel.tsx`), composed on the organization page after machine credentials. The
+  slot draws nothing for a member or viewer, who send no pools request, and nothing without
+  organizations. A failed role read draws an alert with retry.
+- The panel reads `GET /api/organization/agent-pools` and `GET /api/organization/limits`
+  together. Each pool shows its name, standing (Live, Expired, Revoked), agents, live keys,
+  expiry (or revocation) and creation. Loading, empty, failure with retry, and `forbidden`
+  (no panel) are rendered states. A loss refusal gives the page up.
+- **Create** is a dialog: name, agents (1–100), and an optional expiry day. Before confirming,
+  it states the persons it creates (`<name>-1` to `<name>-N`) and the organization's agent
+  persons against their cap, and it disables the confirm button when the pool does not fit.
+  `agent_person_limit` (409) names the cap, the current count and what fits.
+- **Keys once.** The `201` document goes straight to `downloadAgentPoolKeys`
+  (`agent-pool-keys-file.ts`), a blob and an anchor click with the object URL revoked at
+  once. The reply is never put in state, the query layer, a log or browser storage. The
+  panel keeps only the file name and the key count, and says the keys are not shown and
+  cannot be downloaded again, and that `twilight-dash pool import <file>` reads the file.
+- **Re-key** confirms in the row: how many live keys stop working, how many new keys are
+  saved, and how many agents without a live key stay keyless. The body is always JSON: `{}`
+  keeps the expiry, `{ expiresAt }` replaces it. `409 pool_expired` (or a pool the list
+  already shows expired) makes the new expiry required, with the reason in an alert.
+  `pool_changed` and `not_found` are said in place.
+- **Revoke** confirms in the row with the counts. "Also remove the N agent persons" is
+  opt-in and starts off, and `?removePersons=true` is sent only when it is checked.
+  `409 persons_not_removed` is drawn as a partial success: the pool is revoked, its keys no
+  longer work, and its persons stay and still count toward the limit.
+- Every refusal the five shapes model has a sentence in `agentPoolRefusal`
+  (`agent-pool-refusal.ts`). An impossible reply or a thrown write reaches the Error Boundary.
+- `e2e/agent-pools.spec.ts`: the panel in Chromium at 1280 and 375 px, every `/api` answered at
+  the browser as `organization.spec.ts` does. It checks one `download` event named
+  `pool-pool-new.keys.json`, no `wbs_mk_` in the page, and nothing sideways, and it saves a
+  screenshot of each state.
+
+### Slice 9 notes (assumptions taken)
+
+1. **File name.** M7 names the download `pool-<id>.keys.json`; the panel uses exactly that
+   (`pool-<poolId>.keys.json`), not a name built from the pool name.
+2. **Expiry is a UTC day.** The expiry control is a date input. The keys stop at 00:00 UTC on
+   the chosen day, which is how every instant on this page is shown (`minuteOf`). The days
+   offered run from tomorrow to 89 days ahead, so 00:00 UTC on the last day is always within
+   be-01's 90-day bound, whatever minute the form is sent.
+3. **Counts come from the last read.** The headroom shown before creating is the limits read
+   taken with the list, which every write rereads. A race past it still meets be-01's cap
+   check, and that answer is drawn (`agent_person_limit`).
+4. **A failed limits read fails the panel.** The panel does not draw pools without the counts a
+   create must state, so a limits failure is the panel's failure with retry, and a limits
+   `forbidden` hides the panel as the pools `forbidden` does.
+5. **Re-key needs a live key.** Re-key is disabled when no agent of the pool holds a live key,
+   since it would issue no key (M7: only agents holding a live pool key are re-keyed).
+6. **No new design token.** The partial-success box uses the `destructive/40` border the
+   existing confirm boxes use; the design system has no warning colour.
+
+### Reviewed by eye
+
+The browser spec's screenshots at 1280 and 375 px were reviewed: the empty list, the populated
+list (Live, Expired, Revoked), the create dialog with its counts, the "keys downloaded" note,
+the re-key confirmation, the `pool_expired` state, the revoke confirmation, and the
+persons-kept state. The first pass put the actions beside the facts, so the dates wrapped and
+the revoked row's columns did not line up. The actions moved onto the name line, the facts got
+the full width, and dates take a full line on a phone. The persons-kept sentence no longer
+repeats its heading, and the Revoked chip is muted, with only Expired drawn as needing action.
