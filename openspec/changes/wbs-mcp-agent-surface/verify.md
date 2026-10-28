@@ -1732,8 +1732,9 @@ agent-pools-panel.tsx`), composed on the organization page after machine credent
   storage. The panel holds only the blob and its object URL, until the admin presses Done, the
   next write starts, or the panel unmounts; then the URL is revoked. Until then "Save the file
   again" saves the same blob with no request. The note gives the file name and key count, says
-  the keys are not shown, to save again before Done if no file appeared, and that
-  `twilight-dash pool import <file>` reads the file. (Amended by the review of PR #774, S2-1.)
+  the keys are not shown, to save again before Done if no file appeared, and gives the two
+  import commands: `chmod 600 <file>`, then `twilight-dash pool import <file> --store
+~/.config/wbs/pools`, then delete the file. (Amended by the review of PR #774, S2-1.)
 - **Re-key** confirms in the row: how many live keys stop working, how many new keys are
   saved, and how many agents without a live key stay keyless. The body is always JSON: `{}`
   keeps the expiry, `{ expiresAt }` replaces it. `409 pool_expired` (or a pool the list
@@ -1872,3 +1873,11 @@ Commands for the fixes, 2026-10-28 with `env -u CLAUDECODE`, on the laptop:
 `bun nx run wbs-fe-01:test --skip-nx-cache` gave unit 1079, UTC 4707 and zoned 5 passing, exit 0;
 `agent-pools-panel.test.tsx` 44 pass; the browser spec 8 pass at 1280 and 375 px;
 `openspec validate --all --json` 301 of 301.
+
+**Cross-PR finding from the #772 review (S2-2).** The note's import hint was
+`twilight-dash pool import <file>`, which fails the CLI's usage (`--store <dir>` is required),
+and a browser saves the file 0644, which the import refuses (it needs owner-only 0600). The
+note now shows two commands, `chmod 600 <file>` and `twilight-dash pool import <file> --store
+~/.config/wbs/pools`, and still says to delete the file. `~/.config/wbs/pools` is a placeholder
+store until a canonical one is named. The create test pins both lines exactly; the screenshot
+was taken again (the commands scroll inside their own box at 375 px; the page does not).

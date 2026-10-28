@@ -445,7 +445,10 @@ describe('agent pools panel create', () => {
       'Created swarm-c: 3 keys were saved to that file. They are not shown here. If no file appeared, save it again before pressing Done; after Done it cannot be saved again, and a lost file means re-keying the pool.',
     );
     expect(note).toHaveTextContent(
-      'Import it with twilight-dash pool import pool-pool-9.keys.json, then delete the file.',
+      'Make the file readable by you alone, import it, then delete the file:',
+    );
+    expect(within(note).getByLabelText('Import commands').textContent).toBe(
+      'chmod 600 pool-pool-9.keys.json\ntwilight-dash pool import pool-pool-9.keys.json --store ~/.config/wbs/pools',
     );
     expect(await row('swarm-c')).toBeDefined();
     expect(screen.queryByRole('dialog')).toBeNull();

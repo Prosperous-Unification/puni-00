@@ -204,6 +204,9 @@ function emptyDraft(now: number): Draft {
   return { name: '', size: '8', expiry: '', openedAt: now };
 }
 
+/** The `--store` the import hint names: where `twilight-dash` keeps a pool's keys. */
+const POOL_STORE = '~/.config/wbs/pools';
+
 /** What the panel says when a 2xx keys reply could not be read: the pool may exist. */
 export const KEYS_UNREAD =
   'The keys could not be read; the pool may exist — refresh and re-key it.';
@@ -812,12 +815,20 @@ function OutcomeNote({
             saved again, and a lost file means re-keying the pool.
           </p>
           <p className="m-0 text-sm">
-            Import it with{' '}
-            <code className="text-xs [overflow-wrap:anywhere]">
-              twilight-dash pool import {outcome.fileName}
-            </code>
-            , then delete the file.
+            Make the file readable by you alone, import it, then delete the file:
           </p>
+          {/*
+           * `twilight-dash pool import` requires `--store` and refuses a keys
+           * file anyone but its owner can read; a browser saves it 0644.
+           */}
+          <pre
+            aria-label="Import commands"
+            className="bg-background border-border m-0 overflow-x-auto rounded-md border p-2 text-xs"
+          >
+            <code>
+              {`chmod 600 ${outcome.fileName}\ntwilight-dash pool import ${outcome.fileName} --store ${POOL_STORE}`}
+            </code>
+          </pre>
           <div className={ROW_ACTIONS_CLASS}>
             <Button
               type="button"
