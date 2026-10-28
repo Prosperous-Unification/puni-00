@@ -3,6 +3,7 @@ import {
   chmod,
   copyFile,
   mkdir,
+  open,
   readdir,
   readFile,
   realpath,
@@ -121,64 +122,72 @@ test('locked fixture concurrent preparations publish complete archives with dist
   const extracted = join(shared, 'extracted');
   await mkdir(extracted);
   await writeFile(join(extracted, 'must-preserve'), 'another process owns this');
-  const before = await stat(archive);
-  const children = Array.from({ length: 2 }, () =>
-    Bun.spawn(
-      [
-        process.execPath,
-        '--eval',
-        `import { realpath } from 'node:fs/promises';
-     import { join } from 'node:path';
-     import { provisionObservabilityTools } from './tools/tool-fleet/src/observability-tools.fixture.ts';
-     const directory = await provisionObservabilityTools();
-     console.log(JSON.stringify({directory, executable: await realpath(join(directory, 'helm'))}));`,
-      ],
-      {
-        cwd: root,
-        env: { ...process.env, PUNI_TOOL_CACHE: cache },
-        stdout: 'pipe',
-        stderr: 'pipe',
-        timeout: 30000,
-      },
-    ),
-  );
-  const observations = children.map(async (child) => {
-    const [exit, stdout, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-    ]);
-    expect(stderr).toBe('');
-    expect(exit).toBe(0);
-    return JSON.parse(stdout) as { directory: string; executable: string };
-  });
-  let finished = 0;
-  for (const child of children)
-    void child.exited.then(() => {
-      finished += 1;
+  // Keep the original inode live while concurrent publications replace its pathname.
+  const originalArchive = await open(archive, 'r');
+  try {
+    const before = await originalArchive.stat();
+    const children = Array.from({ length: 2 }, () =>
+      Bun.spawn(
+        [
+          process.execPath,
+          '--eval',
+          `import { realpath } from 'node:fs/promises';
+       import { join } from 'node:path';
+       import { provisionObservabilityTools } from './tools/tool-fleet/src/observability-tools.fixture.ts';
+       const directory = await provisionObservabilityTools();
+       console.log(JSON.stringify({directory, executable: await realpath(join(directory, 'helm'))}));`,
+        ],
+        {
+          cwd: root,
+          env: { ...process.env, PUNI_TOOL_CACHE: cache },
+          stdout: 'pipe',
+          stderr: 'pipe',
+          timeout: 30000,
+        },
+      ),
+    );
+    const observations = children.map(async (child) => {
+      const [exit, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      expect(stderr).toBe('');
+      expect(exit).toBe(0);
+      return JSON.parse(stdout) as { directory: string; executable: string };
     });
-  while (finished !== children.length) {
+    let finished = 0;
+    for (const child of children)
+      void child.exited.then(() => {
+        finished += 1;
+      });
+    while (finished !== children.length) {
+      expect(
+        createHash('sha256')
+          .update(await readFile(archive))
+          .digest('hex'),
+      ).toBe(pin.sha256);
+      await Bun.sleep(1);
+    }
+    const preparations = await Promise.all(observations);
+    expect(new Set(preparations.map((preparation) => preparation.directory)).size).toBe(2);
+    for (const preparation of preparations)
+      expect(preparation.executable).toStartWith(join(preparation.directory, 'cache'));
+    // Proof: omitting the fixture's Helm publication failed this concurrent preparations test
+    // at this replacement assertion while the original archive stayed open.
+    expect((await stat(archive)).ino).not.toBe(before.ino);
     expect(
       createHash('sha256')
         .update(await readFile(archive))
         .digest('hex'),
     ).toBe(pin.sha256);
-    await Bun.sleep(1);
+    expect((await readdir(shared)).sort()).toEqual(['extracted', basename(archive)].sort());
+    expect(await readFile(join(extracted, 'must-preserve'), 'utf8')).toBe(
+      'another process owns this',
+    );
+  } finally {
+    await originalArchive.close();
   }
-  const preparations = await Promise.all(observations);
-  expect(new Set(preparations.map((preparation) => preparation.directory)).size).toBe(2);
-  for (const preparation of preparations)
-    expect(preparation.executable).toStartWith(join(preparation.directory, 'cache'));
-  expect((await stat(archive)).ino).not.toBe(before.ino);
-  expect(
-    createHash('sha256')
-      .update(await readFile(archive))
-      .digest('hex'),
-  ).toBe(pin.sha256);
-  expect((await readdir(shared)).sort()).toEqual(['extracted', basename(archive)].sort());
-  expect(await readFile(join(extracted, 'must-preserve'), 'utf8')).toBe(
-    'another process owns this',
-  );
 });
 
 test('locked fixture refuses an unwritable required Helm publication directory', async () => {
