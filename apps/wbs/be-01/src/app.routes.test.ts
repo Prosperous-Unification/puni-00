@@ -16,6 +16,7 @@ import { AuthService } from '@wbs/core/service/auth.service';
 import { inMemorySpaces } from '@wbs/store-memory/space-fixture';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it, spyOn } from 'bun:test';
+import fc from 'fast-check';
 
 import type { AppOptions } from './app';
 import { buildApp, mountedEndpoints } from './app';
@@ -25,6 +26,7 @@ import {
   type EndpointReply,
   type RequestFailure,
 } from './http/endpoint';
+import { indexEndpoints } from './http/endpoint-index';
 import { bunPasswordHasher, joseTokenCodec } from './runtime/bun-runtime';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from './testing/auth-fixture';
 import { testCalendarMarkerService } from './testing/calendar-marker-fixture';
@@ -38,6 +40,7 @@ import {
   refusingTestEmailDelivery,
 } from './testing/email-verification-fixture';
 import { testHistoryService } from './testing/history-fixture';
+import { linearEndpointLookup, requestsFor } from './testing/linear-endpoint-lookup';
 import { testLoginThrottle } from './testing/login-throttle-fixture';
 import {
   legacyOrganizationAccess,
@@ -753,6 +756,30 @@ it('binds each shared HTTP shape once in every configuration that owns it', () =
     for (const shape of shapes) {
       expect(endpoints.filter((endpoint) => endpoint.shape === shape)).toHaveLength(1);
     }
+  }
+});
+
+// The production tables hold no two same-method paths one request could both match, so
+// precedence is proved in `http/endpoint-index.test.ts`; this proves the buckets.
+// Proof: dropping `methods.add('HEAD')` failed this on `HEAD
+// /api/projects/register/runtime-commands/0`, and bucketing the untrimmed pathname failed it on
+// `GET /health/` (watched 2026-10-28).
+it('selects the endpoint the linear lookup selects, over every production table', () => {
+  for (const endpoints of [
+    mountedEndpoints(options()),
+    mountedEndpoints({ ...options(), oidc: oidcOptions() }),
+  ]) {
+    const lookup = indexEndpoints(endpoints);
+    const linear = linearEndpointLookup(endpoints);
+    fc.assert(
+      fc.property(requestsFor(endpoints), ({ method, pathname }) => {
+        const indexed = lookup(method, pathname);
+        const expected = linear(method, pathname);
+        expect(indexed?.endpoint).toBe(expected?.endpoint);
+        expect(indexed?.params).toEqual(expected?.params);
+      }),
+      { numRuns: 5000 },
+    );
   }
 });
 

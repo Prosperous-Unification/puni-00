@@ -2201,3 +2201,164 @@ Not run:
 - the per-IP failure overshoot under concurrency (the flood was sent one by one);
 - a run of the production `main.ts` be-01 (the harness composition was used);
 - a repeat of the 100-agent run on a quiet host.
+
+## Slice 12: be-01 call capacity (task 4.5)
+
+**Result.** One be-01 now carries **120.6 calls a second** at 100 agents on h2puni, up from
+**86.2** in the same lock window on the plan head (+40%). Every M10 fence holds exactly in both
+runs; the design rate (200 a second) still does not, so M10's sizing is restated in design.md
+(about 60 agents per be-01). No request-time security state is cached across requests; the
+one precomputed value is each configured service secret's digest, derived from configuration
+for the process's lifetime (there is no reload path).
+
+### What changed, and why it is safe
+
+1. **Statements stay compiled** (`libs/wbs/adapters/store-sqlite/src/db.ts`,
+   `STATEMENT_CACHE_SIZE`). Drizzle's Bun adapter compiles through `Database.query`, whose
+   per-connection cache held 20; one call issues about 80 distinct statements, so nearly every
+   statement was compiled again (a local count over a 20-agent run: 80 distinct SQL texts,
+   55,902 executions). The bound is now 1,024. The cache is private to its `Database`, so a
+   replaced handle starts empty, and SQLite recompiles a cached statement after another
+   connection's schema change (both observed in `db.db.test.ts`).
+2. **Observation connections are reused** (`poolReadConnections`, wired in `source.ts`). After
+   (1), `prepare` was still 10% of be-01's samples: every claims read and live-plan
+   observation opened a read-only connection (a local count: 931 `BEGIN DEFERRED` compiles in
+   10 s at 20 agents), compiled its statements and closed it. The pool lends an idle connection
+   to one caller at a time. A connection released inside a transaction, beyond eight idle, or
+   after the pool closed is closed, so no snapshot outlives its observation, and each
+   observation's `BEGIN DEFERRED` reads what was committed by then. The source's `close` drains
+   it. This is not the reader pool the ports-and-adapters history declined (2026-09-05 §10):
+   no read runs in parallel, the same per-observation connections are kept open between uses.
+   The two schedule handoff tests now count open snapshots (connections in a read
+   transaction), since an idle pooled connection is open by design.
+3. **Endpoint lookup is indexed** (`apps/wbs/be-01/src/http/endpoint-index.ts`). `mount.ts`
+   matched every endpoint and sorted the matches per request; `indexEndpoints` buckets the table
+   once by method (`HEAD` also reaching `GET`) and segment count, each bucket sorted by the same
+   precedence, and takes the first match. The JSDoc states why that equals the old choice. Both
+   production tables (145 and 151 endpoints) hold no two same-method paths one request could
+   both match.
+4. **Configured secrets are digested once** (`secretMatcher` in `http/identity.ts`). The
+   presented secret is still digested and compared with `timingSafeEqual` per request.
+5. `M10_LOAD_BE_PROFILE_DIR` lets the driver write a be-01 `--cpu-prof-md` profile.
+
+**Not changed, on purpose.** The credential row, revocation, pool expiry, membership and
+organization access are reread on every request, as before. The activation marker is not
+cached: it is read inside the transactions it guards (about 60 call sites), and a cache would
+need an invalidation proof across processes (blue/green share the file), so it was skipped. Its
+two reads are now compiled once, which removes most of their cost. Durability is unchanged:
+`synchronous` stays 2 (FULL) under WAL. `COMMIT`'s `run` is about 7% of be-01's samples, much
+of it the WAL sync, and is left as is.
+
+**Claim and release.** `EXPLAIN QUERY PLAN` over every hot statement found no table scan on a
+per-request path except `SCAN project` (covering index) in `findCrossReferences` and
+`SCAN step_blockage` in the step-blockage read, both over tiny tables here; no index was added.
+Their 140 ms p50 at 40 agents (slice 11) was queueing: they load the whole project and run the
+cross-reference check inside one serialized write turn. Locally at 40 agents they now take
+p50 13 ms (73 ms on the plan head).
+
+### Profile (local, 40 agents, before and after)
+
+`prepare` fell from 12.8% of be-01's samples to under 0.1%; endpoint lookup (`matchPath` and
+the mount filter) from about 6% to about 1.5%. What is left is mostly drizzle building SQL and
+mapping rows for each query (about 25% self time in drizzle-orm), SQLite executing (`values`,
+`all`, about 16%), `COMMIT` (about 7%) and Elysia's request handling. Removing drizzle's per-query build means `.prepare()` with placeholders for each hot
+query, a per-repository change not made here.
+
+Laptop runs (24 threads, not quiet; `--agents=40 --steady-seconds=60`, 80 calls a second
+each), be-01 process CPU per call: plan head 9.97 ms; after (1)+(3) 8.57 ms; after all 8.25 ms
+(a run with only the pool experiment added gave 7.61 ms). Laptop noise is about ±0.5 ms.
+
+### h2puni, 100 agents, 300 s
+
+`~/m10-load-runs/run12.sh` under `nohup setsid`: one `bin/with-heavy-lock.sh` session
+(label `m10-load:04c774afb`, `HEAVY_LOCK_WAIT_SECONDS=14400`) ran
+`env -u CLAUDECODE bun apps/wbs/mcp-01/src/load/m10-load.ts --agents=100 --steady-seconds=300`
+in two detached worktrees of the gate tree's repository, `~/puni-00-load-tbf` at **04c774afb**
+(this branch) and then `~/puni-00-load-base-tbf` at **5c403a1d9** (plan head), each with
+`bun install --frozen-lockfile`. Both worktrees have been removed. A first attempt gave up after
+its 3600 s queue behind the plan branch's gate (exit 75, nothing ran). Host: AMD EPYC-Genoa,
+8 vCPU, shared; load average 8.8 at the first start, 7.0 at the last end.
+
+| Measure                     | plan head 5c403a1d9           | this branch 04c774afb          |
+| --------------------------- | ----------------------------- | ------------------------------ |
+| calls, achieved rate        | 26,196 in 303.8 s, **86.2/s** | 36,480 in 302.4 s, **120.6/s** |
+| outcomes                    | 26,196 ok                     | 36,480 ok                      |
+| latency all p50 / p95 / p99 | 1,175 / 1,702 / 2,003 ms      | **809 / 1,158 / 1,447 ms**     |
+| commands p50 / p99          | 1,439 / 2,096 ms              | 873 / 1,481 ms                 |
+| heartbeat p50 / p99         | 1,117 / 1,901 ms              | 795 / 1,434 ms                 |
+| claims read p50 / p99       | 731 / 1,784 ms                | 711 / 1,384 ms                 |
+| be-01 CPU mean / peak       | 114.6% / 182%                 | 117.1% / 178.9%                |
+| be-01 CPU per call          | 13.3 ms                       | **9.7 ms**                     |
+| be-01 RSS peak / end        | 1,454 / 1,337 MiB             | 1,390 / 1,187 MiB              |
+| mcp-01 CPU mean, RSS peak   | 15.8%, 464 MiB                | 20.9%, 470 MiB                 |
+| org-a in flight peak, mean  | 100, 99.3                     | 100, 98.8                      |
+| expectations                | 17 of 18 (design rate fails)  | 17 of 18 (design rate fails)   |
+| exit                        | 1                             | 1                              |
+
+Both runs saturate be-01 (100 agents always in flight), so the achieved rate is be-01's
+capacity: 1 / 120.6 s is about 8.3 ms per call at saturation (from throughput). Every fence observed the same as in
+slice 11 in both runs: per credential 20 admitted and 20 HTTP 429; the batch 20 ran and 10
+tool errors; in flight exactly 128 and 22 HTTP 429, org-b 40 ok; failures 30 × 401 then 10 ×
+429; `(client_id, IP)` 5 × 401 then 429, holder elsewhere 200; 0 error lines, 0 SQLite busy.
+
+### Proofs
+
+| Check                                                  | Fault injected                                                       | Observed                                                                                                      |
+| ------------------------------------------------------ | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| statement cache keeps a request's statements           | `Database.MAX_QUERY_CACHE_SIZE` assignment removed                   | `keeps a request-sized set of statements compiled` failed `toBe`                                              |
+| index precedence (synthetic ambiguous table)           | buckets sorted `comparePaths(right, left)`                           | property failed, counterexample `GET /api/projects/active`                                                    |
+| index takes the first match                            | last match returned                                                  | property failed, counterexample `GET /api/projects/%E0%A4%A`                                                  |
+| `HEAD` reaches `GET` (synthetic)                       | `methods.add('HEAD')` dropped                                        | property failed, counterexample `HEAD /api/projects/active`                                                   |
+| index over both production tables                      | `methods.add('HEAD')` dropped; bucketing the untrimmed pathname      | failed on `HEAD /api/projects/register/runtime-commands/0`; on `GET /health/`                                 |
+| production tables and precedence                       | reverse sort (as above)                                              | passed: no ambiguous pair exists there, so precedence is proved on the synthetic table only                   |
+| pool never keeps a snapshot                            | pooled regardless of `isInTransaction`                               | `closes a connection released inside a transaction` counted 1 open, expected 0                                |
+| pool idle limit                                        | `idle.length >= idleLimit` dropped                                   | `keeps at most its idle limit…` counted 3 open, expected 2                                                    |
+| pool closes late releases                              | `closed` test dropped                                                | the same test counted 1 open after close, expected 0                                                          |
+| source drains its pool                                 | `reads.close()` dropped from the source's `close`                    | `reuses one read connection and closes every pooled one with the source` counted 1, expected 0                |
+| no snapshot at the optimizer handoffs (schedule tests) | `observeCommitted`'s commit omitted **and** the pool's guard dropped | both `closes the …` cases failed (Retry 500; [1, 1] snapshots at the handoffs)                                |
+| (same, single faults)                                  | commit omitted alone; guard dropped alone                            | both passed: either layer alone leaves no snapshot (the pool closes a connection released in its transaction) |
+| secret matcher uses the configured secret              | compared the presented digest with itself                            | 3 failed: both machine-grant `internal_unauthorized` cases and the internal-secret identity test              |
+| an absent configured secret matches nothing            | absent expected digested as `''`                                     | `matches a secret only against a configured one…` failed on `''`                                              |
+| an absent presented secret matches nothing             | presented-absent test dropped                                        | the same test threw on `null`                                                                                 |
+
+Revocation, pool expiry, member removal and deactivation still take effect on the next request
+because nothing about them is cached; their existing tests ran unchanged in CI. No new cache of security state was added, so no new negative of that kind was
+needed.
+
+### Commands and results, slice 12
+
+All on 2026-10-28 with `env -u CLAUDECODE`, on the laptop unless marked:
+
+| Command                                                                                                                              | Result                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| h2puni, under the heavy lock: the two 100-agent runs above                                                                           | exit 1 each, 17 of 18 (the design rate)      |
+| `bun apps/wbs/mcp-01/src/load/m10-load.ts --agents=40 --steady-seconds=60`, plan head, this branch at each step                      | exit 0 each; CPU per call above              |
+| the same with `M10_LOAD_BE_PROFILE_DIR` (before and after)                                                                           | exit 0; profiles above (not committed)       |
+| `bun nx run wbs-store-sqlite:test --skip-nx-cache`                                                                                   | 2012 tests across 150 files, success         |
+| `bun test` on be-01's `src/http/`, `src/app.routes.test.ts`, `schedule-organization`, `machine-grant`, elysia `identity`, `internal` | 132 pass; 73 pass; 45 pass; 0 fail           |
+| `bun nx run-many -t typecheck lint -p wbs-be-01 wbs-store-sqlite wbs-mcp-01 --skip-nx-cache`                                         | success                                      |
+| CI `ci` on 04c774afb (run 40656467339)                                                                                               | success                                      |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                          | exit 0                                       |
+| `bunx openspec validate --all --json`                                                                                                | 301 items, 301 passed                        |
+| `bunx prettier --check` on every changed file                                                                                        | "All matched files use Prettier code style!" |
+
+### Review of PR #776
+
+A Fable-high review found no S1. Its findings and what was done:
+
+| Finding                                                                            | Change                                                                                                                                                                                                                                                                                                                                                                        | Proof                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1: the pool's lent/idle/closed ownership needs a model-based test               | `db.pool.model.db.test.ts`: `fc.modelRun` over acquire, a read transaction on a lent connection, release (committed or inside its transaction), a second release, a failing `open` and pool close; idle limit 0–3; 300 runs. States, events and invariants added to the `poolReadConnections` JSDoc. Named `.db.test.ts` so `test:api` runs it beside the other SQLite tests. | Each sabotage failed (fast-check's shrunk counterexample, first element the idle limit; seeds vary): released guard dropped → `[3, acquire, release(0, as is), releaseAgain(0), closePool]` (the second release closed it again, so open fell below idle plus lent); `closed` test dropped → `[3, acquire, closePool, release(0, as is)]`; idle limit dropped → `[2, acquire, acquire, acquire, release(0, …) × 3]`; in-transaction test dropped → `[2, acquire, read(0), release(0, as is)]` |
+| S3-2: `observeCommitted`'s JSDoc let a read keep the handle, which a pool lends on | JSDoc corrected (answers are plain data and must not keep `db`); a lent handle is a proxy that throws on any use after its release                                                                                                                                                                                                                                            | handing out the connection's own `db` made `refuses a pooled handle used after its release` read through it                                                                                                                                                                                                                                                                                                                                                                                   |
+| S3-3: no negative for the common path, a thrown read whose rollback succeeds       | `reuses a connection after a failed read and sees later commits`: pooled and reused (`{ now: 1, ever: 1 }`), the next observation sees the writer's insert, a full checkpoint runs                                                                                                                                                                                            | closing every released connection gave `{ now: 0, ever: 2 }`; omitting the rollback gave `{ now: 1, ever: 2 }` (released inside its transaction, so closed)                                                                                                                                                                                                                                                                                                                                   |
+| S4: wording                                                                        | verify.md: the configured secret's digest is precomputed for the process's lifetime; design M10: "about 8.3 ms per call at saturation (from throughput)"; JSDoc: `MAX_QUERY_CACHE_SIZE` is a process-global static set on import, and pooled readers keep the old file on a rename-replace (a restore stops be-01 first)                                                      | none needed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Optional: a failed rollback masked the read's failure in `observeCommitted`        | an AggregateError of both, as `observeNow` does                                                                                                                                                                                                                                                                                                                               | rethrowing the read's failure alone failed `reports a read failure and its failed rollback together`                                                                                                                                                                                                                                                                                                                                                                                          |
+| Optional: drop the `$client` cast                                                  | kept: the exported `Drizzle` type has no `$client`, and widening `Connection.db` to carry it would let every caller reach the raw client                                                                                                                                                                                                                                      | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+
+Not run:
+
+- the h2puni gate;
+- be-01's and mcp-01's whole suites on the laptop (CI ran them);
+- a two-be-01 run, so the restated sizing's second process is unmeasured;
+- drizzle `.prepare()` per hot query, the next step if more is needed;
+- a run on a quiet host.

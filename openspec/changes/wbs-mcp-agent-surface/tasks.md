@@ -274,11 +274,13 @@
 - [x] 4.4 Bound mcp-01's grant-client fetch to be-01 at the token endpoint with a timeout (it
       holds a pending slot while it waits; review of PR #765). Negative: a never-answering be-01
       frees the slot. (Slice 7: `BE_CALL_TIMEOUT_MS`, raced; verify.md, slice 7.)
-- [ ] 4.5 Raise one be-01's capacity toward M10's design load (200 tool calls a second), or
+- [x] 4.5 Raise one be-01's capacity toward M10's design load (200 tool calls a second), or
       restate M10's sizing to the measured one (slice 11: about 85 a second on h2puni, bound by
       be-01 CPU per call). Candidates from the profile: prepare hot statements once, index the
       endpoint table, cache the activation marker and the expected secret's digest. Evidence:
-      re-run `m10-load.ts --agents=100` under the heavy lock.
+      re-run `m10-load.ts --agents=100` under the heavy lock. (Slice 12: 86.2 → 120.6 calls a second
+      on h2puni; M10's sizing restated to about 60 agents per be-01. The activation marker is not
+      cached.)
 
 ## 5. Human-only tools by policy
 
