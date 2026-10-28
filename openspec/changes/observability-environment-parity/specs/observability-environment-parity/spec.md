@@ -832,3 +832,37 @@ The full rehearsal capacity companion SHALL consume its independently validated 
 - **THEN** only the locked chart archive SHA256 `1bd5e7a88e758ed3ec22db0fe6e72b1352f3f0e7e5a93c79979f7edf361becdb` supplies its modeled `true` default for `alertmanager.enabled`, `prometheusOperator.enabled` or `prometheus.enabled`
 - **AND** each enablement fact distinguishes an explicit value from a pinned-default value with its declaration pointer and chart/version/hash provenance; null, nonboolean or malformed maps refuse before selection
 - **AND** disabled, extra or mismatched selections cannot disappear, and changed pins cannot reuse these defaults
+
+### Requirement: Read-only host-path source costs preserve writer obligations
+
+The native source adapter MAY account an explicitly supported read-only host-path consumer through the existing workload normalizer and cohort arithmetic. It SHALL bind its internal policy to exact validated source/provider identity and every application/init mount. Default normalization and cutover observation remain strict. Consumer read intent MUST NOT certify recursive read-only enforcement, zero backing-filesystem demand, a writable quota or runtime admission.
+
+#### Scenario: Selected node-exporter contributes full conditional cohorts
+
+- **WHEN** the validated pinned node-exporter source has its exact proc/sys/root host paths and application/init mount tuples with explicit readOnly true
+- **THEN** an internal source policy preserves path/type/mount/propagation identity and allows the existing normalizer to derive full memory, CPU-request and ephemeral costs
+- **AND** existing DaemonSet expansion retains both full conditional cohorts for every declared candidate node, with independent device/writer/runtime/lifecycle obligations
+
+#### Scenario: Every host mount must match the declared reader policy
+
+- **WHEN** any app/init reference is writable or lacks explicit readOnly, changes path/type/target/propagation, uses a subpath, duplicates or adds an unmatched mount
+- **THEN** the read-only policy does not authorize a contribution through that unsupported shape
+- **AND** Bidirectional propagation and unknown provider/template identities cannot inherit an exemption from labels or owner names alone
+
+#### Scenario: Known malformed state precedes incomplete classification
+
+- **WHEN** supplied hostPath bodies, types, mount modes/propagation or reference/cardinality state are malformed
+- **THEN** source validation throws before another unsupported volume, absent bound, lifecycle/provider shortcut or earlier-owner collision
+- **AND** structurally valid unsupported paths/types remain named obligations rather than fabricated device observations
+
+#### Scenario: Source metadata preserves absence and remains a snapshot
+
+- **WHEN** the selected source omits hostPath.type or mount propagation, or explicitly supplies empty type or None propagation
+- **THEN** those states remain distinct without canonicalization or invented Directory/enforcement facts
+- **AND** accepted policy and normalized evidence cannot be rewritten by later caller mutation
+
+#### Scenario: Existing strict consumers and writable state remain blocked
+
+- **WHEN** a caller omits the internal reader policy, or the Pod also has unsupported writable OTel checkpoint or Velero paths
+- **THEN** default cutover/normalization behavior and whole-Pod incompleteness remain strict
+- **AND** existing state/history/backing paths, source resources, versions, image pins and capacity floors remain unchanged; no zero-growth claim or new quota is introduced
