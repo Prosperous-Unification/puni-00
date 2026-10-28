@@ -4208,3 +4208,77 @@ timeout receipt and cleanup-resumption gaps, being corrected before any executio
 No managed credential changed or copied into Kubernetes. Full goal stays active,
 canonical4/11; production, persistent Secrets, destructive retirement and final
 implementation merge remain separately authorized.
+
+## Task66 retained agent ephemeral source policy — 2026-10-28
+
+Immutable pre-intent BASE: `94ee760c80f01de40ef27c7d87b6669edbdf5435`.
+Root four-artifact SOURCESTART: `73516da500aaf926f2075b51ea64dc62be6d4e9a`.
+Normal source commit: `3108efc302e02158980239c2ff13ae429f1d7969` (eleven source/config/test paths; normal hooks passed).
+
+Current owning collector values declare ephemeral request 16Mi / limit 64Mi. Both
+Velero placements declare node-agent request 256Mi / limit 2Gi, disable default scratch,
+and supply exactly one existing scratch volume/mount with 1Gi at /scratch. These
+are authored, unmeasured containment policies. Historical valid absence remains
+image-readable; malformed supplied maps/scratch refuse. Worker otel-agent stays exact.
+
+The service-source graph contains the collector; Velero is selected separately.
+Collector correspondence is mandatory through assertRenderedObservabilitySource.
+Every selected Velero release now checks the final authenticated-renderer output
+through the same narrow assertion after the unchanged Deployment postrenderer.
+It requires exactly the named DaemonSet/app, complete matching resources, no
+additional app/init/ephemeral roles, matching scratch and preserved host mounts.
+A second scratch name using another volume type and colliding host mounts refuse.
+The final Velero selection also refuses an extra same-chart DaemonSet.
+
+Genuine ordered RED: 01-current-red (0 pass / 3 fail; actual validatePlatform previously
+resolved for absent collector and both node-agent policies),05-public-output-red
+(full public source validator returned a 191-resource receipt against historical
+output ignoring current collector policy),21 scratch identity/22 host overlay,
+and 30 extra-workload RED. New production guard/forwarding faults: 28 independent
+cases in proofs.json, plus the final exact-one workload dependency fault in
+proof-final.json. Every mutation restored identical source bytes. Three of the 28
+are historical compatibility controls, not invalid-input admission proofs.
+Adjacent Proof comments identify the observed faults/tests.
+
+One scoped covering command 25 passed 133 tests / 187 assertions in 15.450s. Follow-ups
+29 (4 tests),31 (four renderer/postrenderer cases),34 (three corrected zero-limit
+cases), and35 (final extra-workload fault/restored negative) cover only later edits.
+Final Fleet lib/spec Nx typecheck 37, scoped lint 27 + 38, format 39, whitespace 40 and
+strict owning OpenSpec 17 pass. Initial scoped static failures 15/16/18/26 were fixed;
+source 42 hooks passed in 5.283s. Tool Wiki reports inactive/uncertified because its
+external activation root is unprovisioned; no hook was bypassed.
+
+Selected locked integration:10 performed two real local Helm templates before a
+harness API-index mistake;11 performed four actual collector/Velero local/production
+templates and retained selected-local.json/selected-production.json. Its 35 earlier
+assertions passed before an unrelated unchanged production fixture marker mismatch.
+12 and25 reused those saved outputs with no template invocation: exact new
+resource/scratch values, existing Deployment capture/quantity reader, cross-placement
+DaemonSet equality and local public source positive passed. Removing only the new
+policy leaves reproduces the historical local selected semantic view.32 separately
+proves all other owning declaration semantics and exact postrenderer bytes unchanged,
+with prior artifacts/pins/worker/parity code and modes untouched. No whole capture ran.
+
+Uncredited setup/masked cases:04 wrong historical Elastic profile;06 generated
+collector extraLabels outside base schema;07 correct refusal with too-narrow test
+message;09 graph selection mismatch before rendering;10 backup CRDs in service API
+index;11 unrelated cached production marker;21 two host-overlay cases without the
+injected mount (its scratch identity case was genuine);31 three zero-limit cases
+before fixture injection was corrected in 34. The 20 command's final renderer-selection proof
+actually failed as intended, but the harness regex omitted the word value from
+Received value: null; 23 records correction from raw evidence without replay.
+
+Raw command/output/hash/time index: /tmp/puni-task66-evidence/index.jsonl. Each
+label has .json/.stdout/.stderr; proofs.json and fault-*.patch.json retain mutation
+hashes, proof-final.json the final guard restoration, selected-summary.json the
+four retained output/tool hashes, and preservation.json the BASE/SOURCESTART audit.
+The ignored task-66-report.md records exact source/STOP SHAs and the complete index.
+
+Skipped/unverified: owning full-render source suite's two added table entries were
+not separately executed; their helper/public boundaries are covered with selected
+and historical fixtures. Whole-source current production parity, full Fleet/app/
+browser/host gates, runtime sufficiency/recovery, whole-path quota, persistent
+history/device/writer/enforcement closure, host admission and live convergence stay
+unverified. No install, provider/network/SSH/Docker/live/Secret/history/floor/CI action,
+push or merge occurred. Canonical3.1 and canonical4/11 remain open; parent owns task
+checkboxes, independent review and publication. Source-only STOP follows evidence.
