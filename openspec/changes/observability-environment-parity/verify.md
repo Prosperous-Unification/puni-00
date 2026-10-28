@@ -3871,3 +3871,29 @@ Only the new commitment guard was faulted. `/tmp/puni-task63/guard-proof.py` rep
 One private helper-only authentic positive ran: `bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 /tmp/puni-task63/authentic-files-positive.test.ts`,1pass/11assertions (0.546s). The existing full84-row retained files list equals Task61's independently indexed path/hash rows; shared helper and independent reference both produce `d96afb33eb6732c20b5f2ef6831c2dfbefa55d1c79ba7fc233824a9923442086` for source `ff0b0208bc426ad8bc2a4896f15a90f34eb97b89`. Old metadata bytes/modes remain unchanged. Exactly one helper call, zero producer/combined-reader calls: no historical diagnostic, canonical stage preparation/render, producer or full retained control was replayed. Exact output/receipt/metadata hashes are `authentic-files-positive{.log,-command.json,-summary.json}` under `/tmp/puni-task63/`.
 
 Affected checks are in `/tmp/puni-task63/checks/receipts.json`: lib/spec noEmit exit0 (1.801/2.215s), three-file Prettier exit0 (0.462s), locked strict OpenSpec exit0 (0.789s), diff exit0 (0.008s). Initial scoped lint found only a test prefix-style expression; the equivalent `startsWith` fix passes final lint (4.508s, `lint-final-command.json`), with no production behavior change or old proof replay. Source commit normal hooks pass (4.713s); migration/doc-cap hooks are inapplicable and Tool Wiki explicitly reports inactive/not certified because the external activation root is absent. No hooks were bypassed. Self-review covers the complete three-file diff and shared producer representation; source60, fixture JSON, workloads/resources/claims/pins/graph/CI remain untouched. Runtime/creation authority remains false. Task63 implementation is ready for independent review; full task3.1/host/runtime/live acceptance remains open.
+
+## Task63 independent review and publication readiness — 2026-10-28
+
+Independent scoped review approved specification compliance and code quality for
+the complete `7143383a5ac49d49c17cd403c52d405f1202f2ee` →
+`933c99b454166fe6b9222b2a8a2b9d1d23b11a4f` three-commit range, with no findings.
+Report SHA256 `fd03b0e9c4408847a98535502bc18fa872d1574e65b762132598ee705825e11f`.
+Reviewer read the complete46310-byte diff and inspected only the named import-cycle
+and decode-placement risks; no command/test/proof/control was replayed.
+
+Parent read the complete implementer/reviewer reports, covering16pass/184assert
+output, restored1pass/6assert output, actual guard-removal script/receipt/named
+failure, authentic full84-row helper-only script/1pass11assert output, scoped
+type/lint/format/strict/diff receipts and raw logs. All36 indexed artifacts
+(568051bytes) and3 committed source/test files match recorded SHA256 identities.
+Final reader differs from exact restored proof bytes only by the adjacent Proof
+comment. Initial test-style lint failure was corrected with final empty lint
+output; no runtime behavior changed. Prior Task60/58 controls and raw artifacts
+remain attached to their actual observed revisions.
+
+Task58/60/63 are ready for one ordinary feature-branch publication to existing
+draft PR760; no final merge or deployment acceptance is implied. Published2d9
+verdicts remain head-specific and the new publication requires its own CI. Full
+host gate, physical admission, authenticated Flux/Kubernetes handoff, effective
+Pods/CNI/storage and common-stack/live signal/history/recovery proofs remain
+unverified. Goal stays active, canonical4/11.

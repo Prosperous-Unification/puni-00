@@ -168,6 +168,14 @@ workflow, not runtime or full3.1 acceptance.
 
 ### Task63 retained packet commitment correction within3.1
 
-- [ ] Add the complete canonical ordered files-list commitment check at the retained combined-reader boundary before toolchain decode, reusing the existing producer encoding/hash seam. Ordered TDD: exact coherent toolchain bytes/file-row substitution with unchanged independently retained artifact tag must first fail as a missing refusal; self-consistent synthetic unit packets must pass; preserve original projection provenance separately and deliberately reseal lower-guard negatives; independently verify authentic full84-row ff0b/d96a metadata. Watch only the new production-path commitment guard fail/restored with adjacent Proof. Run covering combined-reader tests and affected scoped statics, retain exact commands/raw outputs/hashes/timings and normal commits, then independent scoped specification/quality review. No packet format/version, owning source/resource/graph/pin/CI changes, old proof/control/chart/canonical/provider replay or runtime acceptance claim.
+- [x] Add the complete canonical ordered files-list commitment check at the retained combined-reader boundary before toolchain decode, reusing the existing producer encoding/hash seam. Ordered TDD: exact coherent toolchain bytes/file-row substitution with unchanged independently retained artifact tag must first fail as a missing refusal; self-consistent synthetic unit packets must pass; preserve original projection provenance separately and deliberately reseal lower-guard negatives; independently verify authentic full84-row ff0b/d96a metadata. Watch only the new production-path commitment guard fail/restored with adjacent Proof. Run covering combined-reader tests and affected scoped statics, retain exact commands/raw outputs/hashes/timings and normal commits, then independent scoped specification/quality review. No packet format/version, owning source/resource/graph/pin/CI changes, old proof/control/chart/canonical/provider replay or runtime acceptance claim.
 
 Task63 source correction is implemented at `383e1833f2bbedf887b165e3ac88bb4b254565e3`: one shared commitment helper/check, self-consistent synthetic unit packets, exact new RED and one restored guard proof, authentic84-row helper positive and scoped verification. See `verify.md` Task63. The checkbox awaits root-owned independent specification/quality review; full task3.1 and runtime acceptance remain open.
+
+Task63 independent specification/quality review approved complete7143→933c source
+workflow with no findings. Root read the report and retained raw outputs, rehashed
+all36 new evidence artifacts and all3 committed source/test files, and independently
+confirmed exact guard restoration plus adjacent Proof-only final change. No
+existing passing suite, fault, producer or historical control was rerun for review.
+This closes the retained packet consistency correction; full3.1 and runtime/live
+acceptance remain open.
