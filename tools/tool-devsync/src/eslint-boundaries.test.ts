@@ -56,6 +56,71 @@ function boundaryOf(config: unknown): readonly unknown[] {
   return boundary;
 }
 
+describe('recovery evidence contract boundaries', () => {
+  const root = 'apps/twilight-structure/twilight-dash/cli/src/runs/';
+  for (const name of ['recovery-records.ts', 'recovery-evidence.ts']) {
+    it(
+      name + ' admits its actual public contract import',
+      async () => {
+        const path = root + name;
+        const source = await readFile(join(workspace, path), 'utf8');
+        expect(importsAlias(source, '@wbs/contracts')).toBe(true);
+        const [admission] = await lint.lintText(source, { filePath: path });
+        expect(admission.fatalErrorCount).toBe(0);
+        expect(admission.messages.map((message) => message.ruleId)).not.toContain(
+          '@nx/enforce-module-boundaries',
+        );
+        const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
+        const peerOptions = boundaryOf(
+          await lint.calculateConfigForFile(root + 'plan-execution.ts'),
+        )[1];
+        if (!isRecord(options)) throw new Error('recovery policy malformed');
+        expect(options['allow']).toEqual(['^@wbs/contracts$']);
+        expect({ ...options, allow: [] }).toEqual(peerOptions);
+      },
+      30_000,
+    );
+    for (const [label, alias] of [
+      ['sibling alias', '@wbs/store-memory'],
+      ['contract subpath', '@wbs/contracts/solver/supervisor-protocol'],
+      [
+        'relative shortcut',
+        relative(dirname(root + name), 'libs/wbs/domain/contracts/src/index.ts'),
+      ],
+    ]) {
+      it(
+        name + ' denies ' + label,
+        async () => {
+          const [denial] = await lint.lintText('await import(' + JSON.stringify(alias) + ');', {
+            filePath: root + name,
+          });
+          expect(denial.fatalErrorCount).toBe(0);
+          expect(denial.messages.map((message) => message.ruleId)).toContain(
+            '@nx/enforce-module-boundaries',
+          );
+        },
+        30_000,
+      );
+    }
+  }
+  for (const name of ['plan-execution.ts', 'recovery-codecs.ts', 'recovery-evidence.test.ts']) {
+    it(
+      name + ' remains unlisted',
+      async () => {
+        await readFile(join(workspace, root + name), 'utf8');
+        const [denial] = await lint.lintText("await import('@wbs/contracts');", {
+          filePath: root + name,
+        });
+        expect(denial.fatalErrorCount).toBe(0);
+        expect(denial.messages.map((message) => message.ruleId)).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+      },
+      30_000,
+    );
+  }
+});
+
 describe('the effective production and test boundaries', () => {
   // Proof: P1 removes the allowance and P2–P5 widen it; this policy test rejects each fault.
   it('Dash runtime-dispatch worker reaches only its exact public factories', async () => {

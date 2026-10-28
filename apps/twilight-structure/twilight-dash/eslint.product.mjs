@@ -219,6 +219,15 @@ export default ({
       rules: boundary(['^@wbs/contracts$']),
     },
     {
+      files: [
+        // Proof: B1R/B2R removed each exact consumer; its actual-source admission failed with zero fatal errors.
+        'apps/twilight-structure/twilight-dash/cli/src/runs/recovery-records.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/runs/recovery-evidence.ts',
+      ],
+      // Proof: B3R/B4R2 widened alias/relative imports; B5R/B6R admitted peer/test paths. Named zero-fatal denials failed.
+      rules: boundary(['^@wbs/contracts$']),
+    },
+    {
       files: ['apps/twilight-structure/twilight-dash/cli/src/resources/**/*.ts'],
       // Proof: removing this exact override failed `Dash resources reach only the WBS
       // transport contract at their scoped paths`; sibling/relative imports remain denied.
