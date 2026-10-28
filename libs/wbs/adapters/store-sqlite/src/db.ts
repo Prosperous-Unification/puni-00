@@ -302,7 +302,7 @@ export function drizzleOuterTransaction(db: Drizzle): {
  * capture's to commit or to roll back. `boot.ts` opens exactly one connection
  * for the process and `bun:sqlite` has no pool, so "a connection nothing else
  * is using" means one the caller opened for itself with {@link openConnection}
- * and closes afterwards. See `openspec/changes/saved-plans/design.md`,
+ * and closes afterwards, or one {@link poolReadConnections} lent it alone. See `openspec/changes/saved-plans/design.md`,
  * "The topology found".
  */
 export function drizzleReadTransaction(db: Drizzle): {
@@ -351,7 +351,8 @@ export function openReadOnlyDatabase(dbPath: string): Database {
 
 /**
  * Runs `read` on a connection of its own inside one `BEGIN DEFERRED` read
- * transaction, then commits and closes it: the committed state at one
+ * transaction, then commits and closes it (a pooled one goes back idle,
+ * {@link poolReadConnections}): the committed state at one
  * instant, never a batch's uncommitted writes on the process connection and
  * never another process's commit landing between two of its statements. What
  * `read` answers must not borrow the connection, which is closed on return.
@@ -380,4 +381,65 @@ export async function observeCommitted<T>(
     // mounted admission check saw one open snapshot at both launch handoffs.
     connection.close();
   }
+}
+
+/** Read-only connections one source lifetime reuses; see {@link poolReadConnections}. */
+export interface ReadConnectionPool {
+  /** An idle connection, or a new one: the caller's alone until it calls `close`. */
+  acquire(): Connection;
+  /** Closes every idle connection; a connection released afterwards is closed too. */
+  close(): void;
+}
+
+/**
+ * Reuses the read-only connections {@link observeCommitted} opens, so each observation does not
+ * open a file and compile its statements again (about a tenth of be-01's CPU per call under the
+ * M10 load run, `wbs-mcp-agent-surface` task 4.5).
+ *
+ * A connection's `close` returns it to the pool only when it holds no transaction: a snapshot
+ * is never kept between observations, and the next `BEGIN DEFERRED` on it reads the state
+ * committed by then. One released inside a transaction (its rollback failed), or beyond
+ * `idleLimit` idle connections, or after the pool closed, is closed. A connection is lent to
+ * one caller at a time, and its second `close` does nothing. The pool belongs to one source,
+ * whose `close` closes it, so no connection outlives the process connection it was opened
+ * beside.
+ *
+ * @throws from `acquire` whatever `open` throws, and when the pool is closed.
+ */
+export function poolReadConnections(open: () => Connection, idleLimit = 8): ReadConnectionPool {
+  const idle: Connection[] = [];
+  let closed = false;
+  return {
+    acquire() {
+      if (closed) throw new Error('the read connection pool is closed');
+      const connection = idle.pop() ?? open();
+      let released = false;
+      return {
+        db: connection.db,
+        close: () => {
+          if (released) return;
+          released = true;
+          // Proof: pooling regardless of this test made `closes a connection released inside a
+          // transaction` (db.db.test.ts) count it still open; watched 2026-10-28.
+          if (closed || idle.length >= idleLimit || isInTransaction(connection)) connection.close();
+          else idle.push(connection);
+        },
+      };
+    },
+    close() {
+      closed = true;
+      for (const connection of idle.splice(0)) connection.close();
+    },
+  };
+}
+
+/**
+ * Whether `connection` holds an open transaction. A connection whose client cannot be read
+ * counts as holding one, so it is closed rather than reused.
+ */
+function isInTransaction(connection: Connection): boolean {
+  // Drizzle's Bun adapter keeps the `Database` it was given as `$client`; this file is the one
+  // place allowed to read it, and an absent client answers true above.
+  const client = (connection.db as Drizzle & { readonly $client?: Database }).$client;
+  return client?.inTransaction !== false;
 }

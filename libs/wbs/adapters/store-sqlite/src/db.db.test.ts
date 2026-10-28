@@ -5,8 +5,17 @@ import { join } from 'node:path';
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- switchToWal is tested on a file not yet in WAL, which openDatabase would already have switched
 import { Database, SQLiteError } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { sql } from 'drizzle-orm';
 
-import { assertPragmas, openDatabase, STATEMENT_CACHE_SIZE, switchToWal } from './db';
+import {
+  assertPragmas,
+  type Connection,
+  openDatabase,
+  openReadOnlyConnection,
+  poolReadConnections,
+  STATEMENT_CACHE_SIZE,
+  switchToWal,
+} from './db';
 
 let dir: string;
 
@@ -115,6 +124,105 @@ describe('statement cache', () => {
     other.close();
     expect(db.query('SELECT * FROM t').all()).toEqual([{ a: 1, b: 7 }]);
     db.close();
+  });
+});
+
+describe('poolReadConnections', () => {
+  /** A file with one row, its writer, and a factory that counts the connections still open. */
+  function seeded() {
+    const path = join(dir, 'test.db');
+    const writer = openDatabase(path);
+    writer.run('CREATE TABLE t (a INTEGER)');
+    writer.run('INSERT INTO t VALUES (1)');
+    const opened = { now: 0, ever: 0 };
+    const open = (): Connection => {
+      const connection = openReadOnlyConnection(path);
+      opened.now += 1;
+      opened.ever += 1;
+      return {
+        db: connection.db,
+        close: () => {
+          connection.close();
+          opened.now -= 1;
+        },
+      };
+    };
+    return { writer, opened, open };
+  }
+
+  /** Whether a full checkpoint ran: a reader's snapshot blocks it. */
+  function checkpointed(writer: Database): boolean {
+    const row = writer.query<{ busy: number }, []>('PRAGMA wal_checkpoint(TRUNCATE);').get();
+    return row?.busy === 0;
+  }
+
+  it('lends one connection again, reading what was committed since', () => {
+    const { writer, opened, open } = seeded();
+    const pool = poolReadConnections(open);
+    const first = pool.acquire();
+    expect(first.db.all<{ a: number }>(sql`SELECT a FROM t`)).toEqual([{ a: 1 }]);
+    first.close();
+    writer.run('INSERT INTO t VALUES (2)');
+    const second = pool.acquire();
+    second.db.run(sql.raw('BEGIN DEFERRED'));
+    expect(second.db.all<{ a: number }>(sql`SELECT a FROM t ORDER BY a`)).toEqual([
+      { a: 1 },
+      { a: 2 },
+    ]);
+    second.db.run(sql.raw('COMMIT'));
+    second.close();
+    expect(opened.ever).toBe(1);
+    expect(checkpointed(writer)).toBe(true);
+    pool.close();
+    expect(opened.now).toBe(0);
+    writer.close();
+  });
+
+  it('lends a connection to one caller at a time', () => {
+    const { writer, opened, open } = seeded();
+    const pool = poolReadConnections(open);
+    const first = pool.acquire();
+    const second = pool.acquire();
+    expect(second.db).not.toBe(first.db);
+    first.close();
+    first.close();
+    second.close();
+    expect(opened).toEqual({ now: 2, ever: 2 });
+    expect(pool.acquire().db).toBe(second.db);
+    pool.close();
+    writer.close();
+  });
+
+  it('closes a connection released inside a transaction', () => {
+    const { writer, opened, open } = seeded();
+    const pool = poolReadConnections(open);
+    const reader = pool.acquire();
+    reader.db.run(sql.raw('BEGIN DEFERRED'));
+    reader.db.all(sql`SELECT a FROM t`);
+    writer.run('INSERT INTO t VALUES (2)');
+    reader.close();
+    expect(opened.now).toBe(0);
+    expect(checkpointed(writer)).toBe(true);
+    pool.close();
+    writer.close();
+  });
+
+  // Proof: with the `idle.length >= idleLimit` test dropped, this counted three open
+  // connections; with the `closed` test dropped, one stayed open after the pool closed
+  // (watched 2026-10-28).
+  it('keeps at most its idle limit, and nothing after it closed', () => {
+    const { writer, opened, open } = seeded();
+    const pool = poolReadConnections(open, 2);
+    const lent = [pool.acquire(), pool.acquire(), pool.acquire()];
+    for (const connection of lent) connection.close();
+    expect(opened.now).toBe(2);
+    const late = pool.acquire();
+    pool.close();
+    expect(opened.now).toBe(1);
+    late.close();
+    expect(opened.now).toBe(0);
+    expect(() => pool.acquire()).toThrow('the read connection pool is closed');
+    writer.close();
   });
 });
 
