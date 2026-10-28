@@ -934,3 +934,28 @@ The existing combined capacity reader and canonical companion SHALL account expl
 - **THEN** additive standalone declaration/consumer/charge evidence and its sum feed their existing total, blockers and closure through one shared derivation, while native-only APIs, public source inventory and native/generated subrecords remain unchanged
 - **AND** the retained registry50Gi and object-store20Gi add exactly71680Mi disk and zero CPU/memory; they are not already charged by ordinal or generated claims
 - **AND** returned provenance is a snapshot, the canonical producer is invoked once, and state remains incomplete with creation/runtime authority false
+
+### Requirement: Retained collector and backup agents declare ephemeral budgets
+
+Current platform candidates MUST give the retained OTel collector and Velero node-agent finite ephemeral-storage requests and limits. The node-agent MUST retain its existing scratch volume name and mount path with a finite emptyDir size. These policies are shared across placement profiles and do not certify persistent host-path bounds or runtime sufficiency.
+
+#### Scenario: The two agent roles are rendered from current owning source
+
+- **WHEN** the retained collector or either placement's Velero node-agent is prepared
+- **THEN** the collector declares16Mi request/64Mi limit and the node-agent256Mi request/2Gi limit for ephemeral-storage
+- **AND** Velero's existing scratch remains named scratch at /scratch with1Gi emptyDir size, supplied once through the pinned chart's existing values
+- **AND** actual locked output matches the owning resource/scratch values while existing CPU, memory, pins, security, persistence, host paths, retention and the Deployment-only postrenderer remain unchanged
+
+#### Scenario: A required current policy is missing, invalid or lost during rendering
+
+- **WHEN** a required resource map, bound or scratch declaration is absent, null, zero where positive is required, malformed, contradictory, duplicated or inconsistent with the effective rendered role
+- **THEN** current production candidate validation refuses
+- **AND** supplied historical values retain their existing structural and image checks without requiring these new current-policy fields merely to decode historical source
+- **AND** neither ignored values nor wrong/extra rendered containers can certify source correspondence
+
+#### Scenario: Finite ephemeral policy preserves persistent growth uncertainty
+
+- **WHEN** a current candidate passes the new source checks
+- **THEN** persistent collector queue/checkpoints, Velero writable host paths, physical writers, retained allocations and runtime enforcement remain independent unresolved obligations
+- **AND** no whole-path quota, measured functional sufficiency, full-host admission, creation authority, runtime acceptance or live convergence is inferred
+- **AND** earlier saved source captures and proof artifacts remain unchanged

@@ -209,3 +209,7 @@ and exact native/generated preservation. One masked attempt is excluded; existin
 capture-boundary name/namespace controls are not new reader-proof credit. No
 passing test, renderer, producer or control was replayed for review. Physical,
 runtime and full3.1 acceptance remain open.
+
+### Task66 retained collector and node-agent ephemeral policy within3.1
+
+- [ ] Declare and enforce shared current collector16Mi/64Mi and Velero node-agent256Mi/2Gi ephemeral policies plus the same existing scratch1Gi through pinned chart values. Ordered TDD starts with actual current-validator missing-policy RED; cover absent/null/malformed/zero/contradictory maps and scratch, historical structural/image compatibility, ignored/changed render values, exact named roles and local/production parity. Preserve CPU/memory/pins/security/persistence/host paths/retention/Deployment postrenderer and old captures. Reuse existing resource/quantity/correspondence boundaries without another patch engine/calculator. Watch only changed safety boundaries fail/restored with adjacent Proof, run focused covering/selected/scoped checks and real selected pinned chart renders, retain commands/raw outputs/timings and normal commits, then independent scoped review. No full canonical recapture or old proof/control replay, quota/history/host/Secret/floor/CI change or runtime/full admission claim.
