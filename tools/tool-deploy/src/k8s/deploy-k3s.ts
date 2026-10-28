@@ -1,6 +1,8 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
+import { parseAcceptBreaking } from '@tools/deploy-contract';
+
 import { prepareDesiredRevision } from './deploy-repo';
 import { releaseIdentityOf } from './descriptor';
 import {
@@ -34,13 +36,16 @@ import {
 import { assertNotDowngrade } from './source';
 
 const USAGE =
-  'usage: deploy-k3s --request <request.json> --journal <path> [--kubectl <path>] [--kubeconfig <path>] [--apply]\n' +
+  'usage: deploy-k3s --request <request.json> --journal <path> [--kubectl <path>] [--kubeconfig <path>]\n' +
+  '                  [--accept-breaking <id,id>] [--apply]\n' +
   '       deploy-k3s --descriptor <descriptor.json> --descriptor-sha256 <hex> --admission <admission.json>\n' +
   '                  --environment staging|prod --context <ctx> --cluster-uid <uid> --state <dir>\n' +
   '                  --deploy-repo <clone> [--deploy-remote origin] [--deploy-branch main]\n' +
   '                  [--recovers <release id>] [--allow-downgrade] [--max-proof-age-days 14]\n' +
-  '                  [--kubectl <path>] [--kubeconfig <path>] [--apply]\n' +
-  '  Plans by default. --apply runs or resumes the transaction recorded in the journal.';
+  '                  [--kubectl <path>] [--kubeconfig <path>] [--accept-breaking <id,id>] [--apply]\n' +
+  '  Plans by default. --apply runs or resumes the transaction recorded in the journal.\n' +
+  '  --accept-breaking names stored audiences the capture Job may pass although they break\n' +
+  '  WBS_MCP_AUTHORIZATION_SERVER (WBS_ACCEPT_BREAKING_AUDIENCES); it is not journaled.';
 
 function flag(args: readonly string[], name: string): string | null {
   const index = args.indexOf(name);
@@ -254,6 +259,8 @@ async function prepareFromDescriptor(
 
 export async function main(args: readonly string[], root: string): Promise<void> {
   const kubectl = flag(args, '--kubectl') ?? 'kubectl';
+  // Parsed before anything reads the cluster, so a malformed list refuses first.
+  const acceptBreakingAudiences = parseAcceptBreaking(flag(args, '--accept-breaking') ?? '');
   let prepared: Prepared;
   if (flag(args, '--descriptor') !== null) {
     await assertKubectl(kubectl, lockedKubectlVersion(root));
@@ -294,6 +301,7 @@ export async function main(args: readonly string[], root: string): Promise<void>
     stateDir,
     overlay: resolve(root, 'deploy/k8s/wbs/overlays', request.environment),
     deployRepository: prepared.deployRepository,
+    acceptBreakingAudiences,
     log: (line) => {
       console.log(line);
     },

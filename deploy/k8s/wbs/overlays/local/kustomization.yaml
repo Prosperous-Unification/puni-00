@@ -20,6 +20,9 @@ configMapGenerator:
       - ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS=200
       - ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE=10000
       - APP_ORIGIN=http://localhost:8080
+      # Not a secret, so beside the other settings; the schema Job's audience preflight reads it
+      # from this ConfigMap (wbs-mcp-agent-surface M2).
+      - WBS_MCP_AUTHORIZATION_SERVER=http://localhost:8080/mcp/oauth
   - name: wbs-gateway-config
     namespace: wbs
     literals:
@@ -43,10 +46,10 @@ secretGenerator:
       - INTERNAL_AUTH_SECRET=lab-only-internal-auth-secret-0000000000
       - JWT_SIGNING_KEY_CURRENT=lab-only-jwt-signing-key-00000000000000
       # Machine grants (wbs-mcp-agent-surface M3, M14): an activated store refuses to boot
-      # without these three. Lab-only placeholders, each distinct.
+      # without these two and the ConfigMap's WBS_MCP_AUTHORIZATION_SERVER. Lab-only
+      # placeholders, each distinct; lab.ts gives mcp-01 the same MCP_BE_INTERNAL_SECRET.
       - MCP_BE_INTERNAL_SECRET=lab-only-mcp-be-internal-secret-0123456789
       - WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT=lab-only-machine-grant-key-0123456789abc
-      - WBS_MCP_AUTHORIZATION_SERVER=http://localhost:8080/mcp/oauth
   - name: wbs-gateway-secrets
     namespace: wbs
     literals:

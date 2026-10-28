@@ -27,6 +27,7 @@ const CAPTURE_ID = {
 };
 
 const BACKEND = resolve(import.meta.dir, '../../../../apps/wbs/be-01');
+const AUTHORIZATION_SERVER = 'https://wbs.example/mcp/oauth';
 const FAULT_MIGRATION = '29991231010000_lab_rollback_failure';
 const roots: string[] = [];
 afterEach(() => {
@@ -77,7 +78,13 @@ describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
     );
     expect(
       taskError(
-        { DB_PATH: db, PUNI_TASK: 'capture', PUNI_RELEASE: 'tx', PUNI_SNAPSHOT_DIR: snapshots },
+        {
+          DB_PATH: db,
+          PUNI_TASK: 'capture',
+          PUNI_RELEASE: 'tx',
+          PUNI_SNAPSHOT_DIR: snapshots,
+          WBS_MCP_AUTHORIZATION_SERVER: AUTHORIZATION_SERVER,
+        },
         root,
       ),
     ).toMatch(/^error: exact-set migration CLI capability probe failed:/m);
@@ -229,7 +236,13 @@ describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
     mkdirSync(snapshots);
     const capture = captureFromReport(
       task(
-        { DB_PATH: db, PUNI_TASK: 'capture', PUNI_RELEASE: 'tx', PUNI_SNAPSHOT_DIR: snapshots },
+        {
+          DB_PATH: db,
+          PUNI_TASK: 'capture',
+          PUNI_RELEASE: 'tx',
+          PUNI_SNAPSHOT_DIR: snapshots,
+          WBS_MCP_AUTHORIZATION_SERVER: AUTHORIZATION_SERVER,
+        },
         root,
       ),
       CAPTURE_ID,
@@ -290,7 +303,13 @@ describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
     mkdirSync(snapshots);
     const captured = captureFromReport(
       task(
-        { DB_PATH: db, PUNI_TASK: 'capture', PUNI_RELEASE: 'tx', PUNI_SNAPSHOT_DIR: snapshots },
+        {
+          DB_PATH: db,
+          PUNI_TASK: 'capture',
+          PUNI_RELEASE: 'tx',
+          PUNI_SNAPSHOT_DIR: snapshots,
+          WBS_MCP_AUTHORIZATION_SERVER: AUTHORIZATION_SERVER,
+        },
         root,
       ),
       CAPTURE_ID,
@@ -395,6 +414,7 @@ describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
         PUNI_TASK: 'capture',
         PUNI_RELEASE: 'r1',
         PUNI_SNAPSHOT_DIR: join(root, 'snapshots'),
+        WBS_MCP_AUTHORIZATION_SERVER: AUTHORIZATION_SERVER,
       }),
       CAPTURE_ID,
     );
@@ -435,6 +455,55 @@ describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
     expect(task(rollbackEnv).applied.map(({ name, hash }) => ({ name, hash }))).toEqual([
       ...captured.capture.applied,
     ]);
+  }, 60_000);
+});
+
+describe('the capture Job audience preflight against the real be-01 CLI', () => {
+  function legacyStore(): { db: string; snapshots: string } {
+    const root = scratchSync('wbs-k3s-audience-');
+    roots.push(root);
+    const db = join(root, 'wbs.sqlite');
+    new Database(db).close();
+    task({ DB_PATH: db, PUNI_TASK: 'migrate' });
+    const sqlite = new Database(db);
+    try {
+      sqlite.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'org-a', 1)");
+      sqlite.run(
+        `INSERT INTO organization_trusted_issuer (id, organization_id, issuer, jwks_uri, default_audience, created_at)
+         VALUES ('ti-legacy', 'org-a', 'https://ci.example', 'https://ci.example/jwks', 'wbs:org:org-a', 1)`,
+      );
+    } finally {
+      sqlite.close();
+    }
+    return { db, snapshots: join(root, 'snapshots') };
+  }
+
+  it('refuses an unaccepted wbs:org registration before the snapshot', () => {
+    const { db, snapshots } = legacyStore();
+    const env = {
+      DB_PATH: db,
+      PUNI_TASK: 'capture',
+      PUNI_RELEASE: 'tx',
+      PUNI_SNAPSHOT_DIR: snapshots,
+      WBS_MCP_AUTHORIZATION_SERVER: AUTHORIZATION_SERVER,
+    };
+    const refusal = taskError(env, BACKEND);
+    expect(refusal).toContain('trusted issuer audience preflight refused (exit 3)');
+    expect(refusal).toContain('not accepted: registration ti-legacy');
+    expect(existsSync(snapshots)).toBe(false);
+    expect(
+      task({ ...env, WBS_ACCEPT_BREAKING_AUDIENCES: 'ti-legacy' }, BACKEND).snapshot?.path,
+    ).toBe(join(snapshots, 'tx.sqlite'));
+  }, 60_000);
+
+  it('refuses a capture without the authorization server, before the snapshot', () => {
+    const { db, snapshots } = legacyStore();
+    const refusal = taskError(
+      { DB_PATH: db, PUNI_TASK: 'capture', PUNI_RELEASE: 'tx', PUNI_SNAPSHOT_DIR: snapshots },
+      BACKEND,
+    );
+    expect(refusal).toContain('WBS_MCP_AUTHORIZATION_SERVER must be set');
+    expect(existsSync(snapshots)).toBe(false);
   }, 60_000);
 });
 
@@ -661,6 +730,58 @@ describe('schema Jobs through the kubectl adapter', () => {
       expect(readFileSync(kubectl.log, 'utf8')).not.toContain(' create ');
     });
   }
+});
+
+describe('the capture Job manifest', () => {
+  it('reads the server from the backend ConfigMap and carries the accept list', async () => {
+    const root = scratchSync('wbs-k3s-capture-env-');
+    roots.push(root);
+    const kubectl = fakeKubectl(root);
+    const effects = kubectlEffects({
+      kubectl: kubectl.path,
+      kubeconfig: null,
+      context: 'lab',
+      namespaces: { app: 'wbs', backend: 'wbs-solver' },
+      stateDir: root,
+      overlay: root,
+      anonymousProjectsStatus: 200,
+      rolloutTimeoutSeconds: 5,
+      jobTimeoutSeconds: 5,
+      drainTimeoutMs: 1000,
+      leaseDurationSeconds: 20,
+      acceptBreakingAudiences: ['ti-legacy', 'ti-other'],
+      log: () => undefined,
+    });
+    // The fake cluster has a writer, so the Job is rendered and kept, then refused.
+    await rejection(effects.capture(CAPTURE_ID, 'img'));
+    const job = JSON.parse(
+      readFileSync(join(root, `${jobName('capture', CAPTURE_ID.attempt)}.json`), 'utf8'),
+    ) as { spec: { template: { spec: { containers: { env: unknown[] }[] } } } };
+    const env = job.spec.template.spec.containers[0].env;
+    expect(env).toContainEqual({
+      name: 'WBS_ACCEPT_BREAKING_AUDIENCES',
+      value: 'ti-legacy,ti-other',
+    });
+    expect(env).toContainEqual({
+      name: 'WBS_MCP_AUTHORIZATION_SERVER',
+      valueFrom: {
+        configMapKeyRef: {
+          name: 'wbs-backend-config',
+          key: 'WBS_MCP_AUTHORIZATION_SERVER',
+          optional: true,
+        },
+      },
+    });
+    const migrate = backendTaskJob(
+      { namespaces: { app: 'wbs', backend: 'wbs-solver' } },
+      'wbs-migrate-x',
+      'img',
+      { PUNI_TASK: 'migrate' },
+    ) as { spec: { template: { spec: { containers: { env: { name: string }[] }[] } } } };
+    expect(migrate.spec.template.spec.containers[0].env.map(({ name }) => name)).not.toContain(
+      'WBS_MCP_AUTHORIZATION_SERVER',
+    );
+  });
 });
 
 describe('parseLease', () => {

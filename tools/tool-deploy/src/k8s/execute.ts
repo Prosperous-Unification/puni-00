@@ -696,6 +696,12 @@ export interface KubectlSettings {
   /** Lease lifetime without renewal; the executor's heartbeat must be several times shorter. */
   leaseDurationSeconds: number;
   /**
+   * Stored audiences the operator accepts as breaking the MCP authorization server
+   * (`--accept-breaking`), handed to the capture Job's audience preflight as
+   * `WBS_ACCEPT_BREAKING_AUDIENCES`. Absent or empty accepts none.
+   */
+  acceptBreakingAudiences?: readonly string[];
+  /**
    * Clone of the deploy repository the WBS GitRepository serves. `reconcile-desired` pushes
    * `flux.desiredRevision` to it, and only while the WBS unit is suspended. Absent or `null`,
    * a Flux release requires the source to be at the desired revision already.
@@ -805,6 +811,25 @@ if (mode === 'capture') {
   }
 }
 if (!fs.existsSync(dbPath)) throw new Error('database ' + dbPath + ' does not exist');
+// The audience preflight (wbs-mcp-agent-surface M2) runs before the snapshot and every
+// migration: a stored audience that breaks WBS_MCP_AUTHORIZATION_SERVER and is not named in
+// WBS_ACCEPT_BREAKING_AUDIENCES fails the Job with the CLI's exit and stderr. The capability
+// probe above proved src readable, so an absent CLI is a candidate older than the check.
+// Proof: with this block removed, 'refuses an unaccepted wbs:org registration before the
+// snapshot' (execute-adapter.test.ts) took the snapshot and passed; watched 2026-10-28.
+if (mode === 'capture') {
+  const audienceCli = 'src/trusted-issuer-audience-check-cli.ts';
+  if (fs.existsSync(audienceCli)) {
+    const check = Bun.spawnSync(['bun', 'run', audienceCli], { stdout: 'pipe', stderr: 'pipe' });
+    if (check.exitCode !== 0) {
+      throw new Error('trusted issuer audience preflight refused (exit ' + check.exitCode + '): ' +
+        check.stderr.toString().trim());
+    }
+    console.error('audience preflight passed: ' + check.stdout.toString().replace(/\s+/g, ' '));
+  } else {
+    console.error('candidate ships no ' + audienceCli + ': it predates the audience preflight, which is skipped');
+  }
+}
 const cli = (args) => {
   const child = Bun.spawnSync(['bun', 'run', ...args], { stdout: 'inherit', stderr: 'inherit' });
   if (child.exitCode !== 0) throw new Error(args.join(' ') + ' exited ' + child.exitCode);
@@ -950,6 +975,22 @@ const SECURITY_CONTEXT = {
 };
 
 /**
+ * The capture Job's audience preflight judges stored audiences against be-01's own
+ * `WBS_MCP_AUTHORIZATION_SERVER`. Optional here so a ConfigMap without it fails the Job with
+ * the CLI's named refusal rather than holding the pod in `CreateContainerConfigError`.
+ */
+const AUDIENCE_SERVER_ENV = {
+  name: 'WBS_MCP_AUTHORIZATION_SERVER',
+  valueFrom: {
+    configMapKeyRef: {
+      name: 'wbs-backend-config',
+      key: 'WBS_MCP_AUTHORIZATION_SERVER',
+      optional: true,
+    },
+  },
+};
+
+/**
  * One schema Job in the backend namespace. It satisfies F6's trusted admission (approved image,
  * service account, controller label, product node, no token) and runs at most one pod ever:
  * `backoffLimit: 0` and `podReplacementPolicy: Failed` forbid a replacement while one lives.
@@ -997,6 +1038,9 @@ export function backendTaskJob(
                 { name: 'DB_PATH', value: '/data/wbs.sqlite' },
                 { name: 'HOME', value: '/tmp' },
                 ...Object.entries(env).map(([key, value]) => ({ name: key, value })),
+                // Proof: with this entry removed, `reads the server from the backend ConfigMap
+                // and carries the accept list` (execute-adapter.test.ts) failed; watched 2026-10-28.
+                ...(env['PUNI_TASK'] === 'capture' ? [AUDIENCE_SERVER_ENV] : []),
               ],
               resources: {
                 requests: { cpu: '50m', memory: '128Mi' },
@@ -1768,6 +1812,13 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects & Clus
           PUNI_TASK: 'capture',
           PUNI_RELEASE: identity.attempt,
           PUNI_SNAPSHOT_DIR: '/data/snapshots',
+          // Proof: with this spread emptied, `reads the server from the backend ConfigMap and
+          // carries the accept list` (execute-adapter.test.ts) failed; watched 2026-10-28.
+          ...((settings.acceptBreakingAudiences ?? []).length > 0
+            ? {
+                WBS_ACCEPT_BREAKING_AUDIENCES: (settings.acceptBreakingAudiences ?? []).join(','),
+              }
+            : {}),
         }),
         identity,
       );
