@@ -268,10 +268,17 @@
   - leftmost XFF;
   - one bucket for successes and failures;
   - counting HTTP requests.
-- [ ] 4.3 Load evidence on h2puni under the heavy lock, recorded in verify.md.
+- [x] 4.3 Load evidence on h2puni under the heavy lock, recorded in verify.md. (Slice 11,
+      `apps/wbs/mcp-01/src/load/m10-load.ts`: every fence holds; the design load does not,
+      because one be-01 carries about 85 calls a second; see 4.5.)
 - [x] 4.4 Bound mcp-01's grant-client fetch to be-01 at the token endpoint with a timeout (it
       holds a pending slot while it waits; review of PR #765). Negative: a never-answering be-01
       frees the slot. (Slice 7: `BE_CALL_TIMEOUT_MS`, raced; verify.md, slice 7.)
+- [ ] 4.5 Raise one be-01's capacity toward M10's design load (200 tool calls a second), or
+      restate M10's sizing to the measured one (slice 11: about 85 a second on h2puni, bound by
+      be-01 CPU per call). Candidates from the profile: prepare hot statements once, index the
+      endpoint table, cache the activation marker and the expected secret's digest. Evidence:
+      re-run `m10-load.ts --agents=100` under the heavy lock.
 
 ## 5. Human-only tools by policy
 
