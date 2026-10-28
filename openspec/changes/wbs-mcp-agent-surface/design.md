@@ -501,9 +501,12 @@ _Alternatives:_ per-principal filtering, or descriptions per principal (two cont
   agent with its person, name, credential and key). fe-01 saves it as one file
   (`pool-<id>.keys.json`) and holds that file's bytes, never its text, until the admin presses
   Done, so a save that did not happen (a cancelled dialog, a blocked automatic download) can be
-  repeated without another request; nothing stores it server-side. Dash imports it with `twilight-dash pool import <file>` into its secret
-  store, verifies every key by issuing one token each, and tells the admin to delete the file.
-  It gives each agent process its own `wbs_run` (M15).
+  repeated without another request; nothing stores it server-side. Dash imports it with
+  `twilight-dash pool import <file> --store <dir>` into its secret store (the owner-only key
+  files `mcp token --key-file` reads, one MCP config per agent), verifies every key by issuing
+  one token each before writing any, and tells the admin to delete the file. It gives each
+  agent process its own `wbs_run` (M15), `pool-<poolId>/<personId>`, stable across re-keys
+  (verify.md slice 10).
 - _Re-keying._ `POST …/agent-pools/:id/rekey` revokes every key and issues fresh ones for the
   **same** persons, so `agent_person_limit` is not consumed again and a leaked file is answered
   without recreating the swarm. Only the persons holding a **live** pool key at re-key time are
