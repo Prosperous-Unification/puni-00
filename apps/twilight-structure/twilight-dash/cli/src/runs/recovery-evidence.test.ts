@@ -13,7 +13,11 @@ import {
   decodeRecoveryObservationCall,
   decodeRecoveryResolveCall,
 } from './recovery-codecs';
-import { deriveRecoveryClaimCommand, readRecoveryExchange } from './recovery-evidence';
+import {
+  deriveRecoveryClaimCommand,
+  readRecoveryExchange,
+  type VerifiedRecoveryExchange,
+} from './recovery-evidence';
 import type { ClaimRecoveryTarget, RecoveryExchange, RecoveryIntent } from './recovery-records';
 import { decodeRuntimeIntent, digestRuntimeRequest } from './runtime-codecs';
 import { FixtureClock, prepareClaimed } from './testing/fixtures';
@@ -1154,6 +1158,297 @@ test('recovery evidence rejects same-reference state value substitution', async 
       readRecoveryExchange(artifacts, captured.envelope, { kind: 'state' }),
       /artifact integrity mismatch/,
     );
+  } finally {
+    await stores.close();
+  }
+});
+
+function extendPublicValue(
+  verified: VerifiedRecoveryExchange,
+  addition: 'none' | 'root' | 'nested',
+): unknown {
+  const value = verified.exchange.body.value;
+  if (addition === 'none') return value;
+  if (addition === 'root') return { ...value, futureField: { retained: 'root addition' } };
+  if (verified.kind === 'state') {
+    const observed = verified.exchange.body.value;
+    return {
+      ...observed,
+      scope: { ...observed.scope, futureScope: 'scope addition' },
+      authority: { ...observed.authority, futureAuthority: 'authority addition' },
+      facts: {
+        ...observed.facts,
+        futureFacts: 'facts addition',
+        workItems: observed.facts.workItems.map((work) => ({
+          ...work,
+          futureWork: 'work addition',
+          externalRefs: [
+            {
+              id: 'ref',
+              systemId: 'system',
+              url: 'url',
+              name: 'name',
+              futureReference: 'reference addition',
+            },
+          ],
+        })),
+        steps: observed.facts.steps.map((step) => ({ ...step, futureStep: 'step addition' })),
+      },
+      claims: [
+        {
+          kind: 'ordinary',
+          futureInventory: 'inventory addition',
+          claim: {
+            id: 'ordinary',
+            workItemId: 'work',
+            stepId: null,
+            personId: 'person',
+            runId: null,
+            parentClaimId: null,
+            accountId: 'account',
+            futureClaim: 'claim addition',
+          },
+        },
+      ],
+    };
+  }
+  if (verified.kind === 'authority') {
+    const receipt = verified.exchange.body.value;
+    return {
+      ...receipt,
+      scope: { ...receipt.scope, futureScope: 'scope addition' },
+      acceptance: {
+        ...receipt.acceptance,
+        futureAcceptance: 'acceptance addition',
+        authority: { ...receipt.acceptance.authority, futureAuthority: 'authority addition' },
+      },
+    };
+  }
+  if (verified.kind === 'claim') {
+    const receipt = verified.exchange.body.value;
+    return {
+      ...receipt,
+      scope: { ...receipt.scope, futureScope: 'scope addition' },
+      acceptance: {
+        ...receipt.acceptance,
+        futureAcceptance: 'acceptance addition',
+        authority: { ...receipt.acceptance.authority, futureAuthority: 'authority addition' },
+        claim: {
+          ...receipt.acceptance.claim,
+          futureClaim: 'claim addition',
+          execution: {
+            ...receipt.acceptance.claim.execution,
+            futureExecution: 'execution addition',
+          },
+        },
+      },
+    };
+  }
+  throw new Error('fixture requires public state or receipt');
+}
+
+async function createPublicRecoveryFixture(
+  stores: ReturnType<typeof create>,
+  kind: 'state' | 'authority' | 'claim',
+  addition: 'none' | 'root' | 'nested',
+) {
+  const setup = await prepareClaimed(stores);
+  const originalIntent = kind === 'claim' ? setup.staged.intent : original;
+  const baselineBody: unknown =
+    kind === 'state'
+      ? setup.state
+      : kind === 'authority'
+        ? authorityReceipt(original)
+        : JSON.parse(
+            new TextDecoder().decode(
+              await stores.artifacts.readArtifact(setup.accepted.acceptance.evidence),
+            ),
+          );
+  const captureFields: Partial<RecoveryExchange> =
+    kind === 'state'
+      ? {}
+      : {
+          context: {
+            kind: 'original_lookup',
+            recoveryId: 'recover',
+            ordinal: 1,
+            observationRevision: 2,
+            fenceExchange: reference,
+            fenceReceipt: reference,
+          },
+          request: { kind: 'lookup', commandId: originalIntent.commandId },
+        };
+  const subject = kind === 'state' ? { kind } : { kind, intent: originalIntent };
+  const baselineCapture = await capture(stores.artifacts, baselineBody, captureFields);
+  const baseline = await readRecoveryExchange(stores.artifacts, baselineCapture.envelope, subject);
+  const publicValue = extendPublicValue(baseline, addition);
+  const captured = await capture(stores.artifacts, publicValue, captureFields);
+  const verified = await readRecoveryExchange(stores.artifacts, captured.envelope, subject);
+  deepEqual(verified.exchange.body.value, publicValue);
+  const publicFence =
+    verified.kind === 'state'
+      ? { ...fence, basis: { kind: 'initial', state: verified.exchange } }
+      : fence;
+  const publicObservation = {
+    ...observation,
+    fence: publicFence,
+    reply: verified.kind === 'authority' ? verified.exchange : observation.reply,
+  };
+  const claimIntent: RecoveryIntent<ClaimRecoveryTarget> = {
+    ...intent,
+    target: {
+      kind: 'claim',
+      original: setup.staged.intent,
+      runId: setup.run.runId,
+      attemptId: setup.attempt.attemptId,
+      stageCommandId: 'stage-claim',
+      acceptanceCommandId: 'recover-accept',
+    },
+  };
+  const claimCommand =
+    verified.kind === 'claim' ? deriveRecoveryClaimCommand(claimIntent, verified.exchange) : null;
+  const decision =
+    verified.kind === 'authority'
+      ? { kind: 'accepted', lookup: verified.exchange }
+      : verified.kind === 'claim'
+        ? { kind: 'accepted', lookup: verified.exchange, command: claimCommand }
+        : resolve.decision;
+  const acceptedFence = { fence: publicFence, observation: publicObservation };
+  const resolveCall = {
+    ...resolve,
+    kind: kind === 'claim' ? 'claim' : 'authority',
+    guard:
+      kind === 'claim' ? { ...(await setup.scopedGuard()), expectedRecoveryRevision: 0 } : guard,
+    fence: acceptedFence,
+    decision,
+  };
+  const closedHistory = {
+    ...history,
+    intent: kind === 'claim' ? claimIntent : intent,
+    revision: 3,
+    fences: [publicFence],
+    observations: [publicObservation],
+    closure: {
+      version: 1,
+      recoveryId: 'recover',
+      original: originalIntent,
+      fence: acceptedFence,
+      decision,
+      resolvedRevision: 3,
+      resolver: intent.resolver,
+      scopeBefore: 1,
+      scopeAfter: 3,
+      originalReply:
+        kind === 'claim' ? { kind: 'claim', command: claimCommand, ack: setup.accepted } : null,
+      attemptReply: null,
+    },
+  };
+  return {
+    fence: {
+      decode: decodeRecoveryFenceCall,
+      candidate: { ...call, input: { fence: publicFence } },
+    },
+    observation: {
+      decode: decodeRecoveryObservationCall,
+      candidate: {
+        ...call,
+        input: { kind: 'accepted', fence: publicFence, reply: publicObservation.reply },
+      },
+    },
+    resolve: { decode: decodeRecoveryResolveCall, candidate: resolveCall },
+    history: { decode: decodeRecoveryHistory, candidate: closedHistory },
+  };
+}
+
+for (const kind of ['state', 'authority', 'claim'] as const) {
+  for (const addition of ['none', 'root', 'nested'] as const) {
+    test(`recovery public extensions preserve ${kind} ${addition} through applicable codecs`, async () => {
+      const stores = create();
+      try {
+        const fixtures = await createPublicRecoveryFixture(stores, kind, addition);
+        const boundaries =
+          kind === 'state'
+            ? (['fence', 'observation', 'resolve', 'history'] as const)
+            : kind === 'authority'
+              ? (['observation', 'resolve', 'history'] as const)
+              : (['resolve', 'history'] as const);
+        for (const boundary of boundaries) {
+          const fixture = fixtures[boundary];
+          const expected = structuredClone(fixture.candidate);
+          const decoded = fixture.decode(fixture.candidate);
+          deepEqual(decoded, expected);
+          expect(decoded).not.toBe(fixture.candidate);
+          expect(decoded).not.toBeInstanceOf(Promise);
+        }
+      } finally {
+        await stores.close();
+      }
+    });
+  }
+}
+
+function addOwnedField(candidate: unknown, path: readonly string[]): unknown {
+  const cloned: unknown = structuredClone(candidate);
+  let record: unknown = cloned;
+  for (const key of path) {
+    if (typeof record !== 'object' || record === null) throw new Error('fixture path missing');
+    record = Reflect.get(record, key);
+  }
+  if (typeof record !== 'object' || record === null) throw new Error('fixture record missing');
+  Reflect.set(record, 'unexpectedOwned', 'must be rejected');
+  return cloned;
+}
+
+for (const [boundary, path] of [
+  ['fence', []],
+  ['fence', ['guard']],
+  ['fence', ['guard', 'scope']],
+  ['fence', ['input']],
+  ['fence', ['input', 'fence']],
+  ['fence', ['input', 'fence', 'basis']],
+  ['fence', ['input', 'fence', 'basis', 'state']],
+  ['fence', ['input', 'fence', 'basis', 'state', 'body']],
+  ['fence', ['input', 'fence', 'basis', 'state', 'body', 'artifact']],
+  ['fence', ['input', 'fence', 'basis', 'state', 'envelope']],
+  ['fence', ['input', 'fence', 'basis', 'state', 'envelope', 'artifact']],
+  ['fence', ['input', 'fence', 'basis', 'state', 'envelope', 'value']],
+  ['fence', ['input', 'fence', 'basis', 'state', 'envelope', 'value', 'context']],
+  ['fence', ['input', 'fence', 'basis', 'state', 'envelope', 'value', 'scope']],
+  ['fence', ['input', 'fence', 'basis', 'state', 'envelope', 'value', 'request']],
+  ['observation', []],
+  ['observation', ['input']],
+  ['observation', ['input', 'reply']],
+  ['resolve', []],
+  ['resolve', ['fence']],
+  ['resolve', ['decision']],
+  ['history', []],
+  ['history', ['intent']],
+  ['history', ['intent', 'resolver']],
+  ['history', ['intent', 'target']],
+  ['history', ['closure']],
+  ['history', ['observations', '0']],
+  ['history', ['fences', '0', 'owner']],
+  ['history', ['closure', 'fence', 'observation']],
+] as const) {
+  test(`recovery public extensions keep owned ${boundary}.${path.join('.')} strict`, async () => {
+    const stores = create();
+    try {
+      const fixtures = await createPublicRecoveryFixture(stores, 'state', 'nested');
+      const fixture = fixtures[boundary];
+      deepEqual(fixture.decode(fixture.candidate), fixture.candidate);
+      expect(() => fixture.decode(addOwnedField(fixture.candidate, path))).toThrow();
+    } finally {
+      await stores.close();
+    }
+  });
+}
+
+test('recovery public extensions keep owned merged claim guard strict', async () => {
+  const stores = create();
+  try {
+    const { resolve: fixture } = await createPublicRecoveryFixture(stores, 'claim', 'nested');
+    deepEqual(fixture.decode(fixture.candidate), fixture.candidate);
+    expect(() => fixture.decode(addOwnedField(fixture.candidate, ['guard']))).toThrow();
   } finally {
     await stores.close();
   }

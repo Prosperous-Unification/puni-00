@@ -26,10 +26,15 @@ import {
   Positive,
 } from './value-codecs';
 
+/** Closes each owned schema literal without recursively overwriting public payload policies. */
+// Proof: fix1-R1 changed this metadata to ignore; 26 owned-field negatives across all four codec paths lost rejection, while four inherited scope/ref controls stayed strict.
+const closedRecord = { '+': 'reject' } as const;
+
 const identity = type('string>=1');
-const owner = type({ ownerId: OwnerIdCodec, epoch: Positive });
-const authorityTarget = type({ kind: "'authority'", original: intentCodec });
+const owner = type({ ...closedRecord, ownerId: OwnerIdCodec, epoch: Positive });
+const authorityTarget = type({ ...closedRecord, kind: "'authority'", original: intentCodec });
 const claimTarget = type({
+  ...closedRecord,
   kind: "'claim'",
   original: intentCodec,
   runId: identity,
@@ -38,23 +43,29 @@ const claimTarget = type({
   acceptanceCommandId: identity,
 });
 const intentFields = {
+  ...closedRecord,
   version: '1',
   recoveryId: identity,
   begunScopeRevision: Integer,
   resolver: owner,
 } as const;
-const authorityIntent = type({ ...intentFields, target: authorityTarget });
-const claimIntent = type({ ...intentFields, target: claimTarget });
+const authorityIntent = type({ ...closedRecord, ...intentFields, target: authorityTarget });
+const claimIntent = type({ ...closedRecord, ...intentFields, target: claimTarget });
 const recoveryIntent = authorityIntent.or(claimIntent);
 const authorityGuard = type({
+  ...closedRecord,
   ownership: OwnershipCodec,
   scope: scopeCodec,
   expectedRevision: Integer,
   expectedRecoveryRevision: Integer,
 });
-const claimGuard = ScopedAttemptGuardCodec.merge({ expectedRecoveryRevision: Integer });
-const context = type({ kind: "'initial_state'", recoveryId: identity })
+const claimGuard = ScopedAttemptGuardCodec.merge({
+  ...closedRecord,
+  expectedRecoveryRevision: Integer,
+});
+const context = type({ ...closedRecord, kind: "'initial_state'", recoveryId: identity })
   .or({
+    ...closedRecord,
     kind: "'fence_reply'",
     recoveryId: identity,
     ordinal: Positive,
@@ -62,6 +73,7 @@ const context = type({ kind: "'initial_state'", recoveryId: identity })
     stagedRevision: Positive,
   })
   .or({
+    ...closedRecord,
     kind: "'original_lookup'",
     recoveryId: identity,
     ordinal: Positive,
@@ -70,31 +82,34 @@ const context = type({ kind: "'initial_state'", recoveryId: identity })
     fenceReceipt: ArtifactRefCodec,
   })
   .or({
+    ...closedRecord,
     kind: "'supersession_state'",
     recoveryId: identity,
     previousOrdinal: Positive,
     previousRequestDigest: ArtifactDigestCodec,
   })
   .or({
+    ...closedRecord,
     kind: "'supersession_lookup'",
     recoveryId: identity,
     previousOrdinal: Positive,
     stateExchange: ArtifactRefCodec,
   });
 const exchange = type({
+  ...closedRecord,
   version: '1',
   context,
   scope: scopeCodec,
   ledgerId: identity,
-  request: type({ kind: "'state'" })
-    .or({ kind: "'lookup'", commandId: identity })
-    .or({ kind: "'authority'", canonicalRequest: identity }),
+  request: type({ ...closedRecord, kind: "'state'" })
+    .or({ ...closedRecord, kind: "'lookup'", commandId: identity })
+    .or({ ...closedRecord, kind: "'authority'", canonicalRequest: identity }),
   status: Integer,
   body: ArtifactRefCodec,
 });
-const envelope = type({ artifact: ArtifactRefCodec, value: exchange });
+const envelope = type({ ...closedRecord, artifact: ArtifactRefCodec, value: exchange });
 
-/** Synchronous stored projections only; external response schemas remain authoritative in readRecoveryExchange. */
+/** Synchronous known public fields preserve the response schemas' root and nested additions. The actual-byte reader remains the asynchronous public-schema boundary. */
 const authority = type({ ownerId: identity, generation: Positive });
 const claim = type({
   claimId: identity,
@@ -117,11 +132,16 @@ const receiptFields = {
   requestDigest: ArtifactDigestCodec,
   actorId: identity,
 } as const;
-const authorityReceipt = type({ ...receiptFields, acceptance: { kind: "'authority'", authority } });
+// Proof: fix1-R3/R6 rejected/deleted allowed public fields; authority root/nested preservation tests failed.
+const authorityReceipt = type({
+  ...receiptFields,
+  acceptance: { kind: "'authority'", authority },
+}).onDeepUndeclaredKey('ignore');
+// Proof: fix1-R4/R7 rejected/deleted allowed public fields; claim root/nested preservation tests failed.
 const claimReceipt = type({
   ...receiptFields,
   acceptance: { kind: "'claim'", authority, claim, basisAfter: basis },
-});
+}).onDeepUndeclaredKey('ignore');
 const liveClaim = type({
   id: identity,
   workItemId: identity,
@@ -131,6 +151,7 @@ const liveClaim = type({
   parentClaimId: identity.or('null'),
   accountId: identity,
 });
+// Proof: fix1-R2/R5 rejected/deleted allowed public fields; state root/nested preservation tests failed.
 const state = type({
   schemaVersion: '1',
   ledgerId: identity,
@@ -159,22 +180,42 @@ const state = type({
   claims: type({ kind: "'ordinary'", claim: liveClaim })
     .or({ kind: "'runtime'", claim: liveClaim, binding: claim })
     .array(),
+}).onDeepUndeclaredKey('ignore');
+const stateExchange = type({
+  ...closedRecord,
+  envelope,
+  body: { ...closedRecord, artifact: ArtifactRefCodec, value: state },
 });
-const stateExchange = type({ envelope, body: { artifact: ArtifactRefCodec, value: state } });
 const authorityExchange = type({
+  ...closedRecord,
   envelope,
-  body: { artifact: ArtifactRefCodec, value: authorityReceipt },
+  body: { ...closedRecord, artifact: ArtifactRefCodec, value: authorityReceipt },
 });
-const claimExchange = type({ envelope, body: { artifact: ArtifactRefCodec, value: claimReceipt } });
-const absentExchange = type({
+const claimExchange = type({
+  ...closedRecord,
   envelope,
-  body: { artifact: ArtifactRefCodec, value: { error: "'runtime_receipt_not_found'" } },
+  body: { ...closedRecord, artifact: ArtifactRefCodec, value: claimReceipt },
+});
+const absentExchange = type({
+  ...closedRecord,
+  envelope,
+  body: {
+    ...closedRecord,
+    artifact: ArtifactRefCodec,
+    value: { ...closedRecord, error: "'runtime_receipt_not_found'" },
+  },
 });
 const conflictExchange = type({
+  ...closedRecord,
   envelope,
-  body: { artifact: ArtifactRefCodec, value: { error: "'runtime_generation_conflict'" } },
+  body: {
+    ...closedRecord,
+    artifact: ArtifactRefCodec,
+    value: { ...closedRecord, error: "'runtime_generation_conflict'" },
+  },
 });
 const fence = type({
+  ...closedRecord,
   version: '1',
   recoveryId: identity,
   ordinal: Positive,
@@ -182,46 +223,75 @@ const fence = type({
   requestDigest: ArtifactDigestCodec,
   owner,
   stagedRevision: Positive,
-  basis: type({ kind: "'initial'", state: stateExchange }).or({
+  basis: type({ ...closedRecord, kind: "'initial'", state: stateExchange }).or({
+    ...closedRecord,
     kind: "'superseding'",
     previousOrdinal: Positive,
     state: stateExchange,
     lookup: absentExchange,
   }),
 });
-const acceptedReply = type({ kind: "'accepted'", fence, reply: authorityExchange });
-const conflictReply = type({ kind: "'generation_conflict'", fence, reply: conflictExchange });
-const acceptedObservation = acceptedReply.merge({ version: '1', observedRevision: Positive });
+const acceptedReply = type({
+  ...closedRecord,
+  kind: "'accepted'",
+  fence,
+  reply: authorityExchange,
+});
+const conflictReply = type({
+  ...closedRecord,
+  kind: "'generation_conflict'",
+  fence,
+  reply: conflictExchange,
+});
+const acceptedObservation = acceptedReply.merge({
+  ...closedRecord,
+  version: '1',
+  observedRevision: Positive,
+});
 const observation = acceptedObservation.or(
-  conflictReply.merge({ version: '1', observedRevision: Positive }),
+  conflictReply.merge({ ...closedRecord, version: '1', observedRevision: Positive }),
 );
-const acceptedFence = type({ fence, observation: acceptedObservation });
-const nonacceptedDecision = type({ kind: "'fenced_nonaccepted'", lookup: absentExchange });
-const authorityDecision = type({ kind: "'accepted'", lookup: authorityExchange }).or(
-  nonacceptedDecision,
-);
+const acceptedFence = type({ ...closedRecord, fence, observation: acceptedObservation });
+const nonacceptedDecision = type({
+  ...closedRecord,
+  kind: "'fenced_nonaccepted'",
+  lookup: absentExchange,
+});
+const authorityDecision = type({
+  ...closedRecord,
+  kind: "'accepted'",
+  lookup: authorityExchange,
+}).or(nonacceptedDecision);
 const claimDecision = type({
+  ...closedRecord,
   kind: "'accepted'",
   lookup: claimExchange,
   command: ClaimAcceptCommandCodec,
 }).or(nonacceptedDecision);
 // Proof: C7/C8 widened each checkpoint independently; the opposite valid checkpoint was accepted for that hold cause.
 const hold = type({
+  ...closedRecord,
   kind: "'recovery_hold'",
   cause: "'claim_nonaccepted'",
   closureId: identity,
   checkpoint: CheckpointCodec.extract({ kind: "'claiming'" }),
 }).or({
+  ...closedRecord,
   kind: "'recovery_hold'",
   cause: "'claim_accepted_fenced'",
   closureId: identity,
   checkpoint: CheckpointCodec.extract({ kind: "'ready'" }),
 });
-const attempt = AttemptCodec.omit('version', 'state').merge({ version: '3', state: hold });
+const attempt = AttemptCodec.omit('version', 'state').merge({
+  ...closedRecord,
+  version: '3',
+  state: hold,
+});
 const claimAck = RecordedExecutionCodec.extract({ command: { kind: "'accept_claim'" } }).get(
   'reply',
 );
 const closure = type({
+  ...closedRecord,
   version: '1',
   recoveryId: identity,
   original: intentCodec,
@@ -231,61 +301,70 @@ const closure = type({
   resolver: owner,
   scopeBefore: Integer,
   scopeAfter: Positive,
-  originalReply: type({ kind: "'authority'", acceptance: acceptanceCodec })
-    .or({ kind: "'claim'", command: ClaimAcceptCommandCodec, ack: claimAck })
+  originalReply: type({ ...closedRecord, kind: "'authority'", acceptance: acceptanceCodec })
+    .or({ ...closedRecord, kind: "'claim'", command: ClaimAcceptCommandCodec, ack: claimAck })
     .or('null'),
   attemptReply: attempt.or('null'),
 });
 const history = type({
+  ...closedRecord,
   version: '1',
   intent: recoveryIntent,
   revision: Integer,
   fences: fence.array(),
   observations: observation.array(),
   closure: closure.or('null'),
-}).onDeepUndeclaredKey('reject');
-const begin = type({ kind: "'authority'", guard: authorityGuard, intent: authorityIntent })
-  .or({ kind: "'claim'", guard: claimGuard, intent: claimIntent })
-  .onDeepUndeclaredKey('reject');
+});
+const begin = type({
+  ...closedRecord,
+  kind: "'authority'",
+  guard: authorityGuard,
+  intent: authorityIntent,
+}).or({ ...closedRecord, kind: "'claim'", guard: claimGuard, intent: claimIntent });
 const fenceCall = type({
+  ...closedRecord,
   kind: "'authority'",
   guard: authorityGuard,
   recoveryId: identity,
-  input: { fence },
-})
-  .or({ kind: "'claim'", guard: claimGuard, recoveryId: identity, input: { fence } })
-  .onDeepUndeclaredKey('reject');
+  input: { ...closedRecord, fence },
+}).or({
+  ...closedRecord,
+  kind: "'claim'",
+  guard: claimGuard,
+  recoveryId: identity,
+  input: { ...closedRecord, fence },
+});
 const observationCall = type({
+  ...closedRecord,
   kind: "'authority'",
   guard: authorityGuard,
   recoveryId: identity,
   input: acceptedReply.or(conflictReply),
-})
-  .or({
-    kind: "'claim'",
-    guard: claimGuard,
-    recoveryId: identity,
-    input: acceptedReply.or(conflictReply),
-  })
-  .onDeepUndeclaredKey('reject');
+}).or({
+  ...closedRecord,
+  kind: "'claim'",
+  guard: claimGuard,
+  recoveryId: identity,
+  input: acceptedReply.or(conflictReply),
+});
 const resolve = type({
+  ...closedRecord,
   kind: "'authority'",
   guard: authorityGuard,
   recoveryId: identity,
   fence: acceptedFence,
   decision: authorityDecision,
-})
-  .or({
-    kind: "'claim'",
-    guard: claimGuard,
-    recoveryId: identity,
-    fence: acceptedFence,
-    decision: claimDecision,
-  })
-  .onDeepUndeclaredKey('reject');
-const exchangeCodec = exchange.onDeepUndeclaredKey('reject');
+}).or({
+  ...closedRecord,
+  kind: "'claim'",
+  guard: claimGuard,
+  recoveryId: identity,
+  fence: acceptedFence,
+  decision: claimDecision,
+});
+const exchangeCodec = exchange;
 
-/** Strict synchronous snapshots for trusted persistence; these do not authenticate supplied value/reference pairs. */
+/** Synchronous snapshots close owned records and preserve public body additions; these do not authenticate supplied value/reference pairs. */
 export function decodeRecoveryExchange(candidate: unknown): RecoveryExchange {
   // Proof: C1 bypassed this new parse dependency; owned malformed record negatives lost rejection.
   return structuredClone(parseOrThrow(exchangeCodec, candidate));
