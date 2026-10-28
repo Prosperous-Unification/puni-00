@@ -1718,3 +1718,80 @@ body:has(.night-shell) {
 .glass-field textarea[readonly] {
   max-height: calc(4 * 24px + 30px);
 }
+
+.scoping-answers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block: 1rem;
+}
+.scoping-answers button {
+  min-height: 44px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.proposal-card input {
+  max-width: 100%;
+  min-height: 44px;
+}
+.proposal-card textarea {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.proposal-card details p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.proposal-card[hidden] {
+  display: none;
+}
+.proposal-card .glass-field {
+  --field-action-width: 0px;
+}
+.proposal-card > .glass-button {
+  align-self: flex-start;
+}
+
+.request-preview p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--on-night);
+}
+.reference-editor summary {
+  min-height: var(--target);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.request-actions {
+  margin-block: 0;
+}
+
+.privacy-choices {
+  position: relative;
+  flex-shrink: 0;
+  width: min(720px, 100% - 2 * var(--gutter));
+  margin-inline: auto;
+  color: var(--on-night);
+  max-height: 30dvh;
+  overflow-y: auto;
+  padding-block: var(--space-1);
+}
+.privacy-choices p {
+  font-size: var(--text-small);
+  margin-block: var(--space-2);
+}
+.privacy-choices button {
+  min-height: 44px;
+}
+.privacy-panel {
+  padding-bottom: var(--space-2);
+}
+
+.privacy-choices > button {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--night);
+}
