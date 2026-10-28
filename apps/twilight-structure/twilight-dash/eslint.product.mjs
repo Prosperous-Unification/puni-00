@@ -200,18 +200,58 @@ export default ({
     },
     {
       files: [
-        // Proof: F181 removed this exact consumer; shape and independent effective admission assertions failed with fatalErrorCount zero; restored group passed.
-        'apps/twilight-structure/twilight-dash/cli/src/runs/record-preparation.ts',
         // Proof: F182 removed this exact consumer; shape and independent effective admission assertions failed with fatalErrorCount zero; restored group passed.
         'apps/twilight-structure/twilight-dash/cli/src/runs/testing/fixtures.ts',
       ],
       rules: boundary(['^@twilight-burokrat/contracts$', '^@wbs/contracts$']),
     },
     {
+      files: ['apps/twilight-structure/twilight-dash/cli/src/runs/record-preparation.ts'],
+      // Inherited F181 consumer provenance: preparation now uses only Burokrat contracts.
+      // Proof: P2 preparation variant restored only its removed WBS allowance; the actual
+      // zero-fatal 'record-preparation.ts denies WBS contracts' assertion failed; restoration passed.
+      rules: boundary(['^@twilight-burokrat/contracts$']),
+    },
+    {
+      // Proof: P2 widened only this new selector to plan-execution.ts; the actual zero-fatal
+      // peer-denial assertion failed while reader admission passed. Exact restoration passed.
+      files: ['apps/twilight-structure/twilight-dash/cli/src/runs/runtime-state.ts'],
+      rules: boundary(['^@wbs/contracts$']),
+    },
+    {
       files: ['apps/twilight-structure/twilight-dash/cli/src/resources/**/*.ts'],
       // Proof: removing this exact override failed `Dash resources reach only the WBS
       // transport contract at their scoped paths`; sibling/relative imports remain denied.
       rules: boundary(['^@wbs/contracts$']),
+    },
+    {
+      files: [
+        // Proof: P1/P2 removed each exact consumer; Dash runtime client functional admissions failed with no fatal lint errors.
+        'apps/twilight-structure/twilight-dash/cli/src/bridge/runtime-client.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/bridge/runtime-client.test.ts',
+      ],
+      // Proof: P3/P4 widened alias/relative imports and their real denials failed; P6 admitted prepare-activity.ts and its real peer denial failed.
+      rules: boundary(['^@wbs/contracts$']),
+    },
+    {
+      // Proof: P01 removed only this allowance and real source admission failed. P02/P03 widened alias/relative imports; P04/P05 added the actual test/peer paths. Their functional denials failed in 'Dash claim builder consumes only the exact public encoder'; exact restoration passed.
+      files: ['apps/twilight-structure/twilight-dash/cli/src/runs/build-claim-request.ts'],
+      rules: boundary(['^@wbs/contracts$']),
+    },
+    {
+      // Proof: P01/P02 removed exact consumers; P03/P04 widened alias/relative; P05 admitted dispatch-turn.ts and P06 widened to cli/src/**/*.ts. 'Dash turn dispatch' semantic policy assertions failed; P01–P04 reached explicit zero-fatal checks, P05/P06 returned empty message lists at production-peer denials.
+      // Proof: P07 added only runs/dispatch-turn.test.ts; the named unlisted-test denial failed. A separate real ESLint probe reported zero fatal errors and no diagnostics; exact restoration and the same selector passed.
+      files: [
+        'apps/twilight-structure/twilight-dash/cli/src/bridge/claim-client.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/bridge/claim-client.test.ts',
+      ],
+      rules: boundary(['^@wbs/contracts$']),
+    },
+    {
+      files: [
+        'apps/twilight-structure/twilight-dash/cli/src/runs/testing/runtime-dispatch-worker.ts',
+      ],
+      rules: boundary(['^@twilight-burokrat/contracts$', '^@wbs/contracts$']),
     },
   ];
 };

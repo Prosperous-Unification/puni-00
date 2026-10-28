@@ -33,7 +33,7 @@ export function verifiedOperationsContract(name: string, create: () => Promise<O
             await rejects(stores.runs.readManifest(manifest.digest), /manifest does not exist/);
           }
         } finally {
-          stores.close();
+          await stores.close();
         }
       });
     for (const kind of ['interrupted', 'waiting', 'unresolved'] as const)
@@ -87,7 +87,7 @@ export function verifiedOperationsContract(name: string, create: () => Promise<O
             expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
           }
         } finally {
-          stores.close();
+          await stores.close();
         }
       });
     for (const field of ['output', 'quiescence'] as const)
@@ -117,7 +117,7 @@ export function verifiedOperationsContract(name: string, create: () => Promise<O
             expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
           }
         } finally {
-          stores.close();
+          await stores.close();
         }
       });
     for (const operation of ['manifest', 'execution', 'outcome'] as const)
@@ -196,7 +196,7 @@ export function verifiedOperationsContract(name: string, create: () => Promise<O
             } else expect(snapshot.pendingIntents).toEqual([original.completion.intent]);
           }
         } finally {
-          stores.close();
+          await stores.close();
         }
       });
     test('facts without artifacts do not require artifact reads', async () => {
@@ -223,7 +223,7 @@ export function verifiedOperationsContract(name: string, create: () => Promise<O
           ).kind,
         ).toBe('applied');
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
   });

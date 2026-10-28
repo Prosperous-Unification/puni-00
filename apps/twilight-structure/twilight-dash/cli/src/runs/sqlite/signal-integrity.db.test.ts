@@ -20,6 +20,7 @@ import {
 } from '../testing/fixtures';
 import { prepareReceipt } from '../testing/receipts-contract';
 import { prepareWait } from '../testing/signals-contract';
+import { createStoreDirectory } from '../testing/store-directory';
 import { bootstrapSqliteStores, openSqliteStores } from './open-stores';
 
 async function createFixture() {
@@ -179,12 +180,12 @@ for (const corruption of corruptions)
           .run(JSON.stringify({ ...envelope, completion: changed }));
       }
       await rejects(fixture.runs.readRun(setup.run.runId), new RegExp(corruption.message));
-      fixture.close();
+      await fixture.close();
       closed = true;
       await rejects(openSqliteStores(fixture.options));
     } finally {
       fixture.database.close();
-      if (!closed) fixture.close();
+      if (!closed) await fixture.close();
       rmSync(fixture.directory, { recursive: true });
     }
   });
@@ -211,7 +212,7 @@ for (const operation of ['receive', 'consume', 'receipt'] as const)
       expect(await pending).toEqual({ kind: 'refused', reason: 'owner_stale' });
     } finally {
       fixture.database.close();
-      fixture.close();
+      await fixture.close();
       rmSync(fixture.directory, { recursive: true });
     }
   });
@@ -240,7 +241,7 @@ test('admission rejects terminal predecessor missing its confirmed receipt prove
     ]);
   } finally {
     fixture.database.close();
-    fixture.close();
+    await fixture.close();
     rmSync(fixture.directory, { recursive: true });
   }
 });
@@ -260,14 +261,18 @@ test('completion rejects current claim corruption against intact historical exec
     expect(fixture.database.query('SELECT * FROM run_completion').all()).toEqual([]);
   } finally {
     fixture.database.close();
-    fixture.close();
+    await fixture.close();
     rmSync(fixture.directory, { recursive: true });
   }
 });
 
 test('reopen rejects coherently reused historical wait key', async () => {
   const fixture = await createFixture();
-  try {
+  const owner = createStoreDirectory(fixture.directory, { recursive: true });
+  owner.retainStore(fixture);
+  owner.retainProbe(fixture.database);
+  // Proof: I1-D2 bypassed this actual owner's finally cleanup; its earlier-work-failure child failed STORE-DIRECTORY-I1-03. Exact restoration passed.
+  await owner.runTest(async () => {
     const setup = await prepareWait(fixture);
     unwrapReply(await fixture.runs.receiveDecision(setup.ownership, setup.decision));
     unwrapReply(
@@ -301,12 +306,9 @@ test('reopen rejects coherently reused historical wait key', async () => {
       "UPDATE run_attempt SET record=json_set(record,'$.state.wait.correlationKey','wait-1')",
     );
     await rejects(fixture.runs.readRun(setup.run.runId), /corrupt reused wait identity/);
-    fixture.close();
+    await fixture.close();
     await rejects(openSqliteStores(fixture.options));
-  } finally {
-    fixture.database.close();
-    rmSync(fixture.directory, { recursive: true });
-  }
+  });
 });
 
 test('receipt reconciliation requires its trusted pending intent from the query dependency', async () => {
@@ -332,7 +334,7 @@ test('receipt reconciliation requires its trusted pending intent from the query 
   } finally {
     Object.defineProperty(Database.prototype, 'query', descriptor);
     fixture.database.close();
-    fixture.close();
+    await fixture.close();
     rmSync(fixture.directory, { recursive: true });
   }
 });
@@ -356,7 +358,7 @@ test('duplicate consumption validates current target provenance before replay', 
     );
   } finally {
     fixture.database.close();
-    fixture.close();
+    await fixture.close();
     rmSync(fixture.directory, { recursive: true });
   }
 });
@@ -389,7 +391,7 @@ test('terminal inspection refuses completion unreadable after reconstruction', a
   } finally {
     Object.defineProperty(Database.prototype, 'query', descriptor);
     fixture.database.close();
-    fixture.close();
+    await fixture.close();
     rmSync(fixture.directory, { recursive: true });
   }
 });
@@ -490,7 +492,7 @@ for (const delivery of ['terminal outbox', 'missing pending outbox'] as const)
           expect(await fixture.runs.readRun(setup.run.runId)).toEqual(before);
       } finally {
         fixture.database.close();
-        fixture.close();
+        await fixture.close();
         rmSync(fixture.directory, { recursive: true });
       }
     });

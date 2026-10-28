@@ -93,7 +93,7 @@ export function executionContract(name: string, create: () => Promise<OutcomeFix
           ),
         ).toEqual({ kind: 'refused', reason: 'revision_conflict' });
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
 
@@ -201,7 +201,7 @@ export function executionContract(name: string, create: () => Promise<OutcomeFix
           ),
         ).toEqual({ kind: 'refused', reason: 'attempt_active' });
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
 
@@ -260,7 +260,7 @@ export function executionContract(name: string, create: () => Promise<OutcomeFix
           }),
         ).toEqual({ kind: 'refused', reason: 'attempt_active' });
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
   });

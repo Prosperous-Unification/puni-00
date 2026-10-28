@@ -2788,3 +2788,648 @@ warning remains. Helper SHA256 is now
 the delta from the preceding implementation is JSDoc only. Normal scoped OpenSpec remains
 valid. Revised commit scoped re-review and exact-SHA canonical gate/CI/integration remain
 required before publication acceptance. No parent S0/S7a gate closes from these results.
+
+## Correlated runtime client — 2026-10-26
+
+Work continues from reviewed preparation commitf8f9a269d in isolated
+/tmp/puni-agentic-runtime-dispatch-20261026. The [runtime dispatch intent](runtime-dispatch-intent.md),
+[design](runtime-dispatch-design.md), [packet tasks](runtime-dispatch-tasks.md) and
+[client task](runtime-client-tasks.md) preserve the full authority/claim/turn/boot scope and
+leave exact outcome/release, supported recovery, other adapters and S7a open.
+
+The first unit captures the actual Response body independently per shared-client call.
+It consumes only injected transport and existing public schemas, with no credential,
+URL/default-fetch, storage or executor implementation. Root caught a cancellation-order
+regression: a late Response could wait on body capture before shared cancellation.
+A finite real-stream clone-versus-cancel test now proves the corrected order and its
+removed-branch negative; no timeout is counted as a proof.
+
+Submitted final checks:18wrapper tests61expect calls, named effective-policy case35expect
+calls, fresh cached graph and all4uncached Dash/tool-devsync lint/typecheck targets pass.
+Touched-file formatting/diff and normal scoped OpenSpec pass with13 inherited warnings.
+Initial import, policy-order and static failures remain retained without proof credit.
+Nx socket fallback is disclosed; final lint did not skip module checking.
+
+The15 retained finite mutation/restoration trials distinguish direct byte/isolation/order
+and forbidden-edge observations from configuration/diagnostic/structural evidence.
+W2 remains diagnostic-only; W5 is byte-loss rather than sole timing evidence; P5 structural
+path widening is superseded by actual forbidden-peer admission in P6. Multiple actual
+baseline/mutant hashes and original logs remain in this task-specific ignored
+.superpowers/sdd/runtime-client-tasks workspace. Current helper SHA256:
+cd2d63d6ea412d68074f67d4e4e1192d6e1706f99f1e7c71ff03e50ebb5711e9.
+
+Process violation: the implementer used a Python proof driver despite the Bun/Nx-only
+instruction. Its actual child tests used Bun; the original Python code/commands/evidence
+are preserved. Root disclosed the violation and required Bun reproducibility/audit tooling.
+That correction cannot retroactively establish process compliance. No existing planner,
+auth, SQL, shared client or old guard was disabled.
+
+Independent review/commit of this first unit remains pending at this entry. No actual
+receiver/host boot integration, complete sender, live-provider behavior, full new-packet gate,
+CI or S0/S7a acceptance is claimed from these scoped outputs. The immutable preparation
+candidate in PR759 is gated separately; no production action or remote WBS update occurred.
+
+### Bun-only forward verification
+
+The historical violation also includes Python report generation and source-edit/archival
+heredocs. Exact commands and the original artifacts remain in the task report; successful
+Bun children never make that orchestration compliant. Root required fresh forward
+verification rather than treating a later evidence audit as the required proof execution.
+
+`bun .superpowers/sdd/runtime-client-tasks/proof-runner.ts attempt-04` now executes14 new
+finite negatives against the current final wrapper and policy, with both final tests frozen.
+All14 fail for their named assertion and pass after exact byte/mode restoration. Actual
+argv, execution exits/timestamps, original snapshots, mutants, raw outputs and hashes are
+retained under logs/bun-replay/attempt-04. The redundant historical P5 structural case is
+not repeated; P6 exercises the actual forbidden peer. W2 remains diagnostic-only. Initial
+Bun helper setup failures happened before source mutation and receive no proof credit.
+
+After restoration the complete wrapper again passes18tests61expect calls in1.94s; the
+named effective-policy case passes1test35expect calls in8.07s. All4 source/test hashes and
+modes match the prior reviewed final versions, so the accepted4-target uncached static
+checks were not repeated. Independent root Bun audit validates all14 current-source
+baselines, archived mutants, four-file restoration, actual Bun argv/exits and raw log hashes,
+plus both final checks. Its root-evidence-audit.json is retained beside those receipts.
+Historical Python noncompliance remains disclosed; no retroactive compliance follows.
+Scoped remediation review and normal checkpoint commit remain required at this entry.
+
+Scoped independent remediation review now marks forward Task1 verification ADDRESSED,
+with no remaining Important verification blocker. It inspected all14 actual changed regions,
+28 trial executions/raw hashes, final checks and exact restoration. Source spec/quality
+approval stands; historical Python noncompliance remains an established separate finding.
+This accepts the client unit for a normal internal checkpoint, not the full runtime packet.
+
+## Durable authority delivery — 2026-10-27
+
+The client checkpoint260eb28e8 is committed and pushed. The next
+[authority delivery task](authority-dispatch-tasks.md) implements only section2 of the
+runtime packet: commit-first fresh POST, duplicate verified acknowledgement or exact lookup,
+sticky pending uncertainty and retained original acceptance evidence. It adds no credential,
+foreign-contract allowance, schema/migration, executor or ordinary-command fallback.
+
+Final actual memory/SQLite tests pass91cases523expect calls in3.66s, including one SQLite
+close/reopen case under original live ownership. Frozen tests and actual finite barriers
+cover commit/renew/receipt ordering, lost replies, concurrent byte-different winners and
+old-epoch acknowledgement without a new grant. This is not real receiver/process-kill,
+power-loss, physical fencing or automatic replacement proof.
+
+All29 counted Bun-only new-helper mutation trials fail for their named finite test and
+pass after exact source/mode restoration. A09's classifier false negative remains preserved;
+A09r supplies its counted corrected trial. A21's initial pre-mutation anchor error receives
+no proof credit. Existing guards and SQL stayed installed. Diagnostic/backstop scopes
+A05/A19–A22 and typed-return integration scopes A25/A27 remain explicit in the task report;
+they are not claimed as unsafe effects escaping inherited validation. Root independently
+checks all29 receipts/actual mutants/Bun argv, frozen baselines and current raw log hashes.
+Both production files transpile identically to their pre-comment baselines, and all3 final
+test files remain byte-identical. Evidence: .superpowers/sdd/authority-dispatch-tasks/.
+
+Fresh graph-backed uncached Dash lint/typecheck pass (28.3s/5.3s). Touched-file format/diff
+and scoped OpenSpec pass. Nx plugin socket fallback and13 inherited OpenSpec warnings
+remain; no module-check skipping was observed. Earlier fixture, rejection-observer,
+static invocation/import/type and proof-driver setup failures remain without pass credit.
+
+Root corrected an accidental collision with the existing runtime-authority-tasks.md before
+commit: the original completed persistence plan is restored to its exact HEAD blob, and
+this distinct unit uses authority-dispatch-tasks.md. All66 existing task artifacts survived
+the ignored workspace rename byte/mode-identically; the relocation receipt maps historical
+actual path strings without rewriting them. No source/test or acceptance scope changed.
+
+Independent Astra task review approves spec compliance and quality with no Critical or
+Important finding; its read-only audit independently checks all retained identities and
+mutation trials. Normal checkpoint remains pending at this entry. Claim/turn/boot integration,
+outcome/release, supported recovery, adapters and the CTT compatibility coordinator are
+still required; no full packet/S0/S7a acceptance or production deployment is claimed.
+
+## Dev WBS reconciliation — 2026-10-27
+
+The user completed the existing wbs-dev OAuth login; actual project/claim/work-item reads
+and one9-command update succeeded. Readback verifies030.09–030.11 done for merged
+foundation PR742, S0 still in_progress, and010.01 renamed/in_progress under accepted
+ADR0061. The stale WBS-only G2 note is preserved as earlier history and explicitly
+superseded, matching current design/ADR0057/ADR0061. No other-owner project was changed
+and no agent person or formal execution claim was fabricated. Preparation PR759 remains
+unmerged pending its canonical h4 gate; its PR CI has passed.
+
+## Prepared claim construction — 2026-10-27
+
+Claim-dispatch Task1 builds fixed canonical input from verified prepared execution/runtime
+history and an actual retained target artifact. Only basis/evidence refresh; target, parent
+and actual session binding remain fixed. Construction performs no network/store mutation,
+renewal or execution and grants no live permission. The public encoder is consumed directly
+at one exact new source allowance; existing policy/tests are preserved.
+
+Final memory/SQLite tests pass88cases108expect calls in5.05s; the named real policy case
+passes1case18assertions. All40 Bun-only finite owned-check/consumption/policy trials fail
+as intended and pass after exact restoration. C13/C19 are typed-refusal diagnostics;
+construction correspondence is not an atomic-stage bypass claim. Four frozen test/helper
+files remain byte-identical; source/policy executable transpilation matches pre-comment
+baselines. Raw attempts, mutants, actual argv/exits and hashes/modes are retained under
+.superpowers/sdd/claim-dispatch-tasks. Setup/syntax/fixture/static failures receive no credit.
+
+Fresh graph-backed four uncached Dash/tool-devsync lint/typecheck targets pass in29.8s;
+touched formatting/diff and scoped OpenSpec pass. Nx socket fallback and13 inherited
+long-requirement warnings remain. Independent task review approves spec and quality with
+no Critical/Important finding and audits all40 trials/current identities without test reruns.
+Normal Task1 checkpoint remains required before Task2 claim delivery.
+
+The next turn design now distinguishes unswept runtime inventory from observed lease
+validity: separate existing project-claims read, exact correspondence, revocation refusal and
+expiry greater than server readAt. Historical turn replay precedes fresh-ready predicates;
+fresh turn staging leaves scope revision unchanged. These are forward requirements, not
+implemented turn/lease/boot acceptance. Heartbeat, long-turn lifecycle, business attempt
+mapping and complete S0/S7a remain open.
+
+## Preparation integration and claim delivery — 2026-10-27
+
+Preparation PR759 merged normally as67773f97ac5c608bd785f5ff5619cc0f053779e2.
+Actual ordered parents3cd6/f8f9 and treeb3cb67b90b1b77fb4761dde1790cd4f3dcf8a2bc
+match the independently audited prospective composition (all12,298 blobs/modes, no
+overlapping edits). This supersedes the earlier pending-gate/unmerged status. The exact
+f8f9 canonical h4 gate passed with actual SSH exit0; PR CI40396802989 passed with10 raw
+job logs,8 checkout identities,608 browser passes and40 existing skips audited. The h2
+queue refusal ran no checks. New main's ordinary-claim person default was inspected;
+combined68 preparation/310assert,26 claim-core/99assert and4 real HTTP/18assert cases,
+uncached Dash typecheck and299 OpenSpec validations passed. Actual merge
+CI40419076145 completed successfully. Root audited all10 successful raw job logs and8
+actual67773 checkout identities, including608 browser passes and40 existing skips. The
+conditional docs-only job was skipped; no feature-gate result is relabeled as a combined-tree
+host gate. The original local observer disappeared; terminal evidence capture resumed only
+after a fresh GitHub read proved completion, without restarting the workflow.
+
+The client260eb28e8, authority8119ea9fa and builder28e518103 checkpoints were normally
+committed/pushed after their independent task approvals. Claim Task2 now has196 passing
+tests,0 failures and1075 assertions across the final new105 and affected authority91
+cases (10.32s). The authority suite was run once on the final extraction. Fresh graph-backed
+uncached Dash lint/typecheck passed; touched format/diff and scoped OpenSpec passed with
+13 inherited warnings. Final lint stdout also retains the inherited NO_COLOR/FORCE_COLOR
+environment warning, corrected here after independent review; target checks still passed.
+Optional Nx Cloud was disabled; targets used the freshly generated ignored graph and skipped task cache.
+Earlier sandbox output/DNS failures and test/static/setup corrections remain retained.
+
+All40 Bun-only finite owned sender/shared-consumption trials have actual named failures
+and identical-selector restored passes. Root independently checked every mutant's source
+hash, all13 protected identities/modes, exact frozen tests/inherited sources, current final
+identities, executable equivalence of the three production files after comments, and seven
+final check receipts. D06/D18/D30/D33 retain diagnostic/observation bounds; D25/D35 are
+separate trials of the acceptance-await edge. D31's initial harness false rejection is
+preserved separately; its corrected counted replay is not retroactive success for that
+harness attempt. No inherited guard was removed to improve proof strength. Evidence is
+retained under .superpowers/sdd/claim-dispatch-tasks, including root-task2-proof-audit.json.
+
+The sender uses unchanged duplicate guards and the same acceptance ID plus complete intent
+to recover the original paired ack. Shared receipt retention preserves actual bytes and
+detaches the returned reference across its additional await. No POST replay, revision
+refresh, turn, release or current execution permission is inferred. Independent Task2
+review approves spec and task quality with no Critical/Important finding and separately audits
+all40 trial pairs. Normal checkpoint585b060d3 was committed/pushed with hooks and reviewed
+source identities preserved. WBS030.08/150.3/010.01 notes
+were updated/read back with the actual preparation merge; all remain in_progress. The
+new turn-dispatch plan is spec-valid and not yet implemented. Full packet gates, real boot,
+heartbeat/lifecycle, business-attempt mapping and complete S0/S7a remain open.
+
+## Guarded turn host and assertion oracle — 2026-10-27
+
+The new narrow project-claims reader and one-turn host retain historical stage replay,
+fresh-only dispatch, exact current claim/grant/attachment correspondence, separate finite
+server-clock lease observation, full live locator/executor checks and complete reply
+retention. Turn staging advances run/attempt, not scope; observation uses the captured cut.
+Fresh observation-ID reuse refuses before dispatch. Stored acknowledgement must name this
+stage's run/attempt/revision; an older not_started acknowledgement cannot report a newer
+pending turn observed. Expected save refusal returns typed pending with its actual reason;
+unexpected faults retain correlated TurnDispatchError. No business success/release follows.
+
+Final three-file client/memory/SQLite suites pass264tests837assert, including a second
+SQLite reader observing committed intent at executor entry and reopened reply. The real
+policy case passes1test39assert. Fresh54-node Nx graph was content/hash verified before
+four uncached Dash/tool-devsync lint/typecheck targets passed. Touched formatting/diff and
+scoped OpenSpec passed;13 inherited length warnings and earlier color-variable warning
+remain disclosed. After the small assertion/comment follow-up, the complete focused suite,
+policy case, affected lint/typecheck and format/diff passed again; no unrelated gate was
+replayed. Actual commands and outputs remain in the task report and retained raw logs.
+
+The original94 distinct host/client faults and six policy faults retain their original frozen
+tests and raw evidence. A missing worker handle interrupted T55: actual source matched that
+one saved mutant, frozen tests matched, no process remained, and only that source was
+restored from verified original bytes. Fifty-two completed trials were preserved;42 missing
+or setup-failed trials were resumed in a separate directory. The interruption is development
+orchestration evidence, not product worker-recovery proof. No initial survivor, setup/import
+failure or timeout receives credit. Original source and policy executable output is unchanged
+after adjacent Proof comments; inherited planner/history/SQL/auth guards stayed installed.
+
+Supplemental U01–U03 valid-body mutations now directly prove unresolved text/usage/reason
+retention in both providers; P07 separately proves exact unlisted-test consumer denial under
+valid policy configuration. These use strengthened frozen tests and preserve original94/six
+archives. P05 is production-peer admission; P06 broadens a wildcard and first fails production
+denial. Their earlier descriptions were corrected rather than relabeled as test-peer proof.
+The current total is97 host/client plus seven policy fault trials across both evidence sets.
+
+Root independently reproduced Bun1.4.4's returned-Error matcher hazard: callback-returned
+Error satisfies toThrow (exit0), strict assert.throws rejects it (exit1), and an actual throw
+passes strict assertion (exit0). Production T86 then visibly rejects malformed version/claim
+when its codec is removed; inherited request snapshot still rejects malformed request.
+The [incident catalogue](../../../docs/findings/checks-that-cannot-fail.md#bun-throw-assertions-can-accept-a-returned-error)
+records that bounded observation. Existing catalogue payload remains byte-identical.
+
+Independent initial Task1 review approves spec/quality without Critical/Important findings
+and audits all original94/six faults. Supplemental scoped review marks both Minor findings
+addressed with no new breakage; normal checkpoint follows this entry. Real receiver boot/CI selection, whole-packet review and exact-SHA gates remain
+required, as do heartbeat/lifecycle, numeric business-attempt mapping, outcomes/releases,
+supported recovery, other adapters/providers and CTT coordinator acceptance. Separate
+inventory/lease reads provide no atomic fence, continued lease or physical-stop proof.
+
+## S0 specification status reconciliation — 2026-10-27
+
+Fresh main67773 source/specification reads confirm the20-operation RunStore, immutable
+ArtifactStore, portable/physical version distinction, atomic admission/outcome/outbox and
+owner/epoch contracts, plus ActivityExecutor lookup/resume/effect/quiescence capabilities
+and explicit uncertainty. WBS030.01/030.03 now close specification only (readback done,
+revisions5/4). WBS030.04 is in_progress (readback revision3): memory and first durable
+SQLite implementations are accepted separately, while second-provider conformance and
+paused-writer versioned transfer remain absent. No runtime recovery, adapter, historical
+proof-gap, physical fencing or complete S0 acceptance is inferred. Original notes remain
+preserved. Exact commands/readbacks: /tmp/puni-agentic-wbs-specification-reconciliation-20261027.json.
+
+## Real receiver boot and fixture ownership — 2026-10-27
+
+The be-01-owned integration and separate Dash worker now compose the actual injected
+receiver/claim clients, authority/preparation/claim hosts and one controlled turn over
+loopback HTTP and SQLite. The original conditional POST remains viable while a duplicate
+receives actual receipt404 without a second POST. After response loss, explicit
+reconciliation retains original evidence and the paired acknowledgement across reopen.
+Independent local readers observe the required commit ordering. Receiver business tables
+are compared after claim bookkeeping and after turn: this turn adds no business outcome,
+release or successor, and local capacity remains held.
+
+The initial boot/policy/committed-selection suite passed188cases1007assertions. The five
+non-BE source identities remain exact after the cleanup fixes; those accepted policy and
+selection checks were not replayed merely for fixture changes. The final seven-case boot
+suite passes in42.58s in an archive-free source export, with fresh graph-backed uncached
+BE module/typecheck/lint passing. The original four-owner nine-task static run remains
+accepted for unchanged sources. No aggregate194-case current-suite run is inferred.
+
+Review found late startup/disposal could outlive a timeout and lose cleanup ownership.
+The complete fixture now runs inside an owned process group: retain actual boot/stop
+promises, join or terminate the owned group before storage removal, and preserve original
+and cleanup errors. A second review found traces depended on ignored session archives;
+owned0700 runtime/marker siblings now remove that dependency. The clean export is d2469c2
+plus six source overlays and a dependency link; unrelated tracked historical .superpowers
+content was removed only in the scratch copy. All seven cases run with that tree absent.
+This is not a canonical checkout or newer-main gate.
+
+The original19 finite fault trials remain preserved. Cleanup adds eight distinct fault
+cases, with a strict C8 replacement and refined C6 reproof. The first C8 matched displayed
+source context rather than its emitted failure and receives no credit. Current marker
+placement has two additional affected-case reproofs: actual held receivers report their
+database deleted before disposal, with emitted named assertions and no ENOENT. Every
+accepted mutation restored exact bytes/mode; adjacent-comment-only deltas are audited.
+Initial deliberate-removal REDs and clean-export missing-directory failures remain
+diagnostics, not unchanged-source or lifecycle proof claims. Evidence and all three task
+reviews are retained under .superpowers/sdd/turn-dispatch-tasks.
+
+Independent scoped reviews mark I1, I2 and the wording correction addressed; final spec
+and quality are Approved without new Critical/Important findings. Root verifies current
+six-path identities, raw affected assertion messages, graph and logs. Final BE SHA256 is
+0c86faafe9ceb703228faf439e4f785c08bf563b34eb4d3ad224fbd4a1e140f9, mode0664.
+Touched formatting/diff and scoped OpenSpec pass;13 inherited requirement warnings and
+previously disclosed lint warnings remain. Successful Nx output is elided, so no warning-
+free lint claim follows. An empty-output sandbox metadata attempt received no credit;
+the file-backed retry produced actual formatter output and parsed1pass/0fail validation.
+
+Normal checkpoint/publication follows this entry. New main0ed1063 adds bootCommit health
+reporting; its changed boot dependency was inspected, but combined-tree checks, broad
+packet review, canonical exact-SHA gate and CI remain required. Product heartbeat/local
+renewal, physical-stop fencing, lease survival, numeric WBS business-attempt mapping, exact
+outcomes/releases, supported recovery, other adapters/providers and full S0/S7a remain
+open. No production deployment.
+
+## Provider lifecycle S0 prerequisite — planned verification
+
+Inspected source: b47a9363624067fcfbe194234b5c71ed42ef7a3e. No proposed implementation test or mutation proof ran in this planning task.
+
+Parent baseline: bun test apps/twilight-structure/twilight-dash/cli/src/runs/open-stores.test.ts apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/run-store.db.test.ts --timeout=60000: 68 pass, 0 fail, 155 expectations, 4.19s. Native 42804 exit 0. Evidence: .superpowers/sdd/provider-lifecycle-tasks/baseline-20261027a/{receipt.json,stdout.raw,stderr.raw}. Frozen install: 1493 packages/104.22s, native 74108 exit 0, no dependency changes. This is baseline evidence only.
+
+Required red/green and R5 observations (unrun):
+
+- L1 omit only closed=true in the new SQLite close body: the explicit real held-writer queued-before-close case must fail its named queued-rejection assertion with the ORIGINAL transaction guard installed; also run the existing all-22-method retained-native-connection negative.
+- L2 remove await accepted: real held-writer drain test must fail native-close-count or active operation outcome, not merely time out.
+- L3 remove SQLite cached-promise reuse: repeated-close test must fail disposal call count, shared pending completion or stable rejection.
+- L4 swallow native close error: strict rejects or retained fixture-path assertion must fail.
+- L5 remove await from an actual fixture cleanup wrapper: held-writer delayed close must cause premature deletion, failing existsSync before release.
+- L6a make closeFixtures return before settlements: real held-writer provider closure must fail the named premature-completion assertion. L6b remove the async mapping boundary: a Promise-typed close that throws synchronously must fail the named all-peer/aggregate assertion; later real SQLite fixtures must still be attempted and all original causes retained.
+
+All inherited guards remain installed verbatim in every proof; only the new lifecycle body or owned fixture cleanup is mutated. Each receipt records changed source hash, injected fault, exact focused command, actual emitted assertion, restored source hash and restored pass. Only then add adjacent Proof comments. Use the explicit MEMORY-LIFECYCLE/SQLITE-LIFECYCLE diagnostic emitted by the assertion. Do not identify a failure from nearby source text or an ambiguous default true/false mismatch; verify stderr/stdout. Strict node:assert/strict assertions avoid the known Bun returned-Error toThrow hazard.
+
+Retain the original native interceptor until awaited close completes. Rerun all runs provider/shared-contract suites, changed-project lint/typecheck, format, OpenSpec and parent-owned canonical gate. Reinspect all callers and accepted boot integration.
+
+No second-provider conformance, server restart, network shutdown, transfer, production or cross-provider durability certification is established. All proposed-change tests, mutation proofs, formatter, lint, typecheck, OpenSpec validation and gate remain unrun.
+
+### Executor parent acceptance reconciliation — 2026-10-27
+
+Tasks2.1–2.3 describe the bounded shared executor, installed-SDK turn driver and process-local API-model adapter. Their detailed executor-task steps and independent source reviews were already accepted, and foundation PR742 published them as 5daf7d2cad8b46a2f097116836b74e8834d19b5e with full actual-merge CI40276699217 success. Fresh read-only audit confirms all eleven agent source/test blobs and modes (including the eight executor files and shared record/codec helpers), package.json, bun.lock and the Dash target configuration are unchanged at b47; all ten retained successful CI job stream hashes and the original exact886 canonical gate streams still match their acceptance receipts. Parent checkboxes are reconciled to that delivered scope; no old tests/gates were replayed for labeling.
+
+This does not complete CLI/ACP/tool/human adapters, provider factories/live authorization, session-to-WBS business-attempt integration, durable recovery/physical quiescence or S0/S7a. Historical Python orchestration, SDK diagnostics, inherited warnings and rejected/uncertified proof limits remain recorded. The original canonical gate belongs to886 and actual-merge CI to5daf; they do not certify runtime candidateb47, whose current host gate and CI failed on the separately recorded fixture/policy issues.
+
+## Provider lifecycle source acceptance — 2026-10-27
+
+The bundle/fixture lifecycle now returns Promise<void> outside the twenty RunStore and two ArtifactStore operations. SQLite fences synchronously, drains work already past the transaction guard before one native disposal, rejects remaining queued work through that unchanged guard, and retains the original disposal failure across repeated close calls. Memory fences immediately and returns successful completion. Every cleanup caller carries completion before deletion, reopen or disconnect; raw Database.close and IPC disconnect stay synchronous. No provider selection, record/schema version, planner, SQL, inherited guard, credential or engine choice changed.
+
+Meaningful unchanged-adapter RED reported one pass/six failures at the named memory/SQLite completion and deletion assertions. Initial full source verification passed1624cases/5196expectations/38files in139.55s, and the real BE/Dash integration passed seven cases in51.71s. A bare Bun directory filter also collected38 generated JS tests and failed; that run is retained and uncredited. Only its generated runs directory was moved reversibly, then explicit ./ source selection passed. The plan commands now use that selection. Fresh54-node graph, final uncached Dash lint/typecheck and touched formatting passed; inherited color diagnostics remain.
+
+Nine original finite trials each observed control0/fault1/restored0: new close-fence removal with the original transaction guard installed (queued and all22retained-port observations), premature native disposal, lost close cache, swallowed native error, premature fixture deletion, missing all-settled completion, lost synchronous-throw capture, and missing memory Promise return. Actual named MEMORY-LIFECYCLE/SQLITE-LIFECYCLE AssertionErrors and exact byte/mode restorations are retained. These are trial variants, not a count of independent guards.
+
+Independent task review found I1: four older hooks/finally owners could still delete storage after failed provider disposal. The fix registers their actual providers/raw probes with a narrow test directory owner, attempts every owned disposal, preserves work and cleanup causes, and removes storage only after successful cleanup. Twelve real-child cases exercise the original four owners under work/native-close/combined failures; two direct cases use real peer providers and a raw probe. Unchanged-owner RED produced twelve named failures. Covering verification passed160cases/329expectations/fivefiles in49.67s; the final corrected-probe focused run passed14cases in46.41s. These overlap earlier suites and are not summed. Final uncached typecheck5.5s/lint35.0s, graph and formatting passed. Initial missing-receipt, probe-registration, strict typing and unsafe-finally failures remain recorded and uncredited.
+
+Eight final I1 trials each observed0/1/0: bypass each actual hook/direct finally (four trials), remove the deletion barrier, skip a peer provider, skip a real raw probe, and drop the original work cause. Each emits a named STORE-DIRECTORY-I1 AssertionError and restores exact bytes/modes across12343identities. An earlier generation of the same eight trials is retained separately; it does not add eight unique checks. Original nine-trial archives remain unchanged. All55protected files, seven lifecycle interfaces, mutable adapter executable prefixes, and51unamended reviewed sources remain exact. Final seven fix-source ASTs match restored proof code except comments. Two failed audit-normalizer preparations are preserved and uncredited; the corrected parser and raw-log audit passed.
+
+The initial task review plus I1-only rereview now approve the complete source unit with no unresolved Critical/Important finding; the inherited color warning is deferred. Reports and immutable proof/audit receipts remain in .superpowers/sdd/provider-lifecycle-tasks. The source audit and rereview did not rerun valid broad suites. Source is ready for a normal checkpoint, not aggregate publication acceptance. Step6, root format --all/OpenSpec checks, integration with the runtime repair, broad candidate review, exact-SHA canonical gate, PRCI and actual-merge CI remain required. Runtime candidateb47's canonical host gate and CI failed on separate BE-policy/fixture issues and cannot certify this source. Full S0/S7a, second-provider conformance/transfer, other executors, supported recovery, heartbeat/business-attempt mapping and production activation remain open.
+
+## Runtime CI repair and combined lifecycle candidate — 2026-10-27
+
+Lifecycle source was normally committed and pushed as3fe837fddc94803d7bdc34812877513e23d7edc5.
+Normal hooks passed with all65 source/metadata identities preserved. Runtime then advanced
+to that checkpoint and normally merged main e3a973a into0422f4f4a13ea649db42cfe5d67ec32accab6b9b.
+The complete12352-entry blob/mode/type union was checked:94 feature paths and50 incoming
+paths, with no overlap. Lifecycle Step6 remains open for aggregate publication acceptance.
+
+Old runtime b47's canonical h4 gate failed after the workspace phase passed: Twilight
+reported2541passes/3failures at stale BE test-input policy facts. PRCI40506676073 also
+failed those three cases and one held whole-integration preparation deadline. Its actual
+synthetic checkout was c8739d3e69f660744b95d914732a624896bcb8b9. A normal integration in
+that same CI took8342ms, exceeding the prior8000ms marker-preparation allowance. The exact
+failed child's internal phase remains unknown; neither old gate is accepted.
+
+The fixture repair gives held whole-integration roles a separate preparation allowance
+within the documented finite cleanup envelope. Ordinary budgets and the semantic disposal
+hold stay unchanged. A real child delayed8100ms before actual integration failed the old
+preparation limit and passes the repair. A real missing-marker child reaches a named finite
+deadline, is joined, and leaves no owned fixture storage. Child output is fully drained,
+sanitized and attached without losing the original primary or cleanup causes.
+
+Root then found CIR-I1: assigning to a standard readonly DOMException.message can replace
+the original health timeout with TypeError. A pre-aborted real held-listener health fetch
+produced the named readonly-cause RED. The parent now wraps child context with the original
+failure object as cause. The missing-marker regression inspects that preserved cause.
+Final exact BE source SHA256 bdab2ffa6962626890d6d418d44b1692ad1b3858c92b75347d07dcc3d3a44e2f
+passed11cases/0failures in79.16s with
+`bun test ./apps/wbs/be-01/src/runtime-dispatch.boot.db.test.ts --timeout=45000`.
+
+The full relationship declaration adds exactly the five existing BE test-input declarations;
+bootstrap, authority guards and production policy remain unchanged. The committed-fact
+comparison first failed the actual five-input mismatch, then passed2cases/24assertions.
+The production pilot happy/stale/bootstrap controls passed3cases/81assertions before faults;
+after exact policy restoration, one production happy case passed60assertions. Those suites
+overlap and are not summed. Initial repair BE verification passed10cases before CIR-I1;
+the final11-case run supersedes it for the amended fixture.
+
+Eight initial repair negatives cover late acquisition, disposal race, malformed trace,
+two premature-storage deletions, discarded context, fast BE fact mismatch and production
+BE authority mismatch. Actual named parent assertions or rendered policy diagnostics were
+inspected; sources restored exact bytes/modes. The cause-wrapper fix reproved the affected
+late-acquisition/disposal/trace/context paths and added a missing-cause fault: five credited
+negatives. Unchanged deletion and policy paths were not replayed. These campaigns use
+shared healthy controls, not invented per-trial positive runs; repeated cases are not new
+independent guards. The original source-context C8 remains rejected.
+
+Fresh54-node graphs backed uncached BE lint/typecheck/module checks, Burokrat typecheck
+and separate actual Burokrat source lint. External activation lint reported inactive and
+does not certify source. Touched formatting and diff checks passed. Root checked all12348
+unowned source blobs/modes against0422; production lifecycle, SQL, planner, auth and other
+guards remain unchanged. Root's first fix audit incorrectly expected the final test AST to
+equal the earlier proof baseline; the retained diff shows the later missing-marker cause
+matcher. The corrected audit permits only that known test change and proof comments, and
+the final11-case run covers it.
+
+Retained failures include initial sandbox/missing-activation setup, import sorting, a
+first complete fix suite10pass/1fail from the obsolete outer-message matcher, initial
+formatting, an uncredited first N1 trial and a proof-helper path mistake whose originals
+were preserved. An early zero-test filter output was overwritten and stays lost/uncredited.
+All other raw streams, exact source restorations, root audits and scoped reports remain
+under .superpowers/sdd/runtime-dispatch-tasks/ci-repair-1*; no historical evidence is relabeled.
+
+Initial repair source review approved the four-file unit; CIR-I1 scoped rereview marks
+the finding addressed with spec and quality Approved and no Critical/Important findings.
+New whole-candidate review, canonical exact-SHA host gate, PRCI, protected main merge and
+actual-merge CI remain required. Full S0/S7a, business-attempt/budget mapping, exact outcomes
+and releases, heartbeat, supported recovery and other providers/adapters remain open.
+No production deployment, new engine selection or storage-format migration is claimed.
+
+## CI repair 2 — scoped preparation windows, 2026-10-27
+
+PR766 CI40544974544 attempt1 at c429 failed two BE fixture windows: worker ready and simple disposal marker, each8000ms. Full Nx artifact and ten non-skipped job logs remain retained; exact slow operation is unknown. Root verified186 manifest entries,52 commands/104 streams,8 full-SHA actual checkout pairs and browser608pass/40skip. Twilight and pixels succeeded; required gate failed. Later workspace-dependent checks did not run. No historical acceptance is inferred.
+
+The two-source repair changes only the BE test supervisor and private Dash test worker. Named real-child ready/marker REDs preceded scoped larger allowances. Fixed8100ms delays occur before actual ready IPC after real buildClaimRequest, and after real receiver boot before actual stop. Worker selector rejects unknown values. Five finite fault variants reintroduced each old window, exited the actual worker before ready, or removed each real hold; every named failure and exact restored source/mode is retained. Selector control/fault/restore was0/1/0. Shared healthy controls are not per-trial executions or separate guard counts. Product, lifecycle, policy, SQL, authority and history guards stayed installed; unchanged old campaigns were not replayed.
+
+Final-v3 full boot fixture passed14/14 in111.91s, plus uncached graph-backed BE/Dash lint/typecheck, targeted formatting and diff checks. Independent review found one Important missed parent: readonly-health still used15000ms while its disposal preparation allowed22000ms. Scoped fix changes only that parent literal to35000ms, preserving all cause/context/owned cleanup assertions. Affected real-child regression then passed1/1 with13filtered in2212.91ms; two-file formatting/diff and exact single-edit/source modes were checked. The prior full14-case and fault runs are the before-single-literal results, not falsely relabeled as fresh final-source executions. No new static or broad proof replay was required for that numeric test bound. Scoped rereview marks CR2-I1 addressed with no findings; source is Approved for root checkpoint.
+
+The outer15000ms timeout trial and mistaken completion-branch22000ms trial remain uncredited; the former exact owned root was audited without a retained PID, then removed after no child/listener was observed. No PID-specific join claim is made. Root CI audits initially confused11 inventory job rows with10 raw logs and failed to strip ANSI on a scheduled line; corrected read-only predicates preserve the raw records and do not recapture or rerun CI. Source reports, raw emitted failures, snapshots, restoration receipts and reviews live under .superpowers/sdd/runtime-dispatch-tasks/ci-repair-2*.
+
+Normal checkpoint, combination with the separately reviewed retained-state reader, new complete-candidate review, exact-SHA canonical gate, applicable PRCI, protected ordinary main merge and actual-merge CI remain required. The old exactc429 h4 gate has passed its workspace phase but remains running. No acceptance transfers to a new candidate. Full outcome-delivery API/format4/failure-mapping/permanent-pending design remains unaccepted; no production deployment.
+
+## Retained RuntimeState reader prerequisite — planned verification, 2026-10-27
+
+The separate source plan is independently approved againstc429; it extracts existing retained-state decoding for immediate target-reader consumption without new packet/RunStore/history/format semantics. New helper reference detachment and exact import scope need decisive P1/P2 proofs. Original F26–F29 remain moved inherited provenance; identical-check relocation does not create new guard ownership or repair historical proof gaps. All old target snapshots/predicates/errors remain.
+
+Native managed workspace /home/df/.codex/worktrees/bfde/puni-00 starts atc429 on feat/agentic-runtime-state-reader. Frozen Bun1.4.4 installation passed1493packages in358ms, with package.json and bun.lock hashes unchanged and clean source status. The existing unchanged memory preparation test passed21cases/0fail/34expectations in3.18s: `bun test ./apps/twilight-structure/twilight-dash/cli/src/runs/record-preparation.test.ts`. Raw baseline/receipt: /tmp/puni-runtime-state-baseline-20261027; setup receipts: /tmp/puni-outcome-workspace-setup-20261027. These are baseline/setup only, not new-reader acceptance.
+
+Source implementation, new-helper tests, post-extraction affected regressions, structural equivalence audit, P1/P2 fault observations/restoration, scoped lint/typecheck, independent source review, normal checkpoint, exact-SHA gate and applicable CI remain UNRUN. P2 must test effective lint behavior with no fatal parser errors; an honest masked sample leaves the changed boundary unverified. No canonical/CI acceptance transfers from currentc429, whose source review is Approved but host/CI code gates remain running. Full outcome delivery and S0/S7a stay open. No production deployment.
+
+## Retained RuntimeState reader source acceptance — 2026-10-27
+
+The six-file unit now exposes readRuntimeStateArtifact through the existing public RuntimeState schema. The old target reader immediately delegates decoding while retaining its original reference parse/snapshot and target snapshot before await, every target predicate/error and the complete preparation body. Independent TypeScript AST comparison confirms the moved media/read-copy/integrity/fatal-UTF8/schema statements and original target tail. Old F26–F29 comments retain their prior provenance; relocation provides no new certification of those guards or historical proof gaps. No RunStore, retained-history/version, storage format, migration, WBS or outcome mapping changed.
+
+Meaningful RED used a loadable reader with old checks intact and no new reference clone: the real held-byte read emitted the named node:assert doesNotReject failure, retained state reader must preserve its pre-IO reference, with artifact integrity mismatch. This demonstrates lost reference-snapshot availability, not acceptance of corrupt bytes. The clone made the ten-reader-test development suite pass. Final exact-source coverage passed98cases/0fail/138expectations/fourfiles in3.68s across runtime-state, preparation, claim-history and claim-request-builder. The complete policy owner passed49cases/0fail/680expectations in54.83s. Development and final suites overlap and are not summed.
+
+Three finite trial variants each observed control0/fault1/restored0: remove only the new direct-reader clone; widen only its exact WBS selector to real unapproved plan-execution.ts; restore only preparation's newly removed WBS admission. P2 cases used actual lintText with zero fatal errors and emitted the intended denial assertion failure. Every mutated source restored exact bytes and raw mode33204. These are variants for the reference and import-permission boundaries, not three newly certified inherited guards. Original target clones, media/integrity/schema checks and all existing product constraints remained installed. Source test-body/type/import/comment refinements were audited; final source verification covers their current forms.
+
+Fresh graph-backed uncached Dash typecheck4.8s/lint29.1s, exact policy-owner ESLint, six-file formatting, diff and structural/scope audits passed. ESLint quiet success is valid; the color-environment diagnostic remains disclosed. Initial missing-graph false RED, replacement-string syntax failure, helper receipt collision, fixture clock/type/JSON assertion/import-order failures remain preserved and uncredited. No valid broad proof or baseline was replayed for labels. Memory coverage makes no SQLite durability or live transport claim; those wrappers were not needed for this identical decode/projection extraction.
+
+Independent source review approved spec and quality with no Critical/Important/Minor finding. Root freshly verified46 command receipts/92 raw stream identities, six source hashes/modes and all12346 unowned base blobs/Git modes againstc429, plus actual final test counts and three restored fault streams. Evidence is retained under .superpowers/sdd/runtime-state-reader-tasks and /tmp/puni-runtime-reader-impl-20261027. The root audit is root-source-audit.json; the full review is task-1-review.md.
+
+Source is ready for a normal checkpoint. Root metadata formatting/all-OpenSpec checks, commit/push, integration, new exact-candidate canonical gate, applicable PRCI, protected normal main merge and actual-merge CI remain required. Parentc429 CI40544974544 failed two separate BE fixture windows and cannot certify this reader; its exact h4 gate still runs with the workspace phase passed. The separate complete outcome-delivery proposal has closed plan findings, but its persisted/API/format4/failure-mapping/permanent-pending decisions remain unaccepted and F01–F24 unrun. Full S0/S7a remains open. No production deployment.
+
+## Combined runtime publication and incoming MCP compatibility — 2026-10-27
+
+Normal reader integration produced reviewed b4f4a6fa024a67136fe7101839305a64c1bfef71,
+tree ab36a3e4ab1d561634d70dd523784a797613de56. Its exact canonical h4 gate
+passed with SSH exit0, the printed b4 pin, OpenSpec300/0, all five Nx phases and
+three real solver process cases. PRCI40563170503 attempt1 succeeded: root checked
+ten complete job logs and eight actual synthetic checkout identities. Its retained
+workspace artifact directly shows all14 final-source boot cases passing and BE
+3717pass/3skip/0fail; browser608pass/40skip. Optional Tool Wiki activation remains
+inactive/uncertified. Original supplemental ZIP collection used two Python commands
+outside the requested tooling; the separate procedural amendment and unchanged
+receipts disclose that deviation. Root independently verified the existing archive,
+upload/API identity and all case lines using Bun/Node APIs and standard unzip,
+without another download or execution. Earlier failed CI and proof gaps remain.
+
+The ordinary merge preflight stopped before mutation when main advanced from
+e3a973aabd2d912981a7fcfe2008dd39f9129391 to
+75c2a2ecfa8ba9cf71987ad4e62412ed4ba0f4c3 through PR751. Root and independent
+review verified its prospective6e378d43cef204f88af0181078ed43615595e7f0 tree
+as the exact12416-entry union:102 feature paths,229 incoming paths,zero overlap.
+Independent compatibility review nevertheless found one Important caller issue:
+the runtime integration explicitly activates its store before boot, while incoming
+boot requires the three MCP service settings for activated storage.
+
+The existing normal real-boot/worker case failed at actual readiness naming
+MCP_BE_INTERNAL_SECRET, WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT and
+WBS_MCP_AUTHORIZATION_SERVER. Supplying the existing TEST_MCP_SERVICE_SETTINGS
+only to that activated runIntegration boot made the same case pass1/0,13filtered,
+7.47s. The simple held receiver remains a genuine pre-activation boot. No production
+check, timeout, assertion, identity mapping, SQL or history changed. Two initial
+incorrect test selectors matched zero cases; their failed receipts are preserved
+and earn no RED credit. No old fault campaign was replayed or newly certified.
+
+On final fixture SHA2569f3c286154f8e2ebf2c1004224866f750af31278d37db04be6bb6b62f6ce1a01
+the complete existing real-boot suite passed14/0 in124.89s. Incoming machine-grant
+boot, run-scoping and Dash MCP entrypoint regressions passed26/0,294expectations,
+three files,37.91s, including the retained absent-settings refusal and pre-activation
+success. Uncached BE/Dash lint/typecheck passed both projects and one module
+dependency in62s; inherited NO_COLOR/FORCE_COLOR warnings remain. The focused
+normal case overlaps the complete suite and is not added to its count. Root tree
+and source audits and raw commands/streams are retained under
+/tmp/puni-runtime-main-integration-impact-20261027a and
+/tmp/puni-runtime-main75-validation-20261027a; initial review is
+/tmp/puni-runtime-main-integration-review-20261027.md.
+
+These are combined-source compatibility checks. Exact new-candidate canonical
+gate and applicable CI, ordinary protected main merge and actual-merge CI remain
+required; b4 acceptance does not transfer. Full outcome API/format4/failure mapping,
+permanent-pending choices and inspect-runs design remain unaccepted. Full S0/S7a,
+heartbeat, recovery, business-attempt/budget mapping, outcomes/releases, remaining
+adapters/conformance, second provider/transfer and CTT consumption remain open.
+No production deployment or producer-owned credential implementation is included.
+
+## Toolbar hint fixture readiness — 2026-10-27
+
+Normal main integration committed/pushed f35ed5522959d217278c73b05587911da4b4c25e,
+tree45b6c658dd7d73aa8822d50945578d71b8343b6d, preserving the reviewed source
+hashes through all hooks. The first commit attempt exhausted Node's4GiB lint
+heap; its unchanged staged tree committed with normal hooks enabled under8GiB.
+PRCI40583766956 attempt1 then failed its required pixels aggregate: browser
+648scheduled=607passed+40skipped+1failed,zero flaky-category. Workspace/Twilight
+and the exact-f35 canonical h4 gate were still running when this repair began;
+their pending outcomes do not erase the browser failure or certify a successor.
+
+The existing `a toolbar control waits two seconds, and rings while it does`
+case expected Keyboard shortcuts but read Export/Import's words for30000ms.
+Root downloaded existing failed-shard artifact12771671192 once:4761183bytes,
+SHA25626692f39cc6a8180c9409fab9c98b87da31cc88044d86ae43e20019204c361f1,
+matching the run/head API digest. Its trace hovered keyboard at1011.6/65.
+Retained frames show Export absent at hover, then appearing and moving the
+keyboard button left under the stationary cursor. The actual caller sets
+exportAvailable from treeReadProject.current===projectId after a successful
+tree read. No frontend product behavior changed in this repair.
+
+The fixture now awaits that existing visible Export summary before any timed
+pointer measurement. Every original hint timing, text, ring, position and other
+test assertion remains. A controlled actual first-tree response held until
+the toolbar/picker appeared, then250ms, reproduced the exact wrong-Export-text
+failure without the new wait. The same delay plus only the new wait passed.
+All temporary routing/delay code was then removed, and final source reconstructs
+from pinned f35 with only that wait, JSDoc and adjacent observed Proof comment.
+No old product guard or prior fault campaign was removed/replayed.
+
+Final fixture SHA256c681607a0278a14caf8380bc842f5c0dc0f587f31d7601b98c55bcdfc57041ce,
+rawmode33204: complete hints file8/0 in47.0s, whole Nx47.5s. Uncached FE lint,
+typecheck and module prerequisite passed in1m38s. Scoped formatting and final
+checkpoint checks remain separate. Vite's existing native-loader warning and
+NO_COLOR/FORCE_COLOR diagnostics remain visible. Repeated focused executions
+overlap the complete suite and are not summed into extra test coverage.
+
+Two setup/probe corrections remain explicit: an initial source-pin assertion
+mistook the retained rawlog hash for the source hash and stopped before writes;
+the following misnamed delayed-openapi-red run was actually an unchanged f35
+healthy control. The subsequent controlled-red OpenAPI-delay probe passed and
+falsified that dependency hypothesis. Neither is a meaningful RED. Caller
+inspection corrected the dependency to the first tree read; only the later
+controlled-tree-red/green pair earns the new readiness-boundary observation.
+Its failure screenshot/context/trace were retained before the next browser run.
+
+New-run CI observation initially used standalone Node24 behind a Volta shim.
+The actual launch and interrupted exit1 are preserved. Root-authorized cleanup
+verified ownership, saved closed captures and an API-idle boundary, signaled only
+that local observer, then continued the same unmodified workflow under Bun1.4.4.
+Two existing successful raw logs were reused with exact run/job/attempt/hash
+provenance; no workflow or valid test was rerun for this correction. Original
+Node observation is not relabeled compliant or confused with a CI failure.
+
+Raw diagnosis: /tmp/puni-f35-hints-diagnosis-20261027a/. Controlled and final
+commands, source snapshots, restoration and failure artifacts:
+/tmp/puni-hints-readiness-proof-20261027a/. Current independent scoped review:
+/tmp/puni-hints-readiness-review-20261027.md. New exact-candidate canonical gate
+and applicable CI, fresh publication preflight, ordinary protected main merge
+and full actual-merge CI remain required. Full S0/S7a and the unaccepted outcome/
+recovery/format4 choices remain open. No production deployment.
+
+## Runtime dispatch publication — 2026-10-28
+
+[PR #766](https://github.com/Prosperous-Unification/puni-00/pull/766) merged normally
+at00:44:30UTC as `c9759620b3b313a69f2a537149c5c02943b30ee4`,
+tree `cab2de29c037a1792031b56f07137d16c283b8ca`. Its ordered parents are incoming
+main `6b4e0582309563eecd941ef1bc6cb8d6c36b14d1` and reviewed source
+`25716dd9ee286294e82fd88d3f9466bd1b523bfe` (tree
+`2feb857a578f9cd34b5db13ffd1402d527e6288e`). Normal hooks, commit and push
+preserved the reviewed source. Independent incoming-main review verified103
+feature paths and two dev-MCP-probe paths with zero overlap, all12,416 leaves
+and2,275 directory objects. No source conflict resolution was needed.
+
+The canonical isolated h2 invocation of
+`bin/h2puni-gate.sh 25716dd9ee286294e82fd88d3f9466bd1b523bfe` completed
+00:38:52UTC with actual SSH0, one exact pin under the host lock and all five
+phases. OpenSpec301/301/0,669warnings/25info; solver3pass/0fail/15expect and both
+feasible answers were verified against both raw streams and their hashes.
+Two earlier queue-only invocations ended SSH75 without checks. Historical
+f35's h4 pass remains separate. Exact source PRCI40589137085 attempt1 also
+completed/success; its synthetic checkout evidence does not replace merge CI.
+
+Actual-merge [CI40610692186](https://github.com/Prosperous-Unification/puni-00/actions/runs/40610692186),
+attempt1, completed/success. Both required `gate`122588111847 and
+`pixels`122567786607 checks match actualc975 and GitHub Actions app15368.
+All ten non-skipped jobs and their required steps passed, including full-mode
+workspace, Twilight, the packed package suite, solver image smoke, secrets and
+migration checks, OpenSpec and its schema graph. Inspected workflow source
+forwards Nx and annotation exits; reducer environments match their successful
+upstream scopes. The separate read-only dev health check returned `status:ok`
+and both checkout/bootCommit=c975 at00:50:41UTC; this is backend boot identity,
+not a live coordinator or backend-adapter demonstration.
+
+All three bounded Bun observation windows closed with actual native0.
+Root and independent final review verified1,201 frozen artifact records plus
+three manifests,80 raw API snapshots with independently recomputed coherence,
+355command receipts/710stream references:340fresh GitHub commands/680original
+streams plus15 byte-exact same-native-job copies. There were ten unique job-log
+downloads and eight literal full-SHA checkout command/output pairs, all at
+actualc975. No workflow rerun, cross-head reuse or repeated log download occurred.
+Five balanced browser reporter scopes show648scheduled=608passed+40skipped,
+zero failed/flaky/interrupted/not-run. The repaired hint case passed4.6s.
+
+Skipped coverage remains explicit: `gate docs`; the PR-only CI-selection upload;
+three workspace external ToolWiki diagnostic/provision/audit steps; activated
+organization context on shards2/3/4 (it ran on shard1); and40 browser cases
+(36rendering baselines, three large-plan scroll cases, one Gantt drag).
+ToolWiki activation remains uncertified. Healthy uploaded Nx payload artifacts
+were not downloaded; exact unit totals and complete unit-skip counts are not
+inferred from quoted child stdout or compact host summaries. Earlier Node/Python
+collection deviations and failed trials above remain retained, not relabeled.
+
+Final independent review has no Critical or Important finding. Two collector
+metadata Minors remain: `pin.event` overwrites console event labels, and a
+resumed `pin.at` overwrites `terminal.at`. Actual owner-native closure receipts,
+`terminal.reason` and raw API coherence establish completion; C's actual owner
+closure is02:07:03.486UTC, distinct from its stale01:14:45.706UTC field. Original
+fields are preserved. No false CI acceptance or new app R5 credit is inferred.
+
+Root acceptance: `/tmp/puni-c975-final-root-acceptance-20261028.json`.
+Independent review: `/tmp/puni-c975-final-ci-review-20261028.md` and its JSON.
+Source gate evidence: `/tmp/puni25716-canonical-h2-gate-20261027b/`.
+Actual-merge evidence: `/tmp/puni-pr766-mergeci-c975-20261028{a,b,c}/`.
+WBS notes were updated/read back with all earlier history preserved;030.08,
+150.3,010.01 and030.12 remain in_progress.
+
+This closes runtime dispatch, awaited lifecycle integration and retained-reader
+publication. Full S0/S7a still requires exact outcome/write/release, heartbeat
+and business-attempt/budget mapping, supported logical and physical recovery,
+operator transitions, remaining adapters/full conformance, second durable
+provider/transfer and CTT consumption. New outcome/recovery/history/format,
+inspection and engine choices remain unaccepted. No production deployment.

@@ -19,8 +19,8 @@ export async function openStores(
   runs: RunStore;
   artifacts: ArtifactStore;
   ownership: OwnershipStatus;
-  /** Idempotently closes both ports; all subsequent operations reject. */
-  close(): void;
+  /** Immediately fences both ports, rejects queued work and awaits admitted work and disposal; repeated calls preserve the original disposal outcome. */
+  close(): Promise<void>;
 }> {
   // Proof: bypassing provider validation made all six unsupported-provider rejection tests fail against existing SQLite state.
   parseOrThrow(type({ provider: "'sqlite'" }), configuration);

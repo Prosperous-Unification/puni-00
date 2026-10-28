@@ -69,7 +69,7 @@ export interface BindingStores {
   readonly runs: RunStore;
   readonly artifacts: ArtifactStore;
   readonly ownership: { readonly epoch: number };
-  close(): void;
+  close(): Promise<void>;
 }
 export async function retainBinding(stores: BindingStores, manifest: Manifest): Promise<Ownership> {
   const ownership = unwrapReply(
@@ -97,7 +97,7 @@ export function manifestBindingContract(name: string, create: () => Promise<Bind
         expect(selectWorkflowActivity(recovered.binding, 'other', 'plan').prompt?.text).toBe('p\n');
         expect(selectWorkflowActivity(recovered.binding, 'feature', 'plan').prompt).toBeNull();
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     test('maps distinct prompt digests by descriptor rather than reference order', async () => {
@@ -128,7 +128,7 @@ export function manifestBindingContract(name: string, create: () => Promise<Bind
           ['prompts/plan.md', 'p\n'],
         ]);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     test('recovers tool-only acceptance without any prompt artifact', async () => {
@@ -144,7 +144,7 @@ export function manifestBindingContract(name: string, create: () => Promise<Bind
           ).prompt,
         ).toBeNull();
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     test('verifies repeated references and refuses wrong metadata after a valid reference', async () => {
@@ -173,7 +173,7 @@ export function manifestBindingContract(name: string, create: () => Promise<Bind
           );
         }
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     test('refuses an undeclared retained prompt digest', async () => {
@@ -193,7 +193,7 @@ export function manifestBindingContract(name: string, create: () => Promise<Bind
           /undeclared prompt artifact/,
         );
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     test('refuses absent declared sources through original-byte acceptance', async () => {
@@ -207,7 +207,7 @@ export function manifestBindingContract(name: string, create: () => Promise<Bind
           /invalid_prompt_sources/,
         );
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     test('refuses missing retained prompt bytes', async () => {
@@ -220,7 +220,7 @@ export function manifestBindingContract(name: string, create: () => Promise<Bind
           /artifact does not exist/,
         );
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     test('verifies tool policy bytes without inferring authority', async () => {
@@ -242,7 +242,7 @@ export function manifestBindingContract(name: string, create: () => Promise<Bind
           (await readManifestBinding(stores.runs, stores.artifacts, changed.digest)).manifest,
         ).toEqual(changed);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
   });

@@ -95,7 +95,7 @@ for (const [name, change, diagnostic] of [
       };
       await rejects(readManifestBinding(reply(manifest), artifacts, manifest.digest), diagnostic);
     } finally {
-      stores.close();
+      await stores.close();
     }
   });
   test(`refuses ${name} with retained bytes`, async () => {
@@ -108,7 +108,7 @@ for (const [name, change, diagnostic] of [
         diagnostic,
       );
     } finally {
-      stores.close();
+      await stores.close();
     }
   });
 }
@@ -122,7 +122,7 @@ test('refuses a valid returned manifest for a different requested digest', async
       /manifest digest/,
     );
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -138,7 +138,7 @@ test('decodes and verifies a corrupt returned manifest before artifact IO', asyn
       ),
     );
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -163,7 +163,7 @@ test('propagates manifest absence and unreadable artifact cause without recovery
       (caught: unknown) => caught instanceof Error && caught === failure && caught.cause === cause,
     );
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -193,7 +193,7 @@ test('full acceptance comparison refuses valid-shaped changed descriptor content
       /retained binding acceptance does not match manifest/,
     );
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -255,7 +255,7 @@ test('snapshots mutable manifest before a held real artifact read and deeply fre
       expect(Reflect.set(frozen, 'changed', true)).toBe(false);
   } finally {
     release.resolve(undefined);
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -291,6 +291,6 @@ for (const representation of ['Uint8Array', 'Buffer'] as const)
       expect((await pending).binding.prompts[0].bytesBase64).toBe('77u/cAo=');
     } finally {
       release.resolve(undefined);
-      stores.close();
+      await stores.close();
     }
   });

@@ -14,6 +14,7 @@ import type { ArtifactRef } from '../records';
 import { digestRuntimeRequest } from '../runtime-codecs';
 import { acceptRuntimeReceipt } from '../runtime-history';
 import type { RuntimeGuard, RuntimeIntent } from '../runtime-records';
+import { closeFixtures } from './close-fixtures';
 import { createManifest, createRun, unwrapReply } from './fixtures';
 import type { StoreFixture } from './run-store-contract';
 
@@ -71,8 +72,8 @@ export function runtimeHistoryContract(
 ): void {
   describe(name, () => {
     const opened: StoreFixture[] = [];
-    afterEach(() => {
-      for (const fixture of opened.splice(0)) fixture.close();
+    afterEach(async () => {
+      await closeFixtures(opened.splice(0));
     });
     async function fixture() {
       const stores = await create();
