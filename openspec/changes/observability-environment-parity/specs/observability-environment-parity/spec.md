@@ -873,3 +873,33 @@ The native source adapter MAY account an explicitly supported read-only host-pat
 - **WHEN** a caller omits the internal reader policy, or the Pod also has unsupported writable OTel checkpoint or Velero paths
 - **THEN** default cutover/normalization behavior and whole-Pod incompleteness remain strict
 - **AND** existing state/history/backing paths, source resources, versions, image pins and capacity floors remain unchanged; no zero-growth claim or new quota is introduced
+
+### Requirement: Flux bootstrap uses shared finite scratch policy
+
+All forward bootstrap callers SHALL apply one authored Kustomize overlay over the unchanged digest-locked Flux vendor installation. Local rehearsal, fleet installation and cutover rehearsal SHALL consume the same policy. The policy is a declared containment input, not measured startup sufficiency, hard filesystem quota or runtime admission.
+
+#### Scenario: All controllers receive the same authored policy
+
+- **WHEN** the shared Flux overlay is built
+- **THEN** only the four apps/v1 Deployments in flux-system receive these additions to their existing manager container and disk emptyDirs: source-controller requests2Gi/limits2304Mi ephemeral-storage and data1Gi/tmp1Gi sizeLimits; kustomize-controller requests1Gi/limits1280Mi and temp1Gi; helm-controller requests256Mi/limits384Mi and temp256Mi; notification-controller requests16Mi/limits64Mi and temp16Mi
+- **AND** removing exactly those13 new scalar fields produces objects semantically identical to the locked vendor installation, preserving CPU/memory, images, replicas, identities, security, mounts, disk medium, strategies and termination/persistence behavior
+- **AND** missing, unreadable, malformed or foreign overlay inputs, wrong or duplicate roles/coordinates, nonpositive or absent quantities, extra operations/references, and changed vendor bytes refuse at their owning validation boundary
+
+#### Scenario: Every forward caller applies the authored overlay
+
+- **WHEN** Fleet's k3d bootstrap, the fleet Ansible playbook or the existing cutover rehearsal installs Flux
+- **THEN** its existing vendor-authentication and lifecycle behavior is preserved and it applies the shared overlay directory rather than raw install.yaml
+- **AND** Ansible transports both exact source files and no environment-specific bootstrap policy fork is introduced
+
+#### Scenario: Retained Flux evidence binds the applied build
+
+- **WHEN** a new canonical rehearsal packet is prepared
+- **THEN** its source closure retains both the locked vendor and authored overlay, builds the overlay through the existing authenticated kubectl seam and emits exactly one bootstrap/flux frame with the actual build bytes and both input identities
+- **AND** missing, unreadable, changed, substituted or unbound overlay inputs cannot acquire raw-vendor accounting or acceptance
+- **AND** historical retained native frames remain interpretable under their original explicit source coordinates, without retrofitted hashes or a new-forward raw-manifest fallback
+
+#### Scenario: Declared limits do not imply functional or physical acceptance
+
+- **WHEN** the declared Flux policy contributes finite source costs
+- **THEN** existing lifecycle arithmetic accounts full Pod cohorts and retains independent logs/cache/history/concurrency/eviction/device/system/initialization/recovery obligations
+- **AND** successful authenticated fetch, Kustomize/Helm reconciliation, restart/recovery and actual effective Pod/storage enforcement remain required runtime evidence; source bounds never grant creation or runtime authority

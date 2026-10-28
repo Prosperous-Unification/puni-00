@@ -3897,3 +3897,24 @@ verdicts remain head-specific and the new publication requires its own CI. Full
 host gate, physical admission, authenticated Flux/Kubernetes handoff, effective
 Pods/CNI/storage and common-stack/live signal/history/recovery proofs remain
 unverified. Goal stays active, canonical4/11.
+
+## Reviewed batch published and Task62 policy intent — 2026-10-28
+
+Normal review-closure commit `0e336dfd9130020b42a6602f0b10e0149e99418d` passed format,
+strict OpenSpec(1valid/0issues,18ms), diff and normal applicable hooks. One ordinary
+explicit feature push advanced2d9→0e336 on
+`feat/observability-parity-implementation`; no force, main merge or rollout occurred.
+Fresh GitHub state verified PR760 OPEN/DRAFT at that exact head and its updated
+verification/limitations body. Ordinary CI40671174992 and infra-check40671175014
+are in progress at this head; trusted-wiki40671171866 is skipped. These are new
+required verdicts, not passing claims. Old2d9 runs remain terminal success. A
+sandbox-network refusal on the initial read-only PR query was resolved through the
+normal scoped network escalation; no access bypass occurred.
+
+Task62 intent selects one shared authored Flux scratch policy from the existing
+Task61 larger-input synthesis. Numeric caps/requests and their unmeasured allowances
+are explicit in spec/design; no current host fit, successful controller startup or
+physical quota is claimed. The smaller rehearsal-only proposal is historical and
+not applied. No new measurement, old proof/control/render or provider action was
+needed to choose this initial policy. Actual scoped source verification and one
+justified changed-input build/capture still remain to implement and verify.
