@@ -377,10 +377,12 @@ truncation. Claim acceptance SHALL reuse the staged grant rather than advance au
 
 Authority and claim commands SHALL share the existing single pending slot. Absence, refusal,
 timeout, cancellation and changed basis or generation SHALL NOT clear, replace or expire it.
+Only the dedicated verified recovery closure specified below SHALL clear an uncertain
+original command through accepted-receipt reconciliation or fenced nonacceptance.
 
 #### Scenario: Pending acceptance cannot be established
 
-- **WHEN** the exact pending command has no accepted receipt
+- **WHEN** the exact pending command has no accepted receipt and no committed verified recovery closure
 - **THEN** later commands remain refused and uncertainty may remain indefinitely
 
 ### Requirement: Coupled command replay returns its original paired acknowledgement
@@ -474,8 +476,10 @@ precondition. No async artifact work SHALL occur inside SQLite transactions.
 ### Requirement: Changed execution records have explicit portable and adapter versions
 
 Attempt, RunSnapshot, execution commands and generic local completion delivery records
-SHALL use version2. SQLite SHALL use the complete named format3 bundle and preserve all
-0001 and0002 migration bytes. Generic local completion SHALL NOT imply exact WBS write,
+SHALL retain their existing version2 meanings and original replies. Recovery-capable
+SQLite SHALL use a complete named additive format4 bundle, preserve the complete format3
+identity and every0001–0003 migration byte, and expose changed recovery records through
+explicit successor versions. Generic local completion SHALL NOT imply exact WBS write,
 release, successor readiness or retry permission.
 
 #### Scenario: Genuine older stores or populated reverse reach format3
@@ -571,3 +575,195 @@ Provider bundles SHALL expose close(): Promise<void> outside semantic ports. Clo
 
 - **WHEN** a Promise-typed fixture close throws before returning and other fixtures remain open
 - **THEN** cleanup attempts every peer, awaits every settlement and reports all original causes without reporting failed disposal as successful release
+
+### Requirement: Logical recovery retains complete trusted values and evidence
+
+Authority and claim recovery SHALL retain an immutable recovery journal and complete
+versioned scope and execution witnesses. Its semantic mutation surface SHALL comprise
+beginRecovery, stageRecoveryFence, recordRecoveryFence and resolveRecovery. Application
+helpers SHALL detach inputs before awaits, read actual envelope/body artifacts through
+their byte and public-schema owners, and derive receiver-generated claim identities from
+the actual matching receipt. Synchronous persistence SHALL validate locked correspondence
+between those trusted values, retained requests, guard, target and references without
+artifact or network IO. Typed values and references SHALL NOT establish authenticity.
+
+#### Scenario: A stored projection keeps its reference but changes its value
+
+- **WHEN** a locally well-shaped recovery witness coherently substitutes a claim ID, state value or receipt projection while retaining the original artifact reference
+- **THEN** verified history independently rereads actual bytes and rejects the mismatch
+- **AND** missing, unreadable, malformed, wrong-media or wrong-digest evidence throws without publishing a recovery mutation
+
+#### Scenario: A claim is recovered from its actual receipt
+
+- **WHEN** verified accepted-claim recovery constructs the stored claim command
+- **THEN** its claim ID, actor and resulting basis come from the actual receiver receipt and the acceptance command ID comes from the retained journal
+- **AND** neither SQL nor a caller-supplied boolean fabricates those values
+
+### Requirement: Recovery kind and current authority agree with the retained target
+
+Every recovery operation SHALL compare its authority or claim discriminator with the
+retained target under lock. Claim calls SHALL match run, attempt, scope and original stage
+and session; authority calls SHALL carry only their scoped runtime guard. Current resolver
+ownership, independent recovery revision and complete catalog audit SHALL precede fresh
+publication. Legitimate immutable replay SHALL retain original provenance.
+
+#### Scenario: A caller presents a claim guard for an authority journal
+
+- **WHEN** a recovery call changes its kind, retained target, run, attempt, scope, original command or command namespace
+- **THEN** the provider refuses or rejects malformed trusted state without journal, scope, attempt or capacity changes
+
+#### Scenario: Safe evidence advances a guarded revision during remote lookup
+
+- **WHEN** safe retained evidence advances a submitted run, attempt or scope revision while recovery awaits its receiver observation
+- **THEN** resolution preserves the submitted guard and refuses the stale revision without clearing the journal or capacity
+- **AND** a new explicit invocation may inspect state and provide current guards; the helper does not silently refresh after lookup
+
+### Requirement: Beginning recovery interlocks fresh mutations without suppressing replay
+
+Begin SHALL publish exactly one active journal for the exact current pending request and
+SHALL NOT advance scope revision. Acceptance committed first SHALL make fresh begin refuse;
+begin committed first SHALL block fresh ordinary acceptance and target checkpoint, attachment,
+settlement, receipt or decision-consumption changes. Existing operation-specific immutable
+replay SHALL retain priority over those fresh interlocks. Safe evidence retention, unrelated
+work, ownership renewal and artifact retention SHALL retain their existing semantics.
+
+#### Scenario: Acceptance and begin race through independent SQLite connections
+
+- **WHEN** acceptance wins the actual transaction order
+- **THEN** begin refuses and no active recovery journal is published
+- **WHEN** begin wins
+- **THEN** fresh acceptance and target mutations refuse while exact historical retries retain their original acknowledgements
+- **AND** existing pending-stage guards remain installed
+
+### Requirement: Recovery fences are staged, immutable and bounded
+
+Each recovery POST SHALL follow durable staging of its exact canonical bytes and identity.
+Only the recovery helper MAY retransmit identical retained fence requests after uncertain
+delivery; ordinary duplicate senders SHALL remain lookup-only. A journal SHALL retain at
+most three fence identities and one immutable observation per fence. Each invocation SHALL
+make at most three POSTs. Supersession SHALL require an observed later receiver state and
+subsequent exact absence lookup of the prior fence, with complete dependency correspondence.
+
+#### Scenario: A crash occurs before sending or after remote acceptance
+
+- **WHEN** recovery resumes after a staged fence whose delivery or acknowledgement is uncertain
+- **THEN** it uses the identical retained fence identity and bytes rather than manufacturing another payload
+- **AND** the recorded observation is discovered after reopen
+
+#### Scenario: The per-call POST budget is exhausted
+
+- **WHEN** recovery cannot converge within three POSTs
+- **THEN** the invocation throws a correlated bounded-exhaustion error while the journal remains unresolved and capacity remains reserved
+- **AND** no fourth identity or POST is emitted and no ordinary pending request is implicitly resent
+
+### Requirement: Ordered dominating fences precede original receipt interpretation
+
+An accepted recovery fence SHALL match the original ledger and scope and SHALL exceed the
+original expected or guarded receiver generation. Accepted original authority additionally
+SHALL have an accepted generation strictly below that fence. Below-threshold state, missing
+evidence, conflicts and refusal SHALL NOT establish nonacceptance. The original lookup
+SHALL be freshly captured only after the helper awaited committed verification and recording
+of that accepted fence; callers SHALL NOT substitute an earlier404 or an invented exchange.
+
+#### Scenario: An original request expects a future generation
+
+- **GIVEN** the original expects generation2 while the receiver is at1
+- **WHEN** a naive acquisition reaches2 and an original lookup is absent
+- **THEN** that pair is insufficient for nonacceptance because the delayed original could still accept at3
+- **AND** supported resolution requires a valid observed basis and accepted fence strictly above the original threshold, with the original receipt lookup ordered after its committed observation
+
+#### Scenario: An earlier404 is supplied after a fence
+
+- **WHEN** original lookup evidence predates the committed fence observation or names another recovery, ordinal, request, scope, ledger or observation revision
+- **THEN** the helper or locked correspondence check rejects it without publishing closure
+- **AND** stored context links alone do not prove transport authenticity or chronology
+
+### Requirement: Closure publishes one complete plan from one valid predecessor
+
+Resolution SHALL plan all original acceptance, execution, barrier, hold, journal, count,
+revision and active-index changes from one valid locked predecessor. Accepted originals
+SHALL occupy scope cut n+1 and their barrier n+2; fenced nonacceptance SHALL publish the
+barrier at n+1. Providers SHALL apply that complete plan in one transaction without nested
+public persistence calls or complete-history audits between partial writes.
+
+#### Scenario: A late SQL fault follows original acceptance or hold publication
+
+- **WHEN** an actual trigger aborts after original acceptance or barrier/hold writes but before closure, index and count finalization
+- **THEN** rollback and reopen expose the exact complete predecessor rows, history, revisions, active index and reserved capacity
+- **AND** removing the injected fault permits only the complete final catalog to become visible
+
+### Requirement: Published catalogs and historical scope prefixes have distinct invariants
+
+Every published current recovery-capable scope SHALL expose complete journals, witnesses,
+active identity and generation floor. Its active index SHALL identify exactly each open
+journal whose original is still current pending. Private historical prefix reconstruction
+SHALL omit current activity fields, retain full reciprocal witnesses and apply a barrier
+only when its scopeAfter is within the cut. Missing counted families SHALL throw.
+
+#### Scenario: An accepted original exists at the virtual intermediate cut
+
+- **WHEN** an old execution reply is reconstructed at n+1 of an accepted recovery closure
+- **THEN** original acceptance and its exact grant or ready acknowledgement are visible under their original provenance while the n+2 barrier is not yet applied
+- **AND** the current active-index invariant is not applied to that private prefix
+- **WHEN** the final current scope is read
+- **THEN** the barrier has cleared its grant, raised the floor and closed the active journal
+
+### Requirement: Claim closure retains explicit holds and capacity
+
+Accepted claim closure SHALL retain the real receipt-derived binding and original ready
+Attempt2 acknowledgement, then publish a distinct accepted recovery hold as Attempt3.
+Fenced nonaccepted claim closure SHALL retain its exact claiming checkpoint in a nonaccepted
+Attempt3 hold without inventing a binding. Both SHALL retain capacity. New reads SHALL use
+explicit successor envelopes; old Attempt2 decoders and stored replies SHALL remain exact.
+
+#### Scenario: Same or replacement resolver closes a pending claim
+
+- **WHEN** an accepted or fenced-nonaccepted claim is resolved under the same or a later live resolver epoch
+- **THEN** scope, run and attempt revisions advance by their exact planned cuts, original intent and attachment provenance remain unchanged, and reserved capacity remains held
+- **AND** generic fresh mutations, turn dispatch, retry, release or replacement cannot treat the hold as settled work
+
+### Requirement: Explicit additive upgrade preserves genuine populated histories
+
+Recovery-capable SQLite SHALL preserve all format3 records, artifacts, old replies, indexes
+and earlier migration identities through an explicit atomic upgrade with a complete new
+named bundle. Ordinary open SHALL NOT create, migrate, normalize or repair predecessor
+state. Forward and adjacent down SQL SHALL execute fail-fast inside admitted transactions.
+Unused successor down SHALL preserve populated predecessor attempts, execution and outcome
+histories while restoring exact format3 identity. Used recovery or successor-only records
+SHALL refuse destructive reversal before mutation.
+
+#### Scenario: Genuine populated format3 is adopted and unused recovery reversed
+
+- **WHEN** a pinned predecessor executable created real admissions, executions, claims, decisions, outbox, receipts, artifacts and owner/clock histories before explicit upgrade
+- **THEN** upgrade preserves every old stored value and byte identity while adding only the new format metadata and empty recovery families
+- **WHEN** the fully validated successor is reversed before any recovery history or Attempt3 exists
+- **THEN** exact predecessor schema and bundle identity are restored with all populated old histories intact
+- **AND** any late upgrade/down failure rolls back the complete transition
+
+### Requirement: Legacy writers obey the selected compatibility boundary
+
+Actual already-open, locally queued and BUSY predecessor writers SHALL encounter the changed
+complete bundle identity under the existing write lock before execution, ownership or history
+mutation. Compatible immutable artifact retention and monotone refused-call clock observations
+MAY continue under their existing checks. Ordinary old-open SHALL reject the successor before
+configuration changes. Local disposal SHALL NOT be described as host-wide process exclusion.
+
+#### Scenario: A genuine old executable writes across committed upgrade
+
+- **WHEN** pinned old code loaded its predecessor constants and queued or contended before upgrade committed
+- **THEN** its consequential execution, ownership, claim, outcome, reservation and outbox writes refuse after acquiring the post-upgrade lock
+- **AND** only the declared artifact or monotone clock exceptions may change their specific rows, with their effects and subsequent new-reader behavior verified
+- **AND** breaking the new bundle-publication dependency must expose unsafe admitted old work without removing any inherited old guard
+
+### Requirement: Logical closure grants no physical continuation or full coordinator completion
+
+The first recovery packet SHALL reject write targets. Logical authority/claim closure SHALL
+NOT establish worker death, effect absence, quiescence, exact release, replacement or business
+completion. Complete write/outbox recovery, supported physical continuation, producer budgets,
+remaining adapters, second-provider proof and S7a SHALL remain explicit parent requirements.
+
+#### Scenario: Authority and claim recovery tests pass
+
+- **WHEN** both providers and real receiver tests pass this logical packet
+- **THEN** only its authority/claim recovery requirements may be credited
+- **AND** parent full-recovery and S7a tasks remain open until their remaining behavior and proofs are implemented

@@ -133,6 +133,9 @@ claiming portability. Neither prerequisite alone closes S0 or S7a.
 - [ ] 6a.7 Green: ownership acquisition/fencing, worker lookup/reattach or verified quiescence,
       receipt/effect reconciliation and explicit unresolved operator path. Never mass-mark running
       attempts interrupted or cancelled merely because the coordinator restarted.
+      The approved [logical recovery packet](recovery-tasks.md) implements authority/claim
+      journals, fences and atomic closure first. Complete write recovery and physical
+      continuation remain required before this parent task can close.
 - [ ] 6a.8 Provide run-coordinator, inspect-runs, resume-attempt, cancel-attempt and
       reconcile-attempt operations over adapter configuration and the guarded WBS bridge.
       Demonstrate safe compatibility
