@@ -359,12 +359,12 @@ that file into one key file, one MCP config and one run per agent.
 
 ```sh
 chmod 600 ~/Downloads/pool-<id>.keys.json
-twilight-dash pool import ~/Downloads/pool-<id>.keys.json --store ~/.config/twilight-dash/pools
+twilight-dash pool import ~/Downloads/pool-<id>.keys.json --store ~/.config/wbs/pools
 ```
 
 `twilight-dash` stands for `bun <checkout>/apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts`
 (the [checkout requirement](#claude-code-for-a-headless-agent-swarm)). The store directory
-documented here, `~/.config/twilight-dash/pools`, is a convention: `--store` has no default.
+documented here, `~/.config/wbs/pools`, is a convention: `--store` has no default.
 
 - **The file must be owned by you with mode `0600`.** A browser saves it `0644`; the command
   refuses that, as `--key-file` does, and names the fix with your path:
