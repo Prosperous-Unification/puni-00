@@ -361,7 +361,7 @@ export function assertParity(input: ParityInput): {
 
 const rehearsalDigests: Record<string, string> = {
   'Deployment:observability:alert-receiver':
-    '60cb0b1660ee30e7d2ce6fa94cc7f7fc9058606cc331cef51ed98bd3fec723fd',
+    '865f98e052001490ec83c3fd66e3943819bed405e83a15c0c24db41f8251446f',
   'Service:observability:alert-receiver':
     'bb89e2ecd444a4a9000f4f721bad8302336e356730fefafdce637a2eb8f6d2e7',
 };

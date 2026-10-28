@@ -7,6 +7,7 @@ import { parse, parseDocument, stringify } from 'yaml';
 
 import { purposeCapabilities, readToolchain } from './contracts';
 import { assertObservability } from './observability';
+import { assertReceiverCandidate } from './observability-receiver';
 import { assertBackupTransport } from './platform-backup-tls';
 import { assertCommonNativeResources } from './platform-common-resources';
 import {
@@ -604,6 +605,8 @@ export async function validatePlatform(root: string): Promise<{
   const manifests = await readPlatformManifests(root);
   // Proof: Task25c3f native-call omission admitted missing registry maps through validatePlatform.
   assertCommonNativeResources(manifests);
+  // Proof: Task40 current-caller omission accepted absent receiver ephemeral policy through validatePlatform.
+  assertReceiverCandidate(manifests);
   const workloadImages = assertLockedWorkloadImages(manifests, toolchain);
   const secrets = assertEncryptedSecrets(manifests);
   assertRegistryTransport(manifests);
