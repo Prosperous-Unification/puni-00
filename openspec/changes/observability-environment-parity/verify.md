@@ -3688,3 +3688,17 @@ observability-environment-parity --strict --json` passed with zero issues
 (`source-openspec.json`). The last target-cardinality tightening has its own
 RED/GREEN and effective `cross-volume-target` receipt, followed by the 239-test
 positive covering run. No effective fault was replayed.
+
+The first clean committed-adapter comparison at
+`b1a28688a5b50bddb94fa5f54cf1ef659255d879` failed a harness provenance assertion
+(exit 1, 5.882s; `retained-control.{json,log}`). The harness incorrectly expected
+`/1`, the same-named Service's pointer. Actual two full charges correctly used the
+DaemonSet's `/13`. That failed script/log/receipt remain retained, and no passing
+control was replayed. A normal fixture-provenance correction adds a portable raw
+manifest hash and exact DaemonSet coordinate assertion. Independent setup resolves
+`apps/v1` + `DaemonSet` + `observability` + exact name, verifies raw manifest and
+frame bytes/hash, and confirms `/13` (`retained-setup.json`, exit 0, 0.129s).
+The root agent explicitly authorized one corrected valid comparison in new
+`/tmp/puni-task60-control-verified` paths after that correction commit. There will
+be two comparison executions, including the preserved failed setup attempt; this
+is not represented as a single execution.

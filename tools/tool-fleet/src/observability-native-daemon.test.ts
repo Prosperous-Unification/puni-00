@@ -1281,3 +1281,33 @@ test('Task60 native consumer metadata snapshots detach validated source arrays',
   source.native[0].entry.source.frameSHA256 = 'c'.repeat(64);
   expect(ledger.hostPathConsumers).toEqual(expected);
 });
+test('Task60 retained node-exporter fixture carries exact DaemonSet source provenance', async () => {
+  const captured: unknown = await Bun.file(
+    join(import.meta.dir, 'fixtures/observability-node-exporter.json'),
+  ).json();
+  const projection = type({
+    provenance: {
+      sourceRevision: 'string',
+      artifactSHA256: 'string',
+      frameSHA256: 'string',
+      pointer: 'string',
+      manifestSHA256: 'string',
+    },
+    manifest: 'string',
+  }).assert(captured);
+  expect(projection.provenance).toMatchObject({
+    sourceRevision: 'ff0b0208bc426ad8bc2a4896f15a90f34eb97b89',
+    artifactSHA256: 'd96afb33eb6732c20b5f2ef6831c2dfbefa55d1c79ba7fc233824a9923442086',
+    frameSHA256: '2b382432adbe7bf2a3790feecfda18a1eb23d10c5e7f5b9aaf82f3dcb5f7b0f0',
+    pointer: '/13',
+    manifestSHA256: 'f3a767ecb0e34dd878e9c9aedd33c71a8112e5b960457122647b330bcbddbb58',
+  });
+  expect(hash(projection.manifest)).toBe(projection.provenance.manifestSHA256);
+  const document = parseDocument(projection.manifest);
+  expect(document.get('apiVersion')).toBe('apps/v1');
+  expect(document.get('kind')).toBe('DaemonSet');
+  expect(document.getIn(['metadata', 'namespace'])).toBe('observability');
+  expect(document.getIn(['metadata', 'name'])).toBe(
+    'kube-prometheus-stack-prometheus-node-exporter',
+  );
+});
