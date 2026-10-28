@@ -634,6 +634,13 @@ const OtelValues = type({
   '+': 'reject',
 });
 
+/** Retained collector history may predate disk policy; worker agent keeps OtelValues unchanged. */
+const CollectorValues = OtelValues.omit('resources').merge({
+  fullnameOverride: "'otel-collector'",
+  // Proof: Task66 collector-history required-map fault rejected valid absent/null retained resource maps.
+  'resources?': StructuralResources,
+});
+
 // Proof: widening the endpoint or deleting unknown keys admitted HTTP and insecureSkipTLSVerify.
 const VeleroConfig = type({
   region: 'string>0',
@@ -648,6 +655,13 @@ const VeleroLocation = type({
   default: 'true',
   config: VeleroConfig,
   '+': 'reject',
+});
+// Proof: Task66 supplied-scratch-reader bypass admitted malformed historical node-agent scratch.
+const NodeAgentScratchQuantity = Quantity.narrow((quantity) => {
+  readMemoryMiB(String(quantity), (reason) => {
+    throw new Error('Velero scratch ' + reason);
+  });
+  return true;
 });
 const VeleroValues = type({
   image: ImageValues,
@@ -674,7 +688,30 @@ const VeleroValues = type({
     '+': 'reject',
   },
   'resources?': StructuralResources,
-  nodeAgent: { resources: Resources, tolerations: TolerateAll, '+': 'reject' },
+  nodeAgent: {
+    // Proof: Task66 node-history required-map fault rejected valid absent/null historical node-agent maps.
+    'resources?': StructuralResources,
+    tolerations: TolerateAll,
+    // Proof: Task66 scratch-switch widening admitted a true supplied switch in historical image decoding.
+    'useScratchEmptyDir?': 'false',
+    // Proof: Task66 scratch-volume schema widening admitted duplicate scratch and foreign medium through assertVeleroCandidate.
+    'extraVolumes?': type({
+      name: "'scratch'",
+      emptyDir: { sizeLimit: NodeAgentScratchQuantity, '+': 'reject' },
+      '+': 'reject',
+    })
+      .array()
+      .exactlyLength(1),
+    // Proof: Task66 scratch-mount schema widening admitted duplicate/wrong-path/read-only mounts through assertVeleroCandidate.
+    'extraVolumeMounts?': type({
+      name: "'scratch'",
+      mountPath: "'/scratch'",
+      '+': 'reject',
+    })
+      .array()
+      .exactlyLength(1),
+    '+': 'reject',
+  },
   metrics: { serviceMonitor: { enabled: 'true', '+': 'reject' }, '+': 'reject' },
   // Proof: widening kind admitted a Deployment through extraObjects (platform.test.ts).
   'extraObjects?': type({
@@ -701,8 +738,8 @@ const VeleroValues = type({
   '+': 'reject',
 });
 
-/** Require current Velero server/plugin budgets without authorizing historical image inventory.
- * CPU/memory requests may be zero; limits and both new ephemeral requests must be positive.
+/** Require current Velero server/plugin/node-agent budgets and the existing capped scratch without authorizing historical image inventory.
+ * CPU/memory requests may be zero; limits and all retained ephemeral requests must be positive.
  */
 export function assertVeleroCandidate(values: unknown): void {
   const parsed = decode('velero', VeleroValues, values);
@@ -724,6 +761,21 @@ export function assertVeleroCandidate(values: unknown): void {
     if (readMemoryMiB(String(resources.requests['ephemeral-storage']), refuse) <= 0)
       refuse('ephemeral request must be positive');
   }
+  // Proof: Task66 node-candidate bypass admitted absent current node-agent resources through assertVeleroCandidate.
+  const nodeResources = assertCandidatePodResources(parsed.nodeAgent.resources);
+  // Proof: Task66 node-positive bypass admitted zero node-agent disk requests through assertVeleroCandidate.
+  if (readMemoryMiB(String(nodeResources.requests['ephemeral-storage']), refuse) <= 0)
+    refuse('node-agent ephemeral request must be positive');
+  // Proof: Task66 scratch-presence bypass admitted absent node-agent scratch through assertVeleroCandidate.
+  if (
+    parsed.nodeAgent.useScratchEmptyDir !== false ||
+    parsed.nodeAgent.extraVolumes === undefined ||
+    parsed.nodeAgent.extraVolumeMounts === undefined
+  )
+    return refuse('node-agent scratch incomplete');
+  // Proof: Task66 scratch-size dependency bypass admitted zero node-agent scratch through assertVeleroCandidate.
+  if (readMemoryMiB(String(parsed.nodeAgent.extraVolumes[0].emptyDir.sizeLimit), refuse) <= 0)
+    refuse('node-agent scratch must be positive');
 }
 
 function elasticReferences(release: string, version: string, image: string) {
@@ -773,7 +825,10 @@ const elasticsearchReferences = (values: unknown) => {
 };
 
 const otelReferences = (values: unknown) => {
-  const parsed = decode('otel-collector', OtelValues, values);
+  // Proof: Task66 historical-collector routing fault rejected valid absent/null retained resource maps.
+  const parsed = type({ fullnameOverride: "'otel-collector'" }).allows(values)
+    ? decode('otel-collector', CollectorValues, values)
+    : decode('otel-collector', OtelValues, values);
   return {
     collector: imageReference(parsed.image.repository, parsed.image.tag, parsed.image.digest),
   };
@@ -940,8 +995,21 @@ export const platformReleases: readonly PlatformRelease[] = [
   },
 ];
 
-/** Current exporter candidates require explicit bounds; historical image decoding preserves valid missing maps. */
+/** Current exporters and the retained collector require explicit bounds; valid missing historical maps stay image-readable. */
 export function assertCommonHelmResources(release: string, values: unknown): void {
+  if (release === 'otel-collector') {
+    const parsed = decode(release, CollectorValues, values);
+    // Proof: Task66 collector-candidate bypass admitted missing disk policy through validatePlatform.
+    const resources = assertCandidatePodResources(parsed.resources);
+    // Proof: Task66 collector-positive bypass admitted zero disk requests through assertCommonHelmResources.
+    if (
+      readMemoryMiB(String(resources.requests['ephemeral-storage']), (reason) => {
+        throw new Error(reason);
+      }) <= 0
+    )
+      throw new Error('common candidate collector ephemeral request must be positive');
+    return;
+  }
   if (release !== 'kube-prometheus-stack') return;
   const parsed = decode(release, KubePrometheusStackValues, values);
   for (const resources of [

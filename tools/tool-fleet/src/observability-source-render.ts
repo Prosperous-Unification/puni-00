@@ -19,6 +19,7 @@ import {
   encodeObservabilitySource,
 } from './observability-source-network';
 import {
+  assertObservabilityCollectorResources,
   assertObservabilityExporterResources,
   assertObservabilitySelectedResources,
 } from './observability-source-resources';
@@ -138,6 +139,8 @@ export function assertRenderedObservabilitySource(
   assertObservabilitySelectedResources(source, indexed);
   // Proof: Task25c3f exporter-caller omission admitted the changed exporter limit through this full public validator.
   assertObservabilityExporterResources(source, indexed);
+  // Proof: Task66 agent-caller omission admitted historical output ignoring current disk policy through this public validator.
+  assertObservabilityCollectorResources(source, indexed);
   for (const instance of source.instances) {
     const namespace = instance.namespace;
     requireEqual(

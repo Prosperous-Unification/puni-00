@@ -43,6 +43,41 @@ const original =
     kind: 'Service',
     metadata: { name: 'velero', namespace: 'puni-backup' },
     spec: { ports: [{ port: 8085 }] },
+  }) +
+  '\n---\n' +
+  stringify({
+    apiVersion: 'apps/v1',
+    kind: 'DaemonSet',
+    metadata: { name: 'node-agent', namespace: 'puni-backup' },
+    spec: {
+      template: {
+        spec: {
+          containers: [
+            {
+              name: 'node-agent',
+              resources: {
+                requests: { cpu: '100m', memory: '128Mi', 'ephemeral-storage': '256Mi' },
+                limits: { cpu: '1', memory: '1Gi', 'ephemeral-storage': '2Gi' },
+              },
+              volumeMounts: [
+                { name: 'host-pods', mountPath: '/host_pods', mountPropagation: 'HostToContainer' },
+                {
+                  name: 'host-plugins',
+                  mountPath: '/host_plugins',
+                  mountPropagation: 'HostToContainer',
+                },
+                { name: 'scratch', mountPath: '/scratch' },
+              ],
+            },
+          ],
+          volumes: [
+            { name: 'host-pods', hostPath: { path: '/var/lib/kubelet/pods' } },
+            { name: 'host-plugins', hostPath: { path: '/var/lib/kubelet/plugins' } },
+            { name: 'scratch', emptyDir: { sizeLimit: '1Gi' } },
+          ],
+        },
+      },
+    },
   });
 async function release() {
   return {
@@ -419,3 +454,76 @@ test('Task25c3d direct Velero archive drift refuses', async () => {
     observer.mockRestore();
   }
 });
+
+for (const fault of [
+  'missing workload',
+  'wrong workload',
+  'extra workload',
+  'ignored disk',
+  'changed disk',
+  'wrong role',
+  'extra app',
+  'extra init',
+  'extra ephemeral',
+  'scratch size',
+  'scratch duplicate',
+  'scratch mount',
+  'host path',
+  'host mount',
+] as const) {
+  test('Task66 authenticated Velero renderer refuses ' + fault, async () => {
+    const documents = parseAllDocuments(original);
+    const agent = documents.find((document) => document.get('kind') === 'DaemonSet');
+    if (agent === undefined) throw new Error('Node-agent fixture absent');
+    const pod = ['spec', 'template', 'spec'];
+    if (fault === 'missing workload')
+      documents.splice(
+        documents.findIndex((document) => document === agent),
+        1,
+      );
+    if (fault === 'extra workload') {
+      const foreign = parseDocument(agent.toString());
+      foreign.setIn(['metadata', 'name'], 'foreign');
+      documents.push(foreign);
+    }
+    if (fault === 'wrong workload') agent.setIn(['metadata', 'name'], 'foreign');
+    if (fault === 'ignored disk')
+      agent.deleteIn([...pod, 'containers', 0, 'resources', 'requests', 'ephemeral-storage']);
+    if (fault === 'changed disk')
+      agent.setIn([...pod, 'containers', 0, 'resources', 'limits', 'ephemeral-storage'], '4Gi');
+    if (fault === 'wrong role') agent.setIn([...pod, 'containers', 0, 'name'], 'foreign');
+    if (fault === 'extra app')
+      agent.addIn([...pod, 'containers'], agent.getIn([...pod, 'containers', 0]));
+    if (fault === 'extra init') agent.setIn([...pod, 'initContainers'], [{ name: 'foreign' }]);
+    if (fault === 'extra ephemeral')
+      agent.setIn([...pod, 'ephemeralContainers'], [{ name: 'foreign' }]);
+    if (fault === 'scratch size')
+      agent.setIn([...pod, 'volumes', 2, 'emptyDir', 'sizeLimit'], '2Gi');
+    if (fault === 'scratch duplicate')
+      agent.addIn([...pod, 'volumes'], { name: 'scratch', emptyDir: { sizeLimit: '1Gi' } });
+    if (fault === 'scratch mount')
+      agent.setIn([...pod, 'containers', 0, 'volumeMounts', 2, 'mountPath'], '/foreign');
+    if (fault === 'host path') agent.setIn([...pod, 'volumes', 0, 'hostPath', 'path'], '/foreign');
+    if (fault === 'host mount')
+      agent.setIn(
+        [...pod, 'containers', 0, 'volumeMounts', 0, 'mountPropagation'],
+        'Bidirectional',
+      );
+    const bytes = documents.map((document) => document.toString()).join('---\n');
+    const spawn = Bun.spawnSync;
+    const observer = spyOn(Bun, 'spawnSync').mockImplementation((...arguments_) => {
+      const argv = arguments_[0];
+      if (Array.isArray(argv) && argv[1] === 'template')
+        return { ...spawn(['true']), stdout: Buffer.from(bytes) };
+      return Reflect.apply(spawn, Bun, arguments_) as ReturnType<typeof Bun.spawnSync>;
+    });
+    try {
+      await assertRejected(
+        renderAuthenticatedObservabilityReleases(root, tools, [await release()]),
+        /node-agent rendered workload|agent|common candidate/,
+      );
+    } finally {
+      observer.mockRestore();
+    }
+  });
+}

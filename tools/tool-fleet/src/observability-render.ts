@@ -10,6 +10,7 @@ import { parseDocument, stringify } from 'yaml';
 import { runChecked } from './check-cli';
 import { authenticatePreparedHelm, authenticatePreparedKubectl } from './check-provision';
 import { readToolchain, type Toolchain } from './contracts';
+import { assertObservabilityAgentResources } from './observability-source-resources';
 import {
   assertVeleroCandidate,
   PlatformHelmRelease,
@@ -142,6 +143,21 @@ export async function renderAuthenticatedObservabilityReleases(
       ]);
       rendered[release.owner] =
         patch === undefined ? bytes : await patchVelero(root, tools, directory, bytes, patch);
+      if (release.chart === 'velero') {
+        const agents = [...indexResources(rendered[release.owner]).values()].filter(
+          ({ identity }) => identity.kind === 'DaemonSet',
+        );
+        // Proof: Task66 renderer-agent-selection bypass admitted absent/wrong workloads; name-only filtering admitted an extra DaemonSet in the authenticated renderer negative.
+        if (
+          agents.length !== 1 ||
+          agents[0].identity.apiVersion !== 'apps/v1' ||
+          agents[0].identity.metadata.namespace !== 'puni-backup' ||
+          agents[0].identity.metadata.name !== 'node-agent'
+        )
+          throw new Error('Velero node-agent rendered workload differs');
+        // Proof: Task66 renderer-agent-call bypass admitted ignored budgets and scratch through the authenticated renderer.
+        assertObservabilityAgentResources(release, agents[0].manifest);
+      }
     }
     return { expansions: rendered, helm: helmIdentity };
   } finally {

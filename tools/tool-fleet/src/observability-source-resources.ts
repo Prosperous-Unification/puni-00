@@ -7,6 +7,7 @@ import { assertCandidatePodResources } from './observability-pod-resources';
 import type { ObservabilityRenderRelease } from './observability-render';
 import type { ObservabilitySource } from './observability-source';
 import type { ObservabilitySourceIndex } from './observability-source-render';
+import { assertVeleroCandidate } from './platform-releases';
 
 // Proof: accepting zero made all six Kibana init request/limit negatives fail because source validation accepted them.
 const Quantity = type('string | number').narrow(
@@ -339,4 +340,130 @@ export function assertObservabilityExporterResources(
     if (!isDeepStrictEqual(actual, expected))
       throw new Error('Observability exporter resources differ from source');
   }
+}
+
+/** Bind retained DaemonSets to current owning values and pinned host mounts.
+ * This validates authored ephemeral policy, never persistent host-path growth or runtime sufficiency.
+ * The worker otel-agent is outside this retained source graph.
+ */
+export function assertObservabilityAgentResources(
+  release: ObservabilityRenderRelease,
+  rendered: unknown,
+): void {
+  const refuse = (): never => {
+    throw new Error('Observability retained agent source correspondence differs');
+  };
+  // Proof: Task66 unsupported-owner bypass admitted a foreign selected release in propagation negatives.
+  if (!['observability/otel-collector', 'puni-backup/velero'].includes(release.owner)) refuse();
+  const name = release.owner === 'puni-backup/velero' ? 'node-agent' : 'opentelemetry-collector';
+  const values = type({ spec: { values: 'Record<string,unknown>' } }).assert(
+    parseDocument(release.manifest).toJSON(),
+  ).spec.values;
+  const isVelero = name === 'node-agent';
+  if (isVelero) assertVeleroCandidate(values);
+  const agent = isVelero ? type('Record<string,unknown>').assert(values['nodeAgent']) : values;
+  const expected = assertCandidatePodResources(agent['resources']);
+  const workload = type({
+    spec: {
+      template: {
+        spec: {
+          containers: type({
+            name: 'string',
+            resources: 'unknown',
+            volumeMounts: 'unknown[]',
+          }).array(),
+          'initContainers?': 'unknown[]',
+          'ephemeralContainers?': 'unknown[]',
+          volumes: 'unknown[]',
+        },
+      },
+    },
+  })(rendered);
+  // Proof: Task66 agent-workload bypass admitted a missing retained DaemonSet in propagation negatives.
+  if (workload instanceof type.errors) return refuse();
+  const pod = workload.spec.template.spec;
+  // Proof: Task66 agent-role bypass admitted renamed apps and extra app/init/ephemeral roles in propagation negatives.
+  if (
+    !isDeepStrictEqual(
+      pod.containers.map((container) => container.name),
+      [name],
+    ) ||
+    (pod.initContainers !== undefined && pod.initContainers.length !== 0) ||
+    (pod.ephemeralContainers !== undefined && pod.ephemeralContainers.length !== 0)
+  )
+    refuse();
+  // Proof: Task66 agent-map bypass admitted missing rendered disk policy in propagation negatives.
+  const actual = assertCandidatePodResources(pod.containers[0].resources);
+  // Proof: Task66 agent-resource-equality bypass admitted valid changed rendered budgets in propagation negatives.
+  if (!isDeepStrictEqual(actual, expected)) refuse();
+  const volumes = type({ name: 'string', 'hostPath?': 'unknown', 'emptyDir?': 'unknown' })
+    .array()
+    .assert(pod.volumes);
+  const mounts = type({ name: 'string', mountPath: 'string' })
+    .array()
+    .assert(pod.containers[0].volumeMounts);
+  const hostVolumes = isVelero
+    ? [
+        { name: 'host-pods', hostPath: { path: '/var/lib/kubelet/pods' } },
+        { name: 'host-plugins', hostPath: { path: '/var/lib/kubelet/plugins' } },
+      ]
+    : type({ name: 'string', 'hostPath?': 'unknown' })
+        .array()
+        .assert(values['extraVolumes'])
+        .filter((volume) => volume.hostPath !== undefined);
+  const hostNames = hostVolumes.map((volume) => volume.name);
+  const hostMounts = isVelero
+    ? [
+        { name: 'host-pods', mountPath: '/host_pods', mountPropagation: 'HostToContainer' },
+        { name: 'host-plugins', mountPath: '/host_plugins', mountPropagation: 'HostToContainer' },
+      ]
+    : type({ name: 'string', mountPath: 'string' })
+        .array()
+        .assert(values['extraVolumeMounts'])
+        .filter((mount) => hostNames.includes(mount.name));
+  // Proof: Task66 agent-host-volume/mount bypasses admitted altered writable host identity, mount propagation and colliding host mounts in propagation negatives.
+  if (
+    !isDeepStrictEqual(
+      volumes.filter((volume) => volume.hostPath !== undefined),
+      hostVolumes,
+    ) ||
+    !isDeepStrictEqual(
+      mounts.filter(
+        (mount) =>
+          hostNames.includes(mount.name) ||
+          hostMounts.some((host) => host.mountPath === mount.mountPath),
+      ),
+      hostMounts,
+    )
+  )
+    refuse();
+  if (isVelero) {
+    // Proof: Task66 agent-scratch-volume/mount bypasses admitted changed/duplicate scratch including another volume type and wrong mount paths in propagation negatives.
+    if (
+      !isDeepStrictEqual(
+        volumes.filter((volume) => volume.emptyDir !== undefined || volume.name === 'scratch'),
+        agent['extraVolumes'],
+      ) ||
+      !isDeepStrictEqual(
+        mounts.filter((mount) => mount.name === 'scratch' || mount.mountPath === '/scratch'),
+        agent['extraVolumeMounts'],
+      )
+    )
+      refuse();
+  }
+}
+
+/** The complete service graph retains the collector only; backup is separately selected by the authenticated renderer. */
+export function assertObservabilityCollectorResources(
+  source: Pick<ObservabilitySource, 'releases'>,
+  indexed: ObservabilitySourceIndex,
+): void {
+  const owner = 'observability/otel-collector';
+  const releases = source.releases.filter((release) => release.owner === owner);
+  // Proof: Task66 collector-owner bypass admitted duplicate/missing selected owners in propagation negatives.
+  if (releases.length !== 1) throw new Error('Observability retained agent owner differs');
+  assertObservabilityAgentResources(
+    releases[0],
+    indexed[owner]['DaemonSet:observability:otel-collector-agent'],
+  );
 }

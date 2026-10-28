@@ -48,6 +48,20 @@ test('actual full pinned source rendering closes every owner and keeps source an
   });
 });
 const faults: [string, string, string, (string | number)[], unknown][] = [
+  [
+    'Task66 collector ignored bounds',
+    'observability/otel-collector',
+    'DaemonSet',
+    ['spec', 'template', 'spec', 'containers', 0, 'resources', 'limits', 'ephemeral-storage'],
+    '128Mi',
+  ],
+  [
+    'Task66 collector extra role',
+    'observability/otel-collector',
+    'DaemonSet',
+    ['spec', 'template', 'spec', 'initContainers'],
+    [{ name: 'foreign' }],
+  ],
   ['API', 'observability-dev/elasticsearch', 'Elasticsearch', ['apiVersion'], 'foreign/v1'],
   [
     'exporter ignored bounds',

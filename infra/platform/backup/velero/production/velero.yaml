@@ -76,9 +76,15 @@ spec:
       requests: { cpu: 100m, memory: 128Mi, ephemeral-storage: 128Mi }
       limits: { cpu: '1', memory: 512Mi, ephemeral-storage: 1Gi }
     nodeAgent:
+      useScratchEmptyDir: false
+      extraVolumes:
+        - name: scratch
+          emptyDir: { sizeLimit: 1Gi }
+      extraVolumeMounts:
+        - { name: scratch, mountPath: /scratch }
       resources:
-        requests: { cpu: 100m, memory: 128Mi }
-        limits: { cpu: '1', memory: 1Gi }
+        requests: { cpu: 100m, memory: 128Mi, ephemeral-storage: 256Mi }
+        limits: { cpu: '1', memory: 1Gi, ephemeral-storage: 2Gi }
       tolerations:
         - operator: Exists
     metrics:

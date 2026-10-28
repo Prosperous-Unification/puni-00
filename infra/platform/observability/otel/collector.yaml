@@ -37,8 +37,8 @@ spec:
     tolerations:
       - operator: Exists
     resources:
-      requests: { cpu: 100m, memory: 128Mi }
-      limits: { cpu: '1', memory: 320Mi }
+      requests: { cpu: 100m, memory: 128Mi, ephemeral-storage: 16Mi }
+      limits: { cpu: '1', memory: 320Mi, ephemeral-storage: 64Mi }
     extraEnvs:
       - name: ELASTIC_PASSWORD
         valueFrom:
