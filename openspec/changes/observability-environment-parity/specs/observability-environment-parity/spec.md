@@ -798,7 +798,7 @@ The full rehearsal capacity companion SHALL consume its independently validated 
 #### Scenario: Retained frames supply generated roles
 
 - **WHEN** the supported two-instance releases and their shared providers are retained with exact stage/frame/resource identities
-- **THEN** application namespaces/environments and release inputs come from validated declarations and explicit enablement, and all eight generated store traits bind to exact API group/kind/namespace/name, release, frame and pointer
+- **THEN** application namespaces/environments and release inputs come from validated declarations and explicit enablement or the exact pinned chart defaults, and all eight generated store traits bind to exact API group/kind/namespace/name, release, frame and pointer
 - **AND** no mutable-checkout reconstruction, fabricated full source object, synthetic effective Pod or second resource calculator is used
 
 #### Scenario: Runtime lock is authenticated independently
@@ -825,3 +825,10 @@ The full rehearsal capacity companion SHALL consume its independently validated 
 - **WHEN** the production companion is invoked
 - **THEN** it prepares the existing canonical packet exactly once and consumes the same validated source and packet/runtime identities for native and generated costs
 - **AND** the combined closure binds exact traits, lifecycle inputs and charges while creation/runtime authority remains false
+
+#### Scenario: Retained enablement preserves pinned defaults
+
+- **WHEN** the retained KPS91.4.1 declaration omits a store or shared-controller enablement flag
+- **THEN** only the locked chart archive SHA256 `1bd5e7a88e758ed3ec22db0fe6e72b1352f3f0e7e5a93c79979f7edf361becdb` supplies its modeled `true` default for `alertmanager.enabled`, `prometheusOperator.enabled` or `prometheus.enabled`
+- **AND** each enablement fact distinguishes an explicit value from a pinned-default value with its declaration pointer and chart/version/hash provenance; null, nonboolean or malformed maps refuse before selection
+- **AND** disabled, extra or mismatched selections cannot disappear, and changed pins cannot reuse these defaults
