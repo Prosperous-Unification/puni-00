@@ -130,3 +130,12 @@ Task58 independent specification/quality review approved actual2d9→700a with n
 ### Task60 read-only host-path source accounting within3.1
 
 - [ ] Add the closed source hostPath/mount boundary and exact internal read-only policy for the selected node-exporter, preserving default normalization/cutover strictness. Ordered TDD: actual native-reader missing-charge RED; malformed-late state before unsupported/absent/provider/lifecycle/collision shortcuts; exact provider/frame/template/path/type/mount/propagation and all app/init readOnly tuples; absent/empty/None snapshots; no-policy/cutover refusal and writable OTel/Velero incompleteness; full conditional2N charges with independent device/writer/runtime/history obligations. Watch new changed safety dependencies fail/restored with adjacent Proof comments, classifying masked/dependency experiments. Replace the sole invalid hostPath:{} unsupported fixture with a valid unsupported body. Run covering tests and selected relevant compatibility/statics, normal source commit, one changed committed-adapter retained-input comparison with old artifacts preserved, then independent source review. No owning workload/resource/pin/floor/persistence/CI/cutover-projector change, duplicate calculator, fabricated device/quota/effective observation or old passing proof/render replay.
+
+Task60 implementation evidence: source `b1a28688a5b50bddb94fa5f54cf1ef659255d879`,
+exact native fixture provenance correction/validated adapter
+`077e04e366012339e56ead033719c3f28679d84e`; 29 new effective restored safety
+experiments, 239 covering source tests, 366 selected compatibility tests and one
+affected fixture check. One setup-failed retained comparison is preserved; the
+corrected committed comparison passes with exactly +128Mi/+20m/+128Mi. See
+`verify.md` Task60. The task checkbox remains open pending root-owned independent
+spec/quality review; no runtime or full parity completion is claimed.

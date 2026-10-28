@@ -3702,3 +3702,41 @@ The root agent explicitly authorized one corrected valid comparison in new
 `/tmp/puni-task60-control-verified` paths after that correction commit. There will
 be two comparison executions, including the preserved failed setup attempt; this
 is not represented as a single execution.
+
+Corrected retained comparison passed once from clean adapter
+`077e04e366012339e56ead033719c3f28679d84e`: exit 0, 6.030s, 1 test and 109
+assertions (`retained-control-verified.{json,log}`). The raw control and new ledgers
+are under `/tmp/puni-task60-control-verified`; the failed setup attempt remains
+under `/tmp/puni-task60-control` and its original evidence receipt/log.
+The exact retained source remains `ff0b0208bc426ad8bc2a4896f15a90f34eb97b89`, artifact
+`d96afb33eb6732c20b5f2ef6831c2dfbefa55d1c79ba7fc233824a9923442086`;
+source and adapter identities are distinct. Original toolchain and topology bytes
+were read by `git show` at that revision and verified against retained coordinates.
+The fixed Task56 declared Cron horizon has the same source coordinates and window.
+
+The committed adapter adds exactly initial/replacement node-exporter Pods at
+64Mi/10m/64Mi each, with `/13/spec/template/spec` source provenance and the existing
+conditional 2N DaemonSet lifecycle. Native entries increase 122→124 and native
+known contributions become 24384Mi/4250m/20800Mi. Combined known contributions
+become **41792Mi/7970m/77632Mi**, exactly +128Mi/+20m/+128Mi from historical Task58.
+All prior native charges and unrelated fields/lifecycles/blockers compare exactly;
+only the covered node-exporter `workload-volume-unsupported` blocker is removed.
+Seven native host-consumer facts are added, alongside 21 explicit independent
+writer/bind/device/submount/recursive-readonly/Pod-node obligations. Existing
+`hostPath-device-growth` facts remain. OTel writable checkpoint and Velero remain
+whole-Pod uncharged/unsupported. All eight generated traits, sixteen generated Pod
+charges, six logical claims and generated sums compare exactly to Task58.
+Both ledgers remain incomplete with creation/runtime authority false.
+The control verifies all original Task40/56/58 artifacts' bytes and modes, the
+failed setup script and its receipt/log are unchanged, and the tracked adapter
+tree stays clean. The portable exact-provenance fixture test passes after the
+metadata-only correction (`fixture-provenance-final.json`, 1 test/6 assertions).
+
+Skipped by scope: full Fleet/Nx/app/browser/build/gate/CI, renders/canonical capture,
+old mutation batches and research replay, actual provider/SSH/Docker/network/Secret
+or store/hardware operations, push/merge. The normal commit hook reports tool-wiki
+inactive because external activation is unprovisioned; it does not certify that
+optional external activation. Physical device/writer/input-memory and recursive
+read-only/runtime/host/Flux observations remain required. This verifies only the
+selected source accounting slice; fresh independent spec/quality review and the
+broader parity goal remain outstanding.
