@@ -424,7 +424,9 @@ for (const fault of [
     expect(up.stderr).toContain(
       fault === 'temporary-present'
         ? 'Temporary tools lifecycle did not finish'
-        : 'Temporary creator lifecycle remains unknown',
+        : fault === 'temporary-missing-mount'
+          ? 'Transient mount identity differs'
+          : 'Temporary creator lifecycle remains unknown',
     );
     expect(up.stderr).not.toContain('PRIVATE_TOKEN_SENTINEL');
     const labId = await fixture_.labId();

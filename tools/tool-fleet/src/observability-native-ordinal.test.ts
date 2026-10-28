@@ -376,19 +376,39 @@ test('explicit policy provenance remains declared without changing full charges'
   });
 });
 
-test('valid null security context on unrelated DaemonSet preserves its lifecycle obligation', async () => {
-  const ledger = await derive(
-    change((document: ReturnType<typeof parseDocument>) => {
-      document.set('kind', 'DaemonSet');
-      document.deleteIn(['spec', 'volumeClaimTemplates']);
-      document.deleteIn(['spec', 'template', 'spec', 'containers', 0, 'volumeMounts']);
-      document.setIn(['spec', 'template', 'spec', 'containers', 0, 'securityContext'], null);
-    }),
-  );
-  expect(ledger.blockers).toContainEqual({
-    owner: 'DaemonSet:dev:store',
-    missingFact: 'DaemonSet-lifecycle-unaccounted',
+test('valid null container security context on unrelated DaemonSet preserves its lifecycle obligations', async () => {
+  const packet = change((document: ReturnType<typeof parseDocument>) => {
+    document.set('kind', 'DaemonSet');
+    document.deleteIn(['spec', 'replicas']);
+    document.deleteIn(['spec', 'volumeClaimTemplates']);
+    document.setIn(['spec', 'selector'], { matchLabels: { app: 'store' } });
+    document.setIn(['spec', 'template', 'metadata', 'labels'], { app: 'store' });
+    document.deleteIn(['spec', 'template', 'spec', 'containers', 0, 'volumeMounts']);
+    document.setIn(['spec', 'template', 'spec', 'containers', 0, 'securityContext'], null);
   });
+  const retained = structuredClone(packet);
+  const ledger = await derive(packet);
+  expect(
+    ledger.blockers
+      .filter((blocker) => blocker.owner === 'DaemonSet:dev:store')
+      .map((blocker) => blocker.missingFact),
+  ).toEqual([
+    'daemon-replacement-wave-runtime-binding',
+    'daemon-whole-attempt-generations-and-retained-history',
+    'ephemeral-storage-limit-absent:app; writable-logs-and-runtime-state-unobserved',
+    'writable-root-bound:app',
+    'daemon-candidate-topology',
+    'workload-bounds-or-resource-policy',
+  ]);
+  expect(ledger.state).toBe('incomplete');
+  expect(ledger.creationAuthority).toBe(false);
+  expect(ledger.runtimeAuthority).toBe(false);
+  expect(ledger.entries.filter((entry) => entry.owner === 'DaemonSet:dev:store')).toEqual([]);
+  expect(ledger.daemonLifecycles).toEqual([]);
+  expect(packet).toEqual(retained);
+  expect(
+    readRehearsalSource(packet.stages, packet.expansions, packet.contract, lock).native[0].manifest,
+  ).toMatchObject({ spec: { template: { spec: { containers: [{ securityContext: null }] } } } });
 });
 
 function appendClaim(
