@@ -7,8 +7,11 @@ import { beforeAll, expect, test } from 'bun:test';
 import { parseDocument, stringify } from 'yaml';
 
 import { readToolchain, type Toolchain } from './contracts';
-import { readRehearsalNativeCosts } from './observability-native-ordinal';
-import { captureRehearsalFrames } from './observability-rehearsal-inventory';
+import {
+  deriveRehearsalNativeCosts,
+  readRehearsalNativeCosts,
+} from './observability-native-ordinal';
+import { captureRehearsalFrames, readRehearsalSource } from './observability-rehearsal-inventory';
 
 const hash = (bytes: string) => createHash('sha256').update(bytes).digest('hex');
 const root = join(import.meta.dir, '../../..');
@@ -877,4 +880,404 @@ test('DaemonSet absent init ephemeral limit remains an independent writer obliga
   expect(ledger.blockers).toContainEqual(
     missing('ephemeral-storage-limit-absent:init; writable-logs-and-runtime-state-unobserved'),
   );
+});
+
+async function nodeExporterFixture(edit?: (document: ReturnType<typeof parseDocument>) => void) {
+  const capturedValue: unknown = await Bun.file(
+    join(import.meta.dir, 'fixtures/observability-node-exporter.json'),
+  ).json();
+  const captured = type({
+    manifest: 'string',
+    release: { owner: 'string', chart: "'kubePrometheusStack'", manifest: 'string' },
+  }).assert(capturedValue);
+  const document = parseDocument(captured.manifest);
+  edit?.(document);
+  const expansion = document.toString();
+  const release = captured.release;
+  const bytes = release.manifest;
+  const stages = [
+    {
+      stage: 'observability',
+      path: 'infra/platform/observability',
+      declarationPath: 'stages/observability.yaml',
+      sourceSHA256: hash('node-exporter-fixture'),
+      sha256: hash(bytes),
+      bytes,
+      releases: [release],
+    },
+  ];
+  const expansions = { [release.owner]: expansion };
+  const packet = fixture();
+  const contract = {
+    ...captureRehearsalFrames(stages, expansions),
+    bootstrapSources: packet.contract.bootstrapSources,
+    provenance: packet.contract.provenance,
+  };
+  return { stages, expansions, contract, topology: packet.topology };
+}
+async function deriveNodeExporter(
+  edit?: (document: ReturnType<typeof parseDocument>) => void,
+  pin = lock,
+) {
+  const packet = await nodeExporterFixture(edit);
+  return readRehearsalNativeCosts(
+    packet.stages,
+    packet.expansions,
+    packet.contract,
+    pin,
+    [],
+    packet.topology,
+  );
+}
+const nodeExporterIdentity =
+  'DaemonSet:observability:kube-prometheus-stack-prometheus-node-exporter';
+test('Task60 selected node-exporter contributes both full native-reader cohorts', async () => {
+  const ledger = await deriveNodeExporter();
+  expect(ledger.entries.filter((charge) => charge.owner === nodeExporterIdentity)).toHaveLength(2);
+  expect(ledger.knownContributions).toEqual({ memoryMiB: 128, cpuMilli: 20, diskMiB: 128 });
+  expect(ledger.daemonLifecycles).toHaveLength(1);
+  expect(ledger.blockers).toContainEqual({
+    owner: nodeExporterIdentity,
+    missingFact: 'hostPath-device-growth:root',
+  });
+  expect(ledger.state).toBe('incomplete');
+});
+
+test('Task60 source consumer facts retain full template identity and every independent obligation', async () => {
+  const ledger = await deriveNodeExporter();
+  expect(ledger.hostPathConsumers).toHaveLength(3);
+  const root = ledger.hostPathConsumers?.find((host) => host.name === 'root');
+  expect(root).toMatchObject({
+    owner: nodeExporterIdentity,
+    path: '/',
+    consumerIntent: 'read-only',
+    enforcement: 'unobserved',
+    mounts: [
+      {
+        role: 'containers',
+        container: 'node-exporter',
+        mountPath: '/host/root',
+        readOnly: true,
+        mountPropagation: 'HostToContainer',
+      },
+    ],
+  });
+  expect(root && Object.hasOwn(root, 'type')).toBe(false);
+  expect(root?.source.releaseOwner).toBe('observability/kube-prometheus-stack');
+  expect(root?.templateSHA256).toBe(ledger.daemonLifecycles[0].templateSHA256);
+  for (const name of ['proc', 'sys', 'root'])
+    for (const fact of [
+      'hostPath-device-growth',
+      'hostPath-independent-writers-and-retained-bytes',
+      'hostPath-bind-device-submount-and-recursive-readonly',
+      'hostPath-Pod-node-observation',
+    ])
+      expect(ledger.blockers).toContainEqual({
+        owner: nodeExporterIdentity,
+        missingFact: `${fact}:${name}`,
+      });
+});
+for (const [label, path, value] of [
+  ['writable', ['volumeMounts', 0, 'readOnly'], false],
+  ['absent readOnly', ['volumeMounts', 0, 'readOnly'], undefined],
+  ['different path', null, { path: '/proc-other' }],
+  ['explicit empty type', null, { path: '/proc', type: '' }],
+  ['declared directory', null, { path: '/proc', type: 'Directory' }],
+  ['explicit None', ['volumeMounts', 0, 'mountPropagation'], 'None'],
+  ['wrong propagation', ['volumeMounts', 2, 'mountPropagation'], 'None'],
+  ['Bidirectional', ['volumeMounts', 2, 'mountPropagation'], 'Bidirectional'],
+  ['target', ['volumeMounts', 0, 'mountPath'], '/other'],
+  ['subpath', ['volumeMounts', 0, 'subPath'], 'slice'],
+  ['subpath expression', ['volumeMounts', 0, 'subPathExpr'], '$(POD)'],
+] as const)
+  test(`Task60 native exact tuple refuses ${label} and retains facts`, async () => {
+    const ledger = await deriveNodeExporter((document) => {
+      if (path === null)
+        document.setIn(['spec', 'template', 'spec', 'volumes', 0, 'hostPath'], value);
+      else if (value === undefined)
+        document.deleteIn(['spec', 'template', 'spec', 'containers', 0, ...path]);
+      else document.setIn(['spec', 'template', 'spec', 'containers', 0, ...path], value);
+    });
+    expect(ledger.entries.filter((charge) => charge.owner === nodeExporterIdentity)).toHaveLength(
+      0,
+    );
+    expect(ledger.hostPathConsumers).toHaveLength(3);
+    expect(ledger.blockers).toContainEqual({
+      owner: nodeExporterIdentity,
+      missingFact: 'workload-volume-unsupported',
+    });
+  });
+for (const [label, edit] of [
+  [
+    'extra app reference',
+    (document: ReturnType<typeof parseDocument>) => {
+      document.addIn(['spec', 'template', 'spec', 'containers', 0, 'volumeMounts'], {
+        name: 'proc',
+        mountPath: '/again',
+        readOnly: true,
+      });
+    },
+  ],
+  [
+    'writable init',
+    (document: ReturnType<typeof parseDocument>) => {
+      document.setIn(
+        ['spec', 'template', 'spec', 'initContainers'],
+        [
+          {
+            name: 'writer',
+            image: lock.charts.kubePrometheusStack.images.find((pin) => pin.role === 'nodeExporter')
+              ?.name,
+            volumeMounts: [{ name: 'proc', mountPath: '/proc', readOnly: false }],
+          },
+        ],
+      );
+    },
+  ],
+  [
+    'unknown image',
+    (document: ReturnType<typeof parseDocument>) => {
+      document.setIn(
+        ['spec', 'template', 'spec', 'containers', 0, 'image'],
+        'example.invalid/foreign@sha256:' + 'f'.repeat(64),
+      );
+    },
+  ],
+  [
+    'same labels foreign name',
+    (document: ReturnType<typeof parseDocument>) => {
+      document.setIn(['metadata', 'name'], 'foreign');
+    },
+  ],
+  [
+    'foreign namespace',
+    (document: ReturnType<typeof parseDocument>) => {
+      document.setIn(['metadata', 'namespace'], 'foreign');
+    },
+  ],
+] as const)
+  test(`Task60 native source cannot inherit permission through ${label}`, async () => {
+    const ledger = await deriveNodeExporter(edit);
+    expect(ledger.entries).toHaveLength(0);
+    expect(ledger.hostPathConsumers).toHaveLength(3);
+  });
+test('Task60 native changed chart lock cannot reuse reader defaults', async () => {
+  const pin = structuredClone(lock);
+  pin.charts.kubePrometheusStack.sha256 = 'c'.repeat(64);
+  const ledger = await deriveNodeExporter(undefined, pin);
+  expect(ledger.entries).toHaveLength(0);
+  expect(ledger.hostPathConsumers).toHaveLength(3);
+});
+for (const [label, edit] of [
+  [
+    'absent bounds',
+    (d: ReturnType<typeof parseDocument>) =>
+      d.deleteIn(['spec', 'template', 'spec', 'containers', 0, 'resources']),
+  ],
+  [
+    'unsupported lifecycle',
+    (d: ReturnType<typeof parseDocument>) => {
+      d.setIn(['spec', 'updateStrategy'], { type: 'OnDelete' });
+    },
+  ],
+  [
+    'earlier unsupported volume',
+    (d: ReturnType<typeof parseDocument>) => {
+      d.addIn(['spec', 'template', 'spec', 'volumes'], { name: 'extra', csi: {} });
+    },
+  ],
+] as const)
+  test(`Task60 malformed late host body precedes ${label}`, async () => {
+    const packet = await nodeExporterFixture((d) => {
+      edit(d);
+      d.setIn(['spec', 'template', 'spec', 'volumes', 2, 'hostPath'], { path: '/ok', extra: true });
+    });
+    expect(() =>
+      readRehearsalNativeCosts(
+        packet.stages,
+        packet.expansions,
+        packet.contract,
+        lock,
+        [],
+        packet.topology,
+      ),
+    ).toThrow('Native ordinal source malformed');
+  });
+for (const fault of ['body', 'mixed', 'duplicate', 'mode', 'propagation'] as const)
+  test(`Task60 late host ${fault} is validated before earlier owner claim collision`, async () => {
+    const packet = await nodeExporterFixture((d) => {
+      if (fault === 'body') d.setIn(['spec', 'template', 'spec', 'volumes', 2, 'hostPath'], {});
+      if (fault === 'mixed')
+        d.setIn(['spec', 'template', 'spec', 'volumes', 2, 'emptyDir'], { sizeLimit: '1Mi' });
+      if (fault === 'duplicate')
+        d.setIn(['spec', 'template', 'spec', 'volumes', 2, 'name'], 'proc');
+      if (fault === 'mode')
+        d.setIn(
+          ['spec', 'template', 'spec', 'containers', 0, 'volumeMounts', 0, 'readOnly'],
+          'true',
+        );
+      if (fault === 'propagation')
+        d.setIn(
+          ['spec', 'template', 'spec', 'containers', 0, 'volumeMounts', 0, 'mountPropagation'],
+          'Other',
+        );
+    });
+    const collision = fixture((d) => {
+      d.set('kind', 'StatefulSet');
+      d.setIn(['spec', 'volumes'], []);
+      d.setIn(
+        ['spec', 'volumeClaimTemplates'],
+        [{ metadata: { name: 'same' }, spec: { resources: { requests: { storage: '1Gi' } } } }],
+      );
+      d.setIn(
+        ['spec', 'template', 'spec', 'volumes'],
+        [{ name: 'same', emptyDir: { sizeLimit: '1Mi' } }],
+      );
+    });
+    const stages = [...collision.stages, ...packet.stages];
+    const expansions = packet.expansions;
+    const contract = {
+      ...captureRehearsalFrames(stages, expansions),
+      bootstrapSources: packet.contract.bootstrapSources,
+      provenance: packet.contract.provenance,
+    };
+    expect(() =>
+      readRehearsalNativeCosts(stages, expansions, contract, lock, [], packet.topology),
+    ).toThrow('Native ordinal source malformed');
+  });
+test('Task60 host consumer facts survive missing topology and provider mismatch with nested snapshots', async () => {
+  const packet = await nodeExporterFixture();
+  const pin = structuredClone(lock);
+  pin.binaries.k3s.version = 'v1.36.5+k3s1';
+  const ledger = readRehearsalNativeCosts(
+    packet.stages,
+    packet.expansions,
+    packet.contract,
+    pin,
+    [],
+    undefined,
+  );
+  expect(ledger.entries).toHaveLength(0);
+  expect(ledger.hostPathConsumers).toHaveLength(3);
+  const before = structuredClone(ledger.hostPathConsumers);
+  packet.stages[0].releases[0].owner = 'changed';
+  packet.contract.provenance.sourceRevision = 'e'.repeat(40);
+  expect(ledger.hostPathConsumers).toEqual(before);
+  expect(Object.hasOwn(derive(), 'hostPathConsumers')).toBe(false);
+});
+test('Task60 matching native names and image without chart source cannot select policy', async () => {
+  const packet = await nodeExporterFixture();
+  const bytes = Object.values(packet.expansions)[0];
+  const stages = [{ ...fixture().stages[0], bytes, sha256: hash(bytes) }];
+  const contract = {
+    ...captureRehearsalFrames(stages, {}),
+    bootstrapSources: packet.contract.bootstrapSources,
+    provenance: packet.contract.provenance,
+  };
+  const ledger = readRehearsalNativeCosts(stages, {}, contract, lock, [], packet.topology);
+  expect(ledger.entries).toHaveLength(0);
+  expect(ledger.hostPathConsumers).toHaveLength(3);
+});
+test('Task60 exact image assertion without nodeExporter lock role cannot select policy', async () => {
+  const pin = structuredClone(lock);
+  const image = pin.charts.kubePrometheusStack.images.find(
+    (image) => image.role === 'nodeExporter',
+  );
+  if (!image) throw new Error('nodeExporter lock role absent');
+  image.role = 'foreign';
+  const ledger = await deriveNodeExporter(undefined, pin);
+  expect(ledger.entries).toHaveLength(0);
+});
+test('Task60 coherent changed chart version stays unsupported', async () => {
+  const pin = structuredClone(lock);
+  pin.charts.kubePrometheusStack.version = '92.0.0';
+  const packet = await nodeExporterFixture();
+  const declaration = parseDocument(packet.stages[0].releases[0].manifest);
+  declaration.setIn(['spec', 'chart', 'spec', 'version'], '92.0.0');
+  packet.stages[0].releases[0].manifest = declaration.toString();
+  packet.stages[0].bytes = declaration.toString();
+  packet.stages[0].sha256 = hash(packet.stages[0].bytes);
+  packet.contract = {
+    ...captureRehearsalFrames(packet.stages, packet.expansions),
+    bootstrapSources: packet.contract.bootstrapSources,
+    provenance: packet.contract.provenance,
+  };
+  const ledger = readRehearsalNativeCosts(
+    packet.stages,
+    packet.expansions,
+    packet.contract,
+    pin,
+    [],
+    packet.topology,
+  );
+  expect(ledger.entries).toHaveLength(0);
+  expect(ledger.hostPathConsumers).toHaveLength(3);
+});
+for (const [label, edit] of [
+  [
+    'mode',
+    (d: ReturnType<typeof parseDocument>) => {
+      d.setIn(['spec', 'template', 'spec', 'containers', 0, 'volumeMounts', 0, 'readOnly'], 'true');
+    },
+  ],
+  [
+    'propagation',
+    (d: ReturnType<typeof parseDocument>) => {
+      d.setIn(
+        ['spec', 'template', 'spec', 'containers', 0, 'volumeMounts', 0, 'mountPropagation'],
+        'Other',
+      );
+    },
+  ],
+  [
+    'mount array',
+    (d: ReturnType<typeof parseDocument>) => {
+      d.setIn(['spec', 'template', 'spec', 'containers', 0, 'volumeMounts'], {});
+    },
+  ],
+  [
+    'host array',
+    (d: ReturnType<typeof parseDocument>) => {
+      d.setIn(['spec', 'template', 'spec', 'volumes', 0, 'hostPath'], []);
+    },
+  ],
+  [
+    'mixed host sources',
+    (d: ReturnType<typeof parseDocument>) => {
+      d.setIn(['spec', 'template', 'spec', 'volumes', 0, 'emptyDir'], { sizeLimit: '1Mi' });
+    },
+  ],
+  [
+    'duplicate host name',
+    (d: ReturnType<typeof parseDocument>) => {
+      d.setIn(['spec', 'template', 'spec', 'volumes', 1, 'name'], 'proc');
+    },
+  ],
+] as const)
+  test(`Task60 native malformed ${label} precedes absent bounds and provider mismatch`, async () => {
+    const packet = await nodeExporterFixture((d) => {
+      edit(d);
+      d.deleteIn(['spec', 'template', 'spec', 'containers', 0, 'resources']);
+    });
+    const pin = structuredClone(lock);
+    pin.binaries.k3s.version = 'v1.36.5+k3s1';
+    expect(() =>
+      readRehearsalNativeCosts(
+        packet.stages,
+        packet.expansions,
+        packet.contract,
+        pin,
+        [],
+        packet.topology,
+      ),
+    ).toThrow('Native ordinal source malformed');
+  });
+test('Task60 native consumer metadata snapshots detach validated source arrays', async () => {
+  const packet = await nodeExporterFixture();
+  const source = readRehearsalSource(packet.stages, packet.expansions, packet.contract, lock, []);
+  const ledger = deriveRehearsalNativeCosts(source, packet.contract, lock, packet.topology);
+  const expected = structuredClone(ledger.hostPathConsumers);
+  source.native[0].entry.images[0].image = 'mutated';
+  source.native[0].entry.source.frameSHA256 = 'c'.repeat(64);
+  expect(ledger.hostPathConsumers).toEqual(expected);
 });

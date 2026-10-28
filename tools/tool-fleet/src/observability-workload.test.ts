@@ -204,7 +204,7 @@ for (const [name, downwardAPI] of [
       ...authored,
       unsupported: true,
       volumes: [
-        { name: 'host', hostPath: {} },
+        { name: 'host', hostPath: { path: '/unsupported' } },
         { name: 'metadata', downwardAPI },
         ...authored.volumes.slice(1),
       ],
@@ -464,4 +464,324 @@ test('source policy works with legacy refusal callback and validates malformed s
       policy,
     ),
   ).toThrow('unsupported:workload-volume-unsupported');
+});
+
+function hostSource() {
+  return {
+    containers: [
+      {
+        ...container('reader', '100Mi', '10m'),
+        volumeMounts: [{ name: 'host', mountPath: '/input', readOnly: true }],
+      },
+    ],
+    volumes: [{ name: 'host', hostPath: { path: '/proc' } }],
+  };
+}
+const hostPolicy = {
+  readOnlyHostPaths: [
+    {
+      name: 'host',
+      path: '/proc',
+      mounts: [
+        {
+          role: 'containers' as const,
+          container: 'reader',
+          mountPath: '/input',
+          readOnly: true as const,
+        },
+      ],
+    },
+  ],
+};
+function normalizeHost(authored: unknown, selection: unknown = hostPolicy) {
+  return normalizeWorkload(
+    SourceWorkloadSpec.assert(authored),
+    readers,
+    selection as SourceVolumePolicy,
+  );
+}
+for (const [label, body] of [
+  ['null', null],
+  ['array', []],
+  ['missing path', {}],
+  ['relative path', { path: 'proc' }],
+  ['empty path', { path: '' }],
+  ['NUL path', { path: '/p\0roc' }],
+  ['unknown body key', { path: '/proc', extra: 1 }],
+  ['unknown type', { path: '/proc', type: 'Other' }],
+  ['type null', { path: '/proc', type: null }],
+] as const)
+  test(`Task60 closed host body ${label} precedes unrelated unsupported`, () => {
+    const authored = hostSource();
+    const supplied = {
+      ...authored,
+      unsupported: true,
+      volumes: [
+        { name: 'unknown', csi: {} },
+        { name: 'host', hostPath: body },
+      ],
+    };
+    expect(() => normalizeHost(supplied)).toThrow('malformed:workload-volume-unsupported');
+  });
+test('Task60 exact reader policy preserves host paths and full resource cost', () => {
+  const model = normalizeHost(hostSource());
+  expect(model.memoryMiB).toBe(100);
+  expect(model.cpuMilli).toBe(10);
+  expect(model.ephemeralMiB).toBe(4);
+  expect(model.sourceHostPaths).toEqual([
+    { ...hostPolicy.readOnlyHostPaths[0], consumerIntent: 'read-only', enforcement: 'unobserved' },
+  ]);
+  expect(model.volumes[0]).toMatchObject({ kind: 'hostPath', sourcePath: '/proc', readOnly: true });
+});
+for (const [label, edit] of [
+  [
+    'writable',
+    (s: ReturnType<typeof hostSource>) => (s.containers[0].volumeMounts[0].readOnly = false),
+  ],
+  [
+    'omitted mode',
+    (s: ReturnType<typeof hostSource>) =>
+      Reflect.deleteProperty(s.containers[0].volumeMounts[0], 'readOnly'),
+  ],
+  [
+    'changed target',
+    (s: ReturnType<typeof hostSource>) => (s.containers[0].volumeMounts[0].mountPath = '/other'),
+  ],
+  ['changed path', (s: ReturnType<typeof hostSource>) => (s.volumes[0].hostPath.path = '/sys')],
+  [
+    'extra reference',
+    (s: ReturnType<typeof hostSource>) =>
+      s.containers[0].volumeMounts.push({ name: 'host', mountPath: '/second', readOnly: true }),
+  ],
+  [
+    'missing reference',
+    (s: ReturnType<typeof hostSource>) => s.containers[0].volumeMounts.splice(0),
+  ],
+] as const)
+  test(`Task60 policy refuses ${label}`, () => {
+    const authored = hostSource();
+    edit(authored);
+    expect(() => normalizeHost(authored)).toThrow('unsupported:workload-volume-unsupported');
+  });
+test('Task60 source host paths remain strict without internal policy and in observed decoder', () => {
+  expect(() => normalizeWorkload(SourceWorkloadSpec.assert(hostSource()), readers)).toThrow(
+    'unsupported:workload-volume-unsupported',
+  );
+  expect(ObservedWorkloadSpec.allows(hostSource())).toBe(false);
+});
+test('Task60 host duplicate references are malformed before unsupported', () => {
+  const authored = hostSource();
+  authored.containers[0].volumeMounts.push({ ...authored.containers[0].volumeMounts[0] });
+  expect(() => normalizeHost({ ...authored, unsupported: true })).toThrow(
+    'malformed:workload-mount-unknown',
+  );
+});
+for (const type of [
+  undefined,
+  '',
+  'Directory',
+  'File',
+  'DirectoryOrCreate',
+  'FileOrCreate',
+  'Socket',
+  'CharDevice',
+  'BlockDevice',
+] as const)
+  for (const propagation of [undefined, 'None', 'HostToContainer'] as const)
+    test(`Task60 declared type ${String(type)} propagation ${String(propagation)} remain distinct snapshots`, () => {
+      const authored = hostSource();
+      const host = {
+        name: 'host',
+        path: '/proc',
+        ...(type === undefined ? {} : { type }),
+        mounts: [
+          {
+            role: 'containers' as const,
+            container: 'reader',
+            mountPath: '/input',
+            readOnly: true as const,
+            ...(propagation === undefined ? {} : { mountPropagation: propagation }),
+          },
+        ],
+      };
+      const supplied = {
+        ...authored,
+        volumes: [
+          { name: 'host', hostPath: { path: '/proc', ...(type === undefined ? {} : { type }) } },
+        ],
+        containers: [
+          {
+            ...authored.containers[0],
+            volumeMounts: [
+              {
+                ...authored.containers[0].volumeMounts[0],
+                ...(propagation === undefined ? {} : { mountPropagation: propagation }),
+              },
+            ],
+          },
+        ],
+      };
+      const selected = { readOnlyHostPaths: [host] };
+      const model = normalizeHost(supplied, selected);
+      const expected = structuredClone({
+        ...host,
+        consumerIntent: 'read-only' as const,
+        enforcement: 'unobserved' as const,
+      });
+      host.mounts[0].mountPath = '/changed';
+      supplied.containers[0].volumeMounts[0].mountPath = '/mutated';
+      expect(model.sourceHostPaths).toEqual([expected]);
+      expect(Object.hasOwn(model.volumes[0], 'type')).toBe(type !== undefined);
+      expect('type' in model.volumes[0] ? model.volumes[0].type : undefined).toBe(type);
+      expect(Object.hasOwn(model.containers[0].mounts[0], 'mountPropagation')).toBe(
+        propagation !== undefined,
+      );
+      expect(model.containers[0].mounts[0].mountPropagation).toBe(propagation);
+    });
+test('Task60 exact init tuple is supported by pure policy with full init and overhead costs', () => {
+  const authored = hostSource();
+  const init = {
+    ...container('init', '200Mi', '30m'),
+    volumeMounts: [{ name: 'host', mountPath: '/init', readOnly: true }],
+  };
+  const selected = {
+    readOnlyHostPaths: [
+      {
+        ...hostPolicy.readOnlyHostPaths[0],
+        mounts: [
+          ...hostPolicy.readOnlyHostPaths[0].mounts,
+          {
+            role: 'initContainers' as const,
+            container: 'init',
+            mountPath: '/init',
+            readOnly: true as const,
+          },
+        ],
+      },
+    ],
+  };
+  const model = normalizeHost(
+    { ...authored, initContainers: [init], overhead: { memory: '10Mi', cpu: '5m' } },
+    selected,
+  );
+  expect(model.memoryMiB).toBe(210);
+  expect(model.cpuMilli).toBe(35);
+  expect(model.sourceHostPaths?.[0].mounts).toHaveLength(2);
+});
+for (const [label, mount] of [
+  ['relative target', { name: 'host', mountPath: 'relative', readOnly: true }],
+  ['NUL target', { name: 'host', mountPath: '/a\0b', readOnly: true }],
+] as const)
+  test(`Task60 malformed host ${label} precedes unsupported`, () => {
+    const authored = hostSource();
+    expect(() =>
+      normalizeHost({
+        ...authored,
+        unsupported: true,
+        containers: [{ ...authored.containers[0], volumeMounts: [mount] }],
+      }),
+    ).toThrow('malformed:workload-mount-unknown');
+  });
+for (const [label, volume] of [
+  ['mixed sources', { name: 'host', hostPath: { path: '/proc' }, emptyDir: { sizeLimit: '1Mi' } }],
+  ['duplicate names', { name: 'host', hostPath: { path: '/proc' } }],
+] as const)
+  test(`Task60 host ${label} is malformed before unsupported`, () => {
+    const authored = hostSource();
+    expect(() =>
+      normalizeHost({
+        ...authored,
+        unsupported: true,
+        volumes: label === 'duplicate names' ? [volume, volume] : [volume],
+      }),
+    ).toThrow('malformed:workload-volume-unsupported');
+  });
+for (const [label, selected] of [
+  ['empty references', { readOnlyHostPaths: [{ ...hostPolicy.readOnlyHostPaths[0], mounts: [] }] }],
+  [
+    'unknown row field',
+    { readOnlyHostPaths: [{ ...hostPolicy.readOnlyHostPaths[0], quotaMiB: 1 }] },
+  ],
+  [
+    'unknown mount field',
+    {
+      readOnlyHostPaths: [
+        {
+          ...hostPolicy.readOnlyHostPaths[0],
+          mounts: [{ ...hostPolicy.readOnlyHostPaths[0].mounts[0], subPath: 'x' }],
+        },
+      ],
+    },
+  ],
+  [
+    'writable policy',
+    {
+      readOnlyHostPaths: [
+        {
+          ...hostPolicy.readOnlyHostPaths[0],
+          mounts: [{ ...hostPolicy.readOnlyHostPaths[0].mounts[0], readOnly: false }],
+        },
+      ],
+    },
+  ],
+  [
+    'Bidirectional policy',
+    {
+      readOnlyHostPaths: [
+        {
+          ...hostPolicy.readOnlyHostPaths[0],
+          mounts: [
+            { ...hostPolicy.readOnlyHostPaths[0].mounts[0], mountPropagation: 'Bidirectional' },
+          ],
+        },
+      ],
+    },
+  ],
+] as const)
+  test(`Task60 closed policy rejects ${label}`, () => {
+    expect(() => normalizeHost(hostSource(), selected)).toThrow(
+      'malformed:source-volume-policy-malformed',
+    );
+  });
+test('Task60 accepted consumer cannot cover separate writable checkpoint', () => {
+  const authored = hostSource();
+  expect(() =>
+    normalizeHost({
+      ...authored,
+      volumes: [
+        ...authored.volumes,
+        {
+          name: 'checkpoint',
+          hostPath: { path: '/var/lib/puni-otelcol', type: 'DirectoryOrCreate' },
+        },
+      ],
+      containers: [
+        {
+          ...authored.containers[0],
+          volumeMounts: [
+            ...authored.containers[0].volumeMounts,
+            { name: 'checkpoint', mountPath: '/var/lib/otelcol', readOnly: false },
+          ],
+        },
+      ],
+    }),
+  ).toThrow('unsupported:workload-volume-unsupported');
+});
+test('Task60 duplicate host target across volume names is malformed before unsupported', () => {
+  const authored = hostSource();
+  const supplied = {
+    ...authored,
+    unsupported: true,
+    volumes: [...authored.volumes, { name: 'second', hostPath: { path: '/sys' } }],
+    containers: [
+      {
+        ...authored.containers[0],
+        volumeMounts: [
+          ...authored.containers[0].volumeMounts,
+          { name: 'second', mountPath: '/input', readOnly: true },
+        ],
+      },
+    ],
+  };
+  expect(() => normalizeHost(supplied)).toThrow('malformed:workload-mount-unknown');
 });

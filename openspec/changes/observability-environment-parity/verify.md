@@ -3634,3 +3634,57 @@ Four bounded read-only live queries using the existing enrollment operator and s
 A separate local read-only07:53 snapshot observed33227800576B total/18051555328B available memory and22255362048B home-filesystem free space on device66307. Home is not proven Docker-root backing. No known full-rehearsal host is admitted; no memory/disk floor was weakened or unrelated workload stopped. Full source/system/helper/writer/device accounting, effective runtime enforcement and actual rehearsal/live acceptance remain required.
 
 Task59 source-seam design and addendum were read without execution; hashes `3c5ab5fc856d9b90063daf4d7377f34cc4a56890b5834a903122f1c49821c6f3` and `dcfc45b2b2ccc2db9f2ef409fd2d14bace846ca646853224d40ef109b6cd61d0` are retained privately. Actual pre-intent BASE for Task60 is700aea9bf177de6204e06689f0911996ed72d83a. The four artifacts specify exact source-only readonly host-path accounting before implementation. Runtime propagation/device/writer/quota facts are unobserved; writable checkpoints/backup storage are not waived. No new domain term, hardware/Secret/production/store/final-merge authorization is inferred.
+
+### Task60 selected read-only host-path source accounting
+
+Task60 pre-intent BASE is `700aea9bf177de6204e06689f0911996ed72d83a`; clean
+SOURCESTART is `1c1178fc03f7cbc1f052ce0c3aa3a9b483b92330`. The source implementation
+adds closed host bodies/mount facts, one shared exact reader-tuple matcher, internal
+selected node-exporter policy and optional snapshotted consumer evidence. Default
+and observed cutover schemas stay strict. All independent device, writer, retained
+bytes, bind/submount/recursive-readonly and Pod/node/runtime/history obligations
+remain unobserved; no admission, quota or physical read-only claim follows.
+
+The exact interface ruling keeps the reader module independent of workload/native
+runtime imports. `readRehearsalSource` supplies validated frame/pointer/template,
+chart and image provenance; the private DaemonSet selector checks reviewed source
+identity and unique locked nodeExporter image. Selector and normalizer reuse one
+semantic tuple check. Its dependency is faulted once across both production paths;
+removing only the selector call is masked by mandatory normalization and is not
+claimed as an independent proof. The initial narrow host scan precedes lifecycle
+and claim expansion: the new earlier-collision test exposed that ordering gap and
+then passed after the shared scan moved ahead of those operations.
+
+Raw commands, exits, timings, fault transformations, before/mutated/restored SHA256
+and logs are retained in `/tmp/puni-task60-evidence/`; implementation report is
+`.superpowers/sdd/observability-environment-parity/task-60-report.md`.
+
+| Evidence                    | Observed output                                                                                                          | Receipt                              |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------ |
+| Existing native-reader RED  | 0 node-exporter charges instead of 2; exit 1, 0.835s                                                                     | `red-native.{json,log}`              |
+| Closed-boundary RED         | 17 intended malformed/policy failures; exit 1                                                                            | `red-boundary.{json,log}`            |
+| Independent obligation RED  | Missing explicit writer/bind/runtime fact; exit 1                                                                        | `red-obligations.{json,log}`         |
+| Global ordering RED         | Earlier claim collision masked late malformed host body; exit 1                                                          | `covering-first.{json,log}`          |
+| Cross-volume target RED     | Duplicate target was unsupported rather than malformed; exit 1                                                           | `red-cross-volume-target.{json,log}` |
+| Final covering source tests | 239 pass, 0 fail, 495 assertions; 1.937s                                                                                 | `source-final-covering.{json,log}`   |
+| Selected compatibility      | Cold-start, ordinal, generated combined reader and default cutover/preflight: 366 pass, 0 fail, 954 assertions; 138.025s | `compatibility.{json,log}`           |
+| New changed-safety faults   | 29 effective, all exact source hashes restored; no old fault batch replay                                                | `faults.json`, per-fault `.log`      |
+
+The supported-propagation dependency fault produced the expected modeled
+`unsupported:workload-shape-unsupported` failure in its positive control; this is
+an effective dependency corruption, not a setup/compiler failure. No masked fault
+execution or compiler/setup fault was counted as effective. Type and lint findings
+were corrected and final scoped checks are recorded below before the source commit.
+
+The one clean committed-adapter comparison on retained ff0b inputs follows the
+source commit. Independent source review remains the root agent's next step; this
+source-only slice does not complete environment parity or authorize runtime work.
+
+Pre-source statics: scoped library and spec `bunx --no-install tsc --noEmit -p
+...` passed (1.351s/1.761s; `precommit-lib.json`/`precommit-spec.json`). Scoped
+ESLint passed (`final-scoped-lint.json`); Prettier's explicit changed-file check
+passed (`precommit-format.json`). Locked `openspec validate
+observability-environment-parity --strict --json` passed with zero issues
+(`source-openspec.json`). The last target-cardinality tightening has its own
+RED/GREEN and effective `cross-volume-target` receipt, followed by the 239-test
+positive covering run. No effective fault was replayed.

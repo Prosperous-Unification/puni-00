@@ -1,5 +1,13 @@
 import { type } from 'arktype';
 
+import {
+  HostPathMount,
+  matchesHostPathPolicy,
+  readHostPathConsumers,
+  ReadOnlyHostPath,
+  type ReadOnlyHostPathPolicy,
+} from './observability-native-hostpath';
+
 const QuantityMap = type({
   memory: 'string',
   cpu: 'string',
@@ -127,10 +135,7 @@ const specFields = {
 
 /** Source-only zero-cost fields may remain in manifests; all cost-bearing shapes are explicit. */
 export const WorkloadSpec = type(specFields);
-// Proof: fix1-mount-propagation-enum widening admitted a malformed propagation marker.
-const NativeMount = Mount.merge({
-  'mountPropagation?': "'None'|'HostToContainer'|'Bidirectional'",
-});
+const NativeMount = HostPathMount;
 const NativeContainer = Container.merge({ 'volumeMounts?': NativeMount.array() });
 /** Recognize authored mount propagation as an explicit unsupported fact, without widening cutover's closed source/observed decoders. */
 export const NativeWorkloadSpec = WorkloadSpec.merge({
@@ -225,12 +230,14 @@ const StandaloneDownwardAPI = type({
 const VolumePolicy = type({
   'standaloneDownwardAPI?': 'string[]',
   'podMemoryVolume?': 'string>0',
+  'readOnlyHostPaths?': ReadOnlyHostPath.array(),
   '+': 'reject',
 });
 /** Internal source authorization names volumes, never numeric caps or runtime enforcement. */
 export interface SourceVolumePolicy {
   readonly standaloneDownwardAPI?: readonly string[];
   readonly podMemoryVolume?: string;
+  readonly readOnlyHostPaths?: readonly ReadOnlyHostPathPolicy[];
 }
 
 type Spec = typeof SourceWorkloadSpec.infer;
@@ -328,6 +335,7 @@ export function assertInventoryWorkload(
   readers: WorkloadReaders,
 ) {
   const refuseMalformed = readers.refuseMalformed ?? readers.refuse;
+  readHostPathConsumers(spec, refuseMalformed);
   for (const volume of spec.volumes ?? []) {
     requireVolumeStructure(volume, refuseMalformed);
     // Proof: Task25c3a fix1 mode-guard bypass and five default/item omissions each failed the new production-entry invalid-mode negatives.
@@ -367,7 +375,8 @@ export function assertInventoryWorkload(
 /**
  * Normalize named resources/mounts without inferring rollout identity from images.
  * Optional source authorization validates standalone metadata and derives one Memory volume's
- * conservative Pod bound; enforcement and generated-input overhead remain unobserved.
+ * conservative Pod bound. Exact host-reader tuples preserve source identity without attributing
+ * a write reservation to this consumer; backing writers, enforcement and input overhead remain unobserved.
  * Throws through reader policy for malformed or unsupported inputs. Default calls retain cutover identity.
  */
 export function normalizeWorkload(
@@ -385,12 +394,19 @@ export function normalizeWorkload(
     return refuse(reason);
   }
   const sourceVolumes = spec.volumes ?? [];
+  // Proof: Task60 normalizer-prepass corruption hid an unknown body key behind unsupported recovery; malformed-first assertion failed.
+  const hostPaths = readHostPathConsumers(spec, refuseMalformed);
+  const hostPolicy = policy?.readOnlyHostPaths ?? [];
   // Proof: policy-shape bypass admitted numeric cap override; that production normalization negative failed.
   if (policy !== undefined && !VolumePolicy.allows(policy))
     refuseMalformed('source-volume-policy-malformed');
   const metadataNames = policy?.standaloneDownwardAPI ?? [];
   const memoryName = policy?.podMemoryVolume;
-  const authorizedNames = [...metadataNames, ...(memoryName === undefined ? [] : [memoryName])];
+  const authorizedNames = [
+    ...metadataNames,
+    ...(memoryName === undefined ? [] : [memoryName]),
+    ...hostPolicy.map((host) => host.name),
+  ];
   if (
     // Proof: policy-name-syntax removal changed wildcard metadata authorization's malformed refusal; its assertion failed.
     authorizedNames.some((name) => !/^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$/.test(name)) ||
@@ -446,6 +462,12 @@ export function normalizeWorkload(
     )
       refuse('source-volume-policy-unsupported');
   }
+  for (const host of hostPolicy) {
+    const fact = hostPaths.find((candidate) => candidate.name === host.name);
+    // Proof: Task60 normalizer-match removal admitted a writable reference through the mandatory normalizer policy boundary.
+    if (fact === undefined || !matchesHostPathPolicy(fact, host))
+      refuse('workload-volume-unsupported');
+  }
   // Proof: `generic-ephemeral` removal/broken dependency failed `fix1 generic ephemeral storage is refused rather than silently costed at zero` with an assertion.
   // Proof: `csi-volume` removal/broken dependency failed `fix1 source CSI is explicitly refused` with an assertion.
   // Proof: `missing-volume-variant` removal/broken dependency failed `fix1 source missing volume variant is explicitly refused` with an assertion.
@@ -458,11 +480,26 @@ export function normalizeWorkload(
       volume.unsupportedKind ||
       volume.ephemeral !== undefined ||
       volume.csi !== undefined ||
-      volume.hostPath !== undefined ||
+      // Proof: Task60 default-host-refusal removal admitted a host volume without any internal policy; strict-default assertion failed.
+      (volume.hostPath !== undefined && !hostPolicy.some((host) => host.name === volume.name)) ||
       // Proof: metadata-authorization removal admitted an unselected standalone name and changed default refusal; both negatives failed.
       (volume.downwardAPI !== undefined && !metadataNames.includes(volume.name))
     )
       refuse('workload-volume-unsupported');
+    const host = hostPaths.find((fact) => fact.name === volume.name);
+    if (volume.hostPath !== undefined && host !== undefined) {
+      return {
+        name: volume.name,
+        kind: 'hostPath',
+        reference: '',
+        readOnly: true,
+        medium: '',
+        sizeMiB: 0,
+        projection: '',
+        sourcePath: host.path,
+        ...(host.type === undefined ? {} : { type: host.type }),
+      };
+    }
     if (volume.downwardAPI !== undefined) {
       const projection = metadata.get(volume.name) ?? readMetadata(volume);
       if (
@@ -670,7 +707,12 @@ export function normalizeWorkload(
       container.volumeDevices !== undefined ||
       container.resizePolicy !== undefined ||
       // Proof: fix1-mount-propagation-unsupported removal silently normalized an unmodeled source mount.
-      container.volumeMounts?.some((mount) => mount.mountPropagation !== undefined)
+      // Proof: Task60 host-propagation-policy corruption refused the exact supported HostToContainer tuple; its positive control failed.
+      container.volumeMounts?.some(
+        (mount) =>
+          mount.mountPropagation !== undefined &&
+          !hostPolicy.some((host) => host.name === mount.name),
+      )
     )
       // Proof: `restartable-init` removal/broken dependency failed `source restartable init accounting is refused instead of underestimated` with an assertion.
       refuse('workload-shape-unsupported');
@@ -709,6 +751,9 @@ export function normalizeWorkload(
           readOnly: mount.readOnly ?? false,
           subPath: mount.subPath ?? '',
           subPathExpr: mount.subPathExpr ?? '',
+          ...(mount.mountPropagation === undefined
+            ? {}
+            : { mountPropagation: mount.mountPropagation }),
         };
       })
       .sort(
@@ -778,6 +823,17 @@ export function normalizeWorkload(
     0,
   );
   return {
+    ...(hostPolicy.length === 0
+      ? {}
+      : {
+          // Proof: Task60 source-snapshot removed the deep copy; caller mutation rewrote nested mounts and the snapshot assertion failed.
+          sourceHostPaths: structuredClone(hostPolicy).map((host) => ({
+            ...host,
+            // Proof: Task60 source-enforcement relabeled intent as observed enforcement; exact source-evidence assertion failed.
+            consumerIntent: 'read-only' as const,
+            enforcement: 'unobserved' as const,
+          })),
+        }),
     // Proof: source-evidence-absence added an undefined evidence key for default calls; strict default-output identity failed.
     ...(memoryName === undefined
       ? {}

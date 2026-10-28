@@ -5,6 +5,7 @@ import { type } from 'arktype';
 
 import { readMemoryMiB } from './observability-capacity';
 import { expandNativeCohorts } from './observability-native-cohorts';
+import { readHostPathConsumers } from './observability-native-hostpath';
 import type {
   readRehearsalSource,
   RehearsalFrameContract,
@@ -419,6 +420,13 @@ export function readDaemonObligations(
   claims: ReadonlySet<string>,
 ) {
   const missing: string[] = [];
+  // Proof: Task60 writer-obligations corruption removed independent writer/bind/device/recursive-readonly/Pod-node facts while source costs remained; obligation assertions failed.
+  for (const host of readHostPathConsumers(pod, refuse))
+    missing.push(
+      `hostPath-independent-writers-and-retained-bytes:${host.name}`,
+      `hostPath-bind-device-submount-and-recursive-readonly:${host.name}`,
+      `hostPath-Pod-node-observation:${host.name}`,
+    );
   // Proof: Task25c3g obligation-scan omission hid independent host/scratch/root/claim facts; claim-namespace bypass lost existing-claim retention.
   for (const volume of pod.volumes ?? []) {
     if (volume.hostPath !== undefined) missing.push(`hostPath-device-growth:${volume.name}`);

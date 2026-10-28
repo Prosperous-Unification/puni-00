@@ -27,7 +27,11 @@ import {
   indexObservabilitySource,
   renderObservabilitySource,
 } from './observability-source-render';
-import { NativeWorkloadSpec, normalizeWorkload } from './observability-workload';
+import {
+  NativeWorkloadSpec,
+  normalizeWorkload,
+  type SourceVolumePolicy,
+} from './observability-workload';
 
 export type { ColdStartFrame, ColdStartInventory } from './observability-source-inventory';
 interface TopologyFrame {
@@ -180,6 +184,7 @@ export function normalizeNativeOwner(
   frame: string,
   identity: string,
   refuseUnbounded?: (reason: string) => never,
+  policy?: SourceVolumePolicy,
 ) {
   const volumes = expandNativeVolumes(pod.volumes ?? [], templates, kind);
   return normalizeWorkload(
@@ -207,6 +212,8 @@ export function normalizeNativeOwner(
         return refuse(reason);
       },
     },
+    // Proof: Task60 policy-forward corruption removed both full selected node-exporter cohorts; real native-reader contribution assertion failed.
+    policy,
   );
 }
 

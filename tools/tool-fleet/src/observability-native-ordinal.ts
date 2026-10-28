@@ -33,6 +33,12 @@ import {
   supportsDaemonPolicy,
 } from './observability-native-daemon';
 import {
+  HostPathWorkload,
+  matchesHostPathPolicy,
+  readHostPathConsumers,
+  type ReadOnlyHostPathPolicy,
+} from './observability-native-hostpath';
+import {
   defaultFact,
   deriveJobLifecycle,
   expandJob,
@@ -313,6 +319,72 @@ function expandDeployment(
       ...charge.concurrency,
     },
   }));
+}
+
+/** Select reviewed source identity only. readRehearsalSource binds frame/pointer/full template, chart lock and image facts;
+ * the DaemonSet branch supplies apps/v1 and source mount grammar supplies role/target identity.
+ * The shared matcher validates the same complete tuples here and at normalization; no caller assertion grants permission. */
+function selectDaemonHostPaths(
+  view: ReturnType<typeof readRehearsalSource>['native'][number],
+  lock: Toolchain,
+  pod: typeof InventoryWorkloadSpec.infer,
+) {
+  const { entry } = view;
+  const chart = lock.charts.kubePrometheusStack;
+  const image =
+    'quay.io/prometheus/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0';
+  // Proof: Task60 source-selection removal charged a foreign owner name with matching labels/image; native assertion failed.
+  const images = chart.images.filter((pin) => pin.role === 'nodeExporter');
+  if (
+    entry.namespace !== 'observability' ||
+    entry.name !== 'kube-prometheus-stack-prometheus-node-exporter' ||
+    entry.releaseOwner !== 'observability/kube-prometheus-stack' ||
+    entry.release?.chart !== 'kubePrometheusStack' ||
+    entry.release.version !== '91.4.1' ||
+    entry.release.archiveSHA256 !==
+      '1bd5e7a88e758ed3ec22db0fe6e72b1352f3f0e7e5a93c79979f7edf361becdb' ||
+    images.length !== 1 ||
+    `${images[0].name}@${images[0].digest}` !== image ||
+    entry.images.length !== 1 ||
+    entry.images[0].image !== image
+  )
+    return undefined;
+  const selected: readonly ReadOnlyHostPathPolicy[] = [
+    {
+      name: 'proc',
+      path: '/proc',
+      mounts: [
+        { role: 'containers', container: 'node-exporter', mountPath: '/host/proc', readOnly: true },
+      ],
+    },
+    {
+      name: 'sys',
+      path: '/sys',
+      mounts: [
+        { role: 'containers', container: 'node-exporter', mountPath: '/host/sys', readOnly: true },
+      ],
+    },
+    {
+      name: 'root',
+      path: '/',
+      mounts: [
+        {
+          role: 'containers',
+          container: 'node-exporter',
+          mountPath: '/host/root',
+          readOnly: true,
+          mountPropagation: 'HostToContainer',
+        },
+      ],
+    },
+  ];
+  const facts = readHostPathConsumers(pod, refuse);
+  if (
+    facts.length !== selected.length ||
+    !selected.every((host) => facts.some((fact) => matchesHostPathPolicy(fact, host)))
+  )
+    return undefined;
+  return { readOnlyHostPaths: selected };
 }
 
 function deriveNativeCosts(
@@ -682,9 +754,17 @@ function deriveNativeCosts(
     }
     let model: ReturnType<typeof normalizeNativeOwner>;
     try {
-      model = normalizeNativeOwner(pod, [], entry.kind, entry.owner, identity, (reason) => {
-        throw new UnboundedSource(reason);
-      });
+      model = normalizeNativeOwner(
+        pod,
+        [],
+        entry.kind,
+        entry.owner,
+        identity,
+        (reason) => {
+          throw new UnboundedSource(reason);
+        },
+        selectDaemonHostPaths(view, lock, broadPod),
+      );
     } catch (failure) {
       if (!(failure instanceof UnsupportedNativeWorkload) && !(failure instanceof UnboundedSource))
         throw failure;
@@ -712,6 +792,39 @@ function deriveNativeCosts(
     );
     daemonLifecycles.push(deriveDaemonLifecycle(controller, entry, identity, topology));
   }
+  // Proof: Task60 global-prepass corruption let an earlier claim collision conceal a late malformed host body; production-reader assertion failed.
+  const hostPathConsumers = source.native.flatMap((view) => {
+    if (view.entry.category === 'claim') return [];
+    const specification = type('Record<string,unknown>').assert(view.manifest['spec']);
+    const pod = HostPathWorkload(podSpecOf({ kind: view.entry.kind, spec: specification }));
+    // Proof: Task60 global-mount-shape removal let an earlier claim collision conceal malformed readOnly/propagation; both production-reader assertions failed.
+    if (pod instanceof type.errors) refuse();
+    const hostPaths = readHostPathConsumers(pod, refuse);
+    const template =
+      view.entry.kind === 'CronJob'
+        ? type({ jobTemplate: { spec: { template: 'unknown' } } }).assert(specification).jobTemplate
+            .spec.template
+        : view.entry.kind === 'Pod'
+          ? specification
+          : specification['template'];
+    // Proof: Task60 native-snapshot removed the deep copy; caller mutation rewrote bound source image/frame arrays and the snapshot assertion failed.
+    return hostPaths.map((host) =>
+      structuredClone({
+        owner: `${view.entry.kind}:${view.entry.namespace ?? '_'}:${view.entry.name}`,
+        source: view.entry,
+        templateSHA256: hash(JSON.stringify(template)),
+        ...host,
+        consumerIntent:
+          host.mounts.length > 0 && host.mounts.every((mount) => mount.readOnly === true)
+            ? ('read-only' as const)
+            : host.mounts.some((mount) => mount.readOnly === false)
+              ? ('writable' as const)
+              : ('undeclared' as const),
+        // Proof: Task60 native-enforcement relabeled source read intent as observed; exact native consumer assertion failed.
+        enforcement: 'unobserved' as const,
+      }),
+    );
+  });
   // Proof: Task54 prepass-order omission let an earlier ordinal collision mask malformed late CronJob calendar fields.
   // Parsed calendars stay local: Task54 serialization injection failed the native no-bigint JSON controls.
   const validated = source.native.map((view) => {
@@ -872,6 +985,8 @@ function deriveNativeCosts(
         'provider-or-unclassified-demand',
       );
   return {
+    // Proof: Task60 native-evidence-absence injected an empty field into no-host output; default-native assertion failed.
+    ...(hostPathConsumers.length === 0 ? {} : { hostPathConsumers }),
     scope: 'immutable-source-native-ordinal-lifecycle' as const,
     // Proof: Task25c3a completeness/creation-authority/runtime-authority forgeries failed the conditional-ledger authority assertions.
     state: 'incomplete' as const,
