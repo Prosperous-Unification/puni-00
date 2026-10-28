@@ -225,4 +225,11 @@ and full3.1 remain open.
 
 ### Task67 deterministic cache-publication verification within3.1
 
-- [ ] Fix only the existing concurrent Helm cache-publication test's unstable original inode comparison by holding the original read-only archive handle across both child preparations and closing it in finally. Preserve replacement/digest/private-executable/preservation assertions and unchanged fixture behavior. Use actual94ee CI failure as RED; verify the focused test and one intended omission-of-publication fault/restoration with cached locked inputs, necessary scoped statics, normal commit and independent review. No full job replay, timeout/routing changes, network installation, source-policy or runtime claim. This test correction restores the existing precise atomic-publication contract and uses the R4 exception for fixes without behavior changes.
+- [x] Fix only the existing concurrent Helm cache-publication test's unstable original inode comparison by holding the original read-only archive handle across both child preparations and closing it in finally. Preserve replacement/digest/private-executable/preservation assertions and unchanged fixture behavior. Use actual94ee CI failure as RED; verify the focused test and one intended omission-of-publication fault/restoration with cached locked inputs, necessary scoped statics, normal commit and independent review. No full job replay, timeout/routing changes, network installation, source-policy or runtime claim. This test correction restores the existing precise atomic-publication contract and uses the R4 exception for fixes without behavior changes.
+
+Task67 is complete at847ad20d after independent specification/quality approval
+with no findings. The actual publication-omission fault fails the retained
+replacement assertion, exact fixture restoration precedes the focused pass,
+and affected format/lint/type checks pass. Root audited54 retained artifacts,
+the one-line injected fault, source binding and unchanged cached inputs.
+This closes only the test correction; full CI/runtime acceptance remains open.

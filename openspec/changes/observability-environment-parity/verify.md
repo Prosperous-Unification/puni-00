@@ -4330,3 +4330,44 @@ pending; no retry, workaround, publication, approved execution release, staging
 or client operation occurred. Unaffected source work continues. No h3mon resize,
 hardware purchase, Secret or live rollout change was made. The original16GiB/
 120GiB rehearsal values remain distinct from permanent monitoring sizing.
+
+## Task67 — deterministic concurrent cache-publication evidence
+
+Source/clean STOP847ad20d63058c66f25a4e93a1e50b6f531e0bf1 changes only
+observability-tools.test.ts. It opens the original archive read-only, reads its
+identity through that descriptor, retains it across both actual child preparations
+and all existing assertions, then closes it in finally. Every child, digest,
+replacement, private-executable, shared-directory and unrelated-file assertion
+remains. The fixture/installer and CI behavior are unchanged. This restores the
+existing precise atomic-publication test contract under the R4 exception.
+
+Exact focused command, with the quoted -t value as one argument:
+
+```sh
+bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 tools/tool-fleet/src/observability-tools.test.ts -t "locked fixture concurrent preparations publish complete archives with distinct private executables"
+```
+
+One deliberate fault omitted only the actual fixture's archive rename. The
+focused test failed at the unchanged inode replacement assertion (0pass/1fail,
+76assertions,2.152s command). Fixture restoration was byte-exact before green:
+SHA256d884dafca1fb04e0fab5ab92f523f1dec3d9aab93c490717c76b096a91751b91.
+The restored focused run passed1/1,122assertions,2.902s command. Each run used a
+new cache seeded from already locked local archives; necessary private extraction
+is the subject of this test. Original archives retain hash/inode/mode/size; no
+download or permanent installation occurred. Format, scoped lint and Nx Fleet
+typecheck passed (0.250s/3.213s/2.571s), followed by normal hooks and clean STOP.
+
+Independent scoped specification/quality review approved without findings.
+Root read the complete report/review and raw intended fault/restored output,
+rehashed54 artifacts46,711B, matched the committed test and exact original fixture,
+independently compared the sole omitted line and both cached inputs. The first
+root audit expected a different fault-comment literal; inspecting the retained
+diff corrected that audit expectation without changing or rerunning production
+code/tests. Genuine CI RED and the local probe's nonreproduction remain as
+documented above; this negative is not an allocator-reuse reproduction.
+
+No broad Fleet suite, full CI/job/host gate, prior Task66 checks, deploy/K3s or
+runtime/live acceptance was replayed or claimed. Tool Wiki remains visibly
+inactive/uncertified. Actual raw receipts and source binding remain in the
+private task-67 report and /tmp/puni-task67-evidence. Canonical4/11 and full3.1
+remain open; source66+67 can be published together for their own ordinary CI.
