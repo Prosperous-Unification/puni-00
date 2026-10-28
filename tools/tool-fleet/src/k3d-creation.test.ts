@@ -389,7 +389,9 @@ it('aborts the active creator when its witness disconnects before more IDs are r
     [
       process.execPath,
       '-e',
-      `setTimeout(()=>console.log(${JSON.stringify(line)}),200); setInterval(()=>{},1000)`,
+      'setTimeout(()=>console.log(process.argv[1]),200); setInterval(()=>{},1000)',
+      '--',
+      line,
     ],
     process.env,
     [name],

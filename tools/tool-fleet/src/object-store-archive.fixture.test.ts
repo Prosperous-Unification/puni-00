@@ -74,7 +74,10 @@ export function archiveFixture(fault = '') {
     },
     {
       name: `blobs/sha256/${sha(manifest)}`,
-      bytes: fault === 'manifest' ? Buffer.from(manifest.toString().replace('\n', ' ')) : manifest,
+      bytes:
+        fault === 'manifest'
+          ? Buffer.concat([manifest.subarray(0, 1), Buffer.from([32]), manifest.subarray(2)])
+          : manifest,
     },
     {
       name: 'index.json',

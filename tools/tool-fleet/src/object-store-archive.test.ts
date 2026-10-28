@@ -134,6 +134,7 @@ for (const fault of [
   it(`refuses ${fault} archive before distribution`, async () => {
     const fixture = await prepare(fault);
     const causes: Record<string, RegExp> = {
+      manifest: /^Error: Object store archive blob identity or size differs$/,
       'missing-index': /missing index/,
       'missing-config': /missing blobs/,
       'missing-layer': /missing blobs/,
