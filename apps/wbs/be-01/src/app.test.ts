@@ -196,6 +196,31 @@ it('reports one redacted unexpected production failure with its shared occurrenc
   });
 });
 
+it('redacts the mcp-01 secret and the grant keys', () => {
+  const created: CreateLoggerOptions[] = [];
+  const auth = testAuthService(inMemoryUsers());
+  buildApp(
+    {
+      ...optionsFor(auth, 'internal-boundary-secret'),
+      mcpService: {
+        secret: 'mcp-boundary-secret',
+        verifyGrant: null,
+        grantKeySecrets: ['grant-key-current', 'grant-key-previous'],
+      },
+    },
+    (options) => {
+      created.push(options);
+      return createLogger(options);
+    },
+  );
+  expect(created[0]?.secrets).toEqual([
+    'internal-boundary-secret',
+    'mcp-boundary-secret',
+    'grant-key-current',
+    'grant-key-previous',
+  ]);
+});
+
 describe('what a request costs before it reaches a handler', () => {
   /**
    * The app used to resolve an identity for **every** request through a

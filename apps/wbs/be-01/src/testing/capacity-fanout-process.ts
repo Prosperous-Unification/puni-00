@@ -10,6 +10,7 @@ import { buildApp } from '../app';
 import { bootBe01 } from '../boot';
 import { openDatabase } from '../repository/db';
 import { joseTokenCodec } from '../runtime/bun-runtime';
+import { TEST_MCP_SERVICE_SETTINGS } from './machine-grant-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './organization-limits-fixture';
 
 const [role, databasePath, directory] = process.argv.slice(2);
@@ -104,6 +105,7 @@ const running = await bootBe01(
     internalAuthSecret: secret,
     browserSessionAuthority: 'enabled',
     organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
+    mcpService: TEST_MCP_SERVICE_SETTINGS,
   },
   {
     openSource: openSqliteSource,

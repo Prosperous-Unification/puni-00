@@ -39,7 +39,7 @@ function leafClaim(
         { stepId: 'review', progress: 'unknown' },
       ],
     },
-    caller: { accountId: F, isAdmin: true, pinnedPersonId: null },
+    caller: { accountId: F, isAdmin: true, pinnedPersonId: null, pinnedRunId: null },
     claimant: { personId: person, boundAccountId: F },
     stepIds: null,
     runId: run,
@@ -323,7 +323,7 @@ describe('a claim occupies its leaf’s demand vector', () => {
     const releaseOf = (person: string, held: readonly Claim[]) => {
       const decided = decideRelease({
         target: { workItemId: 'leaf', isLeaf: true },
-        caller: { accountId: F, isAdmin: true, pinnedPersonId: null },
+        caller: { accountId: F, isAdmin: true, pinnedPersonId: null, pinnedRunId: null },
         claimant: { personId: person, boundAccountId: F },
         stepIds: null,
         claims: held,
@@ -586,7 +586,7 @@ describe('free units under any sequence of claims and releases', () => {
           } else {
             const decided = decideRelease({
               target: { workItemId, isLeaf: true },
-              caller: { accountId: F, isAdmin: true, pinnedPersonId: null },
+              caller: { accountId: F, isAdmin: true, pinnedPersonId: null, pinnedRunId: null },
               claimant: { personId: person, boundAccountId: F },
               stepIds: null,
               claims: claims.filter((claim) => claim.workItemId === workItemId),

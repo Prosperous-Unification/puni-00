@@ -39,12 +39,78 @@ export interface WbsRequest {
 /** The slice of `fetch` this module uses, so a test can pass a stub. */
 export type FetchLike = (
   url: string,
-  init: { method: string; headers: Record<string, string>; body?: string },
+  init: {
+    method: string;
+    headers: Record<string, string>;
+    body?: string;
+    redirect?: RequestRedirect;
+    signal?: AbortSignal;
+  },
 ) => Promise<Response>;
 
-/** be-01 rejected the caller credential, so its local MCP session must end. */
-export class UpstreamRejected extends Error {
+/**
+ * How long one tool call waits for be-01, answer and body together: past be-01's own bound.
+ * be-01 serves through Elysia, whose Bun server closes a connection idle for 30 s (Elysia's
+ * `idleTimeout` default; be-01 sets none), and its long work (solver runs, optimization) runs
+ * in the background rather than inside a request. So a call still waiting at 35 s is not one
+ * be-01 is finishing. Without a bound, a hung be-01 would hold the caller's in-flight slot
+ * (`wbs-mcp-agent-surface` M10) for ever.
+ */
+export const BE_CALL_TIMEOUT_MS = 35_000;
+
+/**
+ * be-01 did not answer a tool call within {@link BE_CALL_TIMEOUT_MS}. Not the caller's
+ * credential and not a network error (a `TimeoutError` carries no system error code): the
+ * call is reported as an unexpected failure and answered a tool error, never a 401.
+ */
+export class BeCallTimedOut extends Error {
   constructor(message: string) {
+    super(message);
+    this.name = 'BeCallTimedOut';
+  }
+}
+
+/** The MCP request was cancelled while its tool call waited for be-01: a controlled exit. */
+export class ToolCallCancelled extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ToolCallCancelled';
+  }
+}
+
+/**
+ * `work` raced against `signal`: it rejects with the signal's reason once the signal aborts,
+ * even when `work` itself never settles (a fetch that ignores its signal).
+ */
+async function untilAborted<T>(signal: AbortSignal, work: () => Promise<T>): Promise<T> {
+  let stop: (() => void) | undefined;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    const abort = () => {
+      reject(signal.reason instanceof Error ? signal.reason : new Error('aborted'));
+    };
+    if (signal.aborted) abort();
+    signal.addEventListener('abort', abort, { once: true });
+    stop = () => {
+      signal.removeEventListener('abort', abort);
+    };
+  });
+  try {
+    return await Promise.race([work(), aborted]);
+  } finally {
+    stop?.();
+  }
+}
+
+/**
+ * be-01 rejected the caller credential with a 401, so a consent session must end. `code` is
+ * be-01's own error code when its body carried one; a machine caller's call is judged by it
+ * (`wbs-mcp-agent-surface` M3), never by the message.
+ */
+export class UpstreamRejected extends Error {
+  constructor(
+    message: string,
+    readonly code?: string,
+  ) {
     super(message);
     this.name = 'UpstreamRejected';
   }
@@ -104,6 +170,16 @@ type ToolInputRefusalDetails =
       readonly parameterName: string;
       readonly location: 'path' | 'query';
       readonly receivedType: string;
+    }
+  | {
+      readonly kind: 'dot_segment';
+      readonly toolName: string;
+      readonly parameterName: string;
+    }
+  | {
+      readonly kind: 'route_changed';
+      readonly toolName: string;
+      readonly path: string;
     };
 
 function toolInputRefusalMessage(details: ToolInputRefusalDetails): string {
@@ -117,6 +193,10 @@ function toolInputRefusalMessage(details: ToolInputRefusalDetails): string {
       return `${details.toolName} needs the path parameter "${details.parameterName}" and it was not given, so ${details.path} cannot be built.`;
     case 'non_scalar_url':
       return `${details.toolName}: ${details.location} parameter "${details.parameterName}" must be a string, number or boolean; received ${details.receivedType}. Every ${details.location} parameter be-01 declares is scalar.`;
+    case 'dot_segment':
+      return `${details.toolName}: path parameter "${details.parameterName}" must not be empty, "." or "..", which would change the route ${details.toolName} calls rather than name a row.`;
+    case 'route_changed':
+      return `${details.toolName}: the path parameters would send this call to another route than ${details.path}, so it was not sent.`;
     default: {
       const unreachable: never = details;
       throw new Error(`Unknown tool input refusal: ${String(unreachable)}`);
@@ -167,12 +247,18 @@ const asUrlValue = (
  * @throws {ToolInputRefused} if an input is undeclared, a path parameter is missing, or a URL
  * value is not scalar. The first has nowhere to go; the second leaves a literal `{id}` that
  * be-01 answers 404 to as if the row were gone; the third would become `[object Object]`.
+ * Also if a path value is empty, `.` or `..`, or the URL would not parse back to the expanded
+ * template: either would send the call to another route.
+ *
+ * `serviceHeaders` are mcp-01's own (a machine caller's `x-mcp-internal-auth`), sent beside the
+ * caller's bearer.
  */
 export function buildRequest(
   tool: DerivedTool,
   input: Readonly<Record<string, unknown>>,
   config: McpConfig,
   callerToken?: string,
+  serviceHeaders: Readonly<Record<string, string>> = {},
 ): WbsRequest {
   const query = new URLSearchParams();
   const body: Record<string, unknown> = {};
@@ -213,6 +299,15 @@ export function buildRequest(
         },
       });
     }
+    // `encodeURIComponent` leaves `.` intact, so `..` would climb a segment once the URL is
+    // parsed, and an empty value would merge two (`wbs-mcp-agent-surface` M14).
+    // Proof: with this refusal removed, `refuses an empty, "." or ".." path value before any
+    // be-01 request` (wbs-client.test.ts) sent `{..}` as `/api/claims`; watched 2026-10-27.
+    if (value === '' || value === '.' || value === '..') {
+      throw new ToolInputRefused({
+        details: { kind: 'dot_segment', toolName: tool.name, parameterName: name },
+      });
+    }
     return encodeURIComponent(value);
   });
 
@@ -235,10 +330,23 @@ export function buildRequest(
   if (declaresBody) headers['content-type'] = 'application/json';
 
   const queryString = query.toString();
+  const base = config.WBS_API_URL.replace(/\/+$/, '');
+  const url = `${base}${path}${queryString === '' ? '' : `?${queryString}`}`;
+  // The route is the template's, whatever a value holds: what is sent must parse back to the
+  // expanded template, so no encoding gap can move the call (M14). be-01's routing stays the
+  // second line, since a proxy may still normalise what is sent.
+  // Proof: with the encoder replaced by the identity function, `x/../../claims` was refused
+  // here by `refuses a value that would move the route` (wbs-client.test.ts), and reached
+  // be-01's fake as `/api/claims` once this check was also removed; watched 2026-10-27.
+  if (new URL(url).pathname !== `${new URL(base).pathname.replace(/\/+$/, '')}${path}`) {
+    throw new ToolInputRefused({
+      details: { kind: 'route_changed', toolName: tool.name, path: tool.path },
+    });
+  }
   return {
     method: tool.method.toUpperCase(),
-    url: `${config.WBS_API_URL.replace(/\/+$/, '')}${path}${queryString === '' ? '' : `?${queryString}`}`,
-    headers,
+    url,
+    headers: { ...headers, ...serviceHeaders },
     ...(declaresBody ? { body: JSON.stringify(body) } : {}),
   };
 }
@@ -296,6 +404,7 @@ function refusal(
   if (response.status === 401) {
     throw new UpstreamRejected(
       `${head} The caller access token is expired, invalid, or lacks the issuer/audience be-01 trusts.${trimmed === '' ? '' : `\n${trimmed}`}`,
+      code,
     );
   }
   return text(`${head}${trimmed === '' ? '' : `\n${trimmed}`}`, true);
@@ -315,15 +424,47 @@ export async function callTool(
   config: McpConfig,
   fetchImpl: FetchLike = fetch,
   callerToken?: string,
+  serviceHeaders: Readonly<Record<string, string>> = {},
+  call: { readonly cancel?: AbortSignal; readonly timeoutMs?: number } = {},
 ): Promise<ToolTextResult> {
-  const request = buildRequest(tool, input, config, callerToken);
-  const response = await fetchImpl(request.url, {
-    method: request.method,
-    headers: { ...request.headers },
-    ...(request.body === undefined ? {} : { body: request.body }),
-  });
+  const request = buildRequest(tool, input, config, callerToken, serviceHeaders);
+  const timeout = AbortSignal.timeout(call.timeoutMs ?? BE_CALL_TIMEOUT_MS);
+  const signal = call.cancel === undefined ? timeout : AbortSignal.any([timeout, call.cancel]);
+  let response: Response;
+  let bodyText: string;
+  try {
+    // Proof: with the race removed (the signal only handed to a fetch that ignores it), `frees
+    // the in-flight slot of a call be-01 never answers, after the timeout` (machine-limits.test.ts)
+    // and `throws BeCallTimedOut for a call be-01 never answers…` (wbs-client.test.ts) hung;
+    // watched 2026-10-27.
+    [response, bodyText] = await untilAborted(signal, async () => {
+      const answered = await fetchImpl(request.url, {
+        method: request.method,
+        headers: { ...request.headers },
+        // A redirect is never followed: the caller's bearer and mcp-01's secret would go with it
+        // to wherever it points. A 3xx is then an unexpected answer, reported below.
+        // Proof: following redirects made `never follows a redirect, so the secret stays with
+        // be-01` (wbs-client.test.ts) see the secret at the other origin; watched 2026-10-27.
+        redirect: 'manual',
+        signal,
+        ...(request.body === undefined ? {} : { body: request.body }),
+      });
+      return [answered, await answered.text()] as const;
+    });
+  } catch (cause) {
+    // Proof: rethrowing the TimeoutError itself failed the same two tests' BeCallTimedOut
+    // expectation; watched 2026-10-27.
+    if (timeout.aborted)
+      throw new BeCallTimedOut(
+        `${tool.name}: be-01 did not answer ${tool.method.toUpperCase()} ${tool.path} within ${String((call.timeoutMs ?? BE_CALL_TIMEOUT_MS) / 1_000)} s.`,
+      );
+    // Proof: without this mapping, `throws BeCallTimedOut… and ToolCallCancelled once cancelled`
+    // (wbs-client.test.ts) saw the raw abort; watched 2026-10-27.
+    if (call.cancel?.aborted === true)
+      throw new ToolCallCancelled(`${tool.name} was cancelled before be-01 answered.`);
+    throw cause;
+  }
 
-  const bodyText = await response.text();
   if (!response.ok) {
     // Proof: on 2026-09-21, widening this upper bound to 599 sent a secret-bearing 500 through
     // refusal, exposed its body as tool content, and skipped the unexpected reporter.

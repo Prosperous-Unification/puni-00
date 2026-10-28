@@ -75,6 +75,7 @@ import {
 import {
   endMcpConsentCredential,
   issueMcpDelegation,
+  issueMcpMachineGrant,
   listMcpOrganizations,
   mintMcpConsentCredential,
   readMcpAuthority,
@@ -330,6 +331,7 @@ const ordinaryHttpShapes = [
   discoverAddressProjects,
   discoverAddressCandidates,
   resolveAddressReference,
+  issueMcpMachineGrant,
 ] as const;
 
 export const httpShapes: readonly [...typeof ordinaryHttpShapes, ...typeof runtimeCommandShapes] = [

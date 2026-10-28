@@ -446,7 +446,7 @@ describe('claim leases as a model', () => {
         };
         const heartbeat = async (agent: string) => {
           if (revoked.has(agent)) return;
-          await world.runner.renewLeases(agent);
+          await world.runner.renewLeases(agent, null);
           renewIn(model, agent, now);
         };
         /** A session release by the admin: answers whether it released. */
@@ -517,7 +517,7 @@ describe('claim leases as a model', () => {
                 act.with !== 'release' && revoked.has(agent)
                   ? Promise.resolve()
                   : act.with === 'heartbeat'
-                    ? world.runner.renewLeases(agent)
+                    ? world.runner.renewLeases(agent, null)
                     : act.with === 'write'
                       ? world.run(
                           [

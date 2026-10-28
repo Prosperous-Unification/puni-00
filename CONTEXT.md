@@ -33,6 +33,18 @@ _Avoid_: refresh time, token issue time
 The short exclusive claim one mcp-01 process holds while replacing a refresh family's provider credential. It prevents concurrent tool calls from refreshing the same provider token twice.
 _Avoid_: lock, refresh mutex
 
+**Agent surface**:
+The one integration surface agents build on: mcp-01's `/mcp`, for consented and headless agents alike.
+_Avoid_: agent API, public API, REST for agents
+
+**Machine grant**:
+be-01's signed statement that one machine credential, acting in one run, was verified; mcp-01 presents it on every be-01 call it makes for that credential until it expires.
+_Avoid_: machine delegation, introspection token, service token
+
+**Agent pool**:
+An admin-approved set of agent persons and their machine credentials, created in one act, fixed after creation and revocable as a unit.
+_Avoid_: seat pool, fleet, swarm account
+
 ### Organization access
 
 **Organization**:

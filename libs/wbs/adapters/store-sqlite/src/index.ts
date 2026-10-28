@@ -35,6 +35,7 @@ export * from './invitation';
 export * from './join-request';
 export * from './machine-credential';
 export * from './machine-credential-administration';
+export * from './machine-token-audit';
 export * from './migrate';
 export * from './migrate-down';
 export * from './onboarding';

@@ -231,6 +231,14 @@ describe('toolsFromDocument, on the generated document', () => {
   const document = readDocument();
   const tools = toolsFromDocument(document);
 
+  it('documents backend grant issuance while keeping it out of MCP tools', () => {
+    expect(document.paths).toHaveProperty(
+      ['/internal/mcp/machine-grants', 'post', 'operationId'],
+      'postInternalMcpMachineGrants',
+    );
+    expect(tools.map(({ name }) => name)).not.toContain('postInternalMcpMachineGrants');
+  });
+
   /**
    * The drift test (task 2.4). The expected side is walked here, separately from
    * the derivation, so the two can disagree: a route added to be-01 and

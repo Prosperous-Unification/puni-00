@@ -170,6 +170,15 @@ verified the token. It refuses to boot unless `MCP_TRUSTED_GATEWAY=true` is
 also set. be-01 still verifies the forwarded token, so the gateway must pass
 the upstream token for the issuer and audience be-01 trusts.
 
+Both modes require `MCP_TRUSTED_PROXY_HOPS`, the number of trusted proxies in
+front of mcp-01 (0 to 9). A request's source address, which registration,
+authorization and the machine limits count by, is the `X-Forwarded-For` entry
+that many from the right; with 0 it is the socket address. A request with fewer
+entries, or one that is no IP address, counts under one shared `unattributed`
+source (`src/source-address.ts`). Count only the proxies you can prove: one too
+many trusts a header the client wrote; one too few counts every client as the
+proxy, which limits more tightly and trusts nothing.
+
 Both modes require `WBS_API_URL` and canonical `MCP_PUBLIC_URL`; OAuth metadata
 derives its resource, issuer, and endpoints from the latter rather than trusting
 the inbound Host. There is no `WBS_TOKEN`: caller authority is
@@ -189,7 +198,9 @@ who linked several methods acts as one user whichever one they used.
 
 ## Organizations
 
-With `INTERNAL_AUTH_SECRET` set to be-01's own value, consent after activation
+With `MCP_BE_INTERNAL_SECRET` or `INTERNAL_AUTH_SECRET` set to be-01's own value
+(the dedicated one alone is sent, in `x-mcp-internal-auth`, whenever it is set:
+the secret cutover of `wbs-mcp-agent-surface` M14), consent after activation
 asks be-01 which organizations the user may bind: one is chosen implicitly,
 several show a choice page, none refuses with `access_denied`. The
 organization, local user and upstream issuer are stored on the code, refresh
@@ -200,9 +211,12 @@ header can name another organization, and another organization's project
 answers 404. Every request rereads the family's membership; a removed member's
 request answers 401 and its refresh `invalid_grant`. A be-01 401 refreshes the
 upstream token and asks for a new delegation, never forwarding the raw token.
-A direct upstream token (not an mcp-01 session) and a session consented before
-activation reach be-01 unbound and are refused with `no_active_organization`.
-Unset, mcp-01 forwards the upstream token as before. Contract and deployment
+Once mcp-01's credential epoch is activated, `/mcp` accepts no upstream token
+(M13): an Auth0 token is `401 invalid_token` and be-01 is asked nothing. Before
+that, a direct upstream token is forwarded only while be-01 says it is not
+activated either; be-01 activated beside mcp-01's epoch 0 is a deployment fault,
+reported and answered `502 server_error`. Neither secret set, mcp-01 forwards the
+upstream token as before. Contract and deployment
 keys: `docs/auth-integration.md`, "MCP organization delegation".
 
 ### Consent as an agent person
@@ -222,6 +236,76 @@ in `src/main.ts`) reports every consent family mcp-01 ended (revoked, expired,
 retired by the epoch) and every code never exchanged to
 `/internal/mcp/credentials/ended`, keeping each end in the store until be-01
 acknowledges it.
+
+### Machine credentials at the token endpoint
+
+With `MCP_BE_INTERNAL_SECRET` set to be-01's own value, in standalone mode,
+`/mcp/oauth/token` also answers two machine grants (`wbs-mcp-agent-surface`
+M2–M4), and the authorization server metadata lists them with the methods
+`client_secret_basic` and `client_secret_post`:
+
+- `client_credentials` with a `wbs_mk_` API key as the client secret, by HTTP
+  Basic (the MCP SDK's `ClientCredentialsProvider`) or in the body; a
+  `client_id`, when sent, must be the key's credential id;
+- `urn:ietf:params:oauth:grant-type:jwt-bearer` with a trusted issuer's
+  workload token as `assertion` and no client authentication.
+
+Each request carries `resource` equal to `MCP_PUBLIC_URL`; `scope` defaults to
+`wbs:read wbs:write`, and `wbs_run` (1 to 256 characters) opts into run scoping.
+The request is parsed in `src/token-request.ts`, and be-01's
+`/internal/mcp/machine-grants` alone verifies the key or assertion, called with
+the secret in `x-mcp-internal-auth` (`src/machine-grant-client.ts`). The answer
+is an access token with `token_use: machine`, the grant's scopes, be-01's grant
+as a claim and `exp` 60 s before the grant's, with no refresh token; nothing is
+stored. `MCP_MACHINE_TOKEN_TTL` (seconds, 60 to 86400, default 43200) is the
+lifetime asked for, lowered by a uniform 0–10 % jitter and capped by be-01 at
+the assertion's or rotated secret's end. Every key failure is `401
+invalid_client` with a Basic challenge, every assertion failure `400
+invalid_grant`, before activation too; nothing falls back to the upstream
+verifier. Dynamic registration refuses both grants. Without the secret, or in
+gateway mode, both grants answer `unsupported_grant_type`.
+
+### Machine tokens at `/mcp`
+
+`/mcp` admits a machine token by signature, issuer, audience and `exp` alone,
+plus this replica's refused set (`src/machine-admission.ts`); no store is read,
+so any replica holding the signing keys and the secret serves it (M5). Each
+tool call presents be-01's grant from the token with the secret in
+`x-mcp-internal-auth`, never the access token, and be-01 rereads the credential
+every time. The token's scope is enforced before be-01 is asked. be-01's
+refusals map per M3: `unknown_identity` (revoked, expired or unbound) is the tool
+error `machine_credential_refused`, after which this replica answers that token
+`401 invalid_token`; `unknown_grant_key` and `invalid_token` make the request
+`401 invalid_token`, so the client fetches a new token; `internal_unauthorized`
+or any other 401 is a deployment fault, reported and answered `502`. That 401 or
+502 replaces the whole response, a batch's included, so the answers to calls
+be-01 already served (writes too) are not seen: a client that retries after
+it must make its writes idempotent under retry. mcp-01 never follows a redirect
+from be-01, so the secret and the grant stay there. A machine
+token at `/revoke` is `400 unsupported_token_type`, at refresh `invalid_grant`.
+In gateway mode a token carrying `token_use: machine` is `401` and never
+forwarded (M11). Path values that are empty, `.` or `..`, or that would change
+the route once the URL is parsed, are refused before any be-01 request (M14).
+
+### Machine limits
+
+Each replica applies M10's limits in memory (`src/machine-limits.ts`): failed
+authentications at the token endpoint, 5 a minute per `client_id` and source
+and 30 a minute per source; successful issuances, 300 a minute with a burst of
+100, per credential and per source, in buckets apart from the failures, so a
+stranger's wrong secrets never lock out a credential (a request reads the failure buckets,
+holds one of its source's 100 pending slots and one per-source issuance while be-01 is
+asked, and its outcome spends the failures or gives the issuance back; the per-credential
+issuance counts once be-01 verified the credential); `tools/call` messages, 10
+a second with a burst of 20, per credential, counted per message, so a batch of
+30 runs 20; and 128 tool calls in flight per organization. A token-endpoint
+refusal is `429 invalid_request` with `error_description: "rate_limited"` and
+`Retry-After`. On `/mcp` a limited call is a tool error naming `rate_limited` or
+`too_many_in_flight` and its wait; a request whose only answer is such a call is
+HTTP `429` with `Retry-After`. With R replicas each limit is R times as wide.
+A tool call waits at most 35 s for be-01 (`BE_CALL_TIMEOUT_MS`), then answers a
+reported tool error and frees its slot. be-01 may already have applied a call that timed out, so writes
+must be idempotent under retry, as after a 401 or 502.
 
 ## Durable sessions and key rotation
 

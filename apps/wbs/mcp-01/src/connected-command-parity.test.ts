@@ -4,7 +4,7 @@ import { expect, setDefaultTimeout, test } from 'bun:test';
 
 import { readDocument, toolsFromDocument } from './openapi-tools';
 import { createServer } from './server';
-import type { WbsRequest } from './wbs-client';
+import type { FetchLike } from './wbs-client';
 
 interface FixtureFaults {
   optimizer?: 'installed' | 'absent';
@@ -17,6 +17,7 @@ interface FixtureFaults {
   stopGracefully?: (backend: ParityBackend) => void;
 }
 type ParityBackend = Bun.Subprocess<'ignore', 'pipe', 'inherit'>;
+type ForwardedRequest = Parameters<FetchLike>[1] & { url: Parameters<FetchLike>[0] };
 
 /** Real machine-key authentication; this packet does not exercise delegated OAuth authority. */
 async function openFixture(active = true, scopes = ['read', 'write'], faults: FixtureFaults = {}) {
@@ -116,11 +117,12 @@ async function openFixture(active = true, scopes = ['read', 'write'], faults: Fi
         ...options,
         authInfo: { token: ready.key, clientId: 'parity', scopes },
       });
-    const forwarded: WbsRequest[] = [];
+    const forwarded: ForwardedRequest[] = [];
     const server = createServer({
       tools: toolsFromDocument((faults.readDocument ?? readDocument)()),
       config: {
         MCP_AUTH_MODE: 'standalone',
+        MCP_TRUSTED_PROXY_HOPS: 0,
         MCP_PUBLIC_URL: 'http://mcp.test/mcp',
         WBS_API_URL: apiUrl,
       },
@@ -329,9 +331,11 @@ for (const transport of ['HTTP', 'MCP'] as const) {
         const write = fixture.forwarded.find((request) => request.method === 'POST');
         // Proof: omitting wbs-client's production V1 claim failed this exact equality
         // with the missing header (2026-10-23).
-        expect(write).toEqual({
+        expect(write).toEqual<unknown>({
           url: `${fixture.apiUrl}/api/projects/${successor.projectId}/commands`,
           method: 'POST',
+          redirect: 'manual',
+          signal: expect.any(AbortSignal) as unknown,
           headers: {
             'X-WBS-Dependency-Semantics': 'cross-project-dependencies-v1',
             authorization: `Bearer ${fixture.key}`,
@@ -944,9 +948,11 @@ for (const transport of ['HTTP', 'MCP'] as const) {
           expect(direct.status).toBe(200);
           expect(direct.body).toEqual(tree);
           if (transport === 'MCP')
-            expect(fixture.forwarded.find(({ method }) => method === 'POST')).toEqual({
+            expect(fixture.forwarded.find(({ method }) => method === 'POST')).toEqual<unknown>({
               url: `${fixture.apiUrl}/api/projects/${successor.projectId}/commands`,
               method: 'POST',
+              redirect: 'manual',
+              signal: expect.any(AbortSignal) as unknown,
               headers: {
                 'X-WBS-Dependency-Semantics': 'cross-project-dependencies-v1',
                 authorization: `Bearer ${fixture.key}`,

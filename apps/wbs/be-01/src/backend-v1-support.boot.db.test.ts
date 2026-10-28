@@ -9,6 +9,7 @@ import { bootBe01 } from './boot';
 import { BACKEND_DEPENDENCY_CAPABILITY } from './runtime/dependency-support';
 import { TEST_JWT_KEY } from './testing/auth-fixture';
 import { BootedBrowserProcess } from './testing/booted-browser-process';
+import { TEST_MCP_SERVICE_SETTINGS } from './testing/machine-grant-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
 
 let backend: BootedBrowserProcess | undefined;
@@ -285,6 +286,7 @@ function restartOptions(dbPath: string) {
     jwtKey: TEST_JWT_KEY,
     gwUrl: 'http://gw.invalid',
     internalAuthSecret: 's'.repeat(32),
+    mcpService: TEST_MCP_SERVICE_SETTINGS,
     browserSessionAuthority: 'enabled' as const,
     organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
     organizationDomainProofScheduling: 'disabled' as const,

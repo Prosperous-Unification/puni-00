@@ -43,6 +43,7 @@ try {
     organizationDomainProofScheduling: cfg.ORGANIZATION_DOMAIN_PROOF_SCHEDULING,
     emailDelivery: cfg.emailDelivery,
     delegationKeys: cfg.delegationKeys,
+    mcpService: cfg.mcpService,
     oidc: cfg.AUTH_MODE === 'oidc' ? oidcRouteOptionsFromEnv(process.env) : undefined,
     localIdentity:
       cfg.AUTH_MODE === 'local'

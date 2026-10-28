@@ -42,6 +42,12 @@ export interface ClaimCaller {
   readonly isAdmin: boolean;
   /** The person the caller's credential is pinned to, or null for an unpinned credential. */
   readonly pinnedPersonId: string | null;
+  /**
+   * The run a machine grant opted into (`wbs-mcp-agent-surface` M15), or null
+   * for every other credential and a grant without `wbs_run`. It scopes only
+   * the pinned person's own claims and releases ({@link claimRunOf}).
+   */
+  readonly pinnedRunId: string | null;
 }
 
 /** The person named on the claim and the account bound to act as them, if any. */
@@ -109,6 +115,7 @@ export interface ClaimHolder {
 export type ClaimRefusal =
   | { readonly reason: 'person_not_bound' }
   | { readonly reason: 'credential_not_for_person' }
+  | { readonly reason: 'run_mismatch' }
   | { readonly reason: 'parent_claim_unknown' }
   | { readonly reason: 'parent_claim_foreign' }
   | { readonly reason: 'parent_claim_not_ancestor' }
@@ -222,12 +229,60 @@ function refuseIdentity(
 }
 
 /**
+ * The run a claim for `claimantId` is written under (`wbs-mcp-agent-surface`
+ * M15): the caller's opted-in run when the claimant is its pinned person, else
+ * the run the command gave. A lead writing a worker's delegated claim keeps
+ * the worker's `runId`, so the worker can release it later. `run_mismatch`
+ * when the claimant is the pinned person and the command names another run.
+ * For the pinned person the run also adopts the person's no-run claims
+ * ({@link ClaimRun}): a repeat answers `alreadyHeld`, never restamping them.
+ */
+export function claimRunOf(
+  caller: ClaimCaller,
+  claimantId: string,
+  requestedRunId: string | null,
+): ClaimRun | { readonly reason: 'run_mismatch' } {
+  // Proof: with the pinned-person test dropped (every claim the principal
+  // writes judged under its run), `a lead writes a worker's delegated claim
+  // with the worker's run` (claim.test.ts) was refused run_mismatch, and the
+  // be-01 scenario of the same name (machine-grant-run.controller.db.test.ts)
+  // failed too; watched 2026-10-27.
+  if (caller.pinnedRunId === null || caller.pinnedPersonId !== claimantId)
+    return { runId: requestedRunId, adoptsNoRun: false };
+  // Proof: with the command's run preferred over the grant's, `refuses a
+  // forged run id run_mismatch` and `refuses run_mismatch before the
+  // parent-claim checks` (claim.test.ts) claimed, as did `a forged run id`
+  // (machine-grant-run.controller.db.test.ts); watched 2026-10-27.
+  if (requestedRunId !== null && requestedRunId !== caller.pinnedRunId)
+    return { reason: 'run_mismatch' };
+  return { runId: caller.pinnedRunId, adoptsNoRun: true };
+}
+
+/**
+ * The run a claim is written and compared under. `adoptsNoRun`: the caller
+ * opted into that run for its own person, so the person's no-run claims
+ * (taken before it opted in) count as held by it, as release and renewal
+ * count them (`wbs-mcp-agent-surface` M15; an assumption Dany may reverse).
+ */
+export interface ClaimRun {
+  readonly runId: string | null;
+  readonly adoptsNoRun: boolean;
+}
+
+/** Whether `held` is a claim of the run `run` describes, a no-run claim it adopts included. */
+export function isHeldUnderRun(held: Pick<Claim, 'runId'>, run: ClaimRun): boolean {
+  return held.runId === run.runId || (run.adoptsNoRun && held.runId === null);
+}
+
+/**
  * Decides one `claimWorkItem`: the rows to write and the progress to state,
  * `alreadyHeld`, or exactly one refusal, checked in the spec's order
  * (`specs/plan-command-registry/spec.md`, first requirement).
  *
  * A leaf claims the named steps, or every step that is not done; a non-leaf
  * writes one subtree claim with no step and is refused on `done` alone (D3).
+ * The run is {@link claimRunOf}'s, judged right after the identity
+ * refusals (`run_mismatch`), and is the run written and compared.
  * Steps the same person and run already hold are skipped, and a claim whose
  * every step is so held answers `alreadyHeld` (and so assigns nothing, even
  * with `assign`). All or none otherwise: one step
@@ -269,6 +324,9 @@ export function decideClaim(request: ClaimRequest): ClaimDecision {
     parentChain.some((each) => each.personId === pinned),
   );
   if (identity !== null) return refused(identity);
+  const run = claimRunOf(caller, claimant.personId, request.runId);
+  if ('reason' in run) return refused(run);
+  const { runId } = run;
 
   if (request.parentClaimId !== null) {
     const parent = request.parentClaim;
@@ -296,7 +354,11 @@ export function decideClaim(request: ClaimRequest): ClaimDecision {
 
   const sameHolder = (each: Claim): boolean =>
     each.personId === claimant.personId &&
-    each.runId === request.runId &&
+    // Proof: with `each.runId === runId` alone, `adopts its own pre-opt-in
+    // claim as alreadyHeld` (claim.test.ts) was refused already_claimed
+    // naming itself, as was `re-claims its own pre-opt-in claim`
+    // (machine-grant-run.controller.db.test.ts); watched 2026-10-27.
+    isHeldUnderRun(each, run) &&
     each.parentClaimId === request.parentClaimId;
   const onTarget = claims.filter((each) => each.workItemId === target.workItemId);
 
@@ -399,7 +461,7 @@ export function decideClaim(request: ClaimRequest): ClaimDecision {
       workItemId: target.workItemId,
       stepId,
       personId: claimant.personId,
-      runId: request.runId,
+      runId,
       parentClaimId: request.parentClaimId,
     })),
     stateInProgress: free.filter(
@@ -427,7 +489,8 @@ export type ReleaseRefusal =
   | { readonly reason: 'steps_on_subtree' }
   | { readonly reason: 'person_not_bound' }
   | { readonly reason: 'credential_not_for_person' }
-  | { readonly reason: 'not_claimed_by' };
+  | { readonly reason: 'not_claimed_by' }
+  | { readonly reason: 'run_mismatch' };
 
 export type ReleaseDecision =
   | { readonly kind: 'release'; readonly claims: readonly Claim[] }
@@ -439,10 +502,18 @@ export type ReleaseDecision =
  * every step; on a non-leaf, the person's subtree claim and every claim that
  * names it as parent, transitively (D8). Progress is not the decision's: a
  * release never changes it.
+ *
+ * A caller with an opted-in run releasing its own pinned person
+ * (`wbs-mcp-agent-surface` M15) removes only that person's claims of its run,
+ * and its no-run claims (taken before it opted in). `not_claimed_by` is judged
+ * first, over every run and the named steps, then `run_mismatch` when the
+ * person holds them only under other runs; named steps split between runs
+ * release the caller's and leave the rest, refusing nothing. Any other release
+ * (a lead releasing a worker's delegated claim) is judged without a run.
  */
 export function decideRelease(request: ReleaseRequest): ReleaseDecision {
-  const { target, claimant, claims } = request;
-  const own = claims.filter(
+  const { target, caller, claimant, claims } = request;
+  const held = claims.filter(
     (each) =>
       each.workItemId === target.workItemId &&
       each.personId === claimant.personId &&
@@ -451,6 +522,22 @@ export function decideRelease(request: ReleaseRequest): ReleaseDecision {
           (request.stepIds === null || request.stepIds.includes(each.stepId))
         : each.stepId === null),
   );
+  // Proof: with the pinned-person test dropped (the run applied to every
+  // release the caller makes), `judges a lead's release of a worker's
+  // delegated claim without a run` (claim.test.ts) answered run_mismatch;
+  // watched 2026-10-27.
+  const runId =
+    caller.pinnedRunId !== null && caller.pinnedPersonId === claimant.personId
+      ? caller.pinnedRunId
+      : null;
+  // Proof: with every run released (this filter dropped), `releases only its
+  // run's claim on a leaf held under two runs` and four more run cases
+  // (claim.test.ts) failed, and `a leaf held under two runs`
+  // (machine-grant-run.controller.db.test.ts) removed run b's claim too; with
+  // `each.runId === null` dropped, `releases a claim taken with no run before
+  // it opted in` answered run_mismatch; watched 2026-10-27.
+  const own =
+    runId === null ? held : held.filter((each) => each.runId === runId || each.runId === null);
   const removed = [...own];
   const taken = new Set(own.map((each) => each.id));
   // Proof: with the cascade loop removed, `cascades a subtree release through
@@ -476,6 +563,7 @@ export function decideRelease(request: ReleaseRequest): ReleaseDecision {
   if (!target.isLeaf && request.stepIds !== null) {
     return { kind: 'refused', refusal: { reason: 'steps_on_subtree' } };
   }
-  if (removed.length === 0) return { kind: 'refused', refusal: { reason: 'not_claimed_by' } };
+  if (held.length === 0) return { kind: 'refused', refusal: { reason: 'not_claimed_by' } };
+  if (removed.length === 0) return { kind: 'refused', refusal: { reason: 'run_mismatch' } };
   return { kind: 'release', claims: removed };
 }

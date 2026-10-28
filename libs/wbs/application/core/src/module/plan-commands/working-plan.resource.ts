@@ -686,9 +686,9 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       },
       // A renewal is the person's, across projects, and moves no revision or
       // retained row: a lease is not a plan fact (`wbs-claim-leases` L4).
-      renewLeases: (personId, now) => {
+      renewLeases: (personId, runId, now) => {
         assertOpen();
-        return scope.stores.claims.renewLeases(personId, now);
+        return scope.stores.claims.renewLeases(personId, runId, now);
       },
       expiredLeasesOf: (requestedProjectId, at) => {
         assertProject(requestedProjectId);

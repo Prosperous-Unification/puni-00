@@ -16,6 +16,7 @@ and exposes the local commands below, plus the managed resource runtime:
 | `record-progress`, `record-progress-v2`                                                                                                                                   | record operator progress assertions as a receipt; see [`record-progress`](#record-progress)                                                                                                      |
 | `account-outcomes --repository <path> --since <instant> --until <instant> --rate-card <path> --output <new-dir> [--claude-projects <dir>]... [--codex-sessions <dir>]...` | writes the period's efficiency breakdown: cost per accepted outcome from harness logs; see [`account-outcomes`](#account-outcomes)                                                               |
 | `report-capacity --config <owner-only file>`                                                                                                                              | measures each bound resource through its compute provider and reports it to WBS until a refusal; see [`report-capacity`](#report-capacity)                                                       |
+| `mcp token --resource <url> (--key-file <path> \| --assertion-file <path> \| --github-actions-audience <aud>) [--run <id>]`                                               | prints a fresh WBS MCP bearer as a header map for Claude Code's `headersHelper`, from an API key or a workload token; see [`mcp token`](#mcp-token)                                              |
 
 ## Managed resource cleanup
 
@@ -261,6 +262,90 @@ command with that error. The command exits 1 with one `error:` line on: three co
 the status and WBS's error code), or a `5xx` or transport fault to WBS that repeats on the retry
 one cadence later (`wbs_unavailable`). The credential appears only in the `Authorization`
 header; no output, refusal or error carries it.
+
+## `mcp token`
+
+Prints `{"Authorization":"Bearer <token>"}` for a WBS MCP server (mcp-01), from a fresh token
+request on every run ([`src/mcp`](src/mcp/token-command.ts); `openspec/changes/wbs-mcp-agent-surface`
+M2, M10, M15). It is what headless agents use instead of the consent flow: Claude Code runs it as
+the server's `headersHelper` at every connection, and again after a 401 or 403, so a token that
+expired, or that a grant key rotation invalidated, is replaced on the retry.
+
+```sh
+bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts mcp token \
+  --resource https://wbs.example/mcp --key-file ~/.config/wbs/agent.key [--run <id>]
+```
+
+- `--resource` is the MCP endpoint (`MCP_PUBLIC_URL`): `https:`, or `http:` on loopback. The
+  token endpoint is its authorization server's, `<resource>/oauth/token`.
+- Exactly one credential:
+  - `--key-file`: a file holding one `wbs_mk_` API key of an agent person (an organization
+    admin issues it in WBS), owned by the running user with mode `0600`, or the command refuses
+    (`--key-file: the key file must be owned by this user with mode 0600`). It is sent once,
+    by HTTP Basic, as `client_credentials`.
+  - `--assertion-file`: a workload token reread on every run, such as a Kubernetes projected
+    service-account token (the kubelet rotates it in place), sent as the JWT-bearer grant.
+  - `--github-actions-audience`: a GitHub Actions OIDC token for that audience, fetched on
+    every run through `ACTIONS_ID_TOKEN_REQUEST_URL` and `ACTIONS_ID_TOKEN_REQUEST_TOKEN`
+    (the job needs `permissions: id-token: write`).
+- A value shaped like a key or a token given where a path belongs is refused naming only the
+  flag (`--key-file names a file, not a key`), and no refusal names the path: a pasted secret is
+  never echoed on stderr.
+- `--run` opts the token into a run (`wbs_run`, 1 to 256 characters): the run's claims and
+  leases are scoped to it.
+- **Why a file and never an argument or a variable holding the key.** An argument is visible
+  to every user in `ps`. An environment variable is inherited by every process Claude Code
+  starts, so the agent's own shell commands could print it into a transcript. Only the path
+  travels; the key stays in an owner-only file. **This design cannot hide the key from the
+  agent's own user**: the helper runs as that user, and the file must be owned by it (the
+  check requires the file's uid to equal the process's), so the agent's shell can read the file
+  too. It protects the key from other users and from transcripts, not from the agent.
+- **No cache.** Every run issues a new token; nothing is written to disk.
+- **No redirect.** A token request answered with a 3xx is refused, never followed: a followed
+  307 would re-send the form, the assertion included, to another origin.
+- **A `429`** (M10's issuance limits per mcp-01 replica: 300 a minute, burst 100, per
+  credential **and per source address**) is waited out
+  once: the `Retry-After` seconds, capped at what remains of Claude Code's 10 s helper budget
+  minus 1 s, then one retry. When nothing remains it does not retry. Any refusal exits 1 with
+  one `error:` line naming the HTTP status and the OAuth error (`invalid_client` for a
+  revoked or unknown key); no output or error carries the key, the assertion or the form.
+
+### Claude Code for a headless agent swarm
+
+**Today the helper needs a checkout of this repository with `bun install` run** on the host that
+runs the agents: it is started from `entrypoint.ts`, not a published binary or bundle.
+
+Put the key of each agent person in its own `0600` file on the host that runs the agents, then
+configure the server in the project's `.mcp.json` (or `--mcp-config` for `claude -p`):
+
+```json
+{
+  "mcpServers": {
+    "wbs": {
+      "type": "http",
+      "url": "https://wbs.example/mcp",
+      "headersHelper": "bun /srv/puni-00/apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts mcp token --resource https://wbs.example/mcp --key-file /home/agent/.config/wbs/agent.key"
+    }
+  }
+}
+```
+
+- Claude Code runs a `headersHelper` only in a trusted folder: in `claude -p` and Agent SDK
+  sessions without folder trust it uses static headers alone, and the connection fails. Trust
+  the agents' working directory first.
+- A batch of `claude -p` runs on one key issues one token per run; 100 runs started within a
+  minute stay under the per-credential limit. **The per-source limit is the same size**: behind
+  one proxy hop every agent on one host or NAT shares one bucket of 100 a burst and 300 a
+  minute, whatever credential it holds, so a pool spread over several keys does not get more
+  issuances per minute from one address. To scope each run's claims, give each run its
+  own `--mcp-config` with `--run <id>`, and send the same id as the run in commands.
+- Claude Code subagents share their parent's connection, and so its token and run.
+
+For a long-lived Node or Bun process using the MCP SDK directly with a workload token,
+[`WorkloadJwtBearerProvider`](src/mcp/workload-provider.ts) is the `authProvider`: it keeps its
+token in memory, drops it on a 401, rereads the workload token for every request, and needs no
+dynamic registration. Pass its `tokenFetch(fetch)` as the transport's `fetch` so a token
+endpoint `429` is waited out (at most 60 s) once.
 
 ## `account-outcomes`
 

@@ -2269,6 +2269,147 @@ async function prepareOriginalLifetimePacket(
   return packet;
 }
 
+interface OriginalEntryHandshake {
+  readonly name: string;
+  readonly order: Promise<Record<string, unknown>>;
+  readonly observation: Promise<Record<string, unknown>>;
+  readonly confirmation: Promise<Record<string, unknown>>;
+  readonly wait: <T>(promise: Promise<T>) => Promise<T>;
+  readonly observe: () => void;
+  readonly end: () => void;
+  readonly join: () => Promise<OriginalControlJoin>;
+  readonly references: unknown[];
+}
+
+/* eslint-disable preserve-caught-error -- Test harness boundary: earliest setup error intentionally remains cause; caught guardian failure remains in AggregateError.errors[1] and original references. */
+/** Routes a failed setup observation through the original guardian before rethrowing its primary; no failed frame grants entry authority. */
+// Proof: local15 (f9703ff0) omitted observation-race operand -> local reserve/no guardian callbacks; exact restoration -> setup-primary + observe/end/join (local protocol only; no OS/domain proof).
+async function awaitOriginalEntryOrder(
+  handshake: OriginalEntryHandshake,
+): Promise<Record<string, unknown>> {
+  const first = await handshake.wait(Promise.race([handshake.order, handshake.observation]));
+  handshake.references.push(first);
+  if (first['phase'] === 'entry-order') return first;
+  if (
+    first['phase'] !== 'observation' ||
+    first['name'] !== handshake.name ||
+    first['passed'] !== false ||
+    first['acquisition'] !== 'setup' ||
+    typeof first['assertion'] !== 'string'
+  )
+    throw new Error('original entry observation before ordering is invalid', { cause: first });
+  const primary = new Error(first['assertion'], { cause: first });
+  handshake.references.push(primary);
+  try {
+    handshake.observe();
+    const confirmed = await handshake.wait(handshake.confirmation);
+    handshake.references.push(confirmed);
+    if (
+      confirmed['phase'] !== 'confirmed' ||
+      confirmed['name'] !== handshake.name ||
+      confirmed['passed'] !== false ||
+      confirmed['acquisition'] !== 'setup' ||
+      confirmed['assertion'] !== first['assertion']
+    )
+      throw new Error('original failed setup confirmation differs', { cause: confirmed });
+    handshake.end();
+    const joined = await handshake.join();
+    handshake.references.push(joined);
+    if (!joined.joined || joined.failures.length !== 0 || joined.terminal?.signal !== null)
+      throw new Error('original failed setup guardian custody unproved', { cause: joined });
+  } catch (failure) {
+    handshake.references.push(failure);
+    throw new AggregateError([primary, failure], primary.message, { cause: primary });
+  }
+  throw primary;
+}
+
+/* eslint-enable preserve-caught-error */
+/** Bounds only durable harness diagnostics; every visited original stays retained even when its snapshot is incomplete. */
+function captureOriginalFailure(failure: unknown, originals: unknown[]) {
+  const nodes: Record<string, unknown>[] = [];
+  const visited = new Map<object, number>();
+  const truncated = new Set<string>();
+  let remainingText = 1536;
+  const text = (value: string, maximum: number) => {
+    const clipped = value.slice(0, Math.min(maximum, remainingText));
+    remainingText -= clipped.length;
+    if (clipped.length !== value.length) truncated.add('text');
+    return clipped;
+  };
+  const own = (value: object, key: PropertyKey): unknown => {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (descriptor === undefined) return undefined;
+    if (!('value' in descriptor)) {
+      truncated.add('accessor');
+      return undefined;
+    }
+    return descriptor.value;
+  };
+  const visit = (value: unknown, depth: number): number | undefined => {
+    originals.push(value);
+    if (typeof value === 'object' && value !== null) {
+      const previous = visited.get(value);
+      if (previous !== undefined) return previous;
+    }
+    if (depth > 3 || nodes.length >= 8) {
+      truncated.add(depth > 3 ? 'depth' : 'count');
+      return undefined;
+    }
+    const id = nodes.length;
+    const node: Record<string, unknown> = { id };
+    nodes.push(node);
+    if (!(value instanceof Error)) {
+      node['kind'] = typeof value;
+      if (typeof value === 'string') node['message'] = text(value, 192);
+      else truncated.add('non-error');
+      return id;
+    }
+    visited.set(value, id);
+    node['kind'] = value instanceof AggregateError ? 'AggregateError' : 'Error';
+    for (const [key, maximum] of [
+      ['name', 48],
+      ['message', 192],
+      ['stack', 384],
+    ] as const) {
+      const field = own(value, key);
+      if (typeof field === 'string') node[key] = text(field, maximum);
+      else if (key === 'stack') truncated.add('stack-unavailable');
+    }
+    const cause = own(value, 'cause');
+    if (cause !== undefined) node['cause'] = visit(cause, depth + 1);
+    const errors = own(value, 'errors');
+    if (Array.isArray(errors)) {
+      const links: (number | undefined)[] = [];
+      for (let index = 0; index < Math.min(errors.length, 8); index++)
+        links.push(visit(own(errors, String(index)), depth + 1));
+      node['errors'] = links;
+      if (errors.length > 8) truncated.add('count');
+    }
+    return id;
+  };
+  try {
+    const root = visit(failure, 0);
+    const snapshot = {
+      status: truncated.size === 0 ? 'complete' : 'truncated',
+      root,
+      nodes,
+      truncated: [...truncated],
+      limits: { depth: 3, nodes: 8, textCodeUnits: 1536, utf8Bytes: 16384 },
+    };
+    if (Buffer.byteLength(JSON.stringify(snapshot)) > 16384)
+      throw new Error('original failure diagnostic byte bound');
+    return snapshot;
+  } catch (diagnosticFailure) {
+    originals.push(failure, diagnosticFailure);
+    return {
+      status: 'unavailable',
+      reason: 'original failure diagnostic observation refused',
+      limits: { depth: 3, nodes: 8, textCodeUnits: 1536, utf8Bytes: 16384 },
+    };
+  }
+}
+
 function createOriginalLifetimeEntry(
   directory: string,
   name: string,
@@ -2283,6 +2424,7 @@ import {createSourceJournal,closeSourceJournal} from '${import.meta.dir}/source-
 import {stageSourceArtifacts,closeSourceStaging,buildSourcePrerequisites,closeSourcePrerequisites,originalLifetimeProbe} from '${import.meta.dir}/source-stageb-builder.ts';
 import {preflightSourceArchive,closeSourceArchivePreflight,releaseSourceArchivePreflight,assertSourceArchivePreflight,originalArchiveProbe} from '${import.meta.dir}/source-stageb-archive-preflight.ts';
 import {readMonotonicNs} from '${directory}/../clock.mjs';
+${captureOriginalFailure.toString()}
 ${OriginalControlChild.toString()}
 const directory=${JSON.stringify(directory)},name=${JSON.stringify(name)};
 const cutoffText=process.env.PUNI_ORIGINAL_LIFETIME_CUTOFF_NS;
@@ -2294,18 +2436,35 @@ const handshake=Promise.withResolvers(),ended=Promise.withResolvers();let observ
 const guardian=(async()=>{let failure;try{let text='';for await(const bytes of process.stdin){text+=Buffer.from(bytes).toString();if(text.length>64)throw Error('component guardian input bound');if(text==='observe\\n'){handshake.resolve();text='';}else if(text.includes('\\n'))throw Error('component guardian command refused');}if(!observationPublished)throw Error('component guardian EOF before observation');}catch(cause){failure=cause;references.push(cause);}finally{guardianEnding=true;const settled=await joinAge(true);if(!settled){process.exitCode=79;references.push(Error('original age operations/close/EOF remain unproved at guardian termination'));return await new Promise(()=>{});}clearInterval(keeper);clearTimeout(cutoffTimer);}if(failure!==undefined){process.exitCode=76;ended.reject(failure);throw failure;}process.exitCode=name==='healthy'?0:75;ended.resolve();})();
 void guardian.catch(failure=>{console.error(String(failure));references.push(failure);});
 references.push(guardian,handshake,ended);
-let protection=false;let acquisition='setup';let productionAssertion='';let mockRestores=0;const protectedDescriptors=new Set();const protectedCloses=[];const protectedRemovals=[];const retainedMocks=[];const ageChildren=[];const ageFailures=[];let ageAttempts=0;
+let protection=false;let acquisition='setup';let setupStage='inputs';let ageStage='not-entered';let failureSnapshot;let productionAssertion='';let mockRestores=0;const protectedDescriptors=new Set();const protectedCloses=[];const protectedRemovals=[];const retainedMocks=[];const ageChildren=[];const ageFailures=[];let ageAttempts=0;
 const originalOpen=fs.open;const openSpy=spyOn(fs,'open').mockImplementation(async(...args)=>{const file=await originalOpen(...args);const descriptor=file.fd;const close=file.close.bind(file);file.close=async()=>{if(protection&&protectedDescriptors.has(descriptor)){protectedCloses.push(descriptor);throw Error('independent component descriptor protection');}return await close();};return file;});retainedMocks.push(openSpy);
 for(const operation of ['unlink','rmdir','rm']){const actual=fs[operation];retainedMocks.push(spyOn(fs,operation).mockImplementation(async(...args)=>{if(protection){protectedRemovals.push({operation,path:String(args[0])});throw Error('independent component removal protection');}return await actual(...args);}));}
 const actualCloseSync=sync.closeSync;retainedMocks.push(spyOn(sync,'closeSync').mockImplementation(descriptor=>{if(protection&&protectedDescriptors.has(descriptor)){protectedCloses.push(descriptor);throw Error('independent component raw descriptor protection');}return actualCloseSync(descriptor);}));
-const actualSpawn=childProcess.spawn;retainedMocks.push(spyOn(childProcess,'spawn').mockImplementation((command,argv,options)=>{check();if(guardianEnding)throw Error('original age admission after guardian termination refused');if(ageAttempts++!==0||readMonotonicNs()>=cutoff-8000000000n)throw Error('original age admission/cancellation reserve refused');assert.equal(command,'/tmp/puni-age-tool-20261026/verified-v1.3.2/age');assert.deepEqual(argv,['--encrypt','--recipient',inspectSourceInputs(inputs).review.recipient]);assert.deepEqual(options,{cwd:'/tmp/puni-age-tool-20261026/verified-v1.3.2',env:{LANG:'C',LC_ALL:'C'},stdio:['pipe','pipe','pipe']});check();const child=actualSpawn(command,argv,options);references.push(child,child.stdin,child.stdout,child.stderr);const owned=new OriginalControlChild(child,readMonotonicNs,cutoff,cutoff-4000000000n,expiry.promise,references,failure=>ageFailures.push(failure),undefined,true);const original={child,owned,joined:undefined,operations:[],operationOutcomes:undefined};ageChildren.push(original);references.push(original);return child;}));
-export function originalAgeOperations(child,output,errors){const original=ageChildren.find(original=>original.child===child);if(original===undefined||original.operations.length!==0)throw Error('actual age operation owner binding differs');original.operations.push(output,errors);references.push(output,errors);for(const operation of original.operations)void operation.catch(failure=>{ageFailures.push(failure);original.owned.cancel();original.owned.continueDiscard();});}
+// Proof: local35 receipt 90b09fe7 observed nested-check omission enter two Node calls versus one restored; zero-delegation omission accepted a fake child versus restored refusal retaining its identity; finally omission stranded the window versus restored fresh invocation. Local fixtures only; no OS/domain proof.
+const actualSpawn=childProcess.spawn;const actualBunSpawn=Bun.spawn;let originalSpawnWindow;
+// Harness boundary: the pinned synchronous node adapter normalizes these two source-fixed plain tuples; this window is not stack authentication or OS confinement.
+function spawnOriginalNode(command,argv,options){
+ if(originalSpawnWindow!==undefined)throw Error('original node spawn nested delegation refused');
+ const window={available:true};originalSpawnWindow=window;
+ try{const child=actualSpawn(command,argv,options);references.push(child);if(window.available)throw Error('original node spawn without synchronous Bun delegation refused');return child;}
+ catch(failure){references.push(failure);throw failure;}
+ finally{originalSpawnWindow=undefined;}
+}
+retainedMocks.push(spyOn(childProcess,'spawn').mockImplementation((command,argv,options)=>{ageStage='wrapper-entry';check();if(guardianEnding)throw Error('original age admission after guardian termination refused');if(ageAttempts++!==0||readMonotonicNs()>=cutoff-8000000000n)throw Error('original age admission/cancellation reserve refused');assert.equal(command,'/tmp/puni-age-tool-20261026/verified-v1.3.2/age');assert.deepEqual(argv,['--encrypt','--recipient',inspectSourceInputs(inputs).review.recipient]);assert.deepEqual(options,{cwd:'/tmp/puni-age-tool-20261026/verified-v1.3.2',env:{LANG:'C',LC_ALL:'C'},stdio:['pipe','pipe','pipe']});check();ageStage='spawn-call';const child=spawnOriginalNode(command,argv,options);ageStage='spawn-returned';references.push(child,child.stdin,child.stdout,child.stderr);const owned=new OriginalControlChild(child,readMonotonicNs,cutoff,cutoff-4000000000n,expiry.promise,references,failure=>ageFailures.push(failure),undefined,true);const original={child,owned,joined:undefined,operations:[],operationOutcomes:undefined};ageChildren.push(original);ageStage='registered';references.push(original);return child;}));
+export function originalAgeOperations(child,output,errors){const original=ageChildren.find(original=>original.child===child);if(original===undefined||original.operations.length!==0)throw Error('actual age operation owner binding differs');original.operations.push(output,errors);ageStage='operations-bound';references.push(output,errors);for(const operation of original.operations)void operation.catch(failure=>{ageFailures.push(failure);original.owned.cancel();original.owned.continueDiscard();});}
 async function joinAge(cancel){for(const original of ageChildren){if(cancel){original.owned.cancel();original.owned.continueDiscard();}const joining=Promise.all([original.owned.join(),Promise.allSettled(original.operations)]);references.push(joining);const joined=await Promise.race([joining,expiry.promise.then(()=>undefined)]);if(joined!==undefined){original.joined=joined[0];original.operationOutcomes=joined[1];references.push(joined);}else references.push(Error('original age operation join exceeded original outer cutoff'));}return ageChildren.every(original=>original.joined?.joined===true&&original.operations.length===2&&original.operationOutcomes?.length===2&&original.operationOutcomes.every(outcome=>outcome.status==='fulfilled'));}
 function descendantEvidence(){return {count:ageChildren.length,close:ageChildren.every(original=>original.joined?.terminal!==undefined),stdoutEOF:ageChildren.every(original=>original.joined?.stdout?.eof===true),stderrEOF:ageChildren.every(original=>original.joined?.stderr?.eof===true),operations:ageChildren.map(original=>original.operationOutcomes?.map(outcome=>({status:outcome.status,failure:outcome.status==='rejected'?String(outcome.reason):undefined}))),unproved:ageChildren.some(original=>original.joined?.joined!==true||original.operations.length!==2||original.operationOutcomes?.length!==2||original.operationOutcomes.some(outcome=>outcome.status!=='fulfilled'))};}
 function protectionEvidence(){return {enabled:protection,mockRestores,retainedMocks:retainedMocks.length,blockedCloses:[...protectedCloses],blockedRemovals:[...protectedRemovals]};}
-function frame(phase,passed){return {phase,passed,name,acquisition,assertion:productionAssertion,classification:name==='healthy'?'normal-cleanup':'retained-before-emergency',originalDescriptors,protection:protectionEvidence(),descendant:descendantEvidence(),originalCleanupProved:name==='healthy'&&passed};}
+function frame(phase,passed){return {phase,passed,name,acquisition,assertion:productionAssertion,setup:{stage:setupStage,ageStage,ageAttempts,registeredAgeChildren:ageChildren.length},failure:failureSnapshot,classification:name==='healthy'?'normal-cleanup':'retained-before-emergency',originalDescriptors,protection:protectionEvidence(),descendant:descendantEvidence(),originalCleanupProved:name==='healthy'&&passed};}
 for(const operation of ['spawnSync','exec','execSync','execFile','execFileSync','fork'])retainedMocks.push(spyOn(childProcess,operation).mockImplementation(()=>{throw Error('component subprocess API refused');}));
-retainedMocks.push(spyOn(Bun,'spawn').mockImplementation(()=>{throw Error('component Bun spawn refused');}),spyOn(Bun,'spawnSync').mockImplementation(()=>{throw Error('component Bun sync spawn refused');}));
+// Proof: local35 receipt 90b09fe7 observed consume-before-delegate omission reach two native sentinels versus one restored; window-check omission stayed fail-closed with TypeError, restoration recovered the named refusal. Local fixtures only; no OS/domain proof.
+retainedMocks.push(spyOn(Bun,'spawn').mockImplementation(function(...args){
+ const window=originalSpawnWindow;
+ if(window===undefined||!window.available)throw Error('component Bun spawn refused');
+ window.available=false;
+ try{const child=Reflect.apply(actualBunSpawn,this,args);references.push(child);return child;}
+ catch(failure){references.push(failure);throw failure;}
+}),spyOn(Bun,'spawnSync').mockImplementation(()=>{throw Error('component Bun sync spawn refused');}));
 let inputs,artifacts,journal,staging,archive,token,seam,ownership,archiveLifetime,closing,observedFailure;
 let retentionSettled=false,archiveReleased=false,stagingClosed=false,archiveClosed=false;const files=[],journalFiles=[];
 const primary=Error('original component construction primary'),dependency=Error('original component dependent settlement rejected');
@@ -2315,13 +2474,13 @@ function assertHeld(){assert.equal(seam.retention.isActive,true,'B1_ACTIVE');ass
 try{
  inputs=await readSourceInputs();const inspection=inspectSourceInputs(inputs);references.push(inputs,inspection);
  const descriptors={};for(const slot of ${JSON.stringify(slots)}){const file=await fs.open(directory+'/'+slot,sync.constants.O_RDONLY|sync.constants.O_NOFOLLOW);files.push(file);descriptors[slot]=file.fd;}
- artifacts=await readSourceArtifacts(inputs,descriptors);references.push(artifacts,files);
+ setupStage='artifacts';artifacts=await readSourceArtifacts(inputs,descriptors);references.push(artifacts,files);setupStage='journal';
  const journalDirectory=directory+'/journal-parent/source-stageb-'+inspection.review.nonce;await fs.mkdir(journalDirectory,{mode:448});const parent=await fs.open(directory+'/journal-parent',sync.constants.O_RDONLY|sync.constants.O_DIRECTORY);const child=await fs.open(journalDirectory,sync.constants.O_RDONLY|sync.constants.O_DIRECTORY);journalFiles.push(parent,child);
  journal=await createSourceJournal({parent,directory:child,claim:{format:'source-stageb-journal',version:1,nonce:inspection.review.nonce,implementationSha:inspection.review.implementationSha,workflowSha:inspection.review.workflowSha,sourceSha:inspection.review.sourceSha,inputManifestSha256:inspection.review.inputManifestSha256},deadline:inspection.originalDeadline});references.push(journal,journalFiles);
- archive=await preflightSourceArchive(inputs,journal);assert.equal(ageChildren.length,1);const actualAge=ageChildren[0];assert.equal(await joinAge(false),true);assert.deepEqual(actualAge.joined.terminal,{code:0,signal:null});assert.equal(ageFailures.length,0);check();references.push(archive,ageChildren);
- const caller=await fs.open(directory+'/coordinator',sync.constants.O_RDONLY|sync.constants.O_DIRECTORY);try{staging=await stageSourceArtifacts(inputs,artifacts,journal,caller.fd);}finally{await caller.close();}references.push(staging);
- const building=buildSourcePrerequisites(inputs,artifacts,staging,journal,archive);void building.catch(()=>{});seam=await originalLifetimeProbe.entered;references.push(seam,building);archiveLifetime=originalArchiveProbe.borrow(seam.borrow);assert.ok(archiveLifetime);references.push(archiveLifetime,seam.borrow,seam.retention);
- const stagingLifetime=originalLifetimeProbe.staging(staging);originalDescriptors=[stagingLifetime.parentFd,stagingLifetime.child,archiveLifetime.tool.parent.fd,archiveLifetime.tool.file.fd].map(identity);for(const original of originalDescriptors)protectedDescriptors.add(original.descriptor);references.push(stagingLifetime,originalDescriptors,retainedMocks);acquisition='original-references';
+ setupStage='archive-preflight';archive=await preflightSourceArchive(inputs,journal);setupStage='age-join';assert.equal(ageChildren.length,1);const actualAge=ageChildren[0];assert.equal(await joinAge(false),true);assert.deepEqual(actualAge.joined.terminal,{code:0,signal:null});assert.equal(ageFailures.length,0);check();references.push(archive,ageChildren);
+ setupStage='staging';const caller=await fs.open(directory+'/coordinator',sync.constants.O_RDONLY|sync.constants.O_DIRECTORY);try{staging=await stageSourceArtifacts(inputs,artifacts,journal,caller.fd);}finally{await caller.close();}references.push(staging);
+ setupStage='construction';const building=buildSourcePrerequisites(inputs,artifacts,staging,journal,archive);void building.catch(()=>{});seam=await originalLifetimeProbe.entered;references.push(seam,building);archiveLifetime=originalArchiveProbe.borrow(seam.borrow);assert.ok(archiveLifetime);references.push(archiveLifetime,seam.borrow,seam.retention);
+ const stagingLifetime=originalLifetimeProbe.staging(staging);originalDescriptors=[stagingLifetime.parentFd,stagingLifetime.child,archiveLifetime.tool.parent.fd,archiveLifetime.tool.file.fd].map(identity);for(const original of originalDescriptors)protectedDescriptors.add(original.descriptor);references.push(stagingLifetime,originalDescriptors,retainedMocks);acquisition='original-references';setupStage='acquired';
  protection=name!=='healthy';
  const internal=name==='internal-rejection';const rejectedArchive=name==='archive-rejection'||name==='omit-archive-drain';const rejectedClose=internal||name==='later-rejection'||name==='omit-pre-release'||name==='omit-reachability';
  if(internal)seam.constructing.reject(primary);else seam.constructing.resolve();
@@ -2342,7 +2501,7 @@ try{
   if(rejectedArchive){assert.equal(originalArchiveProbe.failed(archiveLifetime),true);assert.equal(releaseSourceArchivePreflight(seam.borrow),archiveLifetime.releasing);await assert.rejects(archiveLifetime.releasing,failure=>failure instanceof AggregateError&&failure.errors.includes(dependency));}
  }
  console.log(JSON.stringify(frame('observation',true)));observationPublished=true;await handshake.promise;check();if(name!=='healthy')assertHeld();console.log(JSON.stringify(frame('confirmed',true)));await ended.promise;
-}catch(failure){references.push(failure,inputs,artifacts,journal,staging,archive,seam,ownership,archiveLifetime,closing,observedFailure);productionAssertion=String(failure?.message??failure);await joinAge(true);console.log(JSON.stringify(frame('observation',false)));observationPublished=true;await handshake.promise;console.log(JSON.stringify(frame('confirmed',false)));await ended.promise;process.exitCode=77;}
+}catch(failure){references.push(failure,inputs,artifacts,journal,staging,archive,seam,ownership,archiveLifetime,closing,observedFailure);productionAssertion=String(failure?.message??failure);failureSnapshot=captureOriginalFailure(failure,references);await joinAge(true);console.log(JSON.stringify(frame('observation',false)));observationPublished=true;await handshake.promise;console.log(JSON.stringify(frame('confirmed',false)));await ended.promise;process.exitCode=77;}
 await guardian;
 `;
 }
@@ -2516,7 +2675,23 @@ async function runOriginalLifetimeControl(name: string) {
         }),
       ]);
     if (name.startsWith('entry-')) {
-      const order = await wait(phase2Order.promise);
+      const originalInput = child.stdin;
+      const originalChild = owned;
+      const order = await awaitOriginalEntryOrder({
+        name,
+        order: phase2Order.promise,
+        observation: observation.promise,
+        confirmation: confirmation.promise,
+        wait,
+        observe: () => {
+          originalInput.write('observe\n');
+        },
+        end: () => {
+          originalInput.end();
+        },
+        join: () => originalChild.join(),
+        references,
+      });
       references.push(order);
       if (
         order['name'] !== name ||
@@ -2707,6 +2882,7 @@ async function runOriginalLifetimeControl(name: string) {
               classification: 'failed-control-diagnostics-only',
               frames: phase2DiagnosticFrames,
               failure: String(cause),
+              failureDetails: captureOriginalFailure(cause, references),
               originalCutoffNs: scope === undefined ? undefined : String(scope.cutoff),
               authority: 'live originals only; these diagnostics never authorize release',
             },
@@ -2984,7 +3160,7 @@ function createPhase2LifetimeEntry(
   replace(
     'const building=buildSourcePrerequisites(inputs,artifacts,staging,journal,archive);',
     `phase2Directory=await fs.open(directory,sync.constants.O_RDONLY|sync.constants.O_DIRECTORY|sync.constants.O_NOFOLLOW);phase2DirectoryIdentity=await phase2Directory.stat({bigint:true});references.push(phase2Directory,phase2DirectoryIdentity);phase2JournalBeforeFault=await inspectSourceJournal(journal);assert.equal(phase2JournalBeforeFault.records.filter(record=>record.payload.kind==='dispatch').length,5);assert.equal(phase2JournalBeforeFault.resources.length,2);assert.equal(phase2JournalBeforeFault.records.length,16);references.push(phase2JournalBeforeFault);phase2Raw=createPhase2RawOwner();
- check();assert.ok(readMonotonicNs()<cutoff-8000000000n,'PHASE2_RAW_CHILD_ADMISSION_RESERVE');const actualRawSpawn=actualSpawn(process.execPath,['--no-env-file','-e',"process.stdin.resume();process.stdin.on('end',()=>{});"],{cwd:directory,env:{LANG:'C',LC_ALL:'C',TZ:'UTC',BUN_RUNTIME_TRANSPILER_CACHE_PATH:'0'},stdio:['pipe','pipe','pipe']});references.push(actualRawSpawn,actualRawSpawn.stdin,actualRawSpawn.stdout,actualRawSpawn.stderr);phase2RawChild=actualRawSpawn;
+ check();assert.ok(readMonotonicNs()<cutoff-8000000000n,'PHASE2_RAW_CHILD_ADMISSION_RESERVE');const actualRawSpawn=spawnOriginalNode(process.execPath,['--no-env-file','-e',"process.stdin.resume();process.stdin.on('end',()=>{});"],{cwd:directory,env:{LANG:'C',LC_ALL:'C',TZ:'UTC',BUN_RUNTIME_TRANSPILER_CACHE_PATH:'0'},stdio:['pipe','pipe','pipe']});references.push(actualRawSpawn,actualRawSpawn.stdin,actualRawSpawn.stdout,actualRawSpawn.stderr);phase2RawChild=actualRawSpawn;
  phase2RawCustody=new OriginalControlChild(actualRawSpawn,readMonotonicNs,cutoff,cutoff-4000000000n,expiry.promise,references,failure=>ageFailures.push(failure),undefined,true);references.push(phase2RawCustody);
  const actualRawRecord=phase2Raw.lifetime.retain(actualRawSpawn,65536,8192);references.push(actualRawRecord);actualRawSpawn.stdin.end();
  phase2RawJoin=await phase2Raw.lifetime.within(Promise.all([actualRawRecord.finished,phase2RawCustody.join()]));assert.equal(phase2RawJoin.phase,'fulfilled');assert.equal(actualRawRecord.status.code,0);assert.equal(actualRawRecord.status.signal,null);assert.equal(actualRawRecord.stdout.eof,true);assert.equal(actualRawRecord.stderr.eof,true);assert.equal(actualRawRecord.failures.length,0);assert.equal(phase2Raw.failure(),undefined);

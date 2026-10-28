@@ -109,6 +109,9 @@
       },
     },
   },
+  "patchedDependencies": {
+    "@ark/schema@0.56.2": "patches/@ark%2Fschema@0.56.2.patch",
+  },
   "packages": {
     "@adobe/css-tools": ["@adobe/css-tools@4.4.4", "", {}, "sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg=="],
 

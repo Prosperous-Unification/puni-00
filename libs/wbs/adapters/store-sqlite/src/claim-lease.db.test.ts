@@ -288,14 +288,14 @@ describe('renewal', () => {
     );
     await holds;
     now = T + 30_000;
-    expect(await runner.renewLeases('codex')).toEqual({
+    expect(await runner.renewLeases('codex', null)).toEqual({
       leases: 1,
       leaseExpiresAt: T + CLAIM_LEASE_MS,
     });
     // Two minutes on, the lease is due: the heartbeat waits for the turn.
     now = T + 2 * MINUTE;
     let settled = false;
-    const due = runner.renewLeases('codex').then((standing) => {
+    const due = runner.renewLeases('codex', null).then((standing) => {
       settled = true;
       return standing;
     });
@@ -326,7 +326,7 @@ describe('a heartbeat queued behind a long write', () => {
     await holds;
     // Due when asked, run out by the time the turn is its.
     now = T + 14 * MINUTE;
-    const renewing = runner.renewLeases('codex');
+    const renewing = runner.renewLeases('codex', null);
     await Bun.sleep(20);
     now = T + CLAIM_LEASE_MS;
     release();
@@ -454,7 +454,7 @@ describe('revocation', () => {
     expect(leases()[0]?.lease).toBe(T + MINUTE);
     // A revoked lease is never renewed, even by a write that still gets through.
     now = T + MINUTE + 1;
-    expect(await runner.renewLeases('codex')).toEqual({ leases: 0, leaseExpiresAt: null });
+    expect(await runner.renewLeases('codex', null)).toEqual({ leases: 0, leaseExpiresAt: null });
     expect(await runner.releaseExpiredLeases(projectId)).toBe(1);
     expect(history()).toEqual([
       { kind: 'release', label: 'release “One” (credential revoked)', user_id: 'dany' },

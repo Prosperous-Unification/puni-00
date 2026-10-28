@@ -184,6 +184,7 @@ const REQUEST_BOUNDARY_ERRORS = new Set([
   'invalid_origin',
   'unauthenticated',
   'unauthorized',
+  'internal_unauthorized',
   'insufficient_scope',
 ]);
 const PUBLIC_OPERATIONS = [
@@ -338,12 +339,20 @@ const WRITE_SCOPE_OPERATIONS = [
 const INTERNAL_OPERATIONS = [
   'postInternalForward',
   'postInternalGatewayDependencyAdmission',
+] as const;
+/** mcp-01's routes: its dedicated secret or, during the cutover, `x-internal-auth`. */
+const MCP_INTERNAL_OPERATIONS = [
   'postInternalMcpAuthority',
   'postInternalMcpCredentials',
   'postInternalMcpCredentialsEnded',
   'postInternalMcpDelegation',
   'postInternalMcpOrganizations',
 ] as const;
+/**
+ * mcp-01's dedicated secret alone. The reachability compositions configure no
+ * dedicated secret, so these answer `internal_unauthorized` at the boundary.
+ */
+const MCP_DEDICATED_OPERATIONS = ['postInternalMcpMachineGrants'] as const;
 /** Internal routes whose own handler then needs the user's upstream Bearer, absent here. */
 const UPSTREAM_BEARER_OPERATIONS: ReadonlySet<string> = new Set([
   'postInternalGatewayProjectAccess',
@@ -510,6 +519,7 @@ const NO_ORIGIN_OPERATIONS = [
   'postInternalMcpCredentials',
   'postInternalMcpCredentialsEnded',
   'postInternalMcpDelegation',
+  'postInternalMcpMachineGrants',
   'postInternalMcpOrganizations',
   'postInternalResume',
 ] as const;
@@ -658,6 +668,8 @@ const STRAY_INPUT_EXCEPTIONS: ReadonlyMap<string, { status: number; error: strin
     ['postApiProjectsImport query', { status: 400, error: 'invalid_body' }],
     ['postInternalGatewayProjectAccess query', { status: 401, error: 'unauthenticated' }],
     ['postInternalGatewayProjectAccess body', { status: 401, error: 'unauthenticated' }],
+    // No dedicated mcp-01 secret is composed here, so identity refuses first.
+    ['postInternalMcpMachineGrants query', { status: 401, error: 'internal_unauthorized' }],
     ['getApiAuthLinkAuth0Callback query', { status: 302, error: null }],
     ['getApiAuthOktaCallback query', { status: 400, error: null }],
     ['getApiProjectsByIdSaved-plansCompare query', { status: 422, error: 'invalid_query' }],
@@ -711,6 +723,10 @@ function expectedPolicies(operationId: string): RequestPolicy[] {
     policies.push({ kind: 'identity', require: 'write-scope' });
   if (includesOperation(INTERNAL_OPERATIONS, operationId))
     policies.push({ kind: 'identity', require: 'internal' });
+  if (includesOperation(MCP_INTERNAL_OPERATIONS, operationId))
+    policies.push({ kind: 'identity', require: 'mcp-internal' });
+  if (includesOperation(MCP_DEDICATED_OPERATIONS, operationId))
+    policies.push({ kind: 'identity', require: 'mcp-dedicated' });
   if (includesOperation(GATEWAY_OPERATIONS, operationId))
     policies.push({ kind: 'identity', require: 'gateway-delegation' });
   if (includesOperation(GATEWAY_BROWSER_OPERATIONS, operationId))
@@ -887,6 +903,8 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
     ...READ_SCOPE_OPERATIONS,
     ...WRITE_SCOPE_OPERATIONS,
     ...INTERNAL_OPERATIONS,
+    ...MCP_INTERNAL_OPERATIONS,
+    ...MCP_DEDICATED_OPERATIONS,
     ...GATEWAY_OPERATIONS,
     ...GATEWAY_BROWSER_OPERATIONS,
   ]) {
@@ -919,6 +937,8 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
   expect(policyOperations('identity', 'read-scope')).toEqual([...READ_SCOPE_OPERATIONS]);
   expect(policyOperations('identity', 'write-scope')).toEqual([...WRITE_SCOPE_OPERATIONS]);
   expect(policyOperations('identity', 'internal')).toEqual([...INTERNAL_OPERATIONS]);
+  expect(policyOperations('identity', 'mcp-internal')).toEqual([...MCP_INTERNAL_OPERATIONS]);
+  expect(policyOperations('identity', 'mcp-dedicated')).toEqual([...MCP_DEDICATED_OPERATIONS]);
   expect(policyOperations('identity', 'gateway-delegation')).toEqual([...GATEWAY_OPERATIONS]);
   expect(policyOperations('identity', 'gateway-browser')).toEqual([...GATEWAY_BROWSER_OPERATIONS]);
   expect(policyOperations('origin', 'always')).toEqual([...ALWAYS_ORIGIN_OPERATIONS]);
@@ -933,6 +953,8 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
       ...READ_SCOPE_OPERATIONS,
       ...WRITE_SCOPE_OPERATIONS,
       ...INTERNAL_OPERATIONS,
+      ...MCP_INTERNAL_OPERATIONS,
+      ...MCP_DEDICATED_OPERATIONS,
       ...GATEWAY_OPERATIONS,
       ...GATEWAY_BROWSER_OPERATIONS,
     ].sort(),
@@ -1053,7 +1075,9 @@ describe('shared HTTP shape reachability through the production app', () => {
           operationId: shape.operationId,
           boundaryError: UPSTREAM_BEARER_OPERATIONS.has(shape.operationId)
             ? 'unauthenticated'
-            : null,
+            : includesOperation(MCP_DEDICATED_OPERATIONS, shape.operationId)
+              ? 'internal_unauthorized'
+              : null,
         });
         expect({ operationId: shape.operationId, reply }).not.toEqual({
           operationId: shape.operationId,

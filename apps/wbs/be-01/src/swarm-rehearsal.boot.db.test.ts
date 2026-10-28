@@ -8,6 +8,7 @@ import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blocka
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 
+import { TEST_MACHINE_GRANT_ENV } from './testing/machine-grant-fixture';
 import { writeMcpStoreFixture } from './testing/mcp-store-fixture';
 import { type Answer, OrganizationHarness } from './testing/organization-harness';
 
@@ -106,7 +107,7 @@ const sessions = new Map<string, Record<string, string>>();
 function cli(script: string, args: readonly string[], dbPath = h.databasePath()) {
   const run = Bun.spawnSync([process.execPath, 'run', join(APP_ROOT, 'src', script), ...args], {
     cwd: APP_ROOT,
-    env: { ...process.env, DB_PATH: dbPath },
+    env: { ...process.env, ...TEST_MACHINE_GRANT_ENV, DB_PATH: dbPath },
     stdout: 'pipe',
     stderr: 'pipe',
   });

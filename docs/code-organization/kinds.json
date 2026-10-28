@@ -122,6 +122,12 @@
       "rationale": "dependency-context.ts binds createIncidentNodeTransition to admitted owner, actor and lifetime; compensating.ts shares canonical incident identity and node mapping for replay receipts"
     },
     {
+      "path": "libs/wbs/application/core/src/service/machine-grant.ts",
+      "kind": "support",
+      "disposition": "support of libs/wbs/application/core/src/module/authentication/authentication.feature.ts beside machine-key.ts; its cap and terms are exported for be-01's machine grant authority",
+      "rationale": "Decides one machine grant's terms (wbs-mcp-agent-surface M3, M4): exp as the earliest of the requested time, the cap, the assertion's and the matched secret's expiry, and scopes from the bound account role; no store, no clock"
+    },
+    {
       "path": "libs/wbs/application/core/src/service/machine-key.ts",
       "kind": "support",
       "disposition": "private member of libs/wbs/application/core/src/module/authentication/authentication.feature.ts and the machine-credential routes of slice 2",

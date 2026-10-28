@@ -7737,3 +7737,7 @@ unverified or held; parent task checkboxes are unchanged.
 ## Private latest-main documentation reconciliation — 2026-10-27
 
 [The bounded reconciliation record](verify-main-docs-20261027.md) identifies actual main parent `2e3c035ad5bee90ed9329bd476bc299e2357a618`, preserved source/migration pins and the proposed root-authority ADR move from 0062 to 0065. Documentation checks passed; full feature/native/gate and architectural main acceptance remain open.
+
+## Focused integrated R18 evidence — 2026-10-28
+
+[Selected integration checks and two scoped renewal proofs](verify-main-r18-20261028.md) retain their actual source epochs, ordinary MCP failure and remaining full-gate/adoption limits. Historical results are not promoted into the later proposed source.

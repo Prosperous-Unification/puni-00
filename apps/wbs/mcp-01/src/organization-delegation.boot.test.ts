@@ -1,16 +1,20 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { JwksTokenVerifier } from '@wbs/auth';
+import { Database } from 'bun:sqlite';
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 
 import type { McpConfig } from './config';
 import { mcpFetchHandler } from './http';
-import { McpOAuthServer } from './oauth';
+import { ActivationMarkersDisagree, McpOAuthServer } from './oauth';
 import { readDocument, toolsFromDocument } from './openapi-tools';
 import { organizationAuthority } from './organization-authority';
 import { createServer } from './server';
+import { McpSessionStore } from './session-store';
 
 /**
  * Tasks 2.5, 6.4 and 6.6 end to end: mcp-01's real OAuth front, tool surface
@@ -43,6 +47,10 @@ let handle: (request: Request) => Promise<Response>;
 /** Who the fake provider signs the next login and refresh as, and for how long. */
 const login = { subject: 'auth0|dany', lifetimeSeconds: 900 };
 let refreshes = 0;
+/** Deployment faults mcp-01 reported. */
+const faults: Error[] = [];
+let config: McpConfig;
+let verifier: JwksTokenVerifier;
 
 function upstreamToken(subject: string, lifetimeSeconds: number): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
@@ -89,13 +97,14 @@ beforeAll(async () => {
   const { port } = JSON.parse(printed.split('\n')[0] ?? '') as { port: number };
   beUrl = `http://127.0.0.1:${String(port)}`;
 
-  const config: McpConfig & { readonly INTERNAL_AUTH_SECRET: string } = {
+  config = {
     MCP_AUTH_MODE: 'standalone',
     MCP_PUBLIC_URL: MCP_URL,
+    MCP_TRUSTED_PROXY_HOPS: 1,
     WBS_API_URL: beUrl,
     INTERNAL_AUTH_SECRET: BOOTED_INTERNAL_SECRET,
   };
-  const verifier = new JwksTokenVerifier({
+  verifier = new JwksTokenVerifier({
     audience: AUDIENCE,
     issuer: ISSUER,
     jwksUri: new URL(jwksUrl),
@@ -126,6 +135,7 @@ beforeAll(async () => {
       groupPrefix: 'dev',
       verifyUpstream: (token) => verifier.verify(token),
       organizations: organizationAuthority(config),
+      reportFault: (fault) => faults.push(fault),
     },
   );
   const tools = toolsFromDocument(readDocument());
@@ -531,18 +541,99 @@ describe('MCP organization delegation against a booted be-01', () => {
     expect(forged.text).toContain('does not declare an input named "organizationId"');
   });
 
-  test('a raw upstream Bearer with no delegation is refused', async () => {
+  test('a raw upstream Bearer is a reported fault while the markers disagree', async () => {
+    // This mcp-01's store is still at epoch 0 while be-01 is activated: the activation runbook
+    // was half run (`wbs-mcp-agent-surface` M13, "Markers disagree").
     const raw = await upstreamToken('auth0|dany', 900);
-    // Through mcp-01 as a direct upstream token: be-01 receives it unbound.
+    const before = faults.length;
     const viaMcp = await tool(raw, 'getApiProjects', {});
-    expect(viaMcp.isError).toBe(true);
-    expect(viaMcp.text).toContain('no_active_organization');
-    // And straight at be-01.
+    expect(viaMcp.status).toBe(502);
+    expect(faults.slice(before).map((fault) => fault.constructor)).toEqual([
+      ActivationMarkersDisagree,
+    ]);
+    // Straight at be-01 it is refused too.
     const direct = await fetch(`${beUrl}/api/projects`, {
       headers: { authorization: `Bearer ${raw}` },
     });
     expect(direct.status).toBe(403);
     expect(await direct.json()).toEqual({ error: 'no_active_organization' });
+  });
+
+  test('an Auth0 token on /mcp is 401 once both markers are set, and be-01 sees nothing', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mcp-activated-'));
+    const path = join(dir, 'sessions.sqlite');
+    try {
+      new McpSessionStore(path, [randomBytes(32)]).close();
+      // The operator's epoch step, as `credential-epoch.test.ts` stands for another writer.
+      const db = new Database(path);
+      db.run('UPDATE mcp_credential_epoch SET epoch = 1');
+      db.close();
+      const store = new McpSessionStore(path, [randomBytes(32)]);
+      const reached: string[] = [];
+      const counted = (input: string, init: Parameters<typeof fetch>[1]) => {
+        reached.push(input);
+        return fetch(input, init);
+      };
+      const activated = new McpOAuthServer(
+        config,
+        {
+          authorizationUrl: () => Promise.reject(new Error('no consent here')),
+          exchange: () => Promise.reject(new Error('no consent here')),
+          refresh: () => Promise.reject(new Error('no consent here')),
+          revoke: () => Promise.resolve(),
+        },
+        {
+          store,
+          groupPrefix: 'dev',
+          verifyUpstream: (token) => verifier.verify(token),
+          organizations: organizationAuthority(config, counted),
+          reportFault: (fault) => faults.push(fault),
+        },
+      );
+      const tools = toolsFromDocument(readDocument());
+      const activatedHandle = mcpFetchHandler(
+        () =>
+          createServer({
+            tools,
+            config,
+            fetchImpl: counted,
+            reportUnexpectedToolFailure: (cause) => {
+              throw cause instanceof Error ? cause : new Error(String(cause));
+            },
+            bearerFor: (sessionId, upstream, scopes) =>
+              activated.bearerFor(sessionId, upstream, scopes),
+          }),
+        config,
+        activated,
+        {},
+        activated,
+      );
+      const response = await activatedHandle(
+        new Request(MCP_URL, {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${await upstreamToken('auth0|dany', 900)}`,
+            'content-type': 'application/json',
+            accept: 'application/json, text/event-stream',
+          },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'tools/call',
+            params: { name: 'getApiProjects', arguments: {} },
+          }),
+        }),
+      );
+      // Proof: with the upstream fallback restored (the epoch refusal in `admitUpstream` and the
+      // throw in `bearerFor` removed), this answered 200 and be-01 was asked
+      // `/api/projects` with the Auth0 token; watched 2026-10-27.
+      expect(response.status).toBe(401);
+      expect(response.headers.get('www-authenticate')).toContain('error="invalid_token"');
+      expect(reached).toEqual([]);
+      store.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test('keeps the signed delegation through an upstream refresh retry', async () => {

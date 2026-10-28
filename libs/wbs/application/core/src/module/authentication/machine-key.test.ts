@@ -48,7 +48,9 @@ async function credentialsFor(accountId: string, touched: LastUseOutcome = 'reco
                 personId: 'claire',
                 source: 'oidc',
                 boundAccountId: accountId,
+                boundAccountRole: 'member',
                 revokedAt: null,
+                expiresAt: null,
                 trustedIssuerId: 'ti-1',
                 mcpFamilyId: null,
                 secrets: [],
@@ -67,7 +69,9 @@ async function credentialsFor(accountId: string, touched: LastUseOutcome = 'reco
               personId: 'claire',
               source: 'api_key',
               boundAccountId: accountId,
+              boundAccountRole: 'member',
               revokedAt: null,
+              expiresAt: null,
               trustedIssuerId: null,
               mcpFamilyId: null,
               secrets: [{ digest, expiresAt: null }],
@@ -92,7 +96,7 @@ const trustedIssuers: TrustedIssuerVerification = {
   configuredIssuer: () => Promise.resolve(null),
   tokens: {
     peek: () => ({ issuer: 'https://idp', subject: 'agent', audiences: ['api://wbs'] }),
-    verify: () => Promise.resolve({ kind: 'verified', subject: 'agent' }),
+    verify: () => Promise.resolve({ kind: 'verified', subject: 'agent', expiresAt: 2_000_000_000 }),
   },
 };
 

@@ -783,12 +783,30 @@ export class PlanCommandRunner {
             // every committed write, and not on a refused one`
             // (claim-lease.db.test.ts) read the old expiry (9 pass, 1 fail);
             // watched 2026-10-23.
+            // Proof: replacing all four renewal guard/call commandCredential references with
+            // outer credential skipped renewal (outer null). `rolls back renewed leases and
+            // announcements after a late runtime receipt failure` (runtime-write.db.test.ts)
+            // reached the receipt INSERT but saw "missing staged renewal or progress" instead
+            // of "after lease renewal" (full 61: 57 pass, 4 fail). Exact restoration passed the
+            // same 61 tests with 364 expectations; watched 2026-10-28.
             if (
               !('ok' in applied) &&
               commandCredential !== null &&
               'personId' in commandCredential
             ) {
-              const renewal = await graph.workItems.renewLeases(commandCredential.personId);
+              // Only the grant's own run when it opted in (M15); every lease
+              // of the person otherwise.
+              // Proof: with `null` for the run here, `a run-scoped write renews
+              // only its run` (machine-grant-run.controller.db.test.ts) renewed
+              // run b's lease too; watched 2026-10-27.
+              // Proof: replacing the run argument with null made `adds a successor-owned link
+              // and renews due A and pre-opt-in leases, leaving B unchanged`
+              // (machine-grant-run.controller.db.test.ts) renew B too (full 17: 15 pass, 2 fail).
+              // Exact restoration passed the same 17 tests with 57 expectations; watched 2026-10-27.
+              const renewal = await graph.workItems.renewLeases(
+                commandCredential.personId,
+                commandCredential.runId ?? null,
+              );
               // The renewal moves the agent's leases in every project. Each
               // moved project hears `claims_changed` through the collector, so
               // only after the commit and never for a rolled-back batch
@@ -889,7 +907,8 @@ export class PlanCommandRunner {
   }
 
   /**
-   * Renews `personId`'s leases outside any batch: the heartbeat route's
+   * Renews `personId`'s leases (only those of `runId` when given, M15)
+   * outside any batch: the heartbeat route's
    * write, through the public graph, which reads first and takes the write
    * turn only when a lease is due (L4). Once the renewal has committed and let
    * go of the turn, it announces one type-only `claims_changed` to each
@@ -902,8 +921,8 @@ export class PlanCommandRunner {
    * unannounced until their next heartbeat. In production it does not throw:
    * the gateway broadcaster reports and swallows a failed transient push.
    */
-  async renewLeases(personId: string): Promise<LeaseStanding> {
-    const renewal = await this.opts.publicServices.workItems.renewLeases(personId);
+  async renewLeases(personId: string, runId: string | null): Promise<LeaseStanding> {
+    const renewal = await this.opts.publicServices.workItems.renewLeases(personId, runId);
     // Proof (claim-lease.controller.db.test.ts, watched 2026-10-23): with the
     // SQLite store answering its due projects before its turn and not awaiting
     // the write (announced before the commit), `announces nothing when the

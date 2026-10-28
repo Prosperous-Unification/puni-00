@@ -4,6 +4,7 @@ import {
   DEPENDENCY_SEMANTICS_HEADER,
   type DependencyClientRefusal,
   type EndpointShape,
+  isServiceIdentityRequirement,
   queryModeFor,
   type Refusal,
   requiresDependencyClient,
@@ -58,10 +59,10 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
     // Proof: omitting this call made the malformed erased open-query table mount without throwing.
     queryModeFor(shape);
     const internal = shape.policies.some(
-      (policy) => policy.kind === 'identity' && policy.require === 'internal',
+      (policy) => policy.kind === 'identity' && isServiceIdentityRequirement(policy.require),
     );
     const user = shape.policies.some(
-      (policy) => policy.kind === 'identity' && policy.require !== 'internal',
+      (policy) => policy.kind === 'identity' && !isServiceIdentityRequirement(policy.require),
     );
     // Proof: removing this check makes the mixed erased-table test fail: function did not throw.
     if (internal && user)
@@ -165,10 +166,17 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
         // issuer invalid_token without fetching any key set`
         // (oidc-credential.controller.db.test.ts) answered 500; watched
         // 2026-10-22.
+        // A machine grant's bearer-level refusals (`wbs-mcp-agent-surface`
+        // M3, M14) reach any route the same way: `internal_unauthorized` for
+        // a missing or wrong mcp-01 secret, `unknown_grant_key` for a grant
+        // under no configured key.
         if (
           !identity.ok &&
           'error' in identity.body &&
-          (identity.body.error === 'unknown_identity' || identity.body.error === 'invalid_token')
+          (identity.body.error === 'unknown_identity' ||
+            identity.body.error === 'invalid_token' ||
+            identity.body.error === 'internal_unauthorized' ||
+            identity.body.error === 'unknown_grant_key')
         )
           return Response.json(identity.body, {
             status: 401,
@@ -176,7 +184,7 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
           });
         if (!identity.ok) return renderReply(matched.endpoint.shape, identity);
         // Proof: deleting this check admits the mismatched-resolver fixture with 200 instead of 500.
-        if ((policy.require === 'internal') !== 'kind' in identity.principal) {
+        if (isServiceIdentityRequirement(policy.require) !== 'kind' in identity.principal) {
           throw new Error('Identity resolver returned the wrong principal kind');
         }
         admission.principal = identity.principal;

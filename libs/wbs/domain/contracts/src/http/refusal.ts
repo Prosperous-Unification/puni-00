@@ -247,6 +247,12 @@ export type CommandRefusalCode =
   | 'person_required'
   | 'person_not_bound'
   | 'credential_not_for_person'
+  /**
+   * A machine grant with an opted-in run (`wbs-mcp-agent-surface` M15) claims
+   * for its own person under another `runId`, or releases its person's claims
+   * held only under other runs.
+   */
+  | 'run_mismatch'
   | 'parent_claim_unknown'
   | 'parent_claim_foreign'
   | 'parent_claim_not_ancestor'
@@ -594,6 +600,18 @@ type BareRefusalCode =
   | 'invalid_origin'
   | 'unauthorized'
   /**
+   * mcp-01's dedicated service secret was missing or wrong, on `/internal/mcp/*`
+   * or beside a machine grant (`wbs-mcp-agent-surface` M3, M14): a deployment
+   * fault mcp-01 reports, never a user's refusal.
+   */
+  | 'internal_unauthorized'
+  /** A machine grant whose `kid` names no configured grant key (M3): mcp-01 re-fetches. */
+  | 'unknown_grant_key'
+  /** A workload assertion whose `typ` is neither absent nor `JWT` (M2). */
+  | 'unsupported_assertion_type'
+  /** Machine grants are issued only after organization activation (M5). */
+  | 'not_activated'
+  /**
    * A verified machine token (no groups claim) whose `(issuer, subject)` no
    * account is linked to (`wbs-team-claims` D6b): refused before any account
    * is minted. Also a `wbs_mk_` API key that is malformed or that no live
@@ -711,6 +729,9 @@ type BareRefusalCode =
   // organization at its trusted issuer cap.
   | 'audience_taken'
   | 'trusted_issuer_limit'
+  // `wbs-mcp-agent-surface` M2: an audience that is not WBS's authorization
+  // server or under it after a `/`.
+  | 'audience_not_wbs'
   // Delivery observation (`track-work-delivery`): every provider read slot
   // stayed taken for the bounded wait.
   | 'delivery_busy';

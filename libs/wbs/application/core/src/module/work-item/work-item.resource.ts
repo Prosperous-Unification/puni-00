@@ -18,6 +18,8 @@ import {
   chargedWorkdays,
   type Claim,
   CLAIM_LEASE_MS,
+  type ClaimCaller,
+  claimRunOf,
   type Days,
   deadlineOffsetOf,
   decideBudget,
@@ -41,6 +43,7 @@ import {
   freeUnitsOf,
   haveSameSliceOrder,
   type Hold,
+  isHeldUnderRun,
   isLegacyMetric,
   type IsoDate,
   isoDateOfInstantIn,
@@ -127,6 +130,7 @@ import {
   type ClaimStore,
   type CredentialPin,
   type LeaseRenewal,
+  pinnedRunOf,
   unstampClaim,
 } from '../../ports/claim-store';
 import type { Clock } from '../../ports/clock';
@@ -3980,6 +3984,12 @@ export class WorkItemService {
       }),
     );
     const pinnedPersonId = await identity.pinnedPersonOf(credential);
+    const caller: ClaimCaller = {
+      accountId: actorId,
+      isAdmin: isClaimAdmin(access),
+      pinnedPersonId,
+      pinnedRunId: pinnedRunOf(credential),
+    };
     const decided = decideClaim({
       admission,
       target: {
@@ -3992,11 +4002,7 @@ export class WorkItemService {
           ? steps.map((step) => ({ stepId: step.id, progress: stated.get(step.id) ?? 'unknown' }))
           : [],
       },
-      caller: {
-        accountId: actorId,
-        isAdmin: isClaimAdmin(access),
-        pinnedPersonId,
-      },
+      caller,
       claimant: {
         personId: input.personId,
         boundAccountId: await identity.boundAccountOf(input.personId),
@@ -4018,10 +4024,17 @@ export class WorkItemService {
       occupancy,
     });
     if (decided.kind === 'refused') return refusalOf(decided.refusal, nameOf);
+    // The run the decision wrote and compared: the caller's opted-in run for
+    // its own person (M15), else the command's.
+    const run = claimRunOf(caller, input.personId, input.runId);
+    if ('reason' in run) throw new Error(`claim of ${id} was decided under a mismatched run`);
     if (decided.kind === 'alreadyHeld') {
+      // Proof: with `input.runId` here, `counts a run’s second step on a held
+      // leaf as no new bound claim` (machine-grant-run.controller.db.test.ts)
+      // answered the repeat with no claim ids; watched 2026-10-27.
       const held = near.filter(
         (each) =>
-          each.workItemId === id && each.personId === input.personId && each.runId === input.runId,
+          each.workItemId === id && each.personId === input.personId && isHeldUnderRun(each, run),
       );
       return {
         ok: true,
@@ -4045,8 +4058,14 @@ export class WorkItemService {
     // and five more were applied, the second run of one person among them
     // (7 pass, 6 fail).
     const addsBoundClaim = !near.some(
+      // The stamped run, exactly: an adopted no-run claim is another triple,
+      // so a run's first step beside it still adds a bound claim.
+      // Proof: with `input.runId` here (the command's run, null for a grant
+      // that sent none), `counts a run's second step on a held leaf as no new
+      // bound claim` (machine-grant-run.controller.db.test.ts) was refused
+      // claim_limit at cap 1; watched 2026-10-27.
       (each) =>
-        each.workItemId === id && each.personId === input.personId && each.runId === input.runId,
+        each.workItemId === id && each.personId === input.personId && each.runId === run.runId,
     );
     if (addsBoundClaim) {
       const crossed = await this.refuseBoundClaims(access, 1);
@@ -4165,6 +4184,7 @@ export class WorkItemService {
         accountId: actorId,
         isAdmin: isClaimAdmin(access),
         pinnedPersonId: await identity.pinnedPersonOf(credential),
+        pinnedRunId: pinnedRunOf(credential),
       },
       claimant: {
         personId: input.personId,
@@ -4199,12 +4219,14 @@ export class WorkItemService {
 
   /**
    * Renews every lease of `personId` due at this instant, in every project
-   * (`wbs-claim-leases` L4), and answers the person's standing after it. The
-   * store writes only when one is due, so a call within the resolution of the
-   * last one writes nothing, and names the projects whose leases it moved.
+   * (`wbs-claim-leases` L4), scoped to `runId` when the caller opted into one
+   * (`wbs-mcp-agent-surface` M15; null renews every lease of the person), and
+   * answers the standing after it. The store writes only when one is due, so a
+   * call within the resolution of the last one writes nothing, and names the
+   * projects whose leases it moved.
    */
-  renewLeases(personId: string): Promise<LeaseRenewal> {
-    return this.claiming().claims.renewLeases(personId, () => this.clock.now());
+  renewLeases(personId: string, runId: string | null): Promise<LeaseRenewal> {
+    return this.claiming().claims.renewLeases(personId, runId, () => this.clock.now());
   }
 
   /**

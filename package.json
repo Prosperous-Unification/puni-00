@@ -133,5 +133,8 @@
     "typescript-eslint": "^8.69.0",
     "vite": "8.2.2",
     "vitest": "^5.0.0"
+  },
+  "patchedDependencies": {
+    "@ark/schema@0.56.2": "patches/@ark%2Fschema@0.56.2.patch"
   }
 }

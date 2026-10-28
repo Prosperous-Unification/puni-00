@@ -422,6 +422,49 @@ describe('leased runtime write transaction', () => {
 
   it('rolls back renewed leases and announcements after a late runtime receipt failure', async () => {
     const fixture = await leased();
+    // The bound runtime claim uses session sess-42; the other project predates run opt-in.
+    fixture.sqlite.db.run("UPDATE claim SET run_id=NULL WHERE work_item_id='leaf2'");
+    const authentication = {
+      kind: 'machine' as const,
+      credentialId: 'verified-machine',
+      personId: 'agent',
+      runId: 'sess-42',
+    };
+    const admittedContext: RuntimeContext = {
+      ...machineContext,
+      actor: { ...actor, authentication },
+    };
+    const renewals: { personId: string; runId: string | null }[] = [];
+    const runner = createPlanCommandRunner(
+      {
+        ...fixture.runnerSource,
+        uow: {
+          run: (act) =>
+            fixture.runnerSource.uow.run((scope) => {
+              // After the production runtime entry detached its pin, corrupt only the caller alias.
+              authentication.runId = 'stale-outer-run';
+              return act({
+                ...scope,
+                stores: {
+                  ...scope.stores,
+                  claims: new Proxy(scope.stores.claims, {
+                    get(target, key): unknown {
+                      if (key === 'renewLeases')
+                        return (...args: Parameters<typeof target.renewLeases>) => {
+                          renewals.push({ personId: args[0], runId: args[1] });
+                          return target.renewLeases(...args);
+                        };
+                      const member: unknown = Reflect.get(target, key);
+                      return typeof member === 'function' ? member.bind(target) : member;
+                    },
+                  }),
+                },
+              });
+            }),
+        },
+      },
+      nodeDigest,
+    );
     fixture.advanceTo(T + 120_000);
     const request = await fixture.write([{ ...progress, state: 'done' }]);
     const {
@@ -437,7 +480,7 @@ describe('leased runtime write transaction', () => {
       `CREATE TRIGGER reject_leased_runtime_receipt BEFORE INSERT ON runtime_command_receipt BEGIN SELECT CASE WHEN (SELECT count(*) FROM claim JOIN work_item ON work_item.id=claim.work_item_id WHERE work_item.project_id IN ('a1','a2') AND claim.person_id='agent' AND claim.lease_expires_at=${String(expiry)})=2 AND (SELECT count(*) FROM claim)=2 AND (SELECT count(*) FROM step_progress WHERE work_item_id='leaf' AND step_id='dev' AND state='done')=1 AND (SELECT count(*) FROM command_journal)>${String(journalBefore.count)} THEN RAISE(ABORT,'late runtime receipt after lease renewal') ELSE RAISE(ABORT,'late runtime receipt missing staged renewal or progress') END; END`,
     );
     try {
-      await fixture.runner.writeRuntime(machineContext, request).then(
+      await runner.writeRuntime(admittedContext, request).then(
         () => {
           throw new Error('leased receipt INSERT unexpectedly resolved');
         },
@@ -450,6 +493,9 @@ describe('leased runtime write transaction', () => {
           });
         },
       );
+      expect(renewals).toEqual([{ personId: 'agent', runId: 'sess-42' }]);
+      expect(authentication.runId).toBe('stale-outer-run');
+      expect(request.action.claim.execution.runId).toBe('runtime-run');
       const { published, delivered, ...after } = await fixture.snapshot();
       expect(after).toEqual(before);
       expect(published).toEqual(publishedBefore);
@@ -457,7 +503,12 @@ describe('leased runtime write transaction', () => {
     } finally {
       fixture.sqlite.db.run('DROP TRIGGER reject_leased_runtime_receipt');
     }
-    const accepted = value(await fixture.runner.writeRuntime(machineContext, request));
+    authentication.runId = 'sess-42';
+    const accepted = value(await runner.writeRuntime(admittedContext, request));
+    expect(renewals).toEqual([
+      { personId: 'agent', runId: 'sess-42' },
+      { personId: 'agent', runId: 'sess-42' },
+    ]);
     expect(fixture.leases()).toEqual([
       { projectId: 'a1', personId: 'agent', leaseExpiresAt: expiry },
       { projectId: 'a2', personId: 'agent', leaseExpiresAt: expiry },

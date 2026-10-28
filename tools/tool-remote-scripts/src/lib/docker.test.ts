@@ -1195,6 +1195,15 @@ describe('assertTierEnvAllowed', () => {
     }).not.toThrow();
   });
 
+  it('passes be-01.env carrying the machine grant authorization server', () => {
+    expect(() => {
+      assertTierEnvAllowed(
+        'be',
+        'PORT=3100\nWBS_MCP_AUTHORIZATION_SERVER=https://wbs.example/mcp/oauth\n',
+      );
+    }).not.toThrow();
+  });
+
   it('passes gw-01.env carrying only its allowed keys', () => {
     expect(() => {
       assertTierEnvAllowed('gw', 'PORT=3200\nLOG_LEVEL=info\nBE_URL=x\nAUTH_MODE=oidc\n');
