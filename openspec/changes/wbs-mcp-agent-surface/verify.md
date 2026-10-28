@@ -1775,3 +1775,42 @@ persons-kept state. The first pass put the actions beside the facts, so the date
 the revoked row's columns did not line up. The actions moved onto the name line, the facts got
 the full width, and dates take a full line on a phone. The persons-kept sentence no longer
 repeats its heading, and the Revoked chip is muted, with only Expired drawn as needing action.
+
+### Commands and results, slice 9
+
+All on 2026-10-28 with `env -u CLAUDECODE`, on the laptop:
+
+| Command                                                                                                                                                                        | Result                                                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `bun nx run-many -t lint typecheck -p wbs-fe-01`                                                                                                                               | "Successfully ran targets lint, typecheck for project wbs-fe-01 and 1 task it depends on"          |
+| `bun nx run wbs-fe-01:test`                                                                                                                                                    | unit 1079 pass (87 files); UTC 4694 pass (237 files); zoned 5 pass (4 files); exit 0               |
+| `TZ=Pacific/Auckland bunx vitest run src/components/organization/agent-pools-panel.test.tsx`                                                                                   | 31 pass (the zoned config only collects `*.zoned.test.*`, so this was run by hand)                 |
+| `bunx playwright test -c tmp/pool-shots.config.ts` (a local config that serves only Vite on :7480 and runs `e2e/agent-pools.spec.ts`; every `/api` is answered at the browser) | 8 pass, at 1280 and 375 px                                                                         |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                                    | exit 0 (review debt only in two existing indexes: store-memory 53/40 and core plan-commands 48/40) |
+| `bunx openspec validate --all --json`                                                                                                                                          | 301 items, 301 passed                                                                              |
+| `bunx prettier --check` and `plaintext-secrets.ts` on every changed file                                                                                                       | clean, exit 0                                                                                      |
+
+Not run: the h2puni gate, the ordinary `bun run e2e` stack locally (CI runs the new spec there), and be-01 or mcp-01 suites (neither changed).
+
+### Failure-proof table, slice 9
+
+Each fault was injected into the production file, the panel's test file was run, and the fault was then reverted. The `Proof:` comment sits beside the check. "Panel" is `agent-pools-panel.test.tsx`.
+
+| #   | Check                                              | Fault injected                                           | Test that observed it failing                                                                                     |
+| --- | -------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Q1  | keys never reach the DOM                           | the first key rendered in a hidden span of the keys note | panel `creates a pool, downloads its keys exactly once and never renders them`: the page held `wbs_mk_`           |
+| Q2  | one download per 201                               | `downloadAgentPoolKeys` called twice on create           | the same test: 2 files saved, 1 expected                                                                          |
+| Q3  | re-key always sends a JSON body                    | `body` dropped when the expiry is kept                   | panel `re-keys with a JSON body, {} …` and four more re-key cases: no request was sent and no keys note was drawn |
+| Q4  | `removePersons` starts off                         | the checkbox starts checked                              | panel `revokes without removing persons unless asked…` and four more revoke cases                                 |
+| Q5  | `?removePersons=true` only when asked              | the query sent always                                    | panel `revokes without removing persons…`: `search` was `?removePersons=true`                                     |
+| Q6  | counts gate the create                             | `fits` ignores the headroom                              | panel `states the counts and holds a pool that does not fit`: the button was enabled                              |
+| Q7  | no counts without the limits read                  | only the pool reply judged                               | panel `renders a failed limits read as the panel failure…`: no alert                                              |
+| Q8  | `pool_expired` asks for a new expiry               | sent to the in-place sentence                            | panel `offers a new expiry when the pool expired`: no required `New expiry` field                                 |
+| Q9  | `persons_not_removed` is a partial success         | sent to the alert                                        | panel `renders persons_not_removed as revoked with persons kept`: no partial-success state                        |
+| Q10 | a read's `forbidden` hides the panel               | drawn as a failure                                       | panel `renders no panel when … answers forbidden` (pools and limits)                                              |
+| Q11 | members and viewers send nothing                   | the slot draws for every role                            | panel `sends no pools request and renders no panel for a member` (and a viewer)                                   |
+| Q12 | a failed role read is rendered                     | the slot draws nothing                                   | panel `renders a failed role read with retry, and recovers`                                                       |
+| Q13 | late replies from another organization are dropped | the generation fence removed                             | panel `never shows the previous organization's pools after a switch`                                              |
+| Q14 | writes are serialized                              | the `isPending` admission removed                        | panel `serializes a double-clicked re-key`: 2 re-key POSTs                                                        |
+| Q15 | `name_taken` has its own sentence                  | the `not_found` sentence used                            | panel `renders name_taken on create and keeps the draft, never as success`                                        |
+| Q16 | the page composes the slot                         | `AgentPoolsSlot` removed from the page                   | `organization-page.test.tsx` `composes the agent pools panel for an admin`                                        |
