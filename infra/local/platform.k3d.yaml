@@ -1,0 +1,53 @@
+# Platform cluster of the k3d lab (profiles app, platform and fleet).
+# `tools/tool-fleet/src/k3d-lab.ts` renders each dollar-brace placeholder and refuses an
+# unknown or missing one; do not pass this file to k3d directly.
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: ${CLUSTER_NAME}
+servers: 1
+agents: 0
+image: ${K3S_IMAGE}
+network: ${NETWORK}
+kubeAPI:
+  hostIP: 127.0.0.1
+  hostPort: '${API_PORT}'
+ports:
+  # Loopback only: the forge serves source over HTTP without an edge password.
+  - port: 127.0.0.1:${HTTP_PORT}:80
+    nodeFilters: [loadbalancer]
+volumes:
+  # The owned worktree prefix. Pods still mount only the exact roots the forge
+  # admission lists, never this parent.
+  - volume: ${WORKTREE_ROOT}:/srv/puni/worktrees
+    nodeFilters: [server:*]
+  # A directory, so a replaced supervisor socket inode stays visible to running pods.
+  - volume: ${SOLVER_RUNTIME}:/run/puni/solver
+    nodeFilters: [server:*]
+registries:
+  config: |
+    mirrors:
+      "${REGISTRY_HOST}:5000":
+        endpoint:
+          - http://${REGISTRY_HOST}:5000
+options:
+  k3d:
+    wait: true
+    timeout: 180s
+  k3s:
+    nodeLabels:
+      - label: puni.dev/capability-forge=true
+        nodeFilters: [server:*]
+      - label: puni.dev/capability-product=true
+        nodeFilters: [server:*]
+      - label: puni.dev/capability-ingress=true
+        nodeFilters: [server:*]
+      - label: puni.dev/capability-observability=true
+        nodeFilters: [server:*]
+  kubeconfig:
+    updateDefaultKubeconfig: false
+    switchCurrentContext: false
+  runtime:
+    labels:
+      - label: puni.dev/lab-id=${LAB_ID}
+        nodeFilters: [server:*, loadbalancer]

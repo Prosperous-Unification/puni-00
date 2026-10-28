@@ -1,0 +1,3923 @@
+{
+  "schemaVersion": 1,
+  "scope": "disposable-observability-source",
+  "sourceRevision": "765c7dec791a049a79905fc56b63fed45a55542f",
+  "sourceReviewStatus": "unobserved",
+  "generator": {
+    "revision": "765c7dec791a049a79905fc56b63fed45a55542f",
+    "dirty": false,
+    "reviewStatus": "unobserved",
+    "files": [
+      {
+        "path": "bun.lock",
+        "sha256": "ce438c27003f3ac7cbf0ab95019c9058dfcb10707be6310871de680cda8b471b"
+      },
+      {
+        "path": "package.json",
+        "sha256": "f45fbd5d2e891934027c86d85896aa07a519ee074ca48ea3b9a4bf65e751a22d"
+      },
+      {
+        "path": "tools/tool-fleet/src/api-forward.ts",
+        "sha256": "676e1acf3ec95a1491c68e0ee83a7b9cafa3328122d406fcb3e77da31e0a0c56"
+      },
+      {
+        "path": "tools/tool-fleet/src/apply.ts",
+        "sha256": "b33efd8fddc28b903b815a394c152923d47e695004653e5fa2948d4145318515"
+      },
+      {
+        "path": "tools/tool-fleet/src/archive-tar-header.ts",
+        "sha256": "496793aecdccaa804c480ff799aaa0edb0ec92e7e341d134a86a547482088b60"
+      },
+      {
+        "path": "tools/tool-fleet/src/backup-identity.ts",
+        "sha256": "9a1feb35691f78b6e01144b02f0c768cbdc7667e3f0b235939f2085b38b003e9"
+      },
+      {
+        "path": "tools/tool-fleet/src/backup-sqlite.ts",
+        "sha256": "e56cd5ac6a877ed6d02b43f80f0ecb99828380d9e972c3431dcedbd3737dedd3"
+      },
+      {
+        "path": "tools/tool-fleet/src/check-actionlint.yaml",
+        "sha256": "b33caa42171fba5903aa53f1148d0fcd7a1509503508739edc7ea826bbfbf6e3"
+      },
+      {
+        "path": "tools/tool-fleet/src/check-ansible.py",
+        "sha256": "46565bb034c3ce07d1f7d1d6d5a895be31285472b3fbc747cfd7e6ca1b698575"
+      },
+      {
+        "path": "tools/tool-fleet/src/check-backup.ts",
+        "sha256": "b35f448b8f04115567fd74b1cac048ae7a3b81ff550987cb31aec3e255accd77"
+      },
+      {
+        "path": "tools/tool-fleet/src/check-cli.ts",
+        "sha256": "68c1fbdd80c2215ed4c5a40736aa369ec00cf8e2d530a15b81b05ee5403c9777"
+      },
+      {
+        "path": "tools/tool-fleet/src/check-faults.ts",
+        "sha256": "1b5da7e4ed1b2c372611be188119a502a9a941141be7e68a988a37c56123aa78"
+      },
+      {
+        "path": "tools/tool-fleet/src/check-provision.ts",
+        "sha256": "bb48f639e937c6f0005f8900acd0d025ab2426d88f96e0e9c1a46efe2eba9e74"
+      },
+      {
+        "path": "tools/tool-fleet/src/check-tools.json",
+        "sha256": "b88e737e61ab45f87643c48abbdb3a343a51480e5bd70678e5688ba8e7e393a8"
+      },
+      {
+        "path": "tools/tool-fleet/src/check.ts",
+        "sha256": "81a105dae4ef45596337fa9dfe6c1fbca238997e7d25d7112482308478983ce0"
+      },
+      {
+        "path": "tools/tool-fleet/src/cli.fixture.ts",
+        "sha256": "3e80790f44c5a92d5a43f438e1dd6fb92f22c0929e810aff983b0532f6bb875d"
+      },
+      {
+        "path": "tools/tool-fleet/src/cli.ts",
+        "sha256": "898c609b9628fad30acca0f686cd6ccf284ddac2dddbde92195e75b9119d6fee"
+      },
+      {
+        "path": "tools/tool-fleet/src/contracts.ts",
+        "sha256": "ae7f8a81435f43d7542606394394c28ec990fdf1517aa9c2f92800f311f65ac6"
+      },
+      {
+        "path": "tools/tool-fleet/src/controller.ts",
+        "sha256": "b83d31ce2edb60a11e49af45ea9c4dc1b74fbee24d1dd5bedf98a13b03e498f9"
+      },
+      {
+        "path": "tools/tool-fleet/src/creation-journal.ts",
+        "sha256": "e3803c4ac35086834fb68348dd4eb401c601377e013252b20a0704bdb71b0f80"
+      },
+      {
+        "path": "tools/tool-fleet/src/creation-receipts.ts",
+        "sha256": "d03f2a266603cca7e9604fa66e15a0375c87861c24f9d585ecb07228d5627410"
+      },
+      {
+        "path": "tools/tool-fleet/src/creation-resources.ts",
+        "sha256": "4c0c0a602f09a41eaccce9ea78382ba553f7d0ed1dd77bcc575cd90616d584c3"
+      },
+      {
+        "path": "tools/tool-fleet/src/discover.ts",
+        "sha256": "56bee48cde16fe05a74e9cbd07a9c10e102de4953af7413bb3668a13d52f7a9a"
+      },
+      {
+        "path": "tools/tool-fleet/src/docker-image-identity.ts",
+        "sha256": "e86f31007d3c351108dd2dbb2aa71629967ec9006fbf535f2dce2ed900e1b4ac"
+      },
+      {
+        "path": "tools/tool-fleet/src/docker-image-platform.ts",
+        "sha256": "82f2be37887fe679c59b89b485510fef8f95522e4167d61adc21205e042ffaf8"
+      },
+      {
+        "path": "tools/tool-fleet/src/drain-rehearsal.ts",
+        "sha256": "77391d2b9b0d9d849b1530c324637732e77145b0ebb58dd7e5479a74707304b4"
+      },
+      {
+        "path": "tools/tool-fleet/src/entrypoint.ts",
+        "sha256": "4251e7ad1ed47c093cbb4d643b4236b04473070f8aea263b5603753bb02e0efd"
+      },
+      {
+        "path": "tools/tool-fleet/src/fixtures/cron-go1.26.0-robfig3.0.1-reference.json",
+        "sha256": "b51188564461f1133924b2f646974c5bac4b851de6653b8e20c9389f68930403"
+      },
+      {
+        "path": "tools/tool-fleet/src/fixtures/k3d-creation-v1.json",
+        "sha256": "db977f285b4397a9e8a9b55844f7d2c88a193e787dd3e245f333d16270ef46a4"
+      },
+      {
+        "path": "tools/tool-fleet/src/fixtures/observability-node-exporter.json",
+        "sha256": "31b91270ff157721b3b7d87218d304756e5e59794eab7832eddb5ce327dea43c"
+      },
+      {
+        "path": "tools/tool-fleet/src/fixtures/observability-projection.json",
+        "sha256": "9ac5cd3c43b566b02078e848a98c1b90f99980e7b1291b3efa3a271048ed6285"
+      },
+      {
+        "path": "tools/tool-fleet/src/fixtures/observability-rehearsal-capacity.json",
+        "sha256": "d36bd04895cf74dca7e2273768b7f7c4a34da4ca729bde7aaee1299469763efb"
+      },
+      {
+        "path": "tools/tool-fleet/src/flux-policy.ts",
+        "sha256": "7ca1239a727263af390f4dc97d2493bdea9502f012cf7b7520a1a1dfcb10306a"
+      },
+      {
+        "path": "tools/tool-fleet/src/health.ts",
+        "sha256": "9ebf3fd9a4710ba2f6c9f7a383b22aa5ee1f243558db93761b2df44d20041878"
+      },
+      {
+        "path": "tools/tool-fleet/src/image-identity.ts",
+        "sha256": "c2aafbcba29e0664db36bb2c49f4b726b8ac1ece8edffd3d85cda48606d984b9"
+      },
+      {
+        "path": "tools/tool-fleet/src/journal.ts",
+        "sha256": "8d338c1cd8266862558517704aab6179157de5102b3593eaa583a07401cf4622"
+      },
+      {
+        "path": "tools/tool-fleet/src/k3d-creation.ts",
+        "sha256": "bbac5464ae03a35def8265fe054a6f026ba9e49e85cad403b3332a510849c0b0"
+      },
+      {
+        "path": "tools/tool-fleet/src/k3d-helper-images.ts",
+        "sha256": "55c90d1089bd34aea8559b971346762bb75246d18db3550b12e35d484f83d52b"
+      },
+      {
+        "path": "tools/tool-fleet/src/k3d-lab-names.ts",
+        "sha256": "b8347abcba8b40e55c3ef702a3cf099a0ed32b3256cf48ac5e29278b8ab76f64"
+      },
+      {
+        "path": "tools/tool-fleet/src/k3d-lab.ts",
+        "sha256": "e0346932c5cb54f9d256b1d2fc46cf1859e484c3d73807575008e7f5b8460c68"
+      },
+      {
+        "path": "tools/tool-fleet/src/k3d-resource-runtime.ts",
+        "sha256": "519248b07f6ea2ca477668b4ca0f86f7b91c1f407edff8eff94464c142c24c14"
+      },
+      {
+        "path": "tools/tool-fleet/src/lab-hub.ts",
+        "sha256": "eedfb5a846b9766d49b18fef55e770c89b070f8a643a72f828f876a9f1b48a79"
+      },
+      {
+        "path": "tools/tool-fleet/src/lab-provider.ts",
+        "sha256": "49e3a48f9c2297123bb754da964a50cc6aff8f9c0f3cf941235444d50cb5ee68"
+      },
+      {
+        "path": "tools/tool-fleet/src/lab-qemu.ts",
+        "sha256": "b6cebb2635c0f6fabd702564be716c93d6270353fb5aac71f0205ff763f42bfc"
+      },
+      {
+        "path": "tools/tool-fleet/src/lab.ts",
+        "sha256": "8740dcedb9f6604c8b0f58c89a1a0555edae9710bdfb76314f7df23c4afd1501"
+      },
+      {
+        "path": "tools/tool-fleet/src/maintenance-workers.ts",
+        "sha256": "5fda1137a036384db42546628e824c75dbe6dc5c78386141650a25639db0c916"
+      },
+      {
+        "path": "tools/tool-fleet/src/maintenance.ts",
+        "sha256": "e73cad18b551f729f48e8092095a0e4c59ac865ed600fdc9af433b231d3e4f00"
+      },
+      {
+        "path": "tools/tool-fleet/src/object-store-archive.ts",
+        "sha256": "20ef694d0e8db5275a5c704662202454957a8426c653914f26f659e1c1d7a2a4"
+      },
+      {
+        "path": "tools/tool-fleet/src/object-store-image-cli.ts",
+        "sha256": "1f7581202fc2de3c05b946a0eb6ae783218a826c4bc7d1c5137eff54c9d2dd05"
+      },
+      {
+        "path": "tools/tool-fleet/src/object-store-image.ts",
+        "sha256": "c7d57e28d0ce258304129b823ce57f0a188f8fbcf7200888a5ce8150e5a9b2e7"
+      },
+      {
+        "path": "tools/tool-fleet/src/object-store-import-cli.ts",
+        "sha256": "2c59a314a04e16e7ef4e4340d404f01032f98b727ac6b4a2d82b483bb850bd62"
+      },
+      {
+        "path": "tools/tool-fleet/src/object-store-layer-facts.ts",
+        "sha256": "26eb671c6ce0c9a9e602d7e50020c41fb2001f6613115a1b99c7c30c71b6e31c"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-access.ts",
+        "sha256": "1f24346abf7e3a435ff0406bd821098715c92374a0c6a87b4d422f78083f4ebc"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-authority.ts",
+        "sha256": "0d1df05d6105f4e71b4306985d7ad0fae1c48386b8c9bba754746d5dc85cf636"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-budget.ts",
+        "sha256": "b53470eee57a81514bfe20524dd88cb630d87f5697f3f4a0107dc51e9e85a25a"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-capacity.ts",
+        "sha256": "9e73d54027a9170c5389556874cf8efd5ba3cb8b3bf1b095922a1e8458c5a44f"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-cold-start.ts",
+        "sha256": "a7ef263f18acd9e25e8b4e240f16beb3898ca0fe83e2d3caea3a7f7574e01aed"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-composition.ts",
+        "sha256": "2601acb01b5b0e841c34849f19f550ba3f2f6412c801e8dbcf4892c8886daee4"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-cron-duration.ts",
+        "sha256": "70295398466a9f9ea4e439d25035db29ccfd0ab0e859e8cb02e97f6678c3da71"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-cron-syntax.ts",
+        "sha256": "202f298d909d57762b67b6f754773017267286ce6fa07b0c641fb3558aaa3bc3"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-cron-zone.ts",
+        "sha256": "f3c938a5755f7511b91ed629534be9a442f11d129b66de4c423ab86664d15f80"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-cron-zones.json",
+        "sha256": "9c76a97bdff88983c7c9b70516d4a7c38aa8cd0cac2f176c6e8b967a80c09037"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-flux-cli.ts",
+        "sha256": "43b60b8816d73a255d2caa32932ee88e9b910d96e849b4fe92d8c9d617081b76"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-flux-observation.ts",
+        "sha256": "f4e4fc50b35d92cb744b05bb3a71bcdb3ea329afe16fb603116aade3c9c5baf6"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-flux.ts",
+        "sha256": "574d6ff98c2eb25d90fd771220d7bc9554d0fae53faa2cc4555a583e89707ba8"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-generate.ts",
+        "sha256": "2dd9900fa4e32ed884b9209cbbf493a8cfb34281bb14043156e66b3ea729b6d5"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-generated-capacity.ts",
+        "sha256": "da13c6b4f50bf44f51e54245a587cb322488c1b66c9226b939f90c21b82b0695"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-native-cohorts.ts",
+        "sha256": "a41ac4a3c68b8db9eefaae0fa9ba062362c3654c2ca26b1cba108577b5bdffa1"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-native-cronjob.ts",
+        "sha256": "100b5321cb334017603dac4bd36828e8783acb5d0f31f4c8827500f3550068d0"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-native-daemon.ts",
+        "sha256": "a02c918615574ecda79e83e4009d8cfdb1344a63df6f954f875a75d0641632b6"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-native-hostpath.ts",
+        "sha256": "9dc70b6d36ff0f3b215a17ff686e32c798015f4d4fe56c644f5fee95b33ee548"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-native-job.ts",
+        "sha256": "b934eb14e0f56aeb6f32b6289da197b7413a0fe36f13fd10532f7eeb09ba1370"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-native-ordinal.ts",
+        "sha256": "b88f3e02556728f9517d5dff6994335b2d2e5e34a55d90cd47c807ca15906e88"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-parity-cli.ts",
+        "sha256": "3a3954b15619ffd19f4bcfb2f4b323e65976e66a0d5fb975475915551384ef67"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-parity-rehearsal-cli.ts",
+        "sha256": "0a76f1ca1bce6614dc2e682bd80af3c693f6a14a5f7038c589a529622042cfdb"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-parity-rehearsal.ts",
+        "sha256": "3227024eaccef18b7878525939bcf5a9e16f4a98f0afc5eb204226d89f6940a5"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-pod-resources.ts",
+        "sha256": "83a07a00f40e9f02635f896faee1aac30b0db586ce88df6db0741180c02f3d7c"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-preflight-cli.ts",
+        "sha256": "fa9dc49715bdcd14bee2ef77834e6e2d78678f53f340c35823bc01e3ed72b0a2"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-preflight.ts",
+        "sha256": "9f4f8903fa9a4f7b9381a9a461367c0b4fe27375416279d33992be055a351495"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-projection-cli.ts",
+        "sha256": "6ef15b02001e65286853bbdab6df4b59635283e21a71c4eac275bc7341a91135"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-projection-render.ts",
+        "sha256": "b0aa318f83b318ebfd897a919a6fbc2f4ee91c674d7b77522a8aa628ea39790f"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-projection-resources.json",
+        "sha256": "abf244f73a16efef6249392844ab8c586c4ebc3fd9d3730e2c06dac97716fe4e"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-projection.ts",
+        "sha256": "fb0535bb6be26b8b448e1d40eef1309e1cd1e899ef87df5109e06bd0542c0010"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-reader-observation.ts",
+        "sha256": "819db0a9a7ad4cb1c6c522649de923d26ab95c3dda2ec8697239b1ed3129df53"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-reader.ts",
+        "sha256": "443d0c6c911e8ee957cb580160b5bee461611ed8e5ded29f22ef03791170fe3f"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-receiver.ts",
+        "sha256": "dc7277c9ab3e3d1f56c11b00ea320607413f3c6da1ba0eccc1f8a3bcb26388b1"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-rehearsal-capacity.ts",
+        "sha256": "b6dcc3a7ecb7bbab6dacc8630f47987932045ecd24bad726460f63c27d7e35d3"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-rehearsal-inventory.ts",
+        "sha256": "eed5b1629df229a434b513002aae2ad3847f1da0e40bde68bc16984e073d8492"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-rehearsal-obligations.ts",
+        "sha256": "d92348fe7937e5b8307f627a5da7fab555c885c3db421a3f40c990b35af2ef91"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-rehearsal-secrets.ts",
+        "sha256": "4ddffcc9332ec16ebf5605ef12e8a51211fb32f0b7116c5e3302c94c49ca632a"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-rehearsal-sources.ts",
+        "sha256": "fa9b6cc806efc6ca2ecb704d35b5b3ba55213c0fa5dbce9b314a03b8f8e2a2ab"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-render.ts",
+        "sha256": "012f8f487ac834051a4d98f3604107979de4e536967145f501a53394e8a1ad4f"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-source-cli.ts",
+        "sha256": "1113a4fbce3d2763b7e1e6c338388789793a6389d8e896873ff12e65ef5a3bb5"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-source-differences.json",
+        "sha256": "efc1e05dfcabcbfc435094dcc37f296187b14b64ec2fb39f62e28a9d90c4ab20"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-source-inventory.ts",
+        "sha256": "36a7629dd65272203c097c5067f43c922ca2327dfe67e4f86235181676265a86"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-source-network.ts",
+        "sha256": "916393b59023a431765d511fec77b72ad47ee50cc23567ce0a83f43f3d3c47a4"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-source-parity.ts",
+        "sha256": "598804310d9ed12ed56b96eb607dbb9e9532059db879f07754b76c8a48b143b7"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-source-render.ts",
+        "sha256": "e9ed6fd87ee0f693fab2835922861082c72f2dd399b07c7ac1d62a34b102ee43"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-source-resources.ts",
+        "sha256": "f9f369cd3a3bc8b6a7eb1c433a2a6ffd9450e3b0e512e243baaf87784a96b8e4"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-source-scrapes.ts",
+        "sha256": "bfe531167586429438d4f435deb8a3961a2baed3f20d8dff1847bddb6cdef589"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-source-validation.ts",
+        "sha256": "740067bd669ed25f218b466d32d4400754e9b4ad1a9a6942ab7a21e2e615cc26"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-source.ts",
+        "sha256": "c6b3074fb65caf0765f5e40fbaa0ae01761a1beeb19d25992b5d3280270b0cd5"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-tools.fixture.ts",
+        "sha256": "d884dafca1fb04e0fab5ab92f523f1dec3d9aab93c490717c76b096a91751b91"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability-workload.ts",
+        "sha256": "65dce1aace2f9d4bff6777f323f78636fd7761ad5ec13fa81caf87ef2f2327ab"
+      },
+      {
+        "path": "tools/tool-fleet/src/observability.ts",
+        "sha256": "eb6cc2943dc92fc140d40a94d6b1f4865315ab13f00960d86c6b813143f71786"
+      },
+      {
+        "path": "tools/tool-fleet/src/observation.ts",
+        "sha256": "649d25f55083f5d00f6a1f4b9fed1e1a140eaf59d9e4ae78c84011d1e29b4ac4"
+      },
+      {
+        "path": "tools/tool-fleet/src/plan-facade.ts",
+        "sha256": "710854bc2b0654fcfc6b8ef78abaef43669ecbffe4eeeaed9c49c982ffb69da6"
+      },
+      {
+        "path": "tools/tool-fleet/src/plan.ts",
+        "sha256": "02c17b27c67218b32076fcb0b5892cfc390e36e7a959a6db394b08b5c9fcdca3"
+      },
+      {
+        "path": "tools/tool-fleet/src/platform-alerts.ts",
+        "sha256": "bf1e6e6eab4c8555e1e5d6fd459621d25946f43dbd0929b92cbe186c9ca666cb"
+      },
+      {
+        "path": "tools/tool-fleet/src/platform-backup-tls.ts",
+        "sha256": "85edd1d7045791dfc66a1bfbfbb5fd3ff572ff1a8ba4b2d6aa48b5750f1c90d0"
+      },
+      {
+        "path": "tools/tool-fleet/src/platform-common-resources.ts",
+        "sha256": "7404c90c2a86dd69b77296aafa034e968e03e3d182d2a71f4104802158ffd894"
+      },
+      {
+        "path": "tools/tool-fleet/src/platform-dns.ts",
+        "sha256": "371298c91789d071ba17f0eafbd779d1086976a6be6292cb8a99bb47e4d2e517"
+      },
+      {
+        "path": "tools/tool-fleet/src/platform-manifests.ts",
+        "sha256": "616452cd8f914636b2da97c58c40a7c5bdeb8cb3057390d01eee793625178275"
+      },
+      {
+        "path": "tools/tool-fleet/src/platform-otlp.ts",
+        "sha256": "891a4bd9d730db963ef24df3a52dabf0b2829408ec073fe424071cc3ca8176d2"
+      },
+      {
+        "path": "tools/tool-fleet/src/platform-registry.ts",
+        "sha256": "71a08299350024d7dd24e0a7e83bd415ebe75f80b124ffae136ea05f71e058aa"
+      },
+      {
+        "path": "tools/tool-fleet/src/platform-releases.ts",
+        "sha256": "02e9174fdecf1a957ac929f092c1a49f45626ccf68bf3aaebebc4283300df3c8"
+      },
+      {
+        "path": "tools/tool-fleet/src/platform-velero-patch.ts",
+        "sha256": "fd91b2b63e6cd377bafbbcb226e33cd0a2017419feeae49660c3623f3c317af8"
+      },
+      {
+        "path": "tools/tool-fleet/src/platform.ts",
+        "sha256": "9354db4f126286564289026500c228fbaca311bc9303da9fc5ccf7b502985cc1"
+      },
+      {
+        "path": "tools/tool-fleet/src/production-apply.ts",
+        "sha256": "45614763d892d0c0feaf980d9fb27e387f3b27bb2c79e45dbbb6e43bf4dba6c3"
+      },
+      {
+        "path": "tools/tool-fleet/src/recover.ts",
+        "sha256": "ffc43150cab310a6bd2d5a5e56675c6382bddd9b083b1ba75fd456f048a34fa4"
+      },
+      {
+        "path": "tools/tool-fleet/src/rendered-resources.ts",
+        "sha256": "f395287061dae4b3f68933634eeedbded6e73d315012412d4319fb3713c278ee"
+      },
+      {
+        "path": "tools/tool-fleet/src/replace.ts",
+        "sha256": "c5c764ccb2082de9d960e5472095a5d33b580646ef216f5e2e807b44b10ba460"
+      },
+      {
+        "path": "tools/tool-fleet/src/retire.ts",
+        "sha256": "1dd5597b061108c1f13866d7580040d87e16bf90a5d8f88a002f7a7ff4baeaa4"
+      },
+      {
+        "path": "tools/tool-fleet/src/ssh-transport-facade.ts",
+        "sha256": "dd321e2f89d06b476e4a7d6d8e0f67b04e7186709c81225ecf71132c3dfca6c3"
+      },
+      {
+        "path": "tools/tool-fleet/src/ssh-transport.ts",
+        "sha256": "4d1c24d68ae1d194ef5ad9d7fae554bb06ed39e4f24bda250050b7c8556d49e9"
+      },
+      {
+        "path": "tools/tool-fleet/src/terraform.ts",
+        "sha256": "17a54098f15b96cd1f57dc310fd8921cac336bd6ca55e0fe3860893c2230c399"
+      },
+      {
+        "path": "tools/tool-fleet/src/terragrunt.ts",
+        "sha256": "afe3d09608b8a5546d0d48eae5eda4f3d07fd33966fd0ed0f388f6886d111015"
+      },
+      {
+        "path": "tools/tool-fleet/src/testing/fleet.ts",
+        "sha256": "a0739007fd6ef1e9c6668d791625d59c27fcaa760c3e5e6d03c2a69ad626b1fc"
+      },
+      {
+        "path": "tools/tool-fleet/src/traefik-rehearsal.ts",
+        "sha256": "c387b92dc339ebb001b0f2b86aec34dc252364dedbd7c1a73cc502075d5a3155"
+      },
+      {
+        "path": "tools/tool-fleet/src/upgrade.ts",
+        "sha256": "c727bb891726ed01c2dd68290d59b637305b235653a9299172e0f859ec45ca1f"
+      },
+      {
+        "path": "tools/tool-observability-stack/src/configuration/legacy.ts",
+        "sha256": "8172c633cfbb0c820813a0aff8e2f39252b5592ca37906549b7e23d503242618"
+      },
+      {
+        "path": "tools/tool-observability-stack/src/configuration/parity-cli.ts",
+        "sha256": "d07e03d06ffd2e5c16a6bafdce1e8fb50e21edef48d9f68a9069136f4834f074"
+      },
+      {
+        "path": "tools/tool-observability-stack/src/configuration/parity-render-cli.ts",
+        "sha256": "b408042129cd4bddc0c86edc3222aa27f9342ab9be2abe43c0af5bc2542b1a5f"
+      },
+      {
+        "path": "tools/tool-observability-stack/src/configuration/parity-render.ts",
+        "sha256": "c17b883f6129117a4e8dc9c39f89b5b5604d69ce12367d484201874232504aa6"
+      },
+      {
+        "path": "tools/tool-observability-stack/src/configuration/parity.ts",
+        "sha256": "46d4d2b42a888ea95ffa27d4ec8fed034a1c22a42bbc68b994c94600b9b6e033"
+      },
+      {
+        "path": "tools/tool-observability-stack/src/configuration/reviewed-differences.json",
+        "sha256": "54f2be648777d74426e45b4908971632570c220be369f738c8bd47e4601013f3"
+      },
+      {
+        "path": "tools/tool-observability-stack/src/configuration/signals.ts",
+        "sha256": "a57fae0f256e9f80bf96ddbaf646879aaef4f55b7ba0fcbc152a79ce4fabc9af"
+      },
+      {
+        "path": "tsconfig.base.json",
+        "sha256": "6723f26bc90d4dfdf4f0a027c7de80894e6166bb236ecb0537b6fc5d96c0dbb2"
+      }
+    ]
+  },
+  "network": {
+    "api": [
+      "172.31.100.1/32"
+    ],
+    "observer": [
+      "172.31.100.2/32"
+    ],
+    "grafana": [
+      "172.31.100.3/32"
+    ],
+    "s3": [
+      "172.31.100.4/32"
+    ],
+    "alertDelivery": [
+      "172.31.100.5/32"
+    ],
+    "publicProbes": [
+      "172.31.100.6/32"
+    ]
+  },
+  "files": [
+    {
+      "path": "infra/clusters/platform/local/alerts.yaml",
+      "sha256": "0be8441f87f59766f7fcac418e7e33c7e5c0e9be7554bb02d2c848b0e1419a7a"
+    },
+    {
+      "path": "infra/clusters/platform/local/backup.yaml",
+      "sha256": "dca8c1856748e7364cd38eb9fe68aad7a13b46b29102b923dd24c23ded648703"
+    },
+    {
+      "path": "infra/clusters/platform/local/certificates.yaml",
+      "sha256": "1acd90a861c37a3b86233ed4dc71865ec007d6ec31b5537c2e21c8f9efd296e5"
+    },
+    {
+      "path": "infra/clusters/platform/local/controllers.yaml",
+      "sha256": "8dc5cc3ec72cf109f7abde24e597d0ecaf4305b2c771bf566b260a1c298ed2ae"
+    },
+    {
+      "path": "infra/clusters/platform/local/identity.yaml",
+      "sha256": "48f765603fb53867f2b38d6b71eac47819e1b8620ca36cd4758cb93e961d1065"
+    },
+    {
+      "path": "infra/clusters/platform/local/kustomization.yaml",
+      "sha256": "32b3f79eb09846e714763a653b4c5510aa96989ddfd70171c39138654b3f946a"
+    },
+    {
+      "path": "infra/clusters/platform/local/observability-controllers.yaml",
+      "sha256": "abb0ea2e23742cea8f83c4da66fee30ae07984035d2abda2e389f89cf1c1a5ed"
+    },
+    {
+      "path": "infra/clusters/platform/local/observability.yaml",
+      "sha256": "25ce88cb888de234c0f3646baad584e9c50df182f79063105baa86abecac9963"
+    },
+    {
+      "path": "infra/clusters/platform/local/platform.yaml",
+      "sha256": "cde1c9bd02c7e3fbb55a848dd5f6366c3386b3b6b8ccccaa29c03736c8f1d834"
+    },
+    {
+      "path": "infra/clusters/platform/local/policy.yaml",
+      "sha256": "50d01854f2d6bdfbfe25f5658d3ed70c1bca2327c34f42633467f7b24f505036"
+    },
+    {
+      "path": "infra/clusters/platform/local/secrets.yaml",
+      "sha256": "d641da5a60668fe57fba11e3deed63225e0256874482c828118898e995e423e4"
+    },
+    {
+      "path": "infra/clusters/platform/local/storage.yaml",
+      "sha256": "867d2826bce719f54657f7d5b25b120069fdba1f8b50007a113dba5950dbc5c7"
+    },
+    {
+      "path": "infra/clusters/platform/local/target.yaml",
+      "sha256": "318c8838d87e0696c861e40fa96ba1d49fe1fbd112571ffcadecde579eea19a7"
+    },
+    {
+      "path": "infra/local/platform.k3d.yaml",
+      "sha256": "6c7266174ffee979d5732a91983f29e19b7a1b6d4e86989929080116d5b263f8"
+    },
+    {
+      "path": "infra/platform/alerts/base/kustomization.yaml",
+      "sha256": "353af4956baf5ae0916ea3c858c56baf23525dd32d012f4bea18cfae9422680d"
+    },
+    {
+      "path": "infra/platform/alerts/base/probes.yaml",
+      "sha256": "d3bb31fe1a747260a9e9383948e0a6fac97e4354660cacfa7ac753fb3235d1f8"
+    },
+    {
+      "path": "infra/platform/alerts/base/rules.yaml",
+      "sha256": "467110834ea9b1225eafc35acb7a86e27abb13ea5784ff5c24564ca9e008739b"
+    },
+    {
+      "path": "infra/platform/alerts/local/kustomization.yaml",
+      "sha256": "efe9d9a2386c9743bcabd54aa203776a74cb07a652e21f17d811bfa2a50e6419"
+    },
+    {
+      "path": "infra/platform/backup/elastic/kustomization.yaml",
+      "sha256": "1b581f0f126dba9c96f717e7fa995e82d82d9fe9f845d56bd379d2083c2c5061"
+    },
+    {
+      "path": "infra/platform/backup/elastic/snapshots.yaml",
+      "sha256": "c416a243fea819bea92e57bc199659b279c3dfeaa1e42c727dec17d541935262"
+    },
+    {
+      "path": "infra/platform/backup/local/kustomization.yaml",
+      "sha256": "d91fdb6824d0ff4827d808b6324d7064ea20879670690b7fd8896b0561dfbef1"
+    },
+    {
+      "path": "infra/platform/backup/local/object-store.yaml",
+      "sha256": "bca40b55dbfc1cd5cdd0c4d57806651bdce08ab3ebac9f5705217545f90c04b1"
+    },
+    {
+      "path": "infra/platform/backup/velero/local/kustomization.yaml",
+      "sha256": "c2ebc331338d9ea06f2dfb74db422084bd88ed6fea30a18c05d6a3fce433496a"
+    },
+    {
+      "path": "infra/platform/backup/velero/local/velero.yaml",
+      "sha256": "3f5b4943ce0da780835a3e0129bacc8a55477380ced5db1e13856f73dc89f0d6"
+    },
+    {
+      "path": "infra/platform/certificates/platform/local/certificate.yaml",
+      "sha256": "e623d0a956b602fe0f4986cdffb809edd85fb81b0e4da66814a1322671af39a4"
+    },
+    {
+      "path": "infra/platform/certificates/platform/local/kustomization.yaml",
+      "sha256": "714cacbb399703e90e6a32b7bcab429a847a9c6cea3beac891e938c6d019e263"
+    },
+    {
+      "path": "infra/platform/charts/cert-manager-v1.21.2.tgz",
+      "sha256": "73a56e1728edd6c99f1f31082618c3259d279a76b7ebd3d4bdc5475c2442d34a"
+    },
+    {
+      "path": "infra/platform/charts/eck-elasticsearch-0.20.0.tgz",
+      "sha256": "1ab952a3df85a481277afa62154b449ce0c37e83b0b717df42074c68ba753fc8"
+    },
+    {
+      "path": "infra/platform/charts/eck-kibana-0.20.0.tgz",
+      "sha256": "2b74d63c7c6d7d1e8ced6c563374856050b2bde2c7eaefb37f5c097cecf818f3"
+    },
+    {
+      "path": "infra/platform/charts/eck-operator-3.5.0.tgz",
+      "sha256": "eda9ec502c786fc1ad293e7f4235fdef43b2c741dcc977ab1f62377d72b5173f"
+    },
+    {
+      "path": "infra/platform/charts/kube-prometheus-stack-91.4.1.tgz",
+      "sha256": "1bd5e7a88e758ed3ec22db0fe6e72b1352f3f0e7e5a93c79979f7edf361becdb"
+    },
+    {
+      "path": "infra/platform/charts/opentelemetry-collector-0.173.1.tgz",
+      "sha256": "66897a36e9eeda71ce227236fb952c0501ce7d7f6387e0318ca15046950ee04d"
+    },
+    {
+      "path": "infra/platform/charts/traefik-41.6.0.tgz",
+      "sha256": "cd7254ea853da73bdb88edc896f079b88d43ffa0bfe699fdbf21081361eac365"
+    },
+    {
+      "path": "infra/platform/charts/velero-12.2.0.tgz",
+      "sha256": "5e6b516dc6ce83f0b46ef0440c09a5f061e68861c5c8bfdc86484e886a1ba391"
+    },
+    {
+      "path": "infra/platform/flux/install.yaml",
+      "sha256": "80779d11e7f0050ed01a3f072556fdabefa38f5f6cb623e9df44381c9ec1d592"
+    },
+    {
+      "path": "infra/platform/flux/kustomization.yaml",
+      "sha256": "798bedab9ae590a913f0a40fb757514d87bceca14603078b2255eaa60ea5ba87"
+    },
+    {
+      "path": "infra/platform/networking/cert-manager/kustomization.yaml",
+      "sha256": "acc97724500dba0c7f037f550d7628f2dc4001f8ef67ea31f887209020a273d6"
+    },
+    {
+      "path": "infra/platform/networking/cert-manager/release.yaml",
+      "sha256": "2fc5486185845043724ffc1e97ddd8e11fb5a2564057f41a1aecd435dcc8aad6"
+    },
+    {
+      "path": "infra/platform/networking/kustomization.yaml",
+      "sha256": "792ae7d30533e5219dbf925b7190992dac3fd90321521482a3925a2b9f4efa5c"
+    },
+    {
+      "path": "infra/platform/networking/namespaces.yaml",
+      "sha256": "d61084dc0862bb9512a471a044705b89d9a37cf70abc3851d62a8a22bbaf7e53"
+    },
+    {
+      "path": "infra/platform/networking/traefik.yaml",
+      "sha256": "090a36305aeb15197e233d6e5f9a71e9c58e8d10871cf94a3d6325c298de1324"
+    },
+    {
+      "path": "infra/platform/observability/prometheus/blackbox-exporter.yaml",
+      "sha256": "129626ab449d7a9926c507dba899a0bbe830a4cf9f3bfdbaa9a625da235bff51"
+    },
+    {
+      "path": "infra/platform/observability/prometheus/kustomization.yaml",
+      "sha256": "dbdb332dab866fb8f74f462f5de0fff96bfdbf2586a9f5073468b4037b41dca3"
+    },
+    {
+      "path": "infra/platform/observability/rehearsal-controllers/kustomization.yaml",
+      "sha256": "fbee159a62787eda30ef836c1ffe68e98c7cd501646bd032b6113e0afd241d9d"
+    },
+    {
+      "path": "infra/platform/observability/rehearsal-controllers/releases/observability/prometheus-controller.yaml",
+      "sha256": "084721ba58036a6704e5cf265da234fc0578313c5d545cca2bd1f63494c625de"
+    },
+    {
+      "path": "infra/platform/observability/rehearsal/kustomization.yaml",
+      "sha256": "6523139927babd2c762f0d235d00dc0d795c8e7a31d1a293ba30c68605d3e416"
+    },
+    {
+      "path": "infra/platform/observability/rehearsal/observability-dev-native.yaml",
+      "sha256": "7fb21f4843ce1c66edc5daaa509cbe72d5887d47ab096bd20609d09305b9cbaa"
+    },
+    {
+      "path": "infra/platform/observability/rehearsal/observability-dev-security.yaml",
+      "sha256": "dd34fc7931a57dcb226bce87ba93aa05f215a35fcea3de3e1611d01a7702d28a"
+    },
+    {
+      "path": "infra/platform/observability/rehearsal/observability-native.yaml",
+      "sha256": "c4fd8c68d4a3da4dae166456deaeed17dc52432e9633c4ad3796f0b8c4bee719"
+    },
+    {
+      "path": "infra/platform/observability/rehearsal/observability-security.yaml",
+      "sha256": "e3ca01c5e74343b0db36b55d18b7c9da23d3831e065b7d7331f82e2481042cae"
+    },
+    {
+      "path": "infra/platform/observability/rehearsal/receiver.yaml",
+      "sha256": "61e60a4ce2dc64c5ed99fb8f9b3c261f019b11f052cec000eb185093324135ec"
+    },
+    {
+      "path": "infra/platform/observability/rehearsal/releases/observability-dev/elasticsearch.yaml",
+      "sha256": "1e7ed005636f0c21d02c65c42c6a41a9825bd234fd302704a891ec187a7277de"
+    },
+    {
+      "path": "infra/platform/observability/rehearsal/releases/observability-dev/kibana.yaml",
+      "sha256": "23c6715f8324a52d3ce9dd796636e8265a26e090eda8de86aa593b6c10a465af"
+    },
+    {
+      "path": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+      "sha256": "97abc3dd9ef629330065b7c1205fe922d95ca861dd14b188a7f1589dd7f429d3"
+    },
+    {
+      "path": "infra/platform/observability/rehearsal/releases/observability/eck-operator.yaml",
+      "sha256": "1e27878ce787a778a2a3c4425f88b40c85e40547cdc54c8aeb668c6eca591fdc"
+    },
+    {
+      "path": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml",
+      "sha256": "dbe6bf9b6cda87e0133be05f7485279b85c4c259c940e42f1b4b41f81c3b20db"
+    },
+    {
+      "path": "infra/platform/observability/rehearsal/releases/observability/kibana.yaml",
+      "sha256": "5c07422f316bbd1be59ef72c8bd9876eec31731f11dc5cd36936996d957af692"
+    },
+    {
+      "path": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+      "sha256": "d32fd87a85bcb35928faf96b24f16d9b9bac8c7a27e82fdbf142a3dd048c2cf5"
+    },
+    {
+      "path": "infra/platform/observability/rehearsal/releases/observability/otel-collector.yaml",
+      "sha256": "0e33e15c13db6fd061712df9d32adb8fe2345fa081a02bf08af58ca4e4fa7d77"
+    },
+    {
+      "path": "infra/platform/observability/rehearsal/retained-service.yaml",
+      "sha256": "a4fe528009a49df38569f6aeae10755c159b1212dd6fcf0777b3c7f49ca096ef"
+    },
+    {
+      "path": "infra/platform/observability/rehearsal/telemetry.yaml",
+      "sha256": "59e9942789e52f64fb94e58342ef2a9d0df76e70780e312809e296f8201b918b"
+    },
+    {
+      "path": "infra/platform/policy/kustomization.yaml",
+      "sha256": "39bf6b064afaa9851b30d20a401ad76ffd7ee0b3ccc76716a281ea1241ebfeff"
+    },
+    {
+      "path": "infra/platform/policy/namespaces.yaml",
+      "sha256": "3caaab1208e6c677b33778416336e0f1672af6ea2195441189312348c0fde176"
+    },
+    {
+      "path": "infra/platform/policy/network-policy.yaml",
+      "sha256": "6756b2e73733927e99990609cb137433da49852dfeefc027ef5597706b5bf2b1"
+    },
+    {
+      "path": "infra/platform/policy/trusted-images.yaml",
+      "sha256": "903feaab35939a8f8325f648a59b59cbb31c9b6fbbb2ea3d5581143821476146"
+    },
+    {
+      "path": "infra/platform/policy/trusted-rbac.yaml",
+      "sha256": "27088f29d6a413fcef5912bc81d0418e49c91079789d6884689852f966e37960"
+    },
+    {
+      "path": "infra/platform/policy/trusted-workloads.yaml",
+      "sha256": "6fa020937096d9ad1d395554c6137bb2d94cb46834daa929d4c7a0e8623e1743"
+    },
+    {
+      "path": "infra/platform/registry/base/kustomization.yaml",
+      "sha256": "e51b867debd0dbad3ad7b989237503d70041a54d8f4651cb6c7892b99e3035a1"
+    },
+    {
+      "path": "infra/platform/registry/base/network-policy.yaml",
+      "sha256": "f83a18cb1b62dd256f76957a7f7f87492ae80d59c28bbbdb5eb0026c80148826"
+    },
+    {
+      "path": "infra/platform/registry/base/registry.yaml",
+      "sha256": "04b8323bebc12284569263c1d7e38f07f3de62f26530fe61e4213b09fa457b37"
+    },
+    {
+      "path": "infra/platform/registry/local/issuers.yaml",
+      "sha256": "f78ce21fba8843a9f2013ecc6c3e73215be42fac32c9bfc274e3d966e60fd212"
+    },
+    {
+      "path": "infra/platform/registry/local/kustomization.yaml",
+      "sha256": "375664345aabe6be6eaca802d3c87de14e0159c43ffed31b231a46c0987bf362"
+    },
+    {
+      "path": "infra/platform/secrets/platform-local/externally-provided.json",
+      "sha256": "9fb649cd6e6e3a27bdfa159397d6596933669e97058f0d901e042e5432442743"
+    },
+    {
+      "path": "infra/platform/secrets/platform-local/kustomization.yaml",
+      "sha256": "23fd4ca100089743124b750101c3b78f56f1016b747768dd6e309d49688083bc"
+    },
+    {
+      "path": "infra/platform/storage/local/kustomization.yaml",
+      "sha256": "761fcf41fa8af612daeda61b0a41a4ebf920a410e05d7c7145054efd18a3ac89"
+    },
+    {
+      "path": "infra/platform/storage/local/storage-class.yaml",
+      "sha256": "47df82eb3f4c6fa5f861b25efc7e2670e20147b3860addaeccec3f32fc6280e2"
+    },
+    {
+      "path": "infra/platform/target/kustomization.yaml",
+      "sha256": "23fd4ca100089743124b750101c3b78f56f1016b747768dd6e309d49688083bc"
+    },
+    {
+      "path": "infra/rehearsal/bootstrap/policy/kustomization.yaml",
+      "sha256": "39bf6b064afaa9851b30d20a401ad76ffd7ee0b3ccc76716a281ea1241ebfeff"
+    },
+    {
+      "path": "infra/rehearsal/bootstrap/policy/namespaces.yaml",
+      "sha256": "336fc2b7909e78fdf41919b6a37b786120591d7aef2cc742db0f351dccb73841"
+    },
+    {
+      "path": "infra/rehearsal/bootstrap/policy/network-policy.yaml",
+      "sha256": "6756b2e73733927e99990609cb137433da49852dfeefc027ef5597706b5bf2b1"
+    },
+    {
+      "path": "infra/rehearsal/bootstrap/policy/trusted-images.yaml",
+      "sha256": "903feaab35939a8f8325f648a59b59cbb31c9b6fbbb2ea3d5581143821476146"
+    },
+    {
+      "path": "infra/rehearsal/bootstrap/policy/trusted-rbac.yaml",
+      "sha256": "27088f29d6a413fcef5912bc81d0418e49c91079789d6884689852f966e37960"
+    },
+    {
+      "path": "infra/rehearsal/bootstrap/policy/trusted-workloads.yaml",
+      "sha256": "6fa020937096d9ad1d395554c6137bb2d94cb46834daa929d4c7a0e8623e1743"
+    },
+    {
+      "path": "infra/versions/object-store.json",
+      "sha256": "8bb260935deac036eb340f3f37d842c355388ead9ef3c3a547526afd1251f715"
+    },
+    {
+      "path": "infra/versions/toolchain.json",
+      "sha256": "5fa350e57fca1228287d101f41c8156f3845cb262f690cc29eb743bb3c31d31e"
+    }
+  ],
+  "artifactSHA256": "0a4f95b5d8e9c77da098d7d5a452119f4dde3c6b9101737d8ed5301bdd56a8cc",
+  "stages": [
+    "target",
+    "controllers",
+    "storage",
+    "policy",
+    "secrets",
+    "certificates",
+    "platform",
+    "observability-controllers",
+    "observability",
+    "alerts",
+    "backup"
+  ],
+  "declaredCapacity": {
+    "scope": "authored-template-sizes",
+    "includesDisabledTemplates": true,
+    "claimTemplates": [
+      {
+        "file": "infra/platform/backup/local/object-store.yaml",
+        "path": "/0/spec/resources/requests/storage",
+        "storage": "20Gi",
+        "sizeMiB": 20480
+      },
+      {
+        "file": "infra/platform/observability/rehearsal-controllers/releases/observability/prometheus-controller.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/storageSpec/volumeClaimTemplate/spec/resources/requests/storage",
+        "storage": "10Gi",
+        "sizeMiB": 10240
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-dev-native.yaml",
+        "path": "/0/spec/volumeClaimTemplates/0/spec/resources/requests/storage",
+        "storage": "2Gi",
+        "sizeMiB": 2048
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-dev-native.yaml",
+        "path": "/3/spec/volumeClaimTemplates/0/spec/resources/requests/storage",
+        "storage": "2Gi",
+        "sizeMiB": 2048
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-native.yaml",
+        "path": "/0/spec/volumeClaimTemplates/0/spec/resources/requests/storage",
+        "storage": "2Gi",
+        "sizeMiB": 2048
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-native.yaml",
+        "path": "/3/spec/volumeClaimTemplates/0/spec/resources/requests/storage",
+        "storage": "2Gi",
+        "sizeMiB": 2048
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/volumeClaimTemplates/0/spec/resources/requests/storage",
+        "storage": "10Gi",
+        "sizeMiB": 10240
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/storageSpec/volumeClaimTemplate/spec/resources/requests/storage",
+        "storage": "10Gi",
+        "sizeMiB": 10240
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/storage/volumeClaimTemplate/spec/resources/requests/storage",
+        "storage": "1Gi",
+        "sizeMiB": 1024
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/volumeClaimTemplates/0/spec/resources/requests/storage",
+        "storage": "10Gi",
+        "sizeMiB": 10240
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/storageSpec/volumeClaimTemplate/spec/resources/requests/storage",
+        "storage": "10Gi",
+        "sizeMiB": 10240
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/storage/volumeClaimTemplate/spec/resources/requests/storage",
+        "storage": "1Gi",
+        "sizeMiB": 1024
+      },
+      {
+        "file": "infra/platform/registry/base/registry.yaml",
+        "path": "/1/spec/resources/requests/storage",
+        "storage": "50Gi",
+        "sizeMiB": 51200
+      }
+    ],
+    "claimSizeSumMiB": 133120,
+    "resourcePolicies": [
+      {
+        "file": "infra/platform/backup/elastic/snapshots.yaml",
+        "path": "/1/spec/template/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/backup/elastic/snapshots.yaml",
+        "path": "/1/spec/template/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "128Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/backup/elastic/snapshots.yaml",
+        "path": "/2/spec/jobTemplate/spec/template/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/backup/elastic/snapshots.yaml",
+        "path": "/2/spec/jobTemplate/spec/template/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "128Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/backup/local/object-store.yaml",
+        "path": "/0/spec/resources/requests",
+        "quantities": {
+          "storage": "20Gi"
+        }
+      },
+      {
+        "file": "infra/platform/backup/local/object-store.yaml",
+        "path": "/1/spec/template/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "50m",
+          "memory": "256Mi",
+          "ephemeral-storage": "32Mi"
+        }
+      },
+      {
+        "file": "infra/platform/backup/local/object-store.yaml",
+        "path": "/1/spec/template/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "512Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/backup/local/object-store.yaml",
+        "path": "/3/spec/template/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/backup/local/object-store.yaml",
+        "path": "/3/spec/template/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "128Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/backup/velero/local/velero.yaml",
+        "path": "/0/spec/values/initContainers/0/resources/requests",
+        "quantities": {
+          "cpu": "50m",
+          "memory": "64Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/backup/velero/local/velero.yaml",
+        "path": "/0/spec/values/initContainers/0/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "256Mi",
+          "ephemeral-storage": "128Mi"
+        }
+      },
+      {
+        "file": "infra/platform/backup/velero/local/velero.yaml",
+        "path": "/0/spec/values/resources/requests",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "128Mi",
+          "ephemeral-storage": "128Mi"
+        }
+      },
+      {
+        "file": "infra/platform/backup/velero/local/velero.yaml",
+        "path": "/0/spec/values/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "512Mi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/backup/velero/local/velero.yaml",
+        "path": "/0/spec/values/nodeAgent/resources/requests",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "128Mi"
+        }
+      },
+      {
+        "file": "infra/platform/backup/velero/local/velero.yaml",
+        "path": "/0/spec/values/nodeAgent/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/networking/cert-manager/release.yaml",
+        "path": "/0/spec/values/resources/requests",
+        "quantities": {
+          "cpu": "50m",
+          "memory": "128Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/networking/cert-manager/release.yaml",
+        "path": "/0/spec/values/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "512Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/networking/cert-manager/release.yaml",
+        "path": "/0/spec/values/webhook/resources/requests",
+        "quantities": {
+          "cpu": "50m",
+          "memory": "128Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/networking/cert-manager/release.yaml",
+        "path": "/0/spec/values/webhook/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "512Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/networking/cert-manager/release.yaml",
+        "path": "/0/spec/values/cainjector/resources/requests",
+        "quantities": {
+          "cpu": "50m",
+          "memory": "128Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/networking/cert-manager/release.yaml",
+        "path": "/0/spec/values/cainjector/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "512Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/networking/cert-manager/release.yaml",
+        "path": "/0/spec/values/startupapicheck/resources/requests",
+        "quantities": {
+          "cpu": "50m",
+          "memory": "64Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/networking/cert-manager/release.yaml",
+        "path": "/0/spec/values/startupapicheck/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "256Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/networking/traefik.yaml",
+        "path": "/0/spec/values/resources/requests",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "128Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/networking/traefik.yaml",
+        "path": "/0/spec/values/resources/limits",
+        "quantities": {
+          "cpu": "2",
+          "memory": "512Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/prometheus/blackbox-exporter.yaml",
+        "path": "/1/spec/template/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "16Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/prometheus/blackbox-exporter.yaml",
+        "path": "/1/spec/template/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "64Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal-controllers/releases/observability/prometheus-controller.yaml",
+        "path": "/0/spec/values/prometheusOperator/prometheusConfigReloader/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal-controllers/releases/observability/prometheus-controller.yaml",
+        "path": "/0/spec/values/prometheusOperator/prometheusConfigReloader/resources/limits",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal-controllers/releases/observability/prometheus-controller.yaml",
+        "path": "/0/spec/values/prometheusOperator/admissionWebhooks/patch/resources/requests",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "64Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal-controllers/releases/observability/prometheus-controller.yaml",
+        "path": "/0/spec/values/prometheusOperator/admissionWebhooks/patch/resources/limits",
+        "quantities": {
+          "cpu": "500m",
+          "memory": "128Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal-controllers/releases/observability/prometheus-controller.yaml",
+        "path": "/0/spec/values/prometheusOperator/resources/requests",
+        "quantities": {
+          "cpu": "50m",
+          "memory": "64Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal-controllers/releases/observability/prometheus-controller.yaml",
+        "path": "/0/spec/values/prometheusOperator/resources/limits",
+        "quantities": {
+          "cpu": "500m",
+          "memory": "256Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal-controllers/releases/observability/prometheus-controller.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/resources/requests",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "512Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal-controllers/releases/observability/prometheus-controller.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal-controllers/releases/observability/prometheus-controller.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/storageSpec/volumeClaimTemplate/spec/resources/requests",
+        "quantities": {
+          "storage": "10Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal-controllers/releases/observability/prometheus-controller.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal-controllers/releases/observability/prometheus-controller.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/resources/limits",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "128Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal-controllers/releases/observability/prometheus-controller.yaml",
+        "path": "/0/spec/values/kube-state-metrics/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "64Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal-controllers/releases/observability/prometheus-controller.yaml",
+        "path": "/0/spec/values/kube-state-metrics/resources/limits",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "256Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal-controllers/releases/observability/prometheus-controller.yaml",
+        "path": "/0/spec/values/prometheus-node-exporter/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal-controllers/releases/observability/prometheus-controller.yaml",
+        "path": "/0/spec/values/prometheus-node-exporter/resources/limits",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "64Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-dev-native.yaml",
+        "path": "/0/spec/template/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "512Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-dev-native.yaml",
+        "path": "/0/spec/template/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "512Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-dev-native.yaml",
+        "path": "/0/spec/volumeClaimTemplates/0/spec/resources/requests",
+        "quantities": {
+          "storage": "2Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-dev-native.yaml",
+        "path": "/3/spec/template/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "1024Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-dev-native.yaml",
+        "path": "/3/spec/template/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "1024Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-dev-native.yaml",
+        "path": "/3/spec/volumeClaimTemplates/0/spec/resources/requests",
+        "quantities": {
+          "storage": "2Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-dev-native.yaml",
+        "path": "/7/spec/template/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "128Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-dev-native.yaml",
+        "path": "/7/spec/template/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "128Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-dev-native.yaml",
+        "path": "/10/spec/template/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-dev-native.yaml",
+        "path": "/10/spec/template/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "128Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-dev-native.yaml",
+        "path": "/14/spec/template/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-dev-native.yaml",
+        "path": "/14/spec/template/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "128Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-native.yaml",
+        "path": "/0/spec/template/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "512Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-native.yaml",
+        "path": "/0/spec/template/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "512Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-native.yaml",
+        "path": "/0/spec/volumeClaimTemplates/0/spec/resources/requests",
+        "quantities": {
+          "storage": "2Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-native.yaml",
+        "path": "/3/spec/template/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "1024Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-native.yaml",
+        "path": "/3/spec/template/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "1024Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-native.yaml",
+        "path": "/3/spec/volumeClaimTemplates/0/spec/resources/requests",
+        "quantities": {
+          "storage": "2Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-native.yaml",
+        "path": "/7/spec/template/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "128Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-native.yaml",
+        "path": "/7/spec/template/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "128Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-native.yaml",
+        "path": "/10/spec/template/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-native.yaml",
+        "path": "/10/spec/template/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "128Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-native.yaml",
+        "path": "/14/spec/template/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/observability-native.yaml",
+        "path": "/14/spec/template/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "128Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/receiver.yaml",
+        "path": "/0/spec/template/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "5m",
+          "memory": "8Mi",
+          "ephemeral-storage": "32Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/receiver.yaml",
+        "path": "/0/spec/template/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "32Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/podTemplate/spec/initContainers/0/resources/requests",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "128Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/podTemplate/spec/initContainers/0/resources/limits",
+        "quantities": {
+          "cpu": "500m",
+          "memory": "256Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/podTemplate/spec/initContainers/1/resources/requests",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "50Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/podTemplate/spec/initContainers/1/resources/limits",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "50Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/podTemplate/spec/initContainers/2/resources/requests",
+        "quantities": {
+          "cpu": "500m",
+          "memory": "196Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/podTemplate/spec/initContainers/2/resources/limits",
+        "quantities": {
+          "cpu": "500m",
+          "memory": "196Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/podTemplate/spec/initContainers/3/resources/requests",
+        "quantities": {
+          "cpu": "500m",
+          "memory": "2Gi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/podTemplate/spec/initContainers/3/resources/limits",
+        "quantities": {
+          "cpu": "2",
+          "memory": "2Gi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/podTemplate/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "500m",
+          "memory": "2Gi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/podTemplate/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "2",
+          "memory": "2Gi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/volumeClaimTemplates/0/spec/resources/requests",
+        "quantities": {
+          "storage": "10Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kibana.yaml",
+        "path": "/0/spec/values/podTemplate/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "512Mi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kibana.yaml",
+        "path": "/0/spec/values/podTemplate/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "1Gi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kibana.yaml",
+        "path": "/0/spec/values/podTemplate/spec/initContainers/0/resources/requests",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "50Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kibana.yaml",
+        "path": "/0/spec/values/podTemplate/spec/initContainers/0/resources/limits",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "50Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheusOperator/prometheusConfigReloader/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheusOperator/prometheusConfigReloader/resources/limits",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheusOperator/admissionWebhooks/patch/resources/requests",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "64Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheusOperator/admissionWebhooks/patch/resources/limits",
+        "quantities": {
+          "cpu": "500m",
+          "memory": "128Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheusOperator/resources/requests",
+        "quantities": {
+          "cpu": "50m",
+          "memory": "64Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheusOperator/resources/limits",
+        "quantities": {
+          "cpu": "500m",
+          "memory": "256Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/resources/requests",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "512Mi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "1Gi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/storageSpec/volumeClaimTemplate/spec/resources/requests",
+        "quantities": {
+          "storage": "10Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "512Mi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "1Gi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/containers/1/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/containers/1/resources/limits",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "64Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/initContainers/0/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/initContainers/0/resources/limits",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "64Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "64Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/resources/limits",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "128Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "64Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "128Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/containers/1/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/containers/1/resources/limits",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "64Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/initContainers/0/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/initContainers/0/resources/limits",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "64Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/storage/volumeClaimTemplate/spec/resources/requests",
+        "quantities": {
+          "storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/kube-state-metrics/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "64Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/kube-state-metrics/resources/limits",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "256Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus-node-exporter/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus-node-exporter/resources/limits",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "64Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/eck-operator.yaml",
+        "path": "/0/spec/values/resources/requests",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "150Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/eck-operator.yaml",
+        "path": "/0/spec/values/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "512Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/podTemplate/spec/initContainers/0/resources/requests",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "128Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/podTemplate/spec/initContainers/0/resources/limits",
+        "quantities": {
+          "cpu": "500m",
+          "memory": "256Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/podTemplate/spec/initContainers/1/resources/requests",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "50Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/podTemplate/spec/initContainers/1/resources/limits",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "50Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/podTemplate/spec/initContainers/2/resources/requests",
+        "quantities": {
+          "cpu": "500m",
+          "memory": "196Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/podTemplate/spec/initContainers/2/resources/limits",
+        "quantities": {
+          "cpu": "500m",
+          "memory": "196Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/podTemplate/spec/initContainers/3/resources/requests",
+        "quantities": {
+          "cpu": "500m",
+          "memory": "2Gi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/podTemplate/spec/initContainers/3/resources/limits",
+        "quantities": {
+          "cpu": "2",
+          "memory": "2Gi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/podTemplate/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "500m",
+          "memory": "2Gi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/podTemplate/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "2",
+          "memory": "2Gi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml",
+        "path": "/0/spec/values/nodeSets/0/volumeClaimTemplates/0/spec/resources/requests",
+        "quantities": {
+          "storage": "10Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kibana.yaml",
+        "path": "/0/spec/values/podTemplate/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "512Mi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kibana.yaml",
+        "path": "/0/spec/values/podTemplate/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "1Gi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kibana.yaml",
+        "path": "/0/spec/values/podTemplate/spec/initContainers/0/resources/requests",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "50Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kibana.yaml",
+        "path": "/0/spec/values/podTemplate/spec/initContainers/0/resources/limits",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "50Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheusOperator/prometheusConfigReloader/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheusOperator/prometheusConfigReloader/resources/limits",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheusOperator/admissionWebhooks/patch/resources/requests",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "64Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheusOperator/admissionWebhooks/patch/resources/limits",
+        "quantities": {
+          "cpu": "500m",
+          "memory": "128Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheusOperator/resources/requests",
+        "quantities": {
+          "cpu": "50m",
+          "memory": "64Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheusOperator/resources/limits",
+        "quantities": {
+          "cpu": "500m",
+          "memory": "256Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/resources/requests",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "512Mi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "1Gi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/storageSpec/volumeClaimTemplate/spec/resources/requests",
+        "quantities": {
+          "storage": "10Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "512Mi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "1Gi",
+          "ephemeral-storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/containers/1/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/containers/1/resources/limits",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "64Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/initContainers/0/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus/prometheusSpec/initContainers/0/resources/limits",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "64Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "64Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/resources/limits",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "128Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "64Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "128Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/containers/1/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/containers/1/resources/limits",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "64Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/initContainers/0/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/initContainers/0/resources/limits",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "64Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/alertmanager/alertmanagerSpec/storage/volumeClaimTemplate/spec/resources/requests",
+        "quantities": {
+          "storage": "1Gi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/kube-state-metrics/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "64Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/kube-state-metrics/resources/limits",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "256Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus-node-exporter/resources/requests",
+        "quantities": {
+          "cpu": "10m",
+          "memory": "32Mi",
+          "ephemeral-storage": "16Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml",
+        "path": "/0/spec/values/prometheus-node-exporter/resources/limits",
+        "quantities": {
+          "cpu": "200m",
+          "memory": "64Mi",
+          "ephemeral-storage": "64Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/otel-collector.yaml",
+        "path": "/0/spec/values/resources/requests",
+        "quantities": {
+          "cpu": "100m",
+          "memory": "128Mi"
+        }
+      },
+      {
+        "file": "infra/platform/observability/rehearsal/releases/observability/otel-collector.yaml",
+        "path": "/0/spec/values/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "320Mi"
+        }
+      },
+      {
+        "file": "infra/platform/registry/base/registry.yaml",
+        "path": "/1/spec/resources/requests",
+        "quantities": {
+          "storage": "50Gi"
+        }
+      },
+      {
+        "file": "infra/platform/registry/base/registry.yaml",
+        "path": "/2/spec/template/spec/containers/0/resources/requests",
+        "quantities": {
+          "cpu": "25m",
+          "memory": "64Mi",
+          "ephemeral-storage": "32Mi"
+        }
+      },
+      {
+        "file": "infra/platform/registry/base/registry.yaml",
+        "path": "/2/spec/template/spec/containers/0/resources/limits",
+        "quantities": {
+          "cpu": "1",
+          "memory": "512Mi",
+          "ephemeral-storage": "256Mi"
+        }
+      }
+    ],
+    "effectiveDemandObserved": false,
+    "unknowns": [
+      "controller-generated replica/init/sidecar demand",
+      "current-node hostPath writable state bounds",
+      "k3d/system and image/build scratch demand",
+      "backup/recovery/transient and existing workload coexistence demand"
+    ]
+  },
+  "helmOwners": [
+    "observability/eck-operator",
+    "observability/prometheus-controller",
+    "observability-dev/kube-prometheus-stack",
+    "observability/kube-prometheus-stack",
+    "observability/otel-collector",
+    "observability-dev/elasticsearch",
+    "observability-dev/kibana",
+    "observability/elasticsearch",
+    "observability/kibana"
+  ],
+  "externalPrerequisites": [
+    {
+      "namespace": "flux-system",
+      "name": "platform-local-kubeconfig",
+      "keys": [
+        "value.yaml"
+      ],
+      "authority": "flux-target-access",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "sops-age",
+      "keys": [
+        "age.agekey"
+      ],
+      "authority": "flux-decryption",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "alertmanager-puni",
+      "keys": [
+        "alertmanager.yaml"
+      ],
+      "authority": "alert-routing",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "elastic-s3-credentials",
+      "keys": [
+        "s3.client.default.access_key",
+        "s3.client.default.secret_key",
+        "ca.crt"
+      ],
+      "authority": "backup",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-client-trust",
+      "keys": [
+        "ca.crt"
+      ],
+      "authority": "exclusive-instance-client-ca",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-collector-client",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "authority": "gateway-ingest-client",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-collector-tls",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "authority": "ingest-server",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-elastic-ingest",
+      "keys": [
+        "password"
+      ],
+      "authority": "ingest-client",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-gateway-tls",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "authority": "gateway-server",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-gateway-trust",
+      "keys": [
+        "ca.crt"
+      ],
+      "authority": "gateway-server-trust",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-health-query",
+      "keys": [
+        "username",
+        "password"
+      ],
+      "authority": "health-readonly-client",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-health-roles",
+      "keys": [
+        "roles.yml"
+      ],
+      "authority": "health-readonly-role",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-health-users",
+      "keys": [
+        "users",
+        "users_roles"
+      ],
+      "authority": "health-readonly-file-realm",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-ingest-roles",
+      "keys": [
+        "roles.yml"
+      ],
+      "authority": "ingest-role",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-ingest-users",
+      "keys": [
+        "users",
+        "users_roles"
+      ],
+      "authority": "ingest-file-realm",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-metrics-query",
+      "keys": [
+        "username",
+        "password",
+        "ca.crt"
+      ],
+      "authority": "metrics-read-client",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-metrics-query-auth",
+      "keys": [
+        "users"
+      ],
+      "authority": "metrics-read-verifier",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-metrics-tls",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "authority": "metrics-server",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-metrics-write-auth",
+      "keys": [
+        "users"
+      ],
+      "authority": "metrics-write-verifier",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-metrics-writer",
+      "keys": [
+        "ca.crt",
+        "password"
+      ],
+      "authority": "metrics-write-client",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-observer-client",
+      "keys": [
+        "tls.crt",
+        "tls.key",
+        "ca.crt"
+      ],
+      "authority": "observer-ingest-client",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "alertmanager-puni",
+      "keys": [
+        "alertmanager.yaml"
+      ],
+      "authority": "alert-routing",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "elastic-s3-credentials",
+      "keys": [
+        "s3.client.default.access_key",
+        "s3.client.default.secret_key",
+        "ca.crt"
+      ],
+      "authority": "backup",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "otel-client-trust",
+      "keys": [
+        "ca.crt"
+      ],
+      "authority": "retained-reader-client-trust",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "otel-server-ca",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "authority": "retained-reader-server-ca",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "platform-elastic-ingest",
+      "keys": [
+        "password"
+      ],
+      "authority": "platform-ingest-client",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "platform-ingest-roles",
+      "keys": [
+        "roles.yml"
+      ],
+      "authority": "platform-ingest-role",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "platform-ingest-users",
+      "keys": [
+        "users",
+        "users_roles"
+      ],
+      "authority": "platform-ingest-file-realm",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-client-trust",
+      "keys": [
+        "ca.crt"
+      ],
+      "authority": "exclusive-instance-client-ca",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-collector-client",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "authority": "gateway-ingest-client",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-collector-tls",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "authority": "ingest-server",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-elastic-ingest",
+      "keys": [
+        "password"
+      ],
+      "authority": "ingest-client",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-gateway-tls",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "authority": "gateway-server",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-gateway-trust",
+      "keys": [
+        "ca.crt"
+      ],
+      "authority": "gateway-server-trust",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-health-query",
+      "keys": [
+        "username",
+        "password"
+      ],
+      "authority": "health-readonly-client",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-health-roles",
+      "keys": [
+        "roles.yml"
+      ],
+      "authority": "health-readonly-role",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-health-users",
+      "keys": [
+        "users",
+        "users_roles"
+      ],
+      "authority": "health-readonly-file-realm",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-ingest-roles",
+      "keys": [
+        "roles.yml"
+      ],
+      "authority": "ingest-role",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-ingest-users",
+      "keys": [
+        "users",
+        "users_roles"
+      ],
+      "authority": "ingest-file-realm",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-metrics-query",
+      "keys": [
+        "username",
+        "password",
+        "ca.crt"
+      ],
+      "authority": "metrics-read-client",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-metrics-query-auth",
+      "keys": [
+        "users"
+      ],
+      "authority": "metrics-read-verifier",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-metrics-tls",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "authority": "metrics-server",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-metrics-write-auth",
+      "keys": [
+        "users"
+      ],
+      "authority": "metrics-write-verifier",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-metrics-writer",
+      "keys": [
+        "ca.crt",
+        "password"
+      ],
+      "authority": "metrics-write-client",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-observer-client",
+      "keys": [
+        "tls.crt",
+        "tls.key",
+        "ca.crt"
+      ],
+      "authority": "observer-ingest-client",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "puni-backup",
+      "name": "object-store-ca",
+      "keys": [
+        "ca.crt"
+      ],
+      "authority": "object-store-trust",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "puni-backup",
+      "name": "object-store-root",
+      "keys": [
+        "MINIO_ROOT_USER",
+        "MINIO_ROOT_PASSWORD"
+      ],
+      "authority": "object-store-admin",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "puni-backup",
+      "name": "object-store-tls",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "authority": "object-store-server",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "puni-backup",
+      "name": "velero-credentials",
+      "keys": [
+        "cloud"
+      ],
+      "authority": "backup-storage",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "puni-backup",
+      "name": "velero-repo-credentials",
+      "keys": [
+        "repository-password"
+      ],
+      "authority": "backup-repository-encryption",
+      "provisioner": "external"
+    },
+    {
+      "namespace": "puni-registry",
+      "name": "registry-auth",
+      "keys": [
+        "htpasswd"
+      ],
+      "authority": "registry-authentication",
+      "provisioner": "external"
+    }
+  ],
+  "controllerSecrets": [
+    {
+      "name": "elasticsearch-es-elastic-user",
+      "keys": [
+        "elastic"
+      ],
+      "namespace": "observability-dev",
+      "authority": "eck-output",
+      "provisioner": "eck",
+      "producer": "HelmRelease/observability-dev/elasticsearch"
+    },
+    {
+      "name": "elasticsearch-es-http-certs-public",
+      "keys": [
+        "ca.crt"
+      ],
+      "namespace": "observability-dev",
+      "authority": "eck-output",
+      "provisioner": "eck",
+      "producer": "HelmRelease/observability-dev/elasticsearch"
+    },
+    {
+      "name": "kibana-kb-http-certs-public",
+      "keys": [
+        "ca.crt"
+      ],
+      "namespace": "observability-dev",
+      "authority": "eck-output",
+      "provisioner": "eck",
+      "producer": "HelmRelease/observability-dev/kibana"
+    },
+    {
+      "name": "elasticsearch-es-elastic-user",
+      "keys": [
+        "elastic"
+      ],
+      "namespace": "observability",
+      "authority": "eck-output",
+      "provisioner": "eck",
+      "producer": "HelmRelease/observability/elasticsearch"
+    },
+    {
+      "name": "elasticsearch-es-http-certs-public",
+      "keys": [
+        "ca.crt"
+      ],
+      "namespace": "observability",
+      "authority": "eck-output",
+      "provisioner": "eck",
+      "producer": "HelmRelease/observability/elasticsearch"
+    },
+    {
+      "name": "kibana-kb-http-certs-public",
+      "keys": [
+        "ca.crt"
+      ],
+      "namespace": "observability",
+      "authority": "eck-output",
+      "provisioner": "eck",
+      "producer": "HelmRelease/observability/kibana"
+    },
+    {
+      "namespace": "observability",
+      "name": "kps-admission",
+      "keys": [
+        "ca",
+        "cert",
+        "key"
+      ],
+      "authority": "monitoring-admission-tls",
+      "provisioner": "helm-hook",
+      "producer": "HelmRelease/observability/prometheus-controller"
+    },
+    {
+      "namespace": "observability",
+      "name": "otel-server-tls",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "authority": "certificate-output",
+      "provisioner": "cert-manager",
+      "producer": "Certificate/observability/otel-server"
+    },
+    {
+      "namespace": "puni-registry",
+      "name": "registry-ca",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "authority": "certificate-output",
+      "provisioner": "cert-manager",
+      "producer": "Certificate/puni-registry/registry-ca"
+    },
+    {
+      "namespace": "puni-registry",
+      "name": "registry-tls",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "authority": "certificate-output",
+      "provisioner": "cert-manager",
+      "producer": "Certificate/puni-registry/registry-tls"
+    }
+  ],
+  "secretReferences": [
+    {
+      "namespace": "observability",
+      "name": "alertmanager-puni",
+      "keys": [
+        "alertmanager.yaml"
+      ],
+      "consumer": "HelmRelease/observability/prometheus-controller",
+      "path": "infra/platform/observability/rehearsal-controllers/releases/observability/prometheus-controller.yaml#0/spec/values/alertmanager/alertmanagerSpec/configSecret"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "alertmanager-puni",
+      "keys": [
+        "alertmanager.yaml"
+      ],
+      "consumer": "HelmRelease/observability-dev/kube-prometheus-stack",
+      "path": "infra/platform/observability/rehearsal/releases/observability-dev/kube-prometheus-stack.yaml#0/spec/values/alertmanager/alertmanagerSpec/configSecret"
+    },
+    {
+      "namespace": "observability",
+      "name": "kps-admission",
+      "keys": [
+        "ca"
+      ],
+      "consumer": "HelmRelease/observability/kube-prometheus-stack",
+      "path": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml#0/spec/values/prometheus/additionalServiceMonitors/0/endpoints/0/tlsConfig/ca/secret"
+    },
+    {
+      "namespace": "observability",
+      "name": "alertmanager-puni",
+      "keys": [
+        "alertmanager.yaml"
+      ],
+      "consumer": "HelmRelease/observability/kube-prometheus-stack",
+      "path": "infra/platform/observability/rehearsal/releases/observability/kube-prometheus-stack.yaml#0/spec/values/alertmanager/alertmanagerSpec/configSecret"
+    },
+    {
+      "namespace": "observability",
+      "name": "platform-elastic-ingest",
+      "keys": [
+        "password"
+      ],
+      "consumer": "HelmRelease/observability/otel-collector",
+      "path": "infra/platform/observability/rehearsal/releases/observability/otel-collector.yaml#0/spec/values/extraEnvs/0/valueFrom/secretKeyRef"
+    },
+    {
+      "namespace": "observability",
+      "name": "otel-server-tls",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "consumer": "HelmRelease/observability/otel-collector",
+      "path": "infra/platform/observability/rehearsal/releases/observability/otel-collector.yaml#0/spec/values/extraVolumes/0/secret/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "otel-client-trust",
+      "keys": [
+        "ca.crt"
+      ],
+      "consumer": "HelmRelease/observability/otel-collector",
+      "path": "infra/platform/observability/rehearsal/releases/observability/otel-collector.yaml#0/spec/values/extraVolumes/1/secret/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "elasticsearch-es-http-certs-public",
+      "keys": [
+        "ca.crt"
+      ],
+      "consumer": "HelmRelease/observability/otel-collector",
+      "path": "infra/platform/observability/rehearsal/releases/observability/otel-collector.yaml#0/spec/values/extraVolumes/4/secret/secretName"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "elastic-s3-credentials",
+      "keys": [
+        "s3.client.default.access_key",
+        "s3.client.default.secret_key"
+      ],
+      "consumer": "HelmRelease/observability-dev/elasticsearch",
+      "path": "infra/platform/observability/rehearsal/releases/observability-dev/elasticsearch.yaml#0/spec/values/secureSettings/0/secretName"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "elastic-s3-credentials",
+      "keys": [
+        "s3.client.default.access_key",
+        "s3.client.default.secret_key",
+        "ca.crt"
+      ],
+      "consumer": "HelmRelease/observability-dev/elasticsearch",
+      "path": "infra/platform/observability/rehearsal/releases/observability-dev/elasticsearch.yaml#0/spec/values/nodeSets/0/podTemplate/spec/volumes/1/secret/secretName"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-health-users",
+      "keys": [
+        "users",
+        "users_roles"
+      ],
+      "consumer": "HelmRelease/observability-dev/elasticsearch",
+      "path": "infra/platform/observability/rehearsal/releases/observability-dev/elasticsearch.yaml#0/spec/values/auth/fileRealm/0/secretName"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-ingest-users",
+      "keys": [
+        "users",
+        "users_roles"
+      ],
+      "consumer": "HelmRelease/observability-dev/elasticsearch",
+      "path": "infra/platform/observability/rehearsal/releases/observability-dev/elasticsearch.yaml#0/spec/values/auth/fileRealm/1/secretName"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-health-roles",
+      "keys": [
+        "roles.yml"
+      ],
+      "consumer": "HelmRelease/observability-dev/elasticsearch",
+      "path": "infra/platform/observability/rehearsal/releases/observability-dev/elasticsearch.yaml#0/spec/values/auth/roles/0/secretName"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-ingest-roles",
+      "keys": [
+        "roles.yml"
+      ],
+      "consumer": "HelmRelease/observability-dev/elasticsearch",
+      "path": "infra/platform/observability/rehearsal/releases/observability-dev/elasticsearch.yaml#0/spec/values/auth/roles/1/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "elastic-s3-credentials",
+      "keys": [
+        "s3.client.default.access_key",
+        "s3.client.default.secret_key"
+      ],
+      "consumer": "HelmRelease/observability/elasticsearch",
+      "path": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml#0/spec/values/secureSettings/0/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "elastic-s3-credentials",
+      "keys": [
+        "s3.client.default.access_key",
+        "s3.client.default.secret_key",
+        "ca.crt"
+      ],
+      "consumer": "HelmRelease/observability/elasticsearch",
+      "path": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml#0/spec/values/nodeSets/0/podTemplate/spec/volumes/1/secret/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-health-users",
+      "keys": [
+        "users",
+        "users_roles"
+      ],
+      "consumer": "HelmRelease/observability/elasticsearch",
+      "path": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml#0/spec/values/auth/fileRealm/0/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-ingest-users",
+      "keys": [
+        "users",
+        "users_roles"
+      ],
+      "consumer": "HelmRelease/observability/elasticsearch",
+      "path": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml#0/spec/values/auth/fileRealm/1/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "platform-ingest-users",
+      "keys": [
+        "users",
+        "users_roles"
+      ],
+      "consumer": "HelmRelease/observability/elasticsearch",
+      "path": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml#0/spec/values/auth/fileRealm/2/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-health-roles",
+      "keys": [
+        "roles.yml"
+      ],
+      "consumer": "HelmRelease/observability/elasticsearch",
+      "path": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml#0/spec/values/auth/roles/0/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-ingest-roles",
+      "keys": [
+        "roles.yml"
+      ],
+      "consumer": "HelmRelease/observability/elasticsearch",
+      "path": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml#0/spec/values/auth/roles/1/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "platform-ingest-roles",
+      "keys": [
+        "roles.yml"
+      ],
+      "consumer": "HelmRelease/observability/elasticsearch",
+      "path": "infra/platform/observability/rehearsal/releases/observability/elasticsearch.yaml#0/spec/values/auth/roles/2/secretName"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-collector-tls",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "consumer": "StatefulSet/observability-dev/signal-collector",
+      "path": "infra/platform/observability/rehearsal/observability-dev-native.yaml#0/spec/template/spec/volumes/1/secret/secretName"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-client-trust",
+      "keys": [
+        "ca.crt"
+      ],
+      "consumer": "StatefulSet/observability-dev/signal-collector",
+      "path": "infra/platform/observability/rehearsal/observability-dev-native.yaml#0/spec/template/spec/volumes/2/secret/secretName"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-collector-client",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "consumer": "StatefulSet/observability-dev/signal-collector",
+      "path": "infra/platform/observability/rehearsal/observability-dev-native.yaml#0/spec/template/spec/volumes/3/secret/secretName"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-gateway-trust",
+      "keys": [
+        "ca.crt"
+      ],
+      "consumer": "StatefulSet/observability-dev/signal-collector",
+      "path": "infra/platform/observability/rehearsal/observability-dev-native.yaml#0/spec/template/spec/volumes/4/secret/secretName"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-metrics-writer",
+      "keys": [
+        "ca.crt",
+        "password"
+      ],
+      "consumer": "StatefulSet/observability-dev/signal-collector",
+      "path": "infra/platform/observability/rehearsal/observability-dev-native.yaml#0/spec/template/spec/volumes/5/secret/secretName"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-elastic-ingest",
+      "keys": [
+        "password"
+      ],
+      "consumer": "StatefulSet/observability-dev/signal-gateway",
+      "path": "infra/platform/observability/rehearsal/observability-dev-native.yaml#3/spec/template/spec/containers/0/env/0/valueFrom/secretKeyRef"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-gateway-tls",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "consumer": "StatefulSet/observability-dev/signal-gateway",
+      "path": "infra/platform/observability/rehearsal/observability-dev-native.yaml#3/spec/template/spec/volumes/1/secret/secretName"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-client-trust",
+      "keys": [
+        "ca.crt"
+      ],
+      "consumer": "StatefulSet/observability-dev/signal-gateway",
+      "path": "infra/platform/observability/rehearsal/observability-dev-native.yaml#3/spec/template/spec/volumes/2/secret/secretName"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "elasticsearch-es-http-certs-public",
+      "keys": [
+        "ca.crt"
+      ],
+      "consumer": "StatefulSet/observability-dev/signal-gateway",
+      "path": "infra/platform/observability/rehearsal/observability-dev-native.yaml#3/spec/template/spec/volumes/3/secret/secretName"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-metrics-tls",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "consumer": "Deployment/observability-dev/signal-metrics",
+      "path": "infra/platform/observability/rehearsal/observability-dev-native.yaml#7/spec/template/spec/volumes/1/secret/secretName"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-metrics-write-auth",
+      "keys": [
+        "users"
+      ],
+      "consumer": "Deployment/observability-dev/signal-metrics",
+      "path": "infra/platform/observability/rehearsal/observability-dev-native.yaml#7/spec/template/spec/volumes/2/secret/secretName"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "signal-metrics-query-auth",
+      "keys": [
+        "users"
+      ],
+      "consumer": "Deployment/observability-dev/signal-metrics",
+      "path": "infra/platform/observability/rehearsal/observability-dev-native.yaml#7/spec/template/spec/volumes/3/secret/secretName"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "elasticsearch-es-elastic-user",
+      "keys": [
+        "elastic"
+      ],
+      "consumer": "Job/observability-dev/elastic-settings",
+      "path": "infra/platform/observability/rehearsal/observability-dev-native.yaml#10/spec/template/spec/containers/0/env/0/valueFrom/secretKeyRef"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "elasticsearch-es-http-certs-public",
+      "keys": [
+        "ca.crt"
+      ],
+      "consumer": "Job/observability-dev/elastic-settings",
+      "path": "infra/platform/observability/rehearsal/observability-dev-native.yaml#10/spec/template/spec/volumes/2/secret/secretName"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "elasticsearch-es-elastic-user",
+      "keys": [
+        "elastic"
+      ],
+      "consumer": "Job/observability-dev/kibana-objects",
+      "path": "infra/platform/observability/rehearsal/observability-dev-native.yaml#14/spec/template/spec/containers/0/env/0/valueFrom/secretKeyRef"
+    },
+    {
+      "namespace": "observability-dev",
+      "name": "kibana-kb-http-certs-public",
+      "keys": [
+        "ca.crt"
+      ],
+      "consumer": "Job/observability-dev/kibana-objects",
+      "path": "infra/platform/observability/rehearsal/observability-dev-native.yaml#14/spec/template/spec/volumes/1/secret/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-collector-tls",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "consumer": "StatefulSet/observability/signal-collector",
+      "path": "infra/platform/observability/rehearsal/observability-native.yaml#0/spec/template/spec/volumes/1/secret/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-client-trust",
+      "keys": [
+        "ca.crt"
+      ],
+      "consumer": "StatefulSet/observability/signal-collector",
+      "path": "infra/platform/observability/rehearsal/observability-native.yaml#0/spec/template/spec/volumes/2/secret/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-collector-client",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "consumer": "StatefulSet/observability/signal-collector",
+      "path": "infra/platform/observability/rehearsal/observability-native.yaml#0/spec/template/spec/volumes/3/secret/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-gateway-trust",
+      "keys": [
+        "ca.crt"
+      ],
+      "consumer": "StatefulSet/observability/signal-collector",
+      "path": "infra/platform/observability/rehearsal/observability-native.yaml#0/spec/template/spec/volumes/4/secret/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-metrics-writer",
+      "keys": [
+        "ca.crt",
+        "password"
+      ],
+      "consumer": "StatefulSet/observability/signal-collector",
+      "path": "infra/platform/observability/rehearsal/observability-native.yaml#0/spec/template/spec/volumes/5/secret/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-elastic-ingest",
+      "keys": [
+        "password"
+      ],
+      "consumer": "StatefulSet/observability/signal-gateway",
+      "path": "infra/platform/observability/rehearsal/observability-native.yaml#3/spec/template/spec/containers/0/env/0/valueFrom/secretKeyRef"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-gateway-tls",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "consumer": "StatefulSet/observability/signal-gateway",
+      "path": "infra/platform/observability/rehearsal/observability-native.yaml#3/spec/template/spec/volumes/1/secret/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-client-trust",
+      "keys": [
+        "ca.crt"
+      ],
+      "consumer": "StatefulSet/observability/signal-gateway",
+      "path": "infra/platform/observability/rehearsal/observability-native.yaml#3/spec/template/spec/volumes/2/secret/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "elasticsearch-es-http-certs-public",
+      "keys": [
+        "ca.crt"
+      ],
+      "consumer": "StatefulSet/observability/signal-gateway",
+      "path": "infra/platform/observability/rehearsal/observability-native.yaml#3/spec/template/spec/volumes/3/secret/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-metrics-tls",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "consumer": "Deployment/observability/signal-metrics",
+      "path": "infra/platform/observability/rehearsal/observability-native.yaml#7/spec/template/spec/volumes/1/secret/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-metrics-write-auth",
+      "keys": [
+        "users"
+      ],
+      "consumer": "Deployment/observability/signal-metrics",
+      "path": "infra/platform/observability/rehearsal/observability-native.yaml#7/spec/template/spec/volumes/2/secret/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "signal-metrics-query-auth",
+      "keys": [
+        "users"
+      ],
+      "consumer": "Deployment/observability/signal-metrics",
+      "path": "infra/platform/observability/rehearsal/observability-native.yaml#7/spec/template/spec/volumes/3/secret/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "elasticsearch-es-elastic-user",
+      "keys": [
+        "elastic"
+      ],
+      "consumer": "Job/observability/elastic-settings",
+      "path": "infra/platform/observability/rehearsal/observability-native.yaml#10/spec/template/spec/containers/0/env/0/valueFrom/secretKeyRef"
+    },
+    {
+      "namespace": "observability",
+      "name": "elasticsearch-es-http-certs-public",
+      "keys": [
+        "ca.crt"
+      ],
+      "consumer": "Job/observability/elastic-settings",
+      "path": "infra/platform/observability/rehearsal/observability-native.yaml#10/spec/template/spec/volumes/2/secret/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "elasticsearch-es-elastic-user",
+      "keys": [
+        "elastic"
+      ],
+      "consumer": "Job/observability/kibana-objects",
+      "path": "infra/platform/observability/rehearsal/observability-native.yaml#14/spec/template/spec/containers/0/env/0/valueFrom/secretKeyRef"
+    },
+    {
+      "namespace": "observability",
+      "name": "kibana-kb-http-certs-public",
+      "keys": [
+        "ca.crt"
+      ],
+      "consumer": "Job/observability/kibana-objects",
+      "path": "infra/platform/observability/rehearsal/observability-native.yaml#14/spec/template/spec/volumes/1/secret/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "elasticsearch-es-elastic-user",
+      "keys": [
+        "elastic"
+      ],
+      "consumer": "Job/observability/elastic-snapshots",
+      "path": "infra/platform/backup/elastic/snapshots.yaml#2/spec/template/spec/containers/0/env/0/valueFrom/secretKeyRef"
+    },
+    {
+      "namespace": "observability",
+      "name": "elasticsearch-es-http-certs-public",
+      "keys": [
+        "ca.crt"
+      ],
+      "consumer": "Job/observability/elastic-snapshots",
+      "path": "infra/platform/backup/elastic/snapshots.yaml#2/spec/template/spec/volumes/1/secret/secretName"
+    },
+    {
+      "namespace": "observability",
+      "name": "elasticsearch-es-elastic-user",
+      "keys": [
+        "elastic"
+      ],
+      "consumer": "CronJob/observability/elastic-snapshot-check",
+      "path": "infra/platform/backup/elastic/snapshots.yaml#4/spec/jobTemplate/spec/template/spec/containers/0/env/0/valueFrom/secretKeyRef"
+    },
+    {
+      "namespace": "observability",
+      "name": "elasticsearch-es-http-certs-public",
+      "keys": [
+        "ca.crt"
+      ],
+      "consumer": "CronJob/observability/elastic-snapshot-check",
+      "path": "infra/platform/backup/elastic/snapshots.yaml#4/spec/jobTemplate/spec/template/spec/volumes/1/secret/secretName"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "platform-local-kubeconfig",
+      "keys": [
+        "value.yaml"
+      ],
+      "consumer": "Kustomization/flux-system/observability-controllers",
+      "path": "infra/clusters/platform/local/observability-controllers.yaml#0/spec/kubeConfig/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "sops-age",
+      "keys": [
+        "age.agekey"
+      ],
+      "consumer": "Kustomization/flux-system/observability-controllers",
+      "path": "infra/clusters/platform/local/observability-controllers.yaml#0/spec/decryption/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "platform-local-kubeconfig",
+      "keys": [
+        "value.yaml"
+      ],
+      "consumer": "Kustomization/flux-system/observability",
+      "path": "infra/clusters/platform/local/observability.yaml#0/spec/kubeConfig/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "sops-age",
+      "keys": [
+        "age.agekey"
+      ],
+      "consumer": "Kustomization/flux-system/observability",
+      "path": "infra/clusters/platform/local/observability.yaml#0/spec/decryption/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "platform-local-kubeconfig",
+      "keys": [
+        "value.yaml"
+      ],
+      "consumer": "Kustomization/flux-system/target",
+      "path": "infra/clusters/platform/local/target.yaml#0/spec/kubeConfig/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "sops-age",
+      "keys": [
+        "age.agekey"
+      ],
+      "consumer": "Kustomization/flux-system/target",
+      "path": "infra/clusters/platform/local/target.yaml#0/spec/decryption/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "platform-local-kubeconfig",
+      "keys": [
+        "value.yaml"
+      ],
+      "consumer": "Kustomization/flux-system/controllers",
+      "path": "infra/clusters/platform/local/controllers.yaml#0/spec/kubeConfig/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "sops-age",
+      "keys": [
+        "age.agekey"
+      ],
+      "consumer": "Kustomization/flux-system/controllers",
+      "path": "infra/clusters/platform/local/controllers.yaml#0/spec/decryption/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "platform-local-kubeconfig",
+      "keys": [
+        "value.yaml"
+      ],
+      "consumer": "Kustomization/flux-system/storage",
+      "path": "infra/clusters/platform/local/storage.yaml#0/spec/kubeConfig/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "sops-age",
+      "keys": [
+        "age.agekey"
+      ],
+      "consumer": "Kustomization/flux-system/storage",
+      "path": "infra/clusters/platform/local/storage.yaml#0/spec/decryption/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "platform-local-kubeconfig",
+      "keys": [
+        "value.yaml"
+      ],
+      "consumer": "Kustomization/flux-system/policy",
+      "path": "infra/clusters/platform/local/policy.yaml#0/spec/kubeConfig/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "sops-age",
+      "keys": [
+        "age.agekey"
+      ],
+      "consumer": "Kustomization/flux-system/policy",
+      "path": "infra/clusters/platform/local/policy.yaml#0/spec/decryption/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "platform-local-kubeconfig",
+      "keys": [
+        "value.yaml"
+      ],
+      "consumer": "Kustomization/flux-system/secrets",
+      "path": "infra/clusters/platform/local/secrets.yaml#0/spec/kubeConfig/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "sops-age",
+      "keys": [
+        "age.agekey"
+      ],
+      "consumer": "Kustomization/flux-system/secrets",
+      "path": "infra/clusters/platform/local/secrets.yaml#0/spec/decryption/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "platform-local-kubeconfig",
+      "keys": [
+        "value.yaml"
+      ],
+      "consumer": "Kustomization/flux-system/certificates",
+      "path": "infra/clusters/platform/local/certificates.yaml#0/spec/kubeConfig/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "sops-age",
+      "keys": [
+        "age.agekey"
+      ],
+      "consumer": "Kustomization/flux-system/certificates",
+      "path": "infra/clusters/platform/local/certificates.yaml#0/spec/decryption/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "platform-local-kubeconfig",
+      "keys": [
+        "value.yaml"
+      ],
+      "consumer": "Kustomization/flux-system/platform",
+      "path": "infra/clusters/platform/local/platform.yaml#0/spec/kubeConfig/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "sops-age",
+      "keys": [
+        "age.agekey"
+      ],
+      "consumer": "Kustomization/flux-system/platform",
+      "path": "infra/clusters/platform/local/platform.yaml#0/spec/decryption/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "platform-local-kubeconfig",
+      "keys": [
+        "value.yaml"
+      ],
+      "consumer": "Kustomization/flux-system/alerts",
+      "path": "infra/clusters/platform/local/alerts.yaml#0/spec/kubeConfig/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "sops-age",
+      "keys": [
+        "age.agekey"
+      ],
+      "consumer": "Kustomization/flux-system/alerts",
+      "path": "infra/clusters/platform/local/alerts.yaml#0/spec/decryption/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "platform-local-kubeconfig",
+      "keys": [
+        "value.yaml"
+      ],
+      "consumer": "Kustomization/flux-system/backup",
+      "path": "infra/clusters/platform/local/backup.yaml#0/spec/kubeConfig/secretRef"
+    },
+    {
+      "namespace": "flux-system",
+      "name": "sops-age",
+      "keys": [
+        "age.agekey"
+      ],
+      "consumer": "Kustomization/flux-system/backup",
+      "path": "infra/clusters/platform/local/backup.yaml#0/spec/decryption/secretRef"
+    },
+    {
+      "namespace": "observability",
+      "name": "otel-server-ca",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "consumer": "Issuer/observability/otel-server",
+      "path": "infra/platform/certificates/platform/local/certificate.yaml#0/spec/ca/secretName"
+    },
+    {
+      "namespace": "puni-registry",
+      "name": "registry-tls",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "consumer": "Deployment/puni-registry/registry",
+      "path": "infra/platform/registry/base/registry.yaml#2/spec/template/spec/volumes/1/secret/secretName"
+    },
+    {
+      "namespace": "puni-registry",
+      "name": "registry-auth",
+      "keys": [
+        "htpasswd"
+      ],
+      "consumer": "Deployment/puni-registry/registry",
+      "path": "infra/platform/registry/base/registry.yaml#2/spec/template/spec/volumes/2/secret/secretName"
+    },
+    {
+      "namespace": "puni-registry",
+      "name": "registry-ca",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "consumer": "Issuer/puni-registry/registry-ca",
+      "path": "infra/platform/registry/local/issuers.yaml#2/spec/ca/secretName"
+    },
+    {
+      "namespace": "puni-backup",
+      "name": "velero-credentials",
+      "keys": [
+        "cloud"
+      ],
+      "consumer": "HelmRelease/puni-backup/velero",
+      "path": "infra/platform/backup/velero/local/velero.yaml#0/spec/values/credentials/existingSecret"
+    },
+    {
+      "namespace": "puni-backup",
+      "name": "object-store-ca",
+      "keys": [
+        "ca.crt"
+      ],
+      "consumer": "BackupStorageLocation/puni-backup/default",
+      "path": "infra/platform/backup/velero/local/velero.yaml#0/spec/values/extraObjects/0/spec/objectStorage/caCertRef"
+    },
+    {
+      "namespace": "puni-backup",
+      "name": "velero-repo-credentials",
+      "keys": [
+        "repository-password"
+      ],
+      "consumer": "HelmRelease/puni-backup/velero",
+      "path": "infra/platform/backup/velero/local/velero.yaml#0/implicit-kopia-repository-password"
+    },
+    {
+      "namespace": "puni-backup",
+      "name": "object-store-root",
+      "keys": [
+        "MINIO_ROOT_USER",
+        "MINIO_ROOT_PASSWORD"
+      ],
+      "consumer": "Deployment/puni-backup/object-store",
+      "path": "infra/platform/backup/local/object-store.yaml#1/spec/template/spec/containers/0/envFrom/0/secretRef"
+    },
+    {
+      "namespace": "puni-backup",
+      "name": "object-store-tls",
+      "keys": [
+        "tls.crt",
+        "tls.key"
+      ],
+      "consumer": "Deployment/puni-backup/object-store",
+      "path": "infra/platform/backup/local/object-store.yaml#1/spec/template/spec/volumes/1/secret/secretName"
+    },
+    {
+      "namespace": "puni-backup",
+      "name": "object-store-ca",
+      "keys": [
+        "ca.crt"
+      ],
+      "consumer": "Deployment/puni-backup/object-store",
+      "path": "infra/platform/backup/local/object-store.yaml#1/spec/template/spec/volumes/2/secret/secretName"
+    },
+    {
+      "namespace": "puni-backup",
+      "name": "object-store-root",
+      "keys": [
+        "MINIO_ROOT_USER",
+        "MINIO_ROOT_PASSWORD"
+      ],
+      "consumer": "Job/puni-backup/object-store-buckets",
+      "path": "infra/platform/backup/local/object-store.yaml#3/spec/template/spec/containers/0/envFrom/0/secretRef"
+    },
+    {
+      "namespace": "puni-backup",
+      "name": "object-store-ca",
+      "keys": [
+        "ca.crt"
+      ],
+      "consumer": "Job/puni-backup/object-store-buckets",
+      "path": "infra/platform/backup/local/object-store.yaml#3/spec/template/spec/volumes/1/secret/secretName"
+    }
+  ],
+  "remainingPrerequisites": [
+    "resolve declared external material and observe controller-produced Secrets",
+    "observed network bindings and instance-distinct material",
+    "full two-instance, transient and coexistence budget",
+    "exact authenticated Flux source transport",
+    "complete owned resource identities"
+  ],
+  "transportImplemented": false,
+  "runtimeRehearsal": false,
+  "liveBinding": false
+}

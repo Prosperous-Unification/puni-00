@@ -1,0 +1,45 @@
+# The local test registry signs its own disposable CA; nothing here is trusted outside k3d.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: registry-bootstrap
+  namespace: puni-registry
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: registry-ca
+  namespace: puni-registry
+spec:
+  isCA: true
+  commonName: puni-local-registry-ca
+  secretName: registry-ca
+  duration: 2160h
+  privateKey: { algorithm: ECDSA, size: 256 }
+  issuerRef: { kind: Issuer, name: registry-bootstrap }
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: registry-ca
+  namespace: puni-registry
+spec:
+  ca: { secretName: registry-ca }
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: registry-tls
+  namespace: puni-registry
+spec:
+  secretName: registry-tls
+  duration: 720h
+  dnsNames:
+    - registry.puni-registry.svc
+    - registry.puni-registry.svc.cluster.local
+    - localhost
+  ipAddresses: [127.0.0.1]
+  privateKey: { algorithm: ECDSA, size: 256 }
+  issuerRef: { kind: Issuer, name: registry-ca }

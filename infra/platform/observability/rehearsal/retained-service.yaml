@@ -1,0 +1,23 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-gateway
+  namespace: observability
+spec:
+  type: NodePort
+  # Keeps the workers node address as the source, which otlp-ingress admits by CIDR.
+  externalTrafficPolicy: Local
+  selector:
+    app.kubernetes.io/instance: otel-collector
+    component: agent-collector
+  ports:
+    # Temporary rollback listener; remove only after authenticated canary proofs.
+    - { name: otlp, port: 4317, targetPort: 4317, nodePort: 30417, protocol: TCP }
+    - {
+        name: otlp-mtls,
+        port: 14317,
+        targetPort: 14317,
+        nodePort: 30419,
+        protocol: TCP
+      }
