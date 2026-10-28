@@ -112,3 +112,23 @@ inventory must remain within the requested freshness window, at most 60 seconds.
 inventory and admitted capacity do not authorize route promotion: absent/unready selected
 services remain blockers, and stored-signal/history/runtime acceptance belongs to the later
 rehearsal and cutover tasks. No concrete live dev operation can be prepared from fixture evidence.
+
+## Capacity scopes
+
+Keep the selected placement and these three budgets explicit:
+
+- Permanent monitoring includes every dev/production instance assigned to the target,
+  its separate stores, shared controllers and agents, host reservations and preserved
+  workloads. Shared operators do not make a second instance's services or stores free.
+- Migration adds concurrent legacy services, retained history, transfer and rollback
+  demand. A steady configuration fitting after cutover does not establish safe overlap.
+- The isolated full rehearsal additionally includes its bootstrap, registry/object store,
+  image/archive work and declared replacement/retry/history scenarios. Its available-memory
+  floor and store declarations are preliminary prerequisites, not permanent host sizing.
+
+Authored requests, container limits, conditional lifecycle charges and measured usage
+answer different questions. Reconcile the complete selected source and effective workload
+bounds with fresh host, storage/writer and enforcement evidence. The historical
+`observability-budget.ts` allowance and enrollment headroom snapshot do not certify the
+current pair of instances. Keep missing contributors explicit; neither a source subtotal
+nor a passed minimum floor establishes admission or justifies a specific resize.

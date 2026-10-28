@@ -4473,3 +4473,19 @@ request-based coexistence budget and conditional full-rehearsal ledger answer
 different questions and cannot certify permanent h3mon sizing. No resource limit,
 retention, floor, workload, host, credential or runtime was changed. Exact receipt
 and remaining steady/migration/rehearsal evidence needs are retained privately.
+
+## Capacity runbook reconciliation — 2026-10-28
+
+The enrollment runbook's October19 request-only comparison was still described
+as resolving memory admission. It now retains the dated observations explicitly,
+corrects the total-memory unit and directs current activation to source-bound
+preflight. The preflight runbook distinguishes permanent, migration and full
+rehearsal budgets without introducing new numeric allowances. Source budget tests
+and authored requests are no longer presented as complete effective admission.
+
+Changed-file Prettier and `git diff --check` passed; both linked document targets
+and the capacity heading exist. Parent inspected the complete diff against the
+current budget implementation, selected tests and preflight contract. No behavior,
+resource policy, safety guard or runtime changed; no application tests, render,
+host probe or old fault matrix was required or run for this documentation correction.
+The documentation remains local while the published head's ordinary CI finishes.
