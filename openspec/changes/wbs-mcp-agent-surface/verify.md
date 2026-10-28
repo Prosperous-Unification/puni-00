@@ -1772,6 +1772,22 @@ What landed:
 
 ### Commands and results, slice 10
 
+All on 2026-10-28 with `env -u CLAUDECODE`, on the laptop:
+
+| Command                                                                           | Result                                                               |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `bunx nx run-many -t typecheck lint -p twilight-dash --skip-nx-cache`             | "Successfully ran targets typecheck, lint for project twilight-dash" |
+| `bun test … src/mcp/pool-import.test.ts src/mcp/token-command.test.ts` (Dash cli) | 35 pass, 0 fail                                                      |
+| `bun test … src/mcp/mcp-token.boot.test.ts` (real be-01 + mcp-01)                 | 9 pass, 0 fail                                                       |
+| Burokrat `check-indexes working . HEAD` (after the commit)                        | exit 0                                                               |
+| `bunx openspec validate --all --json`                                             | 301 items, 301 passed                                                |
+| `bunx prettier --check` on every changed file                                     | "All matched files use Prettier code style!"                         |
+| CI run 40622098433 on ad3d85fcc                                                   | success (gate workspace, gate twilight, pixels)                      |
+
+The full local `nx run twilight-dash:test` ran, but its output was filtered badly and its
+summary lost, so it is not claimed; CI's `gate twilight` and `gate workspace` carry it. Not run:
+the h2puni gate, other projects' suites (only Dash changed), tool-devsync (no tool touched).
+
 ### Failure-proof table, slice 10
 
 Each check was watched failing with the fault injected into `pool-import.ts` (F13: into
