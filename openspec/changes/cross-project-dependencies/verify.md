@@ -7749,3 +7749,11 @@ unverified or held; parent task checkboxes are unchanged.
 ## Fresh-main compatibility and gate fixtures, 2026-10-28
 
 [Fresh-main verification](verify-main-reconciliation-20261028.md) records the metadata union, observed workflow refusal/restoration, real ENABLED worker V1 proof, complete fifteen-case owner and two gate-fixture corrections. Old-source passes and failed host results retain their exact scope; final integrated target facts, gate, CI, parity and activation acceptance remain open.
+
+## Partial backend restart and authority-boundary proofs — 2026-10-28
+
+[Closed readers, fourteen modeled authority cases and five watched omissions](verify-participant-backend-20261028.md) records the partial backend behavior and actual exact-restoration evidence. Full solver-first participant restoration, native discovery, controller/exposure handoff and current committed host/CI acceptance remain open; architectural main adoption and deployment remain held.
+
+## Finite public parser comparison evidence — 2026-10-28
+
+[Separately frozen stock/candidate observations](verify-finite-public-parity.md) records exact byte equality for the finite 16/48/228 scopes. Exercised root names are distinguished from complete schema-branch coverage; remaining endpoint, factory and comparator/admission proofs are explicit. These historical source epochs are not relabeled as later main integration or full feature acceptance.

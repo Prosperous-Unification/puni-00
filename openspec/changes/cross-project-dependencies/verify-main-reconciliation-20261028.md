@@ -32,3 +32,53 @@ bun --no-env-file --no-install test --preload ./tools/test/scratch/preload.ts ./
 ```
 
 The native remote-scripts spec program passed. Full current remote-scripts validation, current committed target-fact/pilot checks, exact-SHA canonical gate and CI remain required. Skips from the old failed gate remain unverified; no old native-generation/performance/qualification campaign was repeated. Full compiler parity and genuine activation/controller/exposure acceptance remain incomplete. MAIN/architectural adoption and deployment remain held.
+
+## Integrated baseline gate and Dockerfile test isolation
+
+Committed integration `bd4a837fb3d29bec7c2f46c2b4bd08a01045c66d`
+passed CI run [40630658495](https://github.com/Prosperous-Unification/puni-00/actions/runs/40630658495),
+including all eight browser shards. Documentation and inactive trusted-wiki
+checks retained their explicit skipped states. That CI evidence describes the
+committed baseline, not subsequent uncommitted restoration code.
+
+The original canonical h2 gate for that exact SHA terminated unsuccessfully
+(session 7883, terminal receipt `b02889`, exit 1) after 138m31s. It completed
+192 tasks successfully, including `tool-remote-scripts:test`; its sole failed
+target was `wbs-mcp-01:test` (822 passed, 1 failed, 823 cases). The Docker
+document-stage case exhausted its shared 10000ms bound at 10025.45ms, with a
+null child exit observation. The historical log does not establish which image
+or operation exhausted that bound. This is a failed gate and must not be
+reported as accepted or restarted merely because its observation ended.
+
+A temporary test-only phase diagnostic retained both recursive source copies,
+both real emitters, all assertions and the original timeout. The focused local
+run passed 1 case / 4 assertions in 4.11s (session 85000, terminal `cb1705`).
+The two emitters took 1985.8ms and 1974.1ms; their library copies took 65.9ms
+and 44.1ms. These local timings do not explain the historical h2 timing. The
+diagnostic was removed exactly, restoring source SHA256
+`2545b8212724030dbc965162c9ef0797ec5b6704829496d43f30f21b8ae0b368`.
+
+Independent review accepted registering one named test per Dockerfile. Each
+callback body remains byte-identical and still copies its own complete stage
+and runs its own real emitter. Each case retains 10000ms. This explicitly
+changes the combined worst-case allowance from 10 to 20 seconds: the two image
+contracts have independent deadlines. It is neither a measured performance
+improvement nor proof of the historical h2 cause. No retry, cache, skip or
+shared generated input was added. Existing deleted-emitter-COPY proof and
+stderr/exit assertions remain unchanged; no new safety guard is claimed.
+
+From `apps/wbs/mcp-01`:
+
+```sh
+bun test src/startup-document.test.ts --test-name-pattern 'Docker document stage' --timeout=10000
+```
+
+Both named image cases passed, with 4 total assertions in 4.10s (session
+56871, terminal `371b6b`); their individual durations were 2057.71ms and
+2003.47ms. Final test source SHA256 is
+`55f376a7b03d7dff697cb0ba96094a72f5edf8e581c71683443391dccf8fc80c`.
+The owning spec compiler passed (session 4014, terminal `bb41d9`); uncached
+file lint passed with the current Nx project graph (session 4844, terminal
+`eb5f8c`). A new complete configured target, exact-current-SHA host gate and CI
+remain required before delivery acceptance. Architectural MAIN/PR #630 adoption
+and deployment remain held.

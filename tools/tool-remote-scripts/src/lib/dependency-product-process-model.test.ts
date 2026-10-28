@@ -6,6 +6,7 @@ import { join } from 'node:path';
 
 import { expect, test } from 'bun:test';
 
+import { PARTICIPANT_OPENER_CASES } from '../fixtures/participant-opener-cases';
 import { createProductByteTransportFixture } from '../fixtures/product-byte-transport';
 import { createReadinessByteTransportFixture } from '../fixtures/product-readiness-byte-transport';
 import { readProductHostProc } from './product-host-proc';
@@ -982,3 +983,82 @@ test('model fixture owner retains actual unread child streams until native exit 
     }
   }
 }, 10000);
+
+test('isolated backend restart coordinator retains fences through durable ready', async () => {
+  const deadline = performance.now() + 310000;
+  await assertRealHostReader();
+  const project = new URL('../..', import.meta.url).pathname;
+  const fixture = await createReadinessByteTransportFixture();
+  await withModelFixture(fixture.directory, async () => {
+    const name = 'backend restart coordinator retains fences through durable ready';
+    const childWork = Math.min(300000, deadline - performance.now() - 10000);
+    if (childWork <= 0) throw new Error('coordinator child cleanup reserve unavailable');
+    const child = await runModelChild(
+      [
+        process.execPath,
+        'test',
+        'test/dependency-participant-restoration-model-child.test.ts',
+        '-t',
+        `^${name}$`,
+        '--preload',
+        '../test/scratch/preload.ts',
+        '--timeout=300000',
+      ],
+      childWork,
+      project,
+      fixture.environment,
+    );
+    process.stderr.write(child.output);
+    expect(child.expired).toBe(false);
+    expect(child.signal).toBeNull();
+    expect(child.exit).toBe(0);
+    expect(child.output).toMatch(/\b1 pass\b/);
+    expect(child.output).toMatch(/\b0 fail\b/);
+    expect(child.output).toMatch(/\b27 filtered out\b/);
+    const passed = [...child.output.matchAll(/^\(pass\) (.+) \[[0-9.]+ms\]$/gm)].map(
+      (match) => match[1],
+    );
+    expect(passed).toEqual([name]);
+  });
+  await assertRealHostReader();
+}, 310000);
+
+for (const kind of PARTICIPANT_OPENER_CASES)
+  test(`isolated backend coordinator authority boundary: ${kind}`, async () => {
+    const deadline = performance.now() + 310000;
+    await assertRealHostReader();
+    const project = new URL('../..', import.meta.url).pathname;
+    const fixture = await createReadinessByteTransportFixture();
+    await withModelFixture(fixture.directory, async () => {
+      const name = `backend coordinator authority boundary: ${kind}`;
+      const childWork = Math.min(300000, deadline - performance.now() - 10000);
+      if (childWork <= 0) throw new Error('opener child cleanup reserve unavailable');
+      const child = await runModelChild(
+        [
+          process.execPath,
+          'test',
+          'test/dependency-participant-opener-model-child.test.ts',
+          '-t',
+          `^${name}$`,
+          '--preload',
+          '../test/scratch/preload.ts',
+          '--timeout=300000',
+        ],
+        childWork,
+        project,
+        fixture.environment,
+      );
+      process.stderr.write(child.output);
+      expect(child.expired).toBe(false);
+      expect(child.signal).toBeNull();
+      expect(child.exit).toBe(0);
+      expect(child.output).toMatch(/\b1 pass\b/);
+      expect(child.output).toMatch(/\b0 fail\b/);
+      expect(child.output).toMatch(/\b41 filtered out\b/);
+      const passed = [...child.output.matchAll(/^\(pass\) (.+) \[[0-9.]+ms\]$/gm)].map(
+        (match) => match[1],
+      );
+      expect(passed).toEqual([name]);
+    });
+    await assertRealHostReader();
+  }, 310000);

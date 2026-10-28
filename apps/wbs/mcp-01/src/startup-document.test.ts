@@ -100,11 +100,11 @@ test('startup survives poisoned contracts and core runtime barrels', async () =>
 });
 
 // Proof: deleting the document emitter COPY from the MCP Dockerfile made this production-stage fixture fail with "Module not found".
-test('Docker document stage generates using exactly its copied sources', () => {
-  for (const [index, dockerfile] of [
-    'apps/wbs/mcp-01/Dockerfile',
-    'deploy/k8s/wbs/lab/mcp-01.Dockerfile',
-  ].entries()) {
+for (const [index, dockerfile] of [
+  'apps/wbs/mcp-01/Dockerfile',
+  'deploy/k8s/wbs/lab/mcp-01.Dockerfile',
+].entries()) {
+  test(`Docker document stage generates using exactly its copied sources: ${dockerfile}`, () => {
     const stage = join(directory, `document-stage-${String(index)}`);
     mkdirSync(stage);
     symlinkSync(join(root, 'node_modules'), join(stage, 'node_modules'));
@@ -134,5 +134,5 @@ test('Docker document stage generates using exactly its copied sources', () => {
     );
     expect(generation.stderr.toString()).toBe('');
     expect(generation.exitCode).toBe(0);
-  }
-}, 10000);
+  }, 10000);
+}

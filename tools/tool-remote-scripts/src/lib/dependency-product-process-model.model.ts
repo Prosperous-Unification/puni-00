@@ -41,7 +41,7 @@ async function captureLocalTransportReturn(audit: Audit, pidPath: string): Promi
   audit.localReturn = { pid, alive, tokens: audit.tokens.length };
 }
 
-function assertLocalTransportSettled(audit: Audit): void {
+export function assertLocalTransportSettled(audit: Audit): void {
   const settlement = audit.localReturn;
   if (settlement === null) throw new Error('local byte transport settlement evidence absent');
   expect(Number.isSafeInteger(settlement.pid)).toBe(true);
@@ -50,7 +50,7 @@ function assertLocalTransportSettled(audit: Audit): void {
   expect(() => process.kill(settlement.pid, 0)).toThrow('No such process');
 }
 
-async function assertAuditContent(audit: Audit): Promise<void> {
+export async function assertAuditContent(audit: Audit): Promise<void> {
   const receiptSha256 = createHash('sha256')
     .update(Buffer.from(audit.tokens.join('\0') + '\0'))
     .digest('hex');
@@ -75,6 +75,7 @@ type Fault =
   | 'init-cwd'
   | 'init-object'
   | 'wrapper-object'
+  | 'application-object'
   | 'wrapper-argv'
   | 'wrapper-cwd'
   | 'listener-owner'
@@ -85,7 +86,12 @@ type Fault =
   | 'oversized-receipt'
   | 'private-stderr'
   | 'cleanup-failure';
-const current = { fault: 'none' as Fault, wrapper: false, execs: 0, readinessTransport: false };
+export const current = {
+  fault: 'none' as Fault,
+  wrapper: false,
+  execs: 0,
+  readinessTransport: false,
+};
 const clock = '2026-10-24 08:00:00.000000000 +0000';
 const metadata = (inode: string) => `2049:${inode}:123456|${clock}|${clock}`;
 const digest = (label: string) => createHash('sha256').update(label).digest('hex');
@@ -176,7 +182,9 @@ function processFrames(role: Role, label: 'before' | 'after'): string[] {
         : '991'
       : wrapper && current.fault === 'wrapper-object'
         ? '994'
-        : '992';
+        : !wrapper && current.fault === 'application-object'
+          ? '995'
+          : '992';
     return [
       'PROC',
       String(inner),
@@ -233,13 +241,14 @@ afterEach(async () => {
   current.readinessTransport = false;
 });
 
-async function withModelContext(
+export async function withModelContext(
   inspect: (
     context: FinalizedParticipantRestorationContext,
     fixture: Awaited<ReturnType<typeof productProcessFixture>>,
     audits: readonly Audit[],
   ) => Promise<void>,
   prepare?: (fixture: Awaited<ReturnType<typeof productProcessFixture>>) => void,
+  startRoles: readonly Role[] = ['backend', 'gateway'],
 ): Promise<void> {
   const fixture = await productProcessFixture();
   prepare?.(fixture);
@@ -262,6 +271,7 @@ async function withModelContext(
           ['backend', 40001],
           ['gateway', 50001],
         ] as const) {
+          if (!startRoles.includes(role)) continue;
           const container = role === 'backend' ? fixture.backend : fixture.gateway;
           Object.assign(container.State, {
             Running: true,

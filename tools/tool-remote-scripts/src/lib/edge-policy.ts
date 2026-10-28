@@ -142,6 +142,57 @@ export async function captureEdgePolicy(edgeState: string): Promise<EdgePolicySn
   return { ...captured, policy: decodeEdgePolicy(value, edgeState) };
 }
 
+export type ParticipantFenceName =
+  | 'dependency-source-dev-intent.json'
+  | 'dependency-source-dev-complete.json'
+  | 'dependency-backend-fence.json'
+  | 'dependency-backend-intent.json'
+  | 'dependency-backend-complete.json'
+  | 'dependency-gateway-fence.json'
+  | 'dependency-gateway-intent.json'
+  | 'dependency-gateway-complete.json';
+
+/**
+ * Captures one of the eight retained participant fences with bounded private bytes
+ * and unchanged file/parent identity. Observation grants no authority to release it.
+ * @throws on an unsupported name or unreadable, malformed or changed file/parent.
+ */
+export async function captureParticipantFence(
+  edgeState: string,
+  name: string,
+): Promise<EdgeRecordSnapshot> {
+  // Proof: removing this guard admitted a readable edge-policy sibling; the
+  // participant-name negative in closed-restoration-records.test.ts failed.
+  if (
+    name !== 'dependency-source-dev-intent.json' &&
+    name !== 'dependency-source-dev-complete.json' &&
+    name !== 'dependency-backend-fence.json' &&
+    name !== 'dependency-backend-intent.json' &&
+    name !== 'dependency-backend-complete.json' &&
+    name !== 'dependency-gateway-fence.json' &&
+    name !== 'dependency-gateway-intent.json' &&
+    name !== 'dependency-gateway-complete.json'
+  )
+    throw new Error('unsupported participant fence path');
+  return captureRecord(edgeState, name, 65536);
+}
+
+/**
+ * Captures an ordinary owner operation intent with a six-to-twelve-digit sequence,
+ * bounded private bytes and unchanged file/parent identity. This grants no authority.
+ * @throws on an unsupported name or unreadable, malformed or changed file/parent.
+ */
+export async function captureOwnerOperationIntent(
+  edgeState: string,
+  name: string,
+): Promise<EdgeRecordSnapshot> {
+  // Proof: removing this guard admitted a readable participant-fence sibling;
+  // the owner-name negative in closed-restoration-records.test.ts failed.
+  if (!/^edge-owner-[0-9]{6,12}-intent\.json$/.test(name))
+    throw new Error('unsupported owner operation intent path');
+  return captureRecord(edgeState, name, 65536);
+}
+
 /** Bounded descriptor/path/parent-bound observation of fixed policy, pending, numbered restoration and closed activation records. */
 export async function captureEdgeRecord(
   edgeState: string,
@@ -158,6 +209,15 @@ export async function captureEdgeRecord(
     )
   )
     throw new Error('unsupported edge record path');
+  return captureRecord(edgeState, name, maximum);
+}
+
+/** Reads only filenames already admitted by this module's closed capture entrypoints. */
+async function captureRecord(
+  edgeState: string,
+  name: string,
+  maximum: 4096 | 65536,
+): Promise<EdgeRecordSnapshot> {
   await assertPolicyDirectory(edgeState);
   const parent = await lstat(edgeState, { bigint: true });
   const path = join(edgeState, name);
