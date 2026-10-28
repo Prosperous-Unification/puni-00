@@ -3793,3 +3793,59 @@ construction and case evidence. The +128Mi/+20m/+128Mi result stays historical
 verified evidence at its exact adapter hash, not a claimed new execution.
 No source58 edit/test-fault replay, runtime/provider action or publication occurred.
 The ordering concern is resolved; independent spec/quality review remains pending.
+
+### Task60 independent review round1 — consumer identity cardinality
+
+Fix BASE is `2d1b4570f457e1b82be9b20fb310f06c2d3a7c04`; full Task60 review BASE
+remains `700aea9bf177de6204e06689f0911996ed72d83a`. The independent review found
+I1: duplicate application/init consumer names could still reach a prior owner's
+claim collision before the inherited identity guard. Its genuine production-reader
+RED was reused without execution: `/tmp/puni-task60-hostpath-review-diagnostic.test.ts`
+and `.log`, exit 1, one test/two assertions. The standalone malformed-host assertion
+passed; the earlier-collision assertion failed with the precise wrong diagnostic.
+Bun reported 718ms; the review did not supply a separate command-wall receipt.
+The original review/RED files and their hashes/modes are recorded unchanged in
+`/tmp/puni-task60-round1/review-red-provenance.json`.
+
+The shared host-bearing prepass now validates one combined application/init name
+namespace, matching the inherited inventory identity rule before claim expansion.
+Duplicate app names, duplicate init names and a shared app/init name are covered
+by actual native-reader negatives behind an earlier nonhost collision. Positive
+distinct app/init facts and valid implicit StatefulSet claim mounts still pass;
+no-host duplicate names retain the original earlier-collision first refusal.
+The source commit is `464a5913d` (`fix(fleet): validate host consumer identities
+before claim expansion`); the private report records its full hash.
+
+Fresh focused baseline and restored runs each passed seven tests / 13 assertions
+(0.970s / 0.922s). Exactly one new `consumer-name-unique` guard-removal experiment
+followed the clean baseline: all three intended app/init/cross-role negatives
+failed because the earlier collision masked them again; exit 1, 0.856s. Exact
+before/mutant source copies, transformation, command, raw log, timings and matching
+before/restored hashes are in `/tmp/puni-task60-round1/consumer-name-unique.json`
+and companion files. Adjacent `Proof:` names that observed experiment. No setup,
+compiler or masked execution is credited. This gives 34 effective Task60
+experiments cumulatively, with none of the prior 33 replayed.
+
+Scoped lib/spec noEmit passed (1.347s/1.719s), affected lint passed (3.687s), format
+and diff checks passed. A mechanical test-helper rename after those checks needed
+Prettier wrapping; the normal commit hook refused that first attempt. Formatting
+was corrected, then the normal source commit passed all hooks; both receipts are
+preserved. This formatting failure is not a safety proof or a bypass.
+
+M1 is corrected in the canonical and private report narrative: original `/1` is
+`v1 ServiceAccount`, `/9` is `v1 Service`, and selected `/13` is the intended
+`apps/v1 DaemonSet`, as established by the parent's retained-frame inspection.
+Original failed-control scripts/logs/receipts remain untouched; only their
+surrounding evidence narrative is corrected.
+
+The successful retained control remains pinned to clean adapter
+`077e04e366012339e56ead033719c3f28679d84e` and was not rerun. The new check only
+changes malformed identity refusal order. The prior retained reader already
+validated unique app/init names in `assertInventoryWorkload`; valid-source facts,
+policy, quantities and cohorts therefore remain unchanged. The unchanged portable
+retained node-exporter case still contributes its exact full two charges in the
+focused run. This is a static valid-source/nonimpact explanation plus case
+evidence, not a new retained execution. No prior 33 fault batch, 366-test
+compatibility suite, full control/render, source58 edit, provider/runtime/Secret
+or publication action occurred. I1/M1 are resolved; root-owned scoped re-review
+remains pending.

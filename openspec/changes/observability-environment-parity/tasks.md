@@ -147,3 +147,13 @@ four new effective restored faults cover that path; 102 focused Task60 tests and
 scoped statics pass. Prior 29 faults and the successful retained comparison were
 not replayed; retained evidence remains pinned to `077e04e366012339e56ead033719c3f28679d84e`.
 See `verify.md` follow-up. The checkbox still awaits root-owned independent review.
+
+Task60 independent review round1: I1 consumer-name uniqueness now runs in the
+shared host-bearing prepass before claim expansion; duplicate app/init/cross-role
+names, distinct valid consumers, implicit claims and no-host first refusal are
+covered. The reviewer RED was reused; seven focused tests and scoped statics pass.
+One new effective restored fault brings the cumulative proof count to 34 without
+replaying prior faults. M1 corrects `/1` to ServiceAccount in the evidence narrative;
+actual failed artifacts are retained. Historical retained comparison remains
+pinned to `077e04e366012339e56ead033719c3f28679d84e`, without replay. Root-owned
+scoped re-review still controls the open Task60 checkbox.
