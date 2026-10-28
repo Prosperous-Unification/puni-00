@@ -606,3 +606,35 @@ The rehearsal SHALL select its load-balancer and temporary helper images from a 
 - **WHEN** helper source selection and component evidence pass
 - **THEN** complete system/helper/transient/physical costs, actual daemon/cache/platform observations, host admission and live acceptance remain separately required
 - **AND** k3d memory flags remain disabled and no historical hidden-helper cleanup claim is inferred
+
+### Requirement: The rehearsal receiver bounds input and retained alert history
+
+The current local receiver SHALL preserve opaque Alertmanager webhook bytes and firing/resolved evidence while enforcing explicit candidate input, history and scratch policies. Source bounds SHALL remain distinct from measured workload fit, transport costs, effective Kubernetes enforcement and full-stack readiness. Production recipients and routing authority SHALL remain unchanged.
+
+#### Scenario: A bounded webhook is recorded and acknowledged
+
+- **WHEN** the sole admitted writer receives a complete body with a valid declared byte length no greater than65536 within10seconds and sufficient space in8388608bytes of history
+- **THEN** the exact body, including trailing whitespace and labels, is retained with the existing alert-received textual prefix through checked same-directory atomic replacement
+- **AND** the retained record is readable and its stdout mirror completes before a200ok acknowledgement
+- **AND** existing records are preserved; no rotation, JSON transformation or new method/content-type restriction is introduced
+
+#### Scenario: Input or storage cannot safely accept a record
+
+- **WHEN** length is absent/malformed/oversized, input is short or times out, another writer holds the nonwaiting lock, history is full, or persistence/readback/stdout fails
+- **THEN** the receiver returns an explicit non-success status withoutok; malformed/absent length is400, oversized413, short400, timed-out408, busy503, full507, and write/readback/stdout failure500
+- **AND** bounds apply before body buffering or unbounded decimal arithmetic, interrupted state remains visible for inspection, and accepted history is never silently truncated or reset
+- **AND** loss of acknowledgement may permit duplicates; exactly-once or power-loss durability is not claimed
+
+#### Scenario: Current source policy is missing or inconsistent
+
+- **WHEN** the required receiver role, policy, scratch mount/cap, resource map or identity cannot be validated through the current platform entry
+- **THEN** validation refuses before source success
+- **AND** scratch is32Mi disk emptyDir, ephemeral request32Mi/limit64Mi, with unchanged image, security, CPU5m/100m and memory8Mi/32Mi
+- **AND** valid historical structural/image readers retain their supported meaning without being upgraded to current-candidate acceptance
+
+#### Scenario: Source or application tests do not establish runtime acceptance
+
+- **WHEN** extracted actual CGI/bootstrap application tests and source comparison pass
+- **THEN** exact pinned BusyBox/httpd behavior, arbitrary transport children/buffers, actual traffic fit, effective resource/storage enforcement and host admission remain separately required
+- **AND** the one-writer cap only bounds application serialization/spooling; same-Pod restart retention is distinct from Pod replacement and power-loss durability
+- **AND** fixture-receiver-cannot-certify-stack-readiness, full stored-signal/isolation/history/recovery and live-dev criteria remain open
