@@ -74,9 +74,15 @@ interface HostSpec {
     readonly volumeMounts?: readonly HostMount[];
   }[];
 }
-/** Decode every supplied host body before unsupported recovery. Modes/propagation are validated by the source mount schema; no runtime state is inferred. */
-export function readHostPathConsumers(spec: HostSpec, refuse: (reason: string) => never) {
-  return (spec.volumes ?? []).flatMap((volume) => {
+/** Decode host bodies and, only for host-bearing Pods, require each app/init mount to name exactly one declaration.
+ * Claim-template names come from the validated source inventory; they supply reference context without invented volumes or bounds.
+ * Modes/propagation are validated by the source mount schema; no runtime state is inferred. */
+export function readHostPathConsumers(
+  spec: HostSpec,
+  refuse: (reason: string) => never,
+  claimTemplateNames: readonly string[] = [],
+) {
+  const consumers = (spec.volumes ?? []).flatMap((volume) => {
     if (volume.hostPath === undefined) return [];
     // Proof: Task60 volume-mixed/volume-unique removals exposed an earlier claim collision instead of the late malformed-source diagnostic.
     if (
@@ -132,7 +138,28 @@ export function readHostPathConsumers(spec: HostSpec, refuse: (reason: string) =
       },
     ];
   });
+  // Proof: Task60 roster-scope corruption validated no-host input early and changed its existing claim-collision diagnostic; the production-reader control failed.
+  if (consumers.length > 0) {
+    const declarations = [
+      ...(spec.volumes ?? []).map((volume) => volume.name),
+      ...claimTemplateNames,
+    ];
+    const names = new Set(declarations);
+    if (
+      // Proof: Task60 roster-unique removal let an earlier claim collision hide unreferenced duplicate declarations; the malformed-first assertion failed.
+      names.size !== declarations.length ||
+      (['containers', 'initContainers'] as const).some((role) =>
+        (spec[role] ?? []).some((container) =>
+          // Proof: Task60 roster-unknown removal let an earlier claim collision hide a later absent-volume reference; the malformed-first assertion failed.
+          container.volumeMounts?.some((mount) => !names.has(mount.name)),
+        ),
+      )
+    )
+      refuse('workload-mount-unknown');
+  }
+  return consumers;
 }
+
 /** Compare complete source tuples as sets after rejecting duplicate references; no partial match can authorize a host volume. */
 // Proof: Task60 shared-matcher corruption admitted writable, changed-path/type and extra-reference tuples through actual native and normalizer paths; their assertions failed.
 export function matchesHostPathPolicy(

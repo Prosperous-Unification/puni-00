@@ -799,7 +799,12 @@ function deriveNativeCosts(
     const pod = HostPathWorkload(podSpecOf({ kind: view.entry.kind, spec: specification }));
     // Proof: Task60 global-mount-shape removal let an earlier claim collision conceal malformed readOnly/propagation; both production-reader assertions failed.
     if (pod instanceof type.errors) refuse();
-    const hostPaths = readHostPathConsumers(pod, refuse);
+    const hostPaths = readHostPathConsumers(
+      pod,
+      refuse,
+      // Proof: Task60 roster-claim-context corruption removed validated template names and rejected a valid host-bearing StatefulSet implicit mount; its production-reader control failed.
+      view.entry.claims.filter((claim) => claim.kind === 'template').map((claim) => claim.name),
+    );
     const template =
       view.entry.kind === 'CronJob'
         ? type({ jobTemplate: { spec: { template: 'unknown' } } }).assert(specification).jobTemplate

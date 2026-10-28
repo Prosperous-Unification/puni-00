@@ -1311,3 +1311,180 @@ test('Task60 retained node-exporter fixture carries exact DaemonSet source prove
     'kube-prometheus-stack-prometheus-node-exporter',
   );
 });
+
+function claimCollisionFixture() {
+  return fixture((document) => {
+    document.set('kind', 'StatefulSet');
+    document.setIn(
+      ['spec', 'volumeClaimTemplates'],
+      [{ metadata: { name: 'same' }, spec: { resources: { requests: { storage: '1Gi' } } } }],
+    );
+    document.setIn(
+      ['spec', 'template', 'spec', 'volumes'],
+      [{ name: 'same', emptyDir: { sizeLimit: '1Mi' } }],
+    );
+  });
+}
+async function lateHostReferencePacket(edit: (document: ReturnType<typeof parseDocument>) => void) {
+  const later = await nodeExporterFixture(edit);
+  const earlier = claimCollisionFixture();
+  const stages = [...earlier.stages, ...later.stages];
+  return {
+    ...later,
+    stages,
+    contract: {
+      ...captureRehearsalFrames(stages, later.expansions),
+      bootstrapSources: later.contract.bootstrapSources,
+      provenance: later.contract.provenance,
+    },
+  };
+}
+test('Task60 reference roster unknown mount precedes earlier nonhost claim collision', async () => {
+  const packet = await lateHostReferencePacket((document) => {
+    document.setIn(
+      ['spec', 'template', 'spec', 'containers', 0, 'volumeMounts', 0, 'name'],
+      'absent-volume',
+    );
+  });
+  expect(() =>
+    readRehearsalNativeCosts(
+      packet.stages,
+      packet.expansions,
+      packet.contract,
+      lock,
+      [],
+      packet.topology,
+    ),
+  ).toThrow('Native ordinal source malformed');
+});
+test('Task60 reference roster accepts declared StatefulSet implicit claim mounts', () => {
+  const packet = fixture((document) => {
+    document.set('kind', 'StatefulSet');
+    document.setIn(['spec', 'replicas'], 1);
+    document.setIn(
+      ['spec', 'volumeClaimTemplates'],
+      [
+        {
+          metadata: { name: 'cache' },
+          spec: { storageClassName: 'local-path', resources: { requests: { storage: '1Gi' } } },
+        },
+      ],
+    );
+    document.setIn(
+      ['spec', 'template', 'spec', 'volumes'],
+      [{ name: 'host', hostPath: { path: '/proc' } }],
+    );
+    document.setIn(
+      ['spec', 'template', 'spec', 'containers', 0, 'volumeMounts'],
+      [
+        { name: 'host', mountPath: '/host', readOnly: true },
+        { name: 'cache', mountPath: '/cache' },
+      ],
+    );
+  });
+  const ledger = derive(packet);
+  expect(ledger.hostPathConsumers).toHaveLength(1);
+  expect(ledger.blockers).toContainEqual({
+    owner: 'StatefulSet:dev:worker',
+    missingFact: 'workload-volume-unsupported',
+  });
+});
+test('Task60 reference roster duplicate referenced declarations precede earlier collision', async () => {
+  const packet = await lateHostReferencePacket((document) => {
+    document.addIn(['spec', 'template', 'spec', 'volumes'], {
+      name: 'config',
+      configMap: { name: 'first' },
+    });
+    document.addIn(['spec', 'template', 'spec', 'volumes'], {
+      name: 'config',
+      configMap: { name: 'second' },
+    });
+    document.addIn(['spec', 'template', 'spec', 'containers', 0, 'volumeMounts'], {
+      name: 'config',
+      mountPath: '/config',
+    });
+  });
+  expect(() =>
+    readRehearsalNativeCosts(
+      packet.stages,
+      packet.expansions,
+      packet.contract,
+      lock,
+      [],
+      packet.topology,
+    ),
+  ).toThrow('Native ordinal source malformed');
+});
+test('Task60 reference roster includes init mount references before earlier collision', async () => {
+  const packet = await lateHostReferencePacket((document) => {
+    document.setIn(
+      ['spec', 'template', 'spec', 'initContainers'],
+      [
+        {
+          name: 'init',
+          image: 'example.invalid/init:1',
+          volumeMounts: [{ name: 'absent-init', mountPath: '/init' }],
+        },
+      ],
+    );
+  });
+  expect(() =>
+    readRehearsalNativeCosts(
+      packet.stages,
+      packet.expansions,
+      packet.contract,
+      lock,
+      [],
+      packet.topology,
+    ),
+  ).toThrow('Native ordinal source malformed');
+});
+test('Task60 reference roster leaves no-host earlier collision diagnostic unchanged', () => {
+  const earlier = claimCollisionFixture();
+  const later = fixture((document) => {
+    document.setIn(['metadata', 'name'], 'later');
+    document.setIn(
+      ['spec', 'template', 'spec', 'containers', 0, 'volumeMounts'],
+      [{ name: 'absent-volume', mountPath: '/missing' }],
+    );
+  });
+  const stages = [
+    ...earlier.stages,
+    {
+      ...later.stages[0],
+      stage: 'later',
+      path: 'infra/later',
+      declarationPath: 'stages/later.yaml',
+    },
+  ];
+  const contract = {
+    ...captureRehearsalFrames(stages, {}),
+    bootstrapSources: earlier.contract.bootstrapSources,
+    provenance: earlier.contract.provenance,
+  };
+  expect(() => readRehearsalNativeCosts(stages, {}, contract, lock, [], earlier.topology)).toThrow(
+    'Cold start claim-template-volume-collision',
+  );
+});
+test('Task60 reference roster rejects unreferenced duplicate declarations before earlier collision', async () => {
+  const packet = await lateHostReferencePacket((document) => {
+    document.addIn(['spec', 'template', 'spec', 'volumes'], {
+      name: 'config',
+      configMap: { name: 'first' },
+    });
+    document.addIn(['spec', 'template', 'spec', 'volumes'], {
+      name: 'config',
+      configMap: { name: 'second' },
+    });
+  });
+  expect(() =>
+    readRehearsalNativeCosts(
+      packet.stages,
+      packet.expansions,
+      packet.contract,
+      lock,
+      [],
+      packet.topology,
+    ),
+  ).toThrow('Native ordinal source malformed');
+});
