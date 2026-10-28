@@ -3961,3 +3961,83 @@ rebuild after the source commit; no authenticated public reuse seam exists and
 no cache/second producer is introduced. Full3.1, current writers/devices,
 initialization/reconciliation/recovery sufficiency and effective runtime/storage
 admission remain open; finite authored caps grant no creation/runtime authority.
+
+## Task62 actual retained Flux build and comparison — 2026-10-28
+
+Normal-hook SOURCE commit: `765c7dec791a049a79905fc56b63fed45a55542f`. Its tracked tree was
+clean before the sole canonical capture. Existing prepared kubectl/Helm binaries
+and an explicitly selected already-cached Helm archive were authenticated through
+the existing seams; no downloads, tool upgrades, external provisioning, provider, network,
+cluster, playbook or runtime operation was invoked. Helm's unchanged authentication
+seam privately extracts the prepared archive for executable-byte comparison.
+Root approved one necessary coupled build because the public canonical inventory
+API inseparably validates all11 stages and renders all12 selected releases; no
+public authenticated reuse-input seam exists. There was exactly one validator
+build call, one release-render call and one bootstrap-frame call. No second
+producer/cache or repeated capture was introduced.
+
+The one command (`34-canonical-command.json`) passed1test/0fail in12.539s command
+wall. The complete new packet remains retained alongside its receipt, stage and
+release streams, actual bootstrap bytes, frame coordinates, prepared source and
+full accounting output under `/tmp/puni-task62`. Source revision/adapter is the
+SOURCE commit above; packet artifact is
+`0a4f95b5d8e9c77da098d7d5a452119f4dde3c6b9101737d8ed5301bdd56a8cc`;
+actual Flux build is
+`396dbce5daaee951aa93ed56135e1ad722707faaeed2a776fcf698f7a99e4d34`;
+authored overlay input is
+`798bedab9ae590a913f0a40fb757514d87bceca14603078b2255eaa60ea5ba87`.
+Raw vendor remains SHA256
+`80779d11e7f0050ed01a3f072556fdabefa38f5f6cb623e9df44381c9ec1d592` and toolchain/vendor Git differences against BASE are
+empty. The enriched canonical inventory hash and base structural source-inventory
+hash remain distinct identities, recorded in the private receipt index.
+
+Decoded actual Kustomize output contains32 objects. Removing **only** the13
+selected new ephemeral/scratch scalars makes every complete object equal to the
+decoded vendor manifest, independently of output order. All32 old/new pointers
+resolve the same GVK/namespace/name; both original and actual manifest/build hashes
+are checked, and the only semantic differences total13 scalars across the four
+Deployments. One bootstrap/flux frame records the retained overlay build directory,
+actual bytes/hash and both independently authenticated source inputs. There is no
+duplicate vendor workload frame or borrowed policy hash.
+
+All11 stage streams,12 selected Helm streams, original policy build and364
+non-Flux inventory entries are exact historical matches. Current source63 complete
+packet commitment is consumed by the unchanged full-accounting reader. Its one
+retained-frame arithmetic pass adds8 full Flux Pod cohort charges (2 per controller),
+using existing lifecycle multiplication: +8192Mi memory,+700m CPU,+8064Mi disk.
+Native known contributions change24384Mi/4250m/20800Mi to32576Mi/4950m/28864Mi;
+combined known contributions change41792Mi/7970m/77632Mi to49984Mi/8670m/85696Mi.
+These are existing conditional contribution sums, not host admission or a hardware
+requirement. Generated traits/lifecycles/entries/subtotal and all unrelated native
+fields are unchanged. Four candidate-emptydir-unbounded blockers become four
+`deployment-replacement-wave-runtime-binding` blockers; incomplete state and all
+creation/runtime authority flags remain false. Existing logs/cache/history,
+writer/device/runtime and lifecycle obligations are preserved.
+
+The first comparison-only attempt reached the exact old/native-entry equality and
+failed on4 honest CronJob horizon selection leaves (2 charges). Saved-JSON-only
+follow-ups exhaustively validate10 changed sourceRevision/artifact leaves against
+the respective retained packet/inventory: those2 charges,2 daemon topology
+lifecycles and1 CronJob lifecycle. All window/template/frame/pointer/owner/mode,
+conditions and quantity siblings remain exact. Only bootstrap/flux frame hashes
+and pointers change with the actual Kustomize object order; every non-Flux frame
+coordinate is exact. No broad provenance stripping is used. Two further harness
+assumptions were corrected from saved output: base structural inventory SHA is
+not enriched receipt SHA, and the generic decoder's identity retains additional
+fields, so GVK identity comparison uses its4 explicit coordinates while whole
+normalized manifests are compared separately. Initial failed scripts/logs and
+path-level diagnostics are retained as comparison setup errors, never source or
+runtime safety proofs. Final saved-output comparison exits0 in0.400s, with no
+accounting/capture/render rerun.
+
+All744 prior Task40/56/58/60/63 artifact file/symlink identities retain exact bytes,
+modes and link targets after capture (`old-artifacts-before/after.json`). The prior
+successful source58/60/63 evidence remains pinned to its original adapters; it was
+not relabeled or replayed. Normal source hooks passed; strict scoped OpenSpec,
+changed-file formatting and diff checks pass. The exact final evidence commit is
+recorded by the private Task62 report after its normal hooks.
+
+Independent scoped review/publication belong to root. No push, CI cancellation or
+rerun, deployment, Secret/store/hardware action or final merge occurred. The live
+source3.1 task, current-network inputs, effective Pods/storage and successful
+fetch/reconcile/restart/recovery/physical admission remain unverified.
