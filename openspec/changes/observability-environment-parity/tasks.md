@@ -102,7 +102,9 @@ Task44 source implementation and watched new guard proofs are recorded in [verif
 
 ### Task48 observed image-platform prerequisite within3.1
 
-- [ ] Normalize image platform through actual safe image fields, preserving descriptor absence/presence and variants. Use actual helper witnesses and native CLI field formatting; do not borrow requested/source platform or relax runtime descriptor-platform checks.
-- [ ] Introduce explicit adapter4 binding/observation provenance within outer3, recompute raw-to-normalized joins, reject mixed/unknown formats, and preserve old adapter3 and outer1/2 retained teardown semantics. New forward producers/sealers require4.
+- [x] Normalize image platform through actual safe image fields, preserving descriptor absence/presence and variants. Use actual helper witnesses and native CLI field formatting; do not borrow requested/source platform or relax runtime descriptor-platform checks.
+- [x] Introduce explicit adapter4 binding/observation provenance within outer3, recompute raw-to-normalized joins, reject mixed/unknown formats, and preserve old adapter3 and outer1/2 retained teardown semantics. New forward producers/sealers require4.
 - [ ] Cover ordinary/witnessed creation, callback/import/closure/retained seams and selected legacy controls; watch changed safety dependencies fail/restored, retain exact hashes/commands/timings, and obtain scoped independent review. Reuse original RED/old proofs/immutableff0b workload capture.
 - [ ] Rebind the private component to reviewed immutable source/dependencies and corroborate selected helper/nonhelper identities under its separately recorded bounded release. Keep complete capacity, actual helper races and all Kubernetes/common-stack/live acceptance open.
+
+Task49 implements the Task48 source platform/provenance slices; [verification](verify.md#task49--observed-image-platform-provenance-and-retained-provider-formats-2026-10-28) records focused checks and new fault receipts. Source verification is complete; scoped independent review and separately released immutable provider corroboration remain pending.

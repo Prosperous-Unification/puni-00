@@ -419,3 +419,48 @@ it('Task44 actual forward witness refuses synthetic version2 before retaining re
   );
   expect(await Bun.file(join(directory, 'creation-binding.json')).exists()).toBe(false);
 });
+
+it('Task49 forward witness refuses explicit synthetic provider3 before retaining records', async () => {
+  const directory = await scratchAsync('task49-legacy-forward-');
+  const identity = {
+    labId: 'c123456789abcdef',
+    attemptId: '11111111-1111-4111-8111-111111111111',
+    daemonId: 'daemon-1',
+  };
+  await createCreationAttempt(directory, identity);
+  const plan = imagePlan(
+    {
+      schemaVersion: 2,
+      helpers: selectedHelpers,
+      endpoint: 'unix:///run/docker.sock',
+      daemonId: 'daemon-1',
+      profile: 'app',
+      network: 'network',
+      binds: [],
+      expected: [
+        {
+          name: 'registry',
+          image: 'registry:2',
+          configId: 'sha256:' + 'e'.repeat(64),
+          role: 'registry',
+          temporary: false,
+        },
+      ],
+    },
+    3,
+  );
+  await rejects(
+    createResourceWitness(
+      directory,
+      directory,
+      identity,
+      plan,
+      () => Promise.reject(new Error('Must not inspect')),
+      [process.execPath, '-e', 'setInterval(()=>{},1000)'],
+      await imageSource(),
+    ).then(async (witness) => {
+      await witness.stop();
+    }),
+  );
+  expect(await Bun.file(join(directory, 'creation-binding.json')).exists()).toBe(false);
+});

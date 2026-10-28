@@ -3,6 +3,15 @@ import { isDeepStrictEqual } from 'node:util';
 import { type } from 'arktype';
 
 import {
+  describeDockerContainerManifest,
+  describeDockerImageManifest,
+  DockerDescriptor,
+  DockerImageInspection,
+  requireDockerImagePlatform,
+  retainDockerDescriptor,
+  retainDockerImageInspection,
+} from './docker-image-platform';
+import {
   ImageExpectation,
   ImageIdentity,
   ImageObject,
@@ -45,7 +54,7 @@ const RootDescriptor = type({
   size: 'number.integer>0',
   '+': 'reject',
 });
-export const DockerImageBinding = type({
+export const HistoricalDockerImageBinding = type({
   schemaVersion: '3',
   provider: "'docker'",
   capabilities: DockerImageCapabilities,
@@ -59,8 +68,17 @@ export const DockerImageBinding = type({
   volumes: 'string[]',
   '+': 'reject',
 });
+// Proof: Task49 optional origin, widened version and inferred missing inspection made binding-origin/unknown-provider-format/missing-image-provenance-default fail.
+export const ObservedDockerImageBinding = HistoricalDockerImageBinding.merge({
+  '+': 'reject',
+  schemaVersion: '4',
+  platformOrigin: "'image-config-fields'",
+  inspection: { normal: DockerImageInspection, selected: DockerImageInspection, '+': 'reject' },
+});
+export const DockerImageBinding = HistoricalDockerImageBinding.or(ObservedDockerImageBinding);
 export type DockerImageBinding = typeof DockerImageBinding.infer;
-export const DockerContainerImage = type({
+export type ObservedDockerImageBinding = typeof ObservedDockerImageBinding.infer;
+export const HistoricalDockerContainerImage = type({
   schemaVersion: '3',
   provider: "'docker'",
   daemonId: 'string>0',
@@ -69,6 +87,14 @@ export const DockerContainerImage = type({
   identity: ImageIdentity,
   '+': 'reject',
 });
+// Proof: Task49 optional origin and binding-derived missing raw manifest made container-origin/missing-container-provenance-default fail.
+export const ObservedDockerContainerImage = HistoricalDockerContainerImage.merge({
+  '+': 'reject',
+  schemaVersion: '4',
+  platformOrigin: "'container-descriptor'",
+  manifest: DockerDescriptor,
+});
+export const DockerContainerImage = HistoricalDockerContainerImage.or(ObservedDockerContainerImage);
 export type DockerContainerImage = typeof DockerContainerImage.infer;
 
 /** Identify one explicitly supported store contract; unknown and ambiguous capabilities refuse. */
@@ -185,6 +211,29 @@ export function requireDockerImageBinding(
 ): DockerImageBinding {
   const expectation = ImageExpectation.assert(expectationInput);
   const binding = DockerImageBinding.assert(bindingInput);
+  // Proof: Task49 omitting this revalidation let coherently resealed false raw facts reach actual controlled down; retained-raw-recompute failed.
+  if (binding.schemaVersion === 4) {
+    const normal = requireDockerImagePlatform(binding.inspection.normal);
+    const selected = requireDockerImagePlatform(binding.inspection.selected);
+    const manifest = describeDockerImageManifest(selected);
+    const identity = ImageIdentity.assert({
+      kind: 'manifest-object',
+      object: { role: 'manifest', digest: selected.objectId },
+      manifest,
+    });
+    if (
+      !isDeepStrictEqual(binding.rootObject, describeObject(normal.descriptor)) ||
+      !isDeepStrictEqual(binding.rootDescriptor, {
+        digest: normal.descriptor.digest,
+        mediaType: normal.descriptor.mediaType,
+        size: normal.descriptor.size,
+      }) ||
+      !isDeepStrictEqual(binding.preinspectIdentity, identity)
+    )
+      // Proof: Task49 removing this join accepted changed raw descriptors with unchanged normalized copies; retained-raw-copy-join failed.
+      throw new Error('Retained Docker image inspection differs from normalized identity');
+  }
+
   const reference =
     expectation.kind === 'helper'
       ? expectation.selection.reference
@@ -230,14 +279,15 @@ export async function inspectDockerImage(
   platform: typeof ImagePlatform.infer,
   capabilitiesInput: unknown,
   docker: Docker,
-): Promise<DockerImageBinding> {
+): Promise<ObservedDockerImageBinding> {
   const capabilities = DockerImageCapabilities.assert(capabilitiesInput);
   const inspect = async (selected: boolean) => {
     const projection = type({
       id: digest,
-      descriptor: Descriptor,
+      descriptor: 'unknown',
       os: 'string>0',
       arch: 'string>0',
+      variant: 'string',
       repoDigests: 'string[]',
       volumes: 'Record<string,unknown>|null',
       '+': 'reject',
@@ -249,17 +299,24 @@ export async function inspectDockerImage(
           reference,
           ...(selected ? ['--platform', `${platform.os}/${platform.arch}`] : []),
           '--format',
-          '{"id":{{json .Id}},"descriptor":{{json .Descriptor}},"os":{{json .Os}},"arch":{{json .Architecture}},"repoDigests":{{json .RepoDigests}},"volumes":{{json (index .Config "Volumes")}}}',
+          // Proof: Task49 replacing this native Volumes field with null hid anonymous stores; native-volumes-projection failed the controlled caller.
+          '{"id":{{json .ID}},"descriptor":{{json .Descriptor}},"os":{{json .Os}},"arch":{{json .Architecture}},"variant":{{json .Variant}},"repoDigests":{{json .RepoDigests}},"volumes":{{json .Config.Volumes}}}',
         ]),
       ),
     );
-    if (
-      projection.id !== projection.descriptor.digest ||
-      projection.os !== platform.os ||
-      projection.arch !== platform.arch
-    )
-      throw new Error('Docker image object or platform differs');
-    return projection;
+    // Proof: Task49 replacing observed OS/arch with request fields accepted wrong-OS evidence; observed-v-requested failed.
+    const inspection = requireDockerImagePlatform(
+      retainDockerImageInspection({
+        id: projection.id,
+        descriptor: projection.descriptor,
+        os: projection.os,
+        arch: projection.arch,
+        variant: projection.variant,
+      }),
+    );
+    if (inspection.imageOs !== platform.os || inspection.imageArch !== platform.arch)
+      throw new Error('Observed Docker image differs from requested platform');
+    return { ...projection, inspection, descriptor: inspection.descriptor };
   };
   const requireDaemon = async () => {
     if ((await docker(['info', '--format', '{{.ID}}'])).trim() !== capabilities.daemonId)
@@ -267,14 +324,15 @@ export async function inspectDockerImage(
       throw new Error('Docker image inspection daemon changed');
   };
   await requireDaemon();
+  // Proof: Task49 replacing the normal descriptor with the selected witness accepted differing sizes; normal-selected-source failed.
   const root = await inspect(false);
   await requireDaemon();
   const child = await inspect(true);
   await requireDaemon();
-  const manifest = describeManifest(child.descriptor);
+  const manifest = describeDockerImageManifest(child.inspection);
   if (
     describeObject(root.descriptor).role === 'manifest' &&
-    !isDeepStrictEqual(describeManifest(root.descriptor), manifest)
+    !isDeepStrictEqual(describeDockerImageManifest(root.inspection), manifest)
   )
     // Proof: Task44 removing this join accepted conflicting root/child platforms; root-child-platform failed.
     throw new Error('Docker root and child manifest descriptors differ');
@@ -288,8 +346,10 @@ export async function inspectDockerImage(
   const binding = requireDockerImageBinding(
     expectationInput,
     {
-      schemaVersion: 3,
+      schemaVersion: 4,
       provider: 'docker',
+      platformOrigin: 'image-config-fields',
+      inspection: { normal: root.inspection, selected: child.inspection },
       capabilities,
       reference,
       platform,
@@ -313,7 +373,7 @@ export async function inspectDockerImage(
   if (!isDeepStrictEqual(root.volumes, child.volumes))
     // Proof: Task44 removing this join accepted conflicting declared volumes; image-volume-projections failed.
     throw new Error('Docker image volume projections differ');
-  return binding;
+  return ObservedDockerImageBinding.assert(binding);
 }
 
 /** Bind container.Image and its independent manifest descriptor without equating them to preinspection.Id. */
@@ -329,7 +389,12 @@ export function observeDockerContainerImage(
     manifest: Descriptor,
     '+': 'reject',
   }).assert(input);
-  const manifest = describeManifest(projection.manifest);
+  const rawManifest =
+    binding.schemaVersion === 4 ? retainDockerDescriptor(projection.manifest) : undefined;
+  const manifest =
+    binding.schemaVersion === 3
+      ? describeManifest(projection.manifest)
+      : describeDockerContainerManifest(rawManifest);
   if (
     binding.capabilities.daemonId !== daemonId ||
     projection.configuredImage !== binding.reference
@@ -351,14 +416,21 @@ export function observeDockerContainerImage(
     manifest,
   });
   requireRuntimeImage(binding.preinspectIdentity, identity);
-  return DockerContainerImage.assert({
-    schemaVersion: 3,
+  const observation = {
     provider: 'docker',
     daemonId,
     requestApi: dockerImageApi,
     reference: projection.configuredImage,
     identity,
-  });
+  };
+  return binding.schemaVersion === 3
+    ? HistoricalDockerContainerImage.assert({ ...observation, schemaVersion: 3 })
+    : ObservedDockerContainerImage.assert({
+        ...observation,
+        schemaVersion: 4,
+        platformOrigin: 'container-descriptor',
+        manifest: rawManifest,
+      });
 }
 
 /** Recheck both source and runtime provenance when sealing or reading retained evidence. */
@@ -370,6 +442,19 @@ export function requireDockerRuntimeImage(
 ): void {
   const binding = requireDockerImageBinding(expectation, bindingInput, daemonId);
   const observation = DockerContainerImage.assert(observationInput);
+  if (binding.schemaVersion !== observation.schemaVersion)
+    // Proof: Task49 removing pair discrimination accepted an old3 binding with a new4 observation; mixed-provider-pair failed.
+    throw new Error('Mixed Docker image binding and observation formats');
+  if (observation.schemaVersion === 4) {
+    const manifest = describeDockerContainerManifest(observation.manifest);
+    if (
+      observation.identity.kind === 'config-object' ||
+      !isDeepStrictEqual(observation.identity.manifest, manifest)
+    )
+      // Proof: Task49 removing this join accepted changed raw container facts; container-raw-join failed.
+      throw new Error('Retained Docker container descriptor differs from normalized identity');
+  }
+
   if (
     observation.daemonId !== daemonId ||
     observation.reference !== binding.reference ||
@@ -382,4 +467,19 @@ export function requireDockerRuntimeImage(
     // Proof: Task44 removing this guard accepted retained foreign daemon/reference; runtime-provenance failed two negatives.
     throw new Error('Docker runtime image provenance differs');
   requireRuntimeImage(binding.preinspectIdentity, observation.identity);
+}
+
+/** Retained cohorts may use one complete historical format; new forward production requires observed provenance. */
+export function requireDockerImageFormats(
+  bindings: readonly DockerImageBinding[],
+  observations: readonly DockerContainerImage[],
+  purpose: 'forward' | 'teardown',
+): void {
+  const versions = new Set([
+    ...bindings.map((binding) => binding.schemaVersion),
+    ...observations.map((observation) => observation.schemaVersion),
+  ]);
+  if (versions.size !== 1 || (purpose === 'forward' && !versions.has(4)))
+    // Proof: Task49 removing this guard let a resealed mixed cohort reach controlled down; mixed-provider-cohort failed.
+    throw new Error('Docker image cohort requires one supported provider format');
 }

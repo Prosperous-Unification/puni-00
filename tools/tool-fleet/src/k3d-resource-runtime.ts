@@ -13,6 +13,7 @@ import {
   dockerImageApi,
   dockerManifestProjection,
   observeDockerContainerImage,
+  requireDockerImageFormats,
   requireDockerRuntimeImage,
 } from './docker-image-identity';
 import { ImageContainerObservation, ImageCreationPlan } from './k3d-creation';
@@ -272,6 +273,12 @@ export async function createResourceWitness(
   // Proof: Task37 forward-plan bypass let the actual witness accept an authentic historical plan.
   // Proof: Task44 accepting the v2 plan schema made synthetic v2 reach a retained forward witness; forward-witness-version failed.
   const plan = ImageCreationPlan.assert(input);
+  // Proof: Task49 omitting this boundary retained an original3 forward witness; forward-witness-provider failed.
+  requireDockerImageFormats(
+    plan.expected.map((expected) => expected.imageBinding),
+    [],
+    'forward',
+  );
   if (source === undefined)
     throw new Error('Forward creation requires independent source selection');
   if (plan.daemonId !== identity.daemonId) throw new Error('Creation plan daemon identity changed');
@@ -459,7 +466,7 @@ export async function createResourceWitness(
         network,
       };
       closeCreation(closure, 'forward');
-      await requireCreationCohort(path, closure, source);
+      await requireCreationCohort(path, closure, source, 'forward');
       await appendResource(path, 'closure', closure);
       const sha256 = await sealResources(path);
       await appendResource(state, 'creation-complete', { schemaVersion: 1, sha256 });

@@ -124,9 +124,9 @@ if(argv[0]==='events') {
  state.network=argv.at(-1);save();if(fault!=='missing-handshake')event('network','create',id('a'),{name:state.network});console.log(id('a'));
 } else if(argv[0]==='run') {
  const volume=id('f');addVolume(volume);addContainer(argv[argv.indexOf('--name')+1],id('1'),argv.at(-1),[mount(volume,'/var/lib/registry')]);console.log(id('1'));
-} else if(argv[0]==='image'&&argv[1]==='inspect') {if(process.env.DOCKER_API_VERSION!=='1.55')throw Error('IDENTITY_API_NOT_PINNED');project({'.Descriptor':descriptor(argv[2],argv.includes('--platform')),'.Id':fault==='preimage-config'?'sha256:'+id('9'):(argv.includes('--platform')?childId(argv[2]):imageId(argv[2])),'.Os':'linux','.Architecture':fault==='preimage-arch'?'arm64':'amd64','.RepoDigests':fault==='preimage-reference'?[]:[argv[2].split('@')[0].split(':')[0].replace('docker.io/','').replace('library/','')+'@'+imageId(argv[2])],'(index .Config "Volumes")':fault==='temporary-anonymous'?{'/private-store':{}}:null});
+} else if(argv[0]==='image'&&argv[1]==='inspect') {if(process.env.DOCKER_API_VERSION!=='1.55')throw Error('IDENTITY_API_NOT_PINNED');project({'.Descriptor':(image=>{const projection=descriptor(image,argv.includes('--platform'));if(image.includes('k3d-'))delete projection.platform;return projection;})(argv[2]),'.ID':fault==='preimage-config'?'sha256:'+id('9'):(argv.includes('--platform')?childId(argv[2]):imageId(argv[2])),'.Os':'linux','.Architecture':fault==='preimage-arch'?'arm64':'amd64','.Variant':fault==='image-variant'?'v2':'','.RepoDigests':fault==='preimage-reference'?[]:[argv[2].split('@')[0].split(':')[0].replace('docker.io/','').replace('library/','')+'@'+imageId(argv[2])],'.Config.Volumes':fault==='temporary-anonymous'?{'/private-store':{}}:null});
 } else if(argv[0]==='port') {console.log('5000/tcp -> 127.0.0.1:40000');
-} else if(argv[0]==='container'&&argv[1]==='inspect') {if(argv.at(-1).includes('ImageManifestDescriptor')&&process.env.DOCKER_API_VERSION!=='1.55')throw Error('IDENTITY_API_NOT_PINNED');const found=state.containers.find(entry=>entry.id===argv[2]);if(found&&found.name.endsWith('-tools'))writeFileSync(directory+'/inspected-'+found.id,'observed');project({'.Id':found.id,'.Name':fault==='import-name'?'/foreign':found.name,'.Image':found.image,'.ImageManifestDescriptor':descriptor(found.configuredImage,true),'.Config.Image':fault==='import-image'?'foreign:release':found.configuredImage,'.NetworkSettings.Networks':fault==='import-network'?{foreign:{NetworkID:id('9')}}:found.networks,'.Mounts':found.mounts,'.State.Running':false,'.State.ExitCode':0});
+} else if(argv[0]==='container'&&argv[1]==='inspect') {if(argv.at(-1).includes('ImageManifestDescriptor')&&process.env.DOCKER_API_VERSION!=='1.55')throw Error('IDENTITY_API_NOT_PINNED');const found=state.containers.find(entry=>entry.id===argv[2]);if(found&&found.name.endsWith('-tools'))writeFileSync(directory+'/inspected-'+found.id,'observed');project({'.Id':found.id,'.Name':fault==='import-name'?'/foreign':found.name,'.Image':found.image,'.ImageManifestDescriptor':(image=>{const projection=descriptor(image,true);if(fault==='container-platform')delete projection.platform;return projection;})(found.configuredImage),'.Config.Image':fault==='import-image'?'foreign:release':found.configuredImage,'.NetworkSettings.Networks':fault==='import-network'?{foreign:{NetworkID:id('9')}}:found.networks,'.Mounts':found.mounts,'.State.Running':false,'.State.ExitCode':0});
 } else if(argv[0]==='network'&&argv[1]==='inspect') {
  project({'.Id':id('a'),'.Name':state.network,'.Containers':Object.fromEntries(state.containers.map(entry=>[entry.id,{}]))});
 } else if(argv[0]==='volume'&&argv[1]==='inspect') {
@@ -1177,4 +1177,144 @@ for (const fault of ['none', 'config', 'mixed'])
       for (const mutation of ['kill', 'stop', 'rm', 'delete'])
         expect(calls).not.toContain(JSON.stringify(mutation));
     }
+  });
+
+import { HistoricalDockerContainerImage } from './docker-image-identity';
+import { imagePlan } from './k3d-image-identity.fixture.test';
+
+it('Task49 real CLI carries observed4 through callback import permanent closure and retained teardown', async () => {
+  const lab = await fixture('serial-tools', true);
+  expect(await lab.up()).toMatchObject({ exit: 0, stderr: '' });
+  const attempts = join(lab.directory, '.puni/fleet-labs/k3d/.attempts', await lab.labId());
+  const path = join(
+    attempts,
+    (await readdir(attempts)).find((name) => name.endsWith('.resources'))!,
+  );
+  const closed = ImageCreationClosure.assert(await Bun.file(join(path, 'closure.json')).json());
+  expect(closed.transients).toHaveLength(2);
+  for (const expected of closed.plan.expected) expect(expected.imageBinding.schemaVersion).toBe(4);
+  for (const observed of [...closed.snapshots, ...closed.transients])
+    expect(observed.imageBinding).toMatchObject({
+      schemaVersion: 4,
+      platformOrigin: 'container-descriptor',
+      manifest: { platform: { state: 'present' } },
+    });
+  for (const expected of closed.plan.expected.filter(
+    (expected) => expected.role === 'tools' || expected.role === 'serverlb',
+  ))
+    expect(expected.imageBinding).toMatchObject({
+      platformOrigin: 'image-config-fields',
+      inspection: {
+        normal: { imageVariant: '', descriptor: { platform: { state: 'absent' } } },
+        selected: { imageVariant: '', descriptor: { platform: { state: 'absent' } } },
+      },
+    });
+  expect(await Bun.file(join(lab.directory, 'imported.oci')).exists()).toBe(true);
+  expect(
+    await lab.invoke([
+      'down',
+      '--profile',
+      'platform',
+      '--id',
+      await lab.labId(),
+      '--resource-evidence',
+      'creation-v1',
+    ]),
+  ).toMatchObject({ exit: 0, stderr: '' });
+});
+for (const fault of ['image-variant', 'container-platform'])
+  it(`Task49 real CLI refuses synthetic ${fault} before ready evidence`, async () => {
+    const lab = await fixture(fault);
+    const execution = await lab.up();
+    expect(execution.exit).not.toBe(0);
+    expect(
+      await Bun.file(
+        join(lab.directory, '.puni/fleet-labs/k3d', await lab.labId(), 'creation-complete.json'),
+      ).exists(),
+    ).toBe(false);
+    const calls = await readFile(join(lab.directory, 'calls'), 'utf8');
+    if (fault === 'image-variant') expect(calls).not.toContain('network","create');
+    for (const mutation of ['kill', 'stop', 'rm', 'delete'])
+      expect(calls).not.toContain(JSON.stringify(mutation));
+  });
+for (const fault of ['raw-recompute', 'missing-provenance', 'mixed-cohort'])
+  it(`Task49 sealed reader refuses ${fault} with matching receipt copies`, async () => {
+    const lab = await fixture();
+    expect(await lab.up()).toMatchObject({ exit: 0, stderr: '' });
+    const attempts = join(lab.directory, '.puni/fleet-labs/k3d/.attempts', await lab.labId());
+    const path = join(
+      attempts,
+      (await readdir(attempts)).find((name) => name.endsWith('.resources'))!,
+    );
+    const closed = ImageCreationClosure.assert(await Bun.file(join(path, 'closure.json')).json());
+    const inputs = ImageCreationInputs.assert(await Bun.file(join(path, 'inputs.json')).json());
+    const tools = closed.plan.expected.find((expected) => expected.role === 'tools')!;
+    const image = inputs.images.find((image) => image.name === tools.image)!;
+    if (fault === 'mixed-cohort') {
+      const legacy = imagePlan(
+        {
+          schemaVersion: 2,
+          helpers: selectedHelpers,
+          endpoint: closed.plan.endpoint,
+          daemonId: closed.plan.daemonId,
+          profile: closed.plan.profile,
+          network: closed.plan.network,
+          binds: [],
+          expected: [
+            {
+              name: tools.name,
+              image: tools.image,
+              configId: selectedHelpers.tools.configDigest,
+              role: 'tools',
+              temporary: true,
+            },
+          ],
+        },
+        3,
+      ).expected[0].imageBinding;
+      tools.imageBinding = legacy;
+      image.imageBinding = structuredClone(legacy);
+      for (const observed of closed.transients) {
+        observed.imageBinding = HistoricalDockerContainerImage.assert({
+          schemaVersion: 3,
+          provider: 'docker',
+          daemonId: closed.plan.daemonId,
+          requestApi: '1.55',
+          reference: observed.configuredImage,
+          identity: observed.imageIdentity,
+        });
+        await writeFile(join(path, `observation-${observed.id}.json`), JSON.stringify(observed));
+      }
+    } else {
+      if (tools.imageBinding.schemaVersion !== 4 || image.imageBinding.schemaVersion !== 4)
+        throw new Error('Fixture requires observed4');
+      if (fault === 'raw-recompute') {
+        tools.imageBinding.inspection.selected.imageOs = 'windows';
+        image.imageBinding.inspection.selected.imageOs = 'windows';
+      }
+      if (fault === 'missing-provenance') {
+        Reflect.deleteProperty(tools.imageBinding, 'inspection');
+        Reflect.deleteProperty(image.imageBinding, 'inspection');
+      }
+    }
+    await writeFile(join(path, 'inputs.json'), JSON.stringify(inputs));
+    await writeFile(join(path, 'plan.json'), JSON.stringify(closed.plan));
+    await writeFile(join(path, 'closure.json'), JSON.stringify(closed));
+    await resealFixture(lab, path);
+    expect(
+      (
+        await lab.invoke([
+          'down',
+          '--profile',
+          'app',
+          '--id',
+          await lab.labId(),
+          '--resource-evidence',
+          'creation-v1',
+        ])
+      ).exit,
+    ).not.toBe(0);
+    const calls = await readFile(join(lab.directory, 'calls'), 'utf8');
+    for (const mutation of ['kill', 'stop', 'rm', 'delete'])
+      expect(calls).not.toContain(JSON.stringify(mutation));
   });

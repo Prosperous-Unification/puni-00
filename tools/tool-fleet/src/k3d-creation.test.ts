@@ -561,3 +561,162 @@ for (const fault of [
     expect(() => closeCreation(input, 'teardown')).toThrow();
   });
 }
+
+import { chmod, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
+import { scratchAsync } from '@tools/test-scratch';
+
+import { requireCreationCohort } from './creation-resources';
+import { observeDockerContainerImage } from './docker-image-identity';
+import { ImageCreationClosure } from './k3d-creation';
+import { imagePlan, imageSource } from './k3d-image-identity.fixture.test';
+
+/** Fresh synthetic original producer records; neither new4 nor historical v1/v2 bytes are rewritten. */
+function platformClosure(version: 3 | 4) {
+  const plan = imagePlan(
+    {
+      schemaVersion: 2,
+      helpers: selectedHelpers,
+      endpoint: 'unix:///run/docker.sock',
+      daemonId: 'daemon-1',
+      profile: 'app',
+      network: 'network',
+      binds: [],
+      expected: [
+        {
+          name: 'tools',
+          image: 'selected:tools',
+          configId: selectedHelpers.tools.configDigest,
+          role: 'tools',
+          temporary: true,
+        },
+      ],
+    },
+    version,
+  );
+  const expected = plan.expected[0];
+  const id = 'c'.repeat(64),
+    networkId = 'b'.repeat(64),
+    volumeName = 'cache';
+  const imageBinding = observeDockerContainerImage(
+    {
+      image: selectedHelpers.tools.manifestDigest,
+      configuredImage: expected.image,
+      manifest: {
+        digest: selectedHelpers.tools.manifestDigest,
+        mediaType: 'application/vnd.oci.image.manifest.v1+json',
+        size: 610,
+        platform: { os: 'linux', architecture: 'amd64' },
+      },
+    },
+    expected.imageBinding,
+    plan.daemonId,
+  );
+  const event = (
+    kind: string,
+    action: string,
+    identity: string,
+    time: string,
+    fields: Record<string, string> = {},
+  ) => ({
+    kind,
+    action,
+    id: identity,
+    time,
+    name: '',
+    container: '',
+    destination: '',
+    driver: '',
+    image: '',
+    ...fields,
+  });
+  return ImageCreationClosure.assert({
+    schemaVersion: 3,
+    plan,
+    creators: [{ name: 'tools', id }],
+    snapshots: [],
+    transients: [
+      {
+        schemaVersion: 3,
+        id,
+        name: 'tools',
+        image: selectedHelpers.tools.manifestDigest,
+        configuredImage: expected.image,
+        imageIdentity: imageBinding.identity,
+        imageBinding,
+        networkIds: [networkId],
+        mounts: [
+          {
+            kind: 'volume',
+            name: volumeName,
+            driver: 'local',
+            source: '/volumes/cache',
+            destination: '/k3d/images',
+            rw: true,
+          },
+        ],
+      },
+    ],
+    events: [
+      event('network', 'create', networkId, '1'),
+      event('volume', 'create', volumeName, '2'),
+      event('container', 'create', id, '3', { name: 'tools', image: expected.image }),
+      event('volume', 'mount', volumeName, '4', { container: id, destination: '/k3d/images' }),
+      event('container', 'destroy', id, '5'),
+    ],
+    volumes: [
+      {
+        name: volumeName,
+        driver: 'local',
+        mountpoint: '/volumes/cache',
+        createdAt: '2026-10-28T00:00:00Z',
+        consumers: [],
+      },
+    ],
+    network: { id: networkId, name: 'network', peers: [] },
+  });
+}
+it('Task49 closure accepts observed4 forward but reserves original3 for teardown', () => {
+  expect(closeCreation(platformClosure(4), 'forward').volumes).toHaveLength(1);
+  expect(closeCreation(platformClosure(3), 'teardown').volumes).toHaveLength(1);
+  expect(() => closeCreation(platformClosure(3), 'forward')).toThrow();
+});
+it('Task49 synthetic original3 cohort validates unchanged bytes through retained teardown joins', async () => {
+  const directory = await scratchAsync('task49-provider3-');
+  await chmod(directory, 0o700);
+  const closed = platformClosure(3);
+  const source = await imageSource();
+  const inputs = {
+    schemaVersion: 3,
+    helpers: selectedHelpers,
+    sourceRevision: source.sourceRevision,
+    toolchainSha256: source.toolchainSha256,
+    configs: [],
+    tools: { k3d: 'a'.repeat(64), kubectl: 'a'.repeat(64) },
+    images: closed.plan.expected.map((expected) => ({
+      name: expected.image,
+      imageIdentity: expected.imageIdentity,
+      imageBinding: expected.imageBinding,
+    })),
+  };
+  const entries: Record<string, unknown> = { plan: closed.plan, inputs };
+  closed.creators.forEach((creator, index) => {
+    entries[`creator-${String(index).padStart(4, '0')}`] = creator;
+  });
+  closed.events.forEach((event, index) => {
+    entries[`event-${String(index + 1).padStart(6, '0')}`] = event;
+  });
+  closed.transients.forEach((observed) => {
+    entries[`observation-${observed.id}`] = observed;
+  });
+  const bytes = Object.fromEntries(
+    Object.entries(entries).map(([name, entry]) => [name, JSON.stringify(entry)]),
+  );
+  for (const [name, contents] of Object.entries(bytes))
+    await writeFile(join(directory, name + '.json'), contents, { mode: 0o600 });
+  await requireCreationCohort(directory, closed, source);
+  expect(closeCreation(closed, 'teardown').volumes).toHaveLength(1);
+  for (const [name, contents] of Object.entries(bytes))
+    expect(await Bun.file(join(directory, name + '.json')).text()).toBe(contents);
+});

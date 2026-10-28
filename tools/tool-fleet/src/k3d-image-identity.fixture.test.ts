@@ -8,7 +8,7 @@ import { EffectiveCreationPlan, ImageCreationPlan } from './k3d-creation';
 import { selectHelperImage } from './k3d-helper-images';
 
 /** Synthetic protocol fixture; these role labels do not claim an actual helper observation. */
-export function imagePlan(input: unknown): ImageCreationPlan {
+export function imagePlan(input: unknown, adapterVersion: 3 | 4 = 4): ImageCreationPlan {
   const plan = EffectiveCreationPlan.assert(input);
   return ImageCreationPlan.assert({
     ...plan,
@@ -32,7 +32,7 @@ export function imagePlan(input: unknown): ImageCreationPlan {
         size: 610,
         platform: { os: 'linux', arch: 'amd64' },
       };
-      const imageBinding = DockerImageBinding.assert({
+      const legacyBinding = DockerImageBinding.assert({
         schemaVersion: 3,
         provider: 'docker',
         capabilities: {
@@ -63,6 +63,37 @@ export function imagePlan(input: unknown): ImageCreationPlan {
         platformRepoDigests: [reference],
         volumes: [],
       });
+      // Synthetic new raw observations are declared independently; historical3 is the unchanged producer shape above.
+      const descriptor = {
+        digest: manifest.digest,
+        mediaType: manifest.mediaType,
+        size: manifest.size,
+        platform: {
+          state: 'present',
+          os: 'linux',
+          architecture: 'amd64',
+          variant: { state: 'absent' },
+        },
+      };
+      const inspection = {
+        objectId: manifest.digest,
+        descriptor,
+        imageOs: 'linux',
+        imageArch: 'amd64',
+        imageVariant: '',
+      };
+      const imageBinding =
+        adapterVersion === 3
+          ? legacyBinding
+          : DockerImageBinding.assert({
+              ...legacyBinding,
+              schemaVersion: 4,
+              platformOrigin: 'image-config-fields',
+              inspection: {
+                normal: structuredClone(inspection),
+                selected: structuredClone(inspection),
+              },
+            });
       return { ...expected, image: reference, imageIdentity, imageBinding };
     }),
   });

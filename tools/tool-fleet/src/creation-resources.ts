@@ -13,7 +13,11 @@ import {
   requireDirectory,
   syncDirectory,
 } from './creation-journal';
-import { DockerImageBinding, requireDockerImageBinding } from './docker-image-identity';
+import {
+  DockerImageBinding,
+  requireDockerImageBinding,
+  requireDockerImageFormats,
+} from './docker-image-identity';
 import { ImageExpectation } from './image-identity';
 import {
   ContainerObservation,
@@ -261,6 +265,7 @@ export async function requireCreationCohort(
   directory: string,
   closure: CreationClosure,
   source?: CreationSource,
+  purpose: 'forward' | 'teardown' = 'teardown',
 ): Promise<void> {
   // Proof: Task37 retained-cohort bypass made seven sealed-reader mismatches reach teardown; all negatives failed.
   const read = async (name: string): Promise<unknown> =>
@@ -279,6 +284,15 @@ export async function requireCreationCohort(
   // Proof: Task44 substituting receipt helpers for decoded Git source accepted resealed false selection; source-selection-dependency failed.
   if (closure.schemaVersion === 3) {
     const inputs = ImageCreationInputs.assert(input);
+    // Proof: Task49 disabling cohort format validation let coherently resealed mixed3/4 records reach controlled down; mixed-provider-cohort failed.
+    requireDockerImageFormats(
+      [
+        ...closure.plan.expected.map((expected) => expected.imageBinding),
+        ...inputs.images.map((image) => image.imageBinding),
+      ],
+      [...closure.snapshots, ...closure.transients].map((observed) => observed.imageBinding),
+      purpose,
+    );
     if (
       source === undefined ||
       !('k3dHelpers' in source.toolchain) ||

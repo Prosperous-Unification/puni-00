@@ -5,6 +5,7 @@ import { type } from 'arktype';
 import {
   DockerContainerImage,
   DockerImageBinding,
+  requireDockerImageFormats,
   requireDockerRuntimeImage,
 } from './docker-image-identity';
 import { ImageExpectation, ImageIdentity } from './image-identity';
@@ -359,7 +360,7 @@ export function closeCreation(input: unknown, purpose: 'forward' | 'teardown' = 
       throw new Error('Forward creation requires image version 3 evidence');
     return closeHistoricalCreation(closure);
   }
-  if (closure.schemaVersion === 3) return closeImageCreation(closure);
+  if (closure.schemaVersion === 3) return closeImageCreation(closure, purpose);
   // Proof: Task44 removing this version refusal made synthetic v2 certify forward acceptance; forward-closure-version failed.
   if (purpose === 'forward') throw new Error('Forward creation requires image version 3 evidence');
   const { plan, transients, snapshots, creators } = closure;
@@ -401,8 +402,17 @@ export function closeCreation(input: unknown, purpose: 'forward' | 'teardown' = 
   });
 }
 
-function closeImageCreation(closure: typeof ImageCreationClosure.infer) {
+function closeImageCreation(
+  closure: typeof ImageCreationClosure.infer,
+  purpose: 'forward' | 'teardown',
+) {
   const { plan, snapshots, transients, creators } = closure;
+  // Proof: Task49 omitting this forward boundary accepted an original3 closure; forward-sealer-provider failed.
+  requireDockerImageFormats(
+    plan.expected.map((expected) => expected.imageBinding),
+    [...snapshots, ...transients].map((observed) => observed.imageBinding),
+    purpose,
+  );
   const temporaryIds = creators
     .filter((creator) =>
       plan.expected.some((expected) => expected.temporary && expected.name === creator.name),
