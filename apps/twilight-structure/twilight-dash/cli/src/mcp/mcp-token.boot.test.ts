@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -7,6 +7,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
 
 import { mcpEndpointOf, urlOf } from './machine-token';
+import { runPoolCommand } from './pool-import';
 import { startWbsMcpStack, type WbsMcpStack } from './testing/wbs-mcp-stack';
 import { runMcpCommand } from './token-command';
 import { WorkloadJwtBearerProvider } from './workload-provider';
@@ -302,5 +303,77 @@ describe('WorkloadJwtBearerProvider', () => {
     expect(new Set(reads).size).toBe(reads.length);
     expect(reads.length).toBeGreaterThanOrEqual(2);
     await close();
+  });
+});
+
+describe('twilight-dash pool import (task 6.4)', () => {
+  /** A `wbs-agent-pool-keys` v1 document of claire alone, holding `key`, in a 0600 file. */
+  function poolFile(credentialId: string, key: string): string {
+    const path = join(scratch, `pool-${credentialId}.keys.json`);
+    const document = {
+      format: 'wbs-agent-pool-keys',
+      version: 1,
+      organizationId: 'org-a',
+      authorizationServer: mcpEndpointOf(stack.resource).issuer,
+      mcpResource: stack.resource,
+      poolId: 'pool-boot',
+      name: 'boot',
+      expiresAt: null,
+      issuedAt: 0,
+      agents: [{ personId: 'claire', personName: 'claire', credentialId, key }],
+    };
+    writeFileSync(path, JSON.stringify(document), { mode: 0o600 });
+    chmodSync(path, 0o600);
+    return path;
+  }
+
+  const importPool = (file: string, store: string): Promise<void> =>
+    runPoolCommand(['import', file, '--store', store], {
+      send,
+      write: () => undefined,
+      helper: [process.execPath, ENTRYPOINT],
+    });
+
+  test('the stored headersHelper calls a tool with its run; a revoked key aborts the re-import', async () => {
+    const store = join(scratch, 'pool-store');
+    const { id, key } = await keyFile();
+    await importPool(poolFile(id, key), store);
+
+    const keyPath = join(store, 'pool-pool-boot', 'claire.key');
+    const config = JSON.parse(
+      readFileSync(join(store, 'pool-pool-boot', 'claire.mcp.json'), 'utf8'),
+    ) as { mcpServers: { wbs: { url: string; headersHelper: string } } };
+    expect(config.mcpServers.wbs.url).toBe(stack.resource);
+    const shell = Bun.spawn(['sh', '-c', config.mcpServers.wbs.headersHelper], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const [printed, exitCode] = await Promise.all([
+      new Response(shell.stdout).text(),
+      shell.exited,
+    ]);
+    expect(exitCode).toBe(0);
+    const token = (JSON.parse(printed) as { Authorization: string }).Authorization.slice(
+      'Bearer '.length,
+    );
+    expect(claimsOf(token)).toMatchObject({
+      token_use: 'machine',
+      wbs_run: 'pool-pool-boot/claire',
+    });
+    expect(await callWith(token)).toMatchObject({ status: 200 });
+
+    // The key is revoked: re-importing the same document issues nothing and changes nothing.
+    await stack.fixture('revoke', { id });
+    const before = tokenAnswers.length;
+    const refused = await importPool(poolFile(id, key), store).then(
+      () => 'imported',
+      (cause: unknown) => (cause instanceof Error ? cause.message : String(cause)),
+    );
+    expect(refused).toStartWith(
+      "agent claire's key did not issue a token, so nothing was imported",
+    );
+    expect(tokenAnswers.slice(before)).toEqual([401]);
+    expect(readFileSync(keyPath, 'utf8')).toBe(`${key}\n`);
+    expect(existsSync(join(store, 'pool-pool-boot', 'pool.json'))).toBe(true);
   });
 });

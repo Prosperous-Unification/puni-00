@@ -17,6 +17,7 @@ and exposes the local commands below, plus the managed resource runtime:
 | `account-outcomes --repository <path> --since <instant> --until <instant> --rate-card <path> --output <new-dir> [--claude-projects <dir>]... [--codex-sessions <dir>]...` | writes the period's efficiency breakdown: cost per accepted outcome from harness logs; see [`account-outcomes`](#account-outcomes)                                                               |
 | `report-capacity --config <owner-only file>`                                                                                                                              | measures each bound resource through its compute provider and reports it to WBS until a refusal; see [`report-capacity`](#report-capacity)                                                       |
 | `mcp token --resource <url> (--key-file <path> \| --assertion-file <path> \| --github-actions-audience <aud>) [--run <id>]`                                               | prints a fresh WBS MCP bearer as a header map for Claude Code's `headersHelper`, from an API key or a workload token; see [`mcp token`](#mcp-token)                                              |
+| `pool import <pool-keys.json> --store <directory>`                                                                                                                        | stores an agent pool's keys for `mcp token`, each agent with its own MCP config and run, after every key issued a token; see [`pool import`](#pool-import)                                       |
 
 ## Managed resource cleanup
 
@@ -340,12 +341,54 @@ configure the server in the project's `.mcp.json` (or `--mcp-config` for `claude
   issuances per minute from one address. To scope each run's claims, give each run its
   own `--mcp-config` with `--run <id>`, and send the same id as the run in commands.
 - Claude Code subagents share their parent's connection, and so its token and run.
+- For an agent pool, [`pool import`](#pool-import) writes each agent's key file and a
+  `--mcp-config` file with its own run.
 
 For a long-lived Node or Bun process using the MCP SDK directly with a workload token,
 [`WorkloadJwtBearerProvider`](src/mcp/workload-provider.ts) is the `authProvider`: it keeps its
 token in memory, drops it on a 401, rereads the workload token for every request, and needs no
 dynamic registration. Pass its `tokenFetch(fetch)` as the transport's `fetch` so a token
 endpoint `429` is waited out (at most 60 s) once.
+
+## `pool import`
+
+Stores the keys of an agent pool for `mcp token` ([`src/mcp/pool-import.ts`](src/mcp/pool-import.ts);
+`openspec/changes/wbs-mcp-agent-surface` M7, M15). An admin creates or re-keys a pool in WBS and
+downloads its keys once as `pool-<id>.keys.json` (`wbs-agent-pool-keys` v1); this command turns
+that file into one key file, one MCP config and one run per agent.
+
+```sh
+chmod 600 ~/Downloads/pool-<id>.keys.json
+bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts pool import \
+  ~/Downloads/pool-<id>.keys.json --store ~/.config/wbs/pools
+```
+
+- **The file must be owned by you with mode `0600`.** A browser saves it `0644`; the command
+  refuses that until you `chmod 600` it, as `--key-file` does. Keys never come from an argument
+  or standard input, and a key pasted where the path belongs is refused without echoing it.
+- **Every key is proven before anything is written.** Each agent's key is exchanged for one
+  token at the document's authorization server, with the agent's run, exactly as `mcp token`
+  will. One refusal (a revoked key, an expired pool, a wrong server) aborts the import naming
+  that agent and the OAuth error, and the store is left as it was. The document's
+  `authorizationServer` must be `<mcpResource>/oauth`, the one `mcp token` asks.
+- **The store** (`--store`, created `0700` if absent; refused if other users can enter it) holds
+  per pool a link `pool-<poolId>` to the current generation, with:
+  - `<personId>.key`: the agent's key, `0600`, for `mcp token --key-file`;
+  - `<personId>.mcp.json`: a config for `claude --mcp-config` whose `headersHelper` runs
+    `mcp token --resource <mcpResource> --key-file <that key> --run <its run>` with the `bun`
+    and checkout that ran the import (the [checkout requirement](#claude-code-for-a-headless-agent-swarm)
+    applies);
+  - `pool.json`: the agents, their runs and paths; no key.
+- **Each agent has its own run**, `pool-<poolId>/<personId>`, so its claims and leases are
+  scoped to it (M15). The run does not change on a re-key, so a running agent's next token after
+  a re-key keeps its leases. Start one agent process per config; two processes on one config
+  share a run.
+- **Re-importing after a re-key** writes a new generation and switches the link in one rename:
+  a running helper reads either the old keys or the new ones, never a mix. An agent absent from
+  the new document (its key revoked alone) loses its key file. Other pools are untouched.
+- **Output** names the pool, each agent's person name, id, run and config path, and asks you to
+  delete the downloaded file; it never prints a key. Dash then holds every key of the pool: a
+  compromised Dash host is every agent until the pool is re-keyed or revoked (M7).
 
 ## `account-outcomes`
 

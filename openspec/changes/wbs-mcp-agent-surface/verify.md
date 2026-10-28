@@ -1705,3 +1705,99 @@ and `… after a rollback whose rebuild omits an issuance index`.
 Commands for the fixes, 2026-10-28 with `env -u CLAUDECODE`: `bunx nx run-many -t typecheck lint`
 over contracts, core, store-sqlite, be-01, mcp-01 and fe-01; targeted tests, recorded below in
 the PR's commit message.
+
+## Slice 10: `twilight-dash pool import` (task 6.4)
+
+Built on branch `feat/dash-pool-import-10` from `plan/wbs-mcp-agent-surface-2` at 1c0664ce9,
+2026-10-28. Every test below ran under `env -u CLAUDECODE` on the laptop; nothing ran on h2puni.
+
+What landed:
+
+- `twilight-dash pool import <pool-keys.json> --store <directory>`
+  ([`pool-import.ts`](../../../apps/twilight-structure/twilight-dash/cli/src/mcp/pool-import.ts)),
+  dispatched by `entrypoint.ts` beside `mcp`, so it never loads `cli.ts`'s command graph.
+- `machine-token.ts` gains `ApiKey.of` (a key from a validated document), `ApiKey.credentialId`,
+  `ApiKey.writeNew` (a new `0600` file, never following a link), `IssuedToken`, and
+  `postTokenRequest`, the redirect-refusing POST that `mcp token` used inline and now shares
+  with the import's proof issuance. Its `Proof:` comment moved with it.
+- The Dash README's [`pool import`](../../../apps/twilight-structure/twilight-dash/cli/README.md#pool-import)
+  section, an agent-pools spec requirement with four scenarios, and design.md M7's delivery
+  bullet naming the store and the run.
+
+### Slice 10 notes (assumptions taken)
+
+1. **The store is the key files `mcp token --key-file` reads, not a second store.** `mcp token`
+   has no store of its own: it reads an owner-only file named by `--key-file`. The import
+   writes exactly that file per agent, plus a `--mcp-config` file per agent whose
+   `headersHelper` names it, under a required `--store` directory (no default: a missing
+   location is not guessed). The directory is created `0700` when absent and refused when other
+   users can enter it.
+2. **The run is `pool-<poolId>/<personId>`, fixed per agent, not per process start.** M15 needs
+   a run that survives re-fetches, and mcp-01 caps distinct runs per credential per day, so a
+   fresh run per process start would orphan leases on every restart and spend that budget. A
+   deterministic run also survives a re-key, so 8.1's "re-key mid-run" keeps the agents'
+   leases. Two processes started on one config share a run; the README says to start one per
+   config. Ids are held to `[A-Za-z0-9_-]{1,100}` (be-01 mints UUIDs), so the run is at most
+   206 characters and never secret-shaped.
+3. **Every key is proven before anything is written.** The proof is one `client_credentials`
+   token request per agent, with its run, through the same `postTokenRequest` as `mcp token`;
+   the token is dropped. Sequential: a pool of 100 is 100 issuances, inside M10's 300 a minute
+   and burst of 100 per source address, which a re-import right after another import on one
+   host can still meet; a `429` aborts the import like any refusal (no retry: the operator
+   reruns).
+4. **Atomic replacement by a link switch.** `rename(2)` cannot replace a non-empty directory,
+   so `pool-<poolId>` is a link to a generation `.pool-<poolId>.<16 hex>`; a re-import writes a
+   new generation and renames a new link over the old one, then removes the old generation. Key
+   paths in the configs name the link, so a helper started before a re-key reads the new key
+   on its next run. A `pool-<poolId>` that is not such a link is refused, never replaced.
+5. **The downloaded file must be `0600`** (the most restrictive reading). A browser saves it
+   `0644`; the refusal says to `chmod 600` it. **Standard input is not accepted**: a pipe has no
+   owner or mode to check, and the panel's download is a file anyway.
+6. **`authorizationServer` must equal `<mcpResource>/oauth`**, the issuer `mcp token` derives.
+   Otherwise the proof would test one server and the helpers would ask another.
+7. **Dash keeps its own copy of the document shape.** The product fence refuses
+   `@wbs/contracts` in Dash's `mcp/` (lint: "can only depend on libs tagged with
+   product:twilight-dash, product:shared"), so `PoolKeys` mirrors `agentPoolKeys` and narrows
+   it. Drift is caught only by the boot test's hand-built document and by 8.1 on dev; no test
+   pins the two shapes together. A follow-up could pin them in a WBS-side test.
+8. **No file locking.** Two concurrent imports of one pool each write their own generation; the
+   last rename wins and the loser's old-generation removal may delete nothing. An operator
+   runs one import at a time.
+9. **Not proven by its own negative: the cleanup of a partial generation.** When a write
+   fails after the generation directory exists, `writePool` removes it and rethrows. No
+   production-path input reaches that branch once F8 and F14's checks hold (both faults reached
+   it: their refusal is its rethrow), so no test pins the removal alone.
+10. The output names the pool name, each agent's person name, id, run and config path, and
+    the downloaded file to delete. `pool.json` and the configs hold no key.
+
+### Commands and results, slice 10
+
+### Failure-proof table, slice 10
+
+Each check was watched failing with the fault injected into `pool-import.ts` (F13: into
+`machine-token.ts`), running `pool-import.test.ts`, then restored (`diff` against the saved copy
+empty). The `Proof:` comment sits beside the check or its test.
+
+| #   | Check                                                       | Fault injected                                                 | Test that observed it failing                                                                                                                                                          |
+| --- | ----------------------------------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1  | a key that fails to issue aborts the import                 | `proveIssues(…).catch(() => undefined)` in the loop            | `a key that fails to issue aborts the import with nothing written` and `a refused re-import keeps the pool as it was` resolved; the entrypoint test's refused import exited 0 (3 fail) |
+| F2  | each agent its own run                                      | `runOf(\`pool-${poolId}\`)` for every agent                    | `stores each agent its key file and MCP config, each with its own run`                                                                                                                 |
+| F3  | no key in the output                                        | `deps.write(JSON.stringify(pool.agents))` before the last line | the same test (`not.toContain('wbs_mk_')`) and the entrypoint's `prints no key on success or refusal…`                                                                                 |
+| F4  | an unknown version is refused naming it                     | the version gate disabled                                      | `refuses an unknown document version…`: "Validation failed for version" instead                                                                                                        |
+| F5  | the pool key file is owner-only                             | `readFileSync` for `readOwnerOnly`                             | `refuses a group-readable pool key file`                                                                                                                                               |
+| F6  | `authorizationServer` is the one `mcp token` asks           | the check disabled                                             | `refuses an authorizationServer that mcp token would not ask`                                                                                                                          |
+| F7  | a key is of its credential                                  | the check disabled                                             | `refuses a key that names another credential, and an agent listed twice`                                                                                                               |
+| F8  | an agent is listed once                                     | the check disabled                                             | the same test: "pool pool-a could not be written; the store keeps what it had" (EEXIST) instead                                                                                        |
+| F9  | the store is `0700` and the user's                          | the check disabled                                             | `refuses a store other users can enter`: the import resolved                                                                                                                           |
+| F10 | a key pasted where the path belongs is refused unechoed     | the check disabled                                             | `refuses a key pasted where the file belongs`: "the pool key file does not exist" instead                                                                                              |
+| F11 | a re-import switches the pool in one rename                 | the rename only on a first import                              | `a re-import replaces the pool keys, and an agent absent from it loses its key`: fleet-1's first key read                                                                              |
+| F12 | the replaced generation is removed                          | its removal skipped                                            | the same test: two generations of pool-a                                                                                                                                               |
+| F13 | `ApiKey.of` admits only a `wbs_mk_` key                     | its check disabled                                             | `refuses a document whose key is no wbs_mk_ key, never echoing it`                                                                                                                     |
+| F14 | a `pool-<poolId>` this Dash did not write is never replaced | `previousGeneration` answers null for a non-link               | `refuses to replace a pool directory it did not write`: "pool pool-a could not be written; the store keeps what it had" instead                                                        |
+
+The boot test `twilight-dash pool import (task 6.4)` in `mcp-token.boot.test.ts` adds the real
+path: be-01's grant route and mcp-01's production entrypoint issue the proof token; the stored
+`headersHelper`, run by `sh -c`, prints a bearer whose `wbs_run` is `pool-pool-boot/claire` and
+which calls `getApiProjects` (200); after the fixture revokes the key, re-importing the same
+document is refused after one `401` and the stored key file is unchanged. No fault was injected
+into it separately: it exercises the checks F1 to F13 already prove.

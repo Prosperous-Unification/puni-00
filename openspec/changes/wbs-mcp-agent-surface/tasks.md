@@ -311,7 +311,7 @@
 
 - [ ] 6.3 The fe-01 pool panel (keys once as a download, counts before confirming, rendered
       states, reviewed by eye).
-- [ ] 6.4 `twilight-dash pool import <file>`, giving each agent process its own `wbs_run`.
+- [x] 6.4 `twilight-dash pool import <file>`, giving each agent process its own `wbs_run`.
       Test: a key that fails to issue aborts the import.
 
 ## 7. REST stops being an agent surface (gated: claire fleets on MCP, observed on dev)
