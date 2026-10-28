@@ -77,5 +77,7 @@ TurnDispatchError retains detached deeply frozen TurnIntent and original cause w
 - [x] Freeze final tests and prove genuinely new ordering/consumption/selection checks with finite Bun faults; preserve existing guards/evidence. Run final boot/selection tests, graph-backed affected lint/typecheck, touched format/diff/OpenSpec. Keep host lifecycle/business mapping and full S0/S7a open.
 
 Task 2 source and focused fixes are independently approved. The parent runtime packet
-still requires combined-main review, normal publication, exact-SHA canonical gate and CI.
+completed combined-main review, normal publication, the exact-source canonical gate and
+actual-merge CI through [PR #766](https://github.com/Prosperous-Unification/puni-00/pull/766).
+Evidence and coverage limits are recorded in [verify.md](verify.md).
 Host lifecycle, business mapping and complete S0/S7a remain open.

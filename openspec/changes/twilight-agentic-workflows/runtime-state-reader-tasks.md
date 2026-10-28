@@ -12,7 +12,16 @@
 
 ## Global constraints
 
-Local source verification and independent review are recorded in verify.md. Aggregate publication checks remain open. No RunStore/history/format/migration changes, new packet contracts, mapping, WBS/client transport, SDK/model/credential/network work. Preserve original checks/errors/order and exact target API. Existing F26–F29 remain moved inherited provenance, not newly certified checks. Structural equivalence plus fresh covering negatives assess extraction/delegation; only new reference detachment and exact import admission receive new fault samples. Do not replay the old mutation campaign. Independent mini-preflight approved this task; source implementation still requires covering tests, decisive P1/P2 evidence and independent code review before publication.
+Local source verification, P1/P2 evidence, independent review and aggregate publication
+acceptance are recorded in [verify.md](verify.md). No RunStore/history/format/migration
+changes, new packet contracts, mapping, WBS/client transport, SDK/model/credential/network
+work. Preserve original checks/errors/order and exact target API. Existing F26–F29
+remain moved inherited provenance, not newly certified checks. Structural equivalence
+plus fresh covering negatives assess extraction/delegation; only new reference
+detachment and exact import admission receive new fault samples. Do not replay the old
+mutation campaign. Independent mini-preflight, source implementation and covering tests
+are accepted; publication completed through
+[PR #766](https://github.com/Prosperous-Unification/puni-00/pull/766).
 
 ## Task 1: Extract full retained state with immediate target consumption
 
@@ -114,4 +123,4 @@ No RunStore/history/version/format4/mapping decision is part of this task. Root 
 
 ## Publication
 
-- [ ] Root records a normal checkpoint/push, integrates the reviewed unit with its parent runtime packet, completes the exact-candidate host gate and applicable CI, and verifies normal main merge plus actual-merge CI. Source acceptance alone does not satisfy this publication step.
+- [x] Root records a normal checkpoint/push, integrates the reviewed unit with its parent runtime packet, completes the exact-candidate host gate and applicable CI, and verifies normal main merge plus actual-merge CI. Source acceptance alone does not satisfy this publication step.
