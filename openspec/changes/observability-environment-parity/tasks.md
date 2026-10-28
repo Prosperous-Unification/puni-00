@@ -139,3 +139,11 @@ affected fixture check. One setup-failed retained comparison is preserved; the
 corrected committed comparison passes with exactly +128Mi/+20m/+128Mi. See
 `verify.md` Task60. The task checkbox remains open pending root-owned independent
 spec/quality review; no runtime or full parity completion is claimed.
+
+Task60 reference-ordering follow-up: the root-required earlier-collision/unknown
+mount concern is resolved by the shared host-bearing declaration roster, using
+only validated StatefulSet claim-template names as context. Six new controls and
+four new effective restored faults cover that path; 102 focused Task60 tests and
+scoped statics pass. Prior 29 faults and the successful retained comparison were
+not replayed; retained evidence remains pinned to `077e04e366012339e56ead033719c3f28679d84e`.
+See `verify.md` follow-up. The checkbox still awaits root-owned independent review.

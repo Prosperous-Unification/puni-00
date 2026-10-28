@@ -3740,3 +3740,56 @@ optional external activation. Physical device/writer/input-memory and recursive
 read-only/runtime/host/Flux observations remain required. This verifies only the
 selected source accounting slice; fresh independent spec/quality review and the
 broader parity goal remain outstanding.
+
+### Task60 reference-roster ordering follow-up
+
+The root ruled that the escalated unknown-reference ordering concern is a required
+Task60 correction before independent review. The new real-reader RED combines an
+earlier **nonhost** StatefulSet claim-template collision and a later host-bearing
+owner's absent-volume mount: it observed the earlier collision instead of the
+required malformed-source diagnostic (exit 1, 0.856s;
+`reference-roster-red.{json,log}`). A second RED establishes that unreferenced
+duplicate declarations cannot hide behind that collision (exit 1, 0.930s;
+`reference-roster-cardinality-red.{json,log}`).
+
+The initial host scan now validates one complete declaration roster for each
+host-bearing owner. It reuses the validated inventory's `claims` facts with
+`kind: template` as **names-only** context, so actual StatefulSet implicit claim
+mounts remain valid. No second claim decoder, fabricated volume/bound/Ready state,
+policy permission or arithmetic was introduced. The shared reader validates raw
+volume/template-name uniqueness and every application/init reference before
+existing claim expansion; no-host owners retain their earlier first refusal.
+
+Focused post-fault verification passed 102 Task60 tests / 276 assertions in
+1.947s (`reference-roster-final-tests.json`). Six reference-roster controls cover
+unknown app/init references, referenced/unreferenced duplicate declarations, valid
+host-bearing StatefulSet implicit mounts and unchanged no-host collision behavior.
+Scoped lib/spec noEmit passed (1.444s/1.708s), affected ESLint passed (4.395s),
+explicit formatting passed and normal source commit hooks passed. The new source
+commit is `557cab8aa` (`fix(fleet): validate host reference rosters before claim
+expansion`); exact full hash is retained in the implementation report.
+
+Exactly four **new** guard/dependency experiments (`roster-unknown`,
+`roster-unique`, `roster-scope`, `roster-claim-context`) failed their intended
+production-reader controls and restored matching before/source SHA256. Exact
+before/mutant source copies, transformations, commands, exits, logs and timings
+are in `/tmp/puni-task60-evidence/reference-roster-faults.json` and companion files.
+The missing-template-context fault intentionally rejects the valid implicit mount;
+it is a modeled dependency failure, not compiler/setup credit. Together with the
+prior 29 experiments, this gives 33 effective new Task60 experiments; no prior
+passing experiment was replayed.
+
+The successful retained comparison remains pinned to clean adapter
+`077e04e366012339e56ead033719c3f28679d84e` and was **not rerun**, as explicitly
+required by the root. This correction changes validation order and error outcomes
+for malformed rosters; it does not alter parsed host-consumer facts, accepted
+source policy, quantities, cohort arithmetic or output for valid declarations.
+The unchanged portable retained node-exporter case passes in the focused run.
+The earlier successful retained reader had already validated every actual
+owner's volume uniqueness/reference roster through `assertInventoryWorkload`
+after expansion; the new scan uses those same raw volume and validated template
+names earlier. Thus the actual retained candidate/output remains unchanged by
+construction and case evidence. The +128Mi/+20m/+128Mi result stays historical
+verified evidence at its exact adapter hash, not a claimed new execution.
+No source58 edit/test-fault replay, runtime/provider action or publication occurred.
+The ordering concern is resolved; independent spec/quality review remains pending.
