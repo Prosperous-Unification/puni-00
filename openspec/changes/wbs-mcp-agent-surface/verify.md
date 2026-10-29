@@ -2738,13 +2738,13 @@ All five counter sabotages were rerun individually against the real `/mcp` prope
 seed 20261027, with coverage and the unchanged reached-branch assertions, then each source
 file was restored byte for byte:
 
-| Fault                                            | Observed rejection                                                  |
-| ------------------------------------------------ | ------------------------------------------------------------------- |
-| `count > limit`                                  | expected 3 / held 4; `[Send(org-a,1), Send(org-a,3)]`               |
-| Release deletes the whole key count              | negative-count error; `[Send(org-a,1), Send(org-a,1)]`              |
-| One in-flight counter key for both organizations | expected 3 / held 2; `[Send(org-b,1), Send(org-a,3)]`               |
-| Release before the call                          | expected 3 / held 4; `[Send(org-a,1), Send(org-a,3)]`               |
-| Release only when the call succeeds              | `missing release 1; observed 0`; `[Send(org-b,1), End(org-b,fail)]` |
+| Fault                                            | Observed rejection                                                                                            |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `count > limit`                                  | expected 3 / held 4; `[Send(org-a,1), Send(org-a,3)]`                                                         |
+| Release deletes the whole key count              | `TypeError: undefined is not an object (evaluating 'reply.result.isError')`; `[Send(org-a,1), Send(org-a,1)]` |
+| One in-flight counter key for both organizations | expected 3 / held 2; `[Send(org-b,1), Send(org-a,3)]`                                                         |
+| Release before the call                          | expected 3 / held 4; `[Send(org-a,1), Send(org-a,3)]`                                                         |
+| Release only when the call succeeds              | `missing release 1; observed 0`; `[Send(org-b,1), End(org-b,fail)]`                                           |
 
 The synchronization/profile and existing scenario controls are recorded below with their
 actual final command outcomes. Raw diagnostics, fault scripts and byte-restoration manifests
