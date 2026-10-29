@@ -19,7 +19,7 @@
 - [x] 11. Add exact six-parent source leaf and rest exclusions, existing matrix member, source-only pinned Node tooling and production dispatch; observe bounded ordinary selection/refusal consumers.
 - [x] 12. Review and execute exact new finite proof recipes with original custody and exact source restoration; add factual adjacent evidence only after actual review.
 - [x] 13. Complete scoped source/static/OpenSpec verification and independent review before Root checkpoint/publication.
-- [ ] 14. Require fresh exact-head hosted source/rest jobs and required aggregate success before accepting current capacity.
+- [x] 14. Require fresh exact-head hosted source/rest jobs and required aggregate success before accepting current capacity.
 
 ## Accepted source-readiness composer integration
 

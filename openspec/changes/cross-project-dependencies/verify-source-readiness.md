@@ -78,3 +78,9 @@ Required OpenSpec validation passed309/309 items overall and1/1 scoped change. T
 An additional scoped `--strict --json` invocation exited1 on those29long-requirement warnings. Its exact failed report is preserved, separately from the required non-strict PASS. Each affected header was verified against the untouched pre-append carrier or a separate unedited spec. No warning suppression, requirement rewrite, policy change, strict rerun or baseline runtime was performed. This record does not claim every additional check passed.
 
 No24-pair replay, full21/six replay or new application runtime followed the factual comments. All original child/stream/server custody had joined before the explicit release of the four-port lease. Only scoped static/document checks ran afterward; final source review and Root's normal private checkpoint remain separate.
+
+## Published exact-source CI checkpoint
+
+The reviewed composer leaf7b49d10b9 was integrated with exact seventh-parent ownership in45a14ee33, then published asad41fd64c. CI40949936285 and matchinginfra40949936099 completed SUCCESS. Source job123715615731 ran fresh60tests across7files in2157063ms and exited0; this includes the complete published21-case composer parent. Synthetic4b167cd93a67e56142e069fd56e1f59f75cdfa98 has exactly the published featuretreefacc08ad16b33278ddcf47b0ce48c35766ec85e4. Full source log SHA2568323673e68c7d2fa1d1eb9135e41bcdfbed7a44bf31a3809948551ddef927ab9 and parsed receipt are preserved privately by Root. This is fresh hosted evidence for the published composer/profile/source collector component, separate from the historical ordinary/proof epochs above.
+
+New source startup/devBE-opener implementation and its proof work remain in a different uncommitted tree; this checkpoint does not certify them, native image/routing, controllers/exposure, full restoration, host gate or architectural deployment. PR630 remains draft with automatic merging disabled.
