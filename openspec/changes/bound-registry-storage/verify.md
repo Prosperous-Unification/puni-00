@@ -1775,3 +1775,63 @@ All100 registry/nine payload/262 build-input hashes still matched at closure, an
 executed registry sources were preserved before edits. This closes the scoped
 recovery proof. Process-kill recovery, physical ENOSPC, serving activation, complete
 R5/lint/gates/review and Tasks9–11 remain required.
+
+## Resumed implementation and selected alert destination — 2026-10-29
+
+The user resumed the original full goal after an explicit pause. Task4.2 and
+Tasks4.3/5.1/5.2 remain incomplete; no production safeguard activation or final
+exact-revision host gate has occurred. The next local work is GC/restore process
+interruption evidence, followed by the remaining recovery, ENOSPC and operational
+continuation proofs. Native partial-recovery HOST56 stays closed and is not rerun.
+
+Parent independently reconstructed the saved GC fixture counterfactual sources
+and checked all referenced hashes:27 cases contain21 distinct textual deltas;
+19 followups strengthen observations for13 of those same deltas. The stronger
+witnesses show forbidden native-spawn effects or false kill receipts, while the
+eight unreplaced originals cover PID signaling, stop-loop rescue, spawn restoration,
+exit-rejection rescue, cause retention and omitted signals. These are modeled
+private-fixture observations, not actual registry child interruption. The pending
+terminal-timer proof and final source transfer/checks remain necessary. Evidence:
+`/tmp/task8-parent-collection-prior-removals-review.json`, SHA256
+`0c5b48a12002c848b583f88f048174f20c9f8a47b95cad05921290d2a6979dea`,145pins.
+
+The user selected Slack `#puni-alerts`. On2026-10-28 the shared h3mon dev
+Alertmanager was configured through an owner-only persistent secret file; binary
+configuration validation and reload succeeded. A synthetic firing/recovery test
+produced two completed requests and latency observations with zero failed requests
+or notifications, then cleared its test alert. All13 existing Prometheus rules
+were healthy and four scrape targets were up. Receipt:
+`/tmp/puni-slack-final-verification.json`; protected host evidence:
+`/home/monitor/puni-dev-observability/evidence/slack-20261028/`. Fresh read-only
+inspection on2026-10-29 returned0 and confirmed the loaded `slack-puni` receiver.
+Operator visibility, registry-specific warning/cutoff/failure scenarios, independent
+five-minute missed-report delivery and source-renderer preservation are unverified.
+The existing renderer still defaults to `local-only`; Task5.1 must preserve the
+authorized destination on deployment. No additional test message was sent during
+this resumption check. The provider accounting bound remains unresolved.
+
+## Local GC interruption wrapper proof package
+
+The extracted actual private GC wrapper passed38tests/300assertions with modeled
+process, proc, clock, terminal and dispatcher ports. Library/spec type checks
+returned0 with empty output; ESLint returned0 with no errors or warnings for the
+two new files. Existing Task8 lint debt remains unresolved. The final source
+transfer added16 adjacent proof comments only; parent independently stripped those
+lines and compared the frozen source. A parsed TypeScript comparison confirmed
+that the test transfer changed formatting and removed one redundant assertion.
+
+The pending-terminal negative removes the actual Promise.race timer. An injected
+five-millisecond callback represents the requested five-second timer, while an
+independent fifty-millisecond rescue settles the modeled child. Removing the timer
+loses the required second SIGKILL rescue and fails an actual signal assertion in
+52milliseconds; the restored focused case passed ten assertions. This proves the
+modeled timeout dependency, not a native five-second lifetime or actual GC kill.
+
+Parent checked all189 covering pins and read the raw final checks and exact source
+diff. Covering receipt: `/tmp/task8-collection-final-covering.json`, SHA256
+`6bf7af0f9755bdecacd76aa9cb0eab6e5fdb11b9fe2dfd75feffcde2ec0dbf43`.
+Parent review: `/tmp/task8-parent-collection-final-review.json`, SHA256
+`4f047faedd0b777495712f9c60b5db3b80838691cbbf86c59495a17194c3e177`.
+The proof-comment wording for the modeled zero exit is being narrowed; no runtime
+change is requested. Restore one-shot state/caller proofs, native integration and
+actual process kills remain pending. This is not the complete Task4.2 review.
