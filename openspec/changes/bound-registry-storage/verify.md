@@ -2457,3 +2457,93 @@ physical byte and inode exhaustion, actual uploads, native cleanup, semantic R5
 inventory reconciliation, the full original Task8 base review, Tasks9-11,
 exact-revision host gate and live activation remain incomplete. HOST59 is not
 released, and closed HOST57/58 are not replayed.
+
+### Full-volume controller and fixed main route: local acceptance
+
+The pressure controller joins the reviewed helpers through one fixed private
+workload. It publishes a protected index, closes the publication guard, binds the
+fresh direct writer and epoch, fills only the owned volume outside its snapshotted
+contents, and requires the selected allocation failure and writer absence. It
+retains the matching verified backup fence through the separate controlled
+pre-serving failure, then stages same-operation recovery through a new unarmed
+bridge while preserving filler, current obligations, authority lock and old content.
+The exact main selector and mounted-cgroup cleanup inclusion have separate caller
+cases. These local cases model native filesystem, process, authority, publication,
+backup, recovery and cleanup effects; actual host execution remains separate.
+
+Parent independently ran the initial immutable controller/routes suite with 66
+cases/430 assertions, then reconstructed all 37 original exact source deltas and
+74 raw pins. One setup-owner delta broke syntax and is preserved as invalid.
+The corrected balanced omission observes the bootstrap refusal becoming success;
+a separate required-handoff dependency break observes both ENOENT and EACCES
+becoming success. The other 36 original deltas have actual assertion failures.
+Parent audit `/tmp/task8-parent-pressure-controller-counterfactual-review.json`
+(`827e7f4d`) binds all 38 valid behavioral counterfactuals and the invalid original;
+the original batch was not replayed. Protection and action-prefix/phase omissions
+reach forbidden next stages before later refusal. Action-log checks prove prefix
+continuity and required/forbidden membership, without temporal ordering within a
+suffix. Primary/reporter deltas concern errors-array membership while the primary
+cause property remains.
+
+After two transient worker capacity failures, parent took sole source ownership;
+no active controller script remained. Parent moved three proof comments to their
+correct adjacency and sorted the added pressure import. Complete ordered emitted
+runtime comparison covers four pairs with three comparator controls; its only test
+extension is two explicit required-handoff fault cases. The import-only followup
+transfer (`/tmp/task8-parent-pressure-controller-final-transfer.json`) proves the
+test-observed bodies byte-identical and detects two additional runtime controls.
+The exact final local suite (`1ecec4`) passes 68 tests/446 assertions; the interrupted
+worker's broader affected run passes 100 tests/539 assertions. These overlapping
+counts are separate runs, not additive coverage.
+
+Final new scoped lint and formatting pass (`d4623f`); library/spec receipts are
+zero with empty diagnostics. The earlier suppression-adjacency lint failure is
+preserved. The complete native host lint still fails with 26 errors (`05aac5`),
+after fixing the new import-order error from its initial 27; it is not a passing
+runtime gate. Final controller/test/host/routes are `3886ac54` / `684c31d5` /
+`a5f4153c` / `4942b122`. Cover `/tmp/task8-pressure-controller-covering.json`
+(`1173f5e7`) binds 193 artifacts; local acceptance is
+`/tmp/task8-parent-pressure-controller-review.json` (`76770cf4`). Full Task8
+semantic proof reconciliation, runtime lint, formal original-base review,
+exact-revision host gate and production adoption remain incomplete.
+
+### HOST59: pressure rehearsal failed safely; cleanup verified
+
+The new frozen packet used 111 registry sources and 274 actual host/API build
+inputs. Normal host and API bundles were independently rebuilt byte-exactly.
+Manifest `ae8ecce6`, driver `3bd7396a` and archive `3e0764a6` retain the preceding
+owned fixture's 896 MiB envelope, root reserves, private namespaces, read-only
+cgroup view, canonical zero-wait heavy lock and deadlines. Outer runtime syntax
+matches HOST58 except payload hashes; the workload changes only its exact mode.
+The inner adds a fixed three-alias readback observation and scenario label. This
+is a new physical-pressure attempt, with no replay of closed HOST57/58.
+
+The single run (`/tmp/task8-host-namespace-59.exit.json`) exited 1 after 59.08
+seconds without timeout. Native readback confirmed proof.js, backup-worker.js and
+host.js all had the new normal bundle hash `762f2b88`. Initialization, baseline
+backup, writable reopen, protected publication and protection completed. The
+pressure-backup owner exited 1 and the root action trace ends at fence:entered;
+all four synthetic owners acknowledged suspension and the service was withdrawn,
+but the Deployment remained at one replica. The controller reported failure at
+backup-under-pressure and produced no completed selected pressure-stop receipt.
+The existing bounded diagnostic identifies the generic root refusal and the
+outer cleanup aggregate, without its inner bridge cause. The exact failing
+integration boundary still requires diagnosis; this run does not prove no-ACK
+backup or recovery success.
+
+Native teardown reported the workload reaped, cgroup unmounted before proc,
+owned root unmounted last, four loop devices detached and the fixture removed.
+It observed 110 unchanged host-root/cgroup samples and an unchanged final view.
+Both distinct read-only cleanup audits then exited zero with empty stderr:
+full process/mount/FD/backing census (`aecc291f` stdout) and separate observer audit
+(`706eb00c` stdout). They verified the exact outside PID/start identities and lock
+marker absent, no owned namespace or backing references, unchanged host identity
+and more than 20 GiB root reserve. These audits close this failed attempt; they
+do not turn its exit 1 into a successful pressure proof.
+
+All 111 source hashes, 274 build inputs, configuration and nine payload artifacts
+were rechecked after both audits. Private pre-execution source/input archives
+remain pinned by `c6947f44` / `42efff33`. Parent closure is
+`/tmp/task8-parent-host59-closure.json` (`327c3bc3`), which preserves the exact raw
+stdout `7d9b40e2` and stderr `73762a1e`. HOST59 is closed and its source freeze is
+released for a diagnosed correction. No production safeguard was activated.
