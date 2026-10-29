@@ -1021,3 +1021,12 @@ This closes only the bounded preflight/source integration. Production recipient/
 - [ ] Run the four partial ordinary/four isolated omission controls only after separate recipe GO; independently verify protection and original FDs for expected RED, preserving the unimplemented phase2/membership/expiry boundaries.
 
 The two completed custody rows above cover the independently accepted eight-command class controls and the separately accepted one-case preparation only; [evidence](verify-source-stageb-fixture.md). Partial acquisition, age, original domain controls and all phase2 runtime rows remain open. The applied phase2 source and fresh compiler/lint checks are source preparation, with no broader completion claim.
+
+### Kubernetes fresh dormant-store source prerequisite (bounded task 10.2)
+
+- [x] Watch mounted executor/file-journal/actual store-adapter absence fail at the source replay ordering assertion; implement fresh observation after durable drain at exactly five source boundaries.
+- [x] Revalidate the same retained interval and sticky Lease after each Job; interrupt store or late-fence uncertainty before generic automatic recovery.
+- [x] Watch and exactly restore source dispatch, interruption routing, post-observation barrier and cached-success faults at mounted consumers.
+- [x] Apply independently approved retained-lifecycle return correction; remove redundant interval-stage guard and duplicate step selection without new authority. Review SHA5579ee46 is retained with the bounded evidence.
+- [x] Run final owning compiler, scoped/configured lint, format and both owning test files once on corrected source: 109 pass/781 assertions. Preserve four accepted pre-refactor proof epochs distinctly in verify.md.
+- [ ] Complete exact corrected-source review seal, newer-main MCP preflight reconciliation and isolated host gate. Parent 10.1/10.2 and B2/B3 remain open.

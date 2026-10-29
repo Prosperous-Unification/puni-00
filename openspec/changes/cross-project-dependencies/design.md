@@ -1593,3 +1593,36 @@ dispatch, memo and lifetime faults separately before recording adjacent proofs.
 The bounded repair, observed negatives, deletion-race correction and independent
 approval are recorded in [the isolated aggregate receipt](verify-isolated-aggregate.md).
 Parent task 8.4 and integrated release/activation acceptance remain open.
+
+### Kubernetes fresh dormant-store source prerequisite (bounded task 10.2)
+
+Intent: refuse source work against ENABLED, unknown or historically unsupported
+stores while retaining the existing controller journal and closed serving fences.
+Outcome: exactly `check-replay`, `capture-state`, `migrate`, `rollback-schema`
+and `rollback-check-replay` run a fresh coordinator-owned store observation after
+establishing the existing drained forward/rollback interval. Non-goals: activation,
+authoring, semantic recovery admission, complete participant exclusion, historical
+upgrade compatibility, pre-exposure certification or deployment approval.
+
+All five boundaries use the already-admitted request candidate backend digest.
+The existing adapter validates fresh nonce Job/Pod identities, exact image and
+coordinator command, runtime readonly mounts, terminal completion and bounded logs.
+Its unchanged scanner admits only exact migrated DISABLED authority without edges
+or receipts. Missing historical authority remains an explicit refusal.
+
+The existing private interval establishment returns its actual checkpointed
+controller lifecycle through the existing barrier; only non-source steps return
+null. The observer receives this same retained object rather than reselecting a
+baseline or duplicating the five-step selector. After each successful observation
+the coordinator drains/revalidates that interval, storage binding and sticky Lease. The completed
+observation Job/Pod remains visible to the unfiltered source-consumer inventory;
+it receives no special exemption. No observation is cached within a process or
+persisted as a permission, and resumed rollback repeats it before source work.
+
+Scanner, transport or post-observation interval uncertainty throws a stopped
+interruption before generic `failStep`, retaining completed journal checkpoints
+and fences without automatic schema reversal, controller restoration or writer
+rollout. Existing Lease-loss and controller-checkpoint interruptions stay distinct.
+This adds no journal schema, evidence authority, activation or exposure consumer.
+The prerequisite does not certify recovery paths that skip source work; complete
+B2/B3 and parent tasks 10.1/10.2 remain open.

@@ -1647,3 +1647,37 @@ The private source rehearsal builder SHALL transfer the SAME admitted original B
 - **THEN** evidence identifies its adapted component boundary and independently observes original authority, waiters and owned resources
 - **AND** distinct protected omissions must become RED and exact restoration GREEN before receiving causal proof credit
 - **AND** component evidence alone does not establish full constructor, raw child/EOF integration, provider, native, host or architectural acceptance
+
+### Requirement: Kubernetes source work freshly observes dormant dependency authority
+
+Before each check-replay, capture-state, migrate, rollback-schema and
+rollback-check-replay effect, the Kubernetes coordinator SHALL run a fresh strict
+dormant-store observation after durable controller drain. It SHALL use the admitted
+candidate backend and revalidate the same retained interval, storage/controller
+identity and sticky Lease before source work. This prerequisite SHALL NOT grant
+activation, exposure or complete participant-exclusion authority.
+
+#### Scenario: Forward and rollback source boundaries never reuse observations
+
+- **WHEN** forward source steps, rollback source steps or resumed rollback execute
+- **THEN** each source effect follows its own attributed terminal observation Job and retained-interval recheck
+- **AND** a previous successful observation never admits a changed store
+- **AND** completed observation Job/Pod history remains in the unfiltered source inventory without an exemption
+
+#### Scenario: Only strict migrated dormant authority is accepted
+
+- **WHEN** the coordinator observes source storage
+- **THEN** only exact migrated DISABLED authority with no relationships or receipts is accepted
+- **AND** missing historical authority is an explicit refusal
+
+#### Scenario: Observation uncertainty preserves attended recovery barriers
+
+- **WHEN** the store is ENABLED, malformed, unknown or historically unsupported, transport fails or its deadline expires
+- **THEN** source effects stop with the authoritative journal and completed controller checkpoints retained
+- **AND** generic automatic schema reversal, controller restoration, writer rollout and write reopening do not run
+- **AND** the diagnostic requires attended compatible recovery
+
+#### Scenario: Successful output cannot mask late authority loss
+
+- **WHEN** source PVC identity, controller ownership, source-consumer exclusion or sticky Lease authority changes after observation
+- **THEN** the source effect refuses with fences retained, even though decoded output was dormant

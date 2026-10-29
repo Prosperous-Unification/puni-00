@@ -1,0 +1,34 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+1163 |           fixture.options,
+1164 |         ),
+1165 |       ).rejects.toThrow();
+1166 |       fixture.load();
+1167 |       expect(fixture.objects.logged).toBe(1);
+1168 |       expect(fixture.fake.calls).not.toContain('observeReplayInventory');
+                                            ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "observeReplayInventory"
+Received: [
+  "observeCluster", "readLease", "createLease", "renewLease", "renewLease", "admitBackendImages",
+  "renewLease", "observeDependencyBinaries", "renewLease", "renewLease", "closeWrites", "renewLease",
+  "drainGateway", "renewLease", "stopWriter", "renewLease", "renewLease", "renewLease", "renewLease",
+  "requireJournal", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease",
+  "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease",
+  "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease",
+  "renewLease", "observeReplayInventory", "observeReplayCapabilities", "observeReplayCapabilities",
+  "renewLease", "renewLease", "renewLease", "parkLease"
+]
+
+      at <anonymous> (/home/df/.codex/worktrees/3410/puni-00/tools/tool-deploy/src/k8s/controller-release.test.ts:1168:38)
+(fail) mounted post-observation pvc drift refuses source replay [2483.69ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 0 pass
+ 49 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [2.52s]

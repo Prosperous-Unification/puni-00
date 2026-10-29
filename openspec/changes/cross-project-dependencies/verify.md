@@ -7761,3 +7761,27 @@ unverified or held; parent task checkboxes are unchanged.
 ## Pooled reader image-smoke fixture correction — 2026-10-28
 
 [Observed CI failure, transaction-settlement correction and watched proofs](verify-ci92-pooled-smoke-20261028.md) records the reviewed fixture change after main introduced pooled readers. Focused checks passed; a corrected real Docker smoke and fresh full CI remain unverified until the new published head runs. Architectural main adoption and deployment remain held.
+
+## Kubernetes fresh dormant-store source prerequisite — 2026-10-29
+
+Bounded task 10.2 continuation at private base `3dfe3dff`: actual mounted
+executor/file-journal/controller/store adapters consume fresh strict dormant
+observations at all five source boundaries and revalidate the same retained
+interval and sticky Lease. Independent review5579ee46 accepted the four actual
+pre-refactor omission/restoration pairs and approved the exact retained-lifecycle
+return correction, removing the redundant interval-stage guard and duplicate
+step selector. It adds no authority or journal schema.
+
+Final corrected execute SHA256 is
+`4b817a76af79fcc503fb088a4db70439d827d47444687e4ce11657ef836a0017`.
+The single final two-owning-file run75289 joined exit 0: **109 pass, 0 fail,
+781 assertions, 276.00s**; scratch cleanup returned. Actual configured compiler,
+scoped/configured lint and final formatting pass. OpenSpec validation passes
+with 29 existing long-requirement warnings. Earlier 107+2 runs and four watched
+fault pairs are explicitly historical proof epochs, not final-byte reruns.
+Commands, raw logs, review, exact final source pins and limits:
+[evidence/task-10-k8s-source-store/verify.md](evidence/task-10-k8s-source-store/verify.md).
+
+Exact corrected-source review seal, newer-main MCP preflight composition and
+isolated host gate remain pending. Main `50862bc` overlap is unreconciled by this
+leaf; parent 10.1/10.2, complete B2/B3, main/deploy adoption and activation remain held.

@@ -1,0 +1,51 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+855 |       await effects.parkLease(holder, state.phase);
+856 |     }
+857 |   } finally {
+858 |     clearInterval(heartbeat);
+859 |   }
+860 |   if (state.phase !== 'lease-released') throw new ReleaseFailedError(state, journal.path);
+                                                    ^
+ReleaseFailedError: release bbbbbbbbbbbb-4d914821ccea ended at rollback-failed
+journal: /tmp/wbs-test-754522-hZSjyF/k8s-controller-release-rWOW7j/release.json
+failed step: rollback-check-replay: expect(received).toBe(expected)
+
+Expected: 1
+Received: undefined
+
+captured migration set: (not captured)
+replay forward: (not checked)
+replay rollback: (not checked)
+snapshot: (none)
+writes remain fenced and the Lease stays held
+manual command: reopen writes and delete the Lease of bbbbbbbbbbbb-4d914821ccea
+      state: {
+  releaseId: "bbbbbbbbbbbb-4d914821ccea",
+  transactionId: "bbbbbbbbbbbb-4d914821ccea-2f23a8",
+  phase: "rollback-failed",
+  rollbackFrom: "writer-stopped",
+  capture: null,
+  replayForward: null,
+  replayRollback: null,
+  previous: [Object ...],
+  snapshot: null,
+  controllers: [Object ...],
+  fluxSuspendedByUs: true,
+  writesReopened: false,
+  failure: [Object ...],
+},
+ journalPath: "/tmp/wbs-test-754522-hZSjyF/k8s-controller-release-rWOW7j/release.json",
+
+      at executeRelease (/home/df/.codex/worktrees/3410/puni-00/tools/tool-deploy/src/k8s/execute.ts:860:47)
+      at async <anonymous> (/home/df/.codex/worktrees/3410/puni-00/tools/tool-deploy/src/k8s/controller-release.test.ts:1071:25)
+(fail) mounted fresh store observation completes after durable drain before source replay [3872.90ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 0 pass
+ 38 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [3.96s]

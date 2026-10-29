@@ -11,7 +11,7 @@ import { fileJournal } from './journal';
 import type { ReleaseIdentity, ReleaseRequest } from './release';
 
 function identity(fill: string): ReleaseIdentity {
-  const image = `registry.test/backend@sha256:${fill.repeat(64)}`;
+  const image = `registry.test/wbs-be-01@sha256:${fill.repeat(64)}`;
   return {
     sourceSha: fill.repeat(40),
     images: { backend: image, gateway: image, frontend: image, mcp: image },
@@ -112,9 +112,30 @@ const journal = ${JSON.stringify(journal.path)};
 const objects = JSON.parse(readFileSync(store, 'utf8'));
 appendFileSync(${JSON.stringify(join(root, 'calls.jsonl'))}, JSON.stringify(args)+'\\n');
 const backup = objects['cronjob/sqlite-backup'];
+if(args.includes('create')){
+ const manifest=JSON.parse(await Bun.stdin.text());
+ const interval=Object.values(JSON.parse(readFileSync(journal,'utf8')).state.controllers).find(p=>p?.stage==='drained');
+ if(!interval||interval.ownership.token!==backup.metadata.annotations['puni.dev/storage-owner'])throw new Error('observation before durable drain');
+ const job={...manifest,metadata:{...manifest.metadata,uid:'store-'+manifest.metadata.name,resourceVersion:'1'},status:{active:0,succeeded:1,failed:0,conditions:[{type:'Complete',status:'True'}]}};
+ const pod={metadata:{...manifest.spec.template.metadata,name:manifest.metadata.name+'-pod',namespace:manifest.metadata.namespace,uid:'pod-'+manifest.metadata.name,ownerReferences:[{apiVersion:'batch/v1',kind:'Job',name:job.metadata.name,uid:job.metadata.uid,controller:true}]},spec:manifest.spec.template.spec,status:{phase:'Succeeded',containerStatuses:[{name:'task',image:manifest.spec.template.spec.containers[0].image,imageID:'containerd://'+manifest.spec.template.spec.containers[0].image,restartCount:0,volumeMounts:[{name:'source',mountPath:'/data',readOnly:true,recursiveReadOnly:'Enabled'}],state:{terminated:{exitCode:0,reason:'Completed'}}}]}};
+ objects.jobs.items.push(job);objects.pods.items.push(pod);objects.observations=(objects.observations??0)+1;
+ writeFileSync(store,JSON.stringify(objects));console.log(JSON.stringify(job));process.exit(0);
+}
+if(args.includes('logs')){
+ objects.logged=(objects.logged??0)+1;
+ if(objects.storeDrift==='pvc') { objects['pvc/wbs-data'].metadata.uid='replacement';objects['pv/disk'].spec.claimRef.uid='replacement'; }
+ if(objects.storeDrift==='controller') backup.metadata.annotations['puni.dev/storage-owner']='foreign';
+ if(objects.storeDrift==='consumer') objects.pods.items.push({metadata:{name:'late-reader',namespace:'wbs-solver',uid:'late-reader'},spec:backup.spec.jobTemplate.spec.template.spec,status:{phase:'Running'}});
+ writeFileSync(store,JSON.stringify(objects));
+ if(objects.storeFault==='unreadable')throw new Error('scanner logs unreadable');
+ if(objects.storeFault==='deadline')await Bun.sleep(1500);
+ console.log(objects.storeWires?.[objects.logged-1]??objects.storeWire??JSON.stringify({protocol:'wbs-dependency-preservation',version:1,state:'DISABLED',externalRelationships:0}));process.exit(0);
+}
 const persist = () => writeFileSync(store, JSON.stringify(objects));
 if (args.includes('get')) {
   const resource = args[args.indexOf('get')+1];
+  if(resource==='job'){const name=args[args.indexOf('get')+2];const job=objects.jobs.items.find(j=>j.metadata.name===name);if(job)console.log(JSON.stringify(job));process.exit(0);}
+  if(resource==='pods'&&args.includes('-l')){const name=args[args.indexOf('-l')+1].split('=')[1];console.log(JSON.stringify({items:objects.pods.items.filter(p=>p.metadata.ownerReferences[0].name===name)}));process.exit(0);}
   if (resource.includes('deployments,statefulsets')) { console.log(JSON.stringify({items:[objects['deployment/wbs-backend'],backup,...objects.jobs.items,...(objects.foreignControllers??[])]})); process.exit(0); }
   if(resource.startsWith('job/')){const job=objects.jobs.items.find(j=>resource==='job/'+j.metadata.name); if(!job)throw new Error('NotFound'); console.log(JSON.stringify(job));process.exit(0);}
   if (!(resource in objects)) throw new Error('Forbidden resource '+resource);
@@ -174,6 +195,7 @@ throw new Error('unexpected command '+args.join(' '));
   chmodSync(path, 0o755);
   const adapter = kubectlEffects({
     kubectl: path,
+    readConfigDigest: () => Promise.resolve(`sha256:${'c'.repeat(64)}`),
     kubeconfig: null,
     context: 'lab',
     namespaces: request.namespaces,
@@ -316,6 +338,7 @@ throw new Error('unexpected command '+args.join(' '));
     drainStorageController: adapter.drainStorageController.bind(adapter),
     restoreStorageController: adapter.restoreStorageController.bind(adapter),
     manualControllerCommand: adapter.manualControllerCommand.bind(adapter),
+    observeDependencyStore: adapter.observeDependencyStore.bind(adapter),
   });
   return {
     root,
@@ -1034,3 +1057,278 @@ for (const fault of [
       rmSync(fixture.root, { recursive: true, force: true });
     }
   }, 30000);
+
+test('mounted fresh store observation completes after durable drain before source replay', async () => {
+  const fixture = mounted(false);
+  try {
+    const replay = fixture.fake.observeReplayInventory.bind(fixture.fake);
+    fixture.fake.observeReplayInventory = async (...args) => {
+      fixture.load();
+      expect(fixture.objects['logged']).toBe(1);
+      expect(fixture.journal.read()?.state.phase).toBe('writer-stopped');
+      expect(fixture.journal.read()?.state.controllers.forward?.stage).toBe('drained');
+      expect(fixture.objects['cronjob/sqlite-backup'].spec.suspend).toBe(true);
+      const interval = fixture.journal.read()?.state.controllers.forward;
+      expect(interval?.stage).toBe('drained');
+      expect(interval?.ownership.storage.pvcUid).toBe('wbs-data-uid');
+      expect(
+        fixture.objects['cronjob/sqlite-backup'].metadata.annotations['puni.dev/storage-owner'],
+      ).toBe(interval?.ownership.token);
+      return replay(...args);
+    };
+    const final = await executeRelease(
+      fixture.request,
+      fixture.journal,
+      fixture.fake,
+      () => undefined,
+      fixture.options,
+    );
+    expect(final.phase).toBe('lease-released');
+    fixture.load();
+    expect(fixture.objects['logged']).toBe(3);
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+}, 30000);
+
+const dormantWire = JSON.stringify({
+  protocol: 'wbs-dependency-preservation',
+  version: 1,
+  state: 'DISABLED',
+  externalRelationships: 0,
+});
+const enabledWire = JSON.stringify({
+  protocol: 'wbs-dependency-preservation',
+  version: 1,
+  state: 'ENABLED',
+  externalRelationships: 0,
+});
+
+for (const fault of ['enabled', 'malformed', 'missing', 'unreadable', 'deadline'])
+  test(`mounted store ${fault} retains drained fences without automatic recovery`, async () => {
+    const fixture = mounted(false);
+    try {
+      if (fault === 'enabled') fixture.objects['storeWire'] = enabledWire;
+      if (fault === 'malformed') fixture.objects['storeWire'] = '{';
+      if (fault === 'missing') fixture.objects['storeWire'] = '';
+      fixture.objects['storeFault'] = fault;
+      fixture.save();
+      await expect(
+        executeRelease(
+          fixture.request,
+          fixture.journal,
+          fixture.fake,
+          () => undefined,
+          fixture.options,
+        ),
+      ).rejects.toThrow('attended compatible recovery');
+      expect(fixture.fake.calls).not.toContain('observeReplayInventory');
+      expect(fixture.fake.calls).not.toContain('capture');
+      expect(fixture.fake.calls).not.toContain('migrate');
+      expect(fixture.fake.calls).not.toContain('rollbackSchema');
+      expect(fixture.fake.calls).not.toContain('rolloutTiers');
+      expect(fixture.fake.calls).not.toContain('reopenWrites');
+      expect(fixture.journal.read()?.state.phase).toBe('writer-stopped');
+      fixture.load();
+      expect(fixture.objects['logged']).toBe(1);
+      expect(fixture.journal.read()?.state.controllers.forward?.stage).toBe('drained');
+      fixture.load();
+      expect(fixture.objects['cronjob/sqlite-backup'].spec.suspend).toBe(true);
+      expect(fixture.fake.writesOpen).toBe(false);
+      expect(fixture.fake.backendReplicas).toBe(0);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  }, 30000);
+
+for (const drift of ['pvc', 'controller', 'consumer', 'lease'])
+  test(`mounted post-observation ${drift} drift refuses source replay`, async () => {
+    const fixture = mounted(false);
+    try {
+      fixture.objects['storeDrift'] = drift;
+      fixture.save();
+      if (drift === 'lease') {
+        const renew = fixture.fake.renewLease.bind(fixture.fake);
+        fixture.fake.renewLease = async (holder) => {
+          fixture.load();
+          if (fixture.objects['logged'] > 0) throw new Error('post-observation Lease lost');
+          await renew(holder);
+        };
+      }
+      await expect(
+        executeRelease(
+          fixture.request,
+          fixture.journal,
+          fixture.fake,
+          () => undefined,
+          fixture.options,
+        ),
+      ).rejects.toThrow();
+      fixture.load();
+      expect(fixture.objects['logged']).toBe(1);
+      expect(fixture.fake.calls).not.toContain('observeReplayInventory');
+      expect(fixture.journal.read()?.state.phase).toBe('writer-stopped');
+      expect(fixture.journal.read()?.state.controllers.forward?.stage).toBe('drained');
+      expect(fixture.objects['cronjob/sqlite-backup'].spec.suspend).toBe(true);
+      expect(fixture.fake.calls).not.toContain('capture');
+      expect(fixture.fake.calls).not.toContain('rollbackSchema');
+      expect(fixture.fake.calls).not.toContain('rolloutTiers');
+      expect(fixture.fake.writesOpen).toBe(false);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  }, 30000);
+
+test('mounted successive source boundaries refuse changed store instead of caching success', async () => {
+  const fixture = mounted(false);
+  try {
+    fixture.objects['storeWires'] = [dormantWire, enabledWire];
+    fixture.save();
+    await expect(
+      executeRelease(
+        fixture.request,
+        fixture.journal,
+        fixture.fake,
+        () => undefined,
+        fixture.options,
+      ),
+    ).rejects.toThrow('attended compatible recovery');
+    fixture.load();
+    expect(fixture.objects['logged']).toBe(2);
+    expect(fixture.fake.calls).toContain('observeReplayInventory');
+    expect(fixture.fake.calls).not.toContain('capture');
+    expect(fixture.fake.calls).not.toContain('rollbackSchema');
+    expect(fixture.journal.read()?.state.controllers.forward?.stage).toBe('drained');
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+}, 30000);
+
+test('mounted rollback source boundaries use fresh candidate scanner and retained history', async () => {
+  const fixture = mounted(false);
+  try {
+    const observations: number[] = [];
+    const recordObservation = () => {
+      fixture.load();
+      observations.push(Number(fixture.objects['logged']));
+    };
+    const replay = fixture.fake.observeReplayInventory.bind(fixture.fake);
+    fixture.fake.observeReplayInventory = (...args) => {
+      recordObservation();
+      return replay(...args);
+    };
+    const capture = fixture.fake.capture.bind(fixture.fake);
+    fixture.fake.capture = (...args) => {
+      recordObservation();
+      return capture(...args);
+    };
+    const migrate = fixture.fake.migrate.bind(fixture.fake);
+    fixture.fake.migrate = (...args) => {
+      recordObservation();
+      return migrate(...args);
+    };
+    const rollback = fixture.fake.rollbackSchema.bind(fixture.fake);
+    fixture.fake.rollbackSchema = (...args) => {
+      recordObservation();
+      return rollback(...args);
+    };
+    fixture.fake.faults.set('smoke', new Error('candidate smoke failed'));
+    await expect(
+      executeRelease(
+        fixture.request,
+        fixture.journal,
+        fixture.fake,
+        () => undefined,
+        fixture.options,
+      ),
+    ).rejects.toThrow('rolled-back');
+    fixture.load();
+    expect(fixture.objects['logged']).toBe(5);
+    expect(observations).toEqual([1, 2, 3, 4, 5]);
+    const jobs = fixture.objects['jobs'].items.filter((job: any) =>
+      job.metadata.name.startsWith('wbs-dep-store-'),
+    );
+    expect(jobs).toHaveLength(5);
+    for (const job of jobs) {
+      expect(job.metadata.namespace).toBe('wbs-solver');
+      expect(job.spec.template.spec.containers[0].image).toBe(
+        fixture.request.release.images.backend,
+      );
+      expect(job.spec.template.spec.containers[0].command[0]).toBe('bun');
+      expect(job.spec.template.spec.containers[0].command.join(' ')).toContain(
+        'wbs-dependency-preservation',
+      );
+      expect(job.status.conditions).toEqual([{ type: 'Complete', status: 'True' }]);
+    }
+    expect(fixture.fake.applied).toEqual(['0001_init']);
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+}, 30000);
+
+test('mounted interrupted observation resumes rollback with fresh refusing store', async () => {
+  const fixture = mounted(false);
+  try {
+    fixture.objects['storeWires'] = [dormantWire, enabledWire];
+    fixture.save();
+    await expect(
+      executeRelease(
+        fixture.request,
+        fixture.journal,
+        fixture.fake,
+        () => undefined,
+        fixture.options,
+      ),
+    ).rejects.toThrow('attended compatible recovery');
+    fixture.load();
+    fixture.objects['storeWire'] = enabledWire;
+    delete fixture.objects['storeWires'];
+    fixture.save();
+    const before = Number(fixture.objects['logged']);
+    await expect(
+      executeRelease(
+        fixture.request,
+        fixture.journal,
+        fixture.fake,
+        () => undefined,
+        fixture.options,
+      ),
+    ).rejects.toThrow('attended compatible recovery');
+    fixture.load();
+    expect(fixture.objects['logged']).toBe(before + 1);
+    expect(fixture.fake.calls).not.toContain('rollbackSchema');
+    expect(fixture.fake.calls).not.toContain('rolloutTiers');
+    expect(fixture.fake.writesOpen).toBe(false);
+    expect(fixture.journal.read()?.state.controllers.forward?.stage).toBe('drained');
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+}, 30000);
+
+test('mounted successful store observation retains sticky heartbeat Lease loss', async () => {
+  const fixture = mounted(false);
+  try {
+    const observe = fixture.fake.observeDependencyStore.bind(fixture.fake);
+    fixture.fake.observeDependencyStore = async (...args) => {
+      const observation = await observe(...args);
+      fixture.fake.faults.set('renewLease', new Error('heartbeat lost during store observation'));
+      await Bun.sleep(100);
+      expect(fixture.fake.faults.has('renewLease')).toBe(false);
+      return observation;
+    };
+    await expect(
+      executeRelease(fixture.request, fixture.journal, fixture.fake, () => undefined, {
+        ...fixture.options,
+        heartbeatMs: 20,
+      }),
+    ).rejects.toThrow('Lease');
+    expect(fixture.fake.calls).not.toContain('observeReplayInventory');
+    expect(fixture.fake.calls).not.toContain('rollbackSchema');
+    expect(fixture.fake.calls).not.toContain('rolloutTiers');
+    expect(fixture.fake.calls).not.toContain('reopenWrites');
+    expect(fixture.journal.read()?.state.phase).toBe('writer-stopped');
+    expect(fixture.journal.read()?.state.controllers.forward?.stage).toBe('drained');
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+}, 30000);

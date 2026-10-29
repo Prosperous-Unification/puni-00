@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 
 import { type ControllerEffects, controllerEffects } from './controller-adapter';
-import { assertControllerProgress, type ControllerAuthority } from './controller-lifecycle';
+import {
+  assertControllerProgress,
+  type ControllerAuthority,
+  type ControllerLifecycle,
+} from './controller-lifecycle';
 import {
   type DependencyObservationEffects,
   observeDependencyBinaries,
@@ -65,8 +69,7 @@ import { inspectStorageFence, type StorageFenceEffects } from './storage-fence';
  * Every Kubernetes effect the transaction performs. Each call is bounded and either completes
  * its observable postcondition or throws; none of them decides what happens next.
  */
-export interface ReleaseEffects
-  extends ControllerEffects, Pick<DependencyObservationEffects, 'observeDependencyBinaries'> {
+export interface ReleaseEffects extends ControllerEffects, DependencyObservationEffects {
   observeCluster(request: ReleaseRequest): Promise<ObservedCluster>;
   /** The release Lease with its optimistic-concurrency version, or `null` when absent. */
   readLease(): Promise<(ObservedLease & { version: string }) | null>;
@@ -144,6 +147,17 @@ export interface ReleaseEffects
    */
   publishDesired(request: ReleaseRequest): Promise<void>;
   reconcileDesired(request: ReleaseRequest): Promise<void>;
+}
+
+/** Store uncertainty retains source fences and requires attended compatible recovery. */
+class DependencyStoreInterruptedError extends Error {
+  constructor(cause: unknown) {
+    super(
+      `dependency store observation stopped; retain fences and authoritative journal; attended compatible recovery required for ENABLED, unknown or historical stores: ${messageOf(cause)}`,
+      { cause },
+    );
+    this.name = 'DependencyStoreInterruptedError';
+  }
 }
 
 /** A release that ended anywhere but `lease-released`; carries the operator report. */
@@ -499,6 +513,10 @@ const PARKED_PHASES: ReadonlySet<string> = new Set([
  * before its first protected effect, including resumed forward and rollback work. Explicit
  * empty semantics is observational only. Refusal propagates without rollback, controller
  * cleanup or journal advancement; it does not authorize dependency exposure or recovery.
+ * Each source replay/capture/migration or rollback boundary additionally observes the dormant
+ * store after durable drain and rechecks that same interval and sticky Lease before consuming
+ * source storage. Store uncertainty interrupts with completed controller checkpoints and fences
+ * retained; it never enters automatic schema reversal or controller restoration.
  */
 export async function executeRelease(
   request: ReleaseRequest,
@@ -651,7 +669,9 @@ export async function executeRelease(
     state.controllers.forward !== null && state.controllers.forward.stage !== 'restored'
       ? 'forward'
       : 'rollback';
-  const establishInterval = async (direction: 'forward' | 'rollback'): Promise<void> => {
+  const establishInterval = async (
+    direction: 'forward' | 'rollback',
+  ): Promise<ControllerLifecycle> => {
     const authority = controllerAuthority(direction);
     const target = {
       transactionId: state.transactionId,
@@ -688,7 +708,9 @@ export async function executeRelease(
       throw new ControllerUncertainError('controller suspension acknowledgment is missing');
     // Proof: drain-dispatch omission admitted the mounted unlabelled readonly source consumer.
     await effects.drainStorageController(prior, authority);
-    await authority.checkpoint({ ...prior, stage: 'drained' });
+    const drained: ControllerLifecycle = { ...prior, stage: 'drained' };
+    await authority.checkpoint(drained);
+    return drained;
   };
   const restoreInterval = async (direction: 'forward' | 'rollback'): Promise<void> => {
     const prior = state.controllers[direction];
@@ -700,23 +722,43 @@ export async function executeRelease(
         'controller restoration acknowledgment is missing before writer rollout',
       );
   };
-  const controllerBarrier = async (step: StepKind): Promise<void> => {
+  const controllerBarrier = async (step: StepKind): Promise<ControllerLifecycle | null> => {
     try {
       if (step === 'check-replay' || step === 'capture-state' || step === 'migrate')
-        await establishInterval('forward');
+        return await establishInterval('forward');
       if (step === 'rollback-schema' || step === 'rollback-check-replay')
-        await establishInterval(activeDirection());
+        return await establishInterval(activeDirection());
       // Proof: restore-dispatch omission reached backend rollout without a durable restored interval.
       if (step === 'rollout-backend') await restoreInterval('forward');
       // Proof: rollback-restored-selector regression parked after durable restoration of reused forward history.
       if (step === 'rollback-tiers')
         await restoreInterval(state.controllers.rollback === null ? 'forward' : 'rollback');
+      return null;
     } catch (cause) {
       if (cause instanceof LeaseLostError || cause instanceof ControllerCheckpointError)
         throw cause;
       throw new ControllerUncertainError(`storage controller barrier failed: ${messageOf(cause)}`, {
         cause,
       });
+    }
+  };
+  const observeSourceStore = async (
+    step: StepKind,
+    interval: ControllerLifecycle | null,
+  ): Promise<void> => {
+    if (interval === null) return;
+    const direction = activeDirection();
+    try {
+      // Proof: cached success admitted ENABLED at the next mounted source boundary.
+      await effects.observeDependencyStore(holder, request.release.images.backend);
+      // Retain the original authority; completed Jobs remain in the unfiltered inventory.
+      // Proof: omitting this recheck let mounted post-Job PVC drift reach source replay.
+      await effects.drainStorageController(interval, controllerAuthority(direction));
+      assertHeartbeat(step);
+    } catch (cause) {
+      if (cause instanceof LeaseLostError || cause instanceof ControllerCheckpointError)
+        throw cause;
+      throw new DependencyStoreInterruptedError(cause);
     }
   };
   const heartbeat = setInterval(() => {
@@ -784,7 +826,9 @@ export async function executeRelease(
       }
       try {
         assertStepReplay(step.kind, request, state);
-        await controllerBarrier(step.kind);
+        const interval = await controllerBarrier(step.kind);
+        // Proof: omitted dispatch failed mounted fresh-Job ordering and ENABLED refusal.
+        await observeSourceStore(step.kind, interval);
         outcome = await perform(step, request, state, effects, { claim, holder });
         if (step.kind === 'admit-images') hasImageAdmission = true;
       } catch (e: unknown) {
@@ -792,6 +836,8 @@ export async function executeRelease(
         // Nothing is durable before intent: validation and Lease failures change no state.
         if (state.phase === 'requested' || state.phase === 'validated') throw e;
         if (e instanceof LeaseLostError) throw e;
+        // Proof: bypassing interruption routing changed mounted ENABLED refusal to rollback-failed.
+        if (e instanceof DependencyStoreInterruptedError) throw e;
         if (e instanceof ControllerCheckpointError) throw e.cause;
         log(`[k3s-release ${state.releaseId}] ${step.kind} failed: ${messageOf(e)}`);
         // Proof: uncertain-routing bypass entered generic rollback after the mounted exact restore failure.
