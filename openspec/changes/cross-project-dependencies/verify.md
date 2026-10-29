@@ -7761,3 +7761,7 @@ unverified or held; parent task checkboxes are unchanged.
 ## Pooled reader image-smoke fixture correction — 2026-10-28
 
 [Observed CI failure, transaction-settlement correction and watched proofs](verify-ci92-pooled-smoke-20261028.md) records the reviewed fixture change after main introduced pooled readers. Focused checks passed; a corrected real Docker smoke and fresh full CI remain unverified until the new published head runs. Architectural main adoption and deployment remain held.
+
+## Backend pooled-handle and current-main fixture corrections — 2026-10-29
+
+[Actual failed CI, pooled-handle observations, protected-operation matrix and bounded TypeScript fixture](verify-ci3d-fixtures-20261029.md) records the independently reviewed corrections and their exact proof epochs. Focused tests and static checks passed; fresh corrected-head CI and the integrated host gate remain pending. Newer main MCP preflight integration, architectural adoption and deployment remain separate.

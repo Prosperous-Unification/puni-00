@@ -2,7 +2,6 @@ import * as connectedHistory from '@wbs/core/module/saved-plans/connected-histor
 import * as domain from '@wbs/domain';
 import { planDiffIsEmpty } from '@wbs/domain';
 import * as sqliteDb from '@wbs/store-sqlite/db';
-import { openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { ProjectRepository } from '@wbs/store-sqlite/project';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { WorkItemRepository } from '@wbs/store-sqlite/work-item';
@@ -10,6 +9,7 @@ import { afterEach, expect, spyOn, test } from 'bun:test';
 
 import { runMigrations } from '../repository/migrate';
 import { OrganizationHarness } from '../testing/organization-harness';
+import { trackReadObservations } from '../testing/read-observation.fixture';
 
 let harness: OrganizationHarness | undefined;
 afterEach(async () => {
@@ -17,37 +17,23 @@ afterEach(async () => {
 });
 
 async function openFixture(mode: 'isolated' | 'shared' = 'isolated') {
-  const probe = {
-    opened: 0,
-    closed: 0,
-    live: 0,
+  const probe = Object.assign(trackReadObservations(), {
     armed: false,
-    afterClose: () => undefined,
+    afterRelease: (): void => undefined,
     announcements: 0,
     pushes: 0,
+  });
+  probe.onReleased = () => {
+    if (probe.armed) probe.afterRelease();
   };
-  const readConnections = new Set<unknown>();
+  const readConnections = probe.readConnections;
   const mounted = OrganizationHarness.openComposedWith({
     withOptimizer: true,
-    openReadOnlyConnection: (path) => {
-      const connection = openReadOnlyConnection(path);
-      readConnections.add(connection.db);
-      probe.opened += 1;
-      probe.live += 1;
-      return {
-        db: connection.db,
-        close: () => {
-          connection.close();
-          probe.closed += 1;
-          probe.live -= 1;
-          if (probe.armed) probe.afterClose();
-        },
-      };
-    },
+    openReadOnlyConnection: probe.openConnection,
     pushFetch: (_url, init) => {
       probe.pushes += 1;
       if (typeof init?.body === 'string' && init.body.includes('saved_plans_changed')) {
-        expect(probe.live).toBe(0);
+        expect(probe.borrowed).toBe(0);
         expect(mounted.sqlite.query('SELECT id FROM saved_plan').all()).toHaveLength(1);
         expect(
           mounted.sqlite.query('SELECT kind FROM saved_plan_body').all().length,
@@ -131,17 +117,17 @@ test('mounted connected save persists input9 schedule2 and equals one current ob
 // the expired snapshot threw `read snapshot is closed` and this mounted comparison returned 500.
 test('connected current/current captures once and serialization follows read connection closure', async () => {
   const { mounted, beta, probe } = await openFixture();
-  const before = probe.opened;
+  const before = probe.observations;
   const convertHistory = connectedHistory.captureConnectedHistory;
   const convert = spyOn(connectedHistory, 'captureConnectedHistory').mockImplementation(
     (held, projectId) => {
-      expect(probe.live).toBe(0);
+      expect(probe.borrowed).toBe(0);
       return convertHistory(held, projectId);
     },
   );
   const serialize = spyOn(domain, 'serializeSavedConnectedScheduleBody').mockImplementation(
     (body) => {
-      expect(probe.live).toBe(0);
+      expect(probe.borrowed).toBe(0);
       return JSON.stringify(body);
     },
   );
@@ -152,7 +138,7 @@ test('connected current/current captures once and serialization follows read con
       `/api/projects/${beta}/saved-plans/compare?left=current&right=current`,
     );
     expect(compared.status).toBe(200);
-    expect(probe.opened - before).toBe(1);
+    expect(probe.observations - before).toBe(1);
     expect(serialize).toHaveBeenCalledTimes(1);
     expect(convert).toHaveBeenCalledTimes(1);
     expect(probe.announcements).toBe(0);
@@ -166,7 +152,7 @@ test('connected current/current captures once and serialization follows read con
 test('connected save reauthorizes target after capture before writing either body', async () => {
   const { mounted, beta, probe } = await openFixture();
   probe.armed = true;
-  probe.afterClose = () => {
+  probe.afterRelease = () => {
     mounted.sqlite.run("UPDATE organization_membership SET role='viewer' WHERE user_id=?", [
       mounted.userId('ada'),
     ]);
@@ -244,14 +230,14 @@ for (const mode of ['isolated', 'shared'] as const) {
       const before = captureDurableState(mounted);
       const announcements = probe.announcements;
       const pushes = probe.pushes;
-      const opened = probe.opened;
+      const observations = probe.observations;
       let foreignReads = 0;
       // The spy forwards the exact repository receiver through call below.
       // eslint-disable-next-line @typescript-eslint/unbound-method
       const findProject = ProjectRepository.prototype.findInOrganization;
       const read = spyOn(ProjectRepository.prototype, 'findInOrganization').mockImplementation(
         async function (this: ProjectRepository, projectId, organizationId) {
-          if (projectId === alpha && probe.live > 0) {
+          if (projectId === alpha && probe.borrowed > 0) {
             expect(readConnections.has(Reflect.get(this, 'db'))).toBe(true);
             foreignReads += 1;
           }
@@ -263,7 +249,7 @@ for (const mode of ['isolated', 'shared'] as const) {
       const convertHistory = connectedHistory.captureConnectedHistory;
       const convert = spyOn(connectedHistory, 'captureConnectedHistory').mockImplementation(
         (captured, projectId) => {
-          expect(probe.live).toBe(0);
+          expect(probe.borrowed).toBe(0);
           expect(captured.projection.capture.mode).toBe(mode);
           expect(captured.projection.capture.projects.map((member) => member.projectId)).toContain(
             alpha,
@@ -313,8 +299,8 @@ for (const mode of ['isolated', 'shared'] as const) {
               ? 'injected unreadable foreign capture'
               : 'metadata_facts',
         );
-        expect(probe.opened - opened).toBe(1);
-        expect(probe.live).toBe(0);
+        expect(probe.observations - observations).toBe(1);
+        expect(probe.borrowed).toBe(0);
         expect(captureDurableState(mounted)).toEqual(before);
         expect(probe.announcements).toBe(announcements);
         expect(probe.pushes).toBe(pushes);
@@ -326,7 +312,7 @@ for (const mode of ['isolated', 'shared'] as const) {
         name: 'Restored healthy capture',
       });
       expect(saved.status).toBe(201);
-      expect(probe.live).toBe(0);
+      expect(probe.borrowed).toBe(0);
       expect(probe.announcements).toBe(announcements + 1);
       expect(mounted.sqlite.query('SELECT * FROM saved_plan').all()).toHaveLength(1);
       expect(mounted.sqlite.query('SELECT * FROM saved_plan_body').all()).toHaveLength(2);
@@ -352,13 +338,15 @@ for (const mode of ['isolated', 'shared'] as const) {
       }
       const before = captureDurableState(mounted);
       const pushes = probe.pushes;
-      const opened = probe.opened;
-      const closed = probe.closed;
+      const observations = probe.observations;
+      const released = probe.released;
       let reached = 0;
       let rollbacks = 0;
       let sourceRefusal: unknown;
       const beginRead = sqliteDb.drizzleReadTransaction;
       const transaction = spyOn(sqliteDb, 'drizzleReadTransaction').mockImplementation((db) => {
+        // Observe the actual guarded loan before its first SQL property access.
+        Reflect.get(db, 'run');
         expect(readConnections.has(db)).toBe(true);
         const owned = beginRead(db);
         return {
@@ -380,7 +368,7 @@ for (const mode of ['isolated', 'shared'] as const) {
       const rows = spyOn(WorkItemRepository.prototype, 'listByProject').mockImplementation(
         async function (this: WorkItemRepository, projectId) {
           if (fault === 'unreadable rows' && projectId === alpha) {
-            expect(probe.live).toBe(1);
+            expect(probe.borrowed).toBe(1);
             expect(readConnections.has(Reflect.get(this, 'db'))).toBe(true);
             reached += 1;
             sourceRefusal = new Error('injected owned foreign row read failure');
@@ -395,7 +383,7 @@ for (const mode of ['isolated', 'shared'] as const) {
       const project = spyOn(ProjectRepository.prototype, 'findInOrganization').mockImplementation(
         async function (this: ProjectRepository, projectId, organizationId) {
           if (fault === 'absent abbreviation' && projectId === alpha) {
-            expect(probe.live).toBe(1);
+            expect(probe.borrowed).toBe(1);
             expect(readConnections.has(Reflect.get(this, 'db'))).toBe(true);
             reached += 1;
           }
@@ -419,10 +407,10 @@ for (const mode of ['isolated', 'shared'] as const) {
             ? `project ${alpha} abbreviation is missing`
             : 'injected owned foreign row read failure',
         );
-        expect(probe.opened - opened).toBe(1);
-        expect(probe.closed - closed).toBe(1);
+        expect(probe.observations - observations).toBe(1);
+        expect(probe.released - released).toBe(1);
         expect(rollbacks).toBe(1);
-        expect(probe.live).toBe(0);
+        expect(probe.borrowed).toBe(0);
         expect(captureDurableState(mounted)).toEqual(before);
         expect(probe.pushes).toBe(pushes);
       } finally {

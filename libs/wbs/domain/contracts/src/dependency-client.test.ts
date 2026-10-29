@@ -40,6 +40,9 @@ test('pins the complete protected and exempt operation matrix', () => {
       // failed the real protected/exempt matrix (2026-10-26 R12); restoring
       // the classifier passed both tests. Classification proof only.
       'applyRuntimeCommands',
+      // Proof: exempting all four real AgentPool operations failed this complete
+      // protected/exempt matrix; restoring the classifier passed (2026-10-29).
+      'deleteApiOrganizationAgent-poolsById',
       'deleteApiOrganizationCompute-providersById',
       'deleteApiOrganizationDomainsById',
       'deleteApiOrganizationInvitationsById',
@@ -58,6 +61,7 @@ test('pins the complete protected and exempt operation matrix', () => {
       'getApiOnboarding',
       'getApiOrganization',
       'getApiOrganizationActive',
+      'getApiOrganizationAgent-pools',
       'getApiOrganizationCompute-providers',
       'getApiOrganizationDomains',
       'getApiOrganizationInvitations',
@@ -148,6 +152,8 @@ test('pins the complete protected and exempt operation matrix', () => {
       'postApiOnboardingJoinRequests',
       'postApiOnboardingOrganizations',
       'postApiOrganizationActive',
+      'postApiOrganizationAgent-pools',
+      'postApiOrganizationAgent-poolsByIdRekey',
       'postApiOrganizationCompute-providers',
       'postApiOrganizationDomainsByIdRotate',
       'postApiOrganizationDomainsByIdVerify',

@@ -10,6 +10,7 @@ import type { ReservedSpawnRequest } from '../module/optimization/contract';
 import { admitDependencyClient } from '../runtime/dependency-client';
 import { BACKEND_DEPENDENCY_CAPABILITY } from '../runtime/dependency-support';
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+import { trackReadObservations } from '../testing/read-observation.fixture';
 
 const headers = {
   'X-WBS-Expected-Organization': 'org-a',
@@ -30,13 +31,16 @@ function stream(bytes: string) {
 
 async function fixture(held = true, optimized = true, withLocal = false) {
   const database: { path?: string } = {};
-  let open = 0;
+  const reads = trackReadObservations();
   const captures: string[] = [];
   const launches: ReservedSpawnRequest[] = [];
   const finishes = new Set<() => void>();
   let hold = held;
   let afterRead: (projectId: string) => void = () => undefined;
-  let beforeOpen: () => void = () => undefined;
+  let beforeRead: () => void = () => undefined;
+  reads.beforeRead = () => {
+    beforeRead();
+  };
   const harness = OrganizationHarness.openComposedWith({
     dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
     withOptimizer: true,
@@ -58,20 +62,9 @@ async function fixture(held = true, optimized = true, withLocal = false) {
         return Promise.resolve();
       },
     },
-    openReadOnlyConnection: (filename) => {
-      beforeOpen();
-      const connection = openReadOnlyConnection(filename);
-      open += 1;
-      return {
-        ...connection,
-        close: () => {
-          connection.close();
-          open -= 1;
-        },
-      };
-    },
+    openReadOnlyConnection: reads.openConnection,
     spawn: (asked) => {
-      expect(open).toBe(0);
+      expect(reads.borrowed).toBe(0);
       launches.push(asked);
       if (asked.kind !== 'connected') throw new Error('expected connected request');
       const completion = Promise.withResolvers<number>();
@@ -228,8 +221,8 @@ async function fixture(held = true, optimized = true, withLocal = false) {
       target,
       local: endpoints.at(2),
       spaceId: space.id,
-      beforeCapture: (observer: typeof beforeOpen) => {
-        beforeOpen = observer;
+      beforeCapture: (observer: typeof beforeRead) => {
+        beforeRead = observer;
       },
       captures,
       launches,

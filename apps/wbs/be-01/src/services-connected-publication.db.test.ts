@@ -19,7 +19,7 @@ import {
   userBoundOrganizationOf,
 } from '@wbs/store-sqlite';
 import { captureConnectedQuestion } from '@wbs/store-sqlite/connected-question-identity';
-import { openDatabase, openReadOnlyConnection } from '@wbs/store-sqlite/db';
+import { openDatabase } from '@wbs/store-sqlite/db';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, expect, test } from 'bun:test';
@@ -30,6 +30,7 @@ import { BACKEND_DEPENDENCY_CAPABILITY } from './runtime/dependency-support';
 import { buildServices, type OptimizerRuntime } from './services';
 import { testApp } from './testing/app-fixture';
 import { testLocalAuthService } from './testing/auth-fixture';
+import { trackReadObservations } from './testing/read-observation.fixture';
 
 type ConnectedSolverRequest = Extract<ReservedSpawnRequest, { kind: 'connected' }>['request'];
 
@@ -130,32 +131,15 @@ async function fixture() {
   sqlite.run("UPDATE organization SET shared_people=? WHERE id='org-a'", [0]);
   sqlite.run("UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id='a1'");
   const launched: ReservedSpawnRequest[] = [];
-  const probe = {
-    open: 0,
-    opened: 0,
-    writerReads: [] as number[],
-    onClosed: (): void => undefined,
-  };
+  const probe = Object.assign(trackReadObservations(), { writerReads: [] as number[] });
   const source = openSqliteSource({
     dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
     dbPath: path,
-    openReadOnlyConnection: (filename) => {
-      const connection = openReadOnlyConnection(filename);
-      probe.open++;
-      probe.opened++;
-      return {
-        ...connection,
-        close: () => {
-          connection.close();
-          probe.open--;
-          probe.onClosed();
-        },
-      };
-    },
+    openReadOnlyConnection: probe.openConnection,
   });
   const enter = source.gate.enter.bind(source.gate);
   source.gate.enter = (work) => {
-    probe.writerReads.push(probe.open);
+    probe.writerReads.push(probe.borrowed);
     return enter(work);
   };
   let answer: (asked: Extract<ReservedSpawnRequest, { kind: 'connected' }>) => string = (asked) =>
@@ -163,7 +147,7 @@ async function fixture() {
   const composed = compose(source, {
     ...installed,
     spawn: (asked) => {
-      expect(probe.open).toBe(0);
+      expect(probe.borrowed).toBe(0);
       launched.push(asked);
       if (asked.kind !== 'connected') throw Error('expected connected launch');
       return Promise.resolve({
@@ -962,23 +946,13 @@ test('mounted outgoing terminal survives recompose and an authored successor edi
   const source = openSqliteSource({
     dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
     dbPath: f.path,
-    openReadOnlyConnection: (filename) => {
-      const connection = openReadOnlyConnection(filename);
-      f.probe.open += 1;
-      return {
-        ...connection,
-        close: () => {
-          connection.close();
-          f.probe.open -= 1;
-        },
-      };
-    },
+    openReadOnlyConnection: f.probe.openConnection,
   });
   const launches: ReservedSpawnRequest[] = [];
   const restarted = compose(source, {
     ...installed,
     spawn: (asked) => {
-      expect(f.probe.open).toBe(0);
+      expect(f.probe.borrowed).toBe(0);
       if (asked.kind !== 'connected') throw Error('connected Q2 child required');
       launches.push(asked);
       return Promise.resolve({

@@ -40,6 +40,7 @@ import { BACKEND_DEPENDENCY_CAPABILITY } from './runtime/dependency-support';
 import { buildServices, type OptimizerRuntime } from './services';
 import { testApp } from './testing/app-fixture';
 import { testLocalAuthService } from './testing/auth-fixture';
+import { trackReadObservations } from './testing/read-observation.fixture';
 
 const installed = { solverVersion: '0.4.0', budgetMs: 1000 };
 const access = {
@@ -147,12 +148,7 @@ async function fixture(runtime = true, mode: 'isolated' | 'shared' = 'isolated',
     "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES('edge','org-a','a2','a1','a2','a1','whole','whole','FS')",
   );
   const launched: ReservedSpawnRequest[] = [];
-  const probe = {
-    open: 0,
-    opened: 0,
-    writerReads: [] as number[],
-    onClosed: (): void => undefined,
-  };
+  const probe = Object.assign(trackReadObservations(), { writerReads: [] as number[] });
   let holdChildren = held;
   const children = new Set<() => void>();
   const finishChildren = () => {
@@ -163,23 +159,11 @@ async function fixture(runtime = true, mode: 'isolated' | 'shared' = 'isolated',
   const source = openSqliteSource({
     dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
     dbPath: path,
-    openReadOnlyConnection: (filename) => {
-      const connection = openReadOnlyConnection(filename);
-      probe.open++;
-      probe.opened++;
-      return {
-        ...connection,
-        close: () => {
-          connection.close();
-          probe.open--;
-          probe.onClosed();
-        },
-      };
-    },
+    openReadOnlyConnection: probe.openConnection,
   });
   const enter = source.gate.enter.bind(source.gate);
   source.gate.enter = (work) => {
-    probe.writerReads.push(probe.open);
+    probe.writerReads.push(probe.borrowed);
     return enter(work);
   };
   cleanups.push(() => {
@@ -192,7 +176,7 @@ async function fixture(runtime = true, mode: 'isolated' | 'shared' = 'isolated',
       ? {
           ...installed,
           spawn: (asked) => {
-            expect(probe.open).toBe(0);
+            expect(probe.borrowed).toBe(0);
             launched.push(asked);
             if (asked.kind !== 'connected') throw Error('expected connected launch');
             const completion = Promise.withResolvers<number>();
@@ -480,7 +464,7 @@ for (const fault of ['changed-question', 'calendar', 'throw'] as const) {
     await optimizer.stop();
     expect(f.sqlite.query('SELECT * FROM solver_slot').all()).toEqual([]);
     expect(f.sqlite.query('SELECT * FROM solver_queue').all()).toEqual([]);
-    expect(f.probe.open).toBe(0);
+    expect(f.probe.borrowed).toBe(0);
     if (fault === 'changed-question') {
       expect(f.launched).toHaveLength(2);
       const next = captureConnectedQuestion(await f.capture(), 'time', installed);
@@ -510,16 +494,16 @@ for (const mode of ['isolated', 'shared'] as const) {
       (selection) => selection.stage.projectId === 'a1',
     )?.stage;
     if (stage === undefined) throw Error('target stage missing');
-    const opened = f.probe.opened;
+    const observations = f.probe.observations;
     const first = await f.tree();
     expect(f.launched).toHaveLength(2);
-    expect(f.probe.opened - opened).toBe(1);
+    expect(f.probe.observations - observations).toBe(1);
     expect(f.probe.writerReads.length).toBeGreaterThan(0);
     expect(f.probe.writerReads.every((open) => open === 0)).toBe(true);
     expect(first).toMatchObject({
       optimization: { variants: { pri: { state: 'idle' }, time: { state: 'idle' } } },
     });
-    expect(f.probe.open).toBe(0);
+    expect(f.probe.borrowed).toBe(0);
     expect(f.launched).toHaveLength(2);
     expect(f.launched.map((asked) => [asked.key.projectId, asked.objective]).sort()).toEqual([
       ['a1', 'pri'],
@@ -677,8 +661,8 @@ for (const fault of ['disabled', 'draining'] as const) {
         })
         .run();
     }
-    f.probe.onClosed = () => {
-      f.probe.onClosed = () => undefined;
+    f.probe.onReleased = () => {
+      f.probe.onReleased = () => undefined;
       if (fault === 'disabled')
         f.sqlite.run("UPDATE project SET optimization_enabled=0 WHERE id='a1'");
       else
@@ -815,13 +799,13 @@ async function displacedFixture() {
 
 test('displaced mounted live admission retains B pre-selection question after C Pri selection', async () => {
   const f = await displacedFixture();
-  const opened = f.probe.opened;
+  const observations = f.probe.observations;
   const tree = await f.tree();
-  expect(f.probe.opened - opened).toBe(1);
+  expect(f.probe.observations - observations).toBe(1);
   expect(tree).toMatchObject({
     optimization: { variants: { pri: { state: 'idle' }, time: { state: 'idle' } } },
   });
-  expect(f.probe.open).toBe(0);
+  expect(f.probe.borrowed).toBe(0);
   expect(f.probe.writerReads.length).toBeGreaterThan(0);
   expect(f.probe.writerReads.every((open) => open === 0)).toBe(true);
   expect(tree.slices.map((slice) => [slice.id, slice.earliestStart])).toEqual([
@@ -938,7 +922,7 @@ test('displaced mounted Retry accepts retained B hash and refuses final composit
   if (prepared.kind !== 'request') throw Error('Retry comparison request missing');
   expect(asked.request).toEqual(prepared.request);
   expect(f.probe.writerReads.every((open) => open === 0)).toBe(true);
-  expect(f.probe.open).toBe(0);
+  expect(f.probe.borrowed).toBe(0);
   expect(f.errors).toEqual([]);
 });
 
@@ -1131,9 +1115,9 @@ test('mounted interleaving selects both durable Pri candidates once and retains 
     expect(selection.optimization?.candidates.time?.question.stageBytes).toBe(bytes);
   }
   for (let repeat = 0; repeat < 2; repeat++) {
-    const opened = f.probe.opened;
+    const observations = f.probe.observations;
     const tree = await f.tree();
-    expect(f.probe.opened - opened).toBe(1);
+    expect(f.probe.observations - observations).toBe(1);
     expect(tree.slices.map((slice) => [slice.id, slice.earliestStart])).toEqual([
       ['a1-long\u0000design', 1],
       ['a1-long\u0000test', 7],
@@ -1203,9 +1187,9 @@ for (const state of ['idle', 'pending', 'failed', 'corrupt', 'boundary-infeasibl
         state,
         certificate: { kind: state, question: captureConnectedQuestion(f.b, 'pri', installed) },
       });
-      const opened = f.probe.opened;
+      const observations = f.probe.observations;
       await f.tree();
-      expect(f.probe.opened - opened).toBe(1);
+      expect(f.probe.observations - observations).toBe(1);
       expect(f.launched).toHaveLength(1);
     }
     const tree = await f.tree(f.app, 'a2');
