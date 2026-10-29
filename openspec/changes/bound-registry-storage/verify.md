@@ -1871,3 +1871,75 @@ forward both restore calls without signals for a valid historical consumed recor
 Capture negatives, admitted-callback/controller wiring and native execution remain
 pending. These local results prove no actual restic kill or partial extraction,
 and do not complete Task4.2, the full failure matrix, or production adoption.
+
+## Restore capture prerequisite and controller integration status
+
+The state/capture pair passed86tests/393assertions (44state and42capture cases).
+Library/spec checks returned0 with empty output; the three new/changed files were
+lint-clean. Parent checked150 covering pins and independently reconstructed all32
+removals, representing22 textual deltas. Every case failed an actual assertion.
+Invalid identity/terminal cases demonstrate forbidden modeled consume calls, not
+bypass of the independently verified real state writer. The timer uses the existing
+five-millisecond model and fifty-millisecond rescue; no native elapsed-time claim
+is made. Unexpected-success removal propagates undefined rather than an Error;
+its witness is error handling, not successful native completion.
+
+Parent confirmed the pre-capture prefix is byte-identical, capture changes are
+Proof comments only, and the test matches its removal baseline byte for byte. The
+accepted state declarations remain AST-equal; an additional parent audit explicitly
+requires all three declarations and rejects missing declarations or a removed UID
+guard. Covering receipt `/tmp/task8-restore-capture-covering.json`, SHA256
+`7deb763c93576fd9c427b16f4f3aef72be5c03a16db2d9986bfe5d2f16f8554c`;
+parent review `/tmp/task8-parent-restore-capture-review.json`, SHA256
+`b77d698f1c14130ef21ece33a96aa5065a24f99cbad03173888968d520859fe5`.
+
+The caller's first local regression passed9tests/56assertions after a2pass/7fail
+red. It selects only the exact private restore-kill mode and derives recovery
+lineage after admission. Controller integration is still in progress: an earlier
+26-case green used an incorrect nested inspection model and is superseded. The
+type check exposed that mismatch; a corrected flat-shape test failed at the actual
+controller access before the access was fixed. Final controller/removal/source
+checks and native evidence remain pending.
+
+The restore-kill drill is explicitly a two-fault sequence: reuse the already
+verified partial-tag-deletion setup to enter fenced recovery, then interrupt the
+actual restic child and verify same-operation retry. The previous no-tag preference
+for this mode is superseded; the old tag proof is setup, not new coverage. GC-kill
+remains a separate case with normal deletion and unchanged production GC admission,
+with no tag or unsafe-GC substitution. Both modes retain the existing resource and
+lifetime caps, matching-pair verification, cleanup audits and remaining full-scope
+requirements. No new native run or production activation is yet released.
+
+## Interruption controller proof review
+
+Parent verified all eleven immutable integration snapshots under
+`/tmp/task8-interruption-wiring-normal-snapshots.json` (SHA256
+`b966e131fb46d4679b3ce3aa40d86298b7ab7efdc573c01840bf1fb720c21f7d`).
+The four source changes were compared with the executed HOST56 copies. GC uses
+normal verified deletion before interruption; restore uses the explicit two-fault
+sequence. The restore diagnostic must be absent before the attempt and match the
+consumed worker. Recovery preserves current obligations, the matching offline
+journal, canonical lock and old store, and still stops at a fenced handoff.
+
+Parent independently reconstructed all 45 counterfactual cases from those frozen
+sources: 44 distinct textual deltas. The initial run produced 42 assertion
+failures and one required-positive selector refusal. Two cases passed and were
+preserved as inconclusive. Correcting the GC group's modeled observation exposed
+false acceptance after removing the guard; the focused normal/removed/restored
+sequence passed/failed/passed. The null-lineage followup observes only loss of its
+fixed diagnostic: later traversal still refuses via TypeError. It is not an
+independent safety barrier. Diagnostic aggregation cases prove cause retention,
+not loss of a destructive-effect refusal.
+
+Original receipt `/tmp/task8-interruption-integration-removal-receipt.json` binds
+150 artifacts; the focused followup receipt binds fourteen. Parent checked every
+pin, exact mutant hash, selected test outcome and both followup test diffs.
+Followup receipt SHA256
+`3f2e4741317f7b26b38664e95b36666c5f64d18149f669037878f6b556b69f08`;
+parent review `/tmp/task8-parent-integration-removals-review.json`, SHA256
+`4eb2a441298e164000f27a2c5bdf876db88edcb27d9d839e8c638f6665bfdc0f`.
+These are extracted actual fixture callers with modeled authority, process and
+HTTP ports; the selector case also uses owned local files. They prove no native
+GC or restic kill. Final comment/source transfer, current checks and the next
+frozen host packet remain pending. HOST56 is closed and will not be replayed.
+Task4.2, Tasks4.3/5.1/5.2 and production activation remain incomplete.
