@@ -2910,3 +2910,80 @@ host's 26 errors remain part of this inventory. Required lint remediation,
 remaining exhaustion/CLI scenarios, semantic R5 reconciliation, formal Task8
 review, backup accounting, alert adoption and exact-SHA activation checks remain
 open. No production safeguards were activated by these disposable rehearsals.
+
+## Task8 project regressions and host bootstrap ordering — 2026-10-29
+
+After HOST64 closure, six alias-to-interface conversions and three explicit type
+imports removed nine lint errors across seven files. The interface changes
+preserved complete standalone runtime emission. Three type-import edits changed
+standalone import linking; their evidence is instead the independently rebuilt
+complete native entrypoint, byte-identical to executed HOST64 (`3b63368e`). This
+was checked before the subsequent command-bootstrap change below and does not
+claim the current full native program is still byte-identical. Initial and final
+transfer attempts, controls, source snapshots and type checks remain under
+`/tmp/task8-lint-types/`; the final transfer receipt distinguishes these scopes.
+
+The first full tool-fleet run then reported2049 passes, two skips, two failures
+and one error across164 files. One failure was the QEMU lifecycle timeout. Two
+registry tests permanently enabled Linux child-subreaper state in the shared Bun
+runner, allowing it to adopt later mock daemons whose zombies prevented the lab's
+stop observer from completing. An independent native preload observed flag0
+before the tests and flag1 after them; the inherited-state assertion failed.
+The first exit-event probe did not observe teardown under Bun; only the later
+preload `afterAll` observations establish the final flag.
+
+`scopeMaintenanceReaper` now captures/restores the inherited flag around each test
+in the two direct users and both native backup-store consumers. Production child
+lifetime checks and the lab provider are unchanged. Omitting the native restore
+call made teardown fail and independently left flag1. Restored combined execution
+passed50 tests with two optional native skips, including the exact lab lifecycle
+in5.37seconds and final flag0. Both optional tests were subsequently enabled with
+pinned restic `20d41426`: four backup tests passed, zero skipped, final flag0.
+Before rerunning lifecycle tests, the normal provider `down` cleaned only failed
+mock lab `e2e-2318837` under `/tmp/fleet-qemu-lab-Ndz1qK`. A host-namespace audit
+confirmed all four captured PIDs absent, no members of either captured process
+group and no other process argument references to that exact root.
+
+The other failure was the existing actual CLI negative for raw schema3 promotion.
+Fixed-installation loading raised ENOENT before the core command schema could
+reject the malformed request. `executeRegistryCommand` now also accepts deferred
+host ports, resolved after its existing request validation and before lock/state
+effects. The CLI supplies a memoized loader retaining the fixed installation and
+canonical-directory checks. The loader caches installed ports for monitor iterations;
+ordinary monitor continuation remains unverified. No configurable installation
+path or request-supplied host capability was added.
+Existing object-port callers retain their prior path.
+
+Three added command tests and the actual CLI regression first produced three
+failures and one passing negative, then all four passed. Exact ordering faults
+showed that early bootstrap masks malformed input with the injected host failure,
+and bootstrap inside the lock leaves `authority.lock` despite preserving the
+original failure. Restored execution passed five focused cases with final native
+flag0. Adjacent Proof comments preserve complete emitted runtime, with real
+side-effect controls. Import sorting preserved all non-import statements.
+
+The final configured project command was
+`bun test --preload ../test/scratch/preload.ts --timeout=30000`, run from
+`tools/tool-fleet` with `PUNI_TEST_RESTIC_BINARY=/tmp/task8-restic-native/restic`.
+It exited0:2056 passes, zero failures/skips,8756 assertions,164 files,97.89seconds.
+All333 captured TypeScript/config pins matched at terminal observation. Formatting
+then changed only two test import blocks; complete standalone emitted runtime
+remained equal, and side-effect controls differed. All eight touched files now
+pass Prettier. Library/spec type checks exited0. The nine non-TypeScript fixture
+pins from the preceding project run still match; they were not recaptured before
+this final run and are not included in its333-pin claim.
+
+Fresh runtime lint covers the prior95 files plus the new test helper:303 errors,
+zero warnings across96 files. The selected existing test files also retain lint
+debt; this is not a passing lint gate. Full source/log/snapshot bindings are in
+`/tmp/task8-bootstrap-isolation-covering.json`, SHA256
+`5af482bed8602795190db2008f010fafe098683385a8cae4f1f268da9da0b230`,132pins.
+The project receipt is `/tmp/task8-project-after-bootstrap/exit.json`; bootstrap
+and native-state counterfactuals are under `/tmp/task8-command-bootstrap/` and
+`/tmp/task8-suite-isolation/`.
+
+The original17 requirements/24 scenarios remain intact. Task4.2/Task8 remains in
+progress; actual upload/inode exhaustion, ordinary supervisor/CLI serving
+continuation, complete semantic R5 reconciliation, runtime/test lint cleanup,
+formal original-BASE Task8 review, Tasks9–11 and the exact-SHA host gate remain
+required. This local work made no production configuration or safeguard change.
