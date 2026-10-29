@@ -2267,3 +2267,193 @@ failures remain preserved. Parent acceptance is
 remain modeled. Actual UID0 admission, UID59001 exclusion, fixed ACK-child
 termination, parsed API binding and native physical pressure still require the
 subsequent integration and host rehearsal. No HOST59 launch has been released.
+
+### Fixed ACK launcher and rejected-exit cleanup
+
+The first launcher package, `/tmp/task8-pressure-probe-covering.json` (`f3d04f7f`),
+was preserved as unaccepted after parent found a cleanup gap (`78da6f`). With the
+actual launcher and unchanged actual waiter bodies, modeled exit-observation
+rejection unwound the waiter's abort listener before the launcher aborted its
+signal. The modeled captured child remained live. The shared waiter matched its
+archived/current source (`20209093`, checked by `633d18`); no kernel process was
+created by this reproduction.
+
+The narrow correction observes fulfilled direct exit separately. On rejection
+without confirmed direct death it signals only the captured child, then observes
+the exact group under a bound. Only ESRCH establishes absence; live, unreadable or
+unknown observations produce explicit cleanup uncertainty while preserving the
+original failure. A fulfilled direct exit does not certify group absence: the
+original waiter's group-cleanup refusal remains fatal for outer owned teardown.
+The shared waiter is unchanged.
+
+Corrected cover `/tmp/task8-pressure-probe-lifetime-covering.json` (`43b799fb`)
+binds 141 checked artifacts. Parent read the complete source/tests and final diff,
+reconstructed the original thirteen guard deltas and precise post-cancel followup
+(`f06cf5`, `907efd`), and reviewed eight new exact fallback deltas (`78b974`).
+Parent independently ran 25 tests/187 assertions (`8866f9`) before one duplicate
+assertion was removed; the final run has 25 tests/186 assertions (`546bd9`). Final
+library types and complete spec/lint checks are zero with empty diagnostics;
+earlier failed lint provenance remains. Complete independent runtime syntax
+comparison (`b4b7bf`) verifies the explicit fallback addition, unchanged existing
+nineteen-case tests and waiter, and final type/comment-only transfers, with three
+runtime comparator negatives. Final source is `5ef4c38a`, lifetime tests
+`34fcc249`, existing tests `678fab05`. Parent acceptance is
+`/tmp/task8-parent-probe-review.json` (`0ee67ae5`).
+
+Scope remains modeled process/FFI/root/spawn/group observations with the actual
+waiter and real stream/abort logic. The primary-cause delta loses errors-array
+membership while its cause property remains. Cleanup-uncertainty removals still
+fail the original action. Deadline tests use a virtual clock and independent
+sixth-sleep rescue; other cancellation cases use a 50 ms rescue. These do not prove
+native timing, actual child termination, UID59001 exclusion, installed alias
+identity, API wiring or physical exhaustion. Native integration remains pending.
+
+### Required Unix stop hook in the synthetic API
+
+The API captures the validated Deployment UID and pre-advance resourceVersion for
+zero-replica registry patches. In the exact pressure workload it requires the
+fixed Unix endpoint, HTTP 200 and a complete bounded bootstrap/pressure receipt
+before writing the proposed state or printing a response. Existing fixture modes
+and restore-to-one behavior remain explicit. Bootstrap certifies no pressure effect.
+
+`/tmp/task8-pressure-api-covering.json` (`a2f36d6b`) binds 78 artifacts checked by
+`b038d8` and `f53074`. Parent read the complete source/tests and final diffs,
+reconstructed twelve exact source deltas with raw outcomes (`5ba245`), and ran both
+the normal twenty cases (`05d623`: 20 tests, 177 assertions) and exact final suite
+with eighteen existing cases (`9cf989`: 38 tests, 202 assertions). Complete ordered
+runtime syntax comparison (`92488c`) checks the source and explicit test callback
+normalizations, with three runtime negatives. Final source/test are `41b3cdef` /
+`4e8fcf18`. Initial library/spec checks and final complete spec/lint checks are
+zero with empty diagnostics (`20f5d1`); the earlier five test lint failures remain
+preserved. Parent acceptance is
+`/tmp/task8-parent-pressure-api-review.json` (`55b0a06e`).
+
+The write-order mutation writes the proposed revision before a held or missing
+endpoint permits completion. Deadline/fetch/body mutations need independent 50 ms
+rescues; some still refuse afterward. These tests model fixed files, root identity
+and Unix transport while executing the actual parser/main and bounded reader. They
+prove state-file write ordering, with no fsync or physical durability claim.
+Requested ten-second deadlines are scheduled at 5 ms in the tests. Actual dispatch,
+pre-fill epoch setup, controller integration and native pressure evidence remain
+pending; no HOST59 run is released by these local checks.
+
+### Fixed pressure owner route
+
+The exact `pressure-ack` owner prefix dispatches the allocator and returns before
+ordinary owner setup. Cover `/tmp/task8-pressure-owner-covering.json` (`60be0dd8`)
+binds 53 artifacts. Parent independently ran five tests/ten assertions (`ee1529`),
+read the complete prefix boundary and reconstructed three exact source deltas.
+The first allocator-omission test was masked by its logger parsing undefined;
+the preserved followup uses a raw logger with the exact same mutant (`9d02a5`)
+and observes the missing call/receipt and wrongly successful prefix after a
+modeled allocator failure. It does not prove whole-pipeline success. Removing
+exact mode selection or return loses the required dispatch/ordinary-prefix
+boundary. Final source reverses byte-exactly to the tested normal after removing
+one proof comment. Final spec and complete lint checks are zero with empty
+diagnostics; earlier lint provenance remains. Parent acceptance is
+`/tmp/task8-parent-pressure-owner-review.json` (`f16faed5`). Installation, allocator
+and identity are modeled; root admission and actual UID59001 allocation remain
+native integration work.
+
+### Fresh pre-fill epoch and ACK descriptor identity
+
+The fixed pre-fill helper rotates the existing fixture instance only after the
+publication guard has closed and while the captured direct writer remains live.
+It validates the existing descriptor, bounded bytes, boot and named identity;
+legitimate old-ACK absence requires an actual Error/ENOENT. A present prior ACK
+requires validated bounded content and stable named identity before removal.
+The filler is untouched. Rotation and old-ACK removal precede physical filling;
+neither creates an ACK under ENOSPC nor releases pressure.
+
+Parent found an ABA gap in the first epoch package (`de2828f8`). With the actual
+reader and epoch bodies but modeled files, the named target was inode9/UID0 while
+the opened validated descriptor was inode10/UID59001. The helper returned success
+and unlinked the unvalidated named target (`0b21ae`;
+`/tmp/task8-parent-epoch-ack-identity-observation.json`). That whole package remains
+unaccepted and preserved. The correction requires the shared ACK reader's open
+descriptor device/inode to match the captured named removal target before bytes
+return; the caller passes that identity and retains its final named-path check.
+Instance/request reads retain their existing interface and behavior.
+
+Corrected cover `/tmp/task8-pressure-epoch-identity-covering.json` (`8979c99b`)
+binds 171 checked artifacts. Parent reconstructed all twenty original epoch
+mutants and their forty raw pins, read their assertion failures, and reconstructed
+the two exact coupled identity deltas. Their exact definitions and outcomes are
+pinned by the parent acceptance receipt below. Removing the
+reader binding or substituting the caller's inode permits the modeled forbidden
+unlink; missing expected identity also becomes accepted. Parent inspected full
+final source/tests and independently compared six complete ordered emitted-runtime
+pairs with three comparator negatives (`11b15e`). Original epoch runtime differs
+only by the explicit ACK identity argument; final optional-chain normalizations
+preserve refusal under native numeric Stats and precise trusted journal schemas.
+The initial comparator mismatch was the parent's omitted trailing comma in its
+explicit call normalization, corrected without source changes.
+
+The independent final suite (`d722bb`, `254ac1`) has 94 tests/367 assertions:
+37 existing ACK, 36 epoch, four actual-reader/epoch identity and seventeen handoff
+cases. Receipt is `/tmp/task8-parent-epoch-identity-run.json`. Final combined
+library/spec/scoped lint checks are zero with empty diagnostics; earlier type and
+lint failures are preserved. Final reader/epoch are `5c091586` / `d7f0ead2`.
+Parent acceptance is `/tmp/task8-parent-epoch-review.json` (`2e51624b`). All root,
+filesystem and writer effects remain modeled. Boot-check omission opens/closes
+before later refusal; prewrite identity omission writes before the final path
+check refuses; the primary-cause mutant loses errors-array membership while the
+cause property remains. These are the actual proof limits.
+
+### Selected controlled failure and lifecycle dispatch
+
+The selected pressure backup deliberately fails before serving only after its
+matching verified backup exists. The fixed root wrapper uses the inherited
+canonical descriptor and journal to invoke the unchanged production
+`assert-stopped` action, requires its verified receipt, writes a separate root-only
+controlled-failure receipt and throws. Bootstrap and recovery actions retain
+their normal dispatch. The production stopped-state implementation was inspected
+and matched archived/current source `812167d4`; it retains the real writer census.
+This is an explicit second fault after backup, with no claim of ENOSPC corruption
+or complete restore-service validation.
+
+Handoff cover `/tmp/task8-pressure-handoff-covering.json` (`360fea98`) binds 84
+checked artifacts. Parent read source/tests, reconstructed nine exact deltas and
+raw failures (`fedd09`), independently ran seventeen tests/49 assertions (`18488e`),
+and confirmed those cases in the exact final 94-test suite. Full final runtime
+transfer is included in `11b15e`. Final combined scoped lint/spec/library checks
+are zero; earlier optional-chain lint failures remain preserved. Parent acceptance
+is `/tmp/task8-parent-handoff-review.json` (`07a34211`). Fixed-action mutants prove
+argument forwarding, lineage mutants use nonnull wrong values, and cause mutants
+prove errors-array membership; modeled root/action/file ports are not a native
+root-action execution.
+
+Lifecycle cover `/tmp/task8-pressure-lifecycle-covering.json` (`ba2729c6`) binds
+61 checked artifacts. The actual owner starts one fresh `native-volume-backup`
+with `recover:false`; recovery reuses that operation with the production recovery
+verifier composition. Only the exact full mode, restore-service action and selected
+operation dispatch the controlled handoff. Parent read the complete change/tests,
+reconstructed all twelve scoped mutants and raw failures, and
+independently ran fifteen tests/44 assertions (`bfb31b`). The local direct import
+uses the exact TypeScript-parsed function from the immutable host; source-reading
+tests use the complete byte-exact host snapshot. Full source/test emitted runtime
+matches the tested normal and three controls are detected. Receipt is
+`/tmp/task8-parent-pressure-lifecycle-run.json`; acceptance is
+`/tmp/task8-parent-lifecycle-review.json` (`4ba1e2f6`). Library/spec and new-test lint
+checks are zero with empty diagnostics; existing native-host lint remains open.
+Direct-route/return omissions lose required positive behavior; verifier/argument
+mutants are forwarding assertions and aggregate mutations concern array membership.
+Installation/authority/runtime/action/HTTP effects remain modeled.
+
+After the selected pressure owner is authoritatively terminal, recovery may need
+another idempotent replicas-zero patch. The consumed bridge remains one-shot and
+must close successfully with its socket/listener absent. The controller freshly
+requires the owned writer/group to be absent and the exact failed operation with
+its matching verified backup fence. Only then may it start a new unarmed,
+bootstrap-only bridge for recovery. It preserves the completed pressure receipt
+separately, creates no new writer/instance/ACK probe, retains the filler, and uses
+an allocator callback that throws if unexpectedly reached. The unchanged real
+production census after the recovery patch remains mandatory. Any uncertain
+teardown aborts this transition. This avoids treating a repeated stop as fresh
+pressure evidence; a revived writer or an overwritten receipt would invalidate it.
+
+These acceptances cover local prerequisites only. Controller/main/cgroup routing,
+physical byte and inode exhaustion, actual uploads, native cleanup, semantic R5
+inventory reconciliation, the full original Task8 base review, Tasks9-11,
+exact-revision host gate and live activation remain incomplete. HOST59 is not
+released, and closed HOST57/58 are not replayed.
