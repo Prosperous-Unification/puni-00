@@ -7798,3 +7798,5 @@ Private main508 MCP preflight reconciliation: [actual owning checks and composit
 [Original-context solver-to-backend proof and integration record](verify-solver-backend-context.md) preserves the accepted leaf and its historical guard witnesses, then records the fresh selected readiness, reader, inventory and compiler checks after main508 reconciliation. Current full CI, host and complete restoration acceptance remain separate.
 
 [Backend disk and boot identity contract correction](verify-health-contract.md) records actual producer compatibility and the two new boot equality omission proofs.
+
+[Two completed e09e CI corrections](verify-ci-e09e-corrections.md) records the byte-identical SQLite suite rename and audited single-context namespacing digest correction.
