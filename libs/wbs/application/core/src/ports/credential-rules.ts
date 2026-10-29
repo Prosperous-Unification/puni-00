@@ -87,7 +87,8 @@ export function credentialRuleRefusal(
   // Proof: with this branch removed, `admits a machine key under enforced
   // SSO` and `admits a machine key under a session policy` in
   // `organization-credential-rules.controller.db.test.ts` both failed their
-  // expected 200; watched 2026-10-22.
+  // expected 200; watched 2026-10-22, and again through mcp-01's forwarded
+  // grant 2026-10-29.
   if (authentication?.kind === 'machine') return null;
   const enforced = facts.enforced.at(0);
   if (enforced !== undefined) {

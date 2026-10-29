@@ -177,7 +177,8 @@ export function resolveProjectWriteScopeIn(
       userId: actorId,
       // Proof: F14 substituted member; the malformed trusted-role runtime read succeeded.
       // Proof: RCAP-01 passed undefined here; real-key restricted-project read and acquisition
-      // in runtime-principal-cap.db.test.ts returned 200 success instead of 403 forbidden.
+      // in runtime-principal-cap.db.test.ts returned 200 success instead of 403 forbidden;
+      // watched again 2026-10-29 with the key's grant forwarded as mcp-01 sends it.
       role: organizationRoleOf(validateStoredRole(membership.role, organizationId), authentication),
     };
     // Proof: F13 bypassed this decision; a current viewer received runtime facts.

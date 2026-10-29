@@ -6,7 +6,8 @@ import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 
 import { DELEGATION_TOKEN_TYPE } from '../runtime/delegation';
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
-import { OrganizationHarness } from '../testing/organization-harness';
+import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
+import { type HarnessMachineGrants, OrganizationHarness } from '../testing/organization-harness';
 
 const ISSUER = 'https://idp.test';
 const AUDIENCE = 'api://wbs';
@@ -17,10 +18,12 @@ const SOCIAL = 'google-oauth2|7';
 let signing: CryptoKeyPair;
 let delegationKeys: CryptoKeyPair;
 let jwks: ReturnType<typeof Bun.serve>;
+let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
 let clock: number;
 
 beforeAll(async () => {
+  machineGrants = await forwardingMachineGrants();
   signing = await generateKeyPair('RS256');
   delegationKeys = await generateKeyPair('RS256');
   const publicJwk = await exportJWK(signing.publicKey);
@@ -51,16 +54,29 @@ beforeEach(async () => {
     delegationKey: delegationKeys.publicKey,
     directSigningKey: delegationKeys.privateKey,
     now: () => clock,
-    upstreamCredential: {
-      verifier: new JwksTokenVerifier({
-        audience: AUDIENCE,
-        issuer: ISSUER,
-        jwksUri: new URL(`http://127.0.0.1:${String(jwks.port)}/jwks`),
-      }),
-      groupPrefix: 'dev',
-      groupsClaim: 'wbs_groups',
-    },
+    upstreamCredential: upstreamCredential(),
   });
+  await populate();
+});
+
+afterEach(() => {
+  h.close();
+});
+
+function upstreamCredential() {
+  return {
+    verifier: new JwksTokenVerifier({
+      audience: AUDIENCE,
+      issuer: ISSUER,
+      jwksUri: new URL(`http://127.0.0.1:${String(jwks.port)}/jwks`),
+    }),
+    groupPrefix: 'dev',
+    groupsClaim: 'wbs_groups',
+  };
+}
+
+/** mia and pat, members of A and B (pat of A only), with mia's three upstream pairs. */
+async function populate(): Promise<void> {
   for (const username of ['mia', 'pat']) await h.register(username);
   for (const organization of ['org-a', 'org-b']) {
     h.organization(organization);
@@ -73,11 +89,7 @@ beforeEach(async () => {
       'INSERT INTO external_identity (id, user_id, issuer, subject, created_at) VALUES (?, ?, ?, ?, 1)',
       [`map-${String(index)}`, h.userId('mia'), ISSUER, subject],
     );
-});
-
-afterEach(() => {
-  h.close();
-});
+}
 
 /** A verified upstream access token for `subject`, valid for five minutes from now. */
 function upstream(subject: string): Promise<string> {
@@ -414,9 +426,33 @@ describe('session policy', () => {
 /**
  * A machine credential has no human sign-in to judge (`wbs-machine-credentials`
  * A10): enforced SSO and the session policy admit its API key, which acts as
- * its person's bound account in its own organization.
+ * its person's bound account in its own organization. The key reaches be-01
+ * through mcp-01's forwarded grant, over be-01's production composition; the
+ * `/api` entry is removed by 7.1 (M9).
  */
-describe('machine credentials', () => {
+const MACHINE_TRANSPORTS = [
+  [
+    'through mcp-01',
+    (key: string) => callForwarded(h, key, 'GET', '/api/projects', undefined, { now: clock }),
+  ],
+  [
+    'as a Bearer on /api, removed by 7.1 (M9)',
+    (key: string) => h.callWith(key, 'GET', '/api/projects'),
+  ],
+] as const;
+
+describe.each(MACHINE_TRANSPORTS)('machine credentials, %s', (_, projects) => {
+  beforeEach(async () => {
+    h.close();
+    h = OrganizationHarness.openComposedWith({
+      sessionBinding: true,
+      now: () => clock,
+      upstreamCredential: upstreamCredential(),
+      machineGrants,
+    });
+    await populate();
+  });
+
   async function miaKey(): Promise<string> {
     addAgentPerson(h.sqlite, 'mia-agent', 'org-a', h.userId('mia'));
     const { key } = await issueApiKey(h.sqlite, {
@@ -426,9 +462,6 @@ describe('machine credentials', () => {
     });
     return key;
   }
-
-  const projects = (key: string) =>
-    h.request('/api/projects', { headers: { authorization: `Bearer ${key}` } });
 
   it('admits a machine key under enforced SSO', async () => {
     enforce();

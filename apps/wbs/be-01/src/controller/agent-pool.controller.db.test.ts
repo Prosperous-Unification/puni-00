@@ -3,16 +3,24 @@ import { digestMachineSecret } from '@wbs/core';
 import { CLAIM_LEASE_MS } from '@wbs/domain';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
-import { importMachineGrantKeys, type MachineGrantKeys } from '../runtime/machine-grant';
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
-import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+import {
+  TEST_MACHINE_GRANT_ENV,
+  TEST_MCP_AUTHORIZATION_SERVER,
+} from '../testing/machine-grant-fixture';
+import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
+import {
+  type Answer,
+  type HarnessMachineGrants,
+  OrganizationHarness,
+} from '../testing/organization-harness';
 
 const PATH = '/api/organization/agent-pools';
 const T = 1_900_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
 const UNKNOWN = { status: 401, body: { error: 'unknown_identity' } };
-const SECRET = 'm'.repeat(32);
-const AUTHORIZATION_SERVER = 'https://wbs.example/mcp/oauth';
+const SECRET = TEST_MACHINE_GRANT_ENV['MCP_BE_INTERNAL_SECRET'];
+const AUTHORIZATION_SERVER = TEST_MCP_AUTHORIZATION_SERVER;
 
 let now = T;
 /** Every line the services logger wrote, at `trace`, this test. */
@@ -22,13 +30,10 @@ let onResolve: (() => void) | undefined;
 let h: OrganizationHarness;
 let projectId: string;
 let firstStepId: string;
-let grantKeys: MachineGrantKeys;
+let machineGrants: HarnessMachineGrants;
 
 beforeAll(async () => {
-  grantKeys = await importMachineGrantKeys({
-    current: 'grant-key-p-0123456789abcdefghijklmn',
-    previous: null,
-  });
+  machineGrants = await forwardingMachineGrants();
 });
 
 /**
@@ -36,7 +41,8 @@ beforeAll(async () => {
  * (`wbs-mcp-agent-surface` task 6.2, design M7; the agent-pools spec), with
  * the services clock held at `now`: an admin's browser session makes N agent
  * persons with one key each in one act, re-keys them, and revokes them as a
- * unit, removing the persons on request.
+ * unit, removing the persons on request. Each pool key reaches be-01 as its
+ * agent's does, through mcp-01's forwarded grant ({@link asAgent}).
  */
 beforeEach(async () => {
   now = T;
@@ -50,7 +56,7 @@ beforeEach(async () => {
         logged.push(chunk);
       },
     },
-    machineGrants: { secret: SECRET, keys: grantKeys, authorizationServer: AUTHORIZATION_SERVER },
+    machineGrants,
   });
   for (const username of ['dany', 'ada', 'mem', 'vic', 'bob']) await h.register(username);
   h.organization('org-a');
@@ -118,6 +124,10 @@ const credentials = () => count('SELECT COUNT(*) AS n FROM machine_credential');
 const pools = () => count('SELECT COUNT(*) AS n FROM agent_pool');
 const auditCount = () => count('SELECT COUNT(*) AS n FROM organization_audit');
 
+/**
+ * The audit's rows, oldest first. Each agent call's grant writes its own
+ * `machine_token_issued` row; {@link poolAuditActions} leaves those out.
+ */
 function auditRows(): { action: string; subject_kind: string; detail: string }[] {
   return h.sqlite
     .query<{ action: string; subject_kind: string; detail: string }, []>(
@@ -125,6 +135,12 @@ function auditRows(): { action: string; subject_kind: string; detail: string }[]
     )
     .all();
 }
+
+/** The audit's actions, oldest first, without the agents' grant issuance. */
+const poolAuditActions = (): string[] =>
+  auditRows()
+    .map((row) => row.action)
+    .filter((action) => action !== 'machine_token_issued');
 
 function capAgents(maxAgentPersons: number): void {
   h.sqlite.run(
@@ -138,6 +154,11 @@ function capAgents(maxAgentPersons: number): void {
 
 /** The secret part of a key: what only its holder has. */
 const secretOf = (key: string): string => key.slice(key.indexOf('.') + 1);
+
+/** One call of the agent holding `key`, as mcp-01 forwards it, at the harness clock. */
+function asAgent(key: string, method: string, path: string, body?: unknown): Promise<Answer> {
+  return callForwarded(h, key, method, path, body, { now });
+}
 
 /** One grant request as mcp-01 sends it, at the harness clock. */
 async function requestGrant(key: string): Promise<Answer> {
@@ -163,7 +184,7 @@ async function leafOf(name: string): Promise<string> {
 }
 
 async function claimAs(agent: KeysDocument['agents'][number], leaf: string): Promise<void> {
-  const claimed = await h.callWith(agent.key, 'POST', `/api/projects/${projectId}/commands`, {
+  const claimed = await asAgent(agent.key, 'POST', `/api/projects/${projectId}/commands`, {
     commands: [
       { kind: 'claimWorkItem', workItemId: leaf, personId: agent.personId, steps: [firstStepId] },
     ],
@@ -216,14 +237,14 @@ describe('creating a pool', () => {
     const first = doc.agents.at(0);
     const second = doc.agents.at(1);
     if (first === undefined || second === undefined) throw new Error('the pool has no agents');
-    expect(await h.callWith(first.key, 'GET', '/api/projects')).toMatchObject({ status: 200 });
-    expect(await h.callWith(first.key, 'GET', '/api/organization/members')).toEqual({
+    expect(await asAgent(first.key, 'GET', '/api/projects')).toMatchObject({ status: 200 });
+    expect(await asAgent(first.key, 'GET', '/api/organization/members')).toEqual({
       status: 403,
       body: { error: 'insufficient_scope' },
     });
     const leaf = await leafOf('Leaf');
     expect(
-      await h.callWith(first.key, 'POST', `/api/projects/${projectId}/commands`, {
+      await asAgent(first.key, 'POST', `/api/projects/${projectId}/commands`, {
         commands: [{ kind: 'claimWorkItem', workItemId: leaf, personId: second.personId }],
       }),
     ).toMatchObject({ status: 403, body: { error: 'credential_not_for_person' } });
@@ -236,7 +257,7 @@ describe('creating a pool', () => {
     expect(pool?.credentials).toHaveLength(8);
 
     const audit = auditRows();
-    expect(audit.map((row) => row.action)).toEqual([
+    expect(poolAuditActions()).toEqual([
       ...Array.from({ length: 8 }, () => 'machine_credential_created'),
       'agent_pool_created',
     ]);
@@ -321,10 +342,12 @@ describe('a refused creation', () => {
       personId: 'claire',
       issuedBy: h.userId('dany'),
     });
-    expect(await h.callWith(machine.key, 'POST', PATH, { name: 'swarm-a', size: 2 })).toEqual({
-      status: 403,
-      body: { error: 'insufficient_scope' },
-    });
+    const refused = { status: 403, body: { error: 'insufficient_scope' } };
+    expect(await asAgent(machine.key, 'POST', PATH, { name: 'swarm-a', size: 2 })).toEqual(refused);
+    // Removed by 7.1 (M9): the key itself as a Bearer on `/api`.
+    expect(await h.callWith(machine.key, 'POST', PATH, { name: 'swarm-a', size: 2 })).toEqual(
+      refused,
+    );
     const doc = await createPool('dany', { name: 'swarm-b', size: 1 });
     const agent = doc.agents.at(0);
     if (agent === undefined) throw new Error('the pool has no agent');
@@ -332,13 +355,12 @@ describe('a refused creation', () => {
       ['POST', `${PATH}/${doc.poolId}/rekey`],
       ['DELETE', `${PATH}/${doc.poolId}`],
       ['GET', PATH],
-    ] as const)
-      expect(await h.callWith(agent.key, method, path, method === 'POST' ? {} : undefined)).toEqual(
-        {
-          status: 403,
-          body: { error: 'insufficient_scope' },
-        },
-      );
+    ] as const) {
+      const body = method === 'POST' ? {} : undefined;
+      expect(await asAgent(agent.key, method, path, body)).toEqual(refused);
+      // Removed by 7.1 (M9): the key itself as a Bearer on `/api`.
+      expect(await h.callWith(agent.key, method, path, body)).toEqual(refused);
+    }
     expect(pools()).toBe(1);
   });
 
@@ -395,13 +417,13 @@ describe('re-keying a pool', () => {
     ).toBe(true);
     expect(agentPersons()).toBe(8);
     for (const agent of doc.agents)
-      expect(await h.callWith(agent.key, 'GET', '/api/projects')).toEqual(UNKNOWN);
+      expect(await asAgent(agent.key, 'GET', '/api/projects')).toEqual(UNKNOWN);
     for (const agent of fresh.agents)
-      expect(await h.callWith(agent.key, 'GET', '/api/projects')).toMatchObject({ status: 200 });
+      expect(await asAgent(agent.key, 'GET', '/api/projects')).toMatchObject({ status: 200 });
     const actions = auditRows().map((row) => row.action);
     expect(actions.filter((action) => action === 'machine_credential_revoked')).toHaveLength(8);
     expect(actions.filter((action) => action === 'machine_credential_created')).toHaveLength(16);
-    expect(actions.at(-1)).toBe('agent_pool_rekeyed');
+    expect(poolAuditActions().at(-1)).toBe('agent_pool_rekeyed');
     const listed = (await h.call('dany', 'GET', PATH)).body as {
       pools: { credentials: { id: string }[] }[];
     };
@@ -465,7 +487,7 @@ describe('revoking a pool', () => {
     const history = await h.call('dany', 'GET', `/api/projects/${projectId}/history`);
     expect(JSON.stringify(history.body)).toContain('(credential revoked)');
     for (const agent of doc.agents) {
-      expect(await h.callWith(agent.key, 'GET', '/api/projects')).toEqual(UNKNOWN);
+      expect(await asAgent(agent.key, 'GET', '/api/projects')).toEqual(UNKNOWN);
       expect(await requestGrant(agent.key)).toMatchObject({ status: 401 });
     }
     const actions = auditRows().map((row) => row.action);
@@ -553,7 +575,7 @@ describe('revoking a pool', () => {
       body: { error: 'forbidden' },
     });
     for (const agent of doc.agents)
-      expect(await h.callWith(agent.key, 'GET', '/api/projects')).toMatchObject({ status: 200 });
+      expect(await asAgent(agent.key, 'GET', '/api/projects')).toMatchObject({ status: 200 });
     expect(agentPersons()).toBe(2);
   });
 });
@@ -567,11 +589,11 @@ describe('an expired pool', () => {
     await claimAs(agent, await leafOf('Leaf'));
     now = T + 60 * 60_000;
     for (const each of doc.agents) {
-      expect(await h.callWith(each.key, 'GET', '/api/projects')).toEqual(UNKNOWN);
+      expect(await asAgent(each.key, 'GET', '/api/projects')).toEqual(UNKNOWN);
       expect(await requestGrant(each.key)).toEqual(UNKNOWN);
     }
     // The heartbeat is refused with the key, so the lease runs out on its own.
-    expect(await h.callWith(agent.key, 'POST', '/api/claims/renew')).toEqual(UNKNOWN);
+    expect(await asAgent(agent.key, 'POST', '/api/claims/renew')).toEqual(UNKNOWN);
     now = T + 60 * 60_000 + CLAIM_LEASE_MS;
     const sweep = h.claimLeaseSweep();
     sweep.start();
@@ -613,7 +635,7 @@ describe('re-keying, the review fixes', () => {
     const fresh = renewed.body as KeysDocument;
     expect(fresh.expiresAt).toBe(now + 30 * DAY);
     for (const agent of fresh.agents)
-      expect(await h.callWith(agent.key, 'GET', '/api/projects')).toMatchObject({ status: 200 });
+      expect(await asAgent(agent.key, 'GET', '/api/projects')).toMatchObject({ status: 200 });
   });
 
   it('re-keys an expired pool with a new expiry within 90 days, and refuses one past them', async () => {

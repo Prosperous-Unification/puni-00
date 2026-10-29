@@ -1,8 +1,14 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
-import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
+import {
+  type Answer,
+  type HarnessMachineGrants,
+  OrganizationHarness,
+} from '../testing/organization-harness';
 
+let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
 let projectId: string;
 let humanLeaf: string;
@@ -17,10 +23,15 @@ let qa: string;
  * be-01's production composition and real SQLite. `codex` and `claude` are
  * agent persons bound to `dany`'s account, each with its own API key: both act
  * as `dany`'s account, and neither may undo, clear the redo of, or prune the
- * stack of `dany` or of each other.
+ * stack of `dany` or of each other. The agents' keys reach be-01 through
+ * mcp-01's forwarded grant ({@link callForwarded}).
  */
+beforeAll(async () => {
+  machineGrants = await forwardingMachineGrants();
+});
+
 beforeEach(async () => {
-  h = OrganizationHarness.openComposedWith({});
+  h = OrganizationHarness.openComposedWith({ machineGrants });
   await h.register('dany');
   h.organization('org-a');
   h.member('org-a', 'dany', 'super_admin');
@@ -69,7 +80,7 @@ type Actor = 'dany' | 'codex' | 'claude';
 
 function as(actor: Actor, method: string, path: string, body?: unknown): Promise<Answer> {
   if (actor === 'dany') return h.call('dany', method, path, body);
-  return h.callWith(actor === 'codex' ? codexKey : claudeKey, method, path, body);
+  return callForwarded(h, actor === 'codex' ? codexKey : claudeKey, method, path, body);
 }
 
 /** Renames as `actor`, answering the batch's own report of the actor's stack. */
@@ -216,9 +227,9 @@ it('two credentials pinned to the same person share one undo stack', async () =>
     name: 'Second codex credential',
   });
   await rename('codex', codexLeaf, 'First credential edit');
-  expect((await h.callWith(rotated.key, 'POST', `/api/projects/${projectId}/undo`)).status).toBe(
-    200,
-  );
+  expect(
+    (await callForwarded(h, rotated.key, 'POST', `/api/projects/${projectId}/undo`)).status,
+  ).toBe(200);
   expect(names()[codexLeaf]).toBe('Codex');
   expect(await undoState('codex')).toEqual({ undoable: false, redoable: true });
   expect((await press('codex', 'redo')).status).toBe(200);

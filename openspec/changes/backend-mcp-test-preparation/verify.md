@@ -24,7 +24,7 @@ Final commands use the repository's pinned Bun and installed Nx; original proces
 - Configured ESLint over all eight changed TypeScript paths passed. The four final annotated TypeScript carriers transpile byte-identically to their independently accepted pre-annotation bodies.
 - `bunx openspec validate --all --json`:310/310 passed. Existing unrelated requirement-length warnings remain warnings.
 
-No old proof batch or full source/backend suite was rerun. Final independent source review and Root's normal checkpoint/publication remain pending; hosted capacity task14 remains open.
+No old proof batch or full source/backend suite was rerun. Final independent source review `593f00fa` passed. Root completed normal CI checkpoint `1da108de6ed986ce5786a7a33aef41be8d532884` (tree `1b464fa5707efe3c34055cc3f04ad7f1cb6d6754`) with all hooks and backed it up on both owned branches. The separate three-file review bookkeeping delta is preserved at `/tmp/puni-ci-source-root-doc-delta-20261029`. Feature PR publication follows reviewed R20 reconciliation; hosted capacity task14 remains open.
 
 ## Final independent source review
 

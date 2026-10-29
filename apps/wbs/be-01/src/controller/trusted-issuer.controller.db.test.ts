@@ -4,7 +4,12 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { type LocalIssuer, LocalOidcIssuers } from '../testing/local-oidc-issuer';
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
 import { TEST_MCP_AUTHORIZATION_SERVER } from '../testing/machine-grant-fixture';
-import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
+import {
+  type Answer,
+  type HarnessMachineGrants,
+  OrganizationHarness,
+} from '../testing/organization-harness';
 
 /** The tests' authorization server: every new audience sits under it (`wbs-mcp-agent-surface` M2). */
 const ROOT = TEST_MCP_AUTHORIZATION_SERVER;
@@ -16,8 +21,10 @@ let issuers: LocalOidcIssuers;
 let idp: LocalIssuer;
 let ci: LocalIssuer;
 let h: OrganizationHarness;
+let machineGrants: HarnessMachineGrants;
 
 beforeAll(async () => {
+  machineGrants = await forwardingMachineGrants();
   issuers = new LocalOidcIssuers();
   idp = await issuers.add('idp.test');
 });
@@ -64,6 +71,7 @@ function openHarness(): OrganizationHarness {
       groupsClaim: 'wbs_groups',
     },
     trustedIssuers: { fetch: issuers.fetch, configuredIssuer: CONFIGURED },
+    machineGrants,
   });
 }
 
@@ -456,11 +464,19 @@ describe('who may administer trusted issuers', () => {
       ['GET', PATH, undefined],
       ['POST', PATH, { issuer: ci.url, audience: 'x' }],
       ['DELETE', `${PATH}/${id}`, undefined],
-    ] as const)
+    ] as const) {
+      // The routes are `humanOnly`, so mcp-01 lists no tool for them; be-01
+      // still refuses the forwarded grant.
+      expect(await callForwarded(h, key, method, path, body)).toEqual({
+        status: 403,
+        body: { error: 'insufficient_scope' },
+      });
+      // Removed by 7.1 (M9): the key itself as a Bearer on `/api`.
       expect(await h.callWith(key, method, path, body)).toEqual({
         status: 403,
         body: { error: 'insufficient_scope' },
       });
+    }
     expect(issuerRows()).toHaveLength(1);
   });
 

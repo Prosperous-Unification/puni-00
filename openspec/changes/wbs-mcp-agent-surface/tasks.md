@@ -332,8 +332,11 @@
 - [x] 7.0 Migrate the raw-key `/api` suites: `swarm-end-to-end.db.test.ts`,
       `machine-credential.controller.db.test.ts`, the compute-provider tests, and
       `dev/activated-organization-server.ts` with its `local-dev.md` section.
-      (verify.md slice 16: what moved, what is marked "removed by 7.1 (M9)", and the other
-      raw-key suites 7.1 must still sweep.)
+      (verify.md slice 16: what moved, and what is marked "removed by 7.1 (M9)". Slice 17 covers
+      the other eleven be-01 suites the same way, with the trusted-issuer token cases on mcp-01's
+      `jwt-bearer` grant. Its repo-wide sweep found Dash's `resources/runtime.ts` still sending
+      the key itself to `/api/resource-authorities/*`. That is outside 7.2's named file, and
+      7.1 must not land without it.)
 - [ ] 7.1 and 7.2 ship in one PR, with three parts:
   - M9's refusal;
   - Dash's `report-capacity.ts` as an MCP client;

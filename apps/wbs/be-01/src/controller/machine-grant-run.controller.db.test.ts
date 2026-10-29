@@ -36,7 +36,8 @@ beforeAll(async () => {
  * tasks 1.4 and 1.6, design M6, M15) over be-01's production composition and
  * real SQLite, with the services clock held at `now`. A grant is fetched as
  * mcp-01 fetches it and presented with the dedicated secret; a raw key is
- * presented on `/api` as the test-only composition seam does (M9).
+ * presented on `/api` only in the parity case, whose raw-key half is removed
+ * by 7.1 (M9).
  */
 async function openMachineFixture(connected = false) {
   now = T;
@@ -121,6 +122,10 @@ function asGrant(grant: string) {
   return (path: string, body: unknown) => withGrant(grant, 'POST', path, body);
 }
 
+/**
+ * The key itself as a Bearer on `/api`, for the parity case only. Removed by
+ * 7.1 (M9), which refuses it; the grant's half of that case stays.
+ */
 function asKey(key: string) {
   return (path: string, body: unknown) => h.callWith(key, 'POST', path, body);
 }
@@ -191,6 +196,7 @@ describe('a machine grant yields the API-key principal (task 1.4)', () => {
     const grant = await grantFor(claireKey);
     capClaims(2);
     expectApplied(await commands(asGrant(grant), [{ kind: 'claimWorkItem', workItemId: byGrant }]));
+    // Removed by 7.1 (M9): each raw-key call below (`asKey`, the key's renew).
     expectApplied(await commands(asKey(claireKey), [{ kind: 'claimWorkItem', workItemId: byKey }]));
     const held = claimRows();
     expect(new Set(held.map(({ personId }) => personId))).toEqual(new Set(['claire']));

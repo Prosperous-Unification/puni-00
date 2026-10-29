@@ -170,7 +170,8 @@ export class MachineCredentialRepository implements MachineCredentials {
           // Proof: with this predicate removed, `refuses a credential that
           // names another organization's trusted issuer` in
           // `oidc-credential.controller.db.test.ts` admitted B's credential
-          // through A's trusted issuer; watched 2026-10-22.
+          // through A's trusted issuer; watched 2026-10-22, and again through
+          // mcp-01's jwt-bearer grant 2026-10-29.
           eq(organizationTrustedIssuer.organizationId, machineCredential.organizationId),
           eq(organizationTrustedIssuer.issuer, machineCredential.issuer),
         ),

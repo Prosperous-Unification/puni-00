@@ -23,20 +23,30 @@ import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access'
 import { openSqliteSource } from '@wbs/store-sqlite/source';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
 import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
-import { afterEach, describe, expect, spyOn, test } from 'bun:test';
+import { afterEach, beforeAll, describe, expect, spyOn, test } from 'bun:test';
 
 import { nodeDigest } from '../runtime/bun-runtime';
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
-import { OrganizationHarness } from '../testing/organization-harness';
+import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
+import { type HarnessMachineGrants, OrganizationHarness } from '../testing/organization-harness';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits-fixture';
 
 const cleanups: (() => Promise<void>)[] = [];
+let machineGrants: HarnessMachineGrants;
+beforeAll(async () => {
+  machineGrants = await forwardingMachineGrants();
+});
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
 
+/**
+ * The composed harness with a restricted-role runtime fixture. A machine key
+ * reaches it as an agent's does, through mcp-01's forwarded grant
+ * ({@link callForwarded}).
+ */
 async function mountRuntime() {
-  const harness = OrganizationHarness.openComposed();
+  const harness = OrganizationHarness.openComposedWith({ machineGrants });
   cleanups.push(() => harness.closeComposed());
   for (const username of ['creator', 'super']) await harness.register(username);
   harness.organization('org-a');
@@ -130,12 +140,14 @@ describe('runtime principal role cap', () => {
       const before = history();
       const answer =
         operation === 'read'
-          ? await harness.callWith(
+          ? await callForwarded(
+              harness,
               credential.key,
               'GET',
               `/api/projects/${projectId}/runtime-state?personId=agent`,
             )
-          : await harness.callWith(
+          : await callForwarded(
+              harness,
               credential.key,
               'POST',
               `/api/projects/${projectId}/runtime-authority`,
@@ -181,15 +193,16 @@ describe('runtime principal role cap', () => {
               ).key
             : stubConsent(harness);
         const before = history();
+        // A machine key's call is forwarded as mcp-01 sends it; consent is a Bearer.
+        const call = (method: string, path: string, body?: unknown) =>
+          kind === 'machine'
+            ? callForwarded(harness, token, method, path, body)
+            : harness.callWith(token, method, path, body);
         expect(
-          await harness.callWith(
-            token,
-            'GET',
-            `/api/projects/${projectId}/runtime-state?personId=${personId}`,
-          ),
+          await call('GET', `/api/projects/${projectId}/runtime-state?personId=${personId}`),
         ).toEqual({ status: 403, body: { error: 'person_not_bound' } });
         expect(
-          await harness.callWith(token, 'POST', `/api/projects/${projectId}/runtime-authority`, {
+          await call('POST', `/api/projects/${projectId}/runtime-authority`, {
             ...acquisition,
             personId,
           }),
