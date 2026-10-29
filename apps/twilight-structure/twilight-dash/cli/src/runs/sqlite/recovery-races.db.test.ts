@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
@@ -153,9 +153,7 @@ for (const family of ['authority', 'claim'] as const)
         const child = Bun.spawn(
           [
             process.execPath,
-            resolve(
-              'apps/twilight-structure/twilight-dash/cli/src/runs/testing/recovery-race-worker.ts',
-            ),
+            join(import.meta.dirname, '../testing/recovery-race-worker.ts'),
             command,
           ],
           {

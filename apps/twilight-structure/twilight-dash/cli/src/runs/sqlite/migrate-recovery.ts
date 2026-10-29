@@ -176,6 +176,7 @@ async function transitionFormat(
             .map((statement) => statement.trim())
             .filter((statement) => statement.length > 0);
     for (const statement of statements) database.run(statement);
+    // Proof: T8M2 supplied the predecessor hash only through this new format4 dependency; actual pinned BUSY and queued writers inserted one/two manifest rows on physical4 with inherited guards installed. Exact restoration refused and preserved all rows.
     database
       .query('UPDATE run_format SET bundle_hash=? WHERE singleton=1')
       .run(after.identity.bundleHash);
