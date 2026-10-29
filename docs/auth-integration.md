@@ -469,7 +469,7 @@ invalid_token` (observed in the 2026-10-25 swarm rehearsal). An MCP agent
 exists only through a human's consent: the human signs in to the connector and
 picks an agent bound to their account, which mints an `mcp_consent` credential
 ([MCP organization delegation](#mcp-organization-delegation)). Neither local
-stack completes that consent ([local development](local-dev.md#an-activated-organization-with-api-key-agents)).
+stack completes that consent ([local development](local-dev.md#an-activated-organization-with-mcp-agents)).
 
 ## Historical Okta mapping
 

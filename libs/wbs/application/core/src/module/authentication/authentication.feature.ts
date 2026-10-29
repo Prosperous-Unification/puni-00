@@ -751,6 +751,8 @@ export function machinePrincipalOf(
     // Proof: without this context, `admits a live key to its organization's
     // projects only` in `machine-credential.controller.db.test.ts` answered
     // 403 no_active_organization; watched 2026-10-22.
+    // The same fault failed it, the batch write and the administration
+    // refusal of `an API key on the MCP path` there; watched 2026-10-29.
     delegation: { organizationId: actor.organizationId, audience: 'wbs-be-01/direct' },
     authentication: {
       kind: 'machine',
@@ -774,7 +776,8 @@ export function machinePrincipalOf(
  * Proof: answering the stored role for a machine made `refuses patchPerson to
  * an admin-bound key`, `refuses an admin-bound key a person bound to another
  * account` and `gives a super-admin-bound key no claim-admin bypass`
- * (`machine-credential.controller.db.test.ts`) fail; watched 2026-10-22.
+ * (`machine-credential.controller.db.test.ts`) fail; watched 2026-10-22, and
+ * again for `a key pinned to one person, through mcp-01` on 2026-10-29.
  * Proof: with `consent` left out, `a consent session's tool call claims as
  * its agent, never with the human's reach` (mcp-01
  * `organization-delegation.boot.test.ts`) answered the claim for the unbound

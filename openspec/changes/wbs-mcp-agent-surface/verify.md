@@ -2747,3 +2747,127 @@ SHA256 `5bf84911ab64adfd0d6dfff9535b2d63cb5e5abc9f107c1442719035be97d256`.
 Final integration gate/CI remain the integration owner's next checks, not results
 of this slice. No deployment, activation, complete native restoration or full
 public parity acceptance follows.
+
+## Slice 16 — 7.0 (the raw-key `/api` suites on MCP)
+
+No production behaviour changed: `/api` still admits a `wbs_mk_` bearer until 7.1. Agents in
+the named suites now take the path they take in a deployment, and every test that still sends
+a key itself to `/api` names "removed by 7.1 (M9)" in its describe or an adjacent comment, so
+7.1 flips exactly those.
+
+**Two test paths.**
+
+- _A real mcp-01._ `apps/wbs/be-01/src/testing/mcp-agent-stack.ts` (`startMcpAgentStack`)
+  serves the composed harness on loopback with machine grants under a per-run secret and grant
+  key, and spawns `mcp-01-loopback.ts` (standalone, throwaway store) in front of it. Agents
+  POST `client_credentials` to `/mcp/oauth/token` (HTTP Basic, as `twilight-dash mcp token`)
+  and call tools with the MCP SDK client; `toolAnswerOf` reads each answer as be-01's
+  success or refusal (status and body from mcp-01's D7 text), mcp-01's own tool error, or an
+  HTTP refusal, and throws on anything else.
+- _be-01's half, in process._ `apps/wbs/be-01/src/testing/mcp-forwarded-call.ts`
+  (`callForwarded`) posts the key to `/internal/mcp/machine-grants` with the dedicated
+  secret and sends the call with the grant and secret, exactly what mcp-01 forwards. Used by
+  the per-test-harness suites, where a process per test would cost seconds each.
+
+**Per file** (fresh runs, `env -u CLAUDECODE bun test <file>` in `apps/wbs/be-01`, 2026-10-29):
+
+| File                                        | Before | After | Moved to MCP                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Kept on `/api`, and why                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------- | -----: | ----: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `swarm-end-to-end.db.test.ts`               |      7 |     7 | every agent request, through the real mcp-01: each key's token and session, `getApiProjects`, the capacity report tool, the four-agent `claimWorkItem` swarm, the work read, the pin and claim-cap refusals, finish and release, the retry, the other agents' startable reads. The spare key and step 10's revoked holder now show the M3/M5 sequence: in-band `machine_credential_refused`, then HTTP 401, then `invalid_client` at the token endpoint (was one `401 unknown_identity` on `/api`). The leak check also covers tool and token answers | Dany's administration (directory, credentials, providers, limits, reads, `assignSubtree`): a human's browser-equivalent session                                                                                                                                                                                                                                                                                     |
+| `machine-credential.controller.db.test.ts`  |     27 |    41 | new `an API key on the MCP path` (9): projects of its organization only, a batch as the bound account, no administration, revoked, wrong secret or id, crossed secret, expired secret, an account that left (`unknown_identity` at the grant, not `/api`'s `not_a_member`), before activation (`409 not_activated`, not `403 no_active_organization`); `a key pinned to one person` runs over both paths (`describe.each`, 5 + 5)                                                                                                                     | `an API key as a Bearer on /api, removed by 7.1 (M9)` (18, unchanged: key routing, header and cookie carriers, malformed keys, malformed stored state, last use) and `recording an API key's last use on /api, removed by 7.1 (M9)` (3): `/api`'s own key admission. The pinned suite's `/api` half is named `as a Bearer on /api, removed by 7.1 (M9)`. The bound account's session case moved to its own describe |
+| `compute-provider.controller.db.test.ts`    |     31 |    32 | every agent report (`report()` is the forwarded grant), the super-admin agent's resource removal, the 12 GB claim; the humanOnly admin routes are also refused to the forwarded grant                                                                                                                                                                                                                                                                                                                                                                 | the admin routes' raw-key refusal, inside the same case, marked removed by 7.1 (M9); the delegation cases (`reportBearing`); new `stores a report bearing the key itself on /api, removed by 7.1 (M9)`, because Dash's `report-capacity` still sends the key itself until 7.2                                                                                                                                       |
+| `dev/activated-organization-server.test.ts` |      2 |     3 | new `issues an agent's key a token at the local mcp-01 and answers its tool call`: owner makes an agent person and key over HTTP, `twilight-dash mcp token` prints the header, an MCP tool call lists the organization's project                                                                                                                                                                                                                                                                                                                      | the owner's session (human)                                                                                                                                                                                                                                                                                                                                                                                         |
+| `testing/mcp-agent-stack.test.ts` (new)     |      0 |     6 | `toolAnswerOf`'s readings and refusals                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |                                                                                                                                                                                                                                                                                                                                                                                                                     |
+
+**The dev server and its doc.** `activated-organization-server.ts` takes a required
+`--mcp-url` and composes machine grants with `TEST_MACHINE_GRANT_ENV`'s public fixture secret
+and grant key and that URL's authorization server; its banner prints the secret mcp-01 needs.
+`docs/local-dev.md` "An activated organization with MCP agents" (renamed from "…with API-key
+agents"; `auth-integration.md`'s link follows) starts mcp-01 beside it and shows an agent's
+`.mcp.json` with the `twilight-dash mcp token` `headersHelper`. The four documented processes
+were run by hand on the laptop: both served, mcp-01's metadata answered 200. The signing key
+line pipes `openssl pkcs8 -topk8`, because `genpkey -outform DER` alone wrote a key mcp-01's
+PKCS8 DER read refused (`DECODE_ERROR`, OpenSSL 3.0.13).
+
+**Dash's compute tests.** `report-capacity.test.ts` tests the reporter's own HTTP client
+against a fake `/api`; a comment marks the suite as flipping in 7.2. Nothing in Dash moved.
+
+**Proofs.** Each watched failing with the fault injected, then restored.
+
+| Check                                                                      | Fault injected                                  | Test that observed it failing                                                                                                                                                |
+| -------------------------------------------------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `credentialPinOf` on the MCP path                                          | answers null for a machine credential           | `a key pinned to one person, through mcp-01`: the claim as `codex` and the delegated claim (2 of 5 failed)                                                                   |
+| `machinePrincipalOf`'s direct context on the MCP path                      | `delegation` removed                            | `an API key on the MCP path`: organization-only projects, the batch write, the administration refusal (3 of 9)                                                               |
+| `organizationRoleOf` on the MCP path                                       | answers the stored role for a machine           | `a key pinned to one person, through mcp-01`: patchPerson, the other account's person, the claim-admin bypass (3 of 5)                                                       |
+| `decideCapacityReport`'s organization comparison through a forwarded grant | comparison disabled                             | `answers another tenant's Dash unknown_provider, naming nothing of A`                                                                                                        |
+| the swarm's capacity race, through mcp-01's tools                          | `decideClaim` ignores `refuseOccupancy`         | step 7: 34 GiB of 32 held                                                                                                                                                    |
+| the swarm's key leak check                                                 | the four create answers pushed into `answered`  | `never answers a key outside its create response`                                                                                                                            |
+| the dev server's machine grants                                            | `mcpService` left out of `bootBe01`             | `issues an agent's key a token at the local mcp-01…`: `mcp token` exited 1 on HTTP 502 `server_error`                                                                        |
+| `toolAnswerOf` no-content line; JSON success; unattributable tool error    | each branch removed or answered loosely in turn | `reads mcp-01's no-content line as an empty success`; `reads a success as be-01's body` and `refuses a success that is not JSON`; `refuses a tool error it cannot attribute` |
+
+The `Proof:` comments of `credentialPinOf`, `machinePrincipalOf` and `organizationRoleOf` now
+name the MCP-path tests too, so 7.1's removal of the `/api` cases leaves each check a
+watched negative.
+
+**Found while sweeping, outside 7.0's named files.** These be-01 suites also send a key itself
+to `/api`, and 7.1 must move or mark them before M9 lands: `agent-pool.controller`,
+`claim-lease.controller`, `resource-use.controller`, `machine-grant-run.controller`,
+`machine-credential-admin.controller`, `trusted-issuer.controller`, `claim-own-person.controller`,
+`undo-acting-person.controller`, `runtime-principal-cap`, `oidc-credential.controller` and
+`organization-credential-rules.controller` (all `*.db.test.ts`; found by `issueApiKey` or a
+key passed to `callWith`, not yet read case by case), and fe-01's `e2e/agent-pools.spec.ts`.
+`docs/auth-integration.md` "Fleets and the MCP endpoint" still says an MCP agent exists only
+through consent; that is 7.3's (M12).
+
+**Decisions (assumed).**
+
+1. Raw-key `/api` cases are kept and marked, not deleted or converted, while be-01 still admits
+   them; where the same rule holds on both paths, one suite runs over both
+   (`describe.each(TRANSPORTS)`), so 7.1 drops one entry.
+2. The per-test-harness suites use the in-process forwarded call rather than a real mcp-01;
+   the swarm and the dev server test run the real process.
+3. be-01's `test` target does not list mcp-01's or Dash's sources as inputs, though its suites
+   spawn them: adding them changed the nx-target facts Burokrat pins
+   (`docs/wiki-policy/relationships.json`) and failed CI, and mcp-01's boot tests already spawn
+   be-01 files the same way without declaring them. A cached be-01 test result can therefore
+   outlive an mcp-01 or Dash change (unchanged from before this slice).
+
+**Commands** (laptop, `env -u CLAUDECODE`, 2026-10-29, on top of 50862bc37):
+
+| Command                                                                                                | Result                                      |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                           | 3869 pass, 3 skip, 0 fail (3872, 265 files) |
+| the five files above, one by one                                                                       | 7, 41, 32, 3 and 6 pass, 0 fail             |
+| `bun test src/compute/report-capacity.test.ts` (Dash)                                                  | 21 pass, 0 fail                             |
+| `bunx nx run-many -t typecheck,lint -p wbs-be-01 wbs-contracts wbs-core twilight-dash --skip-nx-cache` | success                                     |
+| Prettier `--check` on every changed file; `openspec validate --all --json`                             | clean; 304 of 304 valid                     |
+| Burokrat `check-indexes working . HEAD`                                                                | exit 0                                      |
+
+Not run: mcp-01's suites (no mcp-01 file changed), Dash's other suites (one comment changed),
+fe-01 and its e2e, the h2puni gate, and anything on a host.
+
+## Private feature reconciliation with main6bf1a34e9
+
+The private dependency feature combined main
+`6bf1a34e9226b7dece5ff122b2e2b2a3d6f6910f` with feature checkpoint
+`cfc67b0e902255a02dad610158bf01546aed5f83`. Both reviewed historical
+verification sections above remain exact. The resolved compute claim retains the
+ready-step guard/selection and main's forwarded MCP call.
+
+A separate new human-session helper initially omitted steps. Its actual public
+409 response reported `prerequisites_unmet` with a workflow FS blocker; omitted
+steps select all unfinished steps. Only that helper now selects the existing
+`firstStepId`, preserving the dany/codex/claire-key identity assertion and all
+production guards. The temporary response diagnostic was restored exactly.
+
+Final focused checks passed: controller/helper group87/292, swarm7/138 and
+activated-server3/17, plus owning backend/module typecheck, scoped configured
+lint/format and OpenSpec309/309. The initial87-case86/1 epoch and swarm's missing
+generated-OpenAPI setup failure remain separate. The declared MCP prepare target
+produced the ignored OpenAPI artifact before the credited swarm run.
+
+Independent final review report SHA256:
+`0b66c8730420e77d40b9239763806bef91e0394787ec410de88a8c98161dab63`.
+All original outer command processes/streams joined. Incoming helper detached
+inner pipe drains were not independently qualified or rewritten. No native/full
+host gate, main merge, deployment or full dependency-feature acceptance follows.
