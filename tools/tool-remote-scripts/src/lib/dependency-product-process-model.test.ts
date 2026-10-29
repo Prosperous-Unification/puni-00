@@ -6,6 +6,7 @@ import { join } from 'node:path';
 
 import { expect, test } from 'bun:test';
 
+import { GATEWAY_RESTORATION_CASES } from '../fixtures/gateway-restoration-cases';
 import { PARTICIPANT_OPENER_CASES } from '../fixtures/participant-opener-cases';
 import { createProductByteTransportFixture } from '../fixtures/product-byte-transport';
 import { createReadinessByteTransportFixture } from '../fixtures/product-readiness-byte-transport';
@@ -1064,7 +1065,7 @@ for (const kind of PARTICIPANT_OPENER_CASES)
     await assertRealHostReader();
   }, 310000);
 
-for (const scenario of SOLVER_BACKEND_CASES)
+for (const scenario of [...SOLVER_BACKEND_CASES, ...GATEWAY_RESTORATION_CASES])
   test(`isolated ${scenario.name}`, async () => {
     const deadline = performance.now() + 310000;
     await assertRealHostReader();
@@ -1096,7 +1097,9 @@ for (const scenario of SOLVER_BACKEND_CASES)
       expect(child.output).toMatch(/\b1 pass\b/);
       expect(child.output).toMatch(/\b0 fail\b/);
       expect(child.output).toMatch(
-        new RegExp(`\\b${String(27 + SOLVER_BACKEND_CASES.length)} filtered out\\b`),
+        new RegExp(
+          `\\b${String(27 + SOLVER_BACKEND_CASES.length + GATEWAY_RESTORATION_CASES.length)} filtered out\\b`,
+        ),
       );
       const passed = [...child.output.matchAll(/^\(pass\) (.+) \[[0-9.]+ms\]$/gm)].map(
         (match) => match[1],

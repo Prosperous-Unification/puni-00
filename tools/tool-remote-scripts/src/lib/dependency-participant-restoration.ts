@@ -44,6 +44,18 @@ export interface BackendParticipantRestoration {
 /** Terminal effect accounting only; original consumed-context checks still own all authority. */
 const attempted = new WeakSet<FinalizedParticipantRestorationContext>();
 
+type GatewayContinuation =
+  | {
+      readonly state: 'backend-ready';
+      readonly restoreGateway: () => Promise<GatewayParticipantRestoration>;
+    }
+  | { readonly state: 'gateway-attempted' };
+/** Actual backend continuations remain private; public summaries cannot mint or rebase them. */
+const gatewayContinuations = new WeakMap<
+  FinalizedParticipantRestorationContext,
+  GatewayContinuation
+>();
+
 /**
  * One backend attempt under the original consumed owner and deadline, with the
  * original solver still parked. This partial readiness is not full restoration
@@ -117,18 +129,44 @@ async function restoreBackend(
       );
       return inspected.map((member: unknown) => member);
     }
-    function readBackendSnapshot(members: readonly unknown[]): ParticipantSnapshot {
+    function readSelectedSnapshot(
+      members: readonly unknown[],
+      role: 'backend' | 'gateway',
+    ): ParticipantSnapshot {
       const matches = members.filter(
-        (member) => readFields(member)['Id'] === context.originals.backend.id,
+        (member) => readFields(member)['Id'] === context.originals[role].id,
       );
-      if (matches.length !== 1) throw new Error('backend selected participant absent');
+      if (matches.length !== 1) throw new Error('selected participant absent');
       return readParticipantSnapshot(matches[0]);
+    }
+    async function inspectParticipantImage(
+      snapshot: ParticipantSnapshot,
+      role: 'backend' | 'gateway',
+    ): Promise<void> {
+      const image = parseDockerInspection(
+        await runDockerBefore(
+          ['image', 'inspect', context.participants.selected[role].imageId],
+          docker,
+          context.deadline,
+        ),
+      );
+      assertParticipantImage(snapshot, image, {
+        role,
+        reference: context.participants.selected[role].image,
+        imageId: context.participants.selected[role].imageId,
+        sourceSha: context.request.owner.sha,
+        backendColor: context.request.prod.backend.color,
+        dataDirectory: join(context.layouts.prod.root, 'data'),
+      });
     }
     async function inspectRetained(): Promise<void> {
       await assertParticipantRestorationContext(context);
       // Proof: omitting all four backend monitor calls accepted a missing actual
       // ready file; 'solver-first backend refuses ready record faults and terminal
       // retry' failed its integrated refusal, then passed restored. This is grouped coverage.
+      // Proof: omitting the four shared solver-monitor calls let 'solver-backend
+      // gateway refuses solver process drift during health' return readiness; its
+      // refusal failed, then passed restored. This is one grouped integration proof.
       if (solver !== null) await solver.inspectReady();
       assertCompleteActivationDeadline(context.deadline);
       await context.storage.evidence.inspect();
@@ -155,22 +193,7 @@ async function restoreBackend(
         );
       const members = await readInventory();
       assertParticipantInventory(context.parkedInventory, members, selected, running, removed);
-      const backend = readBackendSnapshot(members);
-      const image = parseDockerInspection(
-        await runDockerBefore(
-          ['image', 'inspect', context.participants.selected.backend.imageId],
-          docker,
-          context.deadline,
-        ),
-      );
-      assertParticipantImage(backend, image, {
-        role: 'backend',
-        reference: context.participants.selected.backend.image,
-        imageId: context.participants.selected.backend.imageId,
-        sourceSha: context.request.owner.sha,
-        backendColor: context.request.prod.backend.color,
-        dataDirectory: join(context.layouts.prod.root, 'data'),
-      });
+      await inspectParticipantImage(readSelectedSnapshot(members, 'backend'), 'backend');
       await inspectDependencyIngress(
         context.owner,
         [context.layouts.prod, context.layouts.dev],
@@ -234,6 +257,9 @@ async function restoreBackend(
           // Proof: the same grouped omission in the restored-solver phase made
           // 'solver-first backend refuses a dev database opener' return readiness;
           // its refusal assertion failed, then passed after exact restoration.
+          // Proof: omitting this tuple guard AND the executable equality let
+          // 'solver-backend gateway refuses a gateway database opener' return
+          // readiness; refusal failed, then passed restored. This proves the group.
           if (
             opener.environment !== 'prod' ||
             opener.pid !== backend.pid ||
@@ -293,7 +319,7 @@ async function restoreBackend(
         context.originals[role].id,
         'backend original selected participant',
       );
-    const parked = readBackendSnapshot(context.parkedInventory);
+    const parked = readSelectedSnapshot(context.parkedInventory, 'backend');
     const restoration = await retainActivationRecord(
       context.owner,
       context.layouts,
@@ -338,7 +364,7 @@ async function restoreBackend(
     await runDockerBefore(['start', parked.id], docker, context.deadline);
     const started = assertParticipantTransition(
       parked,
-      readBackendSnapshot(await readInventory()).native,
+      readSelectedSnapshot(await readInventory(), 'backend').native,
       'start',
     );
     running.set(started.id, started);
@@ -371,7 +397,10 @@ async function restoreBackend(
         readinessSha256: readiness.sha256,
       },
     );
-    retained.push(ready);
+    // Proof: removing this copy let 'solver-backend gateway refuses backend record
+    // rebased through a public result' reach one dispatch when zero was required;
+    // exact restoration passed. Frozen readiness-clone necessity is not claimed.
+    retained.push(structuredClone(ready));
     await inspectRetained();
     await inspectAuthorities(readiness.observation.process);
     // Proof: omitting this observation/compare let late-final-return return
@@ -385,6 +414,119 @@ async function restoreBackend(
     // following the final actual product observation; 'solver-first backend refuses
     // source drift after final observer' failed its refusal, then passed restored.
     await inspectRetained();
+    // Proof: minting for parked-only success made 'solver-backend gateway refuses
+    // parked-only backend phase' observe one dispatch instead of zero; restoration
+    // passed. This proves attempted effects, not successful gateway readiness.
+    if (solver !== null) {
+      const backendReadiness = structuredClone(readiness);
+      async function inspectGatewayRetained(): Promise<void> {
+        await inspectRetained();
+        // Proof: omitting this observer/compare let 'solver-backend gateway refuses
+        // backend process drift during health' return readiness; its refusal failed
+        // and passed after restoration. The observing group is the proved scope.
+        assertSame(
+          backendReadiness.observation,
+          await observeSelectedProductRole(context, 'backend'),
+          'gateway retained backend inner process',
+        );
+        await inspectParticipantImage(
+          readSelectedSnapshot(await readInventory(), 'gateway'),
+          'gateway',
+        );
+        await inspectAuthorities(backendReadiness.observation.process);
+        await inspectRetained();
+      }
+      async function restoreGateway(): Promise<GatewayParticipantRestoration> {
+        await inspectGatewayRetained();
+        // Proof: selecting the original backend here made 'solver-backend gateway
+        // retains original authority through ready' refuse at its real gateway
+        // call; the positive passed restored. This checks the role dependency.
+        const originalGateway = readSelectedSnapshot(context.parkedInventory, 'gateway');
+        assertSame(
+          context.participants.selected.gateway.id,
+          originalGateway.id,
+          'gateway original selected participant',
+        );
+        const gatewayIntent = await retainActivationRecord(
+          context.owner,
+          context.layouts,
+          'participant-start-intent',
+          {
+            format: 'dependency-participant-start-intent',
+            version: 1,
+            restoration: createReference(restoration),
+            role: 'gateway',
+            id: originalGateway.id,
+          },
+        );
+        retained.push(gatewayIntent);
+        await inspectGatewayRetained();
+        await runDockerBefore(['start', originalGateway.id], docker, context.deadline);
+        const gatewayStarted = assertParticipantTransition(
+          originalGateway,
+          readSelectedSnapshot(await readInventory(), 'gateway').native,
+          'start',
+        );
+        running.set(gatewayStarted.id, gatewayStarted);
+        // Proof: dispatching backend readiness here made 'solver-backend gateway
+        // retains original authority through ready' refuse at its gateway call;
+        // exact restoration passed. This checks the readiness role dependency.
+        const gatewayReadiness = await observeProductParticipantReadiness(context, 'gateway');
+        running.set(
+          gatewayStarted.id,
+          assertParticipantTransition(
+            gatewayStarted,
+            gatewayReadiness.observation.runtime.native,
+            'stable',
+          ),
+        );
+        await inspectGatewayRetained();
+        // Proof: omitting both post-primitive gateway observer/compare calls let
+        // 'solver-backend gateway refuses gateway process drift after authority'
+        // return readiness; refusal failed, then passed restored. This is grouped.
+        assertSame(
+          gatewayReadiness.observation,
+          await observeSelectedProductRole(context, 'gateway'),
+          'gateway ready publication inner process binding',
+        );
+        await inspectRetained();
+        const gatewayReady = await retainActivationRecord(
+          context.owner,
+          context.layouts,
+          'participant-ready',
+          {
+            // Proof: referencing backend-ready instead made 'solver-backend gateway
+            // retains original authority through ready' fail actual publication
+            // equality; the exact original restoration reference passed restored.
+            format: 'dependency-participant-ready',
+            version: 1,
+            restoration: createReference(restoration),
+            role: 'gateway',
+            id: gatewayStarted.id,
+            readinessSha256: gatewayReadiness.sha256,
+          },
+        );
+        retained.push(structuredClone(gatewayReady));
+        await inspectGatewayRetained();
+        assertSame(
+          gatewayReadiness.observation,
+          await observeSelectedProductRole(context, 'gateway'),
+          'gateway returned readiness inner process binding',
+        );
+        // Proof: omitting this final check let 'solver-backend gateway refuses
+        // source drift after final observation' return readiness after late source
+        // policy drift; refusal failed, then passed restored. Fence is ordinary coverage.
+        await inspectGatewayRetained();
+        return {
+          state: 'gateway-ready-participants-fenced',
+          exposure: 'closed',
+          controllers: 'fenced',
+          readiness: gatewayReadiness,
+          ready: gatewayReady,
+        };
+      }
+      gatewayContinuations.set(context, { state: 'backend-ready', restoreGateway });
+    }
     return {
       state: 'backend-ready-participants-fenced',
       exposure: 'closed',
@@ -412,5 +554,42 @@ export async function restoreBackendAfterSolver(
     return await restoreBackend(context, solver);
   } catch {
     throw new Error('backend participant restoration refused');
+  }
+}
+
+/** One gateway readiness transition with all remaining participants and exposure fenced. */
+export interface GatewayParticipantRestoration {
+  readonly state: 'gateway-ready-participants-fenced';
+  readonly exposure: 'closed';
+  readonly controllers: 'fenced';
+  readonly readiness: ProductParticipantReadiness;
+  readonly ready: EdgeRecordSnapshot;
+}
+
+/**
+ * Continues only the actual solver-backed backend success under its original live
+ * consumed context. Missing readiness refuses before reservation; after phase
+ * admission any failure is terminal. Public return objects supply no authority.
+ * Solver/backend identity, original cold source and all remaining fences stay held.
+ * @throws a sanitized refusal on missing/reused phase, changed state or readiness.
+ */
+export async function restoreGatewayAfterBackend(
+  context: FinalizedParticipantRestorationContext,
+): Promise<GatewayParticipantRestoration> {
+  try {
+    // Proof: omitting this early check consumed the repaired original phase in
+    // 'solver-backend gateway retains original authority through ready'; its later
+    // gateway call failed, then passed restored. This proves availability/order.
+    await assertParticipantRestorationContext(context);
+    const phase = gatewayContinuations.get(context);
+    if (phase?.state !== 'backend-ready')
+      throw new Error('original backend readiness is not retained');
+    // Proof: omitting reservation let 'solver-backend gateway refuses missing
+    // backend ready record and terminal repair' succeed after repair; its refusal
+    // failed, then passed restored. Failure after phase admission stays terminal.
+    gatewayContinuations.set(context, { state: 'gateway-attempted' });
+    return await phase.restoreGateway();
+  } catch {
+    throw new Error('gateway participant restoration refused');
   }
 }
