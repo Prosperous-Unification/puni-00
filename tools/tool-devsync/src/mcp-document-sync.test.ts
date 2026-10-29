@@ -167,7 +167,12 @@ test.each(changes)(
       ...process.env,
       PATH: executablePath,
     });
-    expect(execution).toContain('nx run wbs-mcp-01:prepare');
+    const producer = 'nx run wbs-be-01:prepare-mcp-document';
+    const completed =
+      'Successfully ran target prepare for project wbs-mcp-01 and 1 task it depends on';
+    expect(execution).toContain(producer);
+    expect(execution).toContain(completed);
+    expect(execution.indexOf(producer)).toBeLessThan(execution.indexOf(completed));
     expect(await readFile(commands, 'utf8')).toBe(
       'exec mcp-document-rehearsal bun install --frozen-lockfile\nrestart mcp-document-rehearsal\nexec mcp-document-rehearsal curl -sS -m 5 http://127.0.0.1:3100/health\n',
     );
