@@ -904,6 +904,14 @@ Solver audit recognition is part of X3/X4: opaque runtime-lock-scoped tokens bin
 - [x] Complete independent actual/source review and final static checks for this bounded checkpoint.
 - [ ] Complete gateway/source/controller/restart-policy handoff, exposure and separately authorized native/Kubernetes acceptance. Parent P2b/P3/S4 and 10.2 remain open.
 
+### Original-context solver-to-backend-to-gateway checkpoint (bounded P2b-3)
+
+- [x] Observe genuine gateway-entry RED after the actual original solver/backend chain, then continue only its private solver-backed backend phase under the same context/owner/deadline with cold source and retained fences.
+- [x] Observe the explicit5/11/1 ordinary epochs, two focused backend regressions and twelve finite omitted/restored pairs with exact source custody; obtain independent actual review. [Evidence and limits](verify-gateway-context.md).
+- [x] Complete final static checks and independent final source review for this bounded checkpoint.
+- [x] Combine the separately corrected real three-key backend health contract and observe its affected positives on the actual combined source epoch.
+- [ ] Complete source/controller/restart-policy handoff, exposure and separately authorized native/Kubernetes acceptance. Parent P2b/P3/S4 and10.2 remain open.
+
 ### Bounded source/solver physical acceptance runner source
 
 - [x] XS1 Add the invocation-labelled complete-inventory transport and reuse the strict solver fixture lifecycle for the unchanged source/managed coordinator; include focused transport tests and watched fault receipts. See [runner source receipt](verify-source-exclusion-acceptance.md).
