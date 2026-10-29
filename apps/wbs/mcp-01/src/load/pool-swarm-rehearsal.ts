@@ -776,6 +776,11 @@ try {
   // M3/M5: be-01 rereads the credential on every call, so the first call with a bearer of the
   // revoked key is an in-band `machine_credential_refused`; its jti enters mcp-01's refused set,
   // the next request is HTTP 401, and the helper re-runs with the re-imported key.
+  // The SDK's background GET and tool POST can each meet 401; require a completed
+  // helper refresh without imposing a global count on their independent requests.
+  // Proof: suppressing only the actual after_401 helper_issued emission kept refusal→ok
+  // and 401 but failed all three recovery checks; exact restoration passed 136/136 checks
+  // in the positive rehearsal (2026-10-29). Real helper execution and headers stayed intact.
   for (const { agent } of round2) {
     const outcomes = await heartbeatUntilSettled(agent, 4);
     expect(
@@ -785,7 +790,7 @@ try {
         agent.events.some((each) => each['event'] === 'http_401') &&
         agent.events.filter(
           (each) => each['event'] === 'helper_issued' && each['why'] === 'after_401',
-        ).length === 1,
+        ).length >= 1,
       { outcomes, events: agent.events.map((each) => each['event']) },
     );
   }

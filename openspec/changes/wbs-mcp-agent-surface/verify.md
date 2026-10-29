@@ -2979,3 +2979,39 @@ Normal declared backend test execution passed 83 tests/464 assertions across six
 The additional `openspec validate wbs-mcp-agent-surface --strict` check remains FAILED with exit 1. Its warning-producing requirements and all five delta specs are byte-identical to the feature HEAD, with unchanged relevant MAIN text and installed-tool identity. The installed strict contract fails on the retained requirement-length warning; archive INFO remains unresolved. This is not a strict PASS or archive-readiness claim. No specification or predicate was changed to hide the failure.
 
 Independent final review: `/tmp/puni-r20-final-independent-review-20261029.md`, SHA256 `644c367f279e370df17aad36c7d7339214a1a19fe0a095e97fdc1b4c498f8665`; exact source/evidence manifest `1708c955ccdda73ec9c2caeda9877448c89b734fd58b36ae10ea737c145dba07`. Root records this linkage as a separate documentation delta. Normal private merge checkpoint/publication follow; current hosted CI, full host/native/restoration acceptance, architectural MAIN adoption and deployment remain open.
+
+## R20 swarm refresh observation correction (2026-10-29)
+
+The CI positive rehearsal returned the expected stale-credential refusal followed by success,
+but its global exactly-one completed-helper assertion failed with two HTTP 401 events and
+two subsequent helper issuances. The SDK can issue background GET and tool POST requests
+independently through the same helper fetch. The rehearsal now requires at least one actual
+completed `after_401` helper issuance, retaining the exact refusal-to-success outcomes,
+401 evidence, four-call heartbeat bound, per-request single resend and all lease/revocation
+checks. The retained CI report lacks request identities; its exact interleaving remains unknown.
+The earlier one-refresh timeline above remains evidence of that historical run.
+
+Existing boot validation passed both cases (2 pass, 0 fail, 6 wrapper assertions). The existing
+`--fault=skip-reimport` run exited 1: all three selected recoveries returned stale-credential
+refusal then `helper_failed:1`; dependent later failures remain in its full report. This is
+grouped recovery coverage, not an isolated completed-helper observation proof.
+
+The one new dependency proof suppressed only the actual `helper_issued` emission when
+`why === 'after_401'`, preserving helper execution, parsed headers, header update and resend.
+The unchanged positive rehearsal then exited 1 with exactly three recovery failures: each
+still observed `[tool_error:machine_credential_refused, ok]` and HTTP 401, but only the original
+connect issuance. Exact agent restoration passed the same positive with 136 of 136 checks.
+Both proof children exited normally with null signals, joined stdout/stderr EOFs and no
+120-second watchdog expiry. Independent actual evidence review accepted this finite pair.
+
+Commands: `bunx nx run wbs-mcp-01:prepare`; `bun test
+apps/wbs/mcp-01/src/pool-swarm.boot.test.ts`; and the existing
+`bun apps/wbs/mcp-01/src/load/pool-swarm-rehearsal.ts --fault=skip-reimport`. The proof and
+restoration used that same rehearsal without a fault argument under a private 120-second
+direct-child watchdog. The earlier direct skip-reimport run had its existing per-operation
+bounds and settled normally; it did not inherit the boot wrapper's whole-run timeout.
+
+Private original streams, child/tool settlement receipts, tested sources, exact mutation and
+restoration are pinned in `/tmp/puni-r20-mcp-swarm-correction-20261029/one-pair-actual-audit.json`,
+SHA256 `11c23a7d8884e8114b78c5c5210cdafc46cd72ef3240d3fc981a105590503fb3`. No broader
+concurrency reproduction, production refresh change, native/full gate or deployment is claimed.
