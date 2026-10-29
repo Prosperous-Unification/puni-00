@@ -2,7 +2,11 @@ import { JwksTokenVerifier } from '@wbs/auth';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 
 import { type LocalIssuer, LocalOidcIssuers } from '../testing/local-oidc-issuer';
-import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import {
+  addAgentPerson,
+  issueApiKey,
+  MACHINE_BEARER_NOT_ACCEPTED,
+} from '../testing/machine-credential-fixture';
 import { TEST_MCP_AUTHORIZATION_SERVER } from '../testing/machine-grant-fixture';
 import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
 import {
@@ -471,11 +475,8 @@ describe('who may administer trusted issuers', () => {
         status: 403,
         body: { error: 'insufficient_scope' },
       });
-      // Removed by 7.1 (M9): the key itself as a Bearer on `/api`.
-      expect(await h.callWith(key, method, path, body)).toEqual({
-        status: 403,
-        body: { error: 'insufficient_scope' },
-      });
+      // The key itself as a Bearer on `/api` is refused before any route (M9).
+      expect(await h.callWith(key, method, path, body)).toEqual(MACHINE_BEARER_NOT_ACCEPTED);
     }
     expect(issuerRows()).toHaveLength(1);
   });

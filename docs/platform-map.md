@@ -28,7 +28,9 @@ Context glossaries: [WBS](../CONTEXT.md), [Twilight](twilight-structure/CONTEXT.
 
 Four processes, one database writer. Routes are declared once as shapes in
 `libs/wbs/domain/contracts/src/http/*-shapes.ts`; the OpenAPI document, the MCP tools and the
-route-binding test all derive from them.
+route-binding test all derive from them. The OpenAPI document is an internal contract between be-01 and
+mcp-01, not an agent surface: machines call `/mcp`, and `/api` refuses their credentials
+(`openspec/changes/wbs-mcp-agent-surface` M9, M12).
 
 | Process  | Role                                                          | Port      | Ships as                        |
 | -------- | ------------------------------------------------------------- | --------- | ------------------------------- |

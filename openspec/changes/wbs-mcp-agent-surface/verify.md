@@ -2871,3 +2871,138 @@ Not run, and why:
 - mcp-01's and Dash's suites: no file of theirs changed;
 - `twilight-burokrat:test`: no `project.json` or docs index changed;
 - the h2puni gate, and anything on a host.
+
+## Slice 18 — REST off (held)
+
+**Held: this PR is a draft gated on task 8.1** (the dev pool-of-3 run). It must not merge
+before 8.1 is recorded, and #731 (M9's precondition) and Dany's 0.2 (e) decision are still
+open.
+
+Tasks 7.1, 7.2 and 7.3 in one PR (design M9, M12, task 1.5).
+
+**What changed.**
+
+- _M9's refusal._ `AuthService.authenticateOrRefuse`, the one method every `/api` session path
+  uses (`userOrRefusalFromHeaders`, `authenticate`, the bearer-context and password
+  endpoints), answers a new `BearerRefusal`, `machine_bearer_not_accepted`, for:
+  - a token with the `wbs_mk_` prefix, well-formed or not, with no read at all;
+  - once trusted issuers are wired, a JWT whose `iss` is not the configured issuer but some
+    organization's trusted issuer, after only that issuer's registrations are read: no
+    credential read, no key set fetched, no last use.
+
+  `identity.ts` answers it `401 {"error":"machine_bearer_not_accepted","endpoint":"/mcp"}`,
+  and `mount.ts` answers it whole on every route, as the other bearer-level refusals. A
+  machine grant presented with mcp-01's secret is judged before this path and is unchanged.
+  The cookie carrier stays `unknown_identity` with no read (A13). The `/api` verification
+  methods (`authenticateMachineKey`, `authenticateTrustedIssuerToken`) are deleted, so the
+  API-key and trusted-issuer verifiers are reached only by `admitMachineProof`, the grant
+  route's.
+
+- _Task 1.5 at use._ `admitTrustedIssuerToken` takes the authorization server
+  (`admitMachineProof(presented, audienceRoot)`, passed by `machineGrantAuthority` from
+  `WBS_MCP_AUTHORIZATION_SERVER`) and refuses `invalid_token` (mcp-01's `invalid_grant`) when
+  the audience it would verify with, the credential's or the registration's, is not under it
+  (`isUnderMcpAuthorizationServer`). It refuses after the credential read and before any key
+  set fetch or last use.
+- _Dash._ `src/mcp/wbs-tools.ts` (`WbsTools`, `McpWbsTools`, `toolAnswerOf`) and
+  `src/mcp/api-key-provider.ts` (`ApiKeyClientProvider`, the SDK `client_credentials`
+  provider for a `wbs_mk_` key) make Dash an MCP client:
+  - `report-capacity` calls `putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report`.
+    Its configuration is schema 2, with `mcpResource` in place of `wbsOrigin`.
+  - `resources` (`ResourceRuntime`, the slice 17 finding) calls
+    `putApiResourceAuthoritiesByAuthorityIdAdmissions`, `…Events` and
+    `getApiResourceAuthoritiesByAuthorityIdCleanupRequests`. All three are tools: none is
+    `humanOnly` (`resource-runtime-shapes.ts`), so nothing was exposed beyond the design. Its
+    configuration is also schema 2 with `mcpResource`, and the credential must be a `wbs_mk_`
+    key. `watch` retries `ResourceWbsUnavailable` (no answer, a `429`, or a transient
+    uncompleted call) and stops on everything else.
+  - `WbsCredential` (the raw Bearer) is deleted.
+  - `apps/wbs/be-01/scripts/resource-cleanup-smoke.ts` drives the runtime through Dash's tool
+    port over be-01's forwarded grant (`callForwarded`).
+- _Docs (M12)._ `docs/auth-integration.md` "Fleets and the MCP endpoint" is rewritten (it
+  reverses PR #738's "consent only" text). `docs/import-with-ai.md` gains "Headless agents"
+  with the dated client facts. `docs/platform-map.md` marks the OpenAPI document as an
+  internal contract. Dash's README `report-capacity` and `docs/resources.md` describe the MCP
+  path.
+
+**Decisions (assumed).**
+
+1. _The groups-less half of M9 waits for #731._ The design makes #731 the precondition, and
+   #731 is open (held for 4.3). Refusing groups-less configured-issuer tokens here would
+   retire operator links on `/api` ahead of #731 and break `swarm-rehearsal.boot.db.test.ts`
+   and `fleet-credential.controller.db.test.ts`, which #731 rewrites. Until #731 lands, a
+   groups-less token keeps the D6b linked path. After it lands, that path answers
+   `unknown_identity` with no read, and a one-line follow-up renames it
+   `machine_bearer_not_accepted` on `/api`.
+2. _A stranger issuer stays `invalid_token` on `/api`._ The machine-credentials scenario "A
+   token of a stranger issuer" names no transport. Telling a stranger from a trusted issuer
+   costs one registration read by `iss`; the spec's line is "before any credential read".
+3. _No test-only seam._ M9 allows a composition seam for raw-key `/api` tests. Every such
+   test was flipped or deleted (below), so none is needed, and `authenticateOrRefuse` has no
+   switch.
+4. _The refusal body names the path, not a URL:_ `endpoint: "/mcp"`, where deployments serve
+   mcp-01 beside `/api`. be-01 does not hold `MCP_PUBLIC_URL`.
+5. _Dash maps the token endpoint's `invalid_client` to `machine_credential_refused`._ This is
+   mcp-01's in-band answer for the same credential, so a reporter started with a revoked key
+   exits `refused` at once instead of retrying for one cadence.
+6. _`runtime-credential-pin.db.test.ts` is unchanged._ It stubs `authenticateOrRefuse`, the
+   method that holds the refusal, so its machine principal stands for the one a forwarded
+   grant yields (`admitMachineGrant`, which uses the same `machinePrincipalOf` shape). Its
+   comment now says so.
+
+**The slice 16/17 checklist, flipped** (each "removed by 7.1 (M9)" case):
+
+| File                                                                             | Disposition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `machine-credential.controller.db.test.ts` `an API key as a Bearer on /api` (18) | replaced by `an API key as a Bearer on /api` (5): refused before any credential read, with the table renamed away and no last use, while the same key's grant verifies; one answer for revoked, expired, crossed, unknown and malformed keys; before activation; a custom header is no credential; the cookie stays `unknown_identity` with no read. The rest moved to `an API key's stored state on the MCP path` (5): the last-use fault at the grant route itself, three malformed stored states, last use once a minute. The other cases already ran on the MCP path |
+| `recording an API key's last use on /api` (3)                                    | moved to the MCP path (`recording an API key's last use on the MCP path`), with the injected clock passed to the grant                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `a key pinned to one person`, the `/api` entry                                   | dropped; the MCP entry stays                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `compute-provider.controller.db.test.ts`                                         | the admin routes' raw-key line now expects `machine_bearer_not_accepted`; `stores a report bearing the key itself on /api` is inverted: refused, nothing stored                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `oidc-credential.controller.db.test.ts`                                          | the `/api` transport entry (15) dropped. New `a trusted issuer token on /api` (2): refused before any credential read, key set fetch or last use, while the grant admits the token; a stranger stays `invalid_token`, fetching nothing. `a stored audience on /api` is inverted as task 1.5 at use: `invalid_token` through the grant, no fetch, no last use, and `machine_bearer_not_accepted` on `/api`                                                                                                                                                                |
+| `organization-credential-rules.controller.db.test.ts`                            | `/api` entry dropped                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `agent-pool`, `trusted-issuer`, `machine-credential-admin` controller suites     | each raw-key half now expects `machine_bearer_not_accepted`. The rotation case's `/api` line is removed, and the domain unit test is `admitMachineCredential`'s expiry negative (its comment says so)                                                                                                                                                                                                                                                                                                                                                                    |
+| `machine-grant-run.controller.db.test.ts` parity case                            | the raw-key half became a second grant of the same key without a run (one person, leased, renewed, same cap)                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `bootBe01` `refuses a stranger issuer's JWT invalid_token once booted`           | unchanged and passing (decision 2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| core `machine-key.test.ts`                                                       | the `authenticateOrRefuse` key and trusted-issuer cases became `admitMachineProof` cases; new M9 cases (key, trusted issuer, stranger, `authenticate` answering null) and task 1.5 cases (three non-conforming audiences, one equal to the root)                                                                                                                                                                                                                                                                                                                         |
+| Dash `report-capacity.test.ts`                                                   | the fake `/api` is now a fake tool port (`scriptedTools`). The entrypoint case moved to `report-capacity.boot.test.ts` against the real be-01 and mcp-01 (`startWbsMcpStack`)                                                                                                                                                                                                                                                                                                                                                                                            |
+
+**Proofs.** Each fault was injected, watched failing, then restored (laptop, 2026-10-29).
+
+| Check                                                              | Fault injected                                                       | Observed failing                                                                                                                                                                                   |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M9 key refusal before any read                                     | **moved after the key's admission** (`admitMachineKey`, then refuse) | `an API key as a Bearer on /api > is refused machine_bearer_not_accepted before any credential read, recording no use` (be-01): the use was recorded, then the renamed table answered 500          |
+| M9 key refusal                                                     | removed                                                              | core `refuses a live, a malformed or an unwired key machine_bearer_not_accepted, reading nothing`                                                                                                  |
+| M9 trusted-issuer refusal                                          | removed; separately, the credential admitted and verified before it  | core `refuses a trusted issuer’s JWT…`; be-01 `a trusted issuer token on /api > is refused … before any credential read or key set fetch`                                                          |
+| stranger issuer stays `invalid_token`                              | every foreign `iss` answered `machine_bearer_not_accepted`           | core `keeps a stranger issuer’s JWT invalid_token`                                                                                                                                                 |
+| `mount.ts` answers the refusal whole                               | `machine_bearer_not_accepted` left out of its condition              | be-01 trusted-issuer `/api` case answered 500 `undeclared refusal` (observed on the first run, before the line existed)                                                                            |
+| task 1.5 at use                                                    | the `isUnderMcpAuthorizationServer` check disabled                   | core `refuses a stored audience outside the authorization server…` (key set asked); be-01 `a stored audience outside the authorization server > is refused invalid_token through the grant…`       |
+| `admitMachineKey`'s last-use fault (re-watched on the grant route) | the touch's rejection caught and dropped                             | `fails as a server error when its last use cannot be recorded`, now judged at `/internal/mcp/machine-grants` (`requestGrant`): through a forwarded call, `admitMachineGrant`'s own touch masked it |
+| `findById`'s three shape checks (re-watched on the grant route)    | each removed in turn                                                 | its `fails as a server error on a malformed stored …` case                                                                                                                                         |
+| `services.ts` real credential store                                | an inert `findById`                                                  | every MCP-path admitting case of `machine-credential.controller.db.test.ts` (19 of 28)                                                                                                             |
+| Dash: the old HTTP path                                            | (no fault: the observation itself)                                   | `report-capacity.boot.test.ts > the key itself on be-01’s /api is refused machine_bearer_not_accepted`, against the real be-01 process; nothing stored                                             |
+| Dash `ApiKeyClientProvider.addClientAuthentication` bound          | written as a method                                                  | `stores a report through the tool…` (boot) ended `wbs_unavailable`: the SDK calls it detached, a TypeError reading `this` (found that way)                                                         |
+| Dash `invalid_client` → `machine_credential_refused`               | the mapping disabled                                                 | `exits refused at once for a revoked key…` (boot): retried a cadence, ended `wbs_unavailable`                                                                                                      |
+| Dash no redirect                                                   | the transport's `fetch` passed `init` unchanged                      | `calls a tool and never lets a request follow a redirect`                                                                                                                                          |
+| Dash `toolAnswerOf` no-content line; unattributable error          | read as JSON; answered `not_called`                                  | `reads mcp-01’s no-content line as an empty success`; `refuses a tool error it cannot attribute`                                                                                                   |
+| reporter: only `WbsUnreachable` is transient                       | every rejection treated as transient                                 | `exits on an answer the tool client cannot attribute, never retrying it`                                                                                                                           |
+| reporter: refusing reasons                                         | every uncompleted call retried                                       | `exits when mcp-01 answers machine_credential_refused…`, `…insufficient_scope…`                                                                                                                    |
+| runtime: refusing reasons                                          | every uncompleted call `ResourceWbsUnavailable`                      | `runtime-wbs.test.ts > stops on a refused credential`                                                                                                                                              |
+
+**Commands** (laptop, `env -u CLAUDECODE`, 2026-10-29, on top of 8fd51f869):
+
+| Command                                                                                                                                            | Result                                                                                           |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                                                                       | 3858 pass, 3 skip, 0 fail (3861, 265 files; 3889 before: the `/api` key and token cases went)    |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                                                                                   | 4056 pass, 0 fail (118 files; the namespace runtime test included)                               |
+| `bunx nx run wbs-mcp-01:test --skip-nx-cache`                                                                                                      | 723 pass, 0 fail (no mcp-01 file changed)                                                        |
+| `bunx nx run-many -t test -p wbs-core wbs-contracts wbs-domain wbs-store-sqlite --skip-nx-cache`                                                   | success                                                                                          |
+| `bunx nx run-many -t typecheck,lint -p wbs-be-01 wbs-mcp-01 twilight-dash wbs-core wbs-contracts wbs-domain wbs-store-sqlite`                      | success (Dash's lint after two fixes: import order, the fake MCP fetch moved out of `testing/`)  |
+| `unshare --user --map-root-user --pid --fork --mount-proc setpriv --bounding-set=-sys_ptrace bun apps/wbs/be-01/scripts/resource-cleanup-smoke.ts` | exit 0, every flag `true`; the two `transport refusal` lines are its intended rejected admission |
+| Prettier `--check` on every changed file; `openspec validate --all --json`                                                                         | clean; 304 of 304 valid                                                                          |
+| Burokrat `check-indexes working . HEAD`                                                                                                            | exit 0                                                                                           |
+
+Not run, and why:
+
+- `twilight-burokrat:test`: no `project.json` or docs index changed;
+- fe-01: no fe-01 file changed;
+- the h2puni gate, and anything on a host (task 8.1 is the dev run this PR waits for).

@@ -2,7 +2,7 @@ import { JwksTokenVerifier } from '@wbs/auth';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 
 import { type LocalIssuer, LocalOidcIssuers } from '../testing/local-oidc-issuer';
-import { addAgentPerson } from '../testing/machine-credential-fixture';
+import { addAgentPerson, MACHINE_BEARER_NOT_ACCEPTED } from '../testing/machine-credential-fixture';
 import { TEST_MCP_AUTHORIZATION_SERVER } from '../testing/machine-grant-fixture';
 import { callForwardedAssertion, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
 import {
@@ -18,6 +18,7 @@ const CREDENTIALS = '/api/organization/machine-credentials';
 const MAIN = 'repo:acme/wbs:ref:refs/heads/main';
 const UNKNOWN = { status: 401, body: { error: 'unknown_identity' } };
 const INVALID = { status: 401, body: { error: 'invalid_token' } };
+const NOT_ACCEPTED = MACHINE_BEARER_NOT_ACCEPTED;
 
 let issuers: LocalOidcIssuers;
 let machineGrants: HarnessMachineGrants;
@@ -52,8 +53,8 @@ afterAll(async () => {
  * sign-in issuer is a second local issuer behind the upstream verifier.
  *
  * A workload presents its token through mcp-01's `jwt-bearer` grant
- * ({@link viaMcp}); the token cases also run with it as a Bearer on `/api`,
- * the entry 7.1 (M9) removes.
+ * ({@link viaMcp}); as a Bearer on `/api` it is refused
+ * `machine_bearer_not_accepted` (`wbs-mcp-agent-surface` M9).
  */
 beforeEach(async () => {
   ci = await issuers.add(`ci-${crypto.randomUUID().slice(0, 8)}.test`);
@@ -146,7 +147,7 @@ async function claireCredential(): Promise<{ trustedIssuerId: string; id: string
   return { trustedIssuerId, id: (created.body as { id: string }).id };
 }
 
-/** The token itself as a Bearer on `/api`: removed by 7.1 (M9). */
+/** The token itself as a Bearer on `/api`, which M9 refuses. */
 function as(token: string, method: string, path: string, body?: unknown): Promise<Answer> {
   return h.callWith(token, method, path, body);
 }
@@ -156,10 +157,7 @@ function viaMcp(token: string, method: string, path: string, body?: unknown): Pr
   return callForwardedAssertion(h, token, method, path, body);
 }
 
-const TRANSPORTS = [
-  ["through mcp-01's jwt-bearer grant", viaMcp],
-  ['as a Bearer on /api, removed by 7.1 (M9)', as],
-] as const;
+const TRANSPORTS = [["through mcp-01's jwt-bearer grant", viaMcp]] as const;
 
 function projectIds(answer: Answer): string[] {
   return (answer.body as { projects: { id: string }[] }).projects.map((project) => project.id);
@@ -297,7 +295,7 @@ describe('creating an OIDC credential', () => {
   });
 
   // Proof: with the `length > 1` refusal removed from
-  // `authenticateTrustedIssuerToken`, this admitted the token as A's; watched
+  // `admitTrustedIssuerToken`, this admitted the token as A's; watched
   // 2026-10-22.
   it('refuses a narrowing outside the authorization server audience_not_wbs', async () => {
     const trustedIssuerId = await trust('dany', ci, WBS);
@@ -313,8 +311,8 @@ describe('creating an OIDC credential', () => {
 });
 
 // Each Proof below was watched again 2026-10-29 with the token through mcp-01's
-// jwt-bearer grant, so 7.1's removal of the `/api` entry keeps it a negative;
-// `mount.ts`'s half of the stranger issuer's is `/api`'s own.
+// jwt-bearer grant, the one transport left after 7.1 (M9); `mount.ts`'s half of
+// the stranger issuer's is `/api`'s own (`a trusted issuer token on /api`).
 describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
   it('is admitted end to end as its person, capped to a member of its organization', async () => {
     const { id } = await claireCredential();
@@ -336,7 +334,7 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
   });
 
   // Proof: with an `invalid` verdict admitted by
-  // `authenticateTrustedIssuerToken`, this answered 200; watched 2026-10-22.
+  // `admitTrustedIssuerToken`, this answered 200; watched 2026-10-22.
   it('refuses a token signed by another key', async () => {
     await claireCredential();
     expect(
@@ -412,7 +410,7 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
     );
   });
 
-  // Proof: with the no-key-set refusal of `authenticateTrustedIssuerToken`
+  // Proof: with the no-key-set refusal of `admitTrustedIssuerToken`
   // letting the token through to the configured verifier, this answered 401
   // unauthenticated; with `invalid_token` dropped from `mount.ts`'s whole
   // answer, it answered 500; watched 2026-10-22.
@@ -518,7 +516,7 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
   });
 
   // Proof: with the configured-issuer comparison removed from
-  // `authenticateTrustedIssuerToken`, this admitted the planted credential;
+  // `admitTrustedIssuerToken`, this admitted the planted credential;
   // watched 2026-10-22.
   it('never consults trusted issuers for a configured-issuer token without groups', async () => {
     const plantedIssuer = crypto.randomUUID();
@@ -545,16 +543,11 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
   });
 });
 
-describe('a stored audience on /api, removed by 7.1 (M9)', () => {
-  // `wbs-mcp-agent-surface` M2's ordering: until slice 7 refuses machine
-  // bearers on `/api`, a stored audience that breaks the rule keeps verifying
-  // there; only new registrations and narrowings are judged. Removed by 7.1
-  // (M9), with task 1.5's at-use enforcement.
-  // Proof: with the rule enforced at use (in `admitTrustedIssuerToken`, a
-  // registration or credential audience outside the authorization server
-  // answered invalid_token), this answered 401 invalid_token for both rows;
-  // watched 2026-10-27.
-  it('keeps verifying a stored wbs:org audience on /api before slice 7', async () => {
+describe('a stored audience outside the authorization server (task 1.5 at use)', () => {
+  // `wbs-mcp-agent-surface` M2's ordering: with slice 7 a stored audience that
+  // breaks the rule (a `wbs:org` registration, a free-form narrowing) stops
+  // verifying, as the audience preflight lists before the deploy.
+  it('is refused invalid_token through the grant, fetching no key set, and machine_bearer_not_accepted on /api', async () => {
     const registration = crypto.randomUUID();
     const credential = crypto.randomUUID();
     h.sqlite.run(
@@ -572,17 +565,43 @@ describe('a stored audience on /api, removed by 7.1 (M9)', () => {
        VALUES (?, 'org-a', 'claire', ?, 'oidc', 'legacy-narrowed', ?, 'narrowed', 'deploy', ?, 1, ?)`,
       [narrowed, h.userId('dany'), ci.url, registration, h.userId('dany')],
     );
+    const legacy = await ci.sign({ sub: MAIN, aud: 'wbs:org:org-a' });
+    const narrowedToken = await ci.sign({ sub: 'narrowed', aud: ['wbs:org:org-a', 'deploy'] });
+    expect(await viaMcp(legacy, 'GET', '/api/projects')).toEqual(INVALID);
+    expect(await viaMcp(narrowedToken, 'GET', '/api/projects')).toEqual(INVALID);
+    expect(ci.jwksFetches).toBe(0);
+    expect(lastUsedAt(credential)).toBeNull();
+    expect(lastUsedAt(narrowed)).toBeNull();
+    expect(await as(legacy, 'GET', '/api/projects')).toEqual(NOT_ACCEPTED);
+  });
+});
+
+describe('a trusted issuer token on /api (wbs-mcp-agent-surface M9)', () => {
+  it('is refused machine_bearer_not_accepted before any credential read or key set fetch', async () => {
+    const { id } = await claireCredential();
+    // Registration fetched the discovery document; nothing after it may fetch.
+    const fetchedAtRegistration = ci.jwksFetches + ci.discoveryFetches;
+    expect(await as(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/projects')).toEqual(
+      NOT_ACCEPTED,
+    );
     expect(
-      (await as(await ci.sign({ sub: MAIN, aud: 'wbs:org:org-a' }), 'GET', '/api/projects')).status,
-    ).toBe(200);
+      await as(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/organization/members'),
+    ).toEqual(NOT_ACCEPTED);
+    expect(ci.jwksFetches + ci.discoveryFetches).toBe(fetchedAtRegistration);
+    expect(lastUsedAt(id)).toBeNull();
+    // The same token is admitted through the grant.
     expect(
-      (
-        await as(
-          await ci.sign({ sub: 'narrowed', aud: ['wbs:org:org-a', 'deploy'] }),
-          'GET',
-          '/api/projects',
-        )
-      ).status,
+      (await viaMcp(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/projects')).status,
     ).toBe(200);
+  });
+
+  it('keeps a stranger issuer’s token invalid_token, fetching nothing', async () => {
+    await claireCredential();
+    const stranger = await issuers.add(`stranger-${crypto.randomUUID().slice(0, 8)}.test`);
+    expect(await as(await stranger.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/projects')).toEqual(
+      INVALID,
+    );
+    expect(stranger.jwksFetches + stranger.discoveryFetches).toBe(0);
+    expect(ci.jwksFetches).toBe(0);
   });
 });

@@ -15,11 +15,14 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { resourceRuntimeAdmissionReceipt, resourceRuntimeEvent } from '@wbs/contracts';
+import { resourceRuntimeEvent } from '@wbs/contracts';
 import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
-import { admitFixture } from './admission.test.fixture';
+import { fakeCredential } from '../compute/testing/credential';
+import { scriptedTools } from '../mcp/testing/scripted-tools';
+import type { ToolAnswer, WbsTools } from '../mcp/wbs-tools';
+import { admissionReceiptOf, admitFixture } from './admission.test.fixture';
 import { termIgnoringChild } from './process-tree.test.fixture';
 import {
   type CreationRequest,
@@ -60,6 +63,21 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
   }, 120000);
 } else {
   const roots: string[] = [];
+  const CREDENTIAL = fakeCredential();
+  const SECRET = CREDENTIAL.slice(CREDENTIAL.indexOf('.') + 1);
+  /** A deferred admission tool: the call it entered, and the answer it waits for. */
+  function heldAdmission() {
+    const receipt = Promise.withResolvers<ToolAnswer>();
+    const entered = Promise.withResolvers<Readonly<Record<string, unknown>>>();
+    const tools: WbsTools = {
+      call: (_name, input) => {
+        entered.resolve(input);
+        return receipt.promise;
+      },
+      close: () => Promise.resolve(),
+    };
+    return { tools, receipt, entered: entered.promise };
+  }
   afterEach(() => {
     for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
   });
@@ -72,13 +90,13 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
     writeFileSync(
       config,
       JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         root,
         authorityId: 'runtime-one',
         epoch: 'epoch-one',
         providerId: 'provider-one',
-        wbsOrigin: 'http://127.0.0.1:3100',
-        credential: 'private-test-credential',
+        mcpResource: 'http://127.0.0.1:3100/mcp',
+        credential: CREDENTIAL,
         diskUnitBytes: 1024,
         diskBudgetUnits: budget,
         workspaceSlots: budget,
@@ -168,13 +186,14 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
 
   test('configuration is owner-only and serialization never exposes reporting credential', () => {
     const { config } = fixture();
-    expect(JSON.stringify(loadResourceConfiguration(config))).not.toContain(
-      'private-test-credential',
-    );
+    const loaded = loadResourceConfiguration(config);
+    expect(JSON.stringify(loaded)).not.toContain(SECRET);
+    expect(Bun.inspect(loaded)).not.toContain(SECRET);
+    expect(loaded.endpoint.tokenUrl).toBe('http://127.0.0.1:3100/mcp/oauth/token');
     chmodSync(config, 0o644);
     expect(() => loadResourceConfiguration(config)).toThrow('owner-only');
     chmodSync(config, 0o600);
-    writeFileSync(config, '{"credential":"private-test-credential"');
+    writeFileSync(config, `{"credential":"${CREDENTIAL}"`);
     expect(() => loadResourceConfiguration(config)).toThrow('configuration malformed');
   });
 
@@ -381,24 +400,25 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
     const use = await create(runtime, request);
     const seen: string[] = [];
     let lose = true;
-    const server = Bun.serve({
-      port: 0,
-      async fetch(http) {
-        if (http.method === 'PUT') {
-          const wire = await http.text();
-          seen.push(wire);
-          const event = resourceRuntimeEvent.assert(JSON.parse(wire));
-          if (lose) {
-            lose = false;
-            return new Response('lost', { status: 503 });
-          }
-          return Response.json({
-            acceptedSequence: event.sequence,
-            useId: event.useId,
-            revision: event.revision,
-          });
+    const sender = scriptedTools(({ name, input }): ToolAnswer => {
+      if (name === 'putApiResourceAuthoritiesByAuthorityIdEvents') {
+        const { authorityId, ...wire } = input;
+        expect(authorityId).toBe('runtime-one');
+        seen.push(JSON.stringify(wire));
+        const event = resourceRuntimeEvent.assert(wire);
+        if (lose) {
+          lose = false;
+          return { kind: 'not_called', reason: 'server_error' };
         }
-        return Response.json({
+        return {
+          kind: 'answered',
+          body: { acceptedSequence: event.sequence, useId: event.useId, revision: event.revision },
+        };
+      }
+      expect(name).toBe('getApiResourceAuthoritiesByAuthorityIdCleanupRequests');
+      return {
+        kind: 'answered',
+        body: {
           requests: [
             {
               requestId: 1,
@@ -410,23 +430,16 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
             },
           ],
           nextCursor: '1',
-        });
-      },
+        },
+      };
     });
     try {
-      const sender = (http: Request) =>
-        fetch(
-          new Request(
-            new URL(new URL(http.url).pathname + new URL(http.url).search, server.url),
-            http,
-          ),
-        );
       let refused = false;
       try {
         await runtime.synchronize(sender);
       } catch (cause) {
         refused = true;
-        expect(String(cause)).toContain('HTTP 503');
+        expect(String(cause)).toContain('server_error');
       }
       expect(refused).toBe(true);
       expect(runtime.outbox()).toHaveLength(1);
@@ -438,9 +451,8 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
       await runtime.synchronize(sender);
       expect(runtime.outbox()).toHaveLength(0);
       expect(runtime.inspect(use.id).state).toBe('released');
-      expect(JSON.stringify(seen)).not.toContain('private-test-credential');
+      expect(JSON.stringify(sender.calls)).not.toContain(SECRET);
     } finally {
-      await server.stop(true);
       runtime.close();
     }
   });
@@ -536,7 +548,7 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
     expect(use.state).toBe('released');
     expect(existsSync(use.locator)).toBe(false);
     expect(readdirSync(root)).toEqual(['.dash']);
-    expect(run.stdout.toString()).not.toContain('private-test-credential');
+    expect(run.stdout.toString()).not.toContain(SECRET);
     runtime.close();
   });
 
@@ -965,11 +977,13 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
     const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
     try {
       await assert.rejects(
-        runtime.create(request, async (http) => {
-          const receipt = await admitFixture(http);
-          const admitted = resourceRuntimeAdmissionReceipt.assert(await receipt.json());
-          return Response.json({ ...admitted, incarnation: 'wrong' });
-        }),
+        runtime.create(
+          request,
+          scriptedTools(({ input }) => ({
+            kind: 'answered',
+            body: { ...admissionReceiptOf(input), incarnation: 'wrong' },
+          })),
+        ),
         /acknowledgment mismatch/,
       );
       const pending = runtime.list()[0];
@@ -990,19 +1004,15 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
     const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
     try {
       const parent = await create(runtime, request);
-      const receipt = Promise.withResolvers<Response>();
-      const entered = Promise.withResolvers<Request>();
-      const creation = runtime.create({ ...request, parentId: parent.id }, (http) => {
-        entered.resolve(http);
-        return receipt.promise;
-      });
-      const http = await entered.promise;
+      const held = heldAdmission();
+      const creation = runtime.create({ ...request, parentId: parent.id }, held.tools);
+      const admission = await held.entered;
       const child = runtime.list().find((use) => use.request.parentId === parent.id);
       expect(child).toBeDefined();
       expect(existsSync(child!.locator)).toBe(false);
       expect(runtime.outbox()).toHaveLength(1);
       runtime.requestCleanup(parent.id, parent.revision, parent.incarnation, 'parent done');
-      receipt.resolve(await admitFixture(http));
+      held.receipt.resolve({ kind: 'answered', body: admissionReceiptOf(admission) });
       await assert.rejects(creation, /creation became stale/);
       expect(runtime.inspect(child!.id).state).toBe('pending');
       runtime.sweep();
@@ -1016,26 +1026,29 @@ if (process.env['DASH_RESOURCE_TEST_NAMESPACE'] !== '1') {
     const { config } = fixture(1);
     const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock);
     try {
-      const receipt = Promise.withResolvers<Response>();
-      const entered = Promise.withResolvers<Request>();
-      const creation = runtime.create(request, (http) => {
-        entered.resolve(http);
-        return receipt.promise;
-      });
-      const http = await entered.promise;
-      await runtime.synchronize(async (request) => {
-        if (new URL(request.url).pathname.endsWith('/admissions')) return admitFixture(request);
-        if (request.method === 'PUT') {
-          const event = resourceRuntimeEvent.assert(await request.json());
-          return Response.json({
-            acceptedSequence: event.sequence,
-            useId: event.useId,
-            revision: event.revision,
-          });
-        }
-        return Response.json({ requests: [], nextCursor: null });
-      });
-      receipt.resolve(await admitFixture(http));
+      const held = heldAdmission();
+      const creation = runtime.create(request, held.tools);
+      const admission = await held.entered;
+      await runtime.synchronize(
+        scriptedTools(({ name, input }) => {
+          if (name === 'putApiResourceAuthoritiesByAuthorityIdAdmissions')
+            return { kind: 'answered', body: admissionReceiptOf(input) };
+          if (name === 'putApiResourceAuthoritiesByAuthorityIdEvents') {
+            const { authorityId: _authority, ...wire } = input;
+            const event = resourceRuntimeEvent.assert(wire);
+            return {
+              kind: 'answered',
+              body: {
+                acceptedSequence: event.sequence,
+                useId: event.useId,
+                revision: event.revision,
+              },
+            };
+          }
+          return { kind: 'answered', body: { requests: [], nextCursor: null } };
+        }),
+      );
+      held.receipt.resolve({ kind: 'answered', body: admissionReceiptOf(admission) });
       const use = await creation;
       expect(use.state).toBe('active');
       expect(existsSync(use.locator)).toBe(true);

@@ -121,13 +121,13 @@
       `production-entrypoint.test.ts` keeps unreachable from `main.ts`. `CredentialAuthentication`
       gains `runId?`, and the `'personId' in credential` sites (M6) are updated. Negative: omit
       `personId` from the grant principal, and the lease assertion reddens.
-- [ ] 1.5 The A25 audience rule (machine-credentials MODIFIED delta), in two steps:
+- [x] 1.5 The A25 audience rule (machine-credentials MODIFIED delta), in two steps:
   - [x] **Now** (slice 5; verify.md, slice 5 notes 8 to 10): `WBS_MCP_AUTHORIZATION_SERVER`,
         boot-checked by the canonicalisation function, which moves to `@wbs/contracts`. Both
         existing copies, `oauth.ts` 269–271 and `http.ts` 25–29, are replaced by calls to it.
         New registrations and narrowings must equal it or sit under it with `/`. The preflight
         CLI is a dry run.
-  - **With slice 7:** refuse non-conforming stored rows at use.
+  - **With slice 7:** refuse non-conforming stored rows at use. (verify.md slice 18.)
 
   Tests: the look-alike and preflight scenarios; existing `wbs:org:` rows keep verifying on
   `/api` before slice 7. Negatives:
@@ -334,15 +334,17 @@
       `jwt-bearer` grant. Its repo-wide sweep found Dash's `resources/runtime.ts` still sending
       the key itself to `/api/resource-authorities/*`. That is outside 7.2's named file, and
       7.1 must not land without it.)
-- [ ] 7.1 and 7.2 ship in one PR, with three parts:
+- [x] 7.1 and 7.2 ship in one PR, with three parts:
   - M9's refusal;
   - Dash's `report-capacity.ts` as an MCP client;
   - task 1.5's at-use audience enforcement.
 
   Negatives: move the refusal after the read; the old Dash HTTP path test observes
   `machine_bearer_not_accepted`.
+  (verify.md slice 18, held on 8.1. Dash's `resources` runtime is an MCP client too. The
+  groups-less half of M9 waits for #731, its precondition, which is still open.)
 
-- [ ] 7.3 Docs (M12), with Burokrat `check-indexes` exiting 0.
+- [x] 7.3 Docs (M12), with Burokrat `check-indexes` exiting 0. (verify.md slice 18.)
 
 ## 8. Roll-out
 
