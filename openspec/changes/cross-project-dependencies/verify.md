@@ -7800,3 +7800,5 @@ Private main508 MCP preflight reconciliation: [actual owning checks and composit
 [Backend disk and boot identity contract correction](verify-health-contract.md) records actual producer compatibility and the two new boot equality omission proofs.
 
 [Two completed e09e CI corrections](verify-ci-e09e-corrections.md) records the byte-identical SQLite suite rename and audited single-context namespacing digest correction.
+
+[Read-only original-context source HTTP composition](verify-source-readiness.md) records six ordered actual loopback responses, whole-source bracketing, exact24 new proof witnesses and retained acceptance limits.

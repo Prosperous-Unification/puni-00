@@ -1675,3 +1675,11 @@ stream settlement; a fresh bounded census proves the original group gone. Produc
 BusyBox/UID0 dispatch is preserved. Actual immutable program tests against owned
 local processes and genuine-context modeled source frames are distinct evidence;
 neither qualifies the pinned source image or native Nx topology.
+
+## Read-only source HTTP composition (bounded10.2)
+
+Intent: whole-source process evidence does not establish the six application HTTP surfaces. `observeSourceReadiness` accepts only the original consumed context, joins each fixed request to the latest whole-source observation, invokes the existing semantic decoder and reobserves the complete source after every response. It repeats the original retained barriers before returning detached frozen evidence.
+
+Original frontend provenance is inherited from mandatory original manifest capture; the eighteen input tuples select that profile and do not establish full producer closure. Endpoint resolution joins original NetworkID, current assigned numeric IP, namespace membership and the same role's unique listener; stopped-IP equality is not required. Existing deadlines, transport limits and no-rebind semantics remain unchanged.
+
+The modeled raw source receipts and actual loopback HTTP establish composition, not native image/routing, actual launcher/Vite/browser, source start, DB admission, durable source-ready publication, coordinator/opener/controller/exposure integration or parent10.2 completion. Actual tests, ordering-only and shared-dependency proof scope, custody and skipped acceptance are recorded in [verify-source-readiness.md](verify-source-readiness.md).
