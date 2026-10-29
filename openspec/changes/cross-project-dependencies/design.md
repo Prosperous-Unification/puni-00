@@ -1593,3 +1593,42 @@ dispatch, memo and lifetime faults separately before recording adjacent proofs.
 The bounded repair, observed negatives, deletion-race correction and independent
 approval are recorded in [the isolated aggregate receipt](verify-isolated-aggregate.md).
 Parent task 8.4 and integrated release/activation acceptance remain open.
+
+### Read-only whole-source role observation before source readiness
+
+`observeSelectedSourceRoles(context)` accepts only the original consumed context.
+It reuses bounded host metadata, receipt decoders and transport/cleanup exports;
+`inspectInnerProfile` and all existing product acceptance rules stay unchanged.
+The same retained source `inspectRunning` and original context verification bracket
+collection. Snapshot transition validation joins the original parked source
+with its exact manually started identity and checks the closing runtime again.
+
+The source profile derives forms from pinned `bin/dev.sh`, Nx23.2.1
+`task-orchestrator.runTask`, `RunningNodeProcess` and Vite's Node shebang. It
+requires exactly one direct run-many controller, four distinct applications,
+UID1000 tuples and common namespaces/cgroup. Every optional exact shell, watch or
+bunx launcher must form the role's bounded ancestry chain to that controller.
+Init is optional and, when present, must bind the original native launch argv.
+No generic-descendant exemption or canonical Nx worker count exists. Forked
+executors, native PTY helper forms and unclassified processes refuse by name;
+installed whole-source native acceptance remains pending.
+
+A module-private context binding retains the first validated complete candidate
+before the closing barriers, including a candidate whose closing check later
+refuses. It never replaces that candidate. Full host roster, inner executable/
+argv/cwd/start/namespace identities, runtime/configuration and role listener
+bindings persist across observations. Transient non-listening socket FDs and TCP
+connections are excluded from the cross-call binding; the actual two-pass raw
+readback remains exact. Returned evidence is cloned and recursively frozen.
+Actual collection or helper cleanup uncertainty terminalizes the original context.
+
+HTTP readiness, source start orchestration, the narrow future source-BE dev-family
+opener allowance, durable restoration records, controllers/exposure and native
+whole-stack acceptance remain separate work. This observer creates none of them.
+
+This checkpoint exercises a modeled raw receipt consumer. The current inner
+collector still uses the product BusyBox/UID0 command; the fixture substitutes
+raw bytes and does not execute that target program. BusyBox/ip availability and
+UID0 access to UID1000 proc entries remain unverified on the pinned source image.
+The separately reviewed source-private Node/UID1000 collector is required next;
+product dispatch and image/profile rules must remain unchanged.

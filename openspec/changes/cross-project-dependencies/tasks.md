@@ -1029,3 +1029,11 @@ This closes only the bounded preflight/source integration. Production recipient/
 - [ ] Run the four partial ordinary/four isolated omission controls only after separate recipe GO; independently verify protection and original FDs for expected RED, preserving the unimplemented phase2/membership/expiry boundaries.
 
 The two completed custody rows above cover the independently accepted eight-command class controls and the separately accepted one-case preparation only; [evidence](verify-source-stageb-fixture.md). Partial acquisition, age, original domain controls and all phase2 runtime rows remain open. The applied phase2 source and fresh compiler/lint checks are source preparation, with no broader completion claim.
+
+### Modeled whole-source role observer checkpoint (bounded part of10.2)
+
+- [x] Reach the missing observer assertion after genuine prepare/consume and the exact original source running-input expectation; implement the modeled raw receipt consumer with complete four-role source admission and immutable first-candidate binding.
+- [x] Exercise finite ordinary role/roster/identity/listener/closing/context/actual cleanup failures, watch approved production consumer guard faults and exact restorations, and record scoped owning compiler inclusion, graph-backed lint, formatting, OpenSpec and independent review in [verify-source-role-observer.md](verify-source-role-observer.md).
+
+Parent10.2 remains incomplete; source readiness/start, controller/exposure handoff,
+native acceptance and Kubernetes completion are not granted by this prerequisite.

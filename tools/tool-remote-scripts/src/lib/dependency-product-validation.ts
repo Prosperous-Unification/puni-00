@@ -290,7 +290,8 @@ function decodeAddress(hex: string, family: 'ipv4' | 'ipv6'): string {
   return address;
 }
 
-function decodeListeners(
+/** Joins listening TCP inodes to a unique observed process FD at the required port; throws on ambiguity. */
+export function decodeListeners(
   pass: InnerPass,
   port: number,
 ): readonly (ParticipantListener & { readonly owner: number })[] {
@@ -342,7 +343,8 @@ function decodeListeners(
   return listeners.sort((left, right) => left.family.localeCompare(right.family));
 }
 
-function decodeLocalAddresses(text: string): readonly string[] {
+/** Decodes the bounded canonical local address roster used to validate listener address families. */
+export function decodeLocalAddresses(text: string): readonly string[] {
   const addresses = new Set<string>();
   const lines = text.trim().split('\n');
 

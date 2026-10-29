@@ -1,0 +1,37 @@
+original-context omitted: audited original child exit 1, native exit and both original EOF readers joined
+original-context: exact saved bytes restored after original custody record
+original-context restored: audited original child exit 0, native exit and both original EOF readers joined
+opening-monitor omitted: audited original child exit 1, native exit and both original EOF readers joined
+opening-monitor: exact saved bytes restored after original custody record
+opening-monitor restored: audited original child exit 0, native exit and both original EOF readers joined
+closing-monitor omitted: audited original child exit 1, native exit and both original EOF readers joined
+closing-monitor: exact saved bytes restored after original custody record
+closing-monitor restored: audited original child exit 0, native exit and both original EOF readers joined
+host-inner-join omitted: audited original child exit 1, native exit and both original EOF readers joined
+host-inner-join: exact saved bytes restored after original custody record
+host-inner-join restored: audited original child exit 0, native exit and both original EOF readers joined
+role-listener-join omitted: audited original child exit 1, native exit and both original EOF readers joined
+role-listener-join: exact saved bytes restored after original custody record
+role-listener-join restored: audited original child exit 0, native exit and both original EOF readers joined
+whole-roster omitted: audited original child exit 1, native exit and both original EOF readers joined
+whole-roster: exact saved bytes restored after original custody record
+whole-roster restored: audited original child exit 0, native exit and both original EOF readers joined
+inner-readback omitted: audited original child exit 1, native exit and both original EOF readers joined
+inner-readback: exact saved bytes restored after original custody record
+inner-readback restored: audited original child exit 0, native exit and both original EOF readers joined
+host-readback omitted: audited original child exit 1, native exit and both original EOF readers joined
+host-readback: exact saved bytes restored after original custody record
+host-readback restored: audited original child exit 0, native exit and both original EOF readers joined
+runtime-readback omitted: audited original child exit 1, native exit and both original EOF readers joined
+runtime-readback: exact saved bytes restored after original custody record
+runtime-readback restored: audited original child exit 0, native exit and both original EOF readers joined
+first-binding omitted: audited original child exit 1, native exit and both original EOF readers joined
+first-binding: exact saved bytes restored after original custody record
+first-binding restored: audited original child exit 0, native exit and both original EOF readers joined
+terminal-cleanup omitted: audited original child exit 1, native exit and both original EOF readers joined
+terminal-cleanup: exact saved bytes restored after original custody record
+terminal-cleanup restored: audited original child exit 0, native exit and both original EOF readers joined
+role-ancestry omitted: audited original child exit 1, native exit and both original EOF readers joined
+role-ancestry: exact saved bytes restored after original custody record
+role-ancestry restored: audited original child exit 0, native exit and both original EOF readers joined
+Finite packet completed; all twelve guard faults independently audited and exactly restored.
