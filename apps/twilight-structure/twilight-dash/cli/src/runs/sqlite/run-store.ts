@@ -24,6 +24,8 @@ import {
   planRecoveryBegin,
   planRecoveryFence,
   planRecoveryObservation,
+  planRecoveryResolution,
+  replayRecoveryResolution,
 } from '../plan-recovery';
 import {
   inspectRuntimeScope,
@@ -52,6 +54,7 @@ import {
   decodeRecoveryBeginCall,
   decodeRecoveryFenceCall,
   decodeRecoveryObservationCall,
+  decodeRecoveryResolveCall,
 } from '../recovery-codecs';
 import type { RunStore, StoreReply } from '../run-store';
 import {
@@ -69,6 +72,7 @@ import {
   insertRecoveryBegin,
   insertRecoveryFence,
   insertRecoveryObservation,
+  insertRecoveryResolution,
 } from './recovery-store';
 import { decodeAttemptRow, decodeManifestRow, decodeRunRow } from './row-codecs';
 import { decodeCompletionRow } from './row-codecs';
@@ -237,6 +241,29 @@ export function createSqliteRunStore(
         .run(change.attempt.attemptId);
   }
   const runs: RunStore = {
+    async resolveRecovery(input) {
+      // Proof: T6S01 using caller input let clock/queue mutation change the submitted closure and reject its original valid input. Restoration passed.
+      const snapshot = structuredClone(input);
+      const ownership = decodeOwnership(snapshot.guard.ownership);
+      // Proof: T6S06 bypassing only this closure transaction left independently visible acceptance/execution or closure/barrier/hold rows after real late trigger aborts. Restoration passed.
+      return await transact(true, () => {
+        const { authority } = readAuthority(ownership);
+        // Proof: T6S02 removing only this new current-owner gate replayed an expired owner closure. Restoration passed.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        // Proof: T6S03 moving decoding before the complete audit replaced the corruption diagnostic with malformed-input validation; ordering only. Restoration passed.
+        const { catalog } = readHistory(database);
+        // Proof: T6S04 omitting typed decoding admitted schemaVersion2 receipt values. Restoration passed.
+        const call = decodeRecoveryResolveCall(snapshot);
+        const replay = replayRecoveryResolution(catalog, call);
+        if (replay !== undefined) return finish(replay, authority.observedAt);
+        const reply = planRecoveryResolution(catalog, call);
+        if (reply.kind === 'refused') return finish(reply, authority.observedAt);
+        insertRecoveryResolution(database, reply.value, catalog.runtime.acceptances.length);
+        return finish({ kind: 'applied', value: reply.value.closure }, authority.observedAt);
+      });
+    },
+
     async recordRecoveryFence(input) {
       // Proof: T5S01 using caller input instead of its snapshot let clock mutation change the retained reply. Exact restoration passed.
       const snapshot = structuredClone(input);

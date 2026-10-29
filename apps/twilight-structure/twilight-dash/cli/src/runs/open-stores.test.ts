@@ -23,6 +23,7 @@ import {
 import {
   createRecoveryFenceCall,
   createRecoveryObservationCall,
+  createRecoveryResolveCall,
 } from './testing/recovery-contract';
 import {
   authorityReceipt,
@@ -244,7 +245,9 @@ test('production close is idempotent and every public operation refuses closed d
   const fenceCall = await createRecoveryFenceCall(stores.artifacts, recoveryBegin);
   unwrapReply(await stores.runs.stageRecoveryFence(fenceCall));
   const observationCall = await createRecoveryObservationCall(stores.artifacts, fenceCall);
+  const resolveCall = await createRecoveryResolveCall(stores, recoveryBegin, false, undefined, 2);
   const operations = {
+    resolveRecovery: () => stores.runs.resolveRecovery(resolveCall),
     recordRecoveryFence: () => stores.runs.recordRecoveryFence(observationCall),
     stageRecoveryFence: () => stores.runs.stageRecoveryFence(fenceCall),
     beginRecovery: () =>

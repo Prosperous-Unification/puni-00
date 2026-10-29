@@ -11,13 +11,13 @@ import {
 } from '../testing/recovery-contract';
 import { bootstrapSqliteStores } from './open-stores';
 
-recoveryContract('sqlite recovery', async () => {
+recoveryContract('sqlite recovery', async (capacity = 1) => {
   const directory = mkdtempSync(join(tmpdir(), 'recovery-'));
   const clock = new FixtureClock();
   const stores = await bootstrapSqliteStores({
     path: join(directory, 'runs.sqlite'),
     organizationId: organizationId('organization'),
-    capacity: 1,
+    capacity,
     leaseMilliseconds: 100,
     clock,
     maxBusyAttempts: 20,
@@ -840,3 +840,305 @@ for (const part of ['envelope', 'body'] as const)
       }
     },
   );
+
+import { stageClaimRequest } from '../claim-history';
+import { executionCommandId } from '../record-codecs';
+import type { RecoveryBeginCall } from '../recovery-records';
+import { prepareSession, retainClaimReceipt } from '../testing/fixtures';
+import { createRecoveryResolveCall } from '../testing/recovery-contract';
+
+/** Uses only public semantic producers; raw SQL is reserved for injected faults and observation. */
+async function createClosureFixture(family: 'authority' | 'claim', accepted = true) {
+  if (family === 'authority') {
+    const fixture = await createPhysicalFixture(false);
+    try {
+      const resolve = await createRecoveryResolveCall(fixture.stores, fixture.call, accepted);
+      return { ...fixture, resolve };
+    } catch (cause) {
+      await fixture.close();
+      throw cause;
+    }
+  }
+  const directory = mkdtempSync(join(tmpdir(), 'closure-claim-'));
+  const options = {
+    path: join(directory, 'runs.sqlite'),
+    organizationId: organizationId('organization'),
+    capacity: 1,
+    leaseMilliseconds: 100,
+    clock: new FixtureClock(),
+    maxBusyAttempts: 2,
+    busyDelayMilliseconds: 1,
+  };
+  const stores = await bootstrapSqliteStores(options);
+  const database = new Database(options.path);
+  const close = async () => {
+    try {
+      await stores.close();
+    } finally {
+      database.close();
+      rmSync(directory, { recursive: true });
+    }
+  };
+  try {
+    const setup = await prepareSession({ ...stores, clock: options.clock });
+    const staged = unwrapReply(
+      await stageClaimRequest(stores.runs, stores.artifacts, await setup.scopedGuard(), {
+        commandId: executionCommandId('stage-claim'),
+        canonicalRequest: setup.canonicalRequest,
+        stateEvidence: setup.preparationInput.stateEvidence,
+      }),
+    );
+    const call: RecoveryBeginCall = {
+      kind: 'claim',
+      guard: { ...(await setup.scopedGuard()), expectedRecoveryRevision: 0 },
+      intent: {
+        version: 1,
+        recoveryId: 'recover-claim',
+        target: {
+          kind: 'claim',
+          original: staged.intent,
+          runId: setup.run.runId,
+          attemptId: setup.admission.attemptId,
+          stageCommandId: 'stage-claim',
+          acceptanceCommandId: 'accept-claim',
+        },
+        begunScopeRevision: staged.intent.stagedRevision,
+        resolver: setup.owner,
+      },
+    };
+    unwrapReply(await stores.runs.beginRecovery(call));
+    const resolve = await createRecoveryResolveCall(
+      stores,
+      call,
+      accepted,
+      await retainClaimReceipt(setup, staged.intent),
+    );
+    return { stores, database, options, call, resolve, close };
+  } catch (cause) {
+    await close();
+    throw cause;
+  }
+}
+
+function captureClosure(database: Database) {
+  return {
+    rows: captureRecovery(database),
+    schema: database.query('SELECT * FROM sqlite_schema ORDER BY name').all(),
+    temporary: database.query('SELECT * FROM sqlite_temp_schema ORDER BY name').all(),
+  };
+}
+
+for (const family of ['authority', 'claim'] as const)
+  for (const cut of ['acceptance', 'finalization'] as const)
+    test('recovery closure late rollback exact predecessor ' + family + ' ' + cut, async () => {
+      const fixture = await createClosureFixture(family);
+      try {
+        const commandId = fixture.call.intent.target.original.commandId;
+        const beforeTrigger = captureClosure(fixture.database);
+        const acceptance =
+          "EXISTS(SELECT 1 FROM run_runtime_acceptance WHERE command_id='" + commandId + "')";
+        const execution =
+          family === 'claim'
+            ? " AND EXISTS(SELECT 1 FROM run_execution WHERE command_id='accept-claim')"
+            : '';
+        const hold =
+          family === 'claim'
+            ? " AND EXISTS(SELECT 1 FROM run_attempt WHERE json_extract(record,'$.version')=3 AND json_extract(record,'$.holdsCapacity')=1) AND (SELECT count(*) FROM run_reservation)=1"
+            : '';
+        fixture.database.run(
+          cut === 'acceptance'
+            ? 'CREATE TRIGGER closure_abort BEFORE INSERT ON run_recovery_closure WHEN ' +
+                acceptance +
+                execution +
+                " BEGIN SELECT RAISE(ABORT,'late closure acceptance injected'); END"
+            : 'CREATE TRIGGER closure_abort BEFORE UPDATE ON run_recovery_journal WHEN ' +
+                acceptance +
+                execution +
+                hold +
+                " AND EXISTS(SELECT 1 FROM run_recovery_closure) AND EXISTS(SELECT 1 FROM run_recovery_barrier) AND EXISTS(SELECT 1 FROM run_recovery_active) AND (SELECT closure_count FROM run_recovery_format)=0 BEGIN SELECT RAISE(ABORT,'late closure finalization injected'); END",
+        );
+        const before = captureClosure(fixture.database);
+        await rejects(
+          fixture.stores.runs.resolveRecovery(fixture.resolve),
+          new RegExp('late closure ' + cut + ' injected'),
+        );
+        expect(captureClosure(fixture.database)).toEqual(before);
+        const reopened = await openSqliteStores(fixture.options);
+        try {
+          expect(await reopened.runs.readRuntimeScope(runtimeScope)).toMatchObject({
+            activeRecoveryId: fixture.call.intent.recoveryId,
+            recoveries: [{ revision: 2, closure: null }],
+          });
+          expect(captureClosure(fixture.database)).toEqual(before);
+          fixture.database.run('DROP TRIGGER closure_abort');
+          expect(captureClosure(fixture.database)).toEqual(beforeTrigger);
+          const closed = unwrapReply(await reopened.runs.resolveRecovery(fixture.resolve));
+          expect(await reopened.runs.resolveRecovery(fixture.resolve)).toEqual({
+            kind: 'duplicate',
+            value: closed,
+          });
+          const persisted = await openSqliteStores(fixture.options);
+          try {
+            expect(await persisted.runs.resolveRecovery(fixture.resolve)).toEqual({
+              kind: 'duplicate',
+              value: closed,
+            });
+          } finally {
+            await persisted.close();
+          }
+          const used = captureClosure(fixture.database);
+          await rejects(downgradeUnusedSqliteStores(fixture.options), (cause: unknown) => {
+            expect(cause).toMatchObject({ failure: 'used_history' });
+            return true;
+          });
+          expect(captureClosure(fixture.database)).toEqual(used);
+        } finally {
+          await reopened.close();
+        }
+      } finally {
+        await fixture.close();
+      }
+    });
+
+test('recovery closure application performs no history reads between its first write and commit', async () => {
+  const fixture = await createClosureFixture('claim');
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- Exact native method restored below; receiver is preserved.
+  const query = Database.prototype.query;
+  let applying = false;
+  try {
+    Database.prototype.query = function (this: Database, sql: string) {
+      if (sql.startsWith('INSERT INTO run_runtime_acceptance')) applying = true;
+      if (applying && /^SELECT/i.test(sql))
+        throw new Error('history read during partial closure publication');
+      return query.call(this, sql);
+    } as typeof Database.prototype.query;
+    const closed = unwrapReply(await fixture.stores.runs.resolveRecovery(fixture.resolve));
+    expect(closed.attemptReply).toMatchObject({ version: 3, holdsCapacity: true });
+  } finally {
+    Database.prototype.query = query;
+    await fixture.close();
+  }
+});
+
+test('recovery closure complete audit precedes malformed input and immutable replay', async () => {
+  const fixture = await createClosureFixture('claim');
+  try {
+    unwrapReply(await fixture.stores.runs.resolveRecovery(fixture.resolve));
+    fixture.database.run('UPDATE run_recovery_format SET closure_count=2');
+    await rejects(
+      fixture.stores.runs.resolveRecovery(fixture.resolve),
+      /corrupt recovery physical counts/,
+    );
+    Object.assign(fixture.resolve, { decision: null });
+    await rejects(
+      fixture.stores.runs.resolveRecovery(fixture.resolve),
+      /corrupt recovery physical counts/,
+    );
+  } finally {
+    await fixture.close();
+  }
+});
+
+for (const rollbackFault of [false, true])
+  test(
+    'recovery closure commit and rollback faults preserve original causes rollbackFault=' +
+      String(rollbackFault),
+    async () => {
+      const fixture = await createClosureFixture('claim');
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- Exact native method restored below; receiver preserved for rollback cleanup.
+      const nativeRun = Database.prototype.run;
+      const commitFailure = new Error('closure commit dependency failed');
+      const rollbackFailure = new Error('closure rollback dependency failed');
+      const connections = new Set<Database>();
+      const before = captureClosure(fixture.database);
+      try {
+        Database.prototype.run = function (...parameters: Parameters<Database['run']>) {
+          if (parameters[0] === 'COMMIT') {
+            connections.add(this);
+            throw commitFailure;
+          }
+          if (parameters[0] === 'ROLLBACK' && rollbackFault) throw rollbackFailure;
+          return nativeRun.apply(this, parameters);
+        };
+        await rejects(fixture.stores.runs.resolveRecovery(fixture.resolve), (cause: unknown) => {
+          if (rollbackFault) {
+            expect(cause).toBeInstanceOf(AggregateError);
+            if (!(cause instanceof AggregateError)) throw new Error('missing rollback aggregate');
+            expect(cause.errors).toEqual([commitFailure, rollbackFailure]);
+            expect(cause.cause).toBe(rollbackFailure);
+          } else expect(cause).toBe(commitFailure);
+          return true;
+        });
+        // An independent connection never sees uncommitted consequences, even while rollback is broken.
+        expect(captureClosure(fixture.database)).toEqual(before);
+      } finally {
+        Database.prototype.run = nativeRun;
+        for (const connection of connections)
+          if (connection.inTransaction) nativeRun.call(connection, 'ROLLBACK');
+      }
+      try {
+        const reopened = await openSqliteStores(fixture.options);
+        try {
+          expect(captureClosure(fixture.database)).toEqual(before);
+          expect(await reopened.runs.resolveRecovery(fixture.resolve)).toMatchObject({
+            kind: 'applied',
+          });
+        } finally {
+          await reopened.close();
+        }
+      } finally {
+        await fixture.close();
+      }
+    },
+  );
+
+for (const family of ['authority', 'claim'] as const)
+  test('recovery closure competing connections publish once ' + family, async () => {
+    const fixture = await createClosureFixture(family);
+    const competitor = await openSqliteStores(fixture.options);
+    try {
+      const replies = await Promise.all([
+        fixture.stores.runs.resolveRecovery(fixture.resolve),
+        competitor.runs.resolveRecovery(fixture.resolve),
+      ]);
+      expect(replies.map((reply) => reply.kind).sort()).toEqual(['applied', 'duplicate']);
+      expect(unwrapReply(replies[0])).toEqual(unwrapReply(replies[1]));
+      expect(
+        fixture.database
+          .query('SELECT closure_count,barrier_count,active_count FROM run_recovery_format')
+          .get(),
+      ).toEqual({ closure_count: 1, barrier_count: 1, active_count: 0 });
+    } finally {
+      await competitor.close();
+      await fixture.close();
+    }
+  });
+
+for (const fault of ['stage', 'session', 'fence_epoch', 'resolver_epoch'] as const)
+  test('recovery closure complete predecessor refuses retained ' + fault, async () => {
+    const fixture = await createClosureFixture('claim');
+    try {
+      if (fault === 'stage' || fault === 'resolver_epoch') {
+        fixture.database.run(
+          fault === 'stage'
+            ? "UPDATE run_recovery_journal SET record=json_set(record,'$.target.stageCommandId','missing-stage')"
+            : "UPDATE run_recovery_journal SET record=json_set(record,'$.resolver.epoch',2)",
+        );
+      } else if (fault === 'session') {
+        fixture.database.run(
+          "UPDATE run_attempt SET record=json_set(record,'$.state.session.attachment.owner.epoch',2)",
+        );
+      } else {
+        fixture.database.run(
+          "UPDATE run_recovery_fence SET record=json_set(record,'$.owner.epoch',2)",
+        );
+      }
+      const corrupted = captureClosure(fixture.database);
+      await rejects(fixture.stores.runs.resolveRecovery(fixture.resolve));
+      expect(captureClosure(fixture.database)).toEqual(corrupted);
+      await rejects(openSqliteStores(fixture.options));
+      expect(captureClosure(fixture.database)).toEqual(corrupted);
+    } finally {
+      await fixture.close();
+    }
+  });

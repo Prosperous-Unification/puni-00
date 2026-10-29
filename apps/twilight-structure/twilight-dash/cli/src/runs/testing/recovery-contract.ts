@@ -5,9 +5,10 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import type { ArtifactStore } from '../artifact-store';
 import { acceptClaimReceipt, readExecutionHistory, stageClaimRequest } from '../claim-history';
 import { executionCheckpoint } from '../plan-execution';
-import { artifactDigest, executionCommandId } from '../record-codecs';
+import { artifactDigest, attemptId, executionCommandId, runId } from '../record-codecs';
 import { decodeDecision, decodeReceipt, ownerId } from '../record-codecs';
-import { readRecoveryExchange } from '../recovery-evidence';
+import type { ArtifactRef } from '../records';
+import { deriveRecoveryClaimCommand, readRecoveryExchange } from '../recovery-evidence';
 import type {
   RecoveryBeginCall,
   RecoveryCall,
@@ -16,7 +17,9 @@ import type {
   RecoveryFence,
   RecoveryFenceInput,
   RecoveryFenceReplyInput,
+  RecoveryResolveCall,
 } from '../recovery-records';
+import type { RunStore } from '../run-store';
 import { decodeRuntimeIntent, digestRuntimeRequest, readRuntimeRequest } from '../runtime-codecs';
 import { readRuntimeHistory } from '../runtime-history';
 import { closeFixtures } from './close-fixtures';
@@ -227,9 +230,110 @@ export async function createRecoveryObservationCall(
 }
 
 /** Exercises the same recovery admission and immutable replay contract against independent providers. */
+/** Commits the fence observation before retaining and verifying a simulated original lookup. */
+export async function createRecoveryResolveCall(
+  stores: { runs: RunStore; artifacts: ArtifactStore },
+  begin: RecoveryBeginCall,
+  accepted: boolean,
+  claimReceipt?: ArtifactRef,
+  fenceGeneration?: number,
+): Promise<RecoveryResolveCall> {
+  const staged = await createRecoveryFenceCall(
+    stores.artifacts,
+    begin,
+    fenceGeneration ?? (begin.kind === 'claim' ? 1 : 3),
+  );
+  unwrapReply(await stores.runs.stageRecoveryFence(staged));
+  const observed = unwrapReply(
+    await stores.runs.recordRecoveryFence(
+      await createRecoveryObservationCall(stores.artifacts, staged),
+    ),
+  );
+  if (observed.kind !== 'accepted') throw new Error('fixture accepted fence missing');
+  const retain = async (value: unknown) => {
+    const saved = await stores.artifacts.retainArtifact(
+      new TextEncoder().encode(JSON.stringify(value)),
+      'application/json',
+    );
+    if (saved.kind !== 'retained') throw new Error('fixture lookup retention refused');
+    return saved.reference;
+  };
+  const original = begin.intent.target.original;
+  const body =
+    accepted && begin.kind === 'claim'
+      ? claimReceipt
+      : await retain(
+          accepted ? authorityReceipt(original) : { error: 'runtime_receipt_not_found' },
+        );
+  if (body === undefined) throw new Error('fixture claim receipt missing');
+  const envelope = await retain({
+    version: 1,
+    scope: begin.guard.scope,
+    ledgerId: 'ledger',
+    context: {
+      kind: 'original_lookup',
+      recoveryId: begin.intent.recoveryId,
+      ordinal: observed.fence.ordinal,
+      observationRevision: observed.observedRevision,
+      fenceExchange: observed.reply.envelope.artifact,
+      fenceReceipt: observed.reply.body.artifact,
+    },
+    request: { kind: 'lookup', commandId: original.commandId },
+    status: accepted ? 200 : 404,
+    body,
+  });
+  const verified = await readRecoveryExchange(
+    stores.artifacts,
+    envelope,
+    accepted ? { kind: begin.kind, intent: original } : { kind: 'absent' },
+  );
+  const common = {
+    recoveryId: begin.intent.recoveryId,
+    fence: { fence: observed.fence, observation: observed },
+  };
+  if (begin.kind === 'claim') {
+    const guard = { ...begin.guard, expectedRecoveryRevision: observed.observedRevision };
+    if (verified.kind === 'claim')
+      return {
+        ...common,
+        kind: 'claim',
+        guard,
+        decision: {
+          kind: 'accepted',
+          lookup: verified.exchange,
+          command: deriveRecoveryClaimCommand(begin.intent, verified.exchange),
+        },
+      };
+    if (verified.kind === 'absent')
+      return {
+        ...common,
+        kind: 'claim',
+        guard,
+        decision: { kind: 'fenced_nonaccepted', lookup: verified.exchange },
+      };
+  } else {
+    const guard = { ...begin.guard, expectedRecoveryRevision: observed.observedRevision };
+    if (verified.kind === 'authority')
+      return {
+        ...common,
+        kind: 'authority',
+        guard,
+        decision: { kind: 'accepted', lookup: verified.exchange },
+      };
+    if (verified.kind === 'absent')
+      return {
+        ...common,
+        kind: 'authority',
+        guard,
+        decision: { kind: 'fenced_nonaccepted', lookup: verified.exchange },
+      };
+  }
+  throw new Error('fixture lookup family differs');
+}
+
 export function recoveryContract(
   name: string,
-  create: () => Promise<StoreFixture & { artifacts: ArtifactStore }>,
+  create: (capacity?: number) => Promise<StoreFixture & { artifacts: ArtifactStore }>,
 ): void {
   describe(name, () => {
     const opened: StoreFixture[] = [];
@@ -260,8 +364,8 @@ export function recoveryContract(
       };
       return { ...stores, ownership, original, call };
     }
-    async function createClaimFixture() {
-      const stores = await create();
+    async function createClaimFixture(capacity = 1) {
+      const stores = await create(capacity);
       opened.push(stores);
       const setup = await prepareSession(stores);
       const stageCommandId = executionCommandId('stage-claim');
@@ -292,6 +396,551 @@ export function recoveryContract(
       };
       return { ...setup, call, staged };
     }
+    for (const accepted of [true, false]) {
+      test('recovery closure authority exact cuts accepted=' + String(accepted), async () => {
+        const fixture = await createAuthorityFixture();
+        unwrapReply(await fixture.runs.beginRecovery(fixture.call));
+        const call = await createRecoveryResolveCall(fixture, fixture.call, accepted);
+        const closed = unwrapReply(await fixture.runs.resolveRecovery(call));
+        expect(await fixture.runs.resolveRecovery(call)).toEqual({
+          kind: 'duplicate',
+          value: closed,
+        });
+        expect(closed).toMatchObject({
+          scopeBefore: 1,
+          scopeAfter: accepted ? 3 : 2,
+          attemptReply: null,
+        });
+        if (accepted)
+          expect(closed.originalReply).toMatchObject({
+            kind: 'authority',
+            acceptance: { acceptedRevision: 2 },
+          });
+        else expect(closed.originalReply).toBeNull();
+        expect(
+          await readRuntimeHistory(fixture.runs, fixture.artifacts, runtimeScope),
+        ).toMatchObject({
+          version: 2,
+          pendingCommandId: null,
+          activeRecoveryId: null,
+          grant: null,
+          revision: closed.scopeAfter,
+          generationFloor: 4,
+        });
+      });
+      test(
+        'recovery closure real hold reads refuses mutations admits unrelated and replays Ack2 accepted=' +
+          String(accepted),
+        async () => {
+          const fixture = await createClaimFixture(2);
+          unwrapReply(await fixture.runs.beginRecovery(fixture.call));
+          const evidence = await retainClaimReceipt(fixture, fixture.staged.intent);
+          const call = await createRecoveryResolveCall(fixture, fixture.call, accepted, evidence);
+          const before = await fixture.runs.readRun(fixture.run.runId);
+          const closed = unwrapReply(await fixture.runs.resolveRecovery(call));
+          expect(await fixture.runs.resolveRecovery(call)).toEqual({
+            kind: 'duplicate',
+            value: closed,
+          });
+          const scope = await fixture.runs.readRuntimeScope(call.guard.scope);
+          expect(scope).toMatchObject({
+            version: 2,
+            pendingCommandId: null,
+            activeRecoveryId: null,
+            grant: null,
+            revision: closed.scopeAfter,
+            generationFloor: 2,
+          });
+          const snapshot = await fixture.runs.readRun(fixture.run.runId);
+          const attempt = snapshot.attempts.find(
+            (candidate) => candidate.attemptId === fixture.admission.attemptId,
+          );
+          if (attempt === undefined || closed.attemptReply === null)
+            throw new Error('fixture hold missing');
+          expect(attempt).toEqual(closed.attemptReply);
+          expect(attempt).toMatchObject({
+            version: 3,
+            holdsCapacity: true,
+            revision: fixture.staged.attempt.revision + (accepted ? 2 : 1),
+            state: {
+              kind: 'recovery_hold',
+              closureId: closed.recoveryId,
+              cause: accepted ? 'claim_accepted_fenced' : 'claim_nonaccepted',
+              checkpoint: { kind: accepted ? 'ready' : 'claiming' },
+            },
+          });
+          expect(snapshot.run.revision).toBe(before.run.revision + (accepted ? 2 : 1));
+          expect(snapshot.capacity).toEqual(before.capacity);
+          if (closed.originalReply?.kind === 'claim') {
+            expect(closed.originalReply.ack.attempt).toMatchObject({
+              version: 2,
+              state: { kind: 'ready' },
+            });
+            const { expectedRecoveryRevision: _recoveryRevision, ...ordinaryGuard } =
+              fixture.call.guard;
+            expect(
+              await fixture.runs.recordClaimAcceptance(ordinaryGuard, closed.originalReply.command),
+            ).toEqual({ kind: 'duplicate', value: closed.originalReply.ack });
+          }
+          const unrelated = await fixture.runs.createRun(fixture.ownership, {
+            ...fixture.run,
+            runId: runId('unrelated'),
+            revision: 0,
+          });
+          const run = unwrapReply(unrelated);
+          const admitted = unwrapReply(
+            await fixture.runs.admitAttempt(
+              { ownership: fixture.ownership, runId: run.runId, expectedRevision: 0 },
+              {
+                ...fixture.admission,
+                attemptId: attemptId('unrelated-attempt'),
+                identity: { ...fixture.admission.identity, runId: run.runId },
+              },
+            ),
+          );
+          expect(admitted).toMatchObject({ version: 2, holdsCapacity: true });
+          expect((await fixture.runs.readRun(run.runId)).capacity.reserved).toBe(
+            before.capacity.reserved + 1,
+          );
+          expect(
+            await fixture.runs.recordExecution(
+              await fixture.currentGuard(),
+              createExecutionCommand(
+                { kind: 'recovery_required', reason: 'hold must refuse' },
+                'fresh-held',
+              ),
+            ),
+          ).toEqual({ kind: 'refused', reason: 'state_conflict' });
+          expect(await fixture.runs.readRun(fixture.run.runId)).toEqual({
+            ...snapshot,
+            capacity: { ...snapshot.capacity, reserved: snapshot.capacity.reserved + 1 },
+          });
+          expect(
+            (
+              await readExecutionHistory(
+                fixture.runs,
+                fixture.artifacts,
+                fixture.run.runId,
+                fixture.admission.attemptId,
+              )
+            ).attempt,
+          ).toEqual(attempt);
+        },
+      );
+    }
+    for (const replacement of [false, true])
+      test(
+        'recovery closure authority future generation with prior grant and replacement=' +
+          String(replacement),
+        async () => {
+          const stores = await create();
+          opened.push(stores);
+          const originalOwner = unwrapReply(
+            await stores.runs.acquireOwnership(ownerId('original-owner'), 0),
+          );
+          unwrapReply(await stores.runs.pinRuntimeScope(originalOwner, runtimePin));
+          const first = unwrapReply(
+            await stores.runs.stageRuntimeRequest(
+              { ownership: originalOwner, scope: runtimeScope, expectedRevision: 0 },
+              authorityRequest('first', null),
+            ),
+          );
+          const saved = await stores.artifacts.retainArtifact(
+            new TextEncoder().encode(JSON.stringify(authorityReceipt(first))),
+            'application/json',
+          );
+          if (saved.kind !== 'retained') throw new Error('fixture receipt missing');
+          unwrapReply(
+            await stores.runs.recordRuntimeAcceptance(
+              { ownership: originalOwner, scope: runtimeScope, expectedRevision: 1 },
+              { intent: first, evidence: saved.reference },
+            ),
+          );
+          const original = unwrapReply(
+            await stores.runs.stageRuntimeRequest(
+              { ownership: originalOwner, scope: runtimeScope, expectedRevision: 2 },
+              authorityRequest('future-original', 2),
+            ),
+          );
+          let ownership = originalOwner;
+          if (replacement) {
+            stores.clock.advance(100);
+            ownership = unwrapReply(
+              await stores.runs.acquireOwnership(ownerId('replacement'), originalOwner.epoch),
+            );
+          }
+          const begin: RecoveryBeginCall = {
+            kind: 'authority',
+            guard: {
+              ownership,
+              scope: runtimeScope,
+              expectedRevision: 3,
+              expectedRecoveryRevision: 0,
+            },
+            intent: {
+              version: 1,
+              recoveryId: 'recover',
+              target: { kind: 'authority', original },
+              begunScopeRevision: 3,
+              resolver: { ownerId: ownership.ownerId, epoch: ownership.epoch },
+            },
+          };
+          unwrapReply(await stores.runs.beginRecovery(begin));
+          expect(await stores.runs.readRuntimeScope(runtimeScope)).toMatchObject({
+            revision: 3,
+            generationFloor: 1,
+            grant: replacement ? null : { authority: { generation: 1 } },
+          });
+          const call = await createRecoveryResolveCall(stores, begin, true);
+          const closed = unwrapReply(await stores.runs.resolveRecovery(call));
+          expect(closed).toMatchObject({
+            scopeBefore: 3,
+            scopeAfter: 5,
+            originalReply: { kind: 'authority', acceptance: { acceptedRevision: 4 } },
+            attemptReply: null,
+          });
+          expect(
+            await readRuntimeHistory(stores.runs, stores.artifacts, runtimeScope),
+          ).toMatchObject({ revision: 5, generationFloor: 4, grant: null });
+          expect(closed.original.localOwner).toEqual({
+            ownerId: originalOwner.ownerId,
+            epoch: originalOwner.epoch,
+          });
+        },
+      );
+    test('recovery closure missing journal retains named diagnostic', async () => {
+      const fixture = await createAuthorityFixture();
+      unwrapReply(await fixture.runs.beginRecovery(fixture.call));
+      const call = await createRecoveryResolveCall(fixture, fixture.call, false);
+      Object.assign(call, { recoveryId: 'missing' });
+      await rejects(fixture.runs.resolveRecovery(call), /recovery journal does not exist/);
+    });
+    test('recovery closure boundary rejects malformed projection before publication', async () => {
+      const fixture = await createAuthorityFixture();
+      unwrapReply(await fixture.runs.beginRecovery(fixture.call));
+      const call = await createRecoveryResolveCall(fixture, fixture.call, true);
+      Object.assign(call.decision.lookup.body.value, { schemaVersion: 2 });
+      await rejects(fixture.runs.resolveRecovery(call));
+      expect(await fixture.runs.readRuntimeScope(runtimeScope)).toMatchObject({
+        revision: 1,
+        activeRecoveryId: fixture.call.intent.recoveryId,
+      });
+    });
+    for (const fault of [
+      'kind',
+      'scope',
+      'fence',
+      'recovery_revision',
+      'scope_revision',
+      'context',
+      'body',
+      'lookup_scope',
+      'ledger',
+      'request',
+      'status',
+      'receipt_command',
+      'receipt_digest',
+      'receipt_scope',
+      'receipt_ledger',
+      'receipt_owner',
+      'receipt_generation',
+      'equal_generation',
+    ] as const)
+      test('recovery closure refuses authority ' + fault, async () => {
+        const fixture = await createAuthorityFixture();
+        unwrapReply(await fixture.runs.beginRecovery(fixture.call));
+        const call = await createRecoveryResolveCall(
+          fixture,
+          fixture.call,
+          true,
+          undefined,
+          fault === 'equal_generation' ? 2 : 3,
+        );
+        if (call.kind !== 'authority' || call.decision.kind !== 'accepted')
+          throw new Error('fixture authority missing');
+        const before = await fixture.runs.readRuntimeScope(runtimeScope);
+        const lookup = call.decision.lookup;
+        switch (fault) {
+          case 'kind':
+            Object.assign(lookup.envelope.value, { status: 404 });
+            Object.assign(call, {
+              kind: 'claim',
+              guard: {
+                ...call.guard,
+                runId: 'wrong',
+                attemptId: 'wrong',
+                expectedAttemptRevision: 0,
+                expectedScopeRevision: 1,
+              },
+              decision: {
+                kind: 'fenced_nonaccepted',
+                lookup: {
+                  ...lookup,
+                  body: { ...lookup.body, value: { error: 'runtime_receipt_not_found' } },
+                },
+              },
+            });
+            break;
+          case 'scope':
+            Object.assign(call.guard, { scope: { ...runtimeScope, projectId: 'wrong' } });
+            break;
+          case 'fence':
+            Object.assign(call.fence.observation.reply.body.value, { actorId: 'different' });
+            break;
+          case 'recovery_revision':
+            Object.assign(call.guard, { expectedRecoveryRevision: 0 });
+            break;
+          case 'scope_revision':
+            Object.assign(call.guard, { expectedRevision: 0 });
+            break;
+          case 'context':
+            Object.assign(lookup.envelope.value, {
+              context: { kind: 'initial_state', recoveryId: call.recoveryId },
+            });
+            break;
+          case 'body':
+            Object.assign(lookup.envelope.value, {
+              body: call.fence.observation.reply.body.artifact,
+            });
+            break;
+          case 'lookup_scope':
+            Object.assign(lookup.envelope.value, {
+              scope: { ...runtimeScope, projectId: 'wrong' },
+            });
+            break;
+          case 'ledger':
+            Object.assign(lookup.envelope.value, { ledgerId: 'wrong' });
+            break;
+          case 'request':
+            Object.assign(lookup.envelope.value, {
+              request: { kind: 'lookup', commandId: 'wrong' },
+            });
+            break;
+          case 'status':
+            Object.assign(lookup.envelope.value, { status: 404 });
+            break;
+          case 'receipt_command':
+            Object.assign(lookup.body.value, { commandId: 'wrong' });
+            break;
+          case 'receipt_digest':
+            Object.assign(lookup.body.value, { requestDigest: 'f'.repeat(64) });
+            break;
+          case 'receipt_scope':
+            Object.assign(lookup.body.value, { scope: { ...runtimeScope, projectId: 'wrong' } });
+            break;
+          case 'receipt_ledger':
+            Object.assign(lookup.body.value, { ledgerId: 'wrong' });
+            break;
+          case 'receipt_owner':
+            Object.assign(lookup.body.value.acceptance.authority, { ownerId: 'wrong' });
+            break;
+          case 'receipt_generation':
+            Object.assign(lookup.body.value.acceptance.authority, { generation: 2 });
+            break;
+          case 'equal_generation':
+            break;
+        }
+        expect(await fixture.runs.resolveRecovery(call)).toEqual({
+          kind: 'refused',
+          reason:
+            fault === 'scope'
+              ? 'authority_conflict'
+              : fault.endsWith('_revision')
+                ? 'revision_conflict'
+                : 'identity_conflict',
+        });
+        expect(await fixture.runs.readRuntimeScope(runtimeScope)).toEqual(before);
+      });
+    for (const fault of [
+      'run',
+      'attempt',
+      'run_revision',
+      'attempt_revision',
+      'command',
+      'projection',
+      'receipt_target',
+      'receipt_authority',
+    ] as const)
+      test('recovery closure refuses claim ' + fault, async () => {
+        const fixture = await createClaimFixture();
+        unwrapReply(await fixture.runs.beginRecovery(fixture.call));
+        const call = await createRecoveryResolveCall(
+          fixture,
+          fixture.call,
+          true,
+          await retainClaimReceipt(fixture, fixture.staged.intent),
+        );
+        if (call.kind !== 'claim' || call.decision.kind !== 'accepted')
+          throw new Error('fixture claim missing');
+        const before = await fixture.runs.readRun(fixture.run.runId);
+        switch (fault) {
+          case 'run':
+            Object.assign(call.guard, { runId: 'wrong' });
+            break;
+          case 'attempt':
+            Object.assign(call.guard, { attemptId: 'wrong' });
+            break;
+          case 'run_revision':
+            Object.assign(call.guard, { expectedRevision: 0 });
+            break;
+          case 'attempt_revision':
+            Object.assign(call.guard, { expectedAttemptRevision: 0 });
+            break;
+          case 'command':
+            Object.assign(call.decision.command, { commandId: 'wrong' });
+            break;
+          case 'projection':
+            Object.assign(call.decision.command.projection, { claimId: 'invented' });
+            break;
+          case 'receipt_target':
+            Object.assign(call.decision.lookup.body.value.acceptance.claim, {
+              workItemId: 'wrong',
+            });
+            break;
+          case 'receipt_authority':
+            Object.assign(call.decision.lookup.body.value.acceptance.authority, { generation: 2 });
+            break;
+        }
+        expect(await fixture.runs.resolveRecovery(call)).toEqual({
+          kind: 'refused',
+          reason: fault.endsWith('_revision') ? 'revision_conflict' : 'identity_conflict',
+        });
+        expect(await fixture.runs.readRun(fixture.run.runId)).toEqual(before);
+      });
+    test('recovery closure exact replay rejects changed decision and stale owner before malformed input', async () => {
+      const fixture = await createAuthorityFixture();
+      unwrapReply(await fixture.runs.beginRecovery(fixture.call));
+      const call = await createRecoveryResolveCall(fixture, fixture.call, false);
+      const closed = unwrapReply(await fixture.runs.resolveRecovery(call));
+      Object.assign(call.guard, { expectedRevision: 0, expectedRecoveryRevision: 0 });
+      expect(await fixture.runs.resolveRecovery(call)).toEqual({
+        kind: 'duplicate',
+        value: closed,
+      });
+      const foreign = structuredClone(call);
+      Object.assign(foreign.guard, { scope: { ...runtimeScope, projectId: 'foreign' } });
+      expect(await fixture.runs.resolveRecovery(foreign)).toEqual({
+        kind: 'refused',
+        reason: 'authority_conflict',
+      });
+      Object.assign(call.decision.lookup.envelope.value, { ledgerId: 'changed' });
+      expect(await fixture.runs.resolveRecovery(call)).toEqual({
+        kind: 'refused',
+        reason: 'identity_conflict',
+      });
+      fixture.clock.advance(100);
+      expect(await fixture.runs.resolveRecovery(call)).toEqual({
+        kind: 'refused',
+        reason: 'owner_stale',
+      });
+      Object.assign(call, { decision: null });
+      expect(await fixture.runs.resolveRecovery(call)).toEqual({
+        kind: 'refused',
+        reason: 'owner_stale',
+      });
+    });
+    test('recovery closure detaches input before clock or queue', async () => {
+      const fixture = await createAuthorityFixture();
+      unwrapReply(await fixture.runs.beginRecovery(fixture.call));
+      const call = await createRecoveryResolveCall(fixture, fixture.call, false);
+      const expected = structuredClone(call);
+      const read = fixture.clock.read.bind(fixture.clock);
+      fixture.clock.read = () => {
+        Object.assign(call, { decision: null });
+        return read();
+      };
+      const pending = fixture.runs.resolveRecovery(call);
+      Object.assign(call, { fence: null });
+      const closed = unwrapReply(await pending);
+      fixture.clock.read = read;
+      expect(closed.decision).toEqual(expected.decision);
+      expect(closed.fence).toEqual(expected.fence);
+    });
+    for (const wrapper of ['claiming', 'reconciling', 'unresolved'] as const)
+      for (const accepted of [true, false])
+        test(
+          'recovery closure replacement resolver preserves ' +
+            wrapper +
+            ' accepted=' +
+            String(accepted),
+          async () => {
+            const fixture = await createClaimFixture();
+            if (wrapper !== 'claiming') {
+              unwrapReply(
+                await fixture.runs.recordExecution(
+                  await fixture.currentGuard(),
+                  createExecutionCommand(
+                    wrapper === 'reconciling'
+                      ? { kind: 'recovery_required', reason: 'uncertain' }
+                      : {
+                          kind: 'unresolved',
+                          reason: 'uncertain',
+                          evidence: await retainClaimReceipt(fixture, fixture.staged.intent),
+                        },
+                    'wrap-claim',
+                  ),
+                ),
+              );
+            }
+            const before = await fixture.runs.readRun(fixture.run.runId);
+            const old = fixture.ownership;
+            fixture.clock.advance(100);
+            const ownership = unwrapReply(
+              await fixture.runs.acquireOwnership(ownerId('replacement'), old.epoch),
+            );
+            const call = {
+              ...fixture.call,
+              guard: { ...(await fixture.scopedGuard()), ownership, expectedRecoveryRevision: 0 },
+              intent: {
+                ...fixture.call.intent,
+                resolver: { ownerId: ownership.ownerId, epoch: ownership.epoch },
+              },
+            };
+            unwrapReply(await fixture.runs.beginRecovery(call));
+            const resolve = await createRecoveryResolveCall(
+              fixture,
+              call,
+              accepted,
+              await retainClaimReceipt(fixture, fixture.staged.intent),
+            );
+            if (resolve.kind !== 'claim') throw new Error('fixture claim missing');
+            expect(
+              await fixture.runs.resolveRecovery({
+                ...resolve,
+                guard: { ...resolve.guard, ownership: old },
+              }),
+            ).toEqual({ kind: 'refused', reason: 'owner_stale' });
+            const closed = unwrapReply(await fixture.runs.resolveRecovery(resolve));
+            expect(closed.resolver).toEqual(call.intent.resolver);
+            if (closed.originalReply?.kind === 'claim') {
+              const { expectedRecoveryRevision: _revision, ...ordinaryGuard } = call.guard;
+              expect(
+                await fixture.runs.recordClaimAcceptance(
+                  { ...ordinaryGuard, ownership: old },
+                  closed.originalReply.command,
+                ),
+              ).toEqual({ kind: 'refused', reason: 'owner_stale' });
+              expect(
+                await fixture.runs.recordClaimAcceptance(
+                  ordinaryGuard,
+                  closed.originalReply.command,
+                ),
+              ).toEqual({ kind: 'duplicate', value: closed.originalReply.ack });
+            }
+            expect(closed.attemptReply?.state.checkpoint).toMatchObject(
+              accepted
+                ? {
+                    kind: 'ready',
+                    execution: { session: { attachment: { owner: fixture.owner } } },
+                  }
+                : executionCheckpoint(before.attempts[0]),
+            );
+            expect(
+              await readRuntimeHistory(fixture.runs, fixture.artifacts, runtimeScope),
+            ).toMatchObject({ grant: null, generationFloor: 2 });
+            expect((await fixture.runs.readRun(fixture.run.runId)).capacity.reserved).toBe(1);
+          },
+        );
     for (const kind of ['accepted', 'generation_conflict'] as const)
       for (const generation of [null, 2])
         test(

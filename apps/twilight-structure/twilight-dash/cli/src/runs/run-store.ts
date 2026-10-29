@@ -31,11 +31,13 @@ import type {
 import type {
   RecoveryBeginCall,
   RecoveryCall,
+  RecoveryClosure,
   RecoveryFence,
   RecoveryFenceInput,
   RecoveryFenceReplyInput,
   RecoveryHistory,
   RecoveryObservation,
+  RecoveryResolveCall,
 } from './recovery-records';
 import type {
   RuntimeAcceptance,
@@ -67,6 +69,7 @@ export type StoreReply<T> =
 /** Async semantic persistence boundary; conflicts refuse, missing/corrupt trusted state throws. */
 export interface RunStore {
   /** Retains an immutable recovery journal without advancing scope or target revisions. */
+  resolveRecovery(call: RecoveryResolveCall): Promise<StoreReply<RecoveryClosure>>;
   beginRecovery(call: RecoveryBeginCall): Promise<StoreReply<RecoveryHistory>>;
   /** Stages one of at most three dominating receiver fences, advancing only recovery revision. Exact replay retains original provenance; trusted projections do not authenticate transport. */
   stageRecoveryFence(call: RecoveryCall<RecoveryFenceInput>): Promise<StoreReply<RecoveryFence>>;

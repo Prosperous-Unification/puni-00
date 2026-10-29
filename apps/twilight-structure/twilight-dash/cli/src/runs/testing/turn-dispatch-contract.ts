@@ -847,8 +847,12 @@ export function turnDispatchContract(name: string, create: () => Promise<Outcome
               ...setup.runs,
               async readExecutionHistory(...args) {
                 const history = await setup.runs.readExecutionHistory(...args);
-                if (history.version !== 1 || history.attempt.state.kind !== 'ready')
-                  throw new Error('legacy ready required');
+                if (
+                  history.version !== 2 ||
+                  history.attempt.version !== 2 ||
+                  history.attempt.state.kind !== 'ready'
+                )
+                  throw new Error('current ready history required');
                 return {
                   ...history,
                   attempt: {
@@ -904,7 +908,15 @@ export function turnDispatchContract(name: string, create: () => Promise<Outcome
                 const history = await setup.runs.readRuntimeScope(scope);
                 if (history.kind !== 'pinned') throw new Error('pin required');
                 return fault === 'uninitialized'
-                  ? { version: 1, kind: 'uninitialized', scope, ownerEpoch: history.ownerEpoch }
+                  ? {
+                      version: 2,
+                      kind: 'uninitialized',
+                      scope,
+                      ownerEpoch: history.ownerEpoch,
+                      recoveries: [],
+                      activeRecoveryId: null,
+                      generationFloor: null,
+                    }
                   : {
                       ...history,
                       pendingCommandId:
@@ -924,27 +936,40 @@ export function turnDispatchContract(name: string, create: () => Promise<Outcome
             reason = 'state_conflict';
             break;
         }
+        const reads: unknown[] = [];
         let scopeReads = 0;
         const provider = runs;
         runs = {
           ...provider,
+          async readExecutionHistory(...args) {
+            const history = await provider.readExecutionHistory(...args);
+            reads.push({ kind: 'execution', args });
+            return history;
+          },
           async readRuntimeScope(...args) {
-            scopeReads++;
-            return await provider.readRuntimeScope(...args);
+            scopeReads += 1;
+            reads.push({ kind: scopeReads === 1 ? 'verification_scope' : 'preflight_scope', args });
+            // Complete ExecutionHistory2 first verifies its actual retained scope. Inject the operational preflight fault only after that read.
+            return scopeReads === 1
+              ? await setup.runs.readRuntimeScope(...args)
+              : await provider.readRuntimeScope(...args);
           },
         };
         expect(await dispatch(setup, runs)).toEqual({ kind: 'refused', reason });
-        expect(scopeReads).toBe(
-          [
-            'scope_revision',
-            'pending_grant',
-            'recovery_barrier',
-            'grant_mapping',
-            'uninitialized',
-          ].includes(fault)
-            ? 1
-            : 0,
-        );
+        const reachesScopePreflight = [
+          'scope_revision',
+          'pending_grant',
+          'recovery_barrier',
+          'grant_mapping',
+          'uninitialized',
+        ].includes(fault);
+        expect(reads).toEqual([
+          { kind: 'execution', args: [setup.guard.runId, setup.guard.attemptId] },
+          { kind: 'verification_scope', args: [setup.scope] },
+          ...(reachesScopePreflight
+            ? [{ kind: 'preflight_scope', args: [setup.guard.scope] }]
+            : []),
+        ]);
         expect(setup.runtimeCalls).toHaveLength(0);
         expect(setup.claimCalls).toHaveLength(0);
         expect(setup.calls).toHaveLength(0);

@@ -36,6 +36,8 @@ import {
   planRecoveryBegin,
   planRecoveryFence,
   planRecoveryObservation,
+  planRecoveryResolution,
+  replayRecoveryResolution,
 } from '../plan-recovery';
 import type { RecoveryBarrier, RecoveryCatalog } from '../plan-recovery-history';
 import {
@@ -89,6 +91,7 @@ import {
   decodeRecoveryBeginCall,
   decodeRecoveryFenceCall,
   decodeRecoveryObservationCall,
+  decodeRecoveryResolveCall,
 } from '../recovery-codecs';
 import type { RecoveryHistory } from '../recovery-records';
 import type { RunStore, StoreReply } from '../run-store';
@@ -134,12 +137,12 @@ export function createMemoryStores(options: MemoryOptions): {
   };
   let isClosed = false;
   let reserved = 0;
-  const runtimeScopes = new Map<string, RuntimeScopeRecord>();
+  let runtimeScopes = new Map<string, RuntimeScopeRecord>();
   const runtimeIntents = new Map<string, RuntimeIntent>();
-  const runtimeAcceptances = new Map<string, RuntimeAcceptance>();
-  const recoveries = new Map<string, RecoveryHistory>();
-  const recoveryBarriers = new Map<string, RecoveryBarrier>();
-  const activeRecoveries = new Map<string, RecoveryCatalog['active'][number]>();
+  let runtimeAcceptances = new Map<string, RuntimeAcceptance>();
+  let recoveries = new Map<string, RecoveryHistory>();
+  let recoveryBarriers = new Map<string, RecoveryBarrier>();
+  let activeRecoveries = new Map<string, RecoveryCatalog['active'][number]>();
   let recoveryCounts: RecoveryCatalog['counts'] = {
     journals: 0,
     fences: 0,
@@ -148,7 +151,7 @@ export function createMemoryStores(options: MemoryOptions): {
     barriers: 0,
     active: 0,
   };
-  const runtimeCounts = { scopes: 0, intents: 0, acceptances: 0 };
+  let runtimeCounts = { scopes: 0, intents: 0, acceptances: 0 };
   function readRuntimeCatalog(): RuntimeCatalog {
     if (
       // Proof: F50 ignored a dropped memory pin with a retained count; 'memory count audit' failed and exact restoration passed.
@@ -181,12 +184,12 @@ export function createMemoryStores(options: MemoryOptions): {
   const consumptions = new Map<string, RecordedConsumption>();
   const receipts = new Map<string, RecordedReceipt>();
   const completions = new Map<string, RecordedCompletion>();
-  const executions = new Map<string, RecordedExecution>();
+  let executions = new Map<string, RecordedExecution>();
   const blobs = new Map<string, { reference: ArtifactRef; content: Uint8Array }>();
   const manifests = new Map<Manifest['digest'], Manifest>();
-  const runs = new Map<Run['runId'], Run>();
+  let runs = new Map<Run['runId'], Run>();
   const initialRuns = new Map<Run['runId'], Run>();
-  const attempts = new Map<Attempt['attemptId'], Attempt>();
+  let attempts = new Map<Attempt['attemptId'], Attempt>();
   const admissions = new Map<Admission['attemptId'], Admission>();
 
   function readHistoryCatalog() {
@@ -275,9 +278,72 @@ export function createMemoryStores(options: MemoryOptions): {
     const attempt = attempts.get(identity);
     // Proof: injecting testing missing attempt bypass failed `memory signal edges > missing named attempts throw before inbox or receipt mutation` at its explicit assertion.
     if (attempt === undefined) throw new Error('attempt does not exist');
-    return decodeAttempt(structuredClone(attempt));
+    // Proof: T6H01 actual resolver-produced hold made fresh execution throw in strict Attempt2 decoding; current-row dispatch restores typed refusal.
+    return decodeCurrentAttempt(structuredClone(attempt));
   }
   const port: RunStore = {
+    async resolveRecovery(input) {
+      // Proof: T6M01 using caller input let clock/queue mutation change the submitted closure and reject its original valid input. Restoration passed.
+      const snapshot = structuredClone(input);
+      const ownership = decodeOwnership(snapshot.guard.ownership);
+      const observedAt = observeClock();
+      // Proof: T6M02 removing only this new current-owner gate replayed an expired owner closure. Restoration passed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      const catalog = readHistoryCatalog();
+      // Proof: T6M03 omitting this complete audit replayed despite unrelated retained run revision drift. Restoration passed.
+      validateHistory(catalog);
+      // Proof: T6M04 omitting typed decoding admitted schemaVersion2 receipt values. Restoration passed.
+      const call = decodeRecoveryResolveCall(snapshot);
+      const replay = replayRecoveryResolution(catalog, call);
+      if (replay !== undefined) return finishReply(replay, observedAt);
+      const reply = planRecoveryResolution(catalog, call);
+      if (reply.kind === 'refused') return finishReply(reply, observedAt);
+      const plan = structuredClone(reply.value);
+      const scopes = new Map(runtimeScopes);
+      const acceptances = new Map(runtimeAcceptances);
+      const journals = new Map(recoveries);
+      const barriers = new Map(recoveryBarriers);
+      const active = new Map(plan.active.map((entry) => [runtimeScopeKey(entry.scope), entry]));
+      const executionRows = new Map(executions);
+      const runRows = new Map(runs);
+      const attemptRows = new Map(attempts);
+      const key = runtimeScopeKey(call.guard.scope);
+      const scope = scopes.get(key);
+      if (scope === undefined) throw new Error('planned recovery scope does not exist');
+      scopes.set(key, { ...scope, revision: plan.closure.scopeAfter });
+      if (plan.originalAcceptance !== null)
+        acceptances.set(plan.originalAcceptance.commandId, plan.originalAcceptance);
+      if (plan.originalExecution !== null)
+        executionRows.set(plan.originalExecution.command.commandId, plan.originalExecution);
+      if (plan.attempt !== null) attemptRows.set(plan.attempt.attemptId, plan.attempt);
+      if (plan.run !== null) runRows.set(plan.run.runId, plan.run);
+      journals.set(call.recoveryId, plan.history);
+      barriers.set(call.recoveryId, plan.barrier);
+      const counts = {
+        ...runtimeCounts,
+        acceptances: addInteger(
+          runtimeCounts.acceptances,
+          plan.originalAcceptance === null ? 0 : 1,
+        ),
+      };
+      const response = structuredClone({ kind: 'applied' as const, value: plan.closure });
+      // Proof: T6M06 publishing scope before reply preparation left a corrupt current revision after the real clone dependency failed; exact predecessor read failed. Restoration passed.
+      // All fallible preparation precedes this synchronous publication boundary.
+      runtimeScopes = scopes;
+      runtimeAcceptances = acceptances;
+      executions = executionRows;
+      attempts = attemptRows;
+      runs = runRows;
+      recoveries = journals;
+      recoveryBarriers = barriers;
+      activeRecoveries = active;
+      runtimeCounts = counts;
+      recoveryCounts = plan.counts;
+      lastObservedAt = observedAt;
+      return await Promise.resolve(response);
+    },
+
     async recordRecoveryFence(input) {
       // Proof: T5M01 using caller input instead of its snapshot let clock mutation change the retained reply. Exact restoration passed.
       const snapshot = structuredClone(input);
@@ -931,7 +997,8 @@ export function createMemoryStores(options: MemoryOptions): {
           run,
           manifest: readManifest(run.manifestDigest),
           attempts: [...attempts.values()]
-            .map(decodeAttempt)
+            // Proof: T6H02 actual resolver-produced hold made unrelated admission throw in the all-row scan; current-row dispatch preserves capacity and admission.
+            .map(decodeCurrentAttempt)
             .filter(
               (attempt) =>
                 attempt.attemptId === admission.attemptId ||

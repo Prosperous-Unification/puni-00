@@ -1,10 +1,17 @@
+import type { ClaimAcceptCommand, RecordedExecution } from './execution-records';
+import { claimAcceptTransition } from './plan-claims';
 import { checkAttempt, executionCheckpoint } from './plan-execution';
+import type { RecoveryBarrier, RecoveryCatalog } from './plan-recovery-history';
 import { findRecoveryCommand } from './plan-recovery-history';
 import { inspectRuntimeScope } from './plan-runtime';
 import { addInteger, equalRecords } from './record-codecs';
+import type { Run } from './records';
+import { deriveRecoveryClaimCommand } from './recovery-evidence';
 import type {
+  Attempt3,
   RecoveryBeginCall,
   RecoveryCall,
+  RecoveryClosure,
   RecoveryContext,
   RecoveryExchange,
   RecoveryExchangeValue,
@@ -12,10 +19,13 @@ import type {
   RecoveryFenceInput,
   RecoveryFenceReplyInput,
   RecoveryHistory,
+  RecoveryHold,
   RecoveryObservation,
+  RecoveryResolveCall,
 } from './recovery-records';
 import type { StoreReply } from './run-store';
 import { digestRuntimeRequest, equalRuntimeScopes, readRuntimeRequest } from './runtime-codecs';
+import type { RuntimeAcceptance } from './runtime-records';
 import type { HistoryCatalog } from './validate-history';
 
 /** Plans only journal/index admission from an owner-authorized, completely audited catalog. Exact immutable replay precedes fresh revision and checkpoint checks. */
@@ -453,5 +463,271 @@ export function planRecoveryObservation(
   return {
     kind: 'applied',
     value: { ...input, version: 1, observedRevision: addInteger(history.revision, 1) },
+  };
+}
+
+export interface RecoveryResolutionPlan {
+  readonly closure: RecoveryClosure;
+  readonly originalAcceptance: RuntimeAcceptance | null;
+  readonly originalExecution: Extract<RecordedExecution, { command: ClaimAcceptCommand }> | null;
+  readonly barrier: RecoveryBarrier;
+  readonly attempt: Attempt3 | null;
+  readonly run: Run | null;
+  readonly history: RecoveryHistory;
+  readonly counts: RecoveryCatalog['counts'];
+  readonly active: RecoveryCatalog['active'];
+}
+
+/** Checks target identity before immutable closure replay. Providers call this after current-owner fencing and complete audit, before constructing a fresh plan. Stale revisions do not invalidate an exact historical replay. */
+export function replayRecoveryResolution(
+  catalog: HistoryCatalog,
+  call: RecoveryResolveCall,
+): StoreReply<RecoveryClosure> | undefined {
+  const history = catalog.runtime.recovery.histories.find(
+    (entry) => entry.intent.recoveryId === call.recoveryId,
+  );
+  // Proof: T6C01 removing missing-journal refinement produced TypeError instead of the named error; diagnostic only. Restoration passed.
+  if (history === undefined) throw new Error('recovery journal does not exist');
+  const target = history.intent.target;
+  const original = readRuntimeRequest(target.original.canonicalRequest);
+  // Proof: T6C02 removing kind correspondence admitted a claim call for an authority target after the test eliminated an unrelated status refusal. Restoration passed.
+  if (call.kind !== target.kind) return { kind: 'refused', reason: 'identity_conflict' };
+  // Proof: T6C03 removing scope correspondence replayed a closed journal through a foreign scope guard. Restoration passed.
+  if (
+    !equalRuntimeScopes(call.guard.scope, original.scope) ||
+    call.guard.scope.organizationId !== call.guard.ownership.organizationId
+  )
+    return { kind: 'refused', reason: 'authority_conflict' };
+  // Proof: T6C04 removing target correspondence admitted wrong run/attempt guards. Restoration passed.
+  if (
+    call.kind === 'claim' &&
+    target.kind === 'claim' &&
+    (call.guard.runId !== target.runId || call.guard.attemptId !== target.attemptId)
+  )
+    return { kind: 'refused', reason: 'identity_conflict' };
+  if (history.closure === null) return undefined;
+  // Proof: T6C05 bypassing immutable equality replayed changed decision evidence. Restoration passed.
+  return equalRecords(history.closure.fence, call.fence) &&
+    equalRecords(history.closure.decision, call.decision)
+    ? { kind: 'duplicate', value: history.closure }
+    : { kind: 'refused', reason: 'identity_conflict' };
+}
+
+/** Computes all closure consequences at one owner-authorized, completely audited open predecessor. Providers must run {@link replayRecoveryResolution} first. No IO or operational acceptance planner is invoked; old provenance survives the current resolver's independent authority check. */
+export function planRecoveryResolution(
+  catalog: HistoryCatalog,
+  call: RecoveryResolveCall,
+): StoreReply<RecoveryResolutionPlan> {
+  const history = catalog.runtime.recovery.histories.find(
+    (entry) => entry.intent.recoveryId === call.recoveryId,
+  );
+  if (history?.closure !== null) throw new Error('fresh recovery predecessor is not open');
+  // Complete predecessor audit and replay establish target/stage/session/pending/capacity and nonregressing owner epochs. Remaining refinements diagnose broken internal preconditions, not independent admission checks.
+  const target = history.intent.target;
+  const original = target.original;
+  const request = readRuntimeRequest(original.canonicalRequest);
+  const snapshot = inspectRuntimeScope(catalog.runtime, call.guard.scope, catalog.ownership);
+  if (snapshot.kind !== 'pinned' || snapshot.version !== 2)
+    throw new Error('recovery scope is not current and pinned');
+  const observation = history.observations.at(-1);
+  // Proof: T6C06 removing retained accepted-fence equality admitted an altered immutable observation. Restoration passed.
+  if (
+    observation?.kind !== 'accepted' ||
+    !equalRecords(call.fence, { fence: history.fences.at(-1), observation })
+  )
+    return { kind: 'refused', reason: 'identity_conflict' };
+  // Proof: T6C07 removing revision correspondence admitted stale recovery/scope guards. Restoration passed.
+  if (
+    history.revision !== call.guard.expectedRecoveryRevision ||
+    snapshot.revision !==
+      (call.kind === 'authority' ? call.guard.expectedRevision : call.guard.expectedScopeRevision)
+  )
+    return { kind: 'refused', reason: 'revision_conflict' };
+  const decision = call.decision;
+  // Proof: T6C08 removing lookup correspondence admitted pre-fence context and unbound body/scope/ledger/request/status. Restoration passed.
+  if (
+    !matchesRecoveryExchange(
+      decision.lookup,
+      request.scope,
+      snapshot.pin.ledgerId,
+      {
+        kind: 'original_lookup',
+        recoveryId: call.recoveryId,
+        ordinal: observation.fence.ordinal,
+        observationRevision: observation.observedRevision,
+        fenceExchange: observation.reply.envelope.artifact,
+        fenceReceipt: observation.reply.body.artifact,
+      },
+      { kind: 'lookup', commandId: original.commandId },
+      decision.kind === 'accepted' ? 200 : 404,
+    )
+  )
+    return { kind: 'refused', reason: 'identity_conflict' };
+  const floor = observation.reply.body.value.acceptance.authority.generation;
+  let originalAcceptance: RuntimeAcceptance | null = null;
+  let originalExecution: RecoveryResolutionPlan['originalExecution'] = null;
+  let originalReply: RecoveryClosure['originalReply'] = null;
+  let attempt: Attempt3 | null = null;
+  let run: Run | null = null;
+  if (decision.kind === 'accepted') {
+    const receipt = decision.lookup.body.value;
+    // Proof: T6C09 removing receipt identity admitted changed command/digest/scope/ledger. Restoration passed.
+    if (
+      !equalRuntimeScopes(receipt.scope, request.scope) ||
+      receipt.ledgerId !== snapshot.pin.ledgerId ||
+      receipt.commandId !== original.commandId ||
+      receipt.requestDigest !== original.requestDigest
+    )
+      return { kind: 'refused', reason: 'identity_conflict' };
+    if ('kind' in request.operation) {
+      // Proof: T6C10 removing authority correspondence admitted wrong owner/generation; T6C10F removed only strict domination and admitted original3/fence3. Restoration passed.
+      if (
+        receipt.acceptance.kind !== 'authority' ||
+        'command' in decision ||
+        receipt.acceptance.authority.ownerId !== request.operation.ownerId ||
+        receipt.acceptance.authority.generation !==
+          addInteger(request.operation.expectedGeneration ?? 0, 1) ||
+        floor <= receipt.acceptance.authority.generation
+      )
+        return { kind: 'refused', reason: 'identity_conflict' };
+      originalAcceptance = {
+        version: 1,
+        commandId: original.commandId,
+        requestDigest: original.requestDigest,
+        evidence: decision.lookup.body.artifact,
+        acceptedRevision: addInteger(snapshot.revision, 1),
+      };
+      originalReply = { kind: 'authority', acceptance: originalAcceptance };
+    } else {
+      if (request.operation.action.kind !== 'claim' || receipt.acceptance.kind !== 'claim')
+        return { kind: 'refused', reason: 'identity_conflict' };
+      const { claimId: _claimId, ...claimed } = receipt.acceptance.claim;
+      const { kind: _kind, ...requested } = request.operation.action;
+      // Proof: T6C12 removing claim receipt correspondence admitted a changed target/authority while all inherited claim guards remained. Restoration passed.
+      if (
+        !equalRecords(claimed, requested) ||
+        !equalRecords(receipt.acceptance.authority, request.operation.authority)
+      )
+        return { kind: 'refused', reason: 'identity_conflict' };
+    }
+  }
+  if (call.kind === 'claim' && target.kind === 'claim') {
+    const predecessor = catalog.attempts.find(
+      (entry) => entry.attempt.attemptId === target.attemptId,
+    )?.attempt;
+    const retainedRun = catalog.runs.find((entry) => entry.run.runId === target.runId)?.run;
+    if (predecessor === undefined || retainedRun === undefined)
+      throw new Error('recovery target does not exist');
+    const conflict = checkAttempt({ attempt: predecessor, run: retainedRun }, call.guard);
+    // Proof: T6C13 ignoring the attempt revision refusal admitted stale run/attempt guards. Restoration passed.
+    if (conflict !== undefined) return conflict;
+    const checkpoint = executionCheckpoint(predecessor);
+    // Complete predecessor validation already proves the exact stage, session, original intent and reserved capacity.
+    if (predecessor.version !== 2 || checkpoint.kind !== 'claiming')
+      throw new Error('recovery predecessor is not claiming');
+    let hold: RecoveryHold;
+    let heldPredecessor = predecessor;
+    if (call.decision.kind === 'accepted') {
+      // Proof: T6C14 removing actual receipt-derived command equality admitted substituted command IDs and invented claim IDs. Restoration passed.
+      if (
+        !equalRecords(
+          call.decision.command,
+          deriveRecoveryClaimCommand({ ...history.intent, target }, call.decision.lookup),
+        )
+      )
+        return { kind: 'refused', reason: 'identity_conflict' };
+      const manifest = catalog.manifests.find(
+        (entry) => entry.digest === retainedRun.manifestDigest,
+      );
+      if (manifest === undefined) throw new Error('recovery manifest does not exist');
+      const accepted = claimAcceptTransition(
+        {
+          run: retainedRun,
+          attempt: predecessor,
+          manifest,
+          ownership: catalog.ownership,
+          executions: catalog.executions,
+          runtime: catalog.runtime,
+          scope: snapshot,
+        },
+        call.decision.command,
+      );
+      if (accepted.kind === 'refused') return accepted;
+      const ack = accepted.value;
+      if (ack.attempt.state.kind !== 'ready')
+        throw new Error('claim acceptance did not produce ready');
+      originalAcceptance = ack.acceptance;
+      originalExecution = {
+        version: 1,
+        command: call.decision.command,
+        context: { version: 1, scopeRevision: snapshot.revision },
+        reply: ack,
+      };
+      originalReply = { kind: 'claim', command: call.decision.command, ack };
+      heldPredecessor = ack.attempt;
+      hold = {
+        kind: 'recovery_hold',
+        cause: 'claim_accepted_fenced',
+        closureId: call.recoveryId,
+        checkpoint: ack.attempt.state,
+      };
+    } else
+      hold = {
+        kind: 'recovery_hold',
+        cause: 'claim_nonaccepted',
+        closureId: call.recoveryId,
+        checkpoint,
+      };
+    attempt = {
+      ...heldPredecessor,
+      version: 3,
+      revision: addInteger(heldPredecessor.revision, 1),
+      holdsCapacity: true,
+      state: hold,
+    };
+    run = {
+      ...retainedRun,
+      revision: addInteger(retainedRun.revision, decision.kind === 'accepted' ? 2 : 1),
+    };
+  }
+  const scopeAfter = addInteger(snapshot.revision, decision.kind === 'accepted' ? 2 : 1);
+  const closure: RecoveryClosure = {
+    version: 1,
+    recoveryId: call.recoveryId,
+    original,
+    fence: call.fence,
+    decision,
+    resolvedRevision: addInteger(history.revision, 1),
+    resolver: { ownerId: call.guard.ownership.ownerId, epoch: call.guard.ownership.epoch },
+    scopeBefore: snapshot.revision,
+    scopeAfter,
+    originalReply,
+    attemptReply: attempt,
+  };
+  const recovery = catalog.runtime.recovery;
+  return {
+    kind: 'applied',
+    value: {
+      closure,
+      originalAcceptance,
+      originalExecution,
+      attempt,
+      run,
+      barrier: {
+        recoveryId: call.recoveryId,
+        scope: request.scope,
+        scopeBefore: snapshot.revision,
+        scopeAfter,
+        generationFloor: floor,
+      },
+      history: { ...history, revision: closure.resolvedRevision, closure },
+      counts: {
+        ...recovery.counts,
+        closures: addInteger(recovery.counts.closures, 1),
+        barriers: addInteger(recovery.counts.barriers, 1),
+        active: recovery.counts.active - 1,
+      },
+      active: recovery.active.filter((entry) => entry.recoveryId !== call.recoveryId),
+    },
   };
 }
