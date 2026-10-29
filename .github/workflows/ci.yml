@@ -667,7 +667,7 @@ jobs:
           if-no-files-found: error
 
   gate_remote_model:
-    name: gate remote model (${{ matrix.partition }})
+    name: gate remote isolated leaf (${{ matrix.partition }})
     needs: gate_mode
     if: ${{ needs.gate_mode.outputs.mode == 'full' || needs.gate_mode.outputs.remote == 'run' }}
     runs-on: ubuntu-latest
@@ -676,7 +676,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        partition: [remote-model, remote-model-continuation]
+        partition: [remote-model, remote-model-continuation, remote-source]
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and
       # nx falls back to a different file scope rather than failing. Since
@@ -735,9 +735,16 @@ jobs:
       - name: Install solver dependencies
         run: python3 -m pip install --require-hashes -r libs/wbs/adapters/solver-py/requirements.lock
 
+      - name: Set up source test Node
+        if: ${{ matrix.partition == 'remote-source' }}
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.20.0'
+          package-manager-cache: false
+
       # The shared runner records the validated project roster, commands and elapsed time.
       # A failed or timed-out Nx phase remains failed after annotation and log upload.
-      - name: Remote model — test, lint, typecheck, build
+      - name: Remote isolated leaf — test
         id: nx_gate
         env:
           RUNTIME_PARTITION: ${{ matrix.partition }}

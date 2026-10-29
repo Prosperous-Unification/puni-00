@@ -1,0 +1,31 @@
+# Verification in progress
+
+Evidence: /tmp/puni-ci-source-preparation-20261029. Missing producer/task dependency RED2; native metadata/hash GREEN2. Ordinary selected Swarm via actual Nx passed1/28assertions from absent document; producer order visible and exact artifact custody restored after original exit/bothEOF. Actual current affected selector positive paths passed; initial global unrelated exclusion failed due inherited Dash inputs/task edge, preserved without selector change. Reviewed detached-baseline incremental equality then passed. At that ordinary pre-proof epoch, finite R5 proofs and final static/source acceptance were pending; the accepted later epochs are recorded below. No full backend, native helper-drain or source readiness qualification claimed.
+
+Root counterexample: unchanged main 6bf selected Swarm passed1/28 with source document absent before and after (/tmp/puni-backend-document-main-fix-20261029/main-baseline.*). This feature producer result does not establish a main missing-document bug or a producer backport.
+
+## Accepted feature preparation and input evidence
+
+Preparation is feature-only: this feature deliberately reads the emitted MCP document, while unchanged main 6bf can construct it in memory. No main missing-document defect or independent preparation backport is claimed. BE owns the unchanged pure emitter; MCP prepare is a noncached noop alias to the same BE task. The actual combined ordinary task graph contains exactly one writer and is acyclic; the actual MCP-only graph reaches that writer.
+
+Five preparation/input dependency cases were independently accepted: omitting the full-test prerequisite from a cold document failed actual selected ordinary Nx Swarm; the missing-emitter producer yielded the installed Nx numeric130/null-signal outcome with explicit dependent NOT RUN, absent artifact and no backend execution; removing the runtime input family failed actual native input membership; restoring an independent MCP emitter produced two writers; and removing the alias prerequisite removed the sole producer from MCP-only preparation. Every selected restored consumer passed. Ordinary selected Swarm passed1/28 with the producer preceding the backend consumer; exact original artifact bytes/mode were restored after original process exit and both EOFs. Incoming helper detached inner drains remain unqualified.
+
+Four additional selected byte faults covered the emitter, shared document descriptor, MCP OAuth runtime and Dash token runtime. Each changed all three actual backend full/unit/store native task hash values, changed only the selected entry in the complete 16626-entry map, and exactly restored all values/maps after source restoration. Every observation explicitly hydrated an untrusted graph, called the installed selected-file update once, then rebuilt the actual graph/map/hasher. All 12 actual returns were plain empty records with the initial selected map already equal to direct native hash; authoritative rebuilt map/direct equality was mandatory. This establishes the explicit-freshness input contract, not automatic invalidation or a diagnosed cause for the earlier unlogged mutant return failure. Complete source/config/input/command identities and 43 regular/mode/current/saved controls were independently checked.
+
+Actual Hash4 manifest: /tmp/puni-ci-four-native-v3-zeysrnn0/actual-manifest.json SHA256 45333f3faf6f97f9dcccc43cb0d48df39304fbcb1a6345f7061cd858a729d7d4; independent audit /tmp/puni-ci-four-native-v3-independent-actual-audit-20261029.json SHA256 e979a781863fdd937fc4d648bfa4cb1298ab021b00a2ff5adcfdf6512f274437. Earlier stopped attempts, setup failures and separately authorized exact recovery receipts remain preserved and receive no proof credit. No source/runtime predicate or timeout was relaxed.
+
+## Current scoped verification
+
+Final commands use the repository's pinned Bun and installed Nx; original processes and both output streams joined normally with exit0. Exact commands and raw stdout/stderr/custody hashes are in /tmp/puni-ci-source-preparation-20261029/final-*.json.
+
+- `bun test --preload ./tools/test/scratch/preload.ts` with the six explicit owning files (ci-remote-tests, ci-plan, pr-merge-base, ci-capacity-workflow, ci-runtime-selection and backend-mcp-inputs), `--timeout=30000`:259 passed,0 failed,1147 assertions in57.85s.
+- The committed-target-facts owning file with the same preload and timeout:2 passed,0 failed,24 assertions; both current and bootstrap declarations match the actual static extractor.
+- `bunx nx run-many -t typecheck -p tool-git-hooks tool-devsync --skip-nx-cache --parallel=2 --output-style=stream`: both projects passed. Explicit `bunx tsc -p /tmp/puni-ci-source-preparation-20261029/ci-leaf.tsconfig.json` also passed and includes the runner outside the library source tree.
+- Configured ESLint over all eight changed TypeScript paths passed. The four final annotated TypeScript carriers transpile byte-identically to their independently accepted pre-annotation bodies.
+- `bunx openspec validate --all --json`:310/310 passed. Existing unrelated requirement-length warnings remain warnings.
+
+No old proof batch or full source/backend suite was rerun. Final independent source review and Root's normal checkpoint/publication remain pending; hosted capacity task14 remains open.
+
+## Final independent source review
+
+Astra accepted the exact 22-file source packet in `/tmp/puni-ci-source-final-independent-review-20261029.md`, SHA256 `593f00fa550a1f0313fb9e35e6331566dd2edc298a45e7048ef7328b5f349977`. The review binds all 725 evidence bodies, 17 separately audited observations, current scoped checks and comment-only equivalence. Root records this review linkage and completed CI review row as a separate factual documentation delta; runtime code is unchanged. Normal private checkpoint and incoming-main reconciliation follow. Hosted capacity task 14, full host/native/restoration acceptance, main adoption and deployment remain open.

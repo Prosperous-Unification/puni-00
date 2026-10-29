@@ -261,3 +261,35 @@ and single diagnostic pass remain valid history with unknown cause; this is no
 synchronization repair claim. The newer private Node/frontend prerequisites and
 later profile/readiness work are separate source epochs and are not certified by
 this b297 run. Native/full-source/main/deployment acceptance remains open.
+
+## R19 source leaf pre-proof history
+
+Private evidence directory: /tmp/puni-ci-source-preparation-20261029. Initial real tiny-Bun union consumer reached Unknown remote test leaf (intended RED); minimal four-leaf union passed. Actual partition/matrix missing-source and missing explicit Node setup consumers failed before metadata implementation; routing/shell/workflow GREEN and bounded source owner/target ordinary negatives subsequently passed. At that pre-proof epoch the finite omission protocol and final source/static review were pending; the accepted later epochs are recorded below. No hosted capacity acceptance follows. Backend document preparation is tracked separately in backend-mcp-test-preparation.
+
+Independent review exposed first-summary parsing of genuine nested child receipts. One real joined tiny nested Bun parent reproduced source refusal after an actual outer six-file PASS. Final coherent outer pass/fail/count parsing then passed that reproduction, canonical union and single count-mismatch refusal together (3/0). This preserves aggregate nonempty semantics; an earlier provisional per-parent empty-file oracle was stronger than the contract and was removed with its raw failure retained.
+
+## R19 finite source-leaf evidence
+
+The exact six existing parents have separate source ownership and the third isolated matrix runner. Canonical discovery, fixed deadlines, rest Caddy/static ownership and all original model/continuation owners remain unchanged. CI source tooling is pinned to Node 24.20.0 through official setup-node commit 249970729cb0ef3589644e2896645e5dc5ba9c38; this is parsed workflow evidence, not source-image Node 24.18.1 or native source acceptance.
+
+Eight source dependency omissions were independently accepted with exact restoration: owner membership, source target validation, rest exclusion union/disjointness, six-to-five summary receipt mismatch, production CLI dispatch, matrix member, configured Node version and terminal outer summary. Actual tiny joined nested Bun positives remain covered. Removing the terminal anchor admitted a malformed final outer receipt by falling back to a genuine child summary; only the terminal non-whitespace coherent summary is now accepted. The receipt mismatch proof changes the observed summary count exactly once after genuine child execution; it is not a missing-execution detector.
+
+Accepted raw epochs remain immutable under /tmp/puni-ci-source-v4-vciv8qaw (first nine pairs) and /tmp/puni-ci-source-continuation-z0xg7yeq (four more pairs). The V4 producer status surprise stopped at numeric130/null signal, and was restored only under separately reviewed recovery direction. The initial native hash restoration mismatch, baseline setup failure and later unlogged compound-return failure remain failed, uncredited epochs. No prior accepted pair was replayed. Four explicit-freshness native observations were separately accepted from /tmp/puni-ci-four-native-v3-zeysrnn0; its 98-body actual manifest SHA256 is 45333f3faf6f97f9dcccc43cb0d48df39304fbcb1a6345f7061cd858a729d7d4 and actual independent audit SHA256 is e979a781863fdd937fc4d648bfa4cb1298ab021b00a2ff5adcfdf6512f274437.
+
+These are 17 finite scoped observations across distinct audited epochs. Hosted task14 remains open: new exact-head source/rest jobs and required aggregate must finish before accepting current capacity. No full source/backend runtime, source HTTP readiness, host gate, MAIN adoption or deployment is certified. Current comments/static/source review and Root normal checkpoint remain separate.
+
+## Current scoped verification
+
+Final commands use the repository's pinned Bun and installed Nx; original processes and both output streams joined normally with exit0. Exact commands and raw stdout/stderr/custody hashes are in /tmp/puni-ci-source-preparation-20261029/final-*.json.
+
+- `bun test --preload ./tools/test/scratch/preload.ts` with the six explicit owning files (ci-remote-tests, ci-plan, pr-merge-base, ci-capacity-workflow, ci-runtime-selection and backend-mcp-inputs), `--timeout=30000`:259 passed,0 failed,1147 assertions in57.85s.
+- The committed-target-facts owning file with the same preload and timeout:2 passed,0 failed,24 assertions; both current and bootstrap declarations match the actual static extractor.
+- `bunx nx run-many -t typecheck -p tool-git-hooks tool-devsync --skip-nx-cache --parallel=2 --output-style=stream`: both projects passed. Explicit `bunx tsc -p /tmp/puni-ci-source-preparation-20261029/ci-leaf.tsconfig.json` also passed and includes the runner outside the library source tree.
+- Configured ESLint over all eight changed TypeScript paths passed. The four final annotated TypeScript carriers transpile byte-identically to their independently accepted pre-annotation bodies.
+- `bunx openspec validate --all --json`:310/310 passed. Existing unrelated requirement-length warnings remain warnings.
+
+No old proof batch or full source/backend suite was rerun. Final independent source review and Root's normal checkpoint/publication remain pending; hosted capacity task14 remains open.
+
+## Final independent source review
+
+Astra accepted the exact 22-file source packet in `/tmp/puni-ci-source-final-independent-review-20261029.md`, SHA256 `593f00fa550a1f0313fb9e35e6331566dd2edc298a45e7048ef7328b5f349977`. The review binds all 725 evidence bodies, 17 separately audited observations, current scoped checks and comment-only equivalence. Root records this review linkage and completed CI review row as a separate factual documentation delta; runtime code is unchanged. Normal private checkpoint and incoming-main reconciliation follow. Hosted capacity task 14, full host/native/restoration acceptance, main adoption and deployment remain open.

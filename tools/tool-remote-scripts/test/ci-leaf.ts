@@ -6,6 +6,14 @@ import { isDeepStrictEqual, stripVTControlCharacters } from 'node:util';
 const PROJECT = 'tools/tool-remote-scripts';
 const MODEL = 'src/lib/dependency-product-process-model.test.ts';
 const CONTINUATION = 'src/lib/dependency-participant-continuation-model.test.ts';
+const SOURCE = [
+  'src/lib/source-role-process.test.ts',
+  'src/lib/source-inner-command.test.ts',
+  'src/lib/source-inner-program.test.ts',
+  'src/lib/source-inner-transport.test.ts',
+  'src/lib/source-frontend-http.test.ts',
+  'src/lib/source-frontend-profile.test.ts',
+];
 const DISCOVERY = [
   'src',
   'test/edge-init.test.ts',
@@ -18,7 +26,7 @@ const DISCOVERY = [
 ];
 const OPTIONS = ['--preload', '../test/scratch/preload.ts', '--timeout=10000'];
 
-type Leaf = 'model' | 'model-continuation' | 'rest';
+type Leaf = 'model' | 'model-continuation' | 'source' | 'rest';
 
 class TestFailure extends Error {
   constructor(readonly status: number) {
@@ -110,7 +118,8 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
   )
     throw new Error('Unsupported canonical remote test environment');
   // Proof: omitting continuation target validation let actual malformed-target negatives execute tests (2026-10-29).
-  for (const name of ['model', 'model-continuation', 'rest'] as const) {
+  // Proof: excluding source validation admitted the absent-source-target actual-runner negative (2026-10-29).
+  for (const name of ['model', 'model-continuation', 'source', 'rest'] as const) {
     const target = requireRecord(targets[`test:ci:${name}`]);
     // Proof: removing this check admitted missing inputs and a changed leaf env in actual-runner tests.
     if (
@@ -145,27 +154,35 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
   if (readFileSync(join(repository, '.bun-version'), 'utf8').trim() !== Bun.version)
     throw new Error('Remote leaf requires the pinned Bun version');
   // Proof: omitting the continuation file requirement made the actual missing-owner refusal fail (2026-10-29).
-  for (const path of [MODEL, CONTINUATION, ...DISCOVERY.slice(1)])
+  // Proof: omitting SOURCE presence admitted an aliased parent in the actual source-owner refusal (2026-10-29).
+  for (const path of [MODEL, CONTINUATION, ...SOURCE, ...DISCOVERY.slice(1)])
     requireFile(join(repository, PROJECT, path));
   requireFile(join(repository, 'tools/test/scratch/preload.ts'));
   // Proof: dotted/widened ignores and a dropped discovery token broke real canonical union/disjointness.
   // Proof: dropping only the continuation ignore duplicated its actual Bun coverage in rest (2026-10-29).
+  // Proof: dropping six source ignores duplicated their actual canonical union/disjoint coverage (2026-10-29).
   return leaf === 'model'
     ? ['test', `./${MODEL}`, ...OPTIONS]
     : leaf === 'model-continuation'
       ? ['test', `./${CONTINUATION}`, ...OPTIONS]
-      : [
-          'test',
-          ...DISCOVERY,
-          ...OPTIONS,
-          `--path-ignore-patterns=${MODEL}`,
-          `--path-ignore-patterns=${CONTINUATION}`,
-        ];
+      : leaf === 'source'
+        ? ['test', ...SOURCE.map((path) => `./${path}`), ...OPTIONS]
+        : [
+            'test',
+            ...DISCOVERY,
+            ...OPTIONS,
+            `--path-ignore-patterns=${MODEL}`,
+            `--path-ignore-patterns=${CONTINUATION}`,
+            ...SOURCE.map((path) => `--path-ignore-patterns=${path}`),
+          ];
 }
 
 /**
  * Executes one fresh CI leaf, preserving child status and streaming logs with only a bounded
- * summary tail retained in memory. A successful child must have actually run nonempty tests.
+ * summary tail retained in memory. The final contiguous outer summary keeps pass, fail and
+ * file counts together after nested parent-child output; its terminal boundary refuses
+ * malformed final output rather than falling back to an earlier child. A successful child must have
+ * actually run nonempty tests.
  */
 export async function runRemoteTests(
   repositoryPath: string,
@@ -174,7 +191,12 @@ export async function runRemoteTests(
 ): Promise<void> {
   const repository = resolve(repositoryPath);
   // Proof: omitting the leaf allowlist admitted unknown as the complementary actual Bun execution.
-  if (leafName !== 'model' && leafName !== 'model-continuation' && leafName !== 'rest')
+  if (
+    leafName !== 'model' &&
+    leafName !== 'model-continuation' &&
+    leafName !== 'source' &&
+    leafName !== 'rest'
+  )
     throw new Error('Unknown remote test leaf');
   const checkedOut = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], {
     cwd: repository,
@@ -219,19 +241,22 @@ export async function runRemoteTests(
   // Proof: omitting status propagation changed the actual child's exit 23 to 1.
   if (status !== 0) throw new TestFailure(status);
   const summary = stripVTControlCharacters(tail);
-  const passes = /^\s*(\d+) pass\b/m.exec(summary);
-  const count = /Ran (\d+) tests? across (\d+) files?\./.exec(summary);
+  // Proof: removing the terminal anchor accepted a malformed outer receipt by falling back to a joined nested child (2026-10-29).
+  const receipt =
+    /(?:^|\n)[ \t]*(\d+) pass\r?\n(?:[ \t]*\d+ (?:skip|todo|filtered out)\r?\n)*[ \t]*(\d+) fail\r?\n(?:[ \t]*\d+ expect\(\) calls\r?\n)?Ran (\d+) tests? across (\d+) files?\.[^\r\n]*\s*$/.exec(
+      summary,
+    );
+  // Proof: bypassing the source file count admitted an actual six-parent receipt transformed exactly once from six to five (2026-10-29).
   // Proof: dropping the positive-pass check accepted an actual empty Bun file as fresh success.
   if (
-    passes === null ||
-    Number(passes[1]) === 0 ||
-    !/^\s*0 fail\b/m.test(summary) ||
-    count === null ||
-    (leafName !== 'rest' && Number(count[2]) !== 1)
+    receipt === null ||
+    Number(receipt[1]) === 0 ||
+    Number(receipt[2]) !== 0 ||
+    (leafName !== 'rest' && Number(receipt[4]) !== (leafName === 'source' ? SOURCE.length : 1))
   )
     throw new Error('Remote leaf produced no successful nonempty execution receipt');
   process.stdout.write(
-    `${JSON.stringify({ head, leaf: leafName, fresh: true, tests: Number(count[1]), files: Number(count[2]), elapsedMs: Math.round(performance.now() - started), exitCode: status })}\n`,
+    `${JSON.stringify({ head, leaf: leafName, fresh: true, tests: Number(receipt[3]), files: Number(receipt[4]), elapsedMs: Math.round(performance.now() - started), exitCode: status })}\n`,
   );
 }
 
@@ -246,7 +271,9 @@ if (import.meta.main) {
     leaf === undefined ||
     headFlag?.startsWith('--head=') !== true
   )
-    throw new Error('Usage: ci-leaf.ts <repository> <model|model-continuation|rest> --head=<sha>');
+    throw new Error(
+      'Usage: ci-leaf.ts <repository> <model|model-continuation|source|rest> --head=<sha>',
+    );
   try {
     await runRemoteTests(repository, leaf, headFlag.slice('--head='.length));
   } catch (cause) {

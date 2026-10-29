@@ -65,12 +65,15 @@
       "dependsOn": ["prepare"]
     },
     "prepare": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "bun apps/wbs/be-01/src/openapi/emit-openapi-cli.ts apps/wbs/mcp-01/src/openapi.json"
-      },
+      "executor": "nx:noop",
       "outputs": ["{projectRoot}/src/openapi.json"],
-      "cache": false
+      "cache": false,
+      "dependsOn": [
+        {
+          "projects": ["wbs-be-01"],
+          "target": "prepare-mcp-document"
+        }
+      ]
     }
   }
 }

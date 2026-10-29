@@ -30,7 +30,8 @@
           "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/bridge/**/*",
           "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/agents/**/*",
           "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/clock.ts",
-          "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/cli/src/contracts/**/*"
+          "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/cli/src/contracts/**/*",
+          "mcpAgentRuntime"
         ],
         "options": {
           "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",
@@ -38,7 +39,8 @@
         },
         "outputs": ["{projectRoot}/coverage"],
         "configurations": {},
-        "parallelism": true
+        "parallelism": true,
+        "dependsOn": ["prepare-mcp-document"]
       }
     },
     {

@@ -44,7 +44,7 @@ async function runNx(repository: string, args: string[]): Promise<void> {
 async function runRemoteLeaf(
   repository: string,
   head: string,
-  leaf: 'model' | 'model-continuation' | 'rest',
+  leaf: 'model' | 'model-continuation' | 'source' | 'rest',
   mode: string,
 ): Promise<void> {
   if (leaf === 'rest')
@@ -94,6 +94,7 @@ export async function runRuntime(
       'remote-rest',
       'remote-model',
       'remote-model-continuation',
+      'remote-source',
       'frontend',
       'twilight',
     ].includes(partition)
@@ -102,14 +103,17 @@ export async function runRuntime(
   // Proof: removing this refusal made the unknown-mode CLI case execute affected work and fail.
   if (mode !== 'affected' && mode !== 'full') throw new Error('Unknown runtime mode');
   // Proof: mapping continuation to core failed exact production CLI dispatch in affected/full modes (2026-10-29).
+  // Proof: routing source to continuation failed the exact production CLI source-dispatch consumer (2026-10-29).
   const remoteLeaf =
     partition === 'remote-model'
       ? 'model'
       : partition === 'remote-model-continuation'
         ? 'model-continuation'
-        : partition === 'remote-rest'
-          ? 'rest'
-          : undefined;
+        : partition === 'remote-source'
+          ? 'source'
+          : partition === 'remote-rest'
+            ? 'rest'
+            : undefined;
   const owner = remoteLeaf === undefined ? partition : 'remote';
   if (mode === 'full') {
     if (partition === 'twilight') throw new Error('Twilight retains its existing full runner');
@@ -269,7 +273,7 @@ if (import.meta.main) {
     repository === undefined
   ) {
     throw new Error(
-      'Usage: ci-run-runtime.ts <workspace|backend|remote|remote-rest|remote-model|remote-model-continuation|frontend|twilight> <base-sha> <head-sha> <repository> [affected|full]',
+      'Usage: ci-run-runtime.ts <workspace|backend|remote|remote-rest|remote-model|remote-model-continuation|remote-source|frontend|twilight> <base-sha> <head-sha> <repository> [affected|full]',
     );
   }
   try {

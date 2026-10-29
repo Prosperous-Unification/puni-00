@@ -18,6 +18,14 @@ const CLI = join(ROOT, 'tools/tool-remote-scripts/test/ci-leaf.ts');
 const PROJECT = 'tools/tool-remote-scripts';
 const MODEL = 'src/lib/dependency-product-process-model.test.ts';
 const CONTINUATION = 'src/lib/dependency-participant-continuation-model.test.ts';
+const SOURCE = [
+  'src/lib/source-role-process.test.ts',
+  'src/lib/source-inner-command.test.ts',
+  'src/lib/source-inner-program.test.ts',
+  'src/lib/source-inner-transport.test.ts',
+  'src/lib/source-frontend-http.test.ts',
+  'src/lib/source-frontend-profile.test.ts',
+];
 const explicit = [
   'test/edge-init.test.ts',
   'test/solver-drain-transport.test.ts',
@@ -42,7 +50,10 @@ function fixture(): string {
     MODEL,
     CONTINUATION,
     ...explicit,
+    ...SOURCE,
     'src/new.test.ts',
+    'src/lib/source-role-process-extra.test.ts',
+    `elsewhere/${SOURCE[0]}`,
     'src/lib/dependency-product-process-model-extra.test.ts',
     'src/lib/dependency-participant-continuation-model-extra.test.ts',
     `elsewhere/${CONTINUATION}`,
@@ -75,16 +86,26 @@ function fixture(): string {
   return root;
 }
 
-function invoke(root: string, leaf: string) {
+function invoke(root: string, leaf: string, preload?: string) {
   const head = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], { cwd: root, stdout: 'pipe' })
     .stdout.toString()
     .trim();
-  return Bun.spawnSync([process.execPath, CLI, root, leaf, `--head=${head}`], {
-    env: { ...process.env, FORCE_COLOR: '0', CLAUDECODE: '0', AGENT: '0' },
-    stdout: 'pipe',
-    stderr: 'pipe',
-    timeout: 5000,
-  });
+  return Bun.spawnSync(
+    [
+      process.execPath,
+      ...(preload === undefined ? [] : ['--preload', preload]),
+      CLI,
+      root,
+      leaf,
+      `--head=${head}`,
+    ],
+    {
+      env: { ...process.env, FORCE_COLOR: '0', CLAUDECODE: '0', AGENT: '0' },
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 5000,
+    },
+  );
 }
 
 function executed(output: string): string[] {
@@ -116,6 +137,10 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
   expect(continuation.exitCode, continuation.stderr.toString()).toBe(0);
   const moved = executed(continuation.stdout.toString());
   expect(moved).toEqual([CONTINUATION]);
+  const source = invoke(root, 'source');
+  expect(source.exitCode, source.stderr.toString()).toBe(0);
+  const sourceCases = executed(source.stdout.toString());
+  expect(sourceCases).toEqual([...SOURCE].sort());
   const rest = invoke(root, 'rest');
   expect(model.exitCode, model.stderr.toString()).toBe(0);
   expect(rest.exitCode, rest.stderr.toString()).toBe(0);
@@ -123,6 +148,8 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
   const complement = executed(rest.stdout.toString());
   expect(singleton).toEqual([MODEL]);
   expect(complement).toContain('src/new.test.ts');
+  expect(complement).toContain('src/lib/source-role-process-extra.test.ts');
+  expect(complement).toContain(`elsewhere/${SOURCE[0]}`);
   expect(complement).toContain('elsewhere/src-shadow/new.test.ts');
   expect(complement).toContain(`elsewhere/${MODEL}`);
   expect(complement).toContain('src/lib/dependency-product-process-model-extra.test.ts');
@@ -130,11 +157,11 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
   expect(complement).not.toContain(CONTINUATION);
   expect(complement).toContain(`elsewhere/${CONTINUATION}`);
   expect(complement).toContain('src/lib/dependency-participant-continuation-model-extra.test.ts');
-  expect([...singleton, ...moved, ...complement].sort()).toEqual(
+  expect([...singleton, ...moved, ...sourceCases, ...complement].sort()).toEqual(
     executed(canonical.stdout.toString()),
   );
-  expect(new Set([...singleton, ...moved, ...complement]).size).toBe(
-    singleton.length + moved.length + complement.length,
+  expect(new Set([...singleton, ...moved, ...sourceCases, ...complement]).size).toBe(
+    singleton.length + moved.length + sourceCases.length + complement.length,
   );
   expect(model.stdout.toString()).toContain('"fresh":true');
   expect(rest.stdout.toString()).toContain('"fresh":true');
@@ -418,3 +445,156 @@ test.each(['absent', 'environment', 'inputs'])(
     }
   },
 );
+
+test.each(['missing', 'unreadable', 'alias'] as const)(
+  'source owners refuse invalid parents before actual child selection: %s',
+  (fault) => {
+    for (const owner of SOURCE) {
+      const root = fixture();
+      const path = join(root, PROJECT, owner);
+      if (fault === 'missing') rmSync(path);
+      if (fault === 'unreadable') chmodSync(path, 0);
+      if (fault === 'alias') {
+        renameSync(path, `${path}.owned`);
+        symlinkSync(`${path}.owned`, path);
+      }
+      for (const leaf of ['source', 'rest']) {
+        const refused = invoke(root, leaf);
+        expect(refused.exitCode, `${owner} ${fault} ${leaf}`).not.toBe(0);
+        expect(executed(refused.stdout.toString())).toEqual([]);
+      }
+    }
+  },
+  20000,
+);
+
+test.each(['absent', 'inputs', 'environment'])(
+  'all leaves refuse a malformed source target before actual children: %s',
+  (fault) => {
+    const root = fixture();
+    const path = join(root, PROJECT, 'project.json');
+    const project = JSON.parse(readFileSync(path, 'utf8')) as {
+      targets: Record<string, { inputs?: string[]; options?: Record<string, unknown> }>;
+    };
+    if (fault === 'absent') delete project.targets['test:ci:source'];
+    if (fault === 'inputs') project.targets['test:ci:source'].inputs = ['default'];
+    if (fault === 'environment') project.targets['test:ci:source'].options = {};
+    writeFileSync(path, JSON.stringify(project));
+    for (const leaf of ['model', 'model-continuation', 'source', 'rest']) {
+      const refused = invoke(root, leaf);
+      expect(refused.exitCode).not.toBe(0);
+      expect(executed(refused.stdout.toString())).toEqual([]);
+    }
+  },
+);
+
+test('source summary receipt mismatch refuses after actual six-parent child execution', () => {
+  const root = fixture();
+  const preload = join(root, 'source-summary-view.ts');
+  writeFileSync(
+    preload,
+    `
+    const spawn = Bun.spawn;
+    Bun.spawn = (...args) => {
+      const child = spawn(...args);
+      const stderr = new ReadableStream({
+        async start(controller) {
+          try {
+            const text = await new Response(child.stderr).text();
+            const matches = [...text.matchAll(/Ran (\\d+) tests across 6 files\\./g)];
+            if (matches.length !== 1) throw new Error('source summary view expected exactly one six-file receipt');
+            process.stderr.write('source summary count transform observed exactly once\\n');
+            controller.enqueue(new TextEncoder().encode(text.replace(matches[0][0],
+              matches[0][0].replace('6 files', '5 files'))));
+            controller.close();
+          } catch (cause) { controller.error(cause); }
+        }
+      });
+      return new Proxy(child, {
+        get(target, property) {
+          if (property === 'stderr') return stderr;
+          const value = Reflect.get(target, property, target);
+          return typeof value === 'function' ? value.bind(target) : value;
+        }
+      });
+    };
+  `,
+  );
+  const refused = invoke(root, 'source', preload);
+  expect(executed(refused.stdout.toString())).toEqual([...SOURCE].sort());
+  expect(refused.stderr.toString()).toContain(
+    'source summary count transform observed exactly once',
+  );
+  expect(refused.exitCode, refused.stderr.toString()).toBe(1);
+  expect(refused.stderr.toString()).toContain(
+    'Remote leaf produced no successful nonempty execution receipt',
+  );
+});
+
+test('source fresh summary consumes coherent final outer evidence after real nested Bun joins', () => {
+  const root = fixture();
+  const nested = join(root, 'nested-source-child.test.ts');
+  writeFileSync(
+    nested,
+    `import { test, expect } from 'bun:test'; test('nested source child', () => expect(true).toBe(true));`,
+  );
+  writeFileSync(
+    join(root, PROJECT, SOURCE[0]),
+    `
+    import { test, expect } from 'bun:test';
+    test(${JSON.stringify(SOURCE[0])}, () => {
+      const child = Bun.spawnSync([process.execPath, 'test', ${JSON.stringify(nested)}, '--timeout=10000'], {
+        stdout: 'pipe', stderr: 'pipe', timeout: 5000
+      });
+      process.stderr.write(child.stderr);
+      expect(child.exitCode).toBe(0);
+      expect(child.signalCode).toBeUndefined();
+      console.error('NESTED_SOURCE_CHILD_JOINED');
+      console.log('EXECUTED=' + ${JSON.stringify(SOURCE[0])});
+    });
+  `,
+  );
+  const source = invoke(root, 'source');
+  expect(source.stderr.toString()).toContain('NESTED_SOURCE_CHILD_JOINED');
+  expect(source.exitCode, source.stderr.toString()).toBe(0);
+  expect(executed(source.stdout.toString())).toEqual([...SOURCE].sort());
+  expect(source.stdout.toString()).toContain('"files":6');
+});
+
+test('remainder rejects a malformed terminal outer summary after a real nested child joins', () => {
+  const root = fixture();
+  const nested = join(root, 'nested-remainder-child.test.ts');
+  writeFileSync(
+    nested,
+    `import { test, expect } from 'bun:test'; test('nested remainder child', () => expect(true).toBe(true));`,
+  );
+  writeFileSync(
+    join(root, PROJECT, 'src/new.test.ts'),
+    `
+    import { test, expect } from 'bun:test';
+    test('src/new.test.ts', () => {
+      const child = Bun.spawnSync([process.execPath, 'test', ${JSON.stringify(nested)}, '--timeout=10000'], {
+        stdout: 'pipe', stderr: 'pipe', timeout: 5000
+      });
+      process.stderr.write(child.stderr);
+      expect(child.exitCode).toBe(0);
+      expect(child.signalCode).toBeUndefined();
+      console.error('NESTED_REMAINDER_CHILD_JOINED');
+      console.log('EXECUTED=src/new.test.ts');
+    });
+  `,
+  );
+  const preload = join(root, 'terminal-summary-view.ts');
+  writeFileSync(
+    preload,
+    "\nconst spawn = Bun.spawn;\nBun.spawn = (...args) => {\n  const child = spawn(...args);\n  const stderr = new ReadableStream({async start(controller) {\n    try {\n      const text = await new Response(child.stderr).text();\n      const summaries = [...text.matchAll(/Ran (\\d+) tests? across (\\d+) files?\\.[^\\r\\n]*/g)];\n      if (summaries.length !== 2 || summaries[0][2] !== '1' || Number(summaries[1][2]) <= 1)\n        throw new Error('expected one joined nested and one outer receipt');\n      const final = summaries[1][0];\n      if (text.split(final).length !== 2) throw new Error('outer receipt not unique');\n      process.stderr.write('TERMINAL_OUTER_SUMMARY_CORRUPTED_ONCE\\n');\n      controller.enqueue(new TextEncoder().encode(text.replace(final, final.replace('Ran ', 'UNSUPPORTED '))));\n      controller.close();\n    } catch (cause) {controller.error(cause);}\n  }});\n  return new Proxy(child, {get(target, property) {\n    if (property === 'stderr') return stderr;\n    const value = Reflect.get(target, property, target);\n    return typeof value === 'function' ? value.bind(target) : value;\n  }});\n};\n",
+  );
+  const refused = invoke(root, 'rest', preload);
+  expect(executed(refused.stdout.toString())).toContain('src/new.test.ts');
+  expect(refused.stderr.toString()).toContain('NESTED_REMAINDER_CHILD_JOINED');
+  expect(refused.stderr.toString()).toContain('TERMINAL_OUTER_SUMMARY_CORRUPTED_ONCE');
+  expect(refused.exitCode, refused.stderr.toString()).toBe(1);
+  expect(refused.stderr.toString()).toContain(
+    'Remote leaf produced no successful nonempty execution receipt',
+  );
+});

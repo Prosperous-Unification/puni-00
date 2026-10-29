@@ -137,7 +137,7 @@ test('non-Nx checks retain their own finite budget and each required original co
 test('remote retains finite rest and model runners under one selection bit', () => {
   for (const [name, partition, title] of [
     ['gate_remote', 'remote-rest', 'Remote'],
-    ['gate_remote_model', 'remote-model', 'Remote model'],
+    ['gate_remote_model', 'remote-model', 'Remote isolated leaf'],
   ]) {
     const runtime = job(name);
     expect(runtime.needs).toBe('gate_mode');
@@ -145,7 +145,12 @@ test('remote retains finite rest and model runners under one selection bit', () 
     expect(runtime.if).toBe(
       "${{ needs.gate_mode.outputs.mode == 'full' || needs.gate_mode.outputs.remote == 'run' }}",
     );
-    const execution = step(runtime, `${title} — test, lint, typecheck, build`);
+    const execution = step(
+      runtime,
+      name === 'gate_remote_model'
+        ? 'Remote isolated leaf — test'
+        : `${title} — test, lint, typecheck, build`,
+    );
     expect(execution.run).toContain('timeout --signal=TERM --kill-after=30s 75m \\');
     expect(execution.run).toContain(
       `ci-run-runtime.ts ${name === 'gate_remote_model' ? '"$RUNTIME_PARTITION"' : partition} "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE"`,
@@ -173,10 +178,20 @@ test('remote retains finite rest and model runners under one selection bit', () 
   }
 });
 
-test('model matrix is exactly two independent whole-file runners', () => {
+// Proof: dropping remote-source failed this parsed matrix consumer; exact restoration passed (2026-10-29).
+test('isolated remote matrix is exactly three independent whole-file runners', () => {
   const runtime = job('gate_remote_model');
   expect(runtime.strategy).toEqual({
     'fail-fast': false,
-    matrix: { partition: ['remote-model', 'remote-model-continuation'] },
+    matrix: { partition: ['remote-model', 'remote-model-continuation', 'remote-source'] },
   });
+});
+
+// Proof: changing only the configured Node version to 24.20.1 failed this metadata consumer (2026-10-29).
+test('only the source matrix member provisions the exact CI Node runtime', () => {
+  const runtime = job('gate_remote_model');
+  const setup = step(runtime, 'Set up source test Node');
+  expect(setup.uses).toBe('actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38');
+  expect(setup.if).toBe("${{ matrix.partition == 'remote-source' }}");
+  expect(setup.with).toEqual({ 'node-version': '24.20.0', 'package-manager-cache': false });
 });

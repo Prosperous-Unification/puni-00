@@ -5,6 +5,7 @@ import { scratchSync } from '@tools/test-scratch';
 import { afterEach, describe, expect, it } from 'bun:test';
 import type { NxJsonConfiguration } from 'nx/src/config/nx-json';
 import type { ProjectGraph, ProjectGraphProjectNode } from 'nx/src/config/project-graph';
+import { createProjectGraphAsync } from 'nx/src/devkit-exports';
 
 import {
   parseRuntimeSelection,
@@ -1040,3 +1041,64 @@ describe('real runtime-dispatch input selection', () => {
     30000,
   );
 });
+
+testBackendMcpSelection();
+
+function testBackendMcpSelection(): void {
+  it('selects the backend for spawned production and producer descriptors without an MCP project cycle', async () => {
+    const previous = process.env['NX_DAEMON'];
+    process.env['NX_DAEMON'] = 'false';
+    try {
+      const actual = await createProjectGraphAsync({ exitOnError: true });
+      const configuration = JSON.parse(
+        readFileSync(join(ROOT, 'nx.json'), 'utf8'),
+      ) as NxJsonConfiguration;
+      const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      for (const path of [
+        'apps/wbs/be-01/src/openapi/emit-openapi-cli.ts',
+        'libs/wbs/domain/contracts/src/http/document-from-shapes.ts',
+        'apps/wbs/mcp-01/src/oauth.ts',
+        'apps/wbs/mcp-01/drizzle/20261022130000_mcp_family_person/migration.sql',
+        'apps/twilight-structure/twilight-dash/cli/src/mcp/token-command.ts',
+      ]) {
+        const selected = await selectRuntimeProjectsFromGraph(
+          actual,
+          [change(path)],
+          configuration,
+          manifest,
+        );
+        expect(selected.projects, path).toContain('wbs-be-01');
+      }
+      const unrelated = await selectRuntimeProjectsFromGraph(
+        actual,
+        [change('apps/wbs/mcp-01/src/openapi-tools.test.ts')],
+        configuration,
+        manifest,
+      );
+      const inherited = structuredClone(actual);
+      const backend = inherited.nodes['wbs-be-01'].data;
+      if (backend.namedInputs?.['mcpAgentRuntime'] === undefined)
+        throw new Error('backend MCP runtime input family absent');
+      backend.namedInputs['mcpAgentRuntime'] = [];
+      const baseline = await selectRuntimeProjectsFromGraph(
+        inherited,
+        [change('apps/wbs/mcp-01/src/openapi-tools.test.ts')],
+        configuration,
+        manifest,
+      );
+      expect(unrelated.projects).toEqual(baseline.projects);
+      expect(actual.nodes['wbs-be-01'].data.namedInputs?.['mcpAgentRuntime']).not.toContain(
+        '{workspaceRoot}/apps/wbs/mcp-01/src/openapi-tools.test.ts',
+      );
+      expect(actual.dependencies['wbs-be-01'].some((edge) => edge.target === 'wbs-mcp-01')).toBe(
+        false,
+      );
+    } finally {
+      if (previous === undefined) delete process.env['NX_DAEMON'];
+      else process.env['NX_DAEMON'] = previous;
+    }
+  }, 30000);
+}

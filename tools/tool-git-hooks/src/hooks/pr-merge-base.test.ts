@@ -178,7 +178,7 @@ const runtimeSteps = [
   ['gate_workspace', 'Gate — test, lint, typecheck, build'],
   ['gate_backend', 'Backend — test, lint, typecheck, build'],
   ['gate_remote', 'Remote — test, lint, typecheck, build'],
-  ['gate_remote_model', 'Remote model — test, lint, typecheck, build'],
+  ['gate_remote_model', 'Remote isolated leaf — test'],
   ['gate_frontend', 'Frontend — test, lint, typecheck, build'],
 ] as const;
 function runtimePartition(job: string): string {
@@ -382,20 +382,16 @@ describe('production workflow PR consumers', () => {
   );
 });
 
-test.each(['remote-model', 'remote-model-continuation'])(
+test.each(['remote-model', 'remote-model-continuation', 'remote-source'])(
   'actual model matrix shell dispatches %s with its immutable merge base and status',
   async (partition) => {
     const h = history();
-    const execution = runStep(
-      h,
-      step('gate_remote_model', 'Remote model — test, lint, typecheck, build'),
-      {
-        GATE_MODE: 'affected',
-        GATE_BASE: h.base,
-        RUNTIME_PARTITION: partition,
-        RUNTIME_STATUS: '23',
-      },
-    );
+    const execution = runStep(h, step('gate_remote_model', 'Remote isolated leaf — test'), {
+      GATE_MODE: 'affected',
+      GATE_BASE: h.base,
+      RUNTIME_PARTITION: partition,
+      RUNTIME_STATUS: '23',
+    });
     expect(execution.invocation.exitCode).toBe(23);
     expect(await execution.calls.text()).toContain(
       `ci-run-runtime.ts ${partition} ${h.base} ${h.merge} . affected`,

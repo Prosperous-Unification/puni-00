@@ -12,3 +12,11 @@
 - [x] 7. Configure closed continuation leaf/runtime mapping and separate-runner matrix; observe independent omission RED/restored GREEN for new file, ignore, target, mapping and matrix boundaries.
 - [x] 8. Finish scoped static/document validation and freeze exact source for independent review, preserving the known intermittent baseline control limitation.
 - [x] 9. Fresh exact-source hosted core and continuation jobs plus required aggregate finish successfully before claiming this observed CI deadline corrected (Root owns publication and CI).
+
+## Observed remainder capacity and source owner follow-up
+
+- [x] 10. Preserve completed B297 artifact and measured whole-owner timings; establish genuine tiny-runner source-leaf RED then minimal canonical union GREEN.
+- [x] 11. Add exact six-parent source leaf and rest exclusions, existing matrix member, source-only pinned Node tooling and production dispatch; observe bounded ordinary selection/refusal consumers.
+- [x] 12. Review and execute exact new finite proof recipes with original custody and exact source restoration; add factual adjacent evidence only after actual review.
+- [x] 13. Complete scoped source/static/OpenSpec verification and independent review before Root checkpoint/publication.
+- [ ] 14. Require fresh exact-head hosted source/rest jobs and required aggregate success before accepting current capacity.
