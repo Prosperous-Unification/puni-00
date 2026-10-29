@@ -326,9 +326,11 @@
 
 ## 7. REST stops being an agent surface (gated: claire fleets on MCP, observed on dev)
 
-- [ ] 7.0 Migrate the raw-key `/api` suites: `swarm-end-to-end.db.test.ts`,
+- [x] 7.0 Migrate the raw-key `/api` suites: `swarm-end-to-end.db.test.ts`,
       `machine-credential.controller.db.test.ts`, the compute-provider tests, and
       `dev/activated-organization-server.ts` with its `local-dev.md` section.
+      (verify.md slice 16: what moved, what is marked "removed by 7.1 (M9)", and the other
+      raw-key suites 7.1 must still sweep.)
 - [ ] 7.1 and 7.2 ship in one PR, with three parts:
   - M9's refusal;
   - Dash's `report-capacity.ts` as an MCP client;
