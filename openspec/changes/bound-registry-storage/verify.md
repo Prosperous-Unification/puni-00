@@ -2805,3 +2805,108 @@ Closure `/tmp/task8-parent-host63-closure.json` (`23f705fb`) pins raw stdout
 `51d22165` and stderr `4bf595cd`. HOST63 is closed as failed, its source freeze is
 released, and no production safeguard was activated. Full Task8 review, the
 remaining scenarios, backup budgeting, alert adoption and exact-SHA gate remain open.
+
+### Selected-request correlation: observe at allocation, retain across later revocations
+
+Source tracing connects every fenced `persistJournal` call to `permit.revoke`,
+which generates a fresh readonly-request UUID. A new controller regression
+reproduces HOST63's combined refusal by returning a correctly bound selected-stop
+receipt, then advancing the live request as later maintenance would. It fails
+before implementation. A second regression observes the original callback never
+capturing a selected snapshot, using the actual `createWritePermit` revocation
+implementation and real local files. A third observes a modeled receipt accepted
+without an independent selected callback. All three are genuine test REDs. The
+third wrapper's overly specific wording sentinel failed after persisting the
+correct failed-test receipt; the receipt was separately audited rather than
+misclassified as a parser or runtime failure.
+
+The controller now independently reads the bounded request inside the selected
+allocation callback before invoking the ACK subprocess, with cancellation checks
+before and after the read. Only a successful probe publishes that captured value.
+It compares the returned receipt's PID/start, instance, request hash and freshness
+against this snapshot. It no longer rereads a future request and treats it as the
+earlier allocation witness. The stop coordinator still independently validates
+its own current request, instance, probe hash and exact writer terminal identity;
+none of those checks was removed. Missing selected capture remains a refusal.
+
+Sixty-one controller/callback cases pass with 485 assertions. The affected suite
+passes 171 tests/1117 assertions. After correcting a test-only optional AST argument
+access from indexed syntax to `.at(1)`, its six callback cases pass with 46 assertions;
+scoped lint and spec typecheck pass, and the library typecheck passes. The initial
+unnecessary-condition lint failure is retained. The local coupled test uses actual
+revocation writes and real files, with request-path mapping, unreadability, abort
+placement and ACK subprocess effects modeled; it does not prove native UID59001
+record metadata or native process lifecycle.
+
+Seven exact counterfactuals observe rejection after a late live-file reread, loss
+of the captured snapshot, an extra read before pre-existing cancellation, acceptance
+after cancellation during the read, false acceptance of modeled unreadability when
+the independent read is replaced, and acceptance of a mismatched receipt hash.
+Removing only the missing-capture clause instead changes the refusal to TypeError;
+that is diagnostic-only evidence, not independent safety enforcement. The missing
+real-file case under read substitution changes failure identity to the probe read;
+no missing-file false-success claim is made. Proof comments state those limits.
+
+Cover `/tmp/task8-request-correlation-covering.json` (`a9fb5c4c`) binds 63 artifacts.
+Final controller is `fff864f8`; complete whitespace-only Bun runtime emission matches
+before/after proof comments with three changed-runtime controls. The counterfactuals
+pin their exact pre-accessor-fix test snapshot. A new native run is still required.
+The HOST64 builder now constructs filenames from one version variable and refuses
+all existing output names before building, preventing the prior filename collision.
+
+### HOST64: full-volume no-ACK backup and staged fenced recovery pass
+
+The new packet binds manifest `a1e7ccef`, driver `84a8e24f`, archive `c654aeca`,
+normal bundle `3b63368e` and unchanged API bundle `29fb02f9`. Its only runtime
+source change from HOST63 is selected-request correlation. All 111 sources, 274
+actual build inputs, configuration and private archives were frozen before
+execution. New normal and independent rebuilds matched exactly. All output names
+were required to be fresh before building, and previous HOST63 artifacts remained
+unchanged. The inner/workload are byte-identical to HOST63; outer runtime syntax
+differs only in expected payload hashes, with the same coordinator helper and
+version/manifest-only driver derivation.
+
+The single run exited0 in 118.72 seconds without timeout and with empty stderr.
+Fresh native reads matched all three installed aliases to `3b63368e`. The actual
+UID59001 allocation probe failed its current-request ACK write with ENOSPC. Its
+receipt names writer4275/start344924300, terminal143/SIGTERM and absent group.
+The filler remained 105889792 bytes on the separate bounded registry filesystem,
+outside the captured contents. A new matching verified backup was retained, with
+snapshot `34a9e26c` and offline-journal hash `ba4a0054`. A separate explicit
+pre-serving refusal preserved the failure fence after that backup.
+
+The same-operation recovery then exited0. Nineteen backup and thirteen recovery
+HTTP GETs completed with status200, no pending requests and no truncation. Before
+the positive controller receipt, actual postconditions verified four distinct
+filesystems, matching backup/handoff identities, unchanged current obligations,
+same canonical lock, the restored offline-journal hash, protected revision bytes
+in both old and restored stores, retained filler, and staged fenced recovery.
+Serving activation remains pending. Kubernetes termination, readers and provider
+admission are synthetic; authority, Distribution, filesystem allocation, backup
+and recovery are actual. This does not establish startup-shell ACK behavior,
+elapsed grace timing, actual upload/inode exhaustion, ordinary CLI adoption,
+production activation, monitoring or the full Task8/final gate.
+
+All 229 periodic host-root/cgroup samples and the final view stayed unchanged.
+Native teardown observed terminal workload, no remaining namespace processes,
+normal unmount order, four detached loops and removed fixture. Both distinct
+cleanup audits exited0 with empty stderr: full-process census stdout `beeedf2e`,
+independent observer stdout `d1a24f98`. They verified exact root, PID/start pairs,
+namespaces, lock, descriptor, mount and backing references absent, unchanged host
+identity and 113747406848 bytes root reserve. Every source, input, configuration,
+payload and private archive was rechecked after both audits. Closure
+`/tmp/task8-parent-host64-closure.json` (`60990f60`) pins raw stdout `240b325b`
+and empty stderr. HOST64 is closed for this successful scope; its source freeze
+is released. It will not be replayed merely for observation.
+
+### Fresh remaining runtime lint inventory
+
+A read-only ESLint inventory covered 95 modified/untracked non-test runtime files
+under `tools/tool-fleet/src`, yielding 313 errors, zero warnings, across 57 files.
+The command, source pins and JSON output are preserved under
+`/tmp/task8-runtime-lint-inventory64.*` (`3dd55d2d` exit-receipt hash). This replaces
+the incomplete historical debt count; it is not a passing full gate. The native
+host's 26 errors remain part of this inventory. Required lint remediation,
+remaining exhaustion/CLI scenarios, semantic R5 reconciliation, formal Task8
+review, backup accounting, alert adoption and exact-SHA activation checks remain
+open. No production safeguards were activated by these disposable rehearsals.
