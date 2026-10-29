@@ -1943,3 +1943,97 @@ HTTP ports; the selector case also uses owned local files. They prove no native
 GC or restic kill. Final comment/source transfer, current checks and the next
 frozen host packet remain pending. HOST56 is closed and will not be replayed.
 Task4.2, Tasks4.3/5.1/5.2 and production activation remain incomplete.
+
+## Guardian final-schema dependency
+
+The parent checked another previously unbound production dependency in isolated
+copies of current `registry-backup-attempt.ts` (SHA256
+`3dc3be0581bc9e7617eed1327936227008e61cd05cf3598f6c8218c214238a8b`).
+Only the ArkType import was relocated for execution. Seven tests/eight assertions
+passed: one stable valid identity and six malformed cases covering zero,
+leading-zero or nondecimal start ticks, a zero PID namespace, malformed boot ID
+and malformed machine ID. Removing only the final
+`RegistryBackupGuardian.assert` call caused all six invalid promises to resolve,
+producing one pass/six assertion failures. Restoring the exact normal copy passed
+all seven tests again.
+
+Receipt `/tmp/task8-parent-guardian-schema-receipt.json`, SHA256
+`e922d58fb465abd6690f9a9cd873a99c2dda774998c5c9344c6936444e0b48f3`,
+binds eleven source/test/raw-output artifacts. Parent inspected every raw failure,
+normal/restored summaries, all pins and the exact sole schema-call delta. All
+identity reads are modeled; no kernel, root-peer, IPC or caller-omission proof is
+inferred. Shared runtime source was unchanged. Repository test integration and
+precise adjacent Proof annotation remain pending alongside the earlier guardian
+input/race integrations; this is one dependency with six subcases, not six
+independent guard removals.
+
+## HOST57 actual GC interruption and staged recovery
+
+The exact frozen GC packet ran once on h4claw, exited zero without timeout in
+138.5659 seconds, and preserved its raw stdout at
+`/tmp/task8-host-namespace-57.stdout.log` (SHA256
+`04512db5416590929a34765ca21bb1563f9c0ffca4efe77f7d2646101ca88cc7`).
+Normal manifest deletion returned202. The actual admitted GC child, PID/group9305
+with start ticks342443995, exited137/SIGKILL; both process and group were absent
+before recovery. Collection entered but did not complete. The failed operation
+remained fenced with its matching backup. Same-operation recovery completed with
+twenty HTTP200 verification reads and a staged fenced handoff, preserving current
+obligations, the matching offline journal, canonical lock and old damaged store.
+No tag fault or unsafe GC flag was used. The failure frame27840:22 maps to the
+generic authenticated helper-refusal throw; it is not independent kill evidence.
+No partial GC progress before interruption is claimed.
+
+The worker's all-process cleanup audit and the parent's separate read-only audit
+both returned zero with empty stderr. Exact fixture, backing associations, owned
+namespaces/descriptors/mounts, outside lock processes and owned lock records were
+absent. The parent audit covers its observer mount namespace; the worker also
+checks all process mount views. The run recorded269 successful periodic host mount/cgroup checks,
+cgroup-before-proc and root-last unmounts, four detached loops and lock release. Fresh checks matched102 executed source files,264 build inputs and nine
+payloads; both independent102-file source snapshots were preserved.
+
+Immutable closure `/tmp/task8-parent-host57-closure.json`, SHA256
+`5493947e3f7032fb34d84b92e98f15d160829269a16b9fc056e27ef4ba210ef5`,
+binds21 artifacts and the original worker receipt. This proves the declared
+private four-filesystem interruption/recovery slice only. Kubernetes, readers and
+provider admission remain modeled; the retirement clock advances eight days.
+Serving activation, ordinary CLI/permit continuation, physical ENOSPC, remaining
+failure proofs, lint/gates/review and Tasks4.3/5.1/5.2 remain incomplete. The separate
+restore-interruption packet is released only after this cleanup closure, with all
+source/payload/input bytes still frozen.
+
+## HOST58 actual restore interruption and recovery retry
+
+The frozen restore packet ran once, exited zero without timeout in167.3272seconds,
+and preserved raw stdout at `/tmp/task8-host-namespace-58.stdout.log` (SHA256
+`291b0c542219d66c905076c075b94cd2d64b442106f9dc6d02c49bef608e34a6`).
+Its explicitly declared two-fault setup reused tag-cleanup500 solely to enter
+fenced recovery. The strict dangling-tag census refused before any API event.
+The first recovery attempt then failed after actual restic child14192, start
+ticks342501165, exited137/SIGKILL in worker14126's process group. Consumed state,
+terminal log and the current bounded diagnostic matched that worker; child,
+worker and group were absent before retry. The failed restore made no verification
+HTTP requests. A fresh worker retried the same operation, completed recovery and
+made twenty successful verification reads while retaining the fenced handoff.
+There were two restore entries, one completion and one lock-reconciliation
+completion. No partial extraction is claimed, and the tag setup is not recounted
+as new independent coverage.
+
+The frozen backup-worker frame20766:22 maps to the actual nonzero backup-member
+exit refusal; census frame23514:24 maps to the missing manifest revision. The
+owner's generic helper-refusal frame27840:22 alone does not prove interruption.
+Current obligations, matching offline journal, canonical lock and old damaged
+store remained protected. The run recorded326 successful periodic host
+mount/cgroup checks, normal cgroup-before-proc/root-last unmounts, four detached
+loops and lock release. Both independent cleanup audits returned zero with empty
+stderr and found the exact owned resources absent.
+
+Immutable closure `/tmp/task8-parent-host58-closure.json`, SHA256
+`fb66fee9933ffb8fc81435f634915df60939ab3c64cb5cc732e16286a595d8ba`,
+binds twenty artifacts and the original worker receipt. Fresh102-source,
+264-input and nine-payload checks matched. The worker's102-file archive and the
+parent's already preserved HOST57 archive both match the byte-identical HOST58
+source map; no duplicate parent HOST58 archive is claimed. Source freeze was
+released only after both audits and this preservation check. No replay or next
+native run was released. The private fixture retains modeled Kubernetes, readers
+and provider admission plus its advanced retirement clock. Full Task4.2 and all
+remaining budget, monitoring, adoption, validation and review work remain open.
