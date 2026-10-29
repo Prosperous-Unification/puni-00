@@ -406,8 +406,8 @@ planRecoveryObservation(
 
 `RecoveryObservation` preserves its full accepted/generation_conflict discriminant, exact retained fence, exchange/body values and observedRevision. One observation per fence is immutable; fresh adds one journal revision, duplicate adds zero. `AcceptedRecoveryFence` is the retained fence plus its actual accepted observation, never an arbitrary authority certificate.
 
-- [ ] **RED — correspondence and original retained value.** Test accepted and generation_conflict observations with exact fence_reply context, recovery/ordinal/requestDigest/stagedRevision and body reference. Verify accepted authority generation equals expected+1 (null→1), owner and ledger/scope match canonical request and full supplied fence equals retained fence. Reject future/foreign/missing staged fence, changed observation under same ordinal, wrong guard kind or stale fresh revision. Return original retained observation on identical replay even under a later legal resolver epoch.
-- [ ] **Add this executable shared-contract assertion** with a successfully staged `fence`, actual verified `reply`, and current `guard`:
+- [x] **RED — correspondence and original retained value.** Test accepted and generation_conflict observations with exact fence_reply context, recovery/ordinal/requestDigest/stagedRevision and body reference. Verify accepted authority generation equals expected+1 (null→1), owner and ledger/scope match canonical request and full supplied fence equals retained fence. Reject future/foreign/missing staged fence, changed observation under same ordinal, wrong guard kind or stale fresh revision. Return original retained observation on identical replay even under a later legal resolver epoch.
+- [x] **Add this executable shared-contract assertion** with a successfully staged `fence`, actual verified `reply`, and current `guard`:
 
 ```ts
 const call: RecoveryCall<RecoveryFenceReplyInput> = {
@@ -429,11 +429,13 @@ expect(
 
 Derive `reply` by retaining a real response and using Task1 reader, not casting a partial receipt. Protocol simulations are allowed in shared storage contracts; real receiver causality is separately required in Task7.
 
-- [ ] **Run RED:** `bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-dash/cli/src/runs/recovery.test.ts ./apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/recovery.db.test.ts ./apps/twilight-structure/twilight-dash/cli/src/runs/recovery-history.test.ts --test-name-pattern='recovery observation' --timeout=60000`.
-- [ ] **GREEN — apply complete observation.** Implement pure structural/value comparisons and direct independent provider persistence. Retain complete typed exchange values with references; strict synchronous row decoding must reject missing fields. Reopen audits use the same complete recovery catalog and count rules. Verified history rereads the actual envelope/body bytes, including old observations after a later accepted fence supersedes them.
-- [ ] **R5:** Bypass only new retained-fence equality, fence_reply context/body-reference correlation or exact increment validation and observe an invalid public observation admission. Rewrite coherent stored state/receipt values with unchanged refs so raw structural audit succeeds but verified read rejects; bypassing the new verification delegation must expose the forged value. Test missing and unreadable historical bytes independently.
-- [ ] **Validation:** Run focused tests GREEN, complete recovery contracts, typecheck and observation closed/queued/reopen coverage.
-- [ ] **Commit:** `git commit -m "feat(twilight-dash): retain verified recovery observations"`.
+- [x] **Run RED:** `bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-dash/cli/src/runs/recovery.test.ts ./apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/recovery.db.test.ts ./apps/twilight-structure/twilight-dash/cli/src/runs/recovery-history.test.ts --test-name-pattern='recovery observation' --timeout=60000`.
+- [x] **GREEN — apply complete observation.** Implement pure structural/value comparisons and direct independent provider persistence. Retain complete typed exchange values with references; strict synchronous row decoding must reject missing fields. Reopen audits use the same complete recovery catalog and count rules. Verified history rereads the actual envelope/body bytes, including old observations after a later accepted fence supersedes them.
+- [x] **R5:** Bypass only new retained-fence equality, fence_reply context/body-reference correlation or exact increment validation and observe an invalid public observation admission. Rewrite coherent stored state/receipt values with unchanged refs so raw structural audit succeeds but verified read rejects; bypassing the new verification delegation must expose the forged value. Test missing and unreadable historical bytes independently.
+- [x] **Validation:** Run focused tests GREEN, complete recovery contracts, typecheck and observation closed/queued/reopen coverage.
+- [x] **Commit:** `git commit -m "feat(twilight-dash): retain verified recovery observations"`.
+
+**Task5 completion boundary:** Implemented and locally verified in `c2ba5d9f97a2ca5701f5ebe704b56706f2a49233`; the scoped workflow-record follow-up and exact commands/proofs are in [Task5 verification](recovery-verify.md#task5-immutable-verified-fence-observations-2026-10-29). Existing Tasks1–2 observation verification was reused unchanged; its omission proof is inherited-owner coverage, not new validation or transport authenticity. Independent task review remains pending. Task6, R2 parent acceptance and architectural main merge remain open.
 
 ### Task 6: Plan and publish closure atomically from one valid predecessor
 
