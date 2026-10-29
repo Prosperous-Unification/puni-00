@@ -2181,3 +2181,89 @@ Before this PID addendum, strict change validation (`0ed8e4`) reported one valid
 change and no issues. Earlier scoped Prettier (`34a765`) and whitespace
 check (`3eba04`) succeeded. These document checks do not establish runtime or
 whole-branch completion.
+
+### Selected stop coordinator and shared record reads
+
+`/tmp/task8-stop-covering.json` (`baa65c39`) binds 134 artifacts, independently
+checked by `9f8736` and `567c62`. Parent read the complete coordinator and tests,
+reconstructed all twelve original source deltas and the two corrected model
+followups, and inspected the raw assertion outcomes (`37a0aa`). The final
+PID/start-only terminal delta was separately reconstructed and reviewed
+(`57a03a`, `567c62`). A fresh independent run of immutable final copies (`8c6fc7`)
+passed 22 tests and 74 assertions. Stable library/spec types and scoped lint
+returned zero with empty diagnostics; earlier checks overlapping a mutation window
+are preserved as unaccepted provenance. The exported return type's local interface
+caused TS4060 and was moved to module scope without changing runtime behavior.
+
+Parent checked the complete emitted runtime syntax after removing only the
+approved duplicate group-absence predicate and erasing types (`c8d2cc`); three
+runtime comparator controls detect changed allocation classification, consumed
+state and PID equality. The final test equals its consolidated tested baseline.
+The actual writer capability retains group-absence verification; its deliberately
+false internal-return test and duplicate coordinator predicate are superseded.
+Old or malformed request omissions demonstrate forbidden reads/live/probe effects
+before later refusal, while error aggregation demonstrates original-cause
+retention. Two initially masked model subcases were corrected and only their
+specific deltas repeated. The accepted parent receipt is
+`/tmp/task8-parent-stop-review.json` (`61e7df88`). This establishes same-process
+coordination with modeled writer/probe/request observations, without Unix, API,
+physical-pressure or complete R5 coverage claims.
+
+The shared bounded record reader was mechanically extracted from the ACK helper.
+`/tmp/task8-record-covering.json` (`b40371f9`, 25 pins checked by `9a0692`) preserves
+the exact descriptor body, including NONBLOCK/NOFOLLOW, ownership, metadata, size,
+read and required-close checks. ACK topology admission stays before its calls;
+only the shared name and already-validated fixed literal paths change. Tests
+continue to execute the actual shared body. Parent ran the affected immutable
+suite (`13cb95`: 37 tests, 108 assertions), checked complete reader/caller/test
+syntax transfers with three runtime controls (`6e3da1`), and inspected zero/empty
+library/spec/lint receipts (`1f4d94`). Parent acceptance is
+`/tmp/task8-parent-record-review.json` (`575f1d01`). The earlier thirteen mutation
+proofs and FIFO followup transfer through exact body identity; they were not
+replayed or counted as new proofs. Unix transport admission and native pressure
+integration remain pending.
+
+A separate owned UID1000 Unix-socket primitive probe was inspected in `e3274a`.
+Its source is `/tmp/task8-pressure-socket-probe.ts` (`154bd6ff`), with successful
+receipt `/tmp/task8-pressure-socket-allowed.exit.json` and raw pins checked in
+`6122b5`. Actual output reports socket mode 0600, a completed local request,
+resolved `stop(true)`, socket removal and absent owned directory. Initial sandbox
+listen EPERM is preserved as an environment refusal, followed by the authorized
+successful component probe. This confirms the pinned Bun primitive only. It does
+not establish root-only adapter admission, UID59001 exclusion, replacement-safe
+unlink, API binding, or native host lifecycle behavior.
+
+### Private socket adapter prerequisites
+
+The adapter's first immutable body exposed a failed-arm state bug: invalid arming
+threw after publishing a selected wrapper whose coordinator was still in bootstrap.
+Parent reproduced an HTTP 200 bootstrap response after this failure (`c8cedf`),
+using the actual adapter, real coordinator/parser and modeled native ports. Exact
+executed inputs are pinned by
+`/tmp/task8-parent-socket-arm-actual-inputs.json` (`cc14208b`). The added repository
+regression failed with expected 500/actual 200, then passed after a narrow fix that
+retains the writer, records/aborts the arm failure, and refuses subsequent handlers
+before parsing. Both raw hashes were checked in `4dfa6d`.
+
+The final covering receipt is `/tmp/task8-pressure-socket-covering.json`
+(`4ea63c4f`, 103 pins independently checked by `1ca204` and `104125`). Parent read
+the complete normal source/tests, independently ran 33 cases with 322 assertions
+(`feadee`), and reconstructed nineteen exact source deltas with all raw pins
+(`05c6c8`). Eighteen produce assertion losses; skipping server stop instead makes a
+required successful cleanup refuse the remaining socket. Lookup EACCES reaches
+forbidden server creation before a later refusal. Cause cases retain original
+failures without establishing physical cleanup. Deadline tests schedule the
+10000 ms callback at 5 ms with an independent 50 ms rescue, rather than proving
+elapsed host timing or relying on runner timeout.
+
+Final helper/test snapshots are `3407448e` / `6f70efd6`. Parent checked their full
+diffs and independently compared complete ordered emitted syntax (`6cb327`),
+including three runtime comparator negatives. Source changes only accurate proof
+comments; test changes are import order, a void callback block and erased types.
+Final library/spec/scoped lint receipts are zero with empty diagnostics (`ac8b50`),
+and the final run reports 33 tests/322 assertions (`104125`). Earlier spec and lint
+failures remain preserved. Parent acceptance is
+`/tmp/task8-parent-socket-review.json` (`34999d8f`). Root/socket/metadata/child ports
+remain modeled. Actual UID0 admission, UID59001 exclusion, fixed ACK-child
+termination, parsed API binding and native physical pressure still require the
+subsequent integration and host rehearsal. No HOST59 launch has been released.
