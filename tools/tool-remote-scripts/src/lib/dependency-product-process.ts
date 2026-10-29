@@ -296,7 +296,8 @@ async function verifySessionCleared(
     throw new Error('product observer group remains');
 }
 
-async function observeInner(
+/** Collects both bounded raw inner passes and verifies the exact helper group is gone; throws unless transport and cleanup are proved. */
+export async function observeInner(
   context: FinalizedParticipantRestorationContext,
   id: string,
   roster: readonly HostMember[],
@@ -320,7 +321,8 @@ async function observeInner(
   return receipt.frames;
 }
 
-function freezeDeep<Value>(value: Value): DeepReadonly<Value> {
+/** Recursively freezes a locally constructed evidence tree after collection. */
+export function freezeDeep<Value>(value: Value): DeepReadonly<Value> {
   if (value !== null && typeof value === 'object') {
     for (const member of Object.values(value)) freezeDeep(member);
     Object.freeze(value);
@@ -329,7 +331,8 @@ function freezeDeep<Value>(value: Value): DeepReadonly<Value> {
   return value as DeepReadonly<Value>;
 }
 
-function checkDeadline(deadline: number, reserve = 0): void {
+/** Requires a finite live operation deadline and its existing bounded cleanup reserve. */
+export function checkDeadline(deadline: number, reserve = 0): void {
   if (
     !Number.isFinite(deadline) ||
     deadline - performance.now() <= reserve ||
@@ -380,7 +383,8 @@ async function observeHostMember(
   };
 }
 
-async function inspectRuntime(
+/** Reads one exact selected running container through bounded metadata transport; throws on identity loss. */
+export async function inspectRuntime(
   context: FinalizedParticipantRestorationContext,
   id: string,
 ): Promise<ParticipantSnapshot> {
@@ -397,7 +401,8 @@ async function inspectRuntime(
   return runtime;
 }
 
-async function observeRoster(
+/** Collects the complete bounded host PID roster and joins root, UID mappings and stable proc identities. */
+export async function observeRoster(
   context: FinalizedParticipantRestorationContext,
   id: string,
   rootPid: number,

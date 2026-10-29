@@ -1,0 +1,37 @@
+
+test/source-role-process-model-child.test.ts:
+source observer RED boundary: original consumed context and original running-tree expectation reached
+source context-refusal consumer reached
+source original-context refusal observed before collection
+source opening-monitor consumer reached
+source opening-monitor refusal observed before collection
+source retained-binding refusal: pid-reuse
+121 |             process.env['SOURCE_ROLE_PROOF'] !== fault
+122 |           )
+123 |             continue;
+124 |           sourceFault.name = fault;
+125 |           console.error(`source retained-binding refusal: ${fault}`);
+126 |           await rejects(observer.observeSelectedSourceRoles(context), /source process/);
+                      ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: /source process/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-role-process.model.ts:126:17
+      at acquire (unknown:1:1)
+      at unknown:1:1
+      at acquireLock (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source observer consumes the original running source through raw process transport [52875.50ms]
+
+ 0 pass
+ 1 filtered out
+ 1 fail
+ 135 expect() calls
+Ran 1 test across 1 file. [52.92s]

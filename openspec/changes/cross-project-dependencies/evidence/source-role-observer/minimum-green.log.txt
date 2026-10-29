@@ -1,0 +1,18 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-remote-scripts/src/lib/source-role-process.test.ts:
+
+test/source-role-process-model-child.test.ts:
+source observer RED boundary: original consumed context and original running-tree expectation reached
+(pass) source observer consumes the original running source through raw process transport [60260.72ms]
+
+ 1 pass
+ 0 fail
+ 133 expect() calls
+Ran 1 test across 1 file. [60.31s]
+(pass) source role observer runs its isolated raw-byte consumer suite [60336.53ms]
+
+ 1 pass
+ 0 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [60.36s]

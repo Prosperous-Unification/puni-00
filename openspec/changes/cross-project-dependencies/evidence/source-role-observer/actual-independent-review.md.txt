@@ -1,0 +1,32 @@
+# Source observer twelve pairs — independent actual evidence acceptance
+
+Decision: PASS for the twelve finite guard witnesses on the frozen approved baseline. This accepts actual evidence, not final post-comment source/static readiness, the source helper runtime contract, optional profile branches or native whole-source acceptance.
+
+Frozen evidence root `/tmp/puni-source-observer-proofs-auznn7kj`; `actual-freeze.sha256` SHA256 `2c23a11563ada74953ac7c25eacad7426b59fb33dffee3c9e3059b0875b0069f`. Independently hashed and verified all94 listed files. Approved packet remains `47a73fd65bcee8d3f6a694518104b8fc65f90e6f004eceae8c8689419c59b397`; reviewed driver/runner/recipe pins are preserved. All15 baseline source/dependency/Bun bodies exactly match the packet. Root/owner report original tool session23211 joined exit0; the transcript is consistent, but its final completion sentence is not used as proof.
+
+Independently cross-checked all24 observation records against their exclusive original custody JSON and actual stdout/stderr bytes, lengths and hashes. Each omitted child exited1, each restored child exited0, all child signals null, all exact runners exited0. Read all twelve omitted stacks and twelve restored transcripts in full. Every selected test has one filtered companion; no timeout or setup/import failure supplied the intended witness. Restored exact selected tests passed; omitted selected success markers are absent and intended reached-phase markers precede the assertion failures.
+
+| Guard group | Actual omitted consumer | Restored evidence |
+| --- | --- | --- |
+| Original context | model.ts54: copied context caused two collector calls instead of zero | same selected case passed136 assertions |
+| Opening source monitor | model.ts62: incompatible generated source input caused two collector calls instead of zero | passed136 |
+| Closing source monitor | model.ts93: closing-output drift unexpectedly resolved | passed136; first candidate remains pinned after closing refusal also reached |
+| Host/inner join | model.ts93: raw UID mismatch unexpectedly resolved | passed136 |
+| Role/listener join | model.ts93: misassigned role listener unexpectedly resolved | passed136 |
+| Whole roster | model.ts93: extra unclassified member unexpectedly resolved | passed136 |
+| Inner readback | model.ts93: closing listener drift unexpectedly resolved | passed136 |
+| Host readback | model.ts93: closing host identity drift unexpectedly resolved | passed136 |
+| Runtime readback | model.ts93: closing runtime identity drift unexpectedly resolved | passed136 |
+| First retained binding | model.ts126: PID reuse after original successful observation unexpectedly resolved | passed137 |
+| Terminal cleanup refusal | model.ts183: second observation unexpectedly resolved after actual cleanup-receipt failure | passed130 |
+| Role ancestry | model.ts92: coherent in-roster wrong parent unexpectedly resolved instead of UnsupportedSourceProfile | passed136 |
+
+The first two witnesses establish precollection ordering/no-effects, not successful unsafe readiness. The terminal witness is specifically the second call after the first refusal and assertions for two real peer settlements and one real transport failure; it is not an incidental initial cleanup failure. Ancestry uses consistent top/host/inner parent values and reaches the named source-profile boundary. Grouped joins/readbacks establish the tested fault, not every individual field or every optional process shape. The first-binding omission uses PID reuse; separate ordinary closing-output/object-replacement evidence establishes retention of the first validated candidate before a successful return, not a second independent omission claim.
+
+All observed child durations fit the unchanged300000ms selected-case budget: omitted45.96–128.03 seconds; restored51.96–104.28 seconds. Custody is original direct child exit plus both original stream EOF readers, as the approved runner implements. The low transport fixture checks its original peer death on success/failure and the actual cleanup-byte corruption reaches runDockerExec. These are finite modeled transport facts, not universal process-group/native filesystem cleanup. No independent wall timer or native container census is inferred.
+
+The approved driver restores exact saved bytes only after its original custody check, rechecks all controls and runs the same restored consumer before the next fault. Frozen baseline controls and final owner readback support restoration at the completed epoch. At this later review, current process/profile/wrapper files differ from baseline in the owner's announced post-proof comments and mechanical test typing work; this report intentionally audits frozen bytes and does not claim those current bodies were the omitted/restored epoch. Final inversion/source/static review remains required.
+
+The current source observer still reuses the product BusyBox/root0 inner helper while modeled source applications areUID1000. These twelve witnesses do not establish actual installed BusyBox/ip availability, root-to-user proc permissions or future source-private helper behavior. Separate decision `6ccb88e7bd2eb1aa36461b32212e0282ac689d915d6e2c22bb0156bb8cfa08e3` defines the next fixed source-runtime helper slice. No helper implementation, optional Init/shell/watch/bunx native support, actual source startup/HTTP readiness, controller release, exposure, full restoration, MAIN adoption or deployment is accepted here.
+
+No runtime, target import, test, compiler, source edit or Git mutation was performed by this reviewer. No repeat pair or broader campaign is requested by this audit.

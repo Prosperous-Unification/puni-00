@@ -1,0 +1,1 @@
+{"childPid":1484278,"childExit":1,"childSignal":null,"stdoutBytes":28,"stderrBytes":1675,"stdoutSha256":"bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47","stderrSha256":"2f8c5174f98956c776af5a7d0611d523cd657ff8651a30c8054354c259a0ddc7"}

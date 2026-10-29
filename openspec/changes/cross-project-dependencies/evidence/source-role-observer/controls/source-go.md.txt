@@ -1,0 +1,18 @@
+# Source observer twelve-pair protocol: SOURCE GO
+
+2026-10-29, independent read-only review. Supersedes the execution HOLD in 7f799033059ef4425e07d9fff7d094becee3237140f2afeb5cdba228476bfe05 for the exact packet below only. No omission has yet been observed by this reviewer. Actual final proof review remains required.
+
+- Packet /tmp/puni-source-observer-proofs-auznn7kj/packet.json: 47a73fd65bcee8d3f6a694518104b8fc65f90e6f004eceae8c8689419c59b397.
+- Driver /tmp/puni-source-observer-proof-driver.py: c6e832d97ecb2d57c8853aaf3fa80ca5b2b47154854b139c33a97bcb6a3bb414.
+- Runner /tmp/puni-source-observer-run-case.ts: 62d60f4b88c2d7eac45c21df73116b86494e306c198ec45d1770f92299fd534f.
+- Recipes /tmp/puni-source-observer-proof-recipes.json: 3972b825d49d064acee248329a87c3d18975c6b1cfe0a460fdbcc27d0fded8ef.
+
+Independently verified fifteen current/saved source-dependency/version-lock body pins, both control pins, all twelve unique substitution anchors, and all72 future omitted/restored output/custody paths absent. HEAD a394bae81f22094f2e4581f5e2ca8fc4e0604333 and integration/dependencies-source-observer-20261029 match. This is bounded source custody, not an installed dependency content census.
+
+The runner rejects unknown selectors/phases/receipt paths before creating a peer. Omitted acceptance requires selected BEGIN, selected failed test,0pass/1fail/1filtered, exact expected assertion class, and absence of selected observed-success marker. Restored acceptance requires selected success name,1pass/0fail/1filtered and observed marker. Original child exit and both original EOF readers must settle before exclusive custody publication; signal is refused. The outer driver checks original output hashes and child outcome, pins and same-case restoration; it restores exact saved bytes in finally only after new custody is present. It now refuses any preexisting future output/custody path before any mutation, preventing stale receipts from authorizing restoration. Unknown original settlement stops with peer/baseline/fault retained; no dependent run or erase is authorized. Each actual raw fault consumer still requires reviewer audit; the driver's completion sentence is not independent actual acceptance.
+
+The coherent in-roster role-parent fault changes top/host/inner parent evidence and reaches UnsupportedSourceProfile. Actual ancestry ordinary1/136,1filtered,0fail,53.13s is accepted as its preflight; combined output partitions exactly match custody stdout/stderr hashes and byte counts. Existing outside-parent case remains old roster-escape coverage. This corrects the earlier review's mistaken top/stat PPID-join explanation.
+
+GO for exactly the twelve finite omitted/restored pairs under existing300000ms child test and310000ms child signal bounds: original context, opening/closing source monitors, grouped host-inner join, role-listener join, whole-roster membership, inner/host/runtime readbacks, retained first binding, terminal cleanup and role ancestry. One mutation at a time; stop on any unexpected consumer, custody or restoration result. No new timeout, retry, old product/native/installed/transport campaign. Direct-child and known-peer scope only, no independent Python wall limit or universal process-group claim.
+
+The actual source observer's first validated candidate stays pinned even after a later closing refusal; returning frozen evidence grants no launch/readiness/activation authority. Optional Init/shell/watch/bunx modeled branch support remains explicitly unexercised by this selected shell-elided ordinary corpus and is separate final acceptance work. MAIN, deployment, native source topology and full restoration remain held/unproved. Reviewer ran no target program, test, compiler, script or mutation.

@@ -1,0 +1,16 @@
+
+test/source-role-process-model-child.test.ts:
+source observer RED boundary: original consumed context and original running-tree expectation reached
+source context-refusal consumer reached
+source original-context refusal observed before collection
+source opening-monitor consumer reached
+source opening-monitor refusal observed before collection
+source retained-binding refusal: pid-reuse
+source retained-binding refusal observed: pid-reuse
+(pass) source observer consumes the original running source through raw process transport [59628.05ms]
+
+ 1 pass
+ 1 filtered out
+ 0 fail
+ 137 expect() calls
+Ran 1 test across 1 file. [59.68s]

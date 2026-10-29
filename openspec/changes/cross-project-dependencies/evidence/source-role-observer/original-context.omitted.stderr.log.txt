@@ -1,0 +1,25 @@
+
+test/source-role-process-model-child.test.ts:
+source observer RED boundary: original consumed context and original running-tree expectation reached
+source context-refusal consumer reached
+49 |         console.error('source context-refusal consumer reached');
+50 |         await rejects(
+51 |           observer.observeSelectedSourceRoles({ ...context }),
+52 |           /source process observation refused/,
+53 |         );
+54 |         expect(sourceFault.execs).toBe(0);
+                                       ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 2
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-role-process.model.ts:54:35)
+      at async acquireLock (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source observer consumes the original running source through raw process transport [57712.16ms]
+
+ 0 pass
+ 1 filtered out
+ 1 fail
+ 128 expect() calls
+Ran 1 test across 1 file. [57.76s]

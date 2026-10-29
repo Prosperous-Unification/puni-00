@@ -1,0 +1,78 @@
+{
+  "originalFreezeSha256": "2c23a11563ada74953ac7c25eacad7426b59fb33dffee3c9e3059b0875b0069f",
+  "files": [
+    {
+      "path": "tools/tool-remote-scripts/src/lib/source-role-process.ts",
+      "baselineSha256": "44aa06d2592be6352d8fc05205fd65b847d075c7e91fd464681ce0a9a80a4de3",
+      "currentSha256": "8c938740ffa6c8e611d4ef0b1f29725bc4794e851b29f7d362f1c5411aab2743",
+      "inverses": [
+        {
+          "before": "  // Proof: omitting terminal refusal admitted a second observation after actual cleanup transport failure; the raw cleanup consumer missed its rejection, then passed after exact restoration.\n",
+          "after": ""
+        },
+        {
+          "before": "    // Proof: omitting this call dispatched two helpers for a copied context; the raw consumer expected zero and failed, then passed after exact restoration.\n",
+          "after": ""
+        },
+        {
+          "before": "    // Proof: omitting this call dispatched two helpers with corrupted generated OpenAPI; the opening-monitor consumer expected zero and failed, then passed after exact restoration.\n",
+          "after": ""
+        },
+        {
+          "before": "    // Proof: omitting this readback accepted a changed closing listener inode; the raw closing-listener consumer missed its rejection, then passed after exact restoration.\n",
+          "after": ""
+        },
+        {
+          "before": "    // Proof: omitting retained comparison rebound a reused application PID with a new start tick; the raw pid-reuse consumer missed its rejection, then passed after exact restoration.\n",
+          "after": ""
+        },
+        {
+          "before": "    // Proof: omitting this comparison accepted changed closing host start ticks; the raw closing-host consumer missed its rejection, then passed after exact restoration.\n",
+          "after": ""
+        },
+        {
+          "before": "    // Proof: omitting this transition check accepted changed closing StartedAt; the raw closing-runtime consumer missed its rejection, then passed after exact restoration.\n",
+          "after": ""
+        },
+        {
+          "before": "    // Proof: omitting this call accepted generated OpenAPI drift during collection; the raw closing-output consumer missed its rejection, then passed after exact restoration.\n",
+          "after": ""
+        }
+      ]
+    },
+    {
+      "path": "tools/tool-remote-scripts/src/lib/source-role-profile.ts",
+      "baselineSha256": "b679133420ab3cfdf98bbfdf0b8e6b8c8d90eb0ccaed0a3abc3e5480a055908b",
+      "currentSha256": "a8b1415b60da5377dbb79c0edd2152f8d86ec56dbdc1074db9aa4b8ed99cceeb",
+      "inverses": [
+        {
+          "before": "    // Proof: omitting this join admitted inner UID0 against the original UID1000 host; the raw uid consumer missed its rejection, then passed after exact restoration.\n",
+          "after": ""
+        },
+        {
+          "before": "    // Proof: replacing this owner join with the first candidate admitted swapped backend/gateway listener owners; the raw misassigned consumer missed its rejection, then passed after exact restoration.\n",
+          "after": ""
+        },
+        {
+          "before": "    // Proof: omitting this ancestry check admitted a backend parented by gateway in coherent top/host/inner receipts; the raw role-parent consumer missed UnsupportedSourceProfile, then passed after exact restoration.\n",
+          "after": ""
+        },
+        {
+          "before": "  // Proof: omitting full admission accepted an unsupported seventh process; the raw extra consumer missed its rejection, then passed after exact restoration.\n",
+          "after": ""
+        }
+      ]
+    },
+    {
+      "path": "tools/tool-remote-scripts/src/lib/source-role-process.test.ts",
+      "baselineSha256": "3de7795c91f4252fe707255900100ca01de8fe7a927a555b400986f1b0dc6bab",
+      "currentSha256": "7cdab41ca0de62a22ccdb73c37e4111773f7813eab3e7fd5c0b83a0768b2670d",
+      "inverses": [
+        {
+          "before": "    const failures: unknown[] = [];\n    for (const receipt of settled) {\n      if (receipt.status === 'rejected') {\n        const cause: unknown = receipt.reason;\n        failures.push(cause);\n      }\n    }\n",
+          "after": "    const failures = settled.flatMap((receipt) =>\n      receipt.status === 'rejected' ? [receipt.reason] : [],\n    );\n"
+        }
+      ]
+    }
+  ]
+}

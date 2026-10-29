@@ -1038,3 +1038,11 @@ The two completed custody rows above cover the independently accepted eight-comm
 - [x] Apply independently approved retained-lifecycle return correction; remove redundant interval-stage guard and duplicate step selection without new authority. Review SHA5579ee46 is retained with the bounded evidence.
 - [x] Run final owning compiler, scoped/configured lint, format and both owning test files once on corrected source: 109 pass/781 assertions. Preserve four accepted pre-refactor proof epochs distinctly in verify.md.
 - [ ] Complete exact corrected-source review seal, newer-main MCP preflight reconciliation and isolated host gate. Parent 10.1/10.2 and B2/B3 remain open.
+
+### Modeled whole-source role observer checkpoint (bounded part of10.2)
+
+- [x] Reach the missing observer assertion after genuine prepare/consume and the exact original source running-input expectation; implement the modeled raw receipt consumer with complete four-role source admission and immutable first-candidate binding.
+- [x] Exercise finite ordinary role/roster/identity/listener/closing/context/actual cleanup failures, watch approved production consumer guard faults and exact restorations, and record scoped owning compiler inclusion, graph-backed lint, formatting, OpenSpec and independent review in [verify-source-role-observer.md](verify-source-role-observer.md).
+
+Parent10.2 remains incomplete; source readiness/start, controller/exposure handoff,
+native acceptance and Kubernetes completion are not granted by this prerequisite.
