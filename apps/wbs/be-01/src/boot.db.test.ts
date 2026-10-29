@@ -964,7 +964,7 @@ describe('bootBe01', () => {
     expect(await providers.reports.readingsOf(['absent'])).toEqual(new Map());
   });
 
-  it("refuses a stranger issuer's JWT invalid_token once booted", async () => {
+  it("refuses a stranger issuer's JWT machine_bearer_not_accepted once booted", async () => {
     const dir = tempDir('wbs-trusted-issuer-token-boot-');
     const dbPath = join(dir, 'test.db');
     runMigrations(dbPath, FOLDER);
@@ -988,7 +988,7 @@ describe('bootBe01', () => {
       .setIssuer('https://stranger.example.test')
       .setExpirationTime('5m')
       .sign(privateKey);
-    expect(await auth.authenticateOrRefuse(token)).toBe('invalid_token');
+    expect(await auth.authenticateOrRefuse(token)).toBe('machine_bearer_not_accepted');
   });
 
   it('codes the steps an older writer left uncoded once it has migrated', async () => {

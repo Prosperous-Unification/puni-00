@@ -19,7 +19,8 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-function emptyRuntime(): ResourceRuntime {
+/** An owner-only configuration file over a fresh managed root, with `overrides` applied. */
+function configurationFile(overrides: Record<string, unknown> = {}): string {
   const base = mkdtempSync(join(tmpdir(), 'dash-resources-wbs-'));
   roots.push(base);
   const root = join(base, 'managed');
@@ -39,11 +40,47 @@ function emptyRuntime(): ResourceRuntime {
       diskBudgetUnits: 1,
       workspaceSlots: 1,
       headroomBytes: 0,
+      ...overrides,
     }),
     { mode: 0o600 },
   );
-  return ResourceRuntime.initialize(loadResourceConfiguration(config), { read: () => 1 });
+  return config;
 }
+
+function emptyRuntime(): ResourceRuntime {
+  return ResourceRuntime.initialize(loadResourceConfiguration(configurationFile()), {
+    read: () => 1,
+  });
+}
+
+describe('loading a resource configuration', () => {
+  test('refuses schema 1, saying what to write instead', () => {
+    const credential = fakeCredential();
+    const config = configurationFile({
+      schemaVersion: 1,
+      mcpResource: undefined,
+      wbsOrigin: 'https://wbs.example',
+      credential,
+    });
+    expect(() => loadResourceConfiguration(config)).toThrow(
+      "resource configuration malformed: schemaVersion 1 is retired; write schemaVersion 2 with mcpResource (WBS's MCP endpoint) in place of wbsOrigin",
+    );
+  });
+
+  test('names the failing fields, never the credential', () => {
+    const credential = fakeCredential();
+    const config = configurationFile({ mcpResource: undefined, credential });
+    let message = '';
+    try {
+      loadResourceConfiguration(config);
+    } catch (cause) {
+      message = cause instanceof Error ? cause.message : '';
+    }
+    expect(message).toStartWith('resource configuration malformed: ');
+    expect(message).toContain('mcpResource');
+    expect(message).not.toContain(credential.slice(credential.indexOf('.') + 1));
+  });
+});
 
 async function synchronizeAgainst(answer: ToolAnswer | Error): Promise<unknown> {
   const runtime = emptyRuntime();

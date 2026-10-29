@@ -17,7 +17,9 @@
     `jti` consume.
   - (c) M4: the 24 h cap.
   - (d) M7: pools.
-  - (e) M9: the cut.
+  - (e) M9: the cut. **ASSUMED** (assume-and-document; Dany may reverse): the M9 cut ships in
+    two halves, keys and trusted-issuer tokens now (slice 18), the groups-less
+    configured-issuer half after #731.
   - (f) M15: opt-in run scoping.
   - (g) **Open question, M16: the account-keyed parent check.** This change leaves
     `parent_claim_foreign` and `wbs-team-claims` D7 exactly as they are. Today any agent bound
@@ -341,8 +343,9 @@
 
   Negatives: move the refusal after the read; the old Dash HTTP path test observes
   `machine_bearer_not_accepted`.
-  (verify.md slice 18; 8.1 passed on dev 2026-10-29. Dash's `resources` runtime is an MCP client too. The
-  groups-less half of M9 waits for #731, its precondition, which is still open.)
+  (verify.md slice 18; 8.1 passed on dev 2026-10-29. Dash's `resources` runtime is an MCP client too.)
+  - [ ] The groups-less configured-issuer half of M9, after #731 (its precondition, still
+        open): such a token answers `machine_bearer_not_accepted` on `/api`.
 
 - [x] 7.3 Docs (M12), with Burokrat `check-indexes` exiting 0. (verify.md slice 18.)
 

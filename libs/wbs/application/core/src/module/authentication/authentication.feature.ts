@@ -289,12 +289,13 @@ export class AuthService {
    * any session of that account. A token with the claim keeps the login path.
    *
    * **Machine bearers are refused `machine_bearer_not_accepted` before any
-   * credential read** (`wbs-mcp-agent-surface` M9): a token with the `wbs_mk_`
-   * prefix, well-formed or not, with no read at all; and, once
-   * {@link AuthServiceOptions.trustedIssuers} is wired, a JWT whose `iss` is
-   * not the configured issuer but some organization's trusted issuer, after
-   * that issuer's registrations are read (an `iss` no organization trusts
-   * stays `invalid_token`, A13 step 5). Neither is handed to any verifier.
+   * read** (`wbs-mcp-agent-surface` M9): a token with the `wbs_mk_` prefix,
+   * well-formed or not; and, once {@link AuthServiceOptions.trustedIssuers} is
+   * wired, any JWT whose `iss` is not the configured sign-in issuer, trusted
+   * by some organization or by none. Telling those apart would take a
+   * registration read and answer which issuers are trusted (an enumeration
+   * oracle: EKS and GKE issuer URLs embed account and cluster ids). Neither is
+   * handed to any verifier.
    * Machines present them at mcp-01's token endpoint, whose
    * {@link admitMachineProof} verifies them, and call through `/mcp`.
    * A groups-less configured-issuer token keeps the D6b path below until
@@ -315,15 +316,19 @@ export class AuthService {
     // failed; removed, `refuses a live, a malformed or an unwired key…`
     // (machine-key.test.ts) failed; both watched 2026-10-29.
     if (parseMachineKey(token) !== null) return 'machine_bearer_not_accepted';
-    // Proof: with this refusal disabled, `refuses a trusted issuer’s JWT
-    // machine_bearer_not_accepted…` (machine-key.test.ts) failed; with the
-    // credential admitted and verified before it, `is refused
-    // machine_bearer_not_accepted before any credential read or key set fetch`
-    // (be-01 oidc-credential.controller.db.test.ts) failed; watched 2026-10-29.
-    if (this.opts.trustedIssuers !== undefined) {
-      const foreign = await this.foreignIssuerBearerOf(token, this.opts.trustedIssuers);
-      if (foreign !== 'configured_path') return foreign;
-    }
+    // Proof: with a registration read put back in front of this refusal (the
+    // stranger/trusted split, an enumeration oracle), and separately with the
+    // refusal disabled, `refuses any other issuer’s JWT
+    // machine_bearer_not_accepted, reading and verifying nothing`
+    // (machine-key.test.ts) failed; watched 2026-10-30. With the credential
+    // admitted and verified before it, `is refused machine_bearer_not_accepted
+    // before any credential read or key set fetch` (be-01
+    // oidc-credential.controller.db.test.ts) failed; watched 2026-10-29.
+    if (
+      this.opts.trustedIssuers !== undefined &&
+      (await isForeignIssuerToken(token, this.opts.trustedIssuers))
+    )
+      return 'machine_bearer_not_accepted';
     // A native session verifies on the JWT key alone, before any OIDC read:
     // the OIDC verifier accepts RS256 only, so it never admits a token the
     // codec does, and asking it first made every cookie session wait on, and
@@ -365,34 +370,6 @@ export class AuthService {
       scopes: identity.scopes,
       authentication: { kind: 'upstream', issuer: identity.issuer, subject: identity.subject },
     };
-  }
-
-  /**
-   * How `/api` answers a JWT of an issuer other than the configured sign-in
-   * issuer (M9): `machine_bearer_not_accepted` when some organization trusts
-   * its `iss`, `invalid_token` when none does (A13 step 5). Only the
-   * unverified claims, the configured issuer and that issuer's registrations
-   * are read: never a credential, never a key set. `configured_path` for no
-   * JWT, no string `iss` or the configured issuer's.
-   *
-   * @throws when trusted issuers are wired without machine credentials, and
-   * on a store failure.
-   */
-  private async foreignIssuerBearerOf(
-    token: string,
-    trusted: TrustedIssuerVerification,
-  ): Promise<'machine_bearer_not_accepted' | 'invalid_token' | 'configured_path'> {
-    const claims = trusted.tokens.peek(token);
-    if (claims === null || claims.issuer === (await trusted.configuredIssuer()))
-      return 'configured_path';
-    const machines = this.opts.machineKeys;
-    if (machines === undefined)
-      throw new Error('trusted issuers are wired but machine credentials are not');
-    const registrations = await machines.credentials.trustedRegistrationsOf(claims.issuer);
-    // Proof: answering `machine_bearer_not_accepted` for every foreign `iss`
-    // made `keeps a stranger issuer’s JWT invalid_token` (machine-key.test.ts)
-    // fail; watched 2026-10-29.
-    return registrations.length === 0 ? 'invalid_token' : 'machine_bearer_not_accepted';
   }
 
   /** The account a native session token proves, or null when it is not one or its account is gone. */
@@ -733,6 +710,21 @@ export class AuthService {
     );
     return { token, user: { id: user.id, username: user.username } };
   }
+}
+
+/**
+ * Whether `token` is a JWT naming an issuer other than the deployment's
+ * configured sign-in issuer: a trusted issuer's token, or nobody's. `/api`
+ * refuses both alike (M9), so it reveals nothing of which issuers some
+ * organization trusts. Only the unverified claims and the configured issuer
+ * are read, never a store or a key set.
+ */
+async function isForeignIssuerToken(
+  token: string,
+  trusted: TrustedIssuerVerification,
+): Promise<boolean> {
+  const claims = trusted.tokens.peek(token);
+  return claims !== null && claims.issuer !== (await trusted.configuredIssuer());
 }
 
 /**

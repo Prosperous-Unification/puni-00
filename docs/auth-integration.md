@@ -461,10 +461,11 @@ docker exec be-01-<colour> bun run src/link-credential-cli.ts --unlink \
 ### Fleets and the MCP endpoint
 
 Machines call WBS through mcp-01's `/mcp`, never be-01's `/api`
-(`openspec/changes/wbs-mcp-agent-surface` M1, M9). be-01 refuses a `wbs_mk_` API key, and a JWT
-of an issuer some organization trusts, presented on any `/api` route with
-`401 {"error":"machine_bearer_not_accepted","endpoint":"/mcp"}`, before any credential read. A
-JWT of an issuer no organization trusts stays `401 invalid_token`. There is no switch. A
+(`openspec/changes/wbs-mcp-agent-surface` M1, M9). be-01 refuses a `wbs_mk_` API key, and any
+JWT whose issuer is not the configured sign-in issuer (trusted by an organization or not),
+presented on any `/api` route with
+`401 {"error":"machine_bearer_not_accepted","endpoint":"/mcp"}`, before any read, so the answer
+says nothing of which issuers are trusted. There is no switch. A
 groups-less token of the configured sign-in issuer keeps the linked-credential path above until
 #731 retires operator links, M9's precondition.
 

@@ -217,11 +217,36 @@ export function loadResourceConfiguration(path: string): ResourceConfiguration {
   } finally {
     closeSync(descriptor);
   }
+  let input: unknown;
+  try {
+    input = JSON.parse(source);
+  } catch {
+    // No cause: a JSON syntax error quotes the bytes around it, which may be the credential.
+    throw new Error('resource configuration malformed: not JSON');
+  }
+  // Schema 1 named a `wbsOrigin` for `/api`, which refuses machine bearers since
+  // `wbs-mcp-agent-surface` M9; its owner needs to know what to write instead.
+  // Proof: without it, `refuses schema 1, saying what to write instead` (runtime-wbs.test.ts)
+  // saw only the field list (2026-10-30).
+  if (
+    typeof input === 'object' &&
+    input !== null &&
+    'schemaVersion' in input &&
+    input.schemaVersion === 1
+  )
+    throw new Error(
+      "resource configuration malformed: schemaVersion 1 is retired; write schemaVersion 2 with mcpResource (WBS's MCP endpoint) in place of wbsOrigin",
+    );
   let parsed: typeof Configuration.infer;
   try {
-    parsed = parseSecretsOrThrow(Configuration, JSON.parse(source));
-  } catch {
-    throw new Error('resource configuration malformed');
+    parsed = parseSecretsOrThrow(Configuration, input);
+  } catch (cause) {
+    // `parseSecretsOrThrow` names the failing field paths, never a value, so its error is safe
+    // to keep as the cause.
+    // Proof: a bare `malformed` made `names the failing fields, never the credential` fail
+    // (2026-10-30).
+    const fields = cause instanceof Error ? cause.message : 'the value itself';
+    throw new Error(`resource configuration malformed: ${fields}`, { cause });
   }
   let resource: URL;
   try {

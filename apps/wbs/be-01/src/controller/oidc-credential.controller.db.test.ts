@@ -312,7 +312,7 @@ describe('creating an OIDC credential', () => {
 
 // Each Proof below was watched again 2026-10-29 with the token through mcp-01's
 // jwt-bearer grant, the one transport left after 7.1 (M9); `mount.ts`'s half of
-// the stranger issuer's is `/api`'s own (`a trusted issuer token on /api`).
+// a stranger issuer on `/api` answers as a trusted one (`a trusted issuer token on /api`).
 describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
   it('is admitted end to end as its person, capped to a member of its organization', async () => {
     const { id } = await claireCredential();
@@ -595,11 +595,13 @@ describe('a trusted issuer token on /api (wbs-mcp-agent-surface M9)', () => {
     ).toBe(200);
   });
 
-  it('keeps a stranger issuer’s token invalid_token, fetching nothing', async () => {
+  // A stranger and a trusted issuer answer alike, so `/api` is no oracle for
+  // which issuers some organization trusts.
+  it('refuses a stranger issuer’s token the same, fetching nothing', async () => {
     await claireCredential();
     const stranger = await issuers.add(`stranger-${crypto.randomUUID().slice(0, 8)}.test`);
     expect(await as(await stranger.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/projects')).toEqual(
-      INVALID,
+      NOT_ACCEPTED,
     );
     expect(stranger.jwksFetches + stranger.discoveryFetches).toBe(0);
     expect(ci.jwksFetches).toBe(0);

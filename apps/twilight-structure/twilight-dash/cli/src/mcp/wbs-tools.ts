@@ -142,7 +142,16 @@ export class McpWbsTools implements WbsTools {
       })) as CallToolOutcome;
     } catch (cause) {
       this.#client = undefined;
-      if (client !== undefined) await client.close();
+      // A failing close must not hide why the call failed: both are kept.
+      if (client !== undefined) {
+        try {
+          await client.close();
+        } catch (closeFailure) {
+          throw new WbsUnreachable(name, {
+            cause: new AggregateError([cause, closeFailure], 'the call and the close failed'),
+          });
+        }
+      }
       // The token endpoint refused the key itself (revoked, expired, unknown): mcp-01's in-band
       // answer for the same credential, so a caller reads one refusal whichever came first.
       // Proof: without it, `exits refused at once for a revoked key…`

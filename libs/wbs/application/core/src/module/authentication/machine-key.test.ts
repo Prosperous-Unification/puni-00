@@ -168,31 +168,27 @@ describe('AuthService on /api: machine bearers (wbs-mcp-agent-surface M9)', () =
     expect(reads).toEqual([]);
   });
 
-  it('refuses a trusted issuer’s JWT machine_bearer_not_accepted, reading no credential and verifying nothing', async () => {
-    const { reads, credentials } = await credentialsFor('dany-id');
-    const { trusted, verified } = trustedIssuersFor();
-    const auth = service({ credentials, now: () => NOW }, usersWithDany(), trusted);
-    expect(await auth.authenticateOrRefuse('header.payload.sig')).toBe(
-      'machine_bearer_not_accepted',
-    );
-    expect(reads).toEqual(['registrations of https://idp']);
-    expect(verified).toEqual([]);
-  });
-
-  it('keeps a stranger issuer’s JWT invalid_token, verifying nothing', async () => {
-    const { reads, credentials } = await credentialsFor('dany-id');
-    const { trusted, verified } = trustedIssuersFor();
-    const auth = service(
-      {
-        credentials: { ...credentials, trustedRegistrationsOf: () => Promise.resolve([]) },
-        now: () => NOW,
-      },
-      usersWithDany(),
-      trusted,
-    );
-    expect(await auth.authenticateOrRefuse('header.payload.sig')).toBe('invalid_token');
-    expect(reads).toEqual([]);
-    expect(verified).toEqual([]);
+  it('refuses any other issuer’s JWT machine_bearer_not_accepted, reading and verifying nothing', async () => {
+    for (const registered of [true, false]) {
+      const { reads, credentials } = await credentialsFor('dany-id');
+      const { trusted, verified } = trustedIssuersFor();
+      const auth = service(
+        {
+          credentials: registered
+            ? credentials
+            : { ...credentials, trustedRegistrationsOf: () => Promise.resolve([]) },
+          now: () => NOW,
+        },
+        usersWithDany(),
+        trusted,
+      );
+      expect(await auth.authenticateOrRefuse('header.payload.sig')).toBe(
+        'machine_bearer_not_accepted',
+      );
+      // No registration read: `/api` must not answer which issuers are trusted.
+      expect(reads).toEqual([]);
+      expect(verified).toEqual([]);
+    }
   });
 
   it('answers machine_bearer_not_accepted as no principal where a route reads none', async () => {
