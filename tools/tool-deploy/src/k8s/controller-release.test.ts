@@ -5,7 +5,13 @@ import { join } from 'node:path';
 import { scratchSync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
-import { backendTaskJob, executeRelease, jobName, kubectlEffects } from './execute';
+import {
+  backendTaskJob,
+  executeRelease,
+  jobName,
+  kubectlEffects,
+  type KubectlSettings,
+} from './execute';
 import { FakeCluster } from './fake-cluster';
 import { fileJournal } from './journal';
 import type { ReleaseIdentity, ReleaseRequest } from './release';
@@ -17,7 +23,17 @@ function identity(fill: string): ReleaseIdentity {
     images: { backend: image, gateway: image, frontend: image, mcp: image },
   };
 }
-function mounted(original?: boolean) {
+/** MCP audience/older-image settings confer no dormant-store or controller admission. */
+const acceptedMcpSettings: Pick<
+  KubectlSettings,
+  'acceptBreakingAudiences' | 'candidateAuthorizationServer' | 'olderCandidateDeclared'
+> = {
+  acceptBreakingAudiences: ['ti-legacy'],
+  candidateAuthorizationServer: 'https://mcp.example/mcp',
+  olderCandidateDeclared: true,
+};
+
+function mounted(original?: boolean, mcpSettings: typeof acceptedMcpSettings = {}) {
   const root = scratchSync('k8s-controller-release-');
   const path = join(root, 'kubectl');
   const store = join(root, 'cluster.json');
@@ -194,6 +210,7 @@ throw new Error('unexpected command '+args.join(' '));
   );
   chmodSync(path, 0o755);
   const adapter = kubectlEffects({
+    ...mcpSettings,
     kubectl: path,
     readConfigDigest: () => Promise.resolve(`sha256:${'c'.repeat(64)}`),
     kubeconfig: null,
@@ -1106,7 +1123,8 @@ const enabledWire = JSON.stringify({
 
 for (const fault of ['enabled', 'malformed', 'missing', 'unreadable', 'deadline'])
   test(`mounted store ${fault} retains drained fences without automatic recovery`, async () => {
-    const fixture = mounted(false);
+    // Proof: omitting fresh observation let the MCP-accepted ENABLED case resolve instead of refusing.
+    const fixture = mounted(false, fault === 'enabled' ? acceptedMcpSettings : {});
     try {
       if (fault === 'enabled') fixture.objects['storeWire'] = enabledWire;
       if (fault === 'malformed') fixture.objects['storeWire'] = '{';
@@ -1143,7 +1161,8 @@ for (const fault of ['enabled', 'malformed', 'missing', 'unreadable', 'deadline'
 
 for (const drift of ['pvc', 'controller', 'consumer', 'lease'])
   test(`mounted post-observation ${drift} drift refuses source replay`, async () => {
-    const fixture = mounted(false);
+    // Proof: omitting the post-Job barrier admitted replay after both PVC and Lease drift with these settings.
+    const fixture = mounted(false, acceptedMcpSettings);
     try {
       fixture.objects['storeDrift'] = drift;
       fixture.save();

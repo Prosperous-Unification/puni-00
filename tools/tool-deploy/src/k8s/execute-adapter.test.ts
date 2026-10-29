@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from 'bun:test';
 
 import type { DependencyBinaryObservation } from './dependency-observation';
 import {
+  authorizationServerOfRendered,
   BACKEND_TASK_SCRIPT,
   backendTaskJob,
   type BackendTaskReport,
@@ -34,6 +35,7 @@ const CAPTURE_ID = {
 };
 
 const BACKEND = resolve(import.meta.dir, '../../../../apps/wbs/be-01');
+const AUTHORIZATION_SERVER = 'https://wbs.example/mcp/oauth';
 const FAULT_MIGRATION = '29991231010000_lab_rollback_failure';
 const roots: string[] = [];
 afterEach(() => {
@@ -112,7 +114,13 @@ describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
     );
     expect(
       taskError(
-        { DB_PATH: db, PUNI_TASK: 'capture', PUNI_RELEASE: 'tx', PUNI_SNAPSHOT_DIR: snapshots },
+        {
+          DB_PATH: db,
+          PUNI_TASK: 'capture',
+          PUNI_RELEASE: 'tx',
+          PUNI_SNAPSHOT_DIR: snapshots,
+          WBS_MCP_AUTHORIZATION_SERVER: AUTHORIZATION_SERVER,
+        },
         root,
       ),
     ).toMatch(/^error: exact-set migration CLI capability probe failed:/m);
@@ -227,12 +235,43 @@ describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
       join(root, 'src', 'migrate-capabilities-cli.ts'),
       "console.log(JSON.stringify({protocol:'wbs-migration',version:1,capabilities:['restore-v1-sha256','capture-v1']}));",
     );
-    expect(
-      task(
-        { DB_PATH: db, PUNI_TASK: 'capture', PUNI_RELEASE: 'tx', PUNI_SNAPSHOT_DIR: snapshots },
-        root,
-      ).snapshot?.path,
-    ).toBe(join(snapshots, 'tx.sqlite'));
+    const env = {
+      DB_PATH: db,
+      PUNI_TASK: 'capture',
+      PUNI_RELEASE: 'tx',
+      PUNI_SNAPSHOT_DIR: snapshots,
+    };
+    // This candidate ships no MCP preflight CLI, so only a declared older candidate captures.
+    expect(task({ ...env, PUNI_OLDER_CANDIDATE: '1' }, root).snapshot?.path).toBe(
+      join(snapshots, 'tx.sqlite'),
+    );
+  });
+
+  it('refuses a candidate without the preflight CLIs unless an older candidate is declared', () => {
+    const root = scratchSync('wbs-k3s-older-candidate-');
+    roots.push(root);
+    const db = join(root, 'wbs.sqlite');
+    const snapshots = join(root, 'snapshots');
+    mkdirSync(join(root, 'src'));
+    mkdirSync(join(root, 'drizzle'));
+    new Database(db).close();
+    writeFileSync(
+      join(root, 'src', 'migrate-capabilities-cli.ts'),
+      "console.log(JSON.stringify({protocol:'wbs-migration',version:1,capabilities:['capture-v1','restore-v1-sha256']}));",
+    );
+    const env = {
+      DB_PATH: db,
+      PUNI_TASK: 'capture',
+      PUNI_RELEASE: 'tx',
+      PUNI_SNAPSHOT_DIR: snapshots,
+    };
+    expect(taskError(env, root)).toContain(
+      'candidate image lacks src/mcp-service-settings-check-cli.ts',
+    );
+    expect(existsSync(snapshots)).toBe(false);
+    expect(task({ ...env, PUNI_OLDER_CANDIDATE: '1' }, root).snapshot?.path).toBe(
+      join(snapshots, 'tx.sqlite'),
+    );
   });
 
   it('retains schema and ledger after a failing down script, then recovers with the same capture', () => {
@@ -264,7 +303,13 @@ describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
     mkdirSync(snapshots);
     const capture = captureFromReport(
       task(
-        { DB_PATH: db, PUNI_TASK: 'capture', PUNI_RELEASE: 'tx', PUNI_SNAPSHOT_DIR: snapshots },
+        {
+          DB_PATH: db,
+          PUNI_TASK: 'capture',
+          PUNI_RELEASE: 'tx',
+          PUNI_SNAPSHOT_DIR: snapshots,
+          WBS_MCP_AUTHORIZATION_SERVER: AUTHORIZATION_SERVER,
+        },
         root,
       ),
       CAPTURE_ID,
@@ -325,7 +370,13 @@ describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
     mkdirSync(snapshots);
     const captured = captureFromReport(
       task(
-        { DB_PATH: db, PUNI_TASK: 'capture', PUNI_RELEASE: 'tx', PUNI_SNAPSHOT_DIR: snapshots },
+        {
+          DB_PATH: db,
+          PUNI_TASK: 'capture',
+          PUNI_RELEASE: 'tx',
+          PUNI_SNAPSHOT_DIR: snapshots,
+          WBS_MCP_AUTHORIZATION_SERVER: AUTHORIZATION_SERVER,
+        },
         root,
       ),
       CAPTURE_ID,
@@ -430,6 +481,7 @@ describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
         PUNI_TASK: 'capture',
         PUNI_RELEASE: 'r1',
         PUNI_SNAPSHOT_DIR: join(root, 'snapshots'),
+        WBS_MCP_AUTHORIZATION_SERVER: AUTHORIZATION_SERVER,
       }),
       CAPTURE_ID,
     );
@@ -470,6 +522,86 @@ describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
     expect(task(rollbackEnv).applied.map(({ name, hash }) => ({ name, hash }))).toEqual([
       ...captured.capture.applied,
     ]);
+  }, 60_000);
+});
+
+describe('the capture Job audience preflight against the real be-01 CLI', () => {
+  function legacyStore(): { db: string; snapshots: string } {
+    const root = scratchSync('wbs-k3s-audience-');
+    roots.push(root);
+    const db = join(root, 'wbs.sqlite');
+    new Database(db).close();
+    task({ DB_PATH: db, PUNI_TASK: 'migrate' });
+    const sqlite = new Database(db);
+    try {
+      sqlite.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'org-a', 1)");
+      sqlite.run(
+        `INSERT INTO organization_trusted_issuer (id, organization_id, issuer, jwks_uri, default_audience, created_at)
+         VALUES ('ti-legacy', 'org-a', 'https://ci.example', 'https://ci.example/jwks', 'wbs:org:org-a', 1)`,
+      );
+    } finally {
+      sqlite.close();
+    }
+    return { db, snapshots: join(root, 'snapshots') };
+  }
+
+  it('refuses an unaccepted wbs:org registration before the snapshot', () => {
+    const { db, snapshots } = legacyStore();
+    const env = {
+      DB_PATH: db,
+      PUNI_TASK: 'capture',
+      PUNI_RELEASE: 'tx',
+      PUNI_SNAPSHOT_DIR: snapshots,
+      WBS_MCP_AUTHORIZATION_SERVER: AUTHORIZATION_SERVER,
+    };
+    const refusal = taskError(env, BACKEND);
+    expect(refusal).toContain('trusted issuer audience preflight refused (exit 3)');
+    expect(refusal).toContain('not accepted: registration ti-legacy');
+    expect(existsSync(snapshots)).toBe(false);
+    expect(
+      task({ ...env, WBS_ACCEPT_BREAKING_AUDIENCES: 'ti-legacy' }, BACKEND).snapshot?.path,
+    ).toBe(join(snapshots, 'tx.sqlite'));
+  }, 60_000);
+
+  it('refuses a capture without the authorization server, before the snapshot', () => {
+    const { db, snapshots } = legacyStore();
+    const refusal = taskError(
+      { DB_PATH: db, PUNI_TASK: 'capture', PUNI_RELEASE: 'tx', PUNI_SNAPSHOT_DIR: snapshots },
+      BACKEND,
+    );
+    expect(refusal).toContain('WBS_MCP_AUTHORIZATION_SERVER must be set');
+    expect(existsSync(snapshots)).toBe(false);
+  }, 60_000);
+
+  it("judges stored audiences against the candidate overlay's server, not the live one", () => {
+    const { db, snapshots } = legacyStore();
+    // A registration the live server admits, re-made under it after the legacy one was removed.
+    const live = 'https://wbs-old.example/mcp/oauth';
+    const sqlite = new Database(db);
+    try {
+      sqlite.run("DELETE FROM organization_trusted_issuer WHERE id = 'ti-legacy'");
+      sqlite.run(
+        `INSERT INTO organization_trusted_issuer (id, organization_id, issuer, jwks_uri, default_audience, created_at)
+         VALUES ('ti-live', 'org-a', 'https://ci.example', 'https://ci.example/jwks', '${live}/org/org-a', 1)`,
+      );
+    } finally {
+      sqlite.close();
+    }
+    const env = {
+      DB_PATH: db,
+      PUNI_TASK: 'capture',
+      PUNI_RELEASE: 'tx',
+      PUNI_SNAPSHOT_DIR: snapshots,
+    };
+    const refusal = taskError(
+      { ...env, WBS_MCP_AUTHORIZATION_SERVER: AUTHORIZATION_SERVER },
+      BACKEND,
+    );
+    expect(refusal).toContain('trusted issuer audience preflight refused (exit 3)');
+    expect(refusal).toContain('registration ti-live');
+    expect(existsSync(snapshots)).toBe(false);
+    // The same store passes against the live server: only the candidate's value catches it.
+    expect(task({ ...env, WBS_MCP_AUTHORIZATION_SERVER: live }, BACKEND).snapshot).not.toBeNull();
   }, 60_000);
 });
 
@@ -688,6 +820,7 @@ describe('schema Jobs through the kubectl adapter', () => {
         jobTimeoutSeconds: 5,
         drainTimeoutMs: 1000,
         leaseDurationSeconds: 20,
+        candidateAuthorizationServer: AUTHORIZATION_SERVER,
         log: () => undefined,
       });
       expect(await rejection(start(effects))).toContain(
@@ -696,6 +829,90 @@ describe('schema Jobs through the kubectl adapter', () => {
       expect(readFileSync(kubectl.log, 'utf8')).not.toContain(' create ');
     });
   }
+});
+
+describe('the capture Job manifest', () => {
+  it("passes the candidate overlay's server and the backend Secret, never the live ConfigMap", async () => {
+    const root = scratchSync('wbs-k3s-capture-env-');
+    roots.push(root);
+    const kubectl = fakeKubectl(root);
+    const effects = kubectlEffects({
+      kubectl: kubectl.path,
+      kubeconfig: null,
+      context: 'lab',
+      namespaces: { app: 'wbs', backend: 'wbs-solver' },
+      stateDir: root,
+      overlay: root,
+      anonymousProjectsStatus: 200,
+      rolloutTimeoutSeconds: 5,
+      jobTimeoutSeconds: 5,
+      drainTimeoutMs: 1000,
+      leaseDurationSeconds: 20,
+      acceptBreakingAudiences: ['ti-legacy', 'ti-other'],
+      candidateAuthorizationServer: AUTHORIZATION_SERVER,
+      olderCandidateDeclared: true,
+      log: () => undefined,
+    });
+    // The fake cluster has a writer, so the Job is rendered and kept, then refused.
+    await rejection(effects.capture(CAPTURE_ID, 'img'));
+    const job = JSON.parse(
+      readFileSync(join(root, `${jobName('capture', CAPTURE_ID.attempt)}.json`), 'utf8'),
+    ) as {
+      spec: { template: { spec: { containers: { env: unknown[]; envFrom?: unknown }[] } } };
+    };
+    const [container] = job.spec.template.spec.containers;
+    expect(container.env).toContainEqual({
+      name: 'WBS_ACCEPT_BREAKING_AUDIENCES',
+      value: 'ti-legacy,ti-other',
+    });
+    expect(container.env).toContainEqual({
+      name: 'WBS_MCP_AUTHORIZATION_SERVER',
+      value: AUTHORIZATION_SERVER,
+    });
+    expect(container.env).toContainEqual({ name: 'PUNI_OLDER_CANDIDATE', value: '1' });
+    expect(JSON.stringify(container)).not.toContain('configMapKeyRef');
+    expect(container.envFrom).toEqual([{ secretRef: { name: 'wbs-backend-secrets' } }]);
+    const migrate = backendTaskJob(
+      { namespaces: { app: 'wbs', backend: 'wbs-solver' } },
+      'wbs-migrate-x',
+      'img',
+      { PUNI_TASK: 'migrate' },
+    ) as { spec: { template: { spec: { containers: Record<string, unknown>[] } } } };
+    expect(migrate.spec.template.spec.containers[0]).not.toHaveProperty('envFrom');
+  });
+});
+
+describe('authorizationServerOfRendered', () => {
+  const configMap = (namespace: string, data: Record<string, string>) =>
+    `---\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: wbs-backend-config\n  namespace: ${namespace}\ndata:\n${Object.entries(
+      data,
+    )
+      .map(([key, value]) => `  ${key}: ${value}`)
+      .join('\n')}\n`;
+
+  it("reads the backend ConfigMap's server", () => {
+    expect(
+      authorizationServerOfRendered(
+        `---\nkind: Namespace\nmetadata:\n  name: wbs\n${configMap('wbs-solver', {
+          AUTH_MODE: 'oidc',
+          WBS_MCP_AUTHORIZATION_SERVER: AUTHORIZATION_SERVER,
+        })}`,
+        'wbs-solver',
+      ),
+    ).toBe(AUTHORIZATION_SERVER);
+  });
+
+  it('refuses a candidate overlay without the server', () => {
+    expect(() =>
+      authorizationServerOfRendered(configMap('wbs-solver', { AUTH_MODE: 'oidc' }), 'wbs-solver'),
+    ).toThrow("the candidate overlay's wbs-backend-config lacks WBS_MCP_AUTHORIZATION_SERVER");
+    expect(() =>
+      authorizationServerOfRendered(
+        configMap('wbs', { WBS_MCP_AUTHORIZATION_SERVER: AUTHORIZATION_SERVER }),
+        'wbs-solver',
+      ),
+    ).toThrow('renders no wbs-solver/wbs-backend-config');
+  });
 });
 
 describe('parseLease', () => {

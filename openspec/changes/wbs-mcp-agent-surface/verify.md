@@ -2530,6 +2530,152 @@ Gaps found, filed as task 8.3:
    setting surfaces as a be-01 boot refusal after migration. The runbook adds a `grep -c`
    check before every be swap of an activated store.
 
+## Slice 15 — deploy wiring (task 8.3)
+
+The three gaps slice 14 filed, wired. Nothing ran on any host; every check below ran on the
+laptop against the real be-01 CLIs, migrations and manifests.
+
+**What changed.**
+
+- **Compose be swap.** `planSwap('be')` gains `mcp-preflight` right after `preflight-green`,
+  while the outgoing colour still serves (`tools/tool-remote-scripts/src/lib/mcp-preflight.ts`,
+  `assertMcpSurfaceReady`). It runs the candidate image (`docker run --rm --pull never
+--network none`, the data directory bound writable for the live `-shm`, be-01's own env
+  files by path, `DB_PATH` pinned) twice:
+  1. the new `apps/wbs/be-01/src/mcp-service-settings-check-cli.ts`: exit 4 on an activated
+     store whose env lacks `MCP_BE_INTERNAL_SECRET`, `WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT` or
+     `WBS_MCP_AUTHORIZATION_SERVER`, or holds one boot would refuse
+     (`machineGrantSettingsFaultsOf`); it reports the activation and the server;
+  2. `trusted-issuer-audience-check-cli.ts`, when the server is named, with
+     `WBS_ACCEPT_BREAKING_AUDIENCES` from `swap.js --accept-breaking=<ids>`; exit 3 refuses.
+     Either refusal is the Docker failure carrying the CLI's stderr; no writer has stopped.
+- **Compose deploy CLI.** `tool-deploy:deploy -- be --execute --accept-breaking=<ids>` appends
+  the flag to the one remote swap command, only when given (a deploy without it sends the same
+  bytes as before); refused without the be tier. Ids are parsed once
+  (`parseAcceptBreaking`, `[A-Za-z0-9._:-]`, distinct), because they cross an SSH shell.
+- **Kubernetes.** The capture Job's `BACKEND_TASK_SCRIPT` runs the settings CLI, then the
+  audience CLI, before its snapshot (revised after the review below). The Job gets
+  `wbs-backend-secrets` by `envFrom`, the candidate overlay's `WBS_MCP_AUTHORIZATION_SERVER` as
+  a plain value (`deploy-k3s` renders `settings.overlay` before the transaction,
+  `readCandidateAuthorizationServer`), and `WBS_ACCEPT_BREAKING_AUDIENCES` from
+  `deploy-k3s --accept-breaking <ids>` (`KubectlSettings.acceptBreakingAudiences`).
+  `mcp.yaml` gives mcp-01 `MCP_BE_INTERNAL_SECRET` from `wbs-mcp-secrets` (required); prod and
+  staging `wbs-backend-config` carry the server; the local overlay's server moved from the
+  Secret to the ConfigMap; `lab.ts` writes the backend's lab secret into `wbs-mcp-secrets`.
+- **Before migration.** Both CLIs read the ledger: a store that has not reached
+  `20260927180000_add_organization_activation` reads `not_migrated` (the migration about to run
+  seeds `pre_activation`), and one before `20261022100000_add_machine_credential` holds no
+  registration (`notMigrated`). A ledger naming either migration without its table, or a store
+  without a ledger, throws (`libs/wbs/adapters/store-sqlite/src/migration-ledger.ts`,
+  `readOrganizationActivationBeforeMigration`).
+- **Docs.** `docs/runbook-prod-deploy.md` "MCP agent surface": the `grep -c` check and the
+  manual `docker run` are gone, replaced by the wired steps and the flag; the Kubernetes
+  subsection now lists what the overlays carry and what the operator still provisions.
+  `runbook-organization-activation.md` step 2c and `docs/infra/deployment.md` follow.
+
+**Decisions (assumed, per the brief's "record assumptions").**
+
+1. **Where the Compose check runs.** Before `record-writer-stop`, not beside the other
+   pre-boot admissions after the stop: a refusal there leaves the outgoing colour serving and
+   needs no attended recovery. That is why the data bind is writable (the runbook's reason: a
+   WAL reader beside the live writer maps its `-shm`); both CLIs open the file `readonly`.
+2. **Activation without writing.** A second read-only CLI in the candidate image, like the
+   audience check, rather than the host reading the marker: the image owns the marker's
+   meaning and the settings' boot rules. Unknown never reads as "not activated": only the
+   ledger's proof that the marker migration never ran does.
+3. **Which server judges.** Compose: the candidate's own `be-01.env`; without a server the
+   audience check is skipped and logged, since the settings check has already refused an
+   activated store without one. Kubernetes: the candidate overlay's ConfigMap value, rendered
+   before the transaction and refused there when absent; never the live ConfigMap, which the
+   candidate's replaces only at `reconcile-desired` (review S2-1).
+4. **Older candidates refuse (review S2-2, R5).** A missing CLI is an absent tool: Compose
+   exits 74 (`candidate image lacks src/…`), 73 for a nonregular path, with no escape hatch;
+   Kubernetes refuses unless the deploy declares `--allow-downgrade` or `--recovers`
+   (`KubectlSettings.olderCandidateDeclared`, `PUNI_OLDER_CANDIDATE=1`), and then skips that
+   CLI loudly. Not done: advertising `audience-preflight-v1` from `migrate-capabilities-cli.ts`;
+   the file test already names the missing tool.
+5. **mcp-01 gets `MCP_BE_INTERNAL_SECRET` only.** `apps/wbs/mcp-01/src/oauth.ts:419` accepts
+   either secret at credential epoch 1, and M14 sends the dedicated one alone, so mcp-01 needs
+   no `INTERNAL_AUTH_SECRET` (gw-01's). The ref is required: a missing key stops the pod at
+   `CreateContainerConfigError` instead of silently offering no machine grants.
+6. **The Kubernetes flag is not journaled.** It lives in `KubectlSettings`, not the
+   `ReleaseRequest`, so the resume equality check is unchanged; a resumed run that has not
+   captured yet needs the flag again (review: left as is).
+7. **Kubernetes checks stay in the capture Job (review S3-1).** Both now run there, after
+   `writes-closed` and `writer-stopped`, not in a read-only phase before them: `runJob` refuses
+   every schema Job while a writer pod runs, and admitting a read-only one beside the writer is
+   a new Job kind this change does not add. A refusal captures nothing, so the rollback
+   restarts the previous release with no schema to undo; the cost is the outage window. A boot
+   failure after migration for another reason still takes the captured-schema rollback, and a
+   table-guarded `down.sql` refusing there parks the release in `rollback-failed` (manual
+   recovery). The runbook says so.
+8. **The Compose run (review S4).** `bind-propagation=rprivate` on the data mount, each CLI
+   bounded by `runDockerBefore` at 120 s, and the JSDoc now says what a `readonly` open still
+   does (an empty `-wal`/`-shm`, read marks) and that `docker run --env-file` passes values
+   raw.
+
+9. **Dev.** The dev poller (`tool-devsync`) never runs `swap.js`; it imports only the solver
+   supervisor constants from `@tools/deploy-contract`, which gained one re-export.
+
+**Proofs.** Each check was watched failing with the fault injected, then restored; the
+`Proof:` comment sits beside it.
+
+| Check                                                              | Fault injected                                       | Test that observed it failing                                                                                                                          |
+| ------------------------------------------------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mcp-preflight` in `planSwap('be')` (the brief's negative)         | step left out of the plan                            | `refuses an unaccepted wbs:org registration before any writer stops` (swap-mcp-preflight.db.test.ts): the swap reached `stop-blue`                     |
+| swap `--accept-breaking` needs the be tier                         | refusal removed                                      | `refuses gw --accept-breaking=ti-legacy` (swap-mcp-preflight.db.test.ts): went on to plan                                                              |
+| deploy `--accept-breaking` needs the be tier                       | refusal removed                                      | `refuses --accept-breaking without the be tier` (deploy.test.ts): planned                                                                              |
+| `parseAcceptBreaking`                                              | refusal removed                                      | `refuses a malformed accept list` (mcp-preflight.test.ts): parsed an empty id                                                                          |
+| settings report shape                                              | activation membership removed                        | `refuses a malformed settings report` (mcp-preflight.test.ts)                                                                                          |
+| activated report without a server                                  | refusal removed                                      | `refuses an activated store reported without a server` (mcp-preflight.test.ts): resolved                                                               |
+| audience report shape                                              | check removed                                        | `refuses a malformed audience check` (mcp-preflight.test.ts): raw TypeError                                                                            |
+| settings CLI refusal on an activated store                         | condition replaced by `false`                        | `refuses an activated store without a setting…` and `…with a weak grant key` (mcp-service-settings-check-cli.db.test.ts): exit 0                       |
+| settings CLI argument check                                        | check removed                                        | `refuses arguments before opening the database`: reported the missing file                                                                             |
+| `readOrganizationActivationBeforeMigration`                        | whole condition `false`; then the ledger test alone  | `reads a store the marker migration has not reached as not migrated` (absent-marker refusal); `refuses a ledger that names…without its table` (exit 0) |
+| `isMigrationApplied` ledger refusal                                | refusal removed                                      | `refuses a store without a migration ledger`: raw `no such table`                                                                                      |
+| audience CLI before the trusted issuer migration                   | branch removed                                       | `passes a store the trusted issuer migration has not reached` (trusted-issuer-audience-check-cli.db.test.ts): exit 1                                   |
+| capture Job audience preflight (the brief's negative)              | script block disabled                                | `refuses an unaccepted wbs:org registration before the snapshot` (execute-adapter.test.ts): took the snapshot                                          |
+| capture Job server, older-candidate and accept env, backend Secret | each removed in turn                                 | `passes the candidate overlay's server and the backend Secret, never the live ConfigMap` (execute-adapter.test.ts)                                     |
+| candidate overlay without the server (review S2-1)                 | refusal removed                                      | `refuses a candidate overlay without the server` (execute-adapter.test.ts): returned undefined                                                         |
+| Compose candidate without a CLI (review S2-2)                      | absent CLI answered with a passing report again      | `refuses a candidate that ships no settings CLI` (swap-mcp-preflight.db.test.ts): the swap reached `stop-blue`                                         |
+| Kubernetes candidate without a CLI (review S2-2)                   | refusal replaced by the skip                         | `refuses a candidate without the preflight CLIs unless an older candidate is declared` (execute-adapter.test.ts): took the snapshot                    |
+| `mcp.yaml` `MCP_BE_INTERNAL_SECRET` ref (the brief's negative)     | ref removed                                          | `mounts a retained single-writer store and sources rotating keys from a Secret` (mcp-manifest.test.ts)                                                 |
+| prod/staging `WBS_MCP_AUTHORIZATION_SERVER`                        | prod literal removed; staging given a trailing slash | `gives every overlay's backend ConfigMap mcp-01's canonical authorization server` (mcp-manifest.test.ts)                                               |
+
+**Review of PR #781** (Fable, high effort; no S1; Compose placement, the writable mount,
+secrets and shell quoting confirmed clean):
+
+| Finding                                                                                                                                                                              | Resolution                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| S2-1 the capture Job judged against the live ConfigMap's server, so a server change passed unjudged and a cluster whose ConfigMap predates this change failed after `writer-stopped` | `deploy-k3s` renders the candidate overlay before the transaction and refuses one without the server; the Job gets it as a plain value; the `configMapKeyRef` is gone. Negative: `judges stored audiences against the candidate overlay's server, not the live one` (a row valid under the live server, no flag, refused; passes against the live server). Decision 3, runbook |
+| S2-2 `"cli-absent"` passed an absent tool                                                                                                                                            | Compose refuses (74/73), no escape hatch; Kubernetes refuses unless `--allow-downgrade` or `--recovers` is declared. Negatives in the proof table. Decision 4, runbook                                                                                                                                                                                                         |
+| S3-1 no Kubernetes settings preflight; checks after `writer-stopped`                                                                                                                 | the settings CLI runs in the capture Job with `wbs-backend-secrets`; the phase did not move (decision 8 says why and what remains, including the `rollback-failed` path)                                                                                                                                                                                                       |
+| S3-2 runbook and task 8.2 text                                                                                                                                                       | runbook "Wired into both deploys" names the candidate server and where each check runs relative to the writer stop; task 8.2's bullet no longer says manual `docker run`                                                                                                                                                                                                       |
+| S4 "Nothing here writes"; mount propagation; no deadline; env-file semantics; flag journaling                                                                                        | JSDoc corrected; `bind-propagation=rprivate`; `runDockerBefore` 120 s per CLI; `--env-file` raw values noted; journaling left as is (decision 6)                                                                                                                                                                                                                               |
+
+Not covered by a test: `deploy-k3s` calling `readCandidateAuthorizationServer` before
+`executeRelease` (apply mode needs the locked kubectl); the parser it calls is tested.
+
+**Commands** (laptop, `env -u CLAUDECODE`, 2026-10-28, on top of 2784d2376):
+
+| Command                                                                                                         | Result                                 |
+| --------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `bunx nx run tool-remote-scripts:test --skip-nx-cache`                                                          | 805 pass, 0 fail (807 tests, 45 files) |
+| `bunx nx run tool-deploy:test --skip-nx-cache`                                                                  | 836 pass, 0 fail                       |
+| `bunx nx run tool-devsync:test --skip-nx-cache`                                                                 | 979 pass, 0 fail                       |
+| `bunx nx run wbs-store-sqlite:test --skip-nx-cache`                                                             | 2015 pass, 1 skip, 0 fail              |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                                    | 3847 pass, 3 skip, 0 fail              |
+| `bunx nx run-many -t typecheck,lint -p wbs-be-01,tool-remote-scripts,tool-deploy,tool-devsync,wbs-store-sqlite` | success                                |
+| Prettier `--check` on every changed file; `openspec validate --all --json`                                      | clean; 301 of 301 valid                |
+| Burokrat `check-indexes working . HEAD`                                                                         | exit 0                                 |
+
+After the review fixes (on main via 9411987): `tool-deploy:test` 840 pass, 0 fail;
+`tool-remote-scripts:test` 805 pass, 2 skip, 0 fail; typecheck and lint clean on both; the
+be-01, store-sqlite and devsync code did not change in that round, so their runs above stand.
+
+Not run: the h2puni gate (the caller runs it), fe-01, gw-01, mcp-01's suites (untouched), the
+k3d lab (`lab.ts` changed; it needs a cluster), and any deploy on a host.
+
 ## Fresh-main artifact policy reconciliation (2026-10-28)
 
 Private merge: tested checkpoint `766ce699dc14eb9a157f8b7ad2b4fe2b91380fe7` and main

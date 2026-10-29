@@ -149,6 +149,12 @@ async function fixture(
           Id: `sha256:${(args.at(-1) === previousImage ? 'e' : 'c').repeat(64)}`,
         });
       if (args[0] === 'image') return image;
+      // The MCP preflight (swap-mcp-preflight.db.test.ts): a store before activation.
+      if (
+        args[0] === 'run' &&
+        (args.at(-1) ?? '').includes('src/mcp-service-settings-check-cli.ts')
+      )
+        return '{"activation":"pre_activation","authorizationServer":null}';
       if (args[0] === 'run') {
         if (args.some((argument) => argument.includes('wbs-dependency-preservation'))) {
           dependencyReads += 1;

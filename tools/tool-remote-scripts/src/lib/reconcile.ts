@@ -12,6 +12,7 @@ export interface Observed {
 
 export type SwapStep =
   | 'preflight-green'
+  | 'mcp-preflight'
   | 'record-writer-stop'
   | 'verify-blue-stopped'
   | 'stored-vocabularies-before-start'
@@ -69,6 +70,10 @@ export function planSwap(tier: Tier, observed: Observed): SwapPlan {
       to,
       steps: [
         'preflight-green',
+        // Proof: with this step left out, `refuses an unaccepted wbs:org
+        // registration before any writer stops` (swap-mcp-preflight.db.test.ts)
+        // saw the swap reach the outgoing stop; watched 2026-10-28.
+        'mcp-preflight',
         'record-writer-stop',
         'stop-blue',
         'verify-blue-stopped',

@@ -7790,3 +7790,5 @@ The final corrected-source review seal `8291eacc` accepted this source before
 normal private checkpoint `0a99b1f98`. Newer-main MCP preflight composition and
 the isolated host gate remain pending. Main `50862bc` overlap is unreconciled by this
 leaf; parent 10.1/10.2, complete B2/B3, main/deploy adoption and activation remain held.
+
+Private main508 MCP preflight reconciliation: [actual owning checks and composition proofs](verify-main508-reconciliation-20261029.md). Earlier leaf/parity evidence keeps its original epoch; MAIN, full feature acceptance and deployment remain held.

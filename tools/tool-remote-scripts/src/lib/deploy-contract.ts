@@ -117,6 +117,7 @@ export {
 export { observeDependencyCapabilities, probeDependencyCapabilities } from './dependency-preflight';
 export { assertNoEdgeOwner, requireInheritedEdgeLock, withEdgeAdmission } from './edge-admission';
 export { withLock } from './lock';
+export { parseAcceptBreaking } from './mcp-preflight';
 export { decodeSolverSupervisorConfig } from './solver-supervisor-config';
 export {
   SOLVER_SUPERVISOR_BUN,

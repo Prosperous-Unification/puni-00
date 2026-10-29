@@ -191,8 +191,7 @@ three settings is [step 2c](runbook-organization-activation.md#step-2c-seed-the-
 `tools/tool-remote-scripts/src/lib/deploy-contract.ts`), and it never routes `/mcp` on prod
 (`readMcpExposure` in `swap.ts` answers false outside dev). On Compose prod, then, only be-01's
 half applies. No agent can reach a machine grant there until an mcp-01 serves prod's `/mcp`.
-The Kubernetes release does run mcp-01, and is missing pieces listed under
-[Kubernetes](#kubernetes-not-ready-for-machine-grants).
+The Kubernetes release does run mcp-01; what it needs is under [Kubernetes](#kubernetes).
 
 ### The three settings
 
@@ -220,19 +219,19 @@ The Kubernetes release does run mcp-01, and is missing pieces listed under
   exactly (`canonicalMcpAuthorizationServer` in
   `libs/wbs/domain/contracts/src/mcp-authorization-server.ts`). No trailing slash, no case
   change. The Kubernetes prod overlay's `MCP_PUBLIC_URL` is `https://wbs.bulletpoints.club/mcp`.
-- **The swap checks less than boot does.** `assertTierEnvComplete` checks only the 32-character
-  floor, and only when a key is present. It does not know whether the store is activated. be-01
-  boot of an **activated** store refuses
-  `be-01 refuses an activated store without <names>; see docs/runbook-organization-activation.md`.
-  It also refuses a weak, equal or orphaned key: `_PREVIOUS needs _CURRENT`, and
-  `the previous machine grant key must differ from the current one`. On Compose that refusal
-  happens after migration, behind the writer barrier, and leads to the backend interruption
-  recovery procedure. Check the files before every be swap of an activated store:
-
-```sh
-grep -c -E '^(MCP_BE_INTERNAL_SECRET|WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT)=' /home/puni1/wbs/.env   # 2
-grep -c '^WBS_MCP_AUTHORIZATION_SERVER=' /home/puni1/wbs/be-01.env                                    # 1
-```
+- **The swap checks them before migrating.** `assertTierEnvComplete` checks only the
+  32-character floor, and only when a key is present. The be swap's `mcp-preflight` step, right
+  after `preflight-green` and while the outgoing colour still serves, then runs the candidate
+  image's `mcp-service-settings-check-cli.ts` with be-01's own env files on the live store,
+  read-only. On an **activated** store it refuses (exit 4) when any of the three is missing or
+  would fail boot (weak, equal, `_PREVIOUS needs _CURRENT`), naming each and never a value:
+  `the store is activated and be-01 would refuse to boot it: MCP_BE_INTERNAL_SECRET is missing; …`.
+  Nothing has stopped yet, so the fix is to seed the files and deploy again. The Kubernetes
+  capture Job runs the same CLI, with `wbs-backend-secrets` and the candidate overlay's server,
+  before its snapshot. A store before
+  activation passes and reports what it lacks; a store the ledger proves has not reached
+  `20260927180000_add_organization_activation` reads as `not_migrated`, and a broken marker
+  refuses. be-01's own boot refusal stays as the last line.
 
 ### Cutover order
 
@@ -282,25 +281,42 @@ nothing yet. The listing names the work that slice 7, or any change of `MCP_PUBL
 force. Each listed registration needs its identity provider changed and the registration
 re-made.
 
-**Not yet wired.** Neither deploy CLI runs the preflight, and neither has `--accept-breaking`:
-not the Compose swap, and not the Kubernetes schema Job (`BACKEND_TASK_SCRIPT` in
-`tools/tool-deploy/src/k8s/execute.ts` runs only capture, migrate and rollback). The flag would
-map one to one onto `WBS_ACCEPT_BREAKING_AUDIENCES`. Until then, run the check by hand. Use the
-candidate be image, on the live data directory, before any be swap that changes
-`WBS_MCP_AUTHORIZATION_SERVER` or carries slice 7. The data directory is mounted writable only
-because a WAL reader maps the live `-shm`; the CLI opens the file `readonly: true`:
+**Wired into both deploys.** Both run it with the candidate image, before any migration, and
+take the accepted ids from the deploy CLI:
+
+- **Compose:** in the be swap's `mcp-preflight` step, after the settings check, while the
+  outgoing colour still serves, so a refusal stops nothing. It runs when the candidate's
+  `be-01.env` names `WBS_MCP_AUTHORIZATION_SERVER`; without one it is skipped and logged, because
+  the settings check has already refused an activated store without a server.
+- **Kubernetes:** in the capture Job, after the settings check and before the snapshot. That is
+  after `writes-closed` and `writer-stopped`: schema Jobs are refused while a writer pod runs, so
+  the check sits inside the outage window. A refusal there captures nothing, and the
+  transaction's rollback restarts the previous release with no schema to undo. The server is the
+  **candidate** overlay's `wbs-backend-config` value, rendered by `deploy-k3s` before the
+  transaction starts (a candidate overlay without it refuses then, before writes close) and
+  passed to the Job as a plain value; the live ConfigMap is not read, because the candidate's
+  lands only at `reconcile-desired`, after migration.
 
 ```sh
-docker run --rm --network none \
-  --mount type=bind,source=/home/puni1/wbs/data,target=/data \
-  --env-file /home/puni1/wbs/be-01.env \
-  -e WBS_ACCEPT_BREAKING_AUDIENCES=<ids the operator accepts, or leave out> \
-  --entrypoint bun <candidate be image@sha256:…> src/trusted-issuer-audience-check-cli.ts
+bunx nx run tool-deploy:deploy -- be --execute --accept-breaking=<id,id>        # Compose
+bun tools/tool-deploy/src/k8s/deploy-k3s.ts … --accept-breaking <id,id> --apply  # Kubernetes
 ```
 
-Accepting a row is a decision, not a fix. Record the ids and why with the deploy. This command
-has not been run on any host. Its behaviour is tested in
-`trusted-issuer-audience-check-cli.db.test.ts`.
+The flag maps one to one onto `WBS_ACCEPT_BREAKING_AUDIENCES`. Ids are distinct, separated by
+single commas, from `[A-Za-z0-9._:-]`; the Compose flag is refused without the be tier. Exit 3
+refuses the deploy with the CLI's stderr in the failure, which names every unaccepted row, so
+running the deploy without the flag is how to list them. The Kubernetes flag is not journaled:
+a resumed run that has not captured yet needs it again.
+
+A store the ledger proves has not reached `20261022100000_add_machine_credential` holds no
+registration and passes. **A candidate image without either CLI refuses** (Compose: exit 74,
+`candidate image lacks src/…`; Kubernetes: the capture Job names the path). Compose has no
+escape: swap an image that predates the checks by hand. Kubernetes skips a missing CLI, loudly,
+only when the deploy declares an older candidate with `--allow-downgrade` or `--recovers`.
+
+Accepting a row is a decision, not a fix. Record the ids and why with the deploy. Neither path
+has run on a host yet; their behaviour is tested in `swap-mcp-preflight.db.test.ts` and
+`execute-adapter.test.ts` against the real CLIs.
 
 ### Verification after the swap
 
@@ -359,22 +375,30 @@ source address is the `X-Forwarded-For` entry `MCP_TRUSTED_PROXY_HOPS` from the 
 to the number of proxies this repository puts in front of mcp-01. The Kubernetes prod overlay
 sets 1, for its Traefik Ingress.
 
-### Kubernetes: not ready for machine grants
+### Kubernetes
 
-The prod overlay is plan-only, and three pieces are missing before an activated store can run
-there:
+The prod and staging overlays are plan-only. They now carry what an activated store needs:
 
-- `deploy/k8s/wbs/base/mcp.yaml` gives mcp-01 no `MCP_BE_INTERNAL_SECRET`, and no
-  `INTERNAL_AUTH_SECRET` either. A standalone mcp-01 then offers no machine grant. At
-  credential epoch 1 it refuses to start
-  (`MCP credential epoch is activated; mcp-01 needs INTERNAL_AUTH_SECRET or MCP_BE_INTERNAL_SECRET to bind consents`).
-- the prod `wbs-backend-config` has no `WBS_MCP_AUTHORIZATION_SERVER`. The local overlay puts
-  it in the Secret, but it belongs in the ConfigMap.
-- the schema Job runs no audience preflight (above).
+- `deploy/k8s/wbs/base/mcp.yaml` gives mcp-01 `MCP_BE_INTERNAL_SECRET` from
+  `wbs/wbs-mcp-secrets` (required). That alone lets a standalone mcp-01 offer machine grants
+  and start at credential epoch 1; it gets no `INTERNAL_AUTH_SECRET`, which stays gw-01's
+  (M14).
+- each overlay's `wbs-backend-config` carries `WBS_MCP_AUTHORIZATION_SERVER`, its
+  `MCP_PUBLIC_URL` plus `/oauth` (`mcp-manifest.test.ts` holds them equal).
+- the capture Job runs the settings and audience preflights (above), with the candidate
+  overlay's server.
 
-`MCP_BE_INTERNAL_SECRET` must then hold one value in two Secrets, `wbs-solver/wbs-backend-secrets`
-and `wbs/wbs-mcp-secrets`. Roll the backend first, as in step 2. The follow-up is task 8.3 of
-the change.
+`MCP_BE_INTERNAL_SECRET` must hold one value in two Secrets, `wbs-solver/wbs-backend-secrets`
+and `wbs/wbs-mcp-secrets`, and the operator provisions both before the first release carrying
+this manifest: without the key, the mcp-01 pod stops at `CreateContainerConfigError`. Roll the
+backend first, as in step 2.
+
+The preflights run inside the capture Job, after writes close, not in a read-only phase before
+it as Compose does: moving them needs a Job kind the single-writer guard admits beside a running
+backend, which this change does not add. Their refusal costs an outage and a rollback that
+touches no schema. A boot failure after migration for any other reason still takes the
+captured-schema rollback, and a table-guarded `down.sql` that refuses there parks the release
+in `rollback-failed`, which needs the manual recovery the release journal prints.
 
 ## Team claims swap window and rollback
 

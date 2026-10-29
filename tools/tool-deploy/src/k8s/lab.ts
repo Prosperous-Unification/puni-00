@@ -116,7 +116,16 @@ export function assertSecretApplied(
   }
 }
 
-/** Apply `wbs-mcp-secrets` through stdin, without putting values in argv or errors. */
+/**
+ * The local overlay's lab-only `MCP_BE_INTERNAL_SECRET` in `wbs-backend-secrets`: mcp-01
+ * requires the same value from `wbs-mcp-secrets` (`deploy/k8s/wbs/base/mcp.yaml`).
+ */
+export const LAB_MCP_BE_INTERNAL_SECRET = 'lab-only-mcp-be-internal-secret-0123456789';
+
+/**
+ * Apply `wbs-mcp-secrets` through stdin, without putting values in argv or errors. Every
+ * write carries {@link LAB_MCP_BE_INTERNAL_SECRET}, which no lab proof varies.
+ */
 async function applyMcpSecret(
   keys: Readonly<Record<string, string>>,
   secrets: readonly string[],
@@ -126,7 +135,7 @@ async function applyMcpSecret(
     kind: 'Secret',
     metadata: { name: 'wbs-mcp-secrets', namespace: 'wbs' },
     type: 'Opaque',
-    stringData: keys,
+    stringData: { ...keys, MCP_BE_INTERNAL_SECRET: LAB_MCP_BE_INTERNAL_SECRET },
   };
   const applied = await run(
     [kubectl, '--kubeconfig', join(state, 'kubeconfig'), '--context', CONTEXT, 'apply', '-f', '-'],

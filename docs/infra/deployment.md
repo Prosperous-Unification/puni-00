@@ -97,8 +97,9 @@ validate identity/admission → acquire Lease → persist intent → admit rollb
   or remove the ownership annotation to bypass that refusal. This bounded mechanism
   does not activate cross-project semantics or establish complete participant fencing.
 - **MCP sessions.** `wbs-mcp` is one `Recreate` replica with its own retained PVC at
-  `/var/lib/wbs-mcp`; its current store and signing keys come from `wbs/wbs-mcp-secrets`.
-  Previous keys are optional rotation slots. The production overlay declares that Secret
+  `/var/lib/wbs-mcp`; its current store and signing keys, and be-01's
+  `MCP_BE_INTERNAL_SECRET`, come from `wbs/wbs-mcp-secrets`. Previous keys are optional
+  rotation slots. The production overlay declares that Secret
   in `externally-provided.json`: the operator must provision it through the production SOPS
   secret source before rollout. The declaration contains no key material and does not create
   the Secret. The local k3d lab creates throwaway keys once per cluster at runtime.

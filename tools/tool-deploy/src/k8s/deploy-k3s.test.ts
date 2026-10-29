@@ -272,6 +272,25 @@ describe('deploy-k3s descriptor mode', () => {
       spy.mockRestore();
     }
   });
+
+  it('refuses a malformed --accept-breaking before reading anything', async () => {
+    const { args } = resumable('staging');
+    const logs: string[] = [];
+    const spy = spyOn(console, 'log').mockImplementation((line: string) => {
+      logs.push(line);
+    });
+    try {
+      expect(
+        await main([...args, '--accept-breaking', 'ti-a,,ti-b'], ROOT).then(
+          () => 'deployed',
+          (e: unknown) => String(e),
+        ),
+      ).toContain('--accept-breaking must be distinct ids');
+    } finally {
+      spy.mockRestore();
+    }
+    expect(logs).toEqual([]);
+  });
 });
 
 for (const [environment, context] of [
