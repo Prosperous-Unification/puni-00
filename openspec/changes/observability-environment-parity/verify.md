@@ -4529,3 +4529,62 @@ history/recovery and live dev acceptance require those prerequisites. A source o
 component success cannot substitute for them. Production activation, persistent
 Secret changes, destructive storage retirement and final merge remain separately
 authorized operations. The working dev service and retained history are unchanged.
+
+## Resumed publication review and terminal CI — 2026-10-29
+
+The resumed goal retains the full original objective and starts a fresh blocker
+audit. The prepared 86-file source 765 packet remains unpublished; renewed goal
+activity is not explicit approval of its previously denied public export.
+
+A read-only publication review revalidated all 85 payload hashes and compared the
+86 packet files with published code 49857: 51 identical, 9 changed, 26 new paths.
+All eight chart archives are byte-identical to that published commit. Bounded
+in-memory inspection covered 610 archive/decode members, 16092682 expanded bytes
+and 687 text payloads, including the bzip2 CRD payload that the prior scanner did
+not inspect. No archive content was extracted or executed. Parsed 238 authored
+YAML/JSON documents and embedded configurations contained no literal Kubernetes
+Secret resources; three password fields and nine credential environment entries
+use runtime references. Reviewed authored candidates are certificate configuration
+or runtime references; the token-shaped vendor hit is an X-placeholder example.
+No live credential was identified in these inspections. Generic secret detectors
+Gitleaks/TruffleHog are unavailable; arbitrary opaque/base64/custom credentials,
+unrelated Git history and supply-chain vulnerabilities are not exhaustively
+covered. This is not proof of universal absence or permission to publish.
+
+The packet does reveal service/namespace/port/version/storage/security topology,
+Secret/key names and two retained private peer /32 addresses alongside synthetic
+rehearsal coordinates. Publication requires an explicit owner decision; the
+immutable packet was not sanitized or changed. The private publication review
+retains exact reader limits, hashes, contextual candidate disposition and two
+inspection-harness diagnostics (unhandled bzip2 content, then console formatting),
+corrected without product/test/source mutation. The automatic export denial
+remains unresolved; no push, release, credential client or deployment followed.
+
+Current published main CI 40715462139 is terminal cancelled, not still running.
+Workspace 122912222892 exceeded the 90-minute job limit; its verification step
+ran 15:28:24–16:54:32 UTC before cancellation. Stable gate 122965457030 failed as
+required. Twilight completed successfully in 61m50s, all pixels and CodeQL passed,
+and infrastructure including deployment/Traefik Kubernetes completed successfully.
+These successes do not override the failed required gate or establish full
+observability runtime acceptance. Former watcher 45274 is now absent; actual
+provider terminal metadata, not that absence alone, establishes completion.
+No replacement observer, manual rerun or timeout increase occurred.
+
+Retained workspace artifact 12834073187 has verified ZIP digest
+1e83659e8bf86003ca41d6ddcd5fb00ca1557faaba4c5aa65ba2db0a75a3315a.
+The 4403770-byte Nx log SHA256 is
+6d91126bb6a5ca92c719a9cc0fcb7c5abced64f70dfc6c62513507621db4ee81.
+It ends after WBS backend 3836 pass / 3 skips / 0 fail and entry into frontend typecheck;
+it does not contain a successful final runtime-command receipt or workspace lint
+completion. The actual plan selected 52 workspace modules and no file-selected test
+commands. Largest reported test-command durations are backend 2168.30s,
+Fleet 1356.81s and devsync 1028.55s. These overlap on two workers and must not be
+summed into wall time. Baseline b0a passed with shorter durations; the exact cause
+of the slowdown/frontend in-flight time remains unproven. A terminal timeout
+requires investigation, not an observability behavior change or assumed pass.
+
+Full physical admission, authenticated source/Flux/Kubernetes/effective Pods/CNI/
+storage, correlated signals/operator views/isolation/history/recovery and live
+dev acceptance remain open at 4/11. No host upgrade, persistent Secret, production
+activation, destructive retirement or final implementation merge is authorized
+by this review. Existing working dev/history and all packet bytes are preserved.
