@@ -2872,11 +2872,30 @@ Not run, and why:
 - `twilight-burokrat:test`: no `project.json` or docs index changed;
 - the h2puni gate, and anything on a host.
 
-## Slice 18 — REST off (held)
+## Slice 18 — REST off
 
-**Held: this PR is a draft gated on task 8.1** (the dev pool-of-3 run). It must not merge
-before 8.1 is recorded, and #731 (M9's precondition) and Dany's 0.2 (e) decision are still
-open.
+**Task 8.1 passed on dev on 2026-10-29** (see "8.1 dev run" below), so this PR is ready for
+review. #731 (M9's precondition for the groups-less half) and Dany's 0.2 (e) decision are
+still open.
+
+### 8.1 dev run
+
+Run by the coordinating session on 2026-10-29, about 23:20–23:35Z, on
+`dev.wbs.bulletpoints.club`, with pool `647d216b` ("tst pool", 3 agents) and project
+`7bac29a3`. This record is that session's report; it was not re-observed from this branch.
+
+- **Import and tools.** The pool was imported with the real `twilight-dash pool import`. Each
+  agent connected through `headersHelper` on `/mcp` and saw 76 tools, none of them human-only.
+- **Claims and capacity.** The agents made 3 distinct claims with `assign: true`; each holder
+  was its assignee, under distinct runs `pool-<id>/<person>`. The resource RAM reached 24 of
+  24, after which other tasks answered `doesNotFit`.
+- **Heartbeats.** Each run renewed its own leases (2 leases each). A release, then a reclaim,
+  worked.
+- **Re-key.** The old keys' helper failed (`helper_failed:1`). After a re-import, the same claim
+  ids were kept and renewed.
+- **Revoke.** Every helper failed (`helper_failed:1`), and the lease sweep released all 6 claims
+  with reason `credential_revoked`. RAM and disk usage went back to 0.
+- **Observed, by design:** assignees stay assigned after a revoke.
 
 Tasks 7.1, 7.2 and 7.3 in one PR (design M9, M12, task 1.5).
 

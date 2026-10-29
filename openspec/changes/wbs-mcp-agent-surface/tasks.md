@@ -341,19 +341,20 @@
 
   Negatives: move the refusal after the read; the old Dash HTTP path test observes
   `machine_bearer_not_accepted`.
-  (verify.md slice 18, held on 8.1. Dash's `resources` runtime is an MCP client too. The
+  (verify.md slice 18; 8.1 passed on dev 2026-10-29. Dash's `resources` runtime is an MCP client too. The
   groups-less half of M9 waits for #731, its precondition, which is still open.)
 
 - [x] 7.3 Docs (M12), with Burokrat `check-indexes` exiting 0. (verify.md slice 18.)
 
 ## 8. Roll-out
 
-- [ ] 8.1 Dev: the claire fleet goes straight to MCP. A pool of 3 runs under `headersHelper`
+- [x] 8.1 Dev: the claire fleet goes straight to MCP. A pool of 3 runs under `headersHelper`
       with `twilight-dash mcp token`, each with its own `wbs_run`: they claim, heartbeat and
       release. Re-key mid-run, then revoke, and observe the leases end. Record it. This gates
       slice 7.
-      (Not done: the dev run waits on a pool in the dev web app. Its rehearsal on a throwaway stack,
-      `apps/wbs/mcp-01/src/load/pool-swarm-rehearsal.ts`, passed; verify.md slice 13.)
+      (Passed on dev 2026-10-29, about 23:20–23:35Z: a pool of 3, claims, heartbeats, re-key and
+      revoke, with the leases released `credential_revoked`; verify.md "8.1 dev run". The
+      rehearsal on a throwaway stack, `pool-swarm-rehearsal.ts`, is verify.md slice 13.)
 - [x] 8.2 Prod runbook:
   - seed `WBS_MACHINE_GRANT_SIGNING_KEY_*`, `MCP_BE_INTERNAL_SECRET` and
     `WBS_MCP_AUTHORIZATION_SERVER`;
