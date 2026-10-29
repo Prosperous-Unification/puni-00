@@ -1,5 +1,6 @@
 {
   "h3": {
+    "slackSecret": "verified",
     "hostname": "ubuntu-8gb-hel1-1-8GB-FIN42",
     "memory": 12563664896,
     "storage": "Filesystem     1024-blocks     Used Available Capacity Mounted on\n/dev/sda1        157149496 23608712 127119944      16% /",
@@ -592,7 +593,27 @@
       "Driver": "bridge",
       "Internal": false
     },
-    "observedAt": 1792941943318
+    "observedAt": 1792941943318,
+    "notificationRelease": {
+      "directory": "/home/monitor/puni-dev-observability/releases/slack-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "mountedPath": "/home/monitor/puni-dev-observability/releases/slack-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/alertmanager.yaml",
+      "manifest": {
+        "schemaVersion": 1,
+        "purpose": "puni-alerts/1",
+        "environment": "dev",
+        "host": "h3mon",
+        "project": "puni-dev-observability",
+        "sourceCommit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "files": {
+          "alertmanager.yaml": "cdcc75710b03f3c46e448ad606f8785d5caf03e26616e8ef422a5a3ad1f6842d",
+          "compose.slack.json": "251beb2b0dbf69072390f425c3600987d2449490a14977b42e03d15f3cae6ea1"
+        }
+      },
+      "actual": {
+        "alertmanager.yaml": "cdcc75710b03f3c46e448ad606f8785d5caf03e26616e8ef422a5a3ad1f6842d",
+        "compose.slack.json": "251beb2b0dbf69072390f425c3600987d2449490a14977b42e03d15f3cae6ea1"
+      }
+    }
   },
   "h1": {
     "hostname": "ubuntu-4gb-ash-1",

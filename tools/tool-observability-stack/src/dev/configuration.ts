@@ -18,10 +18,40 @@ const PlatformRedaction = type({
     },
   },
 });
+const Alertmanager = type({
+  global: { resolve_timeout: "'1m'", '+': 'reject' },
+  route: {
+    receiver: "'slack-puni'",
+    group_by: 'string[]',
+    group_wait: "'1s'",
+    group_interval: "'30s'",
+    repeat_interval: "'4h'",
+    '+': 'reject',
+  },
+  receivers: type({
+    name: "'slack-puni'",
+    slack_configs: type({
+      api_url_file: "'/alertmanager/secrets/slack-webhook'",
+      channel: "'#puni-alerts'",
+      send_resolved: 'true',
+      title: 'string > 0',
+      text: 'string > 0',
+      '+': 'reject',
+    })
+      .array()
+      .atLeastLength(1)
+      .atMostLength(1),
+    '+': 'reject',
+  })
+    .array()
+    .atLeastLength(1)
+    .atMostLength(1),
+  '+': 'reject',
+});
 const admission =
   'resource.attributes["deployment.environment.name"] != "dev" or resource.attributes["service.name"] == nil or resource.attributes["service.name"] == ""';
 
-/** Reuses the platform credential-shape policy; absent/malformed trusted policy throws. */
+/** Reuses the platform credential-shape policy and authorized #puni-alerts receiver. The webhook stays in the persistent Alertmanager volume. Deployment must separately verify secret readability; amtool configuration validation does not read this file. Absent/malformed trusted policy throws. */
 export function createDevConfiguration(
   platformAgentPath: string | URL = new URL(
     '../../../../infra/platform/telemetry/agent/agent.yaml',
@@ -203,13 +233,26 @@ export function createDevConfiguration(
     alertmanager: {
       global: { resolve_timeout: '1m' },
       route: {
-        receiver: 'local-only',
+        receiver: 'slack-puni',
         group_by: ['alertname', 'environment', 'service'],
         group_wait: '1s',
         group_interval: '30s',
         repeat_interval: '4h',
       },
-      receivers: [{ name: 'local-only' }],
+      receivers: [
+        {
+          name: 'slack-puni',
+          slack_configs: [
+            {
+              api_url_file: '/alertmanager/secrets/slack-webhook',
+              channel: '#puni-alerts',
+              send_resolved: true,
+              title: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}',
+              text: '{{ range .Alerts }}*{{ .Annotations.summary }}*\n{{ .Annotations.description }}\nSeverity: {{ .Labels.severity }} | Environment: {{ .Labels.environment }} | Service: {{ .Labels.service }}\n{{ end }}',
+            },
+          ],
+        },
+      ],
     },
   };
 }
@@ -269,13 +312,9 @@ export function assertDevConfiguration(configuration: DevConfiguration): void {
     )
       throw new Error('dev admission must reject unknown or production environment');
   }
-  // Proof: removing this throw failed the external webhook-recipient negative.
-  if (
-    configuration.alertmanager.receivers.length !== 1 ||
-    Object.keys(configuration.alertmanager.receivers[0]).join() !== 'name' ||
-    configuration.alertmanager.route.receiver !== configuration.alertmanager.receivers[0].name
-  )
-    throw new Error('external recipient refused');
+  // Proof: removing this guard makes all14 actual-renderer recipient/route/transport refusal cases emit deployment files in slack.test.ts.
+  if (!Alertmanager.allows(configuration.alertmanager))
+    throw new Error('unapproved alert recipient');
 }
 
 /** Only the two fixed new project queue volumes may be initialized; no host mount is accepted. */
