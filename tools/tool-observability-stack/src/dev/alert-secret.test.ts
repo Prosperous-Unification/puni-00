@@ -13,7 +13,7 @@ import { join } from 'node:path';
 
 import { afterEach, expect, test } from 'bun:test';
 
-import fixture from '../../test/fixtures/runtime.json';
+import fixture from '../../fixtures/runtime.json';
 import { validateRuntimeSnapshot } from './runtime';
 
 const roots: string[] = [];

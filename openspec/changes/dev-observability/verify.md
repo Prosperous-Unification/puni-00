@@ -1070,3 +1070,38 @@ and actual firing/recovery delivery across recreation are still pending. Follow-
 tasks4.1/4.2 and registry Task5.1 remain unchecked. No registry safeguard activation,
 Victoria retirement, provider physical-budget resolution or product migration is
 claimed.
+
+## Host-gate refusal and fixture layout repair — 2026-10-29
+
+The canonical h4 gate ran exact source
+`6a058008077aed53c9c3aaf6499932fd2df6879c` as `puni1` in its clean gate tree.
+Its durable terminal receipt ended at23:35:24Z with exit1; the unit was failed,
+MainPID0 and its control group empty. This is a failed gate, not an active or
+successful one. `twilight-burokrat:test` reported2503pass/11fail. The production
+pilot rejected `tools/tool-observability-stack/test/fixtures/runtime.json` because
+both test and fixture selectors matched; ten later negatives stopped at that same
+classification error before their intended boundaries. No monitoring transition
+was applied.
+
+The production `classify-candidate committed` command reproduced this exact
+failure with the extracted full-policy classification section. Initial attempts
+passed the outer policy instead of its classification section, then encountered
+sandbox object-store permissions using working selection; those are diagnostic
+command failures, not additional safety witnesses. Bootstrap/code-policy whole-tree
+runs are also outside their intended scopes and remain failed observations.
+Moving the unchanged fixture to the package's `fixtures/runtime.json` and updating
+its three imports made production full-policy working classification exit0.
+No policy, classifier or safety guard was relaxed. Fixture SHA256 remained
+`9b518d4d79ec11e00501880df258a5eda917545239ee0a119207906b5aa69943`.
+
+Fresh uncached monitoring tests passed434, zero failures,886assertions across15files
+in12.46seconds. All60 named package/config/doc pins stayed unchanged during each
+scoped check. Lint, forced-build types, formatting and strict OpenSpec validation
+passed. The tests ran asUID1000 with private loopback, zero capabilities and
+no-new-privs; post-run lsns inspection found no remaining visible process in that exact namespace.
+A direct all-process audit hit protected PID1 and failed; it is not evidence.
+Only three test imports and the fixture location changed from the prior validated
+implementation; production code is unchanged. The affected production pilot,
+new exact-SHA host gate, integration review and live ownership/persistence remain
+pending. Evidence: `/tmp/task10-slack-fixture-layout/`; failed gate log SHA256
+`48c223d8bac33dc492f4f19c271894a7d7c0d8167899833dc9865afd16c91f76`.

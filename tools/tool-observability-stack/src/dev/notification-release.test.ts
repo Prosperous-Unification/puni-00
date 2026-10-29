@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { expect, test } from 'bun:test';
 import { parse } from 'yaml';
 
-import fixture from '../../test/fixtures/runtime.json';
+import fixture from '../../fixtures/runtime.json';
 import { renderNotificationRelease, validateNotificationRelease } from './notification-release';
 import { validateRuntimeSnapshot } from './runtime';
 
