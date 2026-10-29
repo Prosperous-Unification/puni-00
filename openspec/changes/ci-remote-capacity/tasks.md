@@ -20,3 +20,8 @@
 - [x] 12. Review and execute exact new finite proof recipes with original custody and exact source restoration; add factual adjacent evidence only after actual review.
 - [x] 13. Complete scoped source/static/OpenSpec verification and independent review before Root checkpoint/publication.
 - [ ] 14. Require fresh exact-head hosted source/rest jobs and required aggregate success before accepting current capacity.
+
+## Accepted source-readiness composer integration
+
+- [x] 15. Add only the accepted source-readiness parent to the exact source owner list and existing canonical union/count consumers; observe missing-membership RED then all owning runner-contract cases GREEN.
+- [x] 16. Complete current private integration static checks and independent review. Fresh exact-head hosted acceptance remains task14.

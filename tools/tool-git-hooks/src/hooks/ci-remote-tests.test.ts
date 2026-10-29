@@ -25,6 +25,7 @@ const SOURCE = [
   'src/lib/source-inner-transport.test.ts',
   'src/lib/source-frontend-http.test.ts',
   'src/lib/source-frontend-profile.test.ts',
+  'src/lib/source-readiness.test.ts',
 ];
 const explicit = [
   'test/edge-init.test.ts',
@@ -488,7 +489,7 @@ test.each(['absent', 'inputs', 'environment'])(
   },
 );
 
-test('source summary receipt mismatch refuses after actual six-parent child execution', () => {
+test('source summary receipt mismatch refuses after actual seven-parent child execution', () => {
   const root = fixture();
   const preload = join(root, 'source-summary-view.ts');
   writeFileSync(
@@ -501,11 +502,11 @@ test('source summary receipt mismatch refuses after actual six-parent child exec
         async start(controller) {
           try {
             const text = await new Response(child.stderr).text();
-            const matches = [...text.matchAll(/Ran (\\d+) tests across 6 files\\./g)];
-            if (matches.length !== 1) throw new Error('source summary view expected exactly one six-file receipt');
+            const matches = [...text.matchAll(/Ran (\\d+) tests across 7 files\\./g)];
+            if (matches.length !== 1) throw new Error('source summary view expected exactly one seven-file receipt');
             process.stderr.write('source summary count transform observed exactly once\\n');
             controller.enqueue(new TextEncoder().encode(text.replace(matches[0][0],
-              matches[0][0].replace('6 files', '5 files'))));
+              matches[0][0].replace('7 files', '6 files'))));
             controller.close();
           } catch (cause) { controller.error(cause); }
         }
@@ -558,7 +559,7 @@ test('source fresh summary consumes coherent final outer evidence after real nes
   expect(source.stderr.toString()).toContain('NESTED_SOURCE_CHILD_JOINED');
   expect(source.exitCode, source.stderr.toString()).toBe(0);
   expect(executed(source.stdout.toString())).toEqual([...SOURCE].sort());
-  expect(source.stdout.toString()).toContain('"files":6');
+  expect(source.stdout.toString()).toContain('"files":7');
 });
 
 test('remainder rejects a malformed terminal outer summary after a real nested child joins', () => {

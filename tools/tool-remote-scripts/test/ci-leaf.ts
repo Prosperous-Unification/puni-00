@@ -13,6 +13,8 @@ const SOURCE = [
   'src/lib/source-inner-transport.test.ts',
   'src/lib/source-frontend-http.test.ts',
   'src/lib/source-frontend-profile.test.ts',
+  // Proof: omitting this parent failed the actual canonical source-union consumer; restored membership passed (2026-10-29).
+  'src/lib/source-readiness.test.ts',
 ];
 const DISCOVERY = [
   'src',

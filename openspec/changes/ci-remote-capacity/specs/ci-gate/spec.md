@@ -13,7 +13,7 @@ The shared scratch preload SHALL allow its global afterAll 30000 ms while retain
 
 ### Requirement: Remote execution has exactly four fixed complete leaves
 
-After immutable plan/head validation, CI SHALL execute remote through its 43-case core file, 24-case continuation file, a source leaf containing exactly source-role-process.test.ts, source-inner-command.test.ts, source-inner-program.test.ts, source-inner-transport.test.ts, source-frontend-http.test.ts and source-frontend-profile.test.ts, and canonical discovery excluding exactly these eight parent files. Logical ownership SHALL remain singular and canonical local/host execution SHALL remain unchanged.
+After immutable plan/head validation, CI SHALL execute remote through its 43-case core file, 24-case continuation file, a source leaf containing exactly source-role-process.test.ts, source-inner-command.test.ts, source-inner-program.test.ts, source-inner-transport.test.ts, source-frontend-http.test.ts, source-frontend-profile.test.ts and source-readiness.test.ts, and canonical discovery excluding exactly these nine parent files. Logical ownership SHALL remain singular and canonical local/host execution SHALL remain unchanged.
 
 #### Scenario: Discovery adds another canonical test
 

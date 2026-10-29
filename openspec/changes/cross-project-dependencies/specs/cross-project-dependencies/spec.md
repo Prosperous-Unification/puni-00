@@ -1789,3 +1789,38 @@ Source restart-input capture SHALL select the frontend response profile only fro
 - **WHEN** a selected frontend file changes after a supported original capture
 - **THEN** the existing original cold/running tree monitor refuses
 - **AND** the captured profile cannot be replaced with caller hashes or learned running-frontend responses
+
+### Requirement: Original source context brackets six fixed HTTP observations
+
+Source HTTP observation SHALL accept only the original consumed context whose mandatory original capture retained the supported frontend profile. It SHALL use the original deadline and existing bounded transport, preserve whole-source no-rebind evidence, and return detached frozen observations and digests without continuation authority.
+
+#### Scenario: Original lifetime and retained barriers precede HTTP
+
+- **WHEN** a copied or released context is supplied, or opening evidence, artifact, stores, ingress or original-context state differs
+- **THEN** source HTTP observation refuses before issuing any HTTP request
+- **AND** unsupported original frontend inputs remain an original-prepare refusal rather than a caller-supplied expected profile
+
+#### Scenario: Six surfaces use the latest same-role binding
+
+- **WHEN** the original running source is observed
+- **THEN** requests occur in order: `backend:3100 /health`, `backend:3100 /api/runtime/dependency-capability`, `gateway:3200 /health`, `mcp:3300 /health/readiness`, `frontend:4200 /` and `frontend:4200 /src/main.tsx`
+- **AND** each numeric endpoint joins original NetworkID, current assigned address, actual namespace membership and the same role's unique listener without assuming stopped-IP equality
+- **AND** backend disk and boot identities both equal the original request owner SHA, capability and listener semantics are required, and frontend document/entry require the existing complete transported-text and MIME profiles including entry map text
+
+#### Scenario: Any role drifts during an HTTP response
+
+- **WHEN** a different role's retained process or listener binding changes during any of the six responses
+- **THEN** the immediate whole-source observation refuses before the next request or final return
+- **AND** the same original context retains its original whole binding without recapture
+
+#### Scenario: Retained state drifts after the last whole observation
+
+- **WHEN** source inputs, evidence, artifacts, stores, ingress or original fenced context change after the sixth closing whole-source observation
+- **THEN** the final retained checks refuse instead of returning evidence
+
+#### Scenario: Evidence grants no continuation authority
+
+- **WHEN** all six semantic responses, seven whole-source observations and final barriers succeed
+- **THEN** returned observations and digests are detached and recursively frozen
+- **AND** no startup, DB-opener, durable source-ready, coordinator, controller, exposure or browser/native acceptance is granted
+- **AND** frontend comparison retains the existing transported-text/BOM boundary without evaluation or normalization
