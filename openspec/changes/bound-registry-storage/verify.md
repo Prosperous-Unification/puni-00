@@ -3049,3 +3049,54 @@ Task8/4.2 remains in progress. The original17 requirements/24 scenarios, remaini
 exhaustion, ordinary supervisor/CLI serving continuation, formal original-BASE
 review, Tasks9–11 and the exact-SHA host gate remain required. There was no h4
 rehearsal, closed successful-scope replay or production safeguard activation.
+
+## Task8 indexed Array-read typing — 2026-10-29
+
+Thirty-three nonnegative literal-index reads in19 runtime/fixture files now use
+`Array.at`. The original receivers were compiler-verified ordinary Arrays, not
+tuples; their producers include split/filter results, filesystem listings,
+validated journal arrays and `process.argv`. This represents possible absence in
+the type while retaining the same index on ordinary owned arrays. One unrelated
+`unknown[]` read inside a schema assertion was excluded, as were tuple and optional
+chain element accesses. The listener's inner Array read changes while its existing
+outer optional access remains intact.
+
+All guard/loop/switch/ternary conditions remain structurally unchanged. Complete
+syntax trees otherwise match under only positive-index Array-at/index
+normalization, including literal contents, type syntax and declaration flags.
+Wrong-index and added-effect controls differ. These are mechanical transfer
+checks, not additional R5 guard-removal proofs or emitted-byte equivalence.
+
+The first full run exited1:2053 passes, three failures,8750 assertions. All three
+failures were the existing actual-main route tests: their source extractor still
+required the old `process.argv[2]` spelling. Only that extraction literal changed
+to `process.argv.at(2)`. The entire actual main body and all original effect/failure
+assertions remain exercised. The affected lifecycle file passed18 tests and50
+assertions before the complete suite was rerun. The failed run remains preserved.
+
+Final configured tool-fleet execution, with pinned native restic enabled, exited0:
+2056 passes, zero failures/skips,8756 assertions across164 files,108.95seconds.
+All333 captured TypeScript/config pins matched during and after the final run.
+Library/spec checks exited0; the spec check was repeated after the test-anchor
+change and again exited0. Formatting passed for19 runtime files and the changed
+test. All11 configured production CLI entrypoints built successfully into an
+owner-only temporary archive; they were not installed or activated.
+
+Fresh96-file runtime lint reports200 errors, zero warnings. The only rule-count
+change is48 fewer `no-unnecessary-condition` findings; that rule now has46 remaining
+findings. No other rule count increased or decreased. Runtime lint remains failing,
+and test-file/full-repository lint remains uncertified.
+
+`/tmp/task8-array-covering.json`, SHA256
+`6e243dc9715ccc24d8f9957646682eeecf609d1c35bdfa2feeca98d56941a1c7`,108pins,
+binds the exact edits, snapshots, controls, both full-suite runs, final check logs
+and compiled outputs. Runtime transfer is under `/tmp/task8-array-reads/`; current
+lint/check receipts are under `/tmp/task8-array-checks/`. The final project receipt
+is `/tmp/task8-project-after-array-final/exit.json` (stdout `f6e40a39`, stderr
+`6960d3ec`). Earlier live-source proof packages are historical after these edits.
+
+The original17 requirements/24 scenarios and Task8/4.2 scope remain intact. Runtime
+and test lint, complete semantic R5 work, guardian supplement integration/R2 naming,
+actual upload/inode exhaustion, ordinary supervisor/CLI serving continuation,
+formal original-BASE review, Tasks9–11 and the exact-SHA host gate remain required.
+No h4 rehearsal, closed successful-scope replay or production activation occurred.
