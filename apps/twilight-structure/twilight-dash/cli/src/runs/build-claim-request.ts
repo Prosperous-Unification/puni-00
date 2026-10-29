@@ -87,6 +87,10 @@ export async function buildClaimRequest(
     original.ledgerId !== scope.pin.ledgerId ||
     grant?.localEpoch !== owner.epoch ||
     acquisition === undefined ||
+    // Proof: R2F11 removed only floor comparison; 'claim builder refuses' built a stale-generation request. Exact restoration passed.
+    (scope.version === 2 &&
+      scope.generationFloor !== null &&
+      grant.authority.generation < scope.generationFloor) ||
     !equalRecords(acquisition.localOwner, owner)
   )
     return { kind: 'refused', reason: 'authority_conflict' };

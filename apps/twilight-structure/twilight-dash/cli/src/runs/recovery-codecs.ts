@@ -282,7 +282,8 @@ const hold = type({
   closureId: identity,
   checkpoint: CheckpointCodec.extract({ kind: "'ready'" }),
 });
-const attempt = AttemptCodec.omit('version', 'state').merge({
+/** Current-row decoder and recovery closures share one strict hold shape; immutable old replies retain AttemptCodec. */
+export const Attempt3Codec = AttemptCodec.omit('version', 'state').merge({
   ...closedRecord,
   version: '3',
   state: hold,
@@ -304,7 +305,7 @@ const closure = type({
   originalReply: type({ ...closedRecord, kind: "'authority'", acceptance: acceptanceCodec })
     .or({ ...closedRecord, kind: "'claim'", command: ClaimAcceptCommandCodec, ack: claimAck })
     .or('null'),
-  attemptReply: attempt.or('null'),
+  attemptReply: Attempt3Codec.or('null'),
 });
 const history = type({
   ...closedRecord,

@@ -29,6 +29,7 @@ import { planConsumption, planDecision, replayConsumption, replayDecision } from
 import { addInteger, decisionId, decodeDecision, decodeReceipt } from '../record-codecs';
 import {
   decodeAdmission,
+  decodeAttempt,
   decodeAttemptGuard,
   decodeCompletion,
   decodeExecutionCommand,
@@ -239,7 +240,29 @@ export function createSqliteRunStore(
       const scope = decodeRuntimeScope(input);
       return await transact(false, () => {
         const meta = readMeta(database);
-        return inspectRuntimeScope(readHistory(database).catalog.runtime, scope, meta.ownership);
+        const snapshot = inspectRuntimeScope(
+          readHistory(database).catalog.runtime,
+          scope,
+          meta.ownership,
+        );
+        if (snapshot.kind === 'uninitialized')
+          return {
+            version: 1,
+            kind: 'uninitialized',
+            scope: snapshot.scope,
+            ownerEpoch: snapshot.ownerEpoch,
+          };
+        return {
+          version: 1,
+          kind: 'pinned',
+          pin: snapshot.pin,
+          revision: snapshot.revision,
+          ownerEpoch: snapshot.ownerEpoch,
+          intents: snapshot.intents,
+          acceptances: snapshot.acceptances,
+          pendingCommandId: snapshot.pendingCommandId,
+          grant: snapshot.grant,
+        };
       });
     },
     async stageRuntimeRequest(inputGuard, canonicalRequest) {
@@ -389,7 +412,7 @@ export function createSqliteRunStore(
           version: 2,
           run,
           attempts: snapshot.catalog.attempts
-            .map((entry) => entry.attempt)
+            .map((entry) => decodeAttempt(entry.attempt))
             .filter((attempt) => attempt.identity.runId === run.runId)
             .sort(
               (left, right) =>
@@ -579,7 +602,8 @@ export function createSqliteRunStore(
           (entry) => entry.run.runId === inputRun && entry.attempt.attemptId === inputAttempt,
         );
         if (history === undefined) throw new Error('attempt does not exist');
-        return history;
+        const { recoveries: _recoveries, ...legacy } = history;
+        return { ...legacy, version: 1, attempt: decodeAttempt(history.attempt) };
       });
     },
     async recordExecution(inputGuard, inputCommand) {
@@ -848,7 +872,7 @@ export function createSqliteRunStore(
             capacity: readCapacity(database, meta.capacity),
             run,
             manifest: requireManifest(run.manifestDigest),
-            attempts: history.map((entry) => entry.attempt),
+            attempts: history.map((entry) => decodeAttempt(entry.attempt)),
             admissions: history.map((entry) => entry.admission),
           },
           guard,

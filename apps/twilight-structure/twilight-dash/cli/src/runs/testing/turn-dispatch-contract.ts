@@ -807,6 +807,7 @@ export function turnDispatchContract(name: string, create: () => Promise<Outcome
       'locator',
       'executor',
       'pending_grant',
+      'recovery_barrier',
       'grant_mapping',
       'uninitialized',
       'nonready',
@@ -846,7 +847,8 @@ export function turnDispatchContract(name: string, create: () => Promise<Outcome
               ...setup.runs,
               async readExecutionHistory(...args) {
                 const history = await setup.runs.readExecutionHistory(...args);
-                if (history.attempt.state.kind !== 'ready') throw new Error('ready required');
+                if (history.version !== 1 || history.attempt.state.kind !== 'ready')
+                  throw new Error('legacy ready required');
                 return {
                   ...history,
                   attempt: {
@@ -876,6 +878,22 @@ export function turnDispatchContract(name: string, create: () => Promise<Outcome
           case 'executor':
             Object.assign(setup.executor, { kind: 'tool' });
             reason = 'identity_conflict';
+            break;
+          case 'recovery_barrier':
+            runs = {
+              ...setup.runs,
+              async readRuntimeScope(scope) {
+                const history = await setup.runs.readRuntimeScope(scope);
+                if (history.kind !== 'pinned') throw new Error('pin required');
+                return {
+                  ...history,
+                  version: 2,
+                  recoveries: [],
+                  activeRecoveryId: null,
+                  generationFloor: 2,
+                };
+              },
+            };
             break;
           case 'pending_grant':
           case 'grant_mapping':
@@ -917,7 +935,13 @@ export function turnDispatchContract(name: string, create: () => Promise<Outcome
         };
         expect(await dispatch(setup, runs)).toEqual({ kind: 'refused', reason });
         expect(scopeReads).toBe(
-          ['scope_revision', 'pending_grant', 'grant_mapping', 'uninitialized'].includes(fault)
+          [
+            'scope_revision',
+            'pending_grant',
+            'recovery_barrier',
+            'grant_mapping',
+            'uninitialized',
+          ].includes(fault)
             ? 1
             : 0,
         );

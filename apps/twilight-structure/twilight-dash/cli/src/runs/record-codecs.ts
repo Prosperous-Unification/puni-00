@@ -6,6 +6,8 @@ import {
   ExecutionFactCodec,
   ProgressIntentCodec,
 } from './execution-codecs';
+import type { Attempt } from './execution-records';
+import { Attempt3Codec } from './recovery-codecs';
 export {
   AttemptCodec,
   AttemptOutcomeCodec,
@@ -163,6 +165,22 @@ export function decodeAttempt(value: unknown) {
   if ('quiescence' in state && state.quiescence.operationKey !== attempt.identity.operationKey)
     throw new Error('corrupt attempt quiescence operation');
   return attempt;
+}
+/** Decodes a current row without widening immutable predecessor acknowledgements. */
+export function decodeCurrentAttempt(candidate: unknown): Attempt {
+  if (
+    typeof candidate === 'object' &&
+    candidate !== null &&
+    'version' in candidate &&
+    candidate.version === 3
+  ) {
+    // Proof: R2F49 bypassed only the shared current-row decoder; wrong checkpoint/cause pairs lost rejection with old reply and capacity checks retained. Exact restoration passed.
+    const attempt = parseOrThrow(Attempt3Codec, candidate);
+    // Proof: R2F09 removed only this check; 'recovery hold reserves capacity and preserves the exact old claim acknowledgement' lost its required rejection. Exact restoration passed.
+    if (!attempt.holdsCapacity) throw new Error('corrupt recovery hold capacity');
+    return attempt;
+  }
+  return decodeAttempt(candidate);
 }
 export const decodeRunGuard = (value: unknown) => parseOrThrow(RunGuardCodec, value);
 

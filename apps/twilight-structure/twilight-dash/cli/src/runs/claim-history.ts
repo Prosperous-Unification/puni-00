@@ -10,9 +10,15 @@ import { equalRecords } from './record-codecs';
 import { readTargetObservation } from './record-preparation';
 import type { ArtifactRef, AttemptId, ExecutionCommandId, RunId } from './records';
 import type { RunStore, ScopedAttemptGuard, StoreReply } from './run-store';
-import { intentCodec, readRuntimeRequest } from './runtime-codecs';
+import {
+  equalRuntimeScopes,
+  intentCodec,
+  readRuntimeRequest,
+  runtimeScopeKey,
+} from './runtime-codecs';
+import { readRuntimeHistory } from './runtime-history';
 import { verifyRuntimeReceipt } from './runtime-receipt';
-import type { RuntimeIntent } from './runtime-records';
+import type { RuntimeIntent, RuntimeScope } from './runtime-records';
 import { ArtifactRefCodec, ExecutionCommandIdCodec } from './value-codecs';
 import { verifyArtifacts } from './verify-artifacts';
 
@@ -117,7 +123,7 @@ async function verifyObservation(
 
 /** Rechecks independently retained binding, state, claim and recovery bytes after the provider's complete consistent history audit. No transport authenticity or live lease is asserted. */
 export async function readExecutionHistory(
-  runs: Pick<RunStore, 'readExecutionHistory' | 'readManifest'>,
+  runs: Pick<RunStore, 'readExecutionHistory' | 'readManifest' | 'readRuntimeScope'>,
   artifacts: ArtifactStore,
   runId: RunId,
   attemptId: AttemptId,
@@ -191,5 +197,36 @@ export async function readExecutionHistory(
     ]);
   if (history.receipt !== null)
     await verifyArtifacts(artifacts, [history.receipt.receipt.evidence]);
+  if (history.version === 2) {
+    const scopes = new Map<string, RuntimeScope>();
+    for (const entry of history.executions) {
+      if (
+        entry.command.kind === 'execution' &&
+        entry.command.fact.kind === 'preparation_intended'
+      ) {
+        const scope = entry.command.fact.intent.target.observation.scope;
+        scopes.set(runtimeScopeKey(scope), scope);
+      }
+    }
+    for (const closure of history.recoveries) {
+      const scope = readRuntimeRequest(closure.original.canonicalRequest).scope;
+      scopes.set(runtimeScopeKey(scope), scope);
+    }
+    for (const scope of scopes.values()) {
+      // Proof: R2F13 replaced only this new verified read with raw scope inspection; active witness substitution lost rejection. Exact restoration passed.
+      const runtime = await readRuntimeHistory(runs, artifacts, scope);
+      if (runtime.version !== 2 || runtime.kind !== 'pinned')
+        // Proof: R2F50 removed only this check; 'verified successor execution refuses predecessor scope without recovery witnesses' lost rejection. Exact restoration passed.
+        throw new Error('execution recovery scope differs from complete runtime history');
+      for (const closure of history.recoveries) {
+        if (
+          equalRuntimeScopes(readRuntimeRequest(closure.original.canonicalRequest).scope, scope) &&
+          !runtime.recoveries.some((journal) => equalRecords(journal.closure, closure))
+        )
+          // Proof: R2F51 removed only this check; 'verified execution rejects closure absent from the complete runtime journal' lost rejection. Exact restoration passed.
+          throw new Error('execution recovery closure differs from complete runtime history');
+      }
+    }
+  }
   return history;
 }

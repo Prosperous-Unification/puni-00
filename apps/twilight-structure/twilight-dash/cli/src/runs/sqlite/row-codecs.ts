@@ -11,6 +11,7 @@ import {
   decodeAdmission,
   decodeAttempt,
   decodeCompletion,
+  decodeCurrentAttempt,
   decodeManifest,
   decodeRun,
   OwnershipStatusCodec,
@@ -85,7 +86,7 @@ export function decodeRunRow(input: unknown) {
 /** Decodes the immutable admission identity together with its current attempt. */
 export function decodeAttemptRow(input: unknown) {
   const row = parseOrThrow(AttemptRowCodec, input);
-  const attempt = decodeAttempt(JSON.parse(row.record));
+  const attempt = decodeCurrentAttempt(JSON.parse(row.record));
   const admission = decodeAdmission(JSON.parse(row.admission));
   // Proof: independently bypassing each comparison accepted the corresponding valid-shaped attempt/admission key, ordinal or operation corruption.
   if (

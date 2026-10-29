@@ -82,8 +82,8 @@ export function readMeta(database: Database) {
       .get(),
   );
 }
-/** Validates the published store, including every portable record and relational invariant. No migration runs here. */
-export function validateDatabase(database: Database): void {
+/** Verifies the compiled physical schema and metadata identity before any predecessor witness conversion; performs no history reads or migration. */
+export function validateSchemaIdentity(database: Database): void {
   // Proof: removing this dispatch accepted the same ten altered empty stores before row validation could detect them.
   // Proof: F23 bypassed physical schema validation for an empty runtime table; 'empty run_runtime_scope declaration' failed and exact restoration passed.
   validatePhysicalSchema(database);
@@ -95,6 +95,12 @@ export function validateDatabase(database: Database): void {
     meta.down_hash !== DOWN_HASH
   )
     throw new Error('incompatible sqlite schema version or migration hash');
+}
+
+/** Validates the published store, including every portable record and relational invariant. No migration runs here. */
+export function validateDatabase(database: Database): void {
+  validateSchemaIdentity(database);
+  const meta = readMeta(database);
   // Proof: F63 omitted runtime audit on reopen; 'trusted runtime scope ledger' failed and exact restoration passed.
   readRuntimeCatalog(database, meta.ownership);
   // Proof: bypassing this diagnostic accepted an injected non-ok SQLite integrity response through the real open path.

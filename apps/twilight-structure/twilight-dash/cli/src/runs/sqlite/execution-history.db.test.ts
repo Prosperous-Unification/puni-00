@@ -1185,7 +1185,8 @@ describe('retained history owner', () => {
   rejects('current attempt differs', 'receipt', 'corrupt current attempt provenance', (source) => ({
     ...source,
     attempts: source.attempts.map((entry) => {
-      if (entry.attempt.state.kind !== 'terminal') throw new Error('expected terminal attempt');
+      if (entry.attempt.version !== 2 || entry.attempt.state.kind !== 'terminal')
+        throw new Error('expected terminal attempt');
       return {
         ...entry,
         attempt: {
@@ -1372,7 +1373,20 @@ describe('retained history owner', () => {
     'remaining unavailable scope diagnostic',
     'stage',
     'execution scope context is unavailable',
-    (source) => ({ ...source, runtime: { scopes: [], intents: [], acceptances: [] } }),
+    (source) => ({
+      ...source,
+      runtime: {
+        scopes: [],
+        intents: [],
+        acceptances: [],
+        recovery: {
+          histories: [],
+          barriers: [],
+          active: [],
+          counts: { journals: 0, fences: 0, observations: 0, closures: 0, barriers: 0, active: 0 },
+        },
+      },
+    }),
   );
   rejects(
     'remaining future scope diagnostic',

@@ -31,6 +31,7 @@ import {
 import { planOutcome, type RecordedCompletion } from '../plan-outcome';
 import { assertClock, planOwnership, planRenewal } from '../plan-ownership';
 import { planReceipt, type RecordedReceipt, replayReceipt } from '../plan-receipt';
+import type { RecoveryBarrier, RecoveryCatalog } from '../plan-recovery-history';
 import {
   auditRuntimeCatalog,
   inspectRuntimeScope,
@@ -77,6 +78,7 @@ import type {
   OwnershipStatus,
   Run,
 } from '../records';
+import type { RecoveryHistory } from '../recovery-records';
 import type { RunStore, StoreReply } from '../run-store';
 import {
   decodeRuntimeAcceptanceInput,
@@ -123,6 +125,17 @@ export function createMemoryStores(options: MemoryOptions): {
   const runtimeScopes = new Map<string, RuntimeScopeRecord>();
   const runtimeIntents = new Map<string, RuntimeIntent>();
   const runtimeAcceptances = new Map<string, RuntimeAcceptance>();
+  const recoveries = new Map<string, RecoveryHistory>();
+  const recoveryBarriers = new Map<string, RecoveryBarrier>();
+  const activeRecoveries = new Map<string, RecoveryCatalog['active'][number]>();
+  const recoveryCounts: RecoveryCatalog['counts'] = {
+    journals: 0,
+    fences: 0,
+    observations: 0,
+    closures: 0,
+    barriers: 0,
+    active: 0,
+  };
   const runtimeCounts = { scopes: 0, intents: 0, acceptances: 0 };
   function readRuntimeCatalog(): RuntimeCatalog {
     if (
@@ -133,6 +146,12 @@ export function createMemoryStores(options: MemoryOptions): {
     )
       throw new Error('corrupt memory runtime counts');
     const catalog = structuredClone({
+      recovery: {
+        histories: [...recoveries.values()],
+        barriers: [...recoveryBarriers.values()],
+        active: [...activeRecoveries.values()],
+        counts: recoveryCounts,
+      },
       scopes: [...runtimeScopes.values()],
       intents: [...runtimeIntents.values()],
       acceptances: [...runtimeAcceptances.values()],
@@ -265,11 +284,25 @@ export function createMemoryStores(options: MemoryOptions): {
     async readRuntimeScope(input) {
       assertOpen();
       auditHistory();
-      return await Promise.resolve(
-        structuredClone(
-          inspectRuntimeScope(readRuntimeCatalog(), decodeRuntimeScope(input), status),
-        ),
-      );
+      const snapshot = inspectRuntimeScope(readRuntimeCatalog(), decodeRuntimeScope(input), status);
+      if (snapshot.kind === 'uninitialized')
+        return await Promise.resolve({
+          version: 1,
+          kind: 'uninitialized',
+          scope: snapshot.scope,
+          ownerEpoch: snapshot.ownerEpoch,
+        });
+      return structuredClone({
+        version: 1,
+        kind: 'pinned',
+        pin: snapshot.pin,
+        revision: snapshot.revision,
+        ownerEpoch: snapshot.ownerEpoch,
+        intents: snapshot.intents,
+        acceptances: snapshot.acceptances,
+        pendingCommandId: snapshot.pendingCommandId,
+        grant: snapshot.grant,
+      });
     },
     async stageRuntimeRequest(inputGuard, canonicalRequest) {
       const snapshot = structuredClone(inputGuard);
@@ -398,9 +431,9 @@ export function createMemoryStores(options: MemoryOptions): {
         structuredClone({
           version: 2,
           run,
-          attempts: [...attempts.values()].filter(
-            (attempt) => attempt.identity.runId === run.runId,
-          ),
+          attempts: [...attempts.values()]
+            .map(decodeAttempt)
+            .filter((attempt) => attempt.identity.runId === run.runId),
           pendingIntents: [...completions.values()]
             .filter(
               (entry) =>
@@ -467,7 +500,7 @@ export function createMemoryStores(options: MemoryOptions): {
         structuredClone({
           decisionId: identity,
           wait: reply.value.wait,
-          reply: reply.value.attempt,
+          reply: decodeAttempt(reply.value.attempt),
         }),
       );
       return await Promise.resolve(
@@ -498,7 +531,10 @@ export function createMemoryStores(options: MemoryOptions): {
       );
       if (reply.kind === 'refused') return finishReply(reply, observedAt);
       applyChange(run, attempt, reply.value);
-      receipts.set(receipt.commandId, structuredClone({ receipt, reply: reply.value.attempt }));
+      receipts.set(
+        receipt.commandId,
+        structuredClone({ receipt, reply: decodeAttempt(reply.value.attempt) }),
+      );
       return await Promise.resolve(
         finishReply({ kind: reply.kind, value: reply.value.attempt }, observedAt),
       );
@@ -532,7 +568,7 @@ export function createMemoryStores(options: MemoryOptions): {
             version: 1,
             attemptId: attempt.attemptId,
             completion,
-            reply: reply.value.attempt,
+            reply: decodeAttempt(reply.value.attempt),
           }),
         );
       }
@@ -546,7 +582,10 @@ export function createMemoryStores(options: MemoryOptions): {
         (entry) => entry.run.runId === inputRun && entry.attempt.attemptId === inputAttempt,
       );
       if (history === undefined) throw new Error('attempt does not exist');
-      return await Promise.resolve(structuredClone(history));
+      const { recoveries: _recoveries, ...legacy } = history;
+      return await Promise.resolve(
+        structuredClone({ ...legacy, version: 1, attempt: decodeAttempt(history.attempt) }),
+      );
     },
     async recordExecution(inputGuard, inputCommand) {
       const guardSnapshot = structuredClone(inputGuard);
@@ -770,12 +809,14 @@ export function createMemoryStores(options: MemoryOptions): {
           capacity: { limit: capacity, reserved },
           run,
           manifest: readManifest(run.manifestDigest),
-          attempts: [...attempts.values()].filter(
-            (attempt) =>
-              attempt.attemptId === admission.attemptId ||
-              (attempt.identity.runId === run.runId &&
-                attempt.identity.occurrenceId === admission.identity.occurrenceId),
-          ),
+          attempts: [...attempts.values()]
+            .map(decodeAttempt)
+            .filter(
+              (attempt) =>
+                attempt.attemptId === admission.attemptId ||
+                (attempt.identity.runId === run.runId &&
+                  attempt.identity.occurrenceId === admission.identity.occurrenceId),
+            ),
           admissions: [...admissions.values()].filter(
             (record) =>
               record.attemptId === admission.attemptId ||

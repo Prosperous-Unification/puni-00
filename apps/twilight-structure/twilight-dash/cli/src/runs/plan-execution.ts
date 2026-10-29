@@ -1,5 +1,10 @@
 import type { Attachment, ClaimRef, Located } from './claim-records';
-import type { Checkpoint, ExecutionSubmission, RecordedExecution } from './execution-records';
+import type {
+  Attempt2,
+  Checkpoint,
+  ExecutionSubmission,
+  RecordedExecution,
+} from './execution-records';
 import { addInteger, equalRecords } from './record-codecs';
 import type {
   Attempt,
@@ -41,11 +46,14 @@ export function checkAttempt(
 }
 
 /** Extracts one nonrecursive checkpoint without discarding its retained wrapper. */
-export function executionCheckpoint(state: AttemptState): Checkpoint {
+export function executionCheckpoint(
+  candidate: AttemptState | Attempt['state'] | Attempt,
+): Checkpoint {
+  const state = 'state' in candidate ? candidate.state : candidate;
   return 'checkpoint' in state ? state.checkpoint : state;
 }
 /** Active and uncertain execution retains its capacity reservation. */
-export function isExecuting(state: AttemptState): boolean {
+export function isExecuting(state: Attempt['state']): boolean {
   return (
     state.kind !== 'interrupted' &&
     state.kind !== 'waiting_for_person' &&
@@ -57,14 +65,17 @@ export function advanceAttempt(
   attempt: Attempt,
   state: AttemptState,
   holdsCapacity: boolean,
-): Attempt {
+): Attempt2 {
+  // Proof: R2F47 removed only this check; 'recovery hold cannot advance through an ordinary Attempt2 acknowledgement' lost its required rejection. Exact restoration passed.
+  if (attempt.version !== 2)
+    throw new Error('recovery hold cannot advance through ordinary execution');
   return { ...attempt, state, holdsCapacity, revision: addInteger(attempt.revision, 1) };
 }
 export function changeAttempt(
   facts: AttemptFacts,
   state: AttemptState,
   holdsCapacity: boolean,
-): StoreReply<AttemptChange> {
+): StoreReply<AttemptChange & { readonly attempt: Attempt2 }> {
   return {
     kind: 'applied',
     value: {
@@ -116,7 +127,9 @@ export function planExecutionTransition(
   fact: ExecutionFact,
 ): StoreReply<AttemptState> {
   const state = facts.attempt.state;
-  if (!isExecuting(state)) return { kind: 'refused', reason: 'state_conflict' };
+  // Proof: R2F08 removed only hold refusal; 'applied barrier removes latest authority' admitted generic recovery execution. Exact restoration passed.
+  if (state.kind === 'recovery_hold' || !isExecuting(state))
+    return { kind: 'refused', reason: 'state_conflict' };
   const checkpoint = executionCheckpoint(state);
   switch (fact.kind) {
     case 'preparation_intended': {
@@ -298,7 +311,7 @@ export function planExecution(
   facts: ExecutionFacts,
   guard: AttemptGuard,
   fact: ExecutionFact,
-): StoreReply<AttemptChange> {
+): StoreReply<AttemptChange & { readonly attempt: Attempt2 }> {
   if (facts.attempt.identity.runId !== guard.runId)
     return { kind: 'refused', reason: 'identity_conflict' };
   const conflict = checkAttempt(facts, guard);

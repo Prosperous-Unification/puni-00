@@ -1,7 +1,15 @@
 import type { ClaimRef } from './claim-records';
-import type { Attempt } from './execution-records';
+import type { Attempt, Attempt2 } from './execution-records';
 import type * as codecs from './record-codecs';
-export type { Attempt, AttemptState, ExecutionCommand, ExecutionFact } from './execution-records';
+import type { RecoveryClosure } from './recovery-records';
+export type {
+  Attempt,
+  Attempt2,
+  Attempt3,
+  AttemptState,
+  ExecutionCommand,
+  ExecutionFact,
+} from './execution-records';
 
 export type StoreId = typeof codecs.StoreIdCodec.infer;
 export type OrganizationId = typeof codecs.OrganizationIdCodec.infer;
@@ -146,10 +154,16 @@ export interface Admission {
   readonly ordinal: Ordinal;
 }
 /** Consistent run state and store-wide local capacity, independent of ownership. */
-export interface RunSnapshot {
+export type RunSnapshot = RunSnapshot2 | RunSnapshot3;
+export interface RunSnapshot3 extends Omit<RunSnapshot2, 'version' | 'attempts'> {
+  readonly version: 3;
+  readonly attempts: readonly Attempt[];
+  readonly recoveries: readonly RecoveryClosure[];
+}
+export interface RunSnapshot2 {
   readonly version: 2;
   readonly run: Run;
-  readonly attempts: readonly Attempt[];
+  readonly attempts: readonly Attempt2[];
   readonly pendingIntents: readonly ProgressIntent[];
   readonly receipts: readonly CommandReceipt[];
   readonly decisions: readonly Decision[];

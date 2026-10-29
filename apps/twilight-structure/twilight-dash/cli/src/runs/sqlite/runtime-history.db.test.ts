@@ -1103,3 +1103,18 @@ test('format3 down stops on metadata write failure and rolls back its already-cr
     await stores.close();
   }
 });
+
+for (const fault of ['version', 'physical'] as const)
+  test('predecessor recovery conversion rejects after-open ' + fault + ' corruption', async () => {
+    const stores = await createRuntimeDatabaseFixture();
+    const database = new Database(stores.options.path);
+    try {
+      await stores.runs.readRuntimeScope(runtimeScope);
+      if (fault === 'version') database.run('UPDATE run_meta SET schema_version=4');
+      else database.run('ALTER TABLE run_runtime_scope ADD COLUMN unexpected TEXT');
+      await rejects(stores.runs.readRuntimeScope(runtimeScope));
+    } finally {
+      database.close();
+      await stores.close();
+    }
+  });

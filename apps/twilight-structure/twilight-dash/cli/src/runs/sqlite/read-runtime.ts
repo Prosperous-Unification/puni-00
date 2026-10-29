@@ -11,6 +11,7 @@ import {
   runtimeScopeKey,
 } from '../runtime-codecs';
 import { FORMAT_HASH } from './format';
+import { validateSchemaIdentity } from './schema';
 
 const integer = type('number.integer >= 0').atMost(Number.MAX_SAFE_INTEGER);
 const markerCodec = type({
@@ -33,6 +34,8 @@ const commandRowCodec = type({
 
 /** Audits complete marker counts, physical keys, owned rows and reconstructed histories inside the caller's snapshot or transaction. Whole-family deletion never becomes absence. */
 export function readRuntimeCatalog(database: Database, ownership: OwnershipStatus): RuntimeCatalog {
+  // Proof: R2F42 removed only this new call; both after-open version and physical-schema corruptions reached public reads. Exact restoration passed.
+  validateSchemaIdentity(database);
   const markers = database.query('SELECT * FROM run_format').all();
   // Proof: F51 ignored an extra format singleton; 'trusted runtime extra marker' failed and exact restoration passed.
   if (markers.length !== 1) throw new Error('corrupt runtime format marker');
@@ -89,7 +92,17 @@ export function readRuntimeCatalog(database: Database, ownership: OwnershipStatu
     marker.acceptance_count !== acceptances.length
   )
     throw new Error('corrupt runtime retained counts');
-  const catalog = { scopes, intents, acceptances };
+  const catalog: RuntimeCatalog = {
+    scopes,
+    intents,
+    acceptances,
+    recovery: {
+      histories: [],
+      barriers: [],
+      active: [],
+      counts: { journals: 0, fences: 0, observations: 0, closures: 0, barriers: 0, active: 0 },
+    },
+  };
   auditRuntimeCatalog(catalog, ownership);
   return catalog;
 }

@@ -15,6 +15,7 @@ import {
   executionCheckpoint,
   type ExecutionFacts,
 } from './plan-execution';
+import type { RuntimeScopeView2 } from './plan-recovery-history';
 import type { RuntimeCatalog } from './plan-runtime';
 import { addInteger, equalRecords } from './record-codecs';
 import type { ScopedAttemptGuard, StoreReply } from './run-store';
@@ -22,7 +23,7 @@ import { digestRuntimeRequest, equalRuntimeScopes, readRuntimeRequest } from './
 import type { RuntimeAcceptance, RuntimeIntent, RuntimeScopeSnapshot } from './runtime-records';
 
 export interface ClaimFacts extends ExecutionFacts {
-  readonly scope: Extract<RuntimeScopeSnapshot, { kind: 'pinned' }>;
+  readonly scope: Extract<RuntimeScopeSnapshot, { kind: 'pinned' }> | RuntimeScopeView2;
   readonly runtime: RuntimeCatalog;
 }
 export interface CoupledChange<Ack> {
@@ -30,14 +31,27 @@ export interface CoupledChange<Ack> {
   readonly ack: Ack;
 }
 /** Derives the latest accepted acquisition in this exact complete prefix, never today's grant projection or an older matching acquisition. */
-export function latestAuthority(scope: Extract<RuntimeScopeSnapshot, { kind: 'pinned' }>) {
+export function latestAuthority(
+  scope: Extract<RuntimeScopeSnapshot, { kind: 'pinned' }> | RuntimeScopeView2,
+) {
   for (let index = scope.acceptances.length - 1; index >= 0; index -= 1) {
     const acceptance = scope.acceptances.at(index);
     if (acceptance === undefined) throw new Error('runtime acceptance index missing');
     const intent = scope.intents.find((candidate) => candidate.commandId === acceptance.commandId);
     if (intent === undefined) throw new Error('runtime acceptance intent missing');
     const request = readRuntimeRequest(intent.canonicalRequest);
-    if ('kind' in request.operation)
+    if ('kind' in request.operation) {
+      const generation =
+        request.operation.expectedGeneration === null
+          ? 1
+          : addInteger(request.operation.expectedGeneration, 1);
+      // Proof: R2F10/R2F43 removed only floor comparison; stale acquisition escaped and turn preflight made live calls. Exact restoration passed.
+      if (
+        'generationFloor' in scope &&
+        scope.generationFloor !== null &&
+        generation < scope.generationFloor
+      )
+        return null;
       return {
         intent,
         authority: {
@@ -48,6 +62,7 @@ export function latestAuthority(scope: Extract<RuntimeScopeSnapshot, { kind: 'pi
               : addInteger(request.operation.expectedGeneration, 1),
         },
       };
+    }
   }
   return null;
 }
