@@ -1835,3 +1835,39 @@ Parent review: `/tmp/task8-parent-collection-final-review.json`, SHA256
 The proof-comment wording for the modeled zero exit is being narrowed; no runtime
 change is requested. Restore one-shot state/caller proofs, native integration and
 actual process kills remain pending. This is not the complete Task4.2 review.
+
+## Restore one-shot state prerequisite proved locally
+
+The state-only snapshot passed44tests/118assertions. It uses actual owned files,
+descriptors, symlinks, hardlinks, inode replacement and writes; root credentials,
+the fixed-path mapping and injected I/O failures are modeled. Armed and consumed
+records bind operation, snapshot, both original source paths and both recovery
+targets. Consumed lineage retains the killed worker rather than requiring a fresh
+retry worker to have the same PID. Missing, unreadable, malformed, changed or
+wrongly owned state refuses; no absence-to-consumed fallback exists.
+
+Parent independently reconstructed20 exact removals with19 distinct textual
+deltas and read every raw failure. Nineteen fail assertions; omitting truncation
+causes a precise refusal of the valid padded consume operation. Removing terminal
+validation or current-worker membership writes a forbidden consumed record before
+later inspection still refuses: those witnesses prove prevention of the write,
+not end-to-end success. Close-error aggregation cases prove cause retention.
+Symlink-following and descriptor-close removals expose actual unwanted opens and
+missing closes, with independent cleanup of test-owned descriptors.
+
+The state-only library/spec checks returned0. The subsequent complete-lint check
+returned0 for both files after the equivalent quote-escape correction; earlier
+final-lint/attempted-autofix outputs remain1 and are preserved. Source transfer
+adds19 Proof comments only, and parent independently compared the parsed test
+shape. Covering receipt `/tmp/task8-restore-state-covering.json`, SHA256
+`fdcaaaf2f3de7664ab90376959074d684d1076c28e173a6c4aa9bb77a247a573`,
+has138 verified pins. Parent review `/tmp/task8-parent-restore-state-review.json`,
+SHA256`c86f145c3772dbd02f3f39cb9a96c8cec623118e4ee4d5268fd16ee4b6e0a7a1`.
+
+The first private restic capture tests failed on missing STOP/KILL signals, then
+passed2tests/21assertions. They preserve the returned child and native options,
+model childPID73 in workerPGID42, require137/SIGKILL before consuming state, and
+forward both restore calls without signals for a valid historical consumed record.
+Capture negatives, admitted-callback/controller wiring and native execution remain
+pending. These local results prove no actual restic kill or partial extraction,
+and do not complete Task4.2, the full failure matrix, or production adoption.
