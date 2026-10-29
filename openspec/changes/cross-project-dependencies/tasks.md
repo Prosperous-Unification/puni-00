@@ -1046,3 +1046,14 @@ The two completed custody rows above cover the independently accepted eight-comm
 
 Parent10.2 remains incomplete; source readiness/start, controller/exposure handoff,
 native acceptance and Kubernetes completion are not granted by this prerequisite.
+
+## Source-private Node collector (bounded part of10.2)
+
+- [x] Reach genuine original-context exact source-command RED against the existing UID0/BusyBox dispatch.
+- [x] Implement actual Node built-in collection and independent bounded launcher/ACK/reap/census with source-private transport.
+- [x] Verify actual owned-process program evidence separately from genuine-context modeled source integration; preserve product dispatch.
+- [x] Review finite new negative/omission protocol before proofs; complete current owning/static checks and frozen review.
+
+The bounded collector source review passed. Root records the normal private
+checkpoint separately; native source-image/profile acceptance and parent10.2 remain
+open.

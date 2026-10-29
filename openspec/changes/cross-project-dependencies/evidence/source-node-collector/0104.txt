@@ -1,0 +1,12 @@
+
+test/source-inner-program-child.test.ts:
+source Node owning namespace actual UID/GID1000:1000 observed
+source Node normal proc BEGIN short-read
+actual source normal proc short-read boundary observed
+(pass) actual source collector normal proc boundary observes short-read [26.52ms]
+
+ 1 pass
+ 48 filtered out
+ 0 fail
+ 8 expect() calls
+Ran 1 test across 1 file. [45.00ms]

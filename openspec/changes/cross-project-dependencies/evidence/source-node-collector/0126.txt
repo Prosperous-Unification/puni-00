@@ -1,0 +1,23 @@
+
+test/source-inner-program-child.test.ts:
+source Node owning namespace actual UID/GID1000:1000 observed
+source Node ACK BEGIN withheld
+153 |       exit.status !== 'fulfilled' ||
+154 |       stdout.status !== 'fulfilled' ||
+155 |       stderr.status !== 'fulfilled'
+156 |     )
+157 |       throw new AggregateError(receipts, 'negative original custody unproved');
+158 |     expect(child.signalCode).toBeNull();
+                                   ^
+error: expect(received).toBeNull()
+
+Received: "SIGKILL"
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-program.model.ts:158:30)
+(fail) actual source launcher refuses withheld ACK and settles original custody [20009.02ms]
+
+ 0 pass
+ 48 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [20.03s]

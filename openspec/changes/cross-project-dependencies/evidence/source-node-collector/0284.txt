@@ -1,0 +1,22 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-remote-scripts/src/lib/source-inner-program.test.ts:
+18 |   };
+19 |   const receipts=await Promise.allSettled([child.exited,stdout(),new Response(child.stderr).text()]);
+20 |   const [exit,output,stderr]=receipts;
+21 |   if(exit.status!=='fulfilled'||output.status!=='fulfilled'||stderr.status!=='fulfilled')throw new AggregateError(receipts,'actual program original custody unproved');
+22 |   expect(child.signalCode).toBeNull();expect(stderr.value).toBe('');expect(exit.value).toBe(0);
+23 |   expect(tokens[0]).toBe('SESSION');expect(tokens[1]).toBe(nonce);expect(tokens[2]).toBe(tokens[3]);expect(tokens[2]).toBe(tokens[4]);
+                         ^
+error: expect(received).toBe(expected)
+
+Expected: "SESSION"
+Received: undefined
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-program.test.ts:23:21)
+(fail) actual source Node program observes owned local proc and reaps its exact collector [20.54ms]
+
+ 0 pass
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [49.00ms]

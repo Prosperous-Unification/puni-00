@@ -1,0 +1,19 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-remote-scripts/src/lib/source-inner-program.test.ts:
+actual source short writer boundary observed
+(pass) actual source writer handles short byte progress at its output boundary [219.20ms]
+actual source zero writer boundary observed
+(pass) actual source writer handles zero byte progress at its output boundary [28.08ms]
+actual source census second-probe absent outcome observed
+(pass) actual source census second probe models absent explicitly [60.63ms]
+actual source census second-probe EACCES outcome observed
+(pass) actual source census second probe models EACCES explicitly [57.68ms]
+actual source census second-probe EIO outcome observed
+(pass) actual source census second probe models EIO explicitly [52.76ms]
+
+ 5 pass
+ 14 filtered out
+ 0 fail
+ 37 expect() calls
+Ran 5 tests across 1 file. [443.00ms]

@@ -1665,3 +1665,13 @@ raw bytes and does not execute that target program. BusyBox/ip availability and
 UID0 access to UID1000 proc entries remain unverified on the pinned source image.
 The separately reviewed source-private Node/UID1000 collector is required next;
 product dispatch and image/profile rules must remain unchanged.
+
+## Source-private Node collector
+
+The source role observer uses a fixed Node built-in collector under1000:1000,
+cleared environment and absolute runtime path. An independent Node launcher owns
+one detached collector and its15-second work/ACK watchdog, original exit and
+stream settlement; a fresh bounded census proves the original group gone. Product
+BusyBox/UID0 dispatch is preserved. Actual immutable program tests against owned
+local processes and genuine-context modeled source frames are distinct evidence;
+neither qualifies the pinned source image or native Nx topology.

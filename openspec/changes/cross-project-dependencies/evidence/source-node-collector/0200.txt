@@ -1,0 +1,14 @@
+{
+  "packet": "/tmp/puni-source-node-proofs-8fgbwgoa/packet.json",
+  "packetSha256": "232b23010a8dc6c244f65a9a6e4cc39f67cec09e7d2f391b44b31c551f70f034",
+  "driver": "/tmp/puni-source-node-proof-driver.py",
+  "driverSha256": "63ab9bc3a4db8a3b929a56cb8097924be0037e1a8a241da833d2261ce15f32a6",
+  "runner": "/tmp/puni-source-node-run-case.ts",
+  "runnerSha256": "efcc86d1f8ef59d3df417dca9e2fa8f4f0c1577b6ce222f9ff44e4b886b68657",
+  "recipes": "/tmp/puni-source-node-proof-recipes.json",
+  "recipesSha256": "05c3ee8fecfcba30f4f1d613bdd45780fa6c5c38968ea113bdd9965b17bfd936",
+  "sourcePins": 146,
+  "savedPins": 37,
+  "futurePathsAbsent": 222,
+  "status": "prepared and all own original handles joined; NO omission run; independent exact GO required"
+}

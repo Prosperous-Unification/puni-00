@@ -8,12 +8,12 @@ import {
   checkDeadline,
   freezeDeep,
   inspectRuntime,
-  observeInner,
   observeRoster,
 } from './dependency-product-process';
 import { decodePasses } from './dependency-product-validation';
 import { ProductMetadataCleanupUnproved } from './docker-product-metadata';
 import { assertSame, readFields } from './managed-cohort';
+import { observeSourceInner } from './source-inner-process';
 import { inspectSourceProfile, UnsupportedSourceProfile } from './source-role-profile';
 
 const bindings = new WeakMap<FinalizedParticipantRestorationContext, string>();
@@ -52,7 +52,10 @@ export async function observeSelectedSourceRoles(context: FinalizedParticipantRe
     assertParticipantTransition(parked[0], runtime.native, 'start');
     const firstRoster = await observeRoster(context, original.id, runtime.pid);
     collecting = true;
-    const passes = decodePasses(await observeInner(context, original.id, firstRoster), firstRoster);
+    const passes = decodePasses(
+      await observeSourceInner(context, original.id, firstRoster),
+      firstRoster,
+    );
     collecting = false;
     // Proof: omitting this readback accepted a changed closing listener inode; the raw closing-listener consumer missed its rejection, then passed after exact restoration.
     assertSame(passes[0], passes[1], 'source inner process/listener readback');

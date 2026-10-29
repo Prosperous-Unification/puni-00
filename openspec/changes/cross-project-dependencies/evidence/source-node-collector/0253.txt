@@ -1,0 +1,39 @@
+
+test/source-inner-command-child.test.ts:
+source Node command boundary: genuine original context and original running tree reached
+source Node command actual dispatch captured
+source Node complete command observed
+product original BusyBox UID0 observe and cleanup dispatch bytes preserved
+source Node private receipt consumer BEGIN source-session-nonce
+source Node private receipt consumer observed source-session-nonce
+source Node private receipt consumer BEGIN source-session-group
+source Node private receipt consumer observed source-session-group
+source Node private receipt consumer BEGIN source-completion-count
+source Node private receipt consumer observed source-completion-count
+source Node private receipt consumer BEGIN source-duplicate-done
+source Node private receipt consumer observed source-duplicate-done
+source Node private receipt consumer BEGIN source-missing-reap
+source Node private receipt consumer observed source-missing-reap
+source Node private receipt consumer BEGIN missing
+source Node private receipt consumer observed missing
+source Node private receipt consumer BEGIN source-no-session
+source Node private receipt consumer observed source-no-session
+source Node private receipt consumer BEGIN source-unknown-tag
+source Node private receipt consumer observed source-unknown-tag
+source Node private receipt consumer BEGIN source-token-bound
+source Node private receipt consumer observed source-token-bound
+source Node private receipt consumer BEGIN source-frame-bound
+source Node private receipt consumer observed source-frame-bound
+source Node private receipt consumer BEGIN source-reap-foreign
+source Node private receipt consumer observed source-reap-foreign
+source Node private receipt consumer BEGIN source-member-observe
+source Node private receipt consumer observed source-member-observe
+source Node private receipt exact restoration observed
+source Node original cleanup member consumer BEGIN
+source Node original cleanup member and terminal refusal observed
+(pass) source original context dispatches the complete fixed Node command [80627.70ms]
+
+ 1 pass
+ 0 fail
+ 141 expect() calls
+Ran 1 test across 1 file. [80.69s]

@@ -1,0 +1,376 @@
+{
+  "scope": "74 actual original model children only; no modeled receipt PID/group is probed",
+  "observedAbsent": 74,
+  "entries": [
+    {
+      "custody": "ack-bound.omitted.custody.json",
+      "pid": 2059766,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "ack-bound.restored.custody.json",
+      "pid": 2060005,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "ack-validation.omitted.custody.json",
+      "pid": 2059693,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "ack-validation.restored.custody.json",
+      "pid": 2059734,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "address-projection.omitted.custody.json",
+      "pid": 2057487,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "address-projection.restored.custody.json",
+      "pid": 2057545,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "bounded-proc-read.omitted.custody.json",
+      "pid": 2056284,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "bounded-proc-read.restored.custody.json",
+      "pid": 2056714,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "census-bound.omitted.custody.json",
+      "pid": 2057937,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "census-bound.restored.custody.json",
+      "pid": 2057981,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "census-probe.omitted.custody.json",
+      "pid": 2058019,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "census-probe.restored.custody.json",
+      "pid": 2058207,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "census-provenance.omitted.custody.json",
+      "pid": 2057858,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "census-provenance.restored.custody.json",
+      "pid": 2057899,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "collector-arguments.omitted.custody.json",
+      "pid": 2055623,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "collector-arguments.restored.custody.json",
+      "pid": 2056006,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "collector-credentials.omitted.custody.json",
+      "pid": 2054872,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "collector-credentials.restored.custody.json",
+      "pid": 2055336,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "descriptor-roster.omitted.custody.json",
+      "pid": 2057772,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "descriptor-roster.restored.custody.json",
+      "pid": 2057820,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "executable-capture.omitted.custody.json",
+      "pid": 2057598,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "executable-capture.restored.custody.json",
+      "pid": 2057646,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "fatal-byte-decoder.omitted.custody.json",
+      "pid": 2057183,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "fatal-byte-decoder.restored.custody.json",
+      "pid": 2057217,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "fixed-source-command.omitted.custody.json",
+      "pid": 2060295,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "fixed-source-command.restored.custody.json",
+      "pid": 2062921,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "independent-watchdog.omitted.custody.json",
+      "pid": 2058770,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "independent-watchdog.restored.custody.json",
+      "pid": 2059040,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "input-settlement.omitted.custody.json",
+      "pid": 2059235,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "input-settlement.restored.custody.json",
+      "pid": 2059560,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "launcher-input.omitted.custody.json",
+      "pid": 2058545,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "launcher-input.restored.custody.json",
+      "pid": 2058640,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "launcher-stderr.omitted.custody.json",
+      "pid": 2060121,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "launcher-stderr.restored.custody.json",
+      "pid": 2060161,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "launcher-stdout.omitted.custody.json",
+      "pid": 2060036,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "launcher-stdout.restored.custody.json",
+      "pid": 2060084,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "link-projection.omitted.custody.json",
+      "pid": 2057120,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "link-projection.restored.custody.json",
+      "pid": 2057152,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "original-reap.omitted.custody.json",
+      "pid": 2060201,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "original-reap.restored.custody.json",
+      "pid": 2060250,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "owned-child-identity.omitted.custody.json",
+      "pid": 2058677,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "owned-child-identity.restored.custody.json",
+      "pid": 2058731,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "proc-stat-grammar.omitted.custody.json",
+      "pid": 2057047,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "proc-stat-grammar.restored.custody.json",
+      "pid": 2057083,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "process-readback.omitted.custody.json",
+      "pid": 2057683,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "process-readback.restored.custody.json",
+      "pid": 2057725,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "receipt-output-bounds.omitted.custody.json",
+      "pid": 2057335,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "receipt-output-bounds.restored.custody.json",
+      "pid": 2057377,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-before-ack-join.omitted.custody.json",
+      "pid": 2089528,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-before-ack-join.restored.custody.json",
+      "pid": 2091593,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-complete-reap.omitted.custody.json",
+      "pid": 2105664,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-complete-reap.restored.custody.json",
+      "pid": 2107645,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-done.omitted.custody.json",
+      "pid": 2085109,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-done.restored.custody.json",
+      "pid": 2087431,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-empty-census.omitted.custody.json",
+      "pid": 2114393,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-empty-census.restored.custody.json",
+      "pid": 2117283,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-mode-frame.omitted.custody.json",
+      "pid": 2099746,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-mode-frame.restored.custody.json",
+      "pid": 2103493,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-reap-frame.omitted.custody.json",
+      "pid": 2094602,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-reap-frame.restored.custody.json",
+      "pid": 2096594,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-receipt-bound.omitted.custody.json",
+      "pid": 2065658,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-receipt-bound.restored.custody.json",
+      "pid": 2068291,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-session-before-ack.omitted.custody.json",
+      "pid": 2080319,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-session-before-ack.restored.custody.json",
+      "pid": 2082631,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-session-tuple.omitted.custody.json",
+      "pid": 2075758,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-session-tuple.restored.custody.json",
+      "pid": 2077962,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-tag-boundary.omitted.custody.json",
+      "pid": 2071532,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-tag-boundary.restored.custody.json",
+      "pid": 2073645,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-transport-failure.omitted.custody.json",
+      "pid": 2109749,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "source-transport-failure.restored.custody.json",
+      "pid": 2111803,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "timestamp-projection.omitted.custody.json",
+      "pid": 2057255,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "timestamp-projection.restored.custody.json",
+      "pid": 2057296,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "write-progress.omitted.custody.json",
+      "pid": 2057409,
+      "probe": "ESRCH"
+    },
+    {
+      "custody": "write-progress.restored.custody.json",
+      "pid": 2057449,
+      "probe": "ESRCH"
+    }
+  ]
+}
