@@ -58,9 +58,7 @@
         "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/bridge/**/*",
         "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/agents/**/*",
         "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/clock.ts",
-        "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/cli/src/contracts/**/*",
-        "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/**/*",
-        "{workspaceRoot}/apps/wbs/mcp-01/src/**/*"
+        "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/cli/src/contracts/**/*"
       ],
       "options": {
         "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",

@@ -2754,8 +2754,11 @@ through consent; that is 7.3's (M12).
    (`describe.each(TRANSPORTS)`), so 7.1 drops one entry.
 2. The per-test-harness suites use the in-process forwarded call rather than a real mcp-01;
    the swarm and the dev server test run the real process.
-3. be-01's `test` target now names `apps/wbs/mcp-01/src/**/*` and Dash's `cli/src/**/*` as
-   inputs, because its suites spawn them.
+3. be-01's `test` target does not list mcp-01's or Dash's sources as inputs, though its suites
+   spawn them: adding them changed the nx-target facts Burokrat pins
+   (`docs/wiki-policy/relationships.json`) and failed CI, and mcp-01's boot tests already spawn
+   be-01 files the same way without declaring them. A cached be-01 test result can therefore
+   outlive an mcp-01 or Dash change (unchanged from before this slice).
 
 **Commands** (laptop, `env -u CLAUDECODE`, 2026-10-29, on top of 50862bc37):
 
