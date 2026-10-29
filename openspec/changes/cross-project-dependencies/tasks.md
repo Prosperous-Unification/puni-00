@@ -1073,3 +1073,14 @@ The separate worker and cutover synchronization cases passed one unchanged-bound
 The bounded collector source review passed. Root records the normal private
 checkpoint separately; native source-image/profile acceptance and parent10.2 remain
 open.
+
+### Pure source frontend HTTP prerequisite (independent Slice 1)
+
+- [x] Reach missing-inspector RED only after the trusted pinned Vite producer returns its two exact observations and all original producer resources join.
+- [x] Implement only the two pure complete transported-text inspectors and captured text fixtures; preserve status/MIME and explicit BOM representation boundaries.
+- [x] Watch independent complete-document, complete-entry, status and MIME omissions fail at their intended consumers, then restore exact bytes and observe the same consumers pass.
+- [x] Freeze scoped compiler/lint/format/OpenSpec and exact source/producer receipts for independent review in [verify-source-frontend-http.md](verify-source-frontend-http.md).
+
+This prerequisite grants no original manifest profile capture, source readiness,
+startup permission, observer/collector integration, controller/exposure behavior,
+native/browser acceptance or completion of parent10.2. Those remain separately authorized work.

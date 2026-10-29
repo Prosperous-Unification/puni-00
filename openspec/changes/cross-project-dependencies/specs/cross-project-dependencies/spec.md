@@ -1736,3 +1736,29 @@ falling back to root/tools. Product collector dispatch SHALL remain unchanged.
 
 - **WHEN** collection, ACK, independent timeout, original-child settlement or fresh census is unproved
 - **THEN** the original source observer refuses and grants no later observation
+
+### Requirement: Source frontend pure inspectors recognize one complete transported-text profile
+
+Pure source frontend HTTP inspectors SHALL require status 200, the observed role MIME and complete transported text matching the reviewed document or entry profile. The UTF-8 text digest SHALL cover the complete document and the complete executable entry including its trailing map. They SHALL neither normalize nor evaluate response text and SHALL grant no source readiness, profile-capture or startup authority.
+
+#### Scenario: Real pinned producer reaches both inspectors
+
+- **WHEN** the pinned Vite producer serves the supported HTML and JavaScript under the documented development configuration
+- **THEN** each pure inspector returns the complete transported-text digest for its own role
+- **AND** no browser or upstream execution is inferred
+
+#### Scenario: Altered HTML or entry retains convincing markers
+
+- **WHEN** otherwise valid HTML gains an injected script, root, target, prefix or suffix, or entry executable text or its map changes independently
+- **THEN** the corresponding complete-text inspector refuses even when root/import/source-map markers remain plausible
+
+#### Scenario: Correct text has the wrong envelope
+
+- **WHEN** otherwise exact document or entry text has an unsupported status or MIME
+- **THEN** the pure inspector refuses without exposing response excerpts
+
+#### Scenario: Existing HTTP decoding removes a leading BOM
+
+- **WHEN** the existing bounded HTTP reader decodes a response with a leading UTF-8 BOM
+- **THEN** the pure inspector compares the complete transported text returned by that reader
+- **AND** its UTF-8 text digest is not claimed to authenticate universal original-wire bytes
