@@ -37,7 +37,6 @@ import { planConsumption, planDecision, replayConsumption, replayDecision } from
 import { addInteger, decisionId, decodeDecision, decodeReceipt } from '../record-codecs';
 import {
   decodeAdmission,
-  decodeAttempt,
   decodeAttemptGuard,
   decodeCompletion,
   decodeCurrentAttempt,
@@ -992,7 +991,8 @@ export function createSqliteRunStore(
             capacity: readCapacity(database, meta.capacity),
             run,
             manifest: requireManifest(run.manifestDigest),
-            attempts: history.map((entry) => decodeAttempt(entry.attempt)),
+            // Proof: strict Attempt2 conversion failed all four SQLite `recovery hold same occurrence admission` controls on real resolver-produced holds.
+            attempts: history.map((entry) => entry.attempt),
             admissions: history.map((entry) => entry.admission),
           },
           guard,

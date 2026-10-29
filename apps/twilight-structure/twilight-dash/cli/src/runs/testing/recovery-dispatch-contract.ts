@@ -13,6 +13,7 @@ import { readRecoveryExchange } from '../recovery-evidence';
 import type { RecoveryFence } from '../recovery-records';
 import { readRuntimeRequest } from '../runtime-codecs';
 import { acceptRuntimeReceipt } from '../runtime-history';
+import { constructFixture } from './construct-fixture';
 import type { OutcomeFixture } from './fixtures';
 import { unwrapReply } from './fixtures';
 import {
@@ -71,11 +72,20 @@ export async function beginAuthority(
   return { call, original };
 }
 
+/** Acquires the paired fixtures used by the real dispatch contract. */
+export async function createDispatchFixture(
+  create: () => Promise<OutcomeFixture>,
+  createReceiver: () => Promise<RecoveryReceiverFixture> = createRecoveryReceiver,
+) {
+  const stores = await create();
+  const receiver = await constructFixture(createReceiver, [() => stores.close()]);
+  return { stores, receiver };
+}
+
 export function recoveryDispatchContract(name: string, create: () => Promise<OutcomeFixture>) {
   describe(name + ' real recovery dispatch', () => {
     test('weak fence control admits delayed original at generation3; production refuses state1 below expected2', async () => {
-      const stores = await create();
-      const receiver = await createRecoveryReceiver();
+      const { stores, receiver } = await createDispatchFixture(create);
       try {
         expect((await acquireReceiverAuthority(receiver, 'first', null)).reply.kind).toBe(
           'success',
@@ -153,8 +163,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
     });
 
     test('stage acknowledgement precedes POST and observation acknowledgement precedes original lookup', async () => {
-      const stores = await create();
-      const receiver = await createRecoveryReceiver();
+      const { stores, receiver } = await createDispatchFixture(create);
       const releaseStage = Promise.withResolvers<undefined>();
       const enteredStage = Promise.withResolvers<undefined>();
       const releaseObservation = Promise.withResolvers<undefined>();
@@ -241,8 +250,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
       test(
         'claim actual returned binding and delayed-request domination accepted=' + String(accepted),
         async () => {
-          const stores = await create();
-          const receiver = await createRecoveryReceiver();
+          const { stores, receiver } = await createDispatchFixture(create);
           try {
             const setup = await beginClaim(stores, receiver);
             const pause = receiver.pause(setup.request.commandId);
@@ -318,8 +326,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
       );
     for (const cut of ['before-send', 'lost-reply'] as const)
       test('resumes exact retained fence after ' + cut, async () => {
-        const stores = await create();
-        const receiver = await createRecoveryReceiver();
+        const { stores, receiver } = await createDispatchFixture(create);
         try {
           const { call } = await beginAuthority(stores, receiver, null);
           const failure = new Error('injected ' + cut);
@@ -404,8 +411,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
 
     for (const when of ['before', 'stage', 'renew'] as const)
       test('live cancellation remains unresolved at ' + when, async () => {
-        const stores = await create();
-        const receiver = await createRecoveryReceiver();
+        const { stores, receiver } = await createDispatchFixture(create);
         try {
           const { call } = await beginAuthority(stores, receiver, null);
           const controller = new AbortController();
@@ -447,8 +453,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
       });
 
     test('owner takeover refuses before POST and explicit new resolver keeps old fence provenance', async () => {
-      const stores = await create();
-      const receiver = await createRecoveryReceiver();
+      const { stores, receiver } = await createDispatchFixture(create);
       try {
         const { call } = await beginAuthority(stores, receiver, null);
         let replacement: typeof call.guard.ownership | undefined;
@@ -511,8 +516,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
       'capture',
     ] as const)
       test('original lookup preserves precise failure ' + fault, async () => {
-        const stores = await create();
-        const receiver = await createRecoveryReceiver();
+        const { stores, receiver } = await createDispatchFixture(create);
         try {
           const { call } = await beginAuthority(stores, receiver, null);
           const failure = new Error('lookup unavailable');
@@ -582,8 +586,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
       });
 
     test('caller guards are snapshotted before first scope await', async () => {
-      const stores = await create();
-      const receiver = await createRecoveryReceiver();
+      const { stores, receiver } = await createDispatchFixture(create);
       try {
         const { call } = await beginAuthority(stores, receiver, null);
         let first = true;
@@ -614,8 +617,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
 
     for (const fault of ['missing', 'unreadable', 'corrupt'] as const)
       test('claim verifies complete manifest artifacts before POST ' + fault, async () => {
-        const stores = await create();
-        const receiver = await createRecoveryReceiver();
+        const { stores, receiver } = await createDispatchFixture(create);
         try {
           const setup = await beginClaim(stores, receiver);
           const manifest = await stores.runs.readManifest(setup.run.manifestDigest);
@@ -657,8 +659,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
         'three canonical identities and three POSTs bound contention; retained third resumes lost=' +
           String(lostThird),
         async () => {
-          const stores = await create();
-          const receiver = await createRecoveryReceiver();
+          const { stores, receiver } = await createDispatchFixture(create);
           try {
             const setup = await beginClaim(stores, receiver);
             let posts = 0;
@@ -804,8 +805,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
       );
 
     test('discovery failures retain recovery identity and cause without inventing original intent', async () => {
-      const stores = await create();
-      const receiver = await createRecoveryReceiver();
+      const { stores, receiver } = await createDispatchFixture(create);
       try {
         const { call } = await beginAuthority(stores, receiver, null);
         const failure = new Error('scope storage unreadable');
@@ -853,8 +853,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
       }
     });
     test('safe uncertainty evidence during original lookup refuses captured run and attempt revisions', async () => {
-      const stores = await create();
-      const receiver = await createRecoveryReceiver();
+      const { stores, receiver } = await createDispatchFixture(create);
       try {
         const setup = await beginClaim(stores, receiver);
         const pending = await dispatchRecovery(
@@ -912,8 +911,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
     });
 
     test('captured fence body retains exact actual response bytes', async () => {
-      const stores = await create();
-      const receiver = await createRecoveryReceiver();
+      const { stores, receiver } = await createDispatchFixture(create);
       try {
         const { call } = await beginAuthority(stores, receiver, null);
         let bytes: Uint8Array | undefined;
@@ -944,8 +942,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
     });
 
     test('retained journal snapshot cannot alias a provider reply through artifact await', async () => {
-      const stores = await create();
-      const receiver = await createRecoveryReceiver();
+      const { stores, receiver } = await createDispatchFixture(create);
       try {
         const setup = await beginClaim(stores, receiver);
         let retained: Awaited<ReturnType<typeof stores.runs.readRuntimeScope>> | undefined;
@@ -980,8 +977,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
       }
     });
     test('state dependency overflow throws before staging or POST', async () => {
-      const stores = await create();
-      const receiver = await createRecoveryReceiver();
+      const { stores, receiver } = await createDispatchFixture(create);
       try {
         const { call } = await beginAuthority(stores, receiver, null);
         const overflow = createRuntimeClient(async () => {
@@ -1023,8 +1019,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
     });
 
     test('stale pre-fence404 context is rejected as association, not authenticated chronology', async () => {
-      const stores = await create();
-      const receiver = await createRecoveryReceiver();
+      const { stores, receiver } = await createDispatchFixture(create);
       try {
         const { call } = await beginAuthority(stores, receiver, null);
         const earlier = await receiver.client.lookupReceipt({
@@ -1080,8 +1075,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
     });
 
     test('unexpected error correlation is detached and recursively frozen', async () => {
-      const stores = await create();
-      const receiver = await createRecoveryReceiver();
+      const { stores, receiver } = await createDispatchFixture(create);
       try {
         const { call, original } = await beginAuthority(stores, receiver, null);
         const failure = new Error('actual sender failure');
@@ -1144,8 +1138,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
 
     for (const fault of ['clone', 'arrayBuffer'] as const)
       test('inherited RuntimeClient capture fault remains precise transport ' + fault, async () => {
-        const stores = await create();
-        const receiver = await createRecoveryReceiver();
+        const { stores, receiver } = await createDispatchFixture(create);
         // eslint-disable-next-line @typescript-eslint/unbound-method -- Native receiver is supplied with call and the exact method is restored in finally.
         const clone = Response.prototype.clone;
         const failure = new Error('injected client capture ' + fault);
@@ -1188,8 +1181,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
       'wrong-digest',
     ] as const)
       test('helper capture dependency failures throw correlated errors ' + fault, async () => {
-        const stores = await create();
-        const receiver = await createRecoveryReceiver();
+        const { stores, receiver } = await createDispatchFixture(create);
         try {
           const { call } = await beginAuthority(stores, receiver, null);
           const failure = new Error('helper capture dependency ' + fault);
@@ -1241,8 +1233,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
       });
 
     test('closed journal still independently verifies retained scope artifacts', async () => {
-      const stores = await create();
-      const receiver = await createRecoveryReceiver();
+      const { stores, receiver } = await createDispatchFixture(create);
       try {
         const { call } = await beginAuthority(stores, receiver, null);
         expect(
@@ -1278,8 +1269,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
       }
     });
     test('late original acceptance wins the first CAS and is dominated by the second recovery fence', async () => {
-      const stores = await create();
-      const receiver = await createRecoveryReceiver();
+      const { stores, receiver } = await createDispatchFixture(create);
       try {
         expect((await acquireReceiverAuthority(receiver, 'first', null)).reply.kind).toBe(
           'success',
@@ -1345,8 +1335,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
 
     for (const kind of ['authority', 'claim'] as const)
       test('ordinary duplicates stay lookup-only during active real recovery ' + kind, async () => {
-        const stores = await create();
-        const receiver = await createRecoveryReceiver();
+        const { stores, receiver } = await createDispatchFixture(create);
         try {
           if (kind === 'authority') {
             const { call, original } = await beginAuthority(stores, receiver, null);

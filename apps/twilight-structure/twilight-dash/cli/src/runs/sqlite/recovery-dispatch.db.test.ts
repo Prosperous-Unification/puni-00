@@ -3,14 +3,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { organizationId } from '../record-codecs';
+import { constructFixture } from '../testing/construct-fixture';
 import { FixtureClock } from '../testing/fixtures';
 import { recoveryDispatchContract } from '../testing/recovery-dispatch-contract';
-import { bootstrapSqliteStores } from './open-stores';
+import { createRecoveryStores } from '../testing/sqlite-fixture';
 
 recoveryDispatchContract('sqlite', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'recovery-dispatch-'));
   const clock = new FixtureClock();
-  const stores = await bootstrapSqliteStores({
+  const stores = await createRecoveryStores(directory, {
     path: join(directory, 'runs.sqlite'),
     organizationId: organizationId('org-a'),
     capacity: 1,
@@ -19,20 +20,7 @@ recoveryDispatchContract('sqlite', async () => {
     maxBusyAttempts: 2,
     busyDelayMilliseconds: 1,
   });
-  return {
-    ...stores,
-    clock,
-    async close() {
-      await closeRecoveryResources([
-        stores,
-        {
-          close: () => {
-            rmSync(directory, { recursive: true });
-          },
-        },
-      ]);
-    },
-  };
+  return { ...stores, clock };
 });
 
 import { expect, test } from 'bun:test';
@@ -55,8 +43,16 @@ for (const cut of ['before-send', 'lost-reply'] as const)
       maxBusyAttempts: 2,
       busyDelayMilliseconds: 1,
     };
-    let stores = await bootstrapSqliteStores(options);
-    const receiver = await createRecoveryReceiver();
+    const initial = await createRecoveryStores(directory, options);
+    let stores: Awaited<ReturnType<typeof openSqliteStores>> = {
+      ...initial,
+      close: initial.closeConnection,
+    };
+    const closeStores = async () => {
+      await stores.close();
+      rmSync(directory, { recursive: true });
+    };
+    const receiver = await constructFixture(() => createRecoveryReceiver(), [closeStores]);
     try {
       const { call } = await beginAuthority({ ...stores, clock }, receiver, null);
       const cancellation = new AbortController();
@@ -108,14 +104,6 @@ for (const cut of ['before-send', 'lost-reply'] as const)
         recoveries: [{ fences: before.recoveries[0].fences }],
       });
     } finally {
-      await closeRecoveryResources([
-        receiver,
-        stores,
-        {
-          close: () => {
-            rmSync(directory, { recursive: true });
-          },
-        },
-      ]);
+      await closeRecoveryResources([receiver, { close: closeStores }]);
     }
   });

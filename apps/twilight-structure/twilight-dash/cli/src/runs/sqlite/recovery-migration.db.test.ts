@@ -8,12 +8,14 @@ import { expect, test } from 'bun:test';
 import { readExecutionHistory } from '../claim-history';
 import { attemptId, organizationId, runId } from '../record-codecs';
 import { readRuntimeHistory } from '../runtime-history';
+import { constructFixture } from '../testing/construct-fixture';
 import { FixtureClock } from '../testing/fixtures';
 import { createFormat3Fixture, settleFixture } from '../testing/format3-fixture';
 import {
   createRecoveryFenceCall,
   createRecoveryObservationCall,
 } from '../testing/recovery-contract';
+import { createRecoveryInspection } from '../testing/sqlite-fixture';
 import { FORMAT3_IDENTITY, FORMAT4_IDENTITY } from './format';
 import { downgradeUnusedSqliteStores, upgradeSqliteStores } from './migrate-recovery';
 import { openSqliteStores, type SqliteOptions } from './open-stores';
@@ -41,7 +43,14 @@ for (const population of [
       maxBusyAttempts: 20,
       busyDelayMilliseconds: 1,
     };
-    const old = await createFormat3Fixture(path);
+    const old = await constructFixture(
+      () => createFormat3Fixture(path),
+      [
+        () => {
+          rmSync(directory, { recursive: true });
+        },
+      ],
+    );
     await settleFixture(async () => {
       await old.populate(population);
       const before = await old.capture();
@@ -139,7 +148,6 @@ import { Database } from 'bun:sqlite';
 import { ownerId } from '../record-codecs';
 import { unwrapReply } from '../testing/fixtures';
 import { authorityRequest, runtimePin, runtimeScope } from '../testing/runtime-history-contract';
-import { bootstrapSqliteStores } from './open-stores';
 function createOptions(path: string) {
   return {
     path,
@@ -251,7 +259,14 @@ for (const direction of ['upgrade', 'down'] as const)
     const directory = mkdtempSync(join(tmpdir(), 'recovery-transition-rollback-'));
     const path = join(directory, 'runs.sqlite');
     const options = createOptions(path);
-    const old = await createFormat3Fixture(path);
+    const old = await constructFixture(
+      () => createFormat3Fixture(path),
+      [
+        () => {
+          rmSync(directory, { recursive: true });
+        },
+      ],
+    );
     const inspected: ReturnType<typeof captureTransition>[] = [];
     const transactions: boolean[] = [];
     let observer: Database | undefined;
@@ -314,7 +329,14 @@ for (const direction of ['upgrade', 'down'] as const)
 test('committed cleanup failure preserves committed phase and successor identity', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'recovery-cleanup-'));
   const path = join(directory, 'runs.sqlite');
-  const old = await createFormat3Fixture(path);
+  const old = await constructFixture(
+    () => createFormat3Fixture(path),
+    [
+      () => {
+        rmSync(directory, { recursive: true });
+      },
+    ],
+  );
   // eslint-disable-next-line @typescript-eslint/unbound-method -- The test restores the exact native function and invokes it with its original receiver.
   const originalClose = Database.prototype.close;
   const injected = new Error('injected committed close failure');
@@ -363,8 +385,7 @@ for (const stage of ['journal', 'fence', 'observation'] as const)
       const directory = mkdtempSync(join(tmpdir(), 'recovery-used-down-'));
       const path = join(directory, 'runs.sqlite');
       const options = createOptions(path);
-      const stores = await bootstrapSqliteStores(options);
-      const database = new Database(path);
+      const { stores, database, close } = await createRecoveryInspection(directory, options);
       await settleFixture(async () => {
         const ownership = unwrapReply(await stores.runs.acquireOwnership(ownerId('owner'), 0));
         unwrapReply(await stores.runs.pinRuntimeScope(ownership, runtimePin));
@@ -431,23 +452,20 @@ for (const stage of ['journal', 'fence', 'observation'] as const)
           return true;
         });
         expect(captureTransition(database)).toEqual(corrupt);
-      }, [
-        () => {
-          database.close();
-        },
-        async () => {
-          await stores.close();
-        },
-        () => {
-          rmSync(directory, { recursive: true, force: true });
-        },
-      ]);
+      }, [close]);
     },
   );
 test('readonly inspection cleanup failure is classified before any transition', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'recovery-inspection-close-'));
   const path = join(directory, 'runs.sqlite');
-  const old = await createFormat3Fixture(path);
+  const old = await constructFixture(
+    () => createFormat3Fixture(path),
+    [
+      () => {
+        rmSync(directory, { recursive: true });
+      },
+    ],
+  );
   // eslint-disable-next-line @typescript-eslint/unbound-method -- The test restores the exact native function and invokes it with its original receiver.
   const originalClose = Database.prototype.close;
   const injected = new Error('injected inspection close failure');
@@ -482,7 +500,14 @@ test('readonly inspection cleanup failure is classified before any transition', 
 test('upgrade rejects a partial successor declaration as corrupt before executing migration statements', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'recovery-partial-successor-'));
   const path = join(directory, 'runs.sqlite');
-  const old = await createFormat3Fixture(path);
+  const old = await constructFixture(
+    () => createFormat3Fixture(path),
+    [
+      () => {
+        rmSync(directory, { recursive: true });
+      },
+    ],
+  );
   let observer: Database | undefined;
   await settleFixture(async () => {
     observer = new Database(path);
@@ -512,7 +537,14 @@ test('upgrade rejects a partial successor declaration as corrupt before executin
 test('successor audit rolls back a new marker corrupted by the publication dependency', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'recovery-successor-audit-'));
   const path = join(directory, 'runs.sqlite');
-  const old = await createFormat3Fixture(path);
+  const old = await constructFixture(
+    () => createFormat3Fixture(path),
+    [
+      () => {
+        rmSync(directory, { recursive: true });
+      },
+    ],
+  );
   let observer: Database | undefined;
   await settleFixture(async () => {
     observer = new Database(path);
@@ -547,7 +579,14 @@ for (const direction of ['upgrade', 'down'] as const)
     async () => {
       const directory = mkdtempSync(join(tmpdir(), 'transition-dual-failure-'));
       const path = join(directory, 'runs.sqlite');
-      const old = await createFormat3Fixture(path);
+      const old = await constructFixture(
+        () => createFormat3Fixture(path),
+        [
+          () => {
+            rmSync(directory, { recursive: true });
+          },
+        ],
+      );
       const options = createOptions(path);
       let observer: Database | undefined;
       // eslint-disable-next-line @typescript-eslint/unbound-method -- Restore the exact native receiver-preserving close after injecting its independent post-close failure.

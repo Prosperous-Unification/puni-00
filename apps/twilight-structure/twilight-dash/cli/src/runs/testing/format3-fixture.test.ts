@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import { expect, test } from 'bun:test';
 
+import { constructFixture } from './construct-fixture';
 import { createFormat3Fixture, settleFixture, verifyFormat3Source } from './format3-fixture';
 for (const termination of ['idle', 'close_timeout'] as const)
   test(`format3 fixture reports ${termination} worker termination after cleanup and on repeated close`, async () => {
@@ -75,7 +76,14 @@ test('format3 fixture acknowledged close exits zero removes archive and is idemp
 });
 test('format3 fixture rejects a malformed entered marker instead of claiming a handshake', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'format3-marker-'));
-  const fixture = await createFormat3Fixture(join(directory, 'runs.sqlite'));
+  const fixture = await constructFixture(
+    () => createFormat3Fixture(join(directory, 'runs.sqlite')),
+    [
+      () => {
+        rmSync(directory, { recursive: true });
+      },
+    ],
+  );
   try {
     const pid = fixture.worker.pid;
     if (pid === undefined) throw new Error('ready worker has no process identity');
@@ -92,7 +100,14 @@ test('format3 fixture rejects a malformed entered marker instead of claiming a h
 });
 test('archived source fingerprints reject an altered actual predecessor module', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'format3-source-identity-'));
-  const fixture = await createFormat3Fixture(join(directory, 'runs.sqlite'));
+  const fixture = await constructFixture(
+    () => createFormat3Fixture(join(directory, 'runs.sqlite')),
+    [
+      () => {
+        rmSync(directory, { recursive: true });
+      },
+    ],
+  );
   await settleFixture(async () => {
     const pid = fixture.worker.pid;
     if (pid === undefined) throw new Error('worker PID missing');
@@ -125,7 +140,14 @@ test('archived source fingerprints reject an altered actual predecessor module',
 });
 test('pure protocol imports under current and archived roots preserve the owned store tree', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'format3-protocol-import-'));
-  const fixture = await createFormat3Fixture(join(directory, 'runs.sqlite'));
+  const fixture = await constructFixture(
+    () => createFormat3Fixture(join(directory, 'runs.sqlite')),
+    [
+      () => {
+        rmSync(directory, { recursive: true });
+      },
+    ],
+  );
   await settleFixture(async () => {
     const pid = fixture.worker.pid;
     if (pid === undefined) throw new Error('worker PID missing');

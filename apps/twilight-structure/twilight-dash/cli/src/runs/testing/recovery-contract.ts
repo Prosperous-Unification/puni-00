@@ -428,6 +428,70 @@ export function recoveryContract(
           generationFloor: 4,
         });
       });
+      for (const operation of ['replay', 'next'] as const)
+        test(
+          'recovery hold same occurrence admission ' + operation + ' accepted=' + String(accepted),
+          async () => {
+            const fixture = await createClaimFixture(2);
+            unwrapReply(await fixture.runs.beginRecovery(fixture.call));
+            const evidence = await retainClaimReceipt(fixture, fixture.staged.intent);
+            const call = await createRecoveryResolveCall(fixture, fixture.call, accepted, evidence);
+            const closed = unwrapReply(await fixture.runs.resolveRecovery(call));
+            if (closed.attemptReply === null) throw new Error('claim recovery hold missing');
+            const before = await fixture.runs.readRun(fixture.run.runId);
+            const history = await readExecutionHistory(
+              fixture.runs,
+              fixture.artifacts,
+              fixture.run.runId,
+              fixture.admission.attemptId,
+            );
+            const scope = await readRuntimeHistory(fixture.runs, fixture.artifacts, runtimeScope);
+            expect(closed.attemptReply).toMatchObject({
+              version: 3,
+              holdsCapacity: true,
+              state: { kind: 'recovery_hold' },
+            });
+            expect(
+              await fixture.runs.admitAttempt(
+                {
+                  ownership: fixture.ownership,
+                  runId: fixture.run.runId,
+                  expectedRevision: operation === 'replay' ? 0 : before.run.revision,
+                },
+                operation === 'replay'
+                  ? fixture.admission
+                  : {
+                      ...fixture.admission,
+                      attemptId: attemptId('next-held-attempt'),
+                      ordinal: fixture.admission.ordinal + 1,
+                    },
+              ),
+            ).toEqual(
+              operation === 'replay'
+                ? { kind: 'duplicate', value: closed.attemptReply }
+                : { kind: 'refused', reason: 'attempt_active' },
+            );
+            expect(await fixture.runs.readRun(fixture.run.runId)).toEqual(before);
+            expect(
+              await readExecutionHistory(
+                fixture.runs,
+                fixture.artifacts,
+                fixture.run.runId,
+                fixture.admission.attemptId,
+              ),
+            ).toEqual(history);
+            expect(await readRuntimeHistory(fixture.runs, fixture.artifacts, runtimeScope)).toEqual(
+              scope,
+            );
+            if (closed.originalReply?.kind === 'claim') {
+              expect(closed.originalReply.ack.attempt.version).toBe(2);
+              const { expectedRecoveryRevision: _revision, ...guard } = fixture.call.guard;
+              expect(
+                await fixture.runs.recordClaimAcceptance(guard, closed.originalReply.command),
+              ).toEqual({ kind: 'duplicate', value: closed.originalReply.ack });
+            }
+          },
+        );
       test(
         'recovery closure real hold reads refuses mutations admits unrelated and replays Ack2 accepted=' +
           String(accepted),

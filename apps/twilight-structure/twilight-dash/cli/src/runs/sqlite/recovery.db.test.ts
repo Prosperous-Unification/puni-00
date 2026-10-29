@@ -3,18 +3,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { organizationId } from '../record-codecs';
+import { constructFixture } from '../testing/construct-fixture';
 import { FixtureClock } from '../testing/fixtures';
 import {
   createRecoveryFenceCall,
   createRecoveryObservationCall,
   recoveryContract,
 } from '../testing/recovery-contract';
+import { createRecoveryInspection, createRecoveryStores } from '../testing/sqlite-fixture';
 import { bootstrapSqliteStores } from './open-stores';
 
 recoveryContract('sqlite recovery', async (capacity = 1) => {
   const directory = mkdtempSync(join(tmpdir(), 'recovery-'));
   const clock = new FixtureClock();
-  const stores = await bootstrapSqliteStores({
+  const stores = await createRecoveryStores(directory, {
     path: join(directory, 'runs.sqlite'),
     organizationId: organizationId('organization'),
     capacity,
@@ -23,14 +25,7 @@ recoveryContract('sqlite recovery', async (capacity = 1) => {
     maxBusyAttempts: 20,
     busyDelayMilliseconds: 1,
   });
-  return {
-    ...stores,
-    clock,
-    async close() {
-      await stores.close();
-      rmSync(directory, { recursive: true, force: true });
-    },
-  };
+  return { ...stores, clock };
 });
 
 import { rejects } from 'node:assert/strict';
@@ -851,13 +846,10 @@ import { createRecoveryResolveCall } from '../testing/recovery-contract';
 async function createClosureFixture(family: 'authority' | 'claim', accepted = true) {
   if (family === 'authority') {
     const fixture = await createPhysicalFixture(false);
-    try {
+    return await constructFixture(async () => {
       const resolve = await createRecoveryResolveCall(fixture.stores, fixture.call, accepted);
       return { ...fixture, resolve };
-    } catch (cause) {
-      await fixture.close();
-      throw cause;
-    }
+    }, [() => fixture.close()]);
   }
   const directory = mkdtempSync(join(tmpdir(), 'closure-claim-'));
   const options = {
@@ -869,17 +861,8 @@ async function createClosureFixture(family: 'authority' | 'claim', accepted = tr
     maxBusyAttempts: 2,
     busyDelayMilliseconds: 1,
   };
-  const stores = await bootstrapSqliteStores(options);
-  const database = new Database(options.path);
-  const close = async () => {
-    try {
-      await stores.close();
-    } finally {
-      database.close();
-      rmSync(directory, { recursive: true });
-    }
-  };
-  try {
+  const { stores, database, close } = await createRecoveryInspection(directory, options);
+  return await constructFixture(async () => {
     const setup = await prepareSession({ ...stores, clock: options.clock });
     const staged = unwrapReply(
       await stageClaimRequest(stores.runs, stores.artifacts, await setup.scopedGuard(), {
@@ -914,10 +897,7 @@ async function createClosureFixture(family: 'authority' | 'claim', accepted = tr
       await retainClaimReceipt(setup, staged.intent),
     );
     return { stores, database, options, call, resolve, close };
-  } catch (cause) {
-    await close();
-    throw cause;
-  }
+  }, [close]);
 }
 
 function captureClosure(database: Database) {

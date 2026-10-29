@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { expect, test } from 'bun:test';
 
 import { decodeOwnership, organizationId, runId } from '../record-codecs';
+import { constructFixture } from '../testing/construct-fixture';
 import { createManifest, FixtureClock } from '../testing/fixtures';
 import {
   createFormat3Fixture,
@@ -19,7 +20,14 @@ import { openSqliteStores } from './open-stores';
 test('loaded original BB14 writer refuses fresh manifest on physically version4 successor', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'recovery-old-writer-'));
   const path = join(directory, 'runs.sqlite');
-  const old = await createFormat3Fixture(path);
+  const old = await constructFixture(
+    () => createFormat3Fixture(path),
+    [
+      () => {
+        rmSync(directory, { recursive: true });
+      },
+    ],
+  );
   await settleFixture(async () => {
     const ownership = decodeOwnership(await old.populate('authority_pending'));
     await upgradeSqliteStores({
@@ -215,7 +223,14 @@ for (const method of legacyMutations)
   test(`pinned old ${method} is fresh and eligible before upgrade and fenced after publication`, async () => {
     const directory = mkdtempSync(join(tmpdir(), 'old-mutation-'));
     const path = join(directory, 'runs.sqlite');
-    const old = await createFormat3Fixture(path);
+    const old = await constructFixture(
+      () => createFormat3Fixture(path),
+      [
+        () => {
+          rmSync(directory, { recursive: true });
+        },
+      ],
+    );
     const options = {
       path,
       organizationId: organizationId('organization'),
@@ -338,7 +353,14 @@ for (const count of [1, 2] as const)
     async () => {
       const directory = mkdtempSync(join(tmpdir(), 'old-contention-'));
       const path = join(directory, 'runs.sqlite');
-      const old = await createFormat3Fixture(path);
+      const old = await constructFixture(
+        () => createFormat3Fixture(path),
+        [
+          () => {
+            rmSync(directory, { recursive: true });
+          },
+        ],
+      );
       let lockOwner: Awaited<ReturnType<typeof createFormat3Fixture>> | undefined;
       const calls: Promise<void>[] = [];
       let settledCalls: Promise<PromiseSettledResult<void>[]> | undefined;
@@ -412,7 +434,14 @@ for (const count of [1, 2] as const)
 test('actual old production callback holds its write lock before upgrade can publish', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'old-callback-'));
   const path = join(directory, 'runs.sqlite');
-  const old = await createFormat3Fixture(path);
+  const old = await constructFixture(
+    () => createFormat3Fixture(path),
+    [
+      () => {
+        rmSync(directory, { recursive: true });
+      },
+    ],
+  );
   let writing: Promise<unknown> | undefined;
   let upgrading: Promise<unknown> | undefined;
   // eslint-disable-next-line @typescript-eslint/unbound-method -- Exact native receiver and function restored after observing real SQLite contention.
@@ -466,7 +495,14 @@ test('actual old production callback holds its write lock before upgrade can pub
 test('old artifact insertion duplicate and metadata conflict preserve successor integrity and exact bytes', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'old-artifact-'));
   const path = join(directory, 'runs.sqlite');
-  const old = await createFormat3Fixture(path);
+  const old = await constructFixture(
+    () => createFormat3Fixture(path),
+    [
+      () => {
+        rmSync(directory, { recursive: true });
+      },
+    ],
+  );
   let current: Awaited<ReturnType<typeof openSqliteStores>> | undefined;
   await settleFixture(async () => {
     await old.populate('prepared');
@@ -510,7 +546,14 @@ test('old artifact insertion duplicate and metadata conflict preserve successor 
 test('genuine new old-open refuses physical4 before mode configuration', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'old-new-open-'));
   const path = join(directory, 'runs.sqlite');
-  const old = await createFormat3Fixture(path);
+  const old = await constructFixture(
+    () => createFormat3Fixture(path),
+    [
+      () => {
+        rmSync(directory, { recursive: true });
+      },
+    ],
+  );
   await settleFixture(async () => {
     await old.populate('prepared');
     await upgradeSqliteStores(legacyOptions(path));
@@ -570,7 +613,14 @@ function capturePublished(database: Database): Format3Capture {
 test('old close checkpoints native WAL locally while preserving all logical rows for a new old reader', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'old-close-wal-'));
   const path = join(directory, 'runs.sqlite');
-  const old = await createFormat3Fixture(path);
+  const old = await constructFixture(
+    () => createFormat3Fixture(path),
+    [
+      () => {
+        rmSync(directory, { recursive: true });
+      },
+    ],
+  );
   await settleFixture(async () => {
     await old.populate('prepared');
     const before = await old.capture();
@@ -598,7 +648,14 @@ test('old close checkpoints native WAL locally while preserving all logical rows
 test('old fixture cleanup releases a real admitted callback and settles its request before process disposal', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'old-cleanup-callback-'));
   const path = join(directory, 'runs.sqlite');
-  const old = await createFormat3Fixture(path);
+  const old = await constructFixture(
+    () => createFormat3Fixture(path),
+    [
+      () => {
+        rmSync(directory, { recursive: true });
+      },
+    ],
+  );
   let writing: Promise<unknown> | undefined;
   await settleFixture(async () => {
     const invocation = await old.prepareMutation('retainManifest');
@@ -620,7 +677,14 @@ test('old fixture cleanup releases a real admitted callback and settles its requ
 });
 test('cleanup preserves real unvalidated request rejection alongside body and cleanup failures', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'old-cleanup-causes-'));
-  const old = await createFormat3Fixture(join(directory, 'runs.sqlite'));
+  const old = await constructFixture(
+    () => createFormat3Fixture(join(directory, 'runs.sqlite')),
+    [
+      () => {
+        rmSync(directory, { recursive: true });
+      },
+    ],
+  );
   const bodyFailure = new Error('body failed before observing pending write');
   const cleanupFailure = new Error('independent cleanup failed');
   let writing: Promise<unknown> | undefined;

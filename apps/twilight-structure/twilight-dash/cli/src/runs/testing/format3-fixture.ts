@@ -272,6 +272,7 @@ export async function createFormat3Fixture(path: string, mode: 'bootstrap' | 'op
     await ready.promise;
   } catch (cause) {
     child.kill('SIGKILL');
+    // Caller construction owners may remove their store directory only because this actual worker exit precedes readiness rejection, including independent archive cleanup failure.
     await exited.promise;
     try {
       await closeFixture();
@@ -384,25 +385,4 @@ export async function createFormat3Fixture(path: string, mode: 'bootstrap' | 'op
   };
 }
 
-/** Runs the test body and every ordered cleanup, retaining independent body/request/native failures after all owned resources have been attempted. */
-export async function settleFixture(
-  body: () => void | Promise<void>,
-  cleanups: readonly (() => void | Promise<void>)[],
-) {
-  const failures: unknown[] = [];
-  try {
-    await body();
-  } catch (cause) {
-    failures.push(cause);
-  }
-  for (const cleanup of cleanups) {
-    try {
-      await Promise.resolve().then(cleanup);
-    } catch (cause) {
-      if (!failures.includes(cause)) failures.push(cause);
-    }
-  }
-  if (failures.length === 1) throw failures[0];
-  if (failures.length > 1)
-    throw new AggregateError(failures, 'compatibility operation and cleanup failed');
-}
+export { settleFixture } from './construct-fixture';

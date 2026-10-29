@@ -76,7 +76,8 @@ describe('recovery evidence contract boundaries', () => {
         )[1];
         if (!isRecord(options)) throw new Error('recovery policy malformed');
         expect(options['allow']).toEqual(['^@wbs/contracts$']);
-        expect({ ...options, allow: [] }).toEqual(peerOptions);
+        const constrainedOptions: unknown = { ...options, allow: [] };
+        expect(constrainedOptions).toEqual(peerOptions);
       },
       30_000,
     );
