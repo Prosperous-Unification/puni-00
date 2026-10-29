@@ -2987,3 +2987,65 @@ progress; actual upload/inode exhaustion, ordinary supervisor/CLI serving
 continuation, complete semantic R5 reconciliation, runtime/test lint cleanup,
 formal original-BASE Task8 review, Tasks9–11 and the exact-SHA host gate remain
 required. This local work made no production configuration or safeguard change.
+
+## Task8 import and void-callback lint remediation — 2026-10-29
+
+This continuation removed55 required lint findings across45 runtime/fixture files.
+Exactly43 import-order diagnostics were fixed through the import-sort rule alone.
+The rewrite verifies complete non-import syntax, import binding multiplicity and
+side-effect-only import order before and after Prettier; added-statement and
+added-binding controls differ. Normal dependency evaluation order may change, so
+this is not a whole-program byte-equivalence claim.
+
+Twelve shorthand callbacks whose original expression types are `void` now use
+statement blocks. The original compiler signatures are eleven `void` and one
+`Promise<void>`; callers consume effects or await completion. Full syntax-tree
+comparison permits only the expression-arrow/block normalization and includes
+literal contents, type syntax and declaration flags. Side-effect, type and
+const-to-let controls differ. No guard, signal, cancellation bound, fsync, lock or
+refusal branch was removed. This is a mechanical callback rewrite, not an emitted
+byte-equivalence claim. Nine files have callback edits; seven overlap the import
+set, making45 distinct edited files.
+
+The first printer-based callback comparison stopped on an object literal's
+multiline/trailing-comma layout in `registry-maintenance-host.native.ts`. Its raw
+normalized copies and before/after sources are retained. The structural comparison
+resolved that formatting difference and verified all twelve typed callbacks;
+the failed printer attempt is not reported as a successful comparison.
+
+Final checks against stable source:
+
+- Complete configured tool-fleet command, with pinned native restic enabled:
+  2056 passes, zero failures/skips,8756 assertions across164 files,104.83seconds.
+  The runner exited0 and all333 captured TypeScript/config pins still match.
+- Library and spec type checks: exit0, empty stdout/stderr.
+- Prettier: exit0 for all45 edited files.
+- The configured Bun build compiled all11 production CLI entrypoints. The first
+  observer searched only the output root and missed Bun's nested files. Corrected
+  recursive discovery and a fresh repeat both found11 outputs, byte-identical
+  between the two builds. The verified build receipt exits0. Neither build was
+  installed or executed as a production service.
+- Fresh96-file runtime lint inventory:248 errors, zero warnings; no import-sort
+  or confusing-void findings remain in this inventory. Test-file lint and other
+  project/full-repository gates are not certified by this runtime-only result.
+
+The initial check wrapper also stopped before its first type-check launch because
+it expected44 edited files. The actual43+9 union is45, including the native host
+and process helper outside the import set; that observation was corrected before
+running the recorded checks. Wrapper failures are retained separately from the
+successful tool commands.
+
+`/tmp/task8-layout-covering.json`, SHA256
+`a2d6093e1357c06a05691562250f80332984df9adad5b73e9b67f2249bbb0b75`,216pins,
+binds the exact transformations, source snapshots, controls, check receipts,
+logs and both build outputs. The project run is recorded under
+`/tmp/task8-project-after-layout/`; check receipts are under
+`/tmp/task8-layout-checks/`. The two owned build archives are owner-only. Earlier
+source-bound packages remain historical records; their old live-source pins are
+not claimed to match after this approved cleanup.
+
+Task8/4.2 remains in progress. The original17 requirements/24 scenarios, remaining
+248 runtime errors and test lint, semantic R5 reconciliation, actual upload/inode
+exhaustion, ordinary supervisor/CLI serving continuation, formal original-BASE
+review, Tasks9–11 and the exact-SHA host gate remain required. There was no h4
+rehearsal, closed successful-scope replay or production safeguard activation.
