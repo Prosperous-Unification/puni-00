@@ -21,6 +21,11 @@ membership and nothing else. Slices 3 to 7 enforce this matrix and run after #69
 
 ## Roles and the permissions they imply
 
+This table is the seed of `access_role_permission` (`wbs-custom-permissions` CP7): a "yes"
+cell is a row, a blank cell is absent, "shell only" is `organization.navigate`; a test
+asserts the seed equals the table cell by cell and that its permission ids equal
+`PERMISSIONS`' (ids, never a count; CP4).
+
 | Permission                               | org-super-admin | org-admin | org-viewer | project-manager | project-contributor | project-viewer | package-manager | package-contributor | package-viewer  |
 | ---------------------------------------- | --------------- | --------- | ---------- | --------------- | ------------------- | -------------- | --------------- | ------------------- | --------------- |
 | `organization.navigate`                  | yes             | yes       | yes        | yes             | yes                 | yes            | yes             | yes                 | yes             |

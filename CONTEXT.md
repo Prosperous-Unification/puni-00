@@ -66,12 +66,20 @@ account or a machine principal.
 _Avoid_: user (alone), actor, identity, caller
 
 **Access grant**:
-One statement that a principal holds one access role at one grant scope of an organization. Grants add up and the strongest wins; nothing subtracts.
+One statement that a principal holds one access role at one grant scope of an organization. Grants add up; nothing subtracts.
 _Avoid_: permission (what a role implies), ACL entry, share, binding, role assignment
 
 **Access role**:
-A named rung of the seeded catalogue, prefixed by the object kind it governs (`org-`, `project-`, `package-`) and ranked by level. Code checks the permissions a role implies, never the role's name.
-_Avoid_: role (alone), permission set, custom role, scope
+A named set of permissions over one object kind and the kinds beneath it (organization, project, work package), either built-in or custom. An ordinary decision asks whether a permission is in the set, never the role's name; the restricted work package rule and the last super-admin rule are the only ones that name built-in roles.
+_Avoid_: role (alone), policy, rung, scope
+
+**Built-in access role**:
+One of the nine seeded access roles, prefixed by its object kind (`org-`, `project-`, `package-`); never edited or renamed.
+_Avoid_: managed policy, default role, system role
+
+**Custom access role**:
+An access role an organization defines and names for itself from the permission vocabulary; granted and revoked like a built-in one.
+_Avoid_: customer policy, user role, role template
 
 **Access group**:
 An organization's named set of member accounts that exists only to be named by access grants. Not a service team, and never a constraint on who may be assigned work.
@@ -81,9 +89,9 @@ _Avoid_: team, group (alone), user group, IdP group
 The organization, project or work package an access grant names; a grant at a scope reaches every object beneath it, including ones created later. Not the admitted turn's **Scope** below.
 _Avoid_: scope (alone), target, resource, level
 
-**Effective role**:
-The strongest access role a principal holds at one grant scope through every grant that reaches it, direct, via an access group or via the organization members subject, after the machine cap; null means the object is invisible to them.
-_Avoid_: permissions, computed role, access level
+**Effective permissions**:
+The permissions a principal holds at one grant scope, each with the grants it came from: the union over every grant that reaches the scope, direct, via an access group or via the organization members subject, after the machine cap. The object is invisible to them unless its read permission is among them.
+_Avoid_: effective role, strongest role, computed role, access level
 
 **Organization members subject**:
 The grant subject that stands for every current member of the organization, resolved at check time; how "every member may view every project" is one row.
@@ -95,7 +103,7 @@ credential, never those of its agent person's bound account, under the machine c
 _Avoid_: bot, service account, machine user, agent account
 
 **Machine cap**:
-The ceiling of contributor applied to every effective role of a machine principal, whatever its credential's grants name and whatever its bound account holds.
+The fixed permission boundary a machine principal's effective permissions are intersected with (the permissions the contributor roles hold), whatever its credential's grants name and whatever its bound account holds.
 _Avoid_: role cap, scope narrowing, member cap
 
 **Active organization**:
@@ -325,17 +333,27 @@ together keeping their order. Frozen work items move with the rest; nothing chan
 _Avoid_: sort, reorder, sort by Gantt, sequence, sync with chart
 
 **Step**:
-A named kind of work a project defines once for all its work packages, each estimating it
-separately; unique by name within the project and carrying a **step code**; every project
-starts with `Dev` and `QA`
-([spec](openspec/changes/archive/2026-08-30-steps-not-phases/specs/wbs-domain/spec.md)). A
-definition, not an occurrence: its work within one leaf is a **step node**. Today a step
-belongs to one work package; lifting it to the project waits for `wbs-step-catalogue` (#698
-E21, deferred 2026-10-25).
-_Avoid_: discipline, type, category
+A named kind of work defined once in an organization's step catalogue and bound, per work
+item type or for every type, at the organization, a space or a project; a leaf's steps are
+the bindings along its chain, and each work package keeps its own unit and allowance per
+step. A definition, not an occurrence: its work within one leaf is a **step node**. Its
+**default estimate unit** seeds a package's unit; the effective unit is the package's.
+_Avoid_: discipline, type, category, phase
+
+**Step binding**:
+One statement that one step applies, at one scope (organization, space or project), to work
+items of one work item type or of every type. Bindings add along the chain and never hide an
+inherited step. An every-type binding reaches typed leaves too; an untyped leaf is one that
+resolves only every-type bindings.
+_Avoid_: step assignment, step rule, step override
+
+**Default estimate unit**:
+The estimate unit a catalogue step proposes, copied into a work package's own row when the
+step first reaches that package; changing it later changes no package.
+_Avoid_: step unit, effective unit (which is the package's)
 
 **Step code**:
-A step's short, immutable name for references, unique within its project — `dev`, `qa`,
+A step's short, immutable name for references, unique within its organization's catalogue — `dev`, `qa`,
 `review`: a
 lowercase letter, then lowercase letters, digits or hyphens. Suggested from the name when the
 step is created; renaming the step keeps it. Codes shaped `s<digits>` or `s<digits>-…` are
@@ -347,7 +365,8 @@ _Avoid_: slug, step key, step id (which is the stored identity)
 **Step node**:
 One leaf work item's occurrence of one step — the addressable unit that carries that
 pair's estimate, actual, measures, progress, assignment and dependencies. It exists for every
-leaf and step whether or not anything is stored for it, and a parent has none. Not a work item:
+leaf and every step that leaf resolves, whether or not anything is stored for it, and a
+parent has none. Not a work item:
 no tree position, title, type or number of its own ([ADR
 0031](docs/adr/0031-a-step-node-is-a-pair-not-a-work-item.md)).
 _Avoid_: sub-item, step item, task, cell (which is only its table drawing)
@@ -396,21 +415,21 @@ the current address revision.
 _Avoid_: node id, path, step code alone as the canonical form
 
 **Step graph**:
-The ordering edges between one leaf's step nodes that come from the project's steps rather
-than from an authored dependency — today, finish-to-start in step order. Its edges are
+The ordering edges between one leaf's step nodes that come from that leaf's resolved step
+order rather than from an authored dependency — today, finish-to-start in step order. Its edges are
 **workflow** edges, told apart from **authored** and **legacy** ones.
 _Avoid_: internal dependencies, step chain (which is today's only shape of it), workflow (the future configurable definition)
 
 **Work-item boundary**:
-The single zero-time scheduling point a leaf has in a project with no steps, so whole-scope
+The single zero-time scheduling point a leaf has when it resolves no steps, so whole-scope
 dependencies still have something to join. Never a step node and never addressable by a
 step reference.
 _Avoid_: synthetic step, null step node
 
 **Step order**:
-The order a project works its steps in — `Dev` before `QA` before whatever was added
-after them. One order for the whole project, held per step, and the order every list of
-them is read in.
+The order a leaf works its resolved steps in — `Dev` before `QA` before whatever was
+added after them — set by each scope's binding positions, organization before space before
+project. Every list of a leaf's steps is read in it.
 _Avoid_: phase order, role order, sequence, priority
 
 **Assumed assignee**:
@@ -419,8 +438,10 @@ for. Read from the assignments rather than stored, so a second one ends the assu
 _Avoid_: default assignee, implicit owner, cover
 
 **Step usage**:
-What a step's removal would take with it: the estimates and assignments that hold it, and
-the work items whose assumed assignee it would change.
+What a step's removal from a leaf would take with it: the estimates, actuals, progress,
+measures, measure estimates, attempts and issued attempt numbers, assignments, claims,
+dependencies, blockages and parallelism overrides on that step node, and the work items whose
+assumed assignee it would change.
 _Avoid_: references, dependents, blast radius
 
 **Directory**:
@@ -1319,7 +1340,7 @@ A work package's five bands, in rank order: a vocabulary and never a constraint
 _Avoid_: priority scheme, priority config, priority scale
 
 **Project settings**:
-The configuration a project defines for all its work packages: timezone, calendar markers and
+The configuration a project defines for all its work packages: timezone, calendar periods and
 PERT weights, which a work package may override, and the allowed work item types and budget
 factor, which it may not. Step codes are not a setting; who defines them waits for
 `wbs-step-catalogue`. Also the surface where they are edited.
@@ -1424,10 +1445,28 @@ minutes per cell — offered only while the panel would draw at most 2,500 marks
 offered is a rendered state.
 _Avoid_: zoom level, slider position, minute view
 
-**Calendar marker**:
-A named annotation on an absolute calendar date, defined by a project for all its work
-packages or by one work package for itself. Not a work item and not visible to the scheduler.
-_Avoid_: milestone, date tag, annotation
+**Calendar period**:
+A named, coloured span of one or more absolute calendar days, end inclusive, defined at an
+organization, its optional space, a project or a work package for every work package beneath
+it. Not a work item; whether the scheduler sees it is its period kind's decision. The planning
+change is still named `wbs-calendar-ranges`.
+_Avoid_: range, marker, calendar marker, milestone, date tag
+
+**Period kind**:
+What a calendar period means to the schedule: `note`, which only labels the chart, or
+`non_working`, which takes its days out of the work calendar of every work package beneath its
+scope. In release 1 that covers every slice; the agent-kind exemption of ADR 0043 is release 2.
+_Avoid_: period type, marker type, category
+
+**Non-working period**:
+A calendar period of kind `non_working`: an organization holiday, a department's off-days, a
+project closure. In release 1 every slice beneath its scope skips it.
+_Avoid_: holiday (one use of it), blackout
+
+**Work calendar**:
+The set of dates a work package's slices may not occupy: weekends and the dates of its
+effective non-working periods. It is held as excluded dates, not as available days.
+_Avoid_: business calendar, holiday calendar, working-day set
 
 **Workday axis**:
 The Gantt panel's horizontal scale on a plan with **no** start date: one unit per workday,

@@ -101,8 +101,11 @@ export type CredentialPin = CredentialPair | { readonly personId: string; readon
  * Proof: answering null for a machine credential made `claims as its person
  * and is refused as any other of its account's persons` in
  * `machine-credential.controller.db.test.ts` accept the claim as `codex`;
- * watched 2026-10-22. Answering null for a consent made `a consent session's
- * tool call claims as its agent, never with the human's reach` (mcp-01
+ * watched 2026-10-22. The same fault failed that case and `delegates under its
+ * own person's subtree claim` on the MCP path (`a key pinned to one person,
+ * through mcp-01`, a grant forwarded as mcp-01 sends it); watched 2026-10-29.
+ * Answering null for a consent made `a consent session's tool call claims
+ * as its agent, never with the human's reach` (mcp-01
  * `organization-delegation.boot.test.ts`) accept the claim as `codex`;
  * watched 2026-10-22. Dropping a machine grant's `runId` from the pin made six
  * cases of `machine-grant-run.controller.db.test.ts` fail (the run not

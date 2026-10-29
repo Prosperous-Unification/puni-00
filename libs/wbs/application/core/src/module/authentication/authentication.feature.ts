@@ -641,7 +641,8 @@ export class AuthService {
     // Proof: with this comparison removed, `never consults trusted issuers
     // for a configured-issuer token without groups` in
     // `oidc-credential.controller.db.test.ts` admitted the credential a
-    // planted trusted issuer of the configured URL holds; watched 2026-10-22.
+    // planted trusted issuer of the configured URL holds; watched 2026-10-22,
+    // and again through mcp-01's jwt-bearer grant 2026-10-29.
     if (claims.issuer === (await trusted.configuredIssuer())) return 'configured_path';
     const machines = this.opts.machineKeys;
     if (machines === undefined)
@@ -651,13 +652,15 @@ export class AuthService {
     // stranger `iss` let through to the configured verifier), `refuses a
     // stranger issuer invalid_token without fetching any key set` in
     // `oidc-credential.controller.db.test.ts` answered 401 unauthenticated;
-    // watched 2026-10-22.
+    // watched 2026-10-22. Through mcp-01's jwt-bearer grant it answered
+    // unknown_identity; watched 2026-10-29.
     if (registrations.length === 0) return 'invalid_token';
     const selected = registrations.filter((each) => claims.audiences.includes(each.audience));
     const registration = selected.at(0);
     // Proof: with the `length > 1` half removed, `refuses a token naming two
     // organizations' audiences` in `oidc-credential.controller.db.test.ts`
-    // admitted it as the first organization's; watched 2026-10-22.
+    // admitted it as the first organization's; watched 2026-10-22, and again
+    // through mcp-01's jwt-bearer grant 2026-10-29.
     if (registration === undefined || selected.length > 1) return 'invalid_token';
     const pair =
       claims.subject === null
@@ -669,14 +672,15 @@ export class AuthService {
       // Proof: answering the registration's audience alone made `refuses a
       // wrong audience, the credential audience winning over the default`
       // (oidc-credential.controller.db.test.ts) admit a token without the
-      // credential's own audience; watched 2026-10-22.
+      // credential's own audience; watched 2026-10-22, and again through
+      // mcp-01's jwt-bearer grant 2026-10-29.
       audience: pair?.audience ?? registration.audience,
     });
     // Proof: with only `key_set_unavailable` refused here (an `invalid`
     // verdict admitted), `refuses a token signed by another key` and `refuses
     // a wrong audience, the credential audience winning over the default` in
     // `oidc-credential.controller.db.test.ts` answered 200; watched
-    // 2026-10-22.
+    // 2026-10-22, and again through mcp-01's jwt-bearer grant 2026-10-29.
     if (verdict.kind !== 'verified') return 'invalid_token';
     if (verdict.subject !== claims.subject)
       throw new Error('a verified token changed its subject between peek and verify');
@@ -751,6 +755,8 @@ export function machinePrincipalOf(
     // Proof: without this context, `admits a live key to its organization's
     // projects only` in `machine-credential.controller.db.test.ts` answered
     // 403 no_active_organization; watched 2026-10-22.
+    // The same fault failed it, the batch write and the administration
+    // refusal of `an API key on the MCP path` there; watched 2026-10-29.
     delegation: { organizationId: actor.organizationId, audience: 'wbs-be-01/direct' },
     authentication: {
       kind: 'machine',
@@ -774,7 +780,8 @@ export function machinePrincipalOf(
  * Proof: answering the stored role for a machine made `refuses patchPerson to
  * an admin-bound key`, `refuses an admin-bound key a person bound to another
  * account` and `gives a super-admin-bound key no claim-admin bypass`
- * (`machine-credential.controller.db.test.ts`) fail; watched 2026-10-22.
+ * (`machine-credential.controller.db.test.ts`) fail; watched 2026-10-22, and
+ * again for `a key pinned to one person, through mcp-01` on 2026-10-29.
  * Proof: with `consent` left out, `a consent session's tool call claims as
  * its agent, never with the human's reach` (mcp-01
  * `organization-delegation.boot.test.ts`) answered the claim for the unbound

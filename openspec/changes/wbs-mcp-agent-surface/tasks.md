@@ -326,9 +326,14 @@
 
 ## 7. REST stops being an agent surface (gated: claire fleets on MCP, observed on dev)
 
-- [ ] 7.0 Migrate the raw-key `/api` suites: `swarm-end-to-end.db.test.ts`,
+- [x] 7.0 Migrate the raw-key `/api` suites: `swarm-end-to-end.db.test.ts`,
       `machine-credential.controller.db.test.ts`, the compute-provider tests, and
       `dev/activated-organization-server.ts` with its `local-dev.md` section.
+      (verify.md slice 16: what moved, and what is marked "removed by 7.1 (M9)". Slice 17 covers
+      the other eleven be-01 suites the same way, with the trusted-issuer token cases on mcp-01's
+      `jwt-bearer` grant. Its repo-wide sweep found Dash's `resources/runtime.ts` still sending
+      the key itself to `/api/resource-authorities/*`. That is outside 7.2's named file, and
+      7.1 must not land without it.)
 - [ ] 7.1 and 7.2 ship in one PR, with three parts:
   - M9's refusal;
   - Dash's `report-capacity.ts` as an MCP client;
@@ -355,8 +360,8 @@
     `--accept-breaking`;
   - order the secret cutover.
     (`docs/runbook-prod-deploy.md`, "MCP agent surface"; verify.md slice 14. The preflight
-    step is a manual `docker run`, because no deploy CLI runs it yet; see 8.3.)
-- [ ] 8.3 Deploy wiring the runbook found missing (verify.md slice 14, gaps):
+    was a manual `docker run` until 8.3 wired it into both deploys; verify.md slice 15.)
+- [x] 8.3 Deploy wiring the runbook found missing (verify.md slice 14, gaps):
   - the Compose swap and the Kubernetes schema Job run `trusted-issuer-audience-check-cli.ts`
     with the candidate image before migrating, and both deploy CLIs take
     `--accept-breaking=<ids>` into `WBS_ACCEPT_BREAKING_AUDIENCES`. Negative: skip the step,
@@ -366,3 +371,5 @@
     `WBS_MCP_AUTHORIZATION_SERVER`. Negative: drop the ref, and `mcp-manifest.test.ts` reddens;
   - the be swap preflight requires the three settings when the store is activated, so a
     missing key refuses before migration instead of at be-01 boot.
+    (verify.md slice 15: the be swap's `mcp-preflight` step and the capture Job; neither has
+    run on a host.)
