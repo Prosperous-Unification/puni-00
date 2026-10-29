@@ -2547,3 +2547,69 @@ remain pinned by `c6947f44` / `42efff33`. Parent closure is
 `/tmp/task8-parent-host59-closure.json` (`327c3bc3`), which preserves the exact raw
 stdout `7d9b40e2` and stderr `73762a1e`. HOST59 is closed and its source freeze is
 released for a diagnosed correction. No production safeguard was activated.
+
+### Actual terminal characterization and bounded nested failure clues
+
+A small local rootless probe used the exact pinned Bun 1.4.4 binary (`10702245`),
+pinned Distribution binary (`8be11cd3`), actual production child waiter and exact
+owned-listener predicate. SIGTERM produced exit143/SIGTERM with the group absent
+(`052534`). That tuple satisfies the API's terminal-tuple predicate; the probe's
+`apiReceiptAccepted` label refers only to that predicate, not complete API receipt
+validation. It does not prove UID59001/private-PID1 or full-volume behavior. The
+first sandbox attempt was EPERM for loopback access, not an application RED.
+The permitted retry and its private temporary repository were cleaned up.
+
+The controller failure report now observes at most sixteen distinct causes through
+the existing fixed-category/numeric-frame redactor. It bounds child traversal and
+cycles while preserving original failure identity and reporter aggregation. Three
+new cases failed before implementation because the nested clues were absent, then
+all 53 controller cases passed with 417 assertions. The affected controller/routes/
+redactor suite passes 93 tests/577 assertions. Five exact counterfactuals observed
+17 versus 16 clues, repeated cyclic observations, loss of the nested numeric frame,
+loss of aggregate children, and an unreadable seventeenth child causing reporter
+refusal when the child slice was omitted. The last case is not proof of unbounded
+output. Actual formatter composition replaces the prior constant formatter double.
+
+Cover `/tmp/task8-pressure-diagnostics-covering.json` (`1164b0b7`) binds fifty
+artifacts. Final library/spec/scoped lint pass; earlier import-group lint failure
+is preserved. Complete ordered runtime transfer compares source/tests with three
+runtime controls. The checked transfer separates raw file and normalized syntax
+hashes; its earlier trailing-comma comparator mismatch and incorrectly labeled
+normalized test hash remain preserved as unaccepted metadata. Only the native
+controller changed since HOST59, to `8af6d84b`; tests are `5e459de2`. This improves
+failure observation and does not correct the selected stop failure.
+
+### HOST60: ACK child nonzero terminal identified; cleanup verified
+
+The new diagnostic packet retained the same isolation, 896 MiB storage envelope,
+root reserves, canonical zero-wait heavy lock and deadlines. Manifest `ebe5906d`,
+driver `3057464f`, archive `1c9ad4a1` and normal bundle `7178c17b` bind 111 registry
+sources and 274 actual build inputs. Independent host/API rebuilds were byte-exact;
+the API bundle remained `29fb02f9`. Both source/input archives were captured before
+execution. The only new native behavior was bounded nested failure observation.
+
+The single run exited1 after 60.24 seconds without timeout. The new native alias
+readbacks matched `7178c17b`. It failed at backup-under-pressure again, but five
+redacted nested frame clues now locate the ACK subprocess waiter's nonzero-exit
+branch. In that exact executed source the throw follows group-absence convergence
+and the selected signal's abort check. The actual child exit code and underlying
+ACK application refusal were not exposed. This is a narrower observed failure
+boundary, not a successful stop/backup/recovery proof.
+
+The launcher has two source-level paths that can lose the remaining diagnostic:
+it aborts the bounded streams on waiter rejection, and its rejected-outcome branch
+discards any fulfilled stderr bytes while aggregating rejected causes. Which stream
+state occurred in HOST60 is unobserved. The next correction must preserve failure
+and uncertain-cleanup cancellation while retaining the existing bounded redacted
+child diagnostic. No allocator or pressure fix follows from an unproved hypothesis.
+
+Native teardown reported no remaining namespace processes, removed fixture, normal
+unmount order and detached loops. It observed 112 unchanged host-root/cgroup samples
+and an unchanged final view. Full-process and separate observer cleanup audits both
+exited0 with empty stderr (`a94ac88a` / `2fbe8b3d` stdout). They verified owned path,
+namespace, descriptor, backing and lock references absent, unchanged host identity
+and more than 20 GiB root reserve. Every source, build input, configuration, payload
+and private archive pin was rechecked after both audits. Closure
+`/tmp/task8-parent-host60-closure.json` (`2ca78273`) retains raw stdout `806122c9`
+and stderr `180da433`. HOST60 is closed as failed, its source freeze is released,
+and no production safeguards are activated.
