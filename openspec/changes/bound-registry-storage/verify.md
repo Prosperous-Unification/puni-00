@@ -2037,3 +2037,147 @@ released only after both audits and this preservation check. No replay or next
 native run was released. The private fixture retains modeled Kubernetes, readers
 and provider admission plus its advanced retirement clock. Full Task4.2 and all
 remaining budget, monitoring, adoption, validation and review work remain open.
+
+## Final origin reobservation dependency
+
+Parent checked the previously unbound final call in
+`proveRegistryBackupOriginStopped`, using an exact copy of current source
+`7b1544076e1ef5aaead4581e06ad7c22be736850070c5a89626e6f67e264efa6`
+and its attempt dependency3dc3be05. Both match the executed HOST58 source map;
+only imports were relocated. The earlier two origin/process observations remained
+unchanged. Seven tests/seven assertions passed normally. Omitting only the final
+`await origin()` caused all six third-observation faults to resolve: changed
+machine, boot, PID namespace or proc view, and missing or unreadable machine ID.
+The resulting run had one pass/six assertion failures. Restoring the exact normal
+copy passed all seven tests again; shared runtime sources and tests were untouched.
+
+Receipt `/tmp/task8-parent-origin-final-receipt.json`, SHA256
+`fb6b9b3f2dfbd6c9e5b5c9a90b071876cfac7cc38d78e142ee344f2946dd4fc6`,
+binds thirteen source/test/raw artifacts. Parent read all failure output and both
+normal/restored summaries, checked every pin and inspected the sole call-omission
+diff. These are modeled origin, absence and I/O observations through the actual
+production function. No actual kernel absence, canonical-lock acquisition, IPC
+or provider mutation is inferred. This is one dependency with six subcases;
+repository case integration and its precise adjacent Proof remain pending.
+
+## Full maintenance caller without a derived readonly ACK
+
+The added regression exercises existing `maintainRegistry` with actual journal
+files and flock, plus an empty-catalog loopback server. Capacity, ACK ENOSPC,
+writer census and backup engine remain modeled. With the writer stopped, it
+reaches a new matching verified backup and the deliberately controlled refusal
+before service restoration; it makes zero derived-ACK calls. A surviving writer
+prevents census and snapshot, preserving the prior verified backup. The nested
+competing journal command is refused while snapshot holds the same authority.
+
+Two exact counterfactuals were reconstructed and their complete raw failures
+reviewed. Inserting a forbidden ACK dependency causes both cases to fail at the
+modeled ENOSPC outcome. Omitting the first stop check prematurely persists
+`stopped` instead of `fenced`; the later census still refuses backup. That is a
+durable phase witness, not unsafe snapshot success. Complete checks passed eight
+tests/59 assertions, spec typecheck and final lint. A subsequent test-only removal
+of an impossible undefined alternative is explicitly recorded; its null refusal
+remains. Initial sandbox EPERM and the mistaken expectation that a successfully
+superseded backup remain last-verified were setup/test defects, not production RED.
+
+Covering receipt `/tmp/task8-pressure-caller-covering.json`, SHA256
+`713342f015e36cb6aa4af248f489610162beb34bd960b689e805f4e064df73f9`,
+binds62 artifacts. Parent checked every pin, both sole deltas, full source/test
+transfers and check provenance; production changes only two accurate Proof
+comments. Parent review `/tmp/task8-parent-pressure-caller-review.json`, SHA256
+`c52d558727dacf5c8a9a427365007ad472cdf230ce3ac3f3065e2a5652768d51`.
+No physical exhaustion, native writer shutdown or restic proof is inferred here.
+
+## Disposable volume filler prerequisites
+
+The fixed filler is limited to the owned128MiB registry filesystem, outside its
+snapshotted contents. It requires the exact private PID1 mode, verified identity,
+separation from journal/root devices, fresh exclusive file creation, bounded write
+progress, explicit ENOSPC and retained descriptor/path identity. All these local
+filesystem/process/write observations are modeled; no physical volume was filled.
+The final suite passed37tests/118assertions, with complete library/spec/lint checks
+returning zero and empty output. Thirteen original exact guard/dependency edits
+all caused actual assertion failures. A separate O_EXCL-only omission falsely
+accepts an existing filler; EACCES preserves its original cause without closing an
+unowned descriptor. No independent O_NOFOLLOW proof is inferred.
+
+Scope limits remain explicit: wrong file device allows three modeled writes
+before later refusal; progress omission isolates zero writes, with other bad
+counts caught later; loop omission reaches the129th modeled rescue attempt, not
+proven bytes beyond128MiB. Cause aggregation proves original-error retention.
+The redundant journal-path comparison was consolidated into the existing validated
+literal installation boundary. Final source otherwise differs only by comments
+and formatting, and the final test equals the exclusive-proof baseline. An earlier
+formatting-sensitive comparator failed and its prematurely assembled cover is
+preserved as unaccepted evidence.
+
+Covering receipt `/tmp/task8-volume-covering.json`, SHA256
+`4145e4ba2a2219008e558d27c7127f6712972ae906aeb22da6774373333740e2`,
+binds109 artifacts. Parent checked every pin, reconstructed all thirteen deltas,
+read their failures and the exclusive followup, and inspected the source/test
+transfer. Parent review `/tmp/task8-parent-volume-review.json`, SHA256
+`6574e4e17004748bf6d8b1a47ff065dd14e2089f04bc048d635db8f68470a1a3`.
+Current ACK allocation, direct-writer lifetime, synthetic stop-patch integration
+and native ENOSPC evidence remain pending. No HOST59 execution is released.
+
+### Local ACK and writer prerequisites for physical volume exhaustion
+
+The ACK allocation helper's original covering receipt is
+`/tmp/task8-ack-covering.json` (`92b98fa3`, 98 pinned files). The FIFO followup is
+`/tmp/task8-ack-fifo-covering.json` (`2f7721a2`, 42 pinned files). Parent checks
+`f09b84` verified every pin; `31ef11` independently compared four complete ordered
+source/test syntax trees, with comparator negatives for removed UID admission,
+missing function and malformed syntax. The resulting parent acceptance receipt is
+`/tmp/task8-parent-ack-review.json` (`75a7e687`). Final helper/test snapshots are
+`cfc0909e` / `53aa8cf9`; the complete suite reports 37 tests, 108 assertions, with
+library types, spec types and scoped lint exiting zero without diagnostics.
+
+The original 13 removal deltas cover modeled admission, records, correlation,
+allocation errors and close behavior. Metadata and record symlink cases can still
+refuse later; close aggregation proves cause retention. Removing only record-read
+`O_NONBLOCK` needs an independent modeled 50 ms writer rescue before nonregular
+metadata refusal. It does not cause unsafe ACK acceptance. A separate owned local
+Bun FIFO experiment (`/tmp/task8-parent-ack-fifo-contract.json`, `b95441f4`) confirmed
+that the blocking open waits for a writer and adding `O_NONBLOCK` permits immediate
+metadata inspection. This establishes the local primitive contract, without a
+host pressure or production startup lifetime claim.
+
+The writer covering receipt is `/tmp/task8-writer-covering.json` (`da744b6f`,
+141 pinned files), freshly checked in `2e5814` and `8339dd`. Parent read the complete
+source/tests and diffs, reconstructed all 16 main source deltas and read their raw
+assertion outcomes (`1ae4ce`), then inspected the separate sole `SIGTERM` omission
+and restored run (`57ba98`). A fresh parent run of immutable final copies
+(`3fcbaf`) passed 33 tests with 294 assertions. Final library/spec type checks and
+scoped lint report zero with empty diagnostics. Independent complete ordered syntax
+comparison (`27e6e5`) checked both transfers after explicit import ordering, void
+callback blocks and constant string array allocation normalization; three negative
+controls reject meaningful changes. Parent acceptance is
+`/tmp/task8-parent-writer-review.json` (`f169a82f`).
+
+These writer tests model subprocess, proc, HTTP, timer and stream ports. Removing
+memoization makes a required second close refuse; the setup aggregate delta loses
+the original cause. The drain deadline uses a 5 ms modeled callback for the 5000 ms
+production argument and a separate 50 ms rescue. Signal omission needs that
+independent terminal rescue. No actual child, physical ENOSPC, selected stop-patch
+binding, or native host launch is established by these local prerequisites. A
+subsequent PID boundary followup is recorded below. Task 8 remains incomplete.
+
+The subsequent PID/proc-read followup is
+`/tmp/task8-writer-pid-covering.json` (`a314cdf7`, 25 pins checked by `f0a817`).
+Complete source/test diffs and raw removal output were inspected in `ae91f3`.
+Removing the PID guard still refuses through the modeled listener's positive
+assertion and triggers owned cleanup; the negative loses its zero-signals
+assertion. It does not demonstrate a false successful stop or a proc-read effect.
+Separate modeled `ENOENT` and `EACCES` cases preserve the original proc-read failure
+and close the owned capability. Parent independently ran all three added cases
+from immutable final copies (`d1d745`: three tests, 27 assertions) and checked both
+complete syntax transfers and the exact omitted-predicate hash (`cb0a46`). Worker
+final output is 36 tests, 321 assertions, with spec types and scoped lint exiting
+zero without diagnostics; runtime changes only the precise proof comment. Parent
+acceptance is `/tmp/task8-parent-writer-pid-review.json` (`0cb0db5d`). This remains a
+modeled prerequisite, without an actual kernel PID or host lifecycle claim.
+
+Before this PID addendum, strict change validation (`0ed8e4`) reported one valid
+change and no issues. Earlier scoped Prettier (`34a765`) and whitespace
+check (`3eba04`) succeeded. These document checks do not establish runtime or
+whole-branch completion.
