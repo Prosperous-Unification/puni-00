@@ -355,8 +355,8 @@
     `--accept-breaking`;
   - order the secret cutover.
     (`docs/runbook-prod-deploy.md`, "MCP agent surface"; verify.md slice 14. The preflight
-    step is a manual `docker run`, because no deploy CLI runs it yet; see 8.3.)
-- [ ] 8.3 Deploy wiring the runbook found missing (verify.md slice 14, gaps):
+    was a manual `docker run` until 8.3 wired it into both deploys; verify.md slice 15.)
+- [x] 8.3 Deploy wiring the runbook found missing (verify.md slice 14, gaps):
   - the Compose swap and the Kubernetes schema Job run `trusted-issuer-audience-check-cli.ts`
     with the candidate image before migrating, and both deploy CLIs take
     `--accept-breaking=<ids>` into `WBS_ACCEPT_BREAKING_AUDIENCES`. Negative: skip the step,
@@ -366,3 +366,5 @@
     `WBS_MCP_AUTHORIZATION_SERVER`. Negative: drop the ref, and `mcp-manifest.test.ts` reddens;
   - the be swap preflight requires the three settings when the store is activated, so a
     missing key refuses before migration instead of at be-01 boot.
+    (verify.md slice 15: the be swap's `mcp-preflight` step and the capture Job; neither has
+    run on a host.)

@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 
 import type { Drizzle } from './db';
+import { hasTable, isMigrationApplied } from './migration-ledger';
 
 /** Whether organization isolation was enabled on this database. */
 export type OrganizationActivation = 'pre_activation' | 'activated';
@@ -96,4 +97,33 @@ function parseActivationState(rows: readonly MarkerRow[]): OrganizationActivatio
   if (row.state === 'pre_activation' && row.activated_at_type === 'null') return 'pre_activation';
   if (row.state === 'activated' && row.activated_at_type === 'integer') return 'activated';
   return undefined;
+}
+
+/** The migration that creates and seeds the marker, by its ledger name. */
+export const ORGANIZATION_ACTIVATION_MIGRATION = '20260927180000_add_organization_activation';
+
+/**
+ * The activation state of a store a deploy has not migrated yet: what
+ * {@link readOrganizationActivation} reads, or `not_migrated` when the ledger
+ * proves {@link ORGANIZATION_ACTIVATION_MIGRATION} never ran, so the migration
+ * about to run seeds `pre_activation`. Only that proof reads as not activated.
+ *
+ * @throws {OrganizationActivationRefused} as {@link readOrganizationActivation}
+ * does, including `absent` when the ledger records the migration but the
+ * table is gone; and when the ledger itself is absent.
+ */
+export function readOrganizationActivationBeforeMigration(
+  db: Pick<Drizzle, 'all'>,
+): OrganizationActivation | 'not_migrated' {
+  // Proof: with this whole condition replaced by `false`, `reads a store the
+  // marker migration has not reached as not migrated`
+  // (mcp-service-settings-check-cli.db.test.ts) exited with the absent-marker
+  // refusal; with only the ledger test dropped, `refuses a ledger that names
+  // the marker migration without its table` exited 0; watched 2026-10-28.
+  if (
+    !hasTable(db, 'organization_activation') &&
+    !isMigrationApplied(db, ORGANIZATION_ACTIVATION_MIGRATION)
+  )
+    return 'not_migrated';
+  return readOrganizationActivation(db);
 }
