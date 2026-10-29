@@ -1,0 +1,12 @@
+
+test/source-inner-program-child.test.ts:
+source Node owning namespace actual UID/GID1000:1000 observed
+source Node address BEGIN canonical-v6
+actual source canonical-v6 address observation refusal reached
+(pass) actual source address projection refuses canonical-v6 builtin observation [148.35ms]
+
+ 1 pass
+ 48 filtered out
+ 0 fail
+ 9 expect() calls
+Ran 1 test across 1 file. [167.00ms]

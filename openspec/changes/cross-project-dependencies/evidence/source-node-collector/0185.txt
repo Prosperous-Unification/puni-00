@@ -1,0 +1,22 @@
+--- V1/tools/tool-remote-scripts/src/lib/source-inner-program.model.ts
++++ V2/tools/tool-remote-scripts/src/lib/source-inner-program.model.ts
+@@ -623,7 +623,7 @@
+       'bigint-projection':
+         "for(const method of ['fstatSync','statSync']){const original=fs[method].bind(fs);fs[method]=(...args)=>{const observed=original(...args);if(typeof observed.ino==='bigint'){observed.dev=9007199254740993n;observed.ino=9007199254740995n;observed.mtimeNs=1793260800123456789n;observed.ctimeNs=1793260800123456789n;}return observed;};}",
+       'timestamp-range':
+-        'const actualStat=fs.fstatSync.bind(fs);fs.fstatSync=(...args)=>{const observed=actualStat(...args);observed.mtimeNs=253402300800000000000n;return observed;};',
++        "for(const method of ['fstatSync','statSync']){const original=fs[method].bind(fs);fs[method]=(...args)=>{const observed=original(...args);if(typeof observed.mtimeNs==='bigint')observed.mtimeNs=253402300800000000000n;return observed;};}",
+       'fd-count':
+         "const actualEntries=fs.readdirSync.bind(fs);fs.readdirSync=(path,...args)=>path.endsWith('/fd')?Array.from({length:4097},()=> '0'):actualEntries(path,...args);",
+       'pid-start':
+--- V1/private-runner.ts
++++ V2/private-runner.ts
+@@ -402,7 +402,7 @@
+  const settled=await Promise.allSettled([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);
+  const [exit,stdout,stderr]=settled;
+  if(exit.status!=='fulfilled'||stdout.status!=='fulfilled'||stderr.status!=='fulfilled')throw new AggregateError(settled,`original proof exit/streams unproved; retained ${directory}`);
+- joined=true;
++ joined=child.signalCode===null&&(exit.value===0||exit.value===1);
+  await writeFile(custodyPath,JSON.stringify({selected,phase,kind:choice.kind,test:choice.test,childPid:child.pid,childExit:exit.value,childSignal:child.signalCode,originalExitAndBothEOF:true,namespaceRequested:choice.kind==='program',namespaceModelReached:choice.kind==='program'&&stderr.value.includes('source Node owning namespace actual UID/GID1000:1000 observed'),stdoutBytes:Buffer.byteLength(stdout.value),stderrBytes:Buffer.byteLength(stderr.value),stdoutSha256:createHash('sha256').update(stdout.value).digest('hex'),stderrSha256:createHash('sha256').update(stderr.value).digest('hex')})+'\n',{flag:'wx',mode:0o600});
+  process.stdout.write(stdout.value);process.stderr.write(stderr.value);
+  assert.equal(child.signalCode,null,'original model namespace/child was externally signaled');

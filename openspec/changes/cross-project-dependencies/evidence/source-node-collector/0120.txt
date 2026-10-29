@@ -1,0 +1,24 @@
+
+test/source-inner-program-child.test.ts:
+source Node owning namespace actual UID/GID1000:1000 observed
+source Node independent watchdog BEGIN
+330 |     new Response(child.stderr).text(),
+331 |   ]);
+332 |   const [exit, stdout, stderr] = receipts;
+333 |   if (exit.status !== 'fulfilled' || stdout.status !== 'fulfilled' || stderr.status !== 'fulfilled')
+334 |     throw new AggregateError(receipts, 'actual finite original child custody unproved');
+335 |   expect(child.signalCode).toBeNull();
+                                 ^
+error: expect(received).toBeNull()
+
+Received: "SIGKILL"
+
+      at runActualReceipt (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-program.model.ts:335:28)
+      at async <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-program.model.ts:345:25)
+(fail) actual independent launcher deadline kills a synchronously blocked collector [20008.61ms]
+
+ 0 pass
+ 48 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [20.03s]

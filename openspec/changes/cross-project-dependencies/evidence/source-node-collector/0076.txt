@@ -1,0 +1,24 @@
+
+test/source-inner-program-child.test.ts:
+source Node owning namespace actual UID/GID1000:1000 observed
+source Node census identity BEGIN arguments
+940 |         expect(fields[3]).toBe(String(target.pid));
+941 |         arguments_ = [String(target.pid), fields[2], fields[3], String(BigInt(fields[19]) + 1n)];
+942 |       }
+943 |       console.error(`source Node census identity BEGIN ${fault}`);
+944 |       const receipt = await runActualCollector(collector, arguments_, 'cleanup');
+945 |       expect(receipt.code).toBe(1);
+                                 ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-program.model.ts:945:28)
+(fail) actual source fresh census refuses arguments at its identity boundary [28.84ms]
+
+ 0 pass
+ 48 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [51.00ms]

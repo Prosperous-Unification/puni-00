@@ -16,6 +16,8 @@ export const sourceFault = {
   closing: false,
   settlements: 0,
   receiptFailures: 0,
+  collectionTokens: 0,
+  collectionAcks: 0,
 };
 const clock = '2026-10-24 08:00:00.000000000 +0000';
 const digest = (label: string) => createHash('sha256').update(label).digest('hex');
@@ -226,7 +228,7 @@ export async function sourceProcessFixture() {
     await writeGenerated();
     ports.execDocker = async (args, nonce, receive, signal) => {
       sourceFault.execs++;
-      const cleanup = args.includes(GROUP_PROGRAM);
+      const cleanup = args.includes(GROUP_PROGRAM) || args.at(-5) === 'cleanup';
       const directory = join(fixture.root, `source-bytes-${nonce}`);
       await mkdir(directory);
       const receipt = join(directory, 'receipt');
@@ -238,17 +240,62 @@ export async function sourceProcessFixture() {
         '70001',
         '70001',
         '80001',
-        ...(cleanup ? [] : [...frames('before'), ...frames('after')]),
+        ...(cleanup
+          ? sourceFault.name === 'source-group-member'
+            ? ['MEMBER', '70001', 'S', '80001']
+            : []
+          : [...frames('before'), ...frames('after')]),
         'DONE',
         nonce,
         '2',
       ];
+      if (!cleanup && sourceFault.name === 'source-reap-foreign')
+        tokens.push('REAPED', 'foreign-source-nonce');
+      if (!cleanup && sourceFault.name === 'source-member-observe')
+        tokens.splice(6, 0, 'MEMBER', '70001', 'S', '80001');
+      if (!cleanup && sourceFault.name === 'source-no-session') tokens.splice(0, 6);
+      if (!cleanup && sourceFault.name === 'source-unknown-tag')
+        tokens.splice(6, 0, 'SOURCE_UNKNOWN', 'value');
+      if (!cleanup && sourceFault.name === 'source-token-bound')
+        tokens[1] = 'x'.repeat(4 * 1024 * 1024 + 1);
+      if (!cleanup && sourceFault.name === 'source-frame-bound')
+        tokens.splice(
+          6,
+          tokens.length - 6,
+          ...Array.from({ length: 40002 }, () => ['FD', '3', '0', '/dev/null']).flat(),
+          'DONE',
+          nonce,
+          '2',
+        );
+      if (!cleanup && sourceFault.name === 'source-session-nonce')
+        tokens[1] = 'foreign-source-nonce';
+      if (!cleanup && sourceFault.name === 'source-session-group') tokens[3] = '70002';
+      if (!cleanup && sourceFault.name === 'source-completion-count')
+        tokens[tokens.length - 1] = '1';
+      if (!cleanup && sourceFault.name === 'source-duplicate-done') tokens.push('DONE', nonce, '2');
       if (cleanup && sourceFault.name === 'cleanup') tokens.push('PRIVATE_CLEANUP_FAILURE');
       await Bun.write(receipt, tokens.join('\0') + '\0');
       await assertReadinessByteTransportFixture();
       let transportFailure: { readonly cause: unknown } | undefined;
       try {
-        await runDockerExec(['--', nonce, receipt, pidPath], nonce, receive, signal);
+        let skipped = 0;
+        const consume = (token: string) => {
+          if (!cleanup && sourceFault.name === 'source-missing-reap') {
+            if (token === 'REAPED') {
+              skipped = 1;
+              return false;
+            }
+            if (skipped === 1) {
+              skipped = 2;
+              return false;
+            }
+          }
+          if (!cleanup) sourceFault.collectionTokens++;
+          const acknowledged = receive(token);
+          if (!cleanup && acknowledged) sourceFault.collectionAcks++;
+          return acknowledged;
+        };
+        await runDockerExec(['--', nonce, receipt, pidPath], nonce, consume, signal);
       } catch (cause) {
         sourceFault.receiptFailures++;
         transportFailure = { cause };

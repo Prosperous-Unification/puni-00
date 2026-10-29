@@ -1,0 +1,172 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-remote-scripts/src/lib/source-inner-program.test.ts:
+
+test/source-inner-program-child.test.ts:
+source Node owning namespace actual UID/GID1000:1000 observed
+actual immutable Node owned-proc receipt and original collector reap observed
+(pass) actual source Node program observes owned local proc and reaps its exact collector [360.06ms]
+source Node ACK BEGIN eof
+actual Node eof ACK refusal and original custody observed
+(pass) actual source launcher refuses eof ACK and settles original custody [32.41ms]
+source Node ACK BEGIN malformed
+actual Node malformed ACK refusal and original custody observed
+(pass) actual source launcher refuses malformed ACK and settles original custody [37.07ms]
+source Node ACK BEGIN withheld
+actual Node withheld ACK refusal and original custody observed
+(pass) actual source launcher refuses withheld ACK and settles original custody [15103.15ms]
+actual source absent proc refusal observed
+(pass) actual source collector refuses absent requested proc without a success receipt [57.86ms]
+actual source unreadable owned executable refusal observed
+(pass) actual source collector refuses an unreadable owned executable [111.54ms]
+actual source encoder private entrypoint exact bigint projection observed
+(pass) actual source metadata encoder preserves bigint nanoseconds and negative fractions [29.60ms]
+source Node independent watchdog BEGIN
+actual blocked collector independent watchdog and reap refusal observed
+(pass) actual independent launcher deadline kills a synchronously blocked collector [15094.20ms]
+actual retained owned original-group member census observed without signaling target
+(pass) actual fresh census reports a retained owned session without signaling it [52.58ms]
+source Node address BEGIN cidr-null
+actual source cidr-null address observation refusal reached
+(pass) actual source address projection refuses cidr-null builtin observation [148.00ms]
+source Node address BEGIN cidr-range
+actual source cidr-range address observation refusal reached
+(pass) actual source address projection refuses cidr-range builtin observation [150.22ms]
+source Node address BEGIN family
+actual source family address observation refusal reached
+(pass) actual source address projection refuses family builtin observation [151.43ms]
+source Node address BEGIN canonical
+actual source canonical address observation refusal reached
+(pass) actual source address projection refuses canonical builtin observation [146.43ms]
+source Node address BEGIN canonical-v6
+actual source canonical-v6 address observation refusal reached
+(pass) actual source address projection refuses canonical-v6 builtin observation [150.71ms]
+source Node address BEGIN empty
+actual source empty address observation refusal reached
+(pass) actual source address projection refuses empty builtin observation [161.10ms]
+source Node writer BEGIN short
+actual source short writer boundary observed
+(pass) actual source writer handles short byte progress at its output boundary [227.34ms]
+source Node writer BEGIN zero
+actual source zero writer boundary observed
+(pass) actual source writer handles zero byte progress at its output boundary [26.70ms]
+source Node writer BEGIN excess
+actual source excess writer boundary observed
+(pass) actual source writer handles excess byte progress at its output boundary [24.54ms]
+source Node census probe BEGIN absent
+actual source census second-probe absent outcome observed
+(pass) actual source census second probe models absent explicitly [58.50ms]
+source Node census probe BEGIN EACCES
+actual source census second-probe EACCES outcome observed
+(pass) actual source census second probe models EACCES explicitly [51.91ms]
+source Node census probe BEGIN EIO
+actual source census second-probe EIO outcome observed
+(pass) actual source census second probe models EIO explicitly [56.40ms]
+source Node normal proc BEGIN regular-file
+actual source normal proc regular-file boundary observed
+(pass) actual source collector normal proc boundary observes regular-file [27.76ms]
+source Node normal proc BEGIN short-read
+actual source normal proc short-read boundary observed
+(pass) actual source collector normal proc boundary observes short-read [30.54ms]
+source Node normal proc BEGIN metadata-readback
+actual source normal proc metadata-readback boundary observed
+(pass) actual source collector normal proc boundary observes metadata-readback [119.48ms]
+source Node normal proc BEGIN bigint-projection
+actual source normal proc bigint-projection boundary observed
+(pass) actual source collector normal proc boundary observes bigint-projection [213.04ms]
+source Node normal proc BEGIN timestamp-range
+actual source normal proc timestamp-range boundary observed
+(pass) actual source collector normal proc boundary observes timestamp-range [29.38ms]
+source Node normal proc BEGIN fd-count
+actual source normal proc fd-count boundary observed
+(pass) actual source collector normal proc boundary observes fd-count [120.92ms]
+source Node normal proc BEGIN pid-start
+actual source normal proc pid-start boundary observed
+(pass) actual source collector normal proc boundary observes pid-start [121.17ms]
+source Node normal proc BEGIN deleted-path
+actual source normal proc deleted-path boundary observed
+(pass) actual source collector normal proc boundary observes deleted-path [35.74ms]
+source Node normal proc BEGIN fd-identity
+actual source normal proc fd-identity boundary observed
+(pass) actual source collector normal proc boundary observes fd-identity [119.14ms]
+source Node function BEGIN proc-bound
+actual source function proc-bound refusal observed
+(pass) actual source collector function boundary refuses proc-bound [26.51ms]
+source Node function BEGIN output-total
+actual source function output-total refusal observed
+(pass) actual source collector function boundary refuses output-total [95.49ms]
+source Node function BEGIN output-token
+actual source function output-token refusal observed
+(pass) actual source collector function boundary refuses output-token [34.40ms]
+source Node function BEGIN uid
+actual source function uid refusal observed
+(pass) actual source collector function boundary refuses uid [24.87ms]
+source Node function BEGIN unknown-mode
+actual source function unknown-mode refusal observed
+(pass) actual source collector function boundary refuses unknown-mode [26.35ms]
+source Node function BEGIN pid-argument
+actual source function pid-argument refusal observed
+(pass) actual source collector function boundary refuses pid-argument [26.43ms]
+source Node function BEGIN stat-identity
+actual source function stat-identity refusal observed
+(pass) actual source collector function boundary refuses stat-identity [24.14ms]
+source Node function BEGIN link-input
+actual source function link-input refusal observed
+(pass) actual source collector function boundary refuses link-input [24.45ms]
+source Node function BEGIN link-utf8
+actual source function link-utf8 refusal observed
+(pass) actual source collector function boundary refuses link-utf8 [30.21ms]
+source Node launcher BEGIN credential
+actual source launcher credential refusal observed
+(pass) actual source launcher rejects credential before granting reap [25.57ms]
+source Node launcher BEGIN identity
+actual source launcher identity refusal observed
+(pass) actual source launcher rejects identity before granting reap [32.48ms]
+source Node launcher BEGIN exit-status
+actual source launcher exit-status refusal observed
+(pass) actual source launcher rejects exit-status before granting reap [244.92ms]
+source Node ACK bound BEGIN
+actual source open ACK bound refusal observed
+(pass) actual source launcher bounds an open ACK channel before its work deadline [33.45ms]
+source Node launcher channel BEGIN stdout
+actual source launcher stdout boundary refusal observed
+(pass) actual source launcher refuses stdout from its owned collector boundary [103.64ms]
+source Node launcher channel BEGIN stderr
+actual source launcher stderr boundary refusal observed
+(pass) actual source launcher refuses stderr from its owned collector boundary [53.33ms]
+source Node census identity BEGIN arguments
+actual source census arguments identity refusal observed
+(pass) actual source fresh census refuses arguments at its identity boundary [26.42ms]
+source Node census identity BEGIN own-session
+actual source census own-session identity refusal observed
+(pass) actual source fresh census refuses own-session at its identity boundary [31.05ms]
+source Node census identity BEGIN count
+actual source census count identity refusal observed
+(pass) actual source fresh census refuses count at its identity boundary [32.00ms]
+source Node census identity BEGIN reused-pid
+actual source census reused-pid identity refusal observed
+(pass) actual source fresh census refuses reused-pid at its identity boundary [24.04ms]
+
+ 49 pass
+ 0 fail
+ 349 expect() calls
+Ran 49 tests across 1 file. [34.00s]
+(pass) source immutable Node program runs in its owned numeric1000 namespace [34014.70ms]
+
+tools/tool-remote-scripts/src/lib/source-inner-transport.test.ts:
+
+test/source-inner-transport-child.test.ts:
+source Node transport namespace actual UID/GID1000:1000 observed
+actual immutable Node production byte transport ACK/reap and fresh original-group census observed
+(pass) actual Node program uses production byte ACK transport and a fresh empty-group census [343.95ms]
+
+ 1 pass
+ 0 fail
+ 36 expect() calls
+Ran 1 test across 1 file. [359.00ms]
+(pass) actual source Node program runs through an isolated exact production byte transport adapter [369.08ms]
+
+ 2 pass
+ 0 fail
+ 10 expect() calls
+Ran 2 tests across 2 files. [34.41s]

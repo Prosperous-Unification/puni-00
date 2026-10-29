@@ -1,0 +1,12 @@
+
+test/source-inner-program-child.test.ts:
+source Node owning namespace actual UID/GID1000:1000 observed
+source Node function BEGIN link-input
+actual source function link-input refusal observed
+(pass) actual source collector function boundary refuses link-input [25.33ms]
+
+ 1 pass
+ 48 filtered out
+ 0 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [53.00ms]

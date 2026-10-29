@@ -1717,3 +1717,22 @@ The original consumed context SHALL observe complete selected source process and
 - **WHEN** whole-source structural observation succeeds
 - **THEN** it grants no source start, HTTP readiness, durable source-ready publication or database opener allowance
 - **AND** unsupported launcher forms refuse by name and mocked frames establish no native topology acceptance
+
+### Requirement: Source collector runtime isolation
+
+The source role observer SHALL use a fixed Node built-in collector under
+UID/GID1000:1000 with a cleared environment, absolute runtime, independent
+15-second watchdog and verified owned-child reap and fresh group census. It SHALL
+refuse unproved collection or cleanup without signaling application processes or
+falling back to root/tools. Product collector dispatch SHALL remain unchanged.
+
+#### Scenario: Source command reaches the original observer
+
+- **WHEN** the original consumed context observes its selected running source
+- **THEN** the complete fixed source command targets the original ID and roster
+- **AND** actual program evidence is distinguished from modeled source receipts
+
+#### Scenario: Collector cleanup cannot be proved
+
+- **WHEN** collection, ACK, independent timeout, original-child settlement or fresh census is unproved
+- **THEN** the original source observer refuses and grants no later observation
