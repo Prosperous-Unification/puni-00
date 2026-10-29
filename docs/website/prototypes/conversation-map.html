@@ -1,0 +1,1594 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PUNI conversation map — design prototype</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101216;
+        --panel: #191c22;
+        --line: #3c424e;
+        --text: #f4f2ec;
+        --muted: #b4b9c4;
+        --gold: #f2d18b;
+        --new: #c2b2f9;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          15px/1.5 system-ui,
+          sans-serif;
+      }
+      button,
+      input,
+      textarea {
+        font: inherit;
+      }
+      button,
+      a,
+      input,
+      textarea,
+      summary {
+        outline-offset: 4px;
+      }
+      :focus-visible {
+        outline: 3px solid var(--gold);
+      }
+      button {
+        cursor: pointer;
+        color: inherit;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        border-radius: 9px;
+        padding: 9px 14px;
+      }
+      button:hover {
+        border-color: var(--gold);
+      }
+      button:disabled {
+        cursor: default;
+        opacity: 0.5;
+      }
+      button.primary,
+      button[aria-pressed='true'] {
+        color: #191712;
+        background: var(--gold);
+        border-color: var(--gold);
+      }
+      a {
+        color: var(--gold);
+      }
+      header,
+      main {
+        max-width: 1600px;
+        margin: auto;
+        padding: 24px 30px;
+      }
+      header {
+        padding-bottom: 12px;
+      }
+      .eyebrow {
+        color: var(--gold);
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        font-size: 11px;
+        font-weight: 700;
+      }
+      h1 {
+        font-size: clamp(27px, 4vw, 43px);
+        line-height: 1.15;
+        letter-spacing: -0.04em;
+        margin: 8px 0 12px;
+      }
+      h2 {
+        font-size: 24px;
+        line-height: 1.25;
+        margin: 10px 0 16px;
+      }
+      h3 {
+        font-size: 17px;
+        margin: 0 0 10px;
+      }
+      p {
+        margin: 8px 0 14px;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .intro {
+        max-width: 940px;
+      }
+      .bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 9px;
+      }
+      nav {
+        padding: 14px 0 0;
+      }
+      .notice {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .legend {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+        margin: 12px 0;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--gold);
+        margin-right: 6px;
+      }
+      .dot.new {
+        background: var(--new);
+      }
+      .toolbar {
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+      .zoom {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .viewport {
+        height: 72vh;
+        min-height: 440px;
+        overflow: auto;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: #12151a;
+        position: relative;
+      }
+      .canvas-space {
+        position: relative;
+      }
+      .canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform-origin: top left;
+        width: 1860px;
+        height: 2440px;
+      }
+      svg.edges {
+        position: absolute;
+        inset: 0;
+        width: 1860px;
+        height: 2440px;
+        pointer-events: none;
+      }
+      .edge {
+        stroke: #727b8c;
+        stroke-width: 1.6;
+        fill: none;
+        opacity: 0.35;
+      }
+      .edge.active {
+        stroke: var(--gold);
+        stroke-width: 3;
+        opacity: 1;
+      }
+      .edge.optional {
+        stroke-dasharray: 7 6;
+      }
+      .graph-node {
+        position: absolute;
+        width: 270px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px;
+      }
+      .graph-node.selected {
+        border: 2px solid var(--gold);
+        padding: 13px;
+        box-shadow: 0 0 0 5px #f2d18b15;
+      }
+      .graph-node .node-title {
+        font-size: 15px;
+        text-align: left;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        margin: 7px 0 10px;
+        font-weight: 650;
+      }
+      .badge {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--gold);
+      }
+      .badge.new {
+        color: var(--new);
+      }
+      .graph-answer {
+        width: 100%;
+        padding: 5px 0;
+        border: 0;
+        border-top: 1px solid #303640;
+        border-radius: 0;
+        display: flex;
+        justify-content: space-between;
+        text-align: left;
+        font-size: 12px;
+        gap: 8px;
+        background: transparent;
+      }
+      .graph-answer span:last-child {
+        color: var(--muted);
+        font-size: 10px;
+        flex-shrink: 0;
+      }
+      .graph-note {
+        font-size: 11px;
+        color: var(--muted);
+        margin: 8px 0 0;
+      }
+      .stage-label {
+        position: absolute;
+        left: 22px;
+        color: var(--muted);
+        font-size: 12px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .selection {
+        margin-top: 12px;
+        border: 1px solid var(--line);
+        padding: 14px 18px;
+        border-radius: 10px;
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        align-items: center;
+      }
+      .selection p {
+        margin: 4px 0 0;
+        font-size: 13px;
+      }
+      .walk-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr);
+        gap: 24px;
+        align-items: start;
+      }
+      .panel {
+        padding: 24px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--panel);
+      }
+      .answer-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin: 18px 0;
+      }
+      .answer-grid button {
+        text-align: left;
+        padding: 14px;
+        background: #22262e;
+      }
+      .answer-grid button:hover {
+        background: #2d3036;
+      }
+      textarea,
+      input[type='email'] {
+        width: 100%;
+        background: #101216;
+        color: var(--text);
+        border: 1px solid #616978;
+        border-radius: 9px;
+        padding: 12px;
+        margin: 7px 0 10px;
+      }
+      textarea {
+        resize: vertical;
+        min-height: 90px;
+      }
+      label {
+        display: block;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .divider {
+        margin: 22px 0;
+        border-top: 1px solid var(--line);
+      }
+      .trail {
+        padding-left: 20px;
+      }
+      .trail li {
+        margin-bottom: 14px;
+      }
+      .trail small {
+        display: block;
+        color: var(--muted);
+      }
+      .trail strong {
+        font-weight: 550;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      .state-line {
+        margin-bottom: 10px;
+      }
+      .state-line strong {
+        display: block;
+        font-weight: 550;
+      }
+      .scenario {
+        padding: 16px 0;
+      }
+      .scenario p {
+        font-size: 13px;
+      }
+      .catalog {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 16px;
+      }
+      .catalog section {
+        min-width: 0;
+      }
+      .catalog ul {
+        padding-left: 20px;
+      }
+      .catalog li {
+        margin-bottom: 8px;
+      }
+      .catalog small {
+        display: block;
+        color: var(--muted);
+      }
+      .catalog button {
+        font-size: 12px;
+      }
+      .search {
+        max-width: 500px;
+        width: 100%;
+        padding: 11px;
+        background: var(--panel);
+        color: var(--text);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        margin: 10px 0 20px;
+      }
+      .recommendation {
+        border-left: 3px solid var(--gold);
+        padding: 10px 16px;
+        margin: 16px 0;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      footer {
+        padding: 20px 30px 35px;
+        max-width: 1600px;
+        margin: auto;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      @media (max-width: 760px) {
+        header,
+        main {
+          padding: 18px;
+        }
+        .walk-layout {
+          grid-template-columns: 1fr;
+        }
+        .answer-grid {
+          grid-template-columns: 1fr;
+        }
+        .selection {
+          align-items: start;
+          flex-direction: column;
+        }
+        .panel {
+          padding: 18px;
+        }
+        .viewport {
+          height: 65vh;
+        }
+      }
+      @media print {
+        nav,
+        .toolbar,
+        .viewport,
+        .selection,
+        #walk-view,
+        .search {
+          display: none !important;
+        }
+        #catalog-view {
+          display: block !important;
+        }
+        body {
+          background: white;
+          color: black;
+        }
+        .catalog {
+          display: block;
+        }
+        .panel {
+          break-inside: avoid;
+          background: white;
+          border-color: #bbb;
+          margin-bottom: 15px;
+        }
+        .muted,
+        .badge,
+        small {
+          color: #444 !important;
+        }
+        .catalog button {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="eyebrow">PUNI / conversation design / 25 October 2026</div>
+      <h1>Every starting point. Every next step.</h1>
+      <p class="intro">
+        Does the path from “What do you want?” to a useful request and email feel right? Explore the
+        complete question graph, try the choices, or read every option.
+        <strong>This is a local, scripted design prototype.</strong>
+      </p>
+      <p class="notice">
+        No AI calls, network requests, storage, or real submissions. Use a fictional email.
+        Connections are candidate routing, not a deployed contract; real AI could skip questions
+        already answered.
+      </p>
+      <nav class="bar" aria-label="Views">
+        <button id="map-tab" aria-pressed="true">Flow graph</button>
+        <button id="walk-tab" aria-pressed="false">Try a conversation</button>
+        <button id="catalog-tab" aria-pressed="false">All questions &amp; answers</button>
+      </nav>
+    </header>
+    <main>
+      <section id="map-view" aria-label="Question graph">
+        <div class="bar toolbar">
+          <div class="bar">
+            <button id="all-map" aria-pressed="true">All six paths</button
+            ><button id="improve-map" aria-pressed="false">Focus: Improve my app</button
+            ><button id="home-map">Back to top</button>
+          </div>
+          <div class="zoom">
+            <label for="zoom">Zoom</label
+            ><input id="zoom" type="range" min="15" max="120" value="80" /><span id="zoom-label"
+              >80%</span
+            ><button id="fit-map">Fit width</button>
+          </div>
+        </div>
+        <div class="legend">
+          <span><i class="dot"></i>Question discussed / saved in the brief</span
+          ><span><i class="dot new"></i>Additional routing suggestion</span
+          ><span>Dashed connectors = optional detail</span>
+        </div>
+        <p class="notice">
+          Scroll across and down. Click a question to highlight its outgoing paths; click an answer
+          to jump to the next question. Node numbers connect answers to destinations. Use “All
+          questions &amp; answers” for a compact overview.
+        </p>
+        <div id="viewport" class="viewport" tabindex="0" aria-label="Scrollable conversation graph">
+          <div id="canvas-space" class="canvas-space"><div id="canvas" class="canvas"></div></div>
+        </div>
+        <div class="selection">
+          <div>
+            <strong id="selected-title"></strong>
+            <p id="selected-note"></p>
+          </div>
+          <button id="try-selected" class="primary">Try this question</button>
+        </div>
+      </section>
+      <section id="walk-view" hidden aria-label="Conversation walkthrough">
+        <div class="bar">
+          <button id="restart">Start over</button><button id="back">Back one answer</button
+          ><button id="early">Preview my request now</button>
+        </div>
+        <div class="scenario">
+          <div class="bar" id="scenarios" aria-label="Guided examples"></div>
+          <p id="scenario-note" class="muted">
+            Choose an answer freely, or start a guided example.
+          </p>
+          <button id="scenario-next" hidden>Next guided answer</button>
+        </div>
+        <div class="walk-layout">
+          <div id="conversation" class="panel" aria-live="polite"></div>
+          <aside class="panel">
+            <h3>Your route so far</h3>
+            <div id="state"></div>
+            <ol id="trail" class="trail"></ol>
+            <p class="notice">
+              Back removes the last answer. Starting over clears this in-memory demo. Typed answers
+              are preserved, but this prototype does not interpret them with AI.
+            </p>
+          </aside>
+        </div>
+      </section>
+      <section id="catalog-view" hidden aria-label="All questions and choices">
+        <h2>The full question bank</h2>
+        <p class="muted">
+          Includes the six starters, uncertainty paths, optional detail questions, and shared
+          handoff. You can print this view.
+        </p>
+        <label for="search">Filter by question or answer</label
+        ><input
+          id="search"
+          class="search"
+          type="search"
+          placeholder="Try: payments, unsure, workflow…"
+        />
+        <div id="catalog" class="catalog"></div>
+      </section>
+    </main>
+    <footer>
+      Design references: <a href="../conversion-funnel-options.md">funnel options</a> ·
+      <a href="../landing-ui-brief.md">UI brief</a>. This diagram explains the conversation; it is
+      not the premium landing-page design.
+    </footer>
+    <script>
+      const choice = (label, next) => ({ label, next });
+      const starters = [
+        choice('Launch an app or website', 'launch'),
+        choice('Improve my app', 'improve'),
+        choice('Build something similar', 'similar'),
+        choice('Get an AI assistant', 'assistant'),
+        choice('Automate my work', 'workflow'),
+        choice('Help me choose', 'help'),
+      ];
+      const optionsTo = (labels, next) => labels.map((label) => choice(label, next));
+      const flowNodes = {
+        start: {
+          number: '01',
+          title: 'What do you want?',
+          kind: 'landing',
+          x: 740,
+          y: 50,
+          answers: starters,
+          typedNext: 'typed',
+          note: 'Choosing a starter opens app.puni.dev (dev.app.puni.dev for dev) in the intended product. This demo stays local.',
+        },
+        launch: {
+          number: '02',
+          title: 'What should it help people do?',
+          x: 30,
+          y: 400,
+          answers: optionsTo(
+            [
+              'Buy or book',
+              'Manage work',
+              'Learn or connect',
+              'Present a business',
+              'Explore an idea',
+              'Not sure',
+            ],
+            'launchStage',
+          ),
+          typedNext: 'launchStage',
+          optional: [choice('Who needs it first?', 'launchUsers')],
+        },
+        improve: {
+          number: '03',
+          title: 'What’s holding your app back?',
+          x: 335,
+          y: 400,
+          answers: [
+            ...optionsTo(
+              [
+                'Things break',
+                'Unfinished features',
+                'Launch uncertainty',
+                'Slow or unreliable',
+                'Difficult to change',
+              ],
+              'improveGoal',
+            ),
+            choice('Not sure', 'improveUnsure'),
+          ],
+          typedNext: 'improveGoal',
+          optional: [choice('Which part needs attention?', 'improveDetail')],
+          note: 'Default: one problem question and one outcome question. Detail questions are optional.',
+        },
+        similar: {
+          number: '04',
+          title: 'What would you change about the existing product?',
+          x: 640,
+          y: 400,
+          answers: optionsTo(
+            [
+              'Different audience',
+              'Simpler experience',
+              'Workflow tailored to us',
+              'More control over it',
+              'Still exploring',
+              'Not sure',
+            ],
+            'similarUsers',
+          ),
+          typedNext: 'similarUsers',
+        },
+        assistant: {
+          number: '05',
+          title: 'Where would help be most useful?',
+          x: 945,
+          y: 400,
+          answers: optionsTo(
+            [
+              'Email and calendar',
+              'Research and writing',
+              'Tasks and follow-ups',
+              'Finding information',
+              'Coordinating tools',
+              'Not sure',
+            ],
+            'assistantControl',
+          ),
+          typedNext: 'assistantControl',
+        },
+        workflow: {
+          number: '06',
+          title: 'Which work keeps repeating?',
+          x: 1250,
+          y: 400,
+          answers: optionsTo(
+            [
+              'Moving information between tools',
+              'Customer inquiries',
+              'Documents and reporting',
+              'Scheduling and follow-up',
+              'Approvals',
+              'Not sure',
+            ],
+            'workflowGoal',
+          ),
+          typedNext: 'workflowGoal',
+          optional: [choice('What happens today?', 'workflowToday')],
+        },
+        help: {
+          number: '07',
+          title: 'What brought you here?',
+          x: 1555,
+          y: 400,
+          answers: [
+            choice('I have an idea', 'launch'),
+            choice('Something isn’t working', 'improve'),
+            choice('Work takes too much time', 'workflow'),
+            choice('I’m exploring what AI could do', 'explore'),
+            choice('Not sure', 'explore'),
+          ],
+          typedNext: 'typed',
+          note: 'Candidate routing: “something isn’t working” starts the app path here. A real conversation should clarify if the visitor means a business process.',
+        },
+        launchStage: {
+          number: '08',
+          title: 'What do you already have?',
+          x: 30,
+          y: 800,
+          answers: optionsTo(
+            ['Idea only', 'Written outline', 'Designs', 'Working prototype', 'Not sure'],
+            'summary',
+          ),
+          typedNext: 'summary',
+          optional: [
+            choice('Any apps, websites, or articles to take inspiration from?', 'reference'),
+          ],
+        },
+        improveGoal: {
+          number: '09',
+          title: 'What would you like to make possible next?',
+          x: 335,
+          y: 800,
+          answers: optionsTo(
+            [
+              'Invite first users',
+              'Accept payments',
+              'Serve existing users reliably',
+              'Handle growth',
+              'Release changes confidently',
+              'Not sure yet',
+            ],
+            'summary',
+          ),
+          typedNext: 'summary',
+          optional: [
+            choice('Can you share your app or an example of the improvement?', 'reference'),
+            choice('What does this get in the way of?', 'impact'),
+          ],
+        },
+        similarUsers: {
+          number: '10',
+          title: 'Who is it for?',
+          x: 640,
+          y: 800,
+          answers: optionsTo(
+            ['My own use', 'My team', 'Customers', 'A wider market', 'Not sure'],
+            'summary',
+          ),
+          typedNext: 'summary',
+          optional: [
+            choice('Which app should we borrow from, and what should change?', 'reference'),
+          ],
+        },
+        assistantControl: {
+          number: '11',
+          title: 'How much should it do?',
+          x: 945,
+          y: 800,
+          answers: optionsTo(
+            [
+              'Prepare suggestions for me',
+              'Act after I approve',
+              'Handle agreed routine tasks',
+              'Not sure',
+            ],
+            'summary',
+          ),
+          typedNext: 'summary',
+          note: 'These are preferences, not promises about what an assistant can safely or reliably do.',
+          optional: [
+            choice('Seen an assistant demo or article that shows what you want?', 'reference'),
+          ],
+        },
+        workflowGoal: {
+          number: '12',
+          title: 'What would improve most?',
+          x: 1250,
+          y: 800,
+          answers: optionsTo(
+            [
+              'Less time spent',
+              'Fewer mistakes',
+              'Faster response',
+              'Room for more work',
+              'Clearer visibility',
+              'Not sure',
+            ],
+            'summary',
+          ),
+          typedNext: 'summary',
+          optional: [
+            choice('Any articles, walkthroughs, or workflow examples to share?', 'reference'),
+          ],
+        },
+        explore: {
+          number: '13',
+          title: 'Which example would you like to explore?',
+          x: 1555,
+          y: 800,
+          proposed: true,
+          answers: [
+            choice('An app ready for customers', 'improve'),
+            choice('Less repetitive work', 'workflow'),
+            choice('An assistant for daily tasks', 'assistant'),
+            choice('A new app idea', 'launch'),
+            choice('Just browsing for now', 'browse'),
+          ],
+          typedNext: 'typed',
+          note: 'Proposed bridge for curiosity. Browsing can end without an email or a fabricated project.',
+        },
+        launchUsers: {
+          number: '14',
+          title: 'Who needs it first?',
+          x: 30,
+          y: 1200,
+          optionalNode: true,
+          answers: optionsTo(
+            ['Me', 'My team', 'Customers', 'A community', 'Not sure'],
+            'launchStage',
+          ),
+          typedNext: 'launchStage',
+        },
+        improveUnsure: {
+          number: '15',
+          title: 'What would you like to be different?',
+          x: 335,
+          y: 1280,
+          answers: optionsTo(
+            ['Fewer problems', 'Easier to use', 'Ready for customers', 'Help me assess it'],
+            'summary',
+          ),
+          typedNext: 'summary',
+          note: 'The easier question discussed for “Not sure.” In this candidate, it goes straight to a summary to avoid another mandatory interview.',
+          optional: [choice('Have an example that could help explain it?', 'reference')],
+        },
+        improveDetail: {
+          number: '16',
+          title: 'Which part needs attention?',
+          x: 640,
+          y: 1200,
+          optionalNode: true,
+          answers: optionsTo(
+            [
+              'Sign-in',
+              'Payments',
+              'Core customer task',
+              'Deployment',
+              'Several parts',
+              'Not sure',
+            ],
+            'improveGoal',
+          ),
+          typedNext: 'improveGoal',
+        },
+        impact: {
+          number: '17',
+          title: 'What does this get in the way of?',
+          x: 945,
+          y: 1200,
+          optionalNode: true,
+          answers: optionsTo(
+            [
+              'Launching',
+              'Serving customers',
+              'Finishing daily work',
+              'Growing',
+              'Nothing urgent',
+              'Not sure',
+            ],
+            'summary',
+          ),
+          typedNext: 'summary',
+          note: 'Optional SPIN-style impact question; never manufacture urgency.',
+        },
+        workflowToday: {
+          number: '18',
+          title: 'What happens today?',
+          x: 1250,
+          y: 1200,
+          optionalNode: true,
+          answers: optionsTo(
+            [
+              'Copy and paste',
+              'Spreadsheets',
+              'Email chains',
+              'Several disconnected tools',
+              'Process not defined yet',
+              'Not sure',
+            ],
+            'workflowGoal',
+          ),
+          typedNext: 'workflowGoal',
+        },
+        typed: {
+          number: '19',
+          title: 'Which starting point fits your description?',
+          x: 1555,
+          y: 1200,
+          proposed: true,
+          answers: starters,
+          typedNext: 'summary',
+          note: 'Prototype-only routing aid: your text is preserved. Real AI would interpret it and ask a relevant follow-up.',
+        },
+        reference: {
+          number: '20',
+          title: 'Any useful examples or references?',
+          x: 30,
+          y: 1600,
+          optionalNode: true,
+          answers: [
+            choice('I’ll share it later', 'summary'),
+            choice('No references yet', 'summary'),
+          ],
+          typedNext: 'summary',
+          note: 'Optional across the app, website, assistant, and workflow paths. Share names, links, articles, videos, or describe an image. Explain what to borrow, change, or avoid. No links are opened or inspected.',
+        },
+        summary: {
+          number: '21',
+          title: 'Your request and a starting point',
+          kind: 'summary',
+          x: 640,
+          y: 1600,
+          answers: [
+            choice('Ask PUNI to help', 'email'),
+            choice('Add references (optional)', 'reference'),
+            choice('Change my answers', 'back'),
+            choice('Keep exploring', 'explore'),
+          ],
+          note: 'Editable summary based only on selected or typed facts. Early submission can reach this step from any question.',
+        },
+        browse: {
+          number: '22',
+          title: 'Explore without contacting us',
+          kind: 'browse',
+          x: 1555,
+          y: 1600,
+          proposed: true,
+          answers: [choice('Explore examples', 'explore'), choice('Start again', 'start')],
+          note: 'No email required. In the real experience, offer useful work examples; this is a local ending.',
+        },
+        email: {
+          number: '23',
+          title: 'Where can a person at PUNI reply?',
+          kind: 'email',
+          x: 640,
+          y: 1930,
+          answers: [
+            choice('Send my request (simulated)', 'receipt'),
+            choice('Keep my summary without email', 'keep'),
+            choice('Edit my request', 'summary'),
+          ],
+          note: 'Email is the only required contact field. Submission is an explicit action, not merely typing an address.',
+        },
+        keep: {
+          number: '24',
+          title: 'Your summary stays here',
+          kind: 'keep',
+          x: 1250,
+          y: 1930,
+          proposed: true,
+          answers: [choice('Ask PUNI to help', 'email'), choice('Start again', 'start')],
+          note: 'In-memory preview only. Closing or reloading this file clears it.',
+        },
+        receipt: {
+          number: '25',
+          title: 'Demo complete — nothing was sent',
+          kind: 'receipt',
+          x: 640,
+          y: 2240,
+          answers: [choice('Start again', 'start')],
+          note: 'Real confirmation would show what was sent and what happens next. This file performs no submission.',
+        },
+      };
+      const improveIds = new Set([
+        'start',
+        'improve',
+        'improveGoal',
+        'improveUnsure',
+        'improveDetail',
+        'impact',
+        'reference',
+        'summary',
+        'email',
+        'receipt',
+        'keep',
+      ]);
+      const freshJourney = () => ({
+        nodeId: 'start',
+        answers: [],
+        past: [],
+        summary: '',
+        email: '',
+      });
+      const referencePrompts = {
+        'Launch an app or website':
+          'Are there apps, websites, or articles you’d like to take inspiration from?',
+        'Improve my app': 'Can you share your app or an example of how you’d like it to work?',
+        'Build something similar':
+          'Which app should we use as a reference, and what should we borrow or change?',
+        'Get an AI assistant':
+          'Have you seen an assistant, demo, or article that shows what you want?',
+        'Automate my work':
+          'Any articles, walkthroughs, or examples of the workflow you have in mind?',
+        'Help me choose':
+          'Seen an app, article, or video that helps explain what you’re looking for?',
+      };
+      function readQuestion(journey) {
+        if (journey.nodeId !== 'reference') return flowNodes[journey.nodeId].title;
+        const starter = journey.answers
+          .filter((answer) => answer.question === 'Starting point')
+          .at(-1);
+        return referencePrompts[starter ? starter.answer : 'Help me choose'];
+      }
+      function advanceJourney(journey, label, next, context = '') {
+        if (next === 'start') return freshJourney();
+        if (next === 'back') return rewindJourney(journey);
+        const current = flowNodes[journey.nodeId];
+        const answers = [...journey.answers];
+        if (context) answers.push({ question: 'Additional context', answer: context });
+        if (current.kind === 'landing') {
+          answers.push({
+            question: next === 'typed' ? 'Original description' : 'Starting point',
+            answer: label,
+          });
+        } else if (!current.kind) {
+          answers.push({ question: readQuestion(journey), answer: label });
+          const starter = starters.find((candidate) => candidate.next === next);
+          if (starter) answers.push({ question: 'Starting point', answer: starter.label });
+        }
+        let summary = journey.summary;
+        if (next === 'summary' && journey.nodeId === 'reference' && summary) {
+          summary +=
+            '\n\n' +
+            answers
+              .slice(journey.answers.length)
+              .map((answer) => `${answer.question}\n${answer.answer}`)
+              .join('\n\n');
+        } else if (next === 'summary' && current.kind !== 'email') {
+          summary = '';
+        }
+        return {
+          ...journey,
+          nodeId: next,
+          past: [...journey.past, { ...journey, past: [] }],
+          answers,
+          summary,
+        };
+      }
+      function rewindJourney(journey) {
+        if (!journey.past.length) return journey;
+        return { ...journey.past[journey.past.length - 1], past: journey.past.slice(0, -1) };
+      }
+      function describeRequest(journey) {
+        if (journey.summary) return journey.summary;
+        return journey.answers.length
+          ? journey.answers.map((answer) => `${answer.question}\n${answer.answer}`).join('\n\n')
+          : 'No project details supplied yet. A person would need to clarify the request.';
+      }
+      function suggestNextStep(journey) {
+        const starter = journey.answers
+          .filter((answer) => answer.question === 'Starting point')
+          .at(-1);
+        if (!starter)
+          return 'Clarify the outcome and agree a useful first step with a person at PUNI.';
+        const suggestions = {
+          'Improve my app':
+            'Review the stated blocker and the customer journey involved, then agree a focused improvement. No app has been inspected.',
+          'Launch an app or website':
+            'Clarify the first useful customer task and agree a small first release.',
+          'Build something similar':
+            'Identify what should be different from the reference and scope the first useful workflow.',
+          'Get an AI assistant':
+            'Choose one task and agree what requires your approval before considering a setup.',
+          'Automate my work':
+            'Review the real workflow and choose one bounded pilot with a useful outcome.',
+          'Help me choose': 'Use the answers below to clarify a useful starting point together.',
+        };
+        return suggestions[starter.answer];
+      }
+      const element = (id) => {
+        const found = document.getElementById(id);
+        if (!found) throw new Error(`Missing prototype element: ${id}`);
+        return found;
+      };
+      const make = (tag, text, className) => {
+        const created = document.createElement(tag);
+        if (text !== undefined) created.textContent = text;
+        if (className) created.className = className;
+        return created;
+      };
+      const button = (label, action, className) => {
+        const created = make('button', label, className);
+        created.type = 'button';
+        created.addEventListener('click', action);
+        return created;
+      };
+      let journey = freshJourney();
+      let selectedId = 'start';
+      let focusImprove = false;
+      let zoom = 0.8;
+      let scenario = null;
+      let scenarioStep = 0;
+      function showView(view) {
+        for (const candidate of ['map', 'walk', 'catalog']) {
+          element(`${candidate}-view`).hidden = candidate !== view;
+          element(`${candidate}-tab`).setAttribute('aria-pressed', String(candidate === view));
+        }
+        if (view === 'walk') renderJourney();
+      }
+      function applyZoom() {
+        element('canvas').style.transform = `scale(${zoom})`;
+        element('canvas-space').style.width = `${1860 * zoom}px`;
+        element('canvas-space').style.height = `${2440 * zoom}px`;
+        element('zoom').value = String(zoom * 100);
+        element('zoom-label').textContent = `${Math.round(zoom * 100)}%`;
+      }
+      function jumpToNode(id) {
+        selectedId = id;
+        if (focusImprove && !improveIds.has(id)) {
+          focusImprove = false;
+          renderGraph();
+        }
+        highlightGraph();
+        const node = flowNodes[id];
+        element('viewport').scrollTo({
+          left: Math.max(0, node.x * zoom - element('viewport').clientWidth / 2 + 135 * zoom),
+          top: Math.max(0, node.y * zoom - 35),
+        });
+      }
+      function highlightGraph() {
+        for (const card of element('canvas').querySelectorAll('.graph-node'))
+          card.classList.toggle('selected', card.dataset.node === selectedId);
+        for (const path of element('canvas').querySelectorAll('.edge'))
+          path.classList.toggle('active', path.dataset.from === selectedId);
+        const node = flowNodes[selectedId];
+        element('selected-title').textContent = `${node.number} · ${node.title}`;
+        element('selected-note').textContent =
+          node.note ||
+          'Suggested answers and custom text are available. Click “Try this question” to explore it locally.';
+      }
+      function renderGraph() {
+        const canvas = element('canvas');
+        canvas.replaceChildren();
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.classList.add('edges');
+        svg.setAttribute('aria-hidden', 'true');
+        canvas.append(svg);
+        element('all-map').setAttribute('aria-pressed', String(!focusImprove));
+        element('improve-map').setAttribute('aria-pressed', String(focusImprove));
+        for (const [title, top] of [
+          ['LANDING → CHAT', 15],
+          ['FIRST QUESTION', 365],
+          ['OUTCOME / CONTEXT', 765],
+          ['UNCERTAINTY & OPTIONAL DETAILS', 1165],
+          ['SUMMARY / EXPLORATION', 1565],
+          ['EMAIL & EXPLICIT HANDOFF', 1895],
+        ]) {
+          const label = make('div', title, 'stage-label');
+          label.style.top = `${top}px`;
+          canvas.append(label);
+        }
+        for (const [id, node] of Object.entries(flowNodes)) {
+          if (focusImprove && !improveIds.has(id)) continue;
+          const card = make('article', undefined, 'graph-node');
+          card.dataset.node = id;
+          card.style.left = `${node.x}px`;
+          card.style.top = `${node.y}px`;
+          card.append(
+            make(
+              'div',
+              `${node.number} · ${node.proposed ? 'New suggestion' : node.optionalNode ? 'Discussed · optional' : 'Discussed question'}`,
+              `badge${node.proposed ? ' new' : ''}`,
+            ),
+          );
+          card.append(
+            button(
+              node.title,
+              () => {
+                selectedId = id;
+                highlightGraph();
+              },
+              'node-title',
+            ),
+          );
+          for (const answer of node.answers) {
+            if (focusImprove && id === 'start' && answer.next !== 'improve') continue;
+            const destination = answer.next === 'back' ? null : flowNodes[answer.next];
+            const control = button(
+              '',
+              () => (answer.next === 'back' ? showView('walk') : jumpToNode(answer.next)),
+              'graph-answer',
+            );
+            control.append(
+              make('span', answer.label),
+              make('span', destination ? `→ ${destination.number}` : '↶ previous'),
+            );
+            card.append(control);
+          }
+          if (node.typedNext) {
+            const control = button(
+              `Or type your answer → ${flowNodes[node.typedNext].number}`,
+              () => jumpToNode(node.typedNext),
+              'graph-answer',
+            );
+            card.append(control);
+          }
+          for (const detour of node.optional || [])
+            card.append(
+              button(
+                `Optional: ${detour.label} → ${flowNodes[detour.next].number}`,
+                () => jumpToNode(detour.next),
+                'graph-answer',
+              ),
+            );
+          if (node.note) card.append(make('p', node.note, 'graph-note'));
+          canvas.append(card);
+        }
+        for (const [id, node] of Object.entries(flowNodes)) {
+          if (focusImprove && !improveIds.has(id)) continue;
+          const destinations = new Map();
+          for (const answer of node.answers)
+            if (answer.next !== 'back') destinations.set(answer.next, false);
+          if (node.typedNext) destinations.set(node.typedNext, false);
+          for (const detour of node.optional || []) destinations.set(detour.next, true);
+          for (const [next, isOptional] of destinations) {
+            if (focusImprove && !improveIds.has(next)) continue;
+            const target = flowNodes[next];
+            const card = canvas.querySelector(`[data-node="${id}"]`);
+            const x1 = node.x + 135,
+              y1 = node.y + card.offsetHeight,
+              x2 = target.x + 135,
+              y2 = target.y;
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute(
+              'd',
+              y2 > y1
+                ? `M${x1},${y1} C${x1},${(y1 + y2) / 2} ${x2},${(y1 + y2) / 2} ${x2},${y2}`
+                : `M${node.x + 270},${node.y + 40} C${node.x + 300},${node.y + 40} ${target.x + 300},${target.y - 25} ${x2},${y2}`,
+            );
+            path.setAttribute('class', `edge${isOptional ? ' optional' : ''}`);
+            path.dataset.from = id;
+            svg.append(path);
+          }
+        }
+        applyZoom();
+        highlightGraph();
+      }
+      function endGuide() {
+        scenario = null;
+        element('scenario-next').hidden = true;
+        element('scenario-note').textContent =
+          'Free exploration: choose an answer, type, or start another guided example.';
+      }
+      function submitAnswer(label, next, guided = false, context = '') {
+        if (!guided) endGuide();
+        journey = advanceJourney(journey, label, next, context);
+        renderJourney();
+      }
+      function renderJourney() {
+        const node = flowNodes[journey.nodeId];
+        const pane = element('conversation');
+        pane.replaceChildren();
+        pane.append(
+          make(
+            'div',
+            `${node.number} · ${node.kind === 'landing' ? 'Landing prompt' : 'Scripted conversation preview'}`,
+            'eyebrow',
+          ),
+          make('h2', readQuestion(journey)),
+        );
+        if (node.note) pane.append(make('p', node.note, 'notice'));
+        if (journey.nodeId === 'reference') {
+          pane.append(
+            make(
+              'p',
+              'A link alone may not tell us what matters. Add a sentence about the look, behavior, feature, or approach you like—and anything you would change or avoid. Multiple examples are welcome.',
+            ),
+          );
+        }
+        if (node.kind === 'summary') {
+          pane.append(make('p', suggestNextStep(journey), 'recommendation'));
+          const label = make('label', 'Review or edit your request');
+          label.htmlFor = 'request-preview';
+          const field = make('textarea');
+          field.id = 'request-preview';
+          field.value = describeRequest(journey);
+          field.rows = 9;
+          field.addEventListener('input', () => {
+            journey = { ...journey, summary: field.value };
+          });
+          pane.append(label, field);
+        }
+        if (['keep', 'receipt'].includes(node.kind)) {
+          const content = make('p', describeRequest(journey));
+          content.style.whiteSpace = 'pre-wrap';
+          pane.append(content);
+          if (node.kind === 'receipt')
+            pane.append(
+              make(
+                'p',
+                `Fictional destination: ${journey.email}. Nothing left your browser.`,
+                'recommendation',
+              ),
+            );
+        }
+        if (node.kind === 'email') {
+          pane.append(
+            make(
+              'p',
+              'A person would review this request and reply with a suggested next step or questions. This demo does not send anything.',
+            ),
+          );
+          const form = make('form');
+          const label = make('label', 'Fictional email');
+          label.htmlFor = 'email';
+          const input = make('input');
+          input.id = 'email';
+          input.type = 'email';
+          input.required = true;
+          input.autocomplete = 'off';
+          input.placeholder = 'you@example.com';
+          input.value = journey.email;
+          const send = make('button', 'Send my request (simulated)', 'primary');
+          send.type = 'submit';
+          form.append(label, input, send);
+          form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            journey = { ...journey, email: input.value };
+            submitAnswer('Explicit request submission', 'receipt');
+          });
+          pane.append(form);
+        }
+        const choices = make('div', undefined, 'answer-grid');
+        for (const answer of node.answers) {
+          if (node.kind === 'email' && answer.next === 'receipt') continue;
+          choices.append(
+            button(answer.label, () => {
+              const context = node.typedNext ? element('custom-answer').value.trim() : '';
+              submitAnswer(answer.label, answer.next, false, context);
+            }),
+          );
+        }
+        pane.append(choices);
+        if (node.typedNext) {
+          const form = make('form');
+          const label = make(
+            'label',
+            journey.nodeId === 'reference'
+              ? 'References and what you want us to notice'
+              : node.kind === 'landing'
+                ? 'Or describe what you have in mind'
+                : 'Or type your answer',
+          );
+          label.htmlFor = 'custom-answer';
+          const field = make('textarea');
+          field.id = 'custom-answer';
+          field.required = true;
+          field.placeholder =
+            journey.nodeId === 'reference'
+              ? 'App name or link — what to borrow or change\nArticle or video — the part you want to apply\nOr describe an example you can’t link to…'
+              : 'Your own words…';
+          field.maxLength = 2000;
+          const send = make(
+            'button',
+            journey.nodeId === 'reference' ? 'Add references to my request' : 'Use my answer',
+          );
+          send.type = 'submit';
+          form.append(label, field, send);
+          form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const text = field.value.trim();
+            if (!text) return;
+            submitAnswer(text, node.typedNext);
+          });
+          pane.append(form);
+        }
+        if (node.optional?.length) {
+          pane.append(
+            make('div', undefined, 'divider'),
+            make('p', 'Optional details — explore only if helpful', 'notice'),
+          );
+          for (const detour of node.optional)
+            pane.append(
+              button(detour.label, () => {
+                endGuide();
+                const context = node.typedNext ? element('custom-answer').value.trim() : '';
+                journey = context
+                  ? advanceJourney(journey, context, detour.next)
+                  : {
+                      ...journey,
+                      nodeId: detour.next,
+                      past: [...journey.past, { ...journey, past: [] }],
+                    };
+                renderJourney();
+              }),
+            );
+        }
+        const state = element('state');
+        state.replaceChildren();
+        for (const [label, value] of [
+          ['Current question', readQuestion(journey)],
+          ['Answers recorded', String(journey.answers.length)],
+          ['Email', journey.email || 'Not supplied'],
+          ['Sent to PUNI', 'No — local prototype only'],
+        ]) {
+          const line = make('div', undefined, 'state-line');
+          line.append(make('small', label, 'muted'), make('strong', value));
+          state.append(line);
+        }
+        const trail = element('trail');
+        trail.replaceChildren();
+        for (const answer of journey.answers) {
+          const row = make('li');
+          row.append(make('small', answer.question), make('strong', answer.answer));
+          trail.append(row);
+        }
+        element('back').disabled = !journey.past.length;
+        element('early').disabled =
+          ['summary', 'email', 'receipt', 'keep'].includes(node.kind) || !journey.answers.length;
+        if (scenario) {
+          element('scenario-note').textContent =
+            `${scenario.title} · ${scenarioStep}/${scenario.steps.length} guided answers. ${scenario.note}`;
+          element('scenario-next').hidden = scenarioStep >= scenario.steps.length;
+          if (scenarioStep < scenario.steps.length)
+            element('scenario-next').textContent = `Next: ${scenario.steps[scenarioStep].label}`;
+        }
+      }
+      function renderCatalog() {
+        const query = element('search').value.trim().toLowerCase();
+        const catalog = element('catalog');
+        catalog.replaceChildren();
+        for (const [id, node] of Object.entries(flowNodes)) {
+          if (
+            query &&
+            !`${node.title} ${node.answers.map((answer) => answer.label).join(' ')} ${node.note || ''}`
+              .toLowerCase()
+              .includes(query)
+          )
+            continue;
+          const card = make('section', undefined, 'panel');
+          card.append(
+            make(
+              'div',
+              `${node.number} · ${node.proposed ? 'Additional suggestion' : node.optionalNode ? 'Optional question' : 'Discussed'}`,
+              `badge${node.proposed ? ' new' : ''}`,
+            ),
+            make('h3', node.title),
+          );
+          const list = make('ul');
+          for (const answer of node.answers) {
+            const row = make('li', answer.label);
+            row.append(
+              make(
+                'small',
+                answer.next === 'back'
+                  ? 'Return to previous answer'
+                  : `→ ${flowNodes[answer.next].number} ${flowNodes[answer.next].title}`,
+              ),
+            );
+            list.append(row);
+          }
+          card.append(list);
+          if (node.typedNext)
+            card.append(
+              make(
+                'p',
+                `Custom text → ${flowNodes[node.typedNext].number}. No AI interpretation in this file.`,
+                'notice',
+              ),
+            );
+          for (const detour of node.optional || [])
+            card.append(
+              make('p', `Optional → ${flowNodes[detour.next].number}: ${detour.label}`, 'notice'),
+            );
+          if (node.note) card.append(make('p', node.note, 'notice'));
+          if (id === 'reference') {
+            const details = make('details');
+            details.append(make('summary', 'See the question for each starting point'));
+            for (const [starter, prompt] of Object.entries(referencePrompts)) {
+              details.append(make('h3', starter), make('p', prompt));
+            }
+            card.append(details);
+          }
+          card.append(
+            button('Find in graph', () => {
+              showView('map');
+              jumpToNode(id);
+            }),
+          );
+          catalog.append(card);
+        }
+      }
+      const guidedExamples = [
+        {
+          title: 'App → share references',
+          note: 'References can be added after the summary or through an optional invitation. Use the text field to share examples; links are not fetched.',
+          steps: [
+            { label: 'Improve my app', next: 'improve' },
+            { label: 'Things break', next: 'improveGoal' },
+            { label: 'Accept payments', next: 'summary' },
+            { label: 'Add references (optional)', next: 'reference' },
+          ],
+        },
+        {
+          title: 'App → bugs → payments',
+          note: 'The short path reaches a summary after two questions.',
+          steps: [
+            { label: 'Improve my app', next: 'improve' },
+            { label: 'Things break', next: 'improveGoal' },
+            { label: 'Accept payments', next: 'summary' },
+            { label: 'Ask PUNI to help', next: 'email' },
+          ],
+        },
+        {
+          title: 'App → not sure',
+          note: 'Uncertainty gets an easier question, not a dead end.',
+          steps: [
+            { label: 'Improve my app', next: 'improve' },
+            { label: 'Not sure', next: 'improveUnsure' },
+            { label: 'Help me assess it', next: 'summary' },
+          ],
+        },
+        {
+          title: 'Help me choose → app',
+          note: 'The broad opening routes into the app questions.',
+          steps: [
+            { label: 'Help me choose', next: 'help' },
+            { label: 'Something isn’t working', next: 'improve' },
+            { label: 'Unfinished features', next: 'improveGoal' },
+            { label: 'Invite first users', next: 'summary' },
+          ],
+        },
+        {
+          title: 'Just exploring',
+          note: 'A visitor can finish without submitting an email.',
+          steps: [
+            { label: 'Help me choose', next: 'help' },
+            { label: 'I’m exploring what AI could do', next: 'explore' },
+            { label: 'Just browsing for now', next: 'browse' },
+          ],
+        },
+      ];
+      for (const example of guidedExamples)
+        element('scenarios').append(
+          button(example.title, () => {
+            scenario = example;
+            scenarioStep = 0;
+            journey = freshJourney();
+            renderJourney();
+          }),
+        );
+      element('scenario-next').addEventListener('click', () => {
+        const step = scenario.steps[scenarioStep];
+        scenarioStep += 1;
+        submitAnswer(step.label, step.next, true);
+      });
+      for (const view of ['map', 'walk', 'catalog'])
+        element(`${view}-tab`).addEventListener('click', () => showView(view));
+      element('all-map').addEventListener('click', () => {
+        focusImprove = false;
+        renderGraph();
+      });
+      element('improve-map').addEventListener('click', () => {
+        focusImprove = true;
+        selectedId = 'improve';
+        renderGraph();
+        jumpToNode('improve');
+      });
+      element('home-map').addEventListener('click', () => jumpToNode('start'));
+      element('zoom').addEventListener('input', () => {
+        zoom = Number(element('zoom').value) / 100;
+        applyZoom();
+      });
+      element('fit-map').addEventListener('click', () => {
+        zoom = Math.max(0.15, Math.min(1.2, element('viewport').clientWidth / 1860));
+        applyZoom();
+        element('viewport').scrollTo(0, 0);
+      });
+      element('try-selected').addEventListener('click', () => {
+        scenario = null;
+        journey = { ...freshJourney(), nodeId: selectedId };
+        element('scenario-next').hidden = true;
+        element('scenario-note').textContent =
+          'Previewing a question directly: no earlier answers have been assumed.';
+        showView('walk');
+      });
+      element('restart').addEventListener('click', () => {
+        journey = freshJourney();
+        scenario = null;
+        element('scenario-next').hidden = true;
+        element('scenario-note').textContent =
+          'Choose an answer freely, or start a guided example.';
+        renderJourney();
+      });
+      element('back').addEventListener('click', () => {
+        endGuide();
+        journey = rewindJourney(journey);
+        renderJourney();
+      });
+      element('early').addEventListener('click', () => {
+        endGuide();
+        journey = {
+          ...journey,
+          nodeId: 'summary',
+          past: [...journey.past, { ...journey, past: [] }],
+        };
+        renderJourney();
+      });
+      element('search').addEventListener('input', renderCatalog);
+      renderGraph();
+      renderCatalog();
+      renderJourney();
+      jumpToNode('start');
+    </script>
+  </body>
+</html>

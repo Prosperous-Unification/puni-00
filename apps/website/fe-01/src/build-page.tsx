@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 
+import { useMilestone, useMilestones } from './analytics-flow';
 import { requestJson, sendCommand } from './api';
 import { describeFailure } from './app-flow';
 import {
@@ -11,6 +12,8 @@ import {
 } from './build-contract';
 import { HeroMedia, SiteHeader, siteOrigin, useHeadingFocus, usePageTitle } from './chrome';
 import { LiveHarness, PausedHarness } from './conversation-harness';
+import { PrivacyChoices } from './privacy-choices';
+import { clearRequestEditor, RequestEditor } from './request-editor';
 
 /** Renders an impossible app state explicitly instead of a blank page. */
 export class AppErrorBoundary extends React.Component<
@@ -28,7 +31,6 @@ export class AppErrorBoundary extends React.Component<
     return (
       <main className="build-layout boundary" role="alert" id="main">
         <div className="build-state">
-          <p className="eyebrow">PUNI</p>
           <h1>This page needs your attention.</h1>
           <p className="lead">{this.state.message}</p>
           <button
@@ -87,6 +89,7 @@ function StartOver({ csrfToken }: { csrfToken: string }) {
         headers: { 'X-Puni-CSRF': csrfToken },
         body: JSON.stringify({}),
       });
+      clearRequestEditor(csrfToken);
       window.location.assign(startOverUrl(siteOrigin));
     } catch (error) {
       setFailure(describeFailure(error));
@@ -159,6 +162,16 @@ function DisabledHarness({ conversation }: { conversation: Conversation }) {
               Shape your brief <span aria-hidden="true">→</span>
             </a>
           </div>
+          {conversation.scoping.version === 1 && (
+            <RequestEditor
+              draft={conversation}
+              route="manual"
+              open
+              onOpen={() => undefined}
+              onClose={() => undefined}
+              onSubmitted={() => undefined}
+            />
+          )}
         </div>
       </section>
     </div>
@@ -192,8 +205,19 @@ function useKeyboardInset(): void {
 }
 
 export function BuildPage() {
+  const milestones = useMilestones();
   const [load, setLoad] = useState<BuildLoad>({ kind: 'loading' });
   const [isHandedOff, setHandedOff] = useState(false);
+  useMilestone(
+    load.kind === 'ready' && (load.harness !== 'live' || load.conversation.stage === 'exhausted')
+      ? `failure:${load.conversation.csrfToken}:${load.harness}:${load.conversation.stage}`
+      : null,
+    {
+      name: 'funnel_failure',
+      category:
+        load.kind === 'ready' && load.conversation.stage === 'exhausted' ? 'limit' : 'unavailable',
+    },
+  );
   useKeyboardInset();
 
   async function loadBuild(): Promise<void> {
@@ -222,6 +246,7 @@ export function BuildPage() {
         conversation: harness.conversation,
       });
     } catch (error) {
+      milestones?.failure(error);
       setLoad({
         kind: 'error',
         message: controller.signal.aborted
@@ -245,6 +270,7 @@ export function BuildPage() {
       <HeroMedia />
       <SiteHeader buildCurrent="page" tone="night" rail="overlay" />
       <main className="harness" id="main">
+        <PrivacyChoices />
         <h1 ref={heading} tabIndex={-1} className="visually-hidden">
           {load.kind === 'ready' ? 'Shape the work together.' : 'Build'}
         </h1>

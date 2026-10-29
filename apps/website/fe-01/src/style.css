@@ -506,7 +506,7 @@ p {
   position: relative;
   display: inline-block;
   font:
-    700 1.75rem / 1 var(--font-display),
+    700 1rem / 1 var(--font-display),
     sans-serif;
   letter-spacing: -0.04em;
   padding-right: 0.32em;
@@ -524,29 +524,15 @@ p {
 /* Footer */
 .site-footer {
   margin-top: auto;
-  padding: var(--space-8) var(--gutter) var(--space-6);
+  padding: var(--space-7) var(--gutter) var(--space-5);
   background: var(--paper);
   border-top: 1px solid var(--line);
   color: var(--ink);
 }
-.footer-top {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--space-7);
-}
-.footer-lead p {
-  font:
-    500 var(--text-h3) / 1.25 var(--font-display),
-    sans-serif;
-  letter-spacing: -0.02em;
-  max-width: 22ch;
-  margin: var(--space-5) 0;
-}
-.footer-lead .button {
-  min-width: min(100%, 320px);
-}
 .footer-links {
   display: grid;
+  max-width: 720px;
+  margin: 0 auto var(--space-6);
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-5);
 }
@@ -569,14 +555,6 @@ p {
   color: var(--ink);
   text-decoration: underline;
 }
-.footer-mark {
-  font:
-    700 clamp(6rem, 28vw, 22rem) / 0.8 var(--font-display),
-    sans-serif;
-  letter-spacing: -0.05em;
-  margin: var(--space-8) 0 var(--space-6);
-  color: var(--ink);
-}
 .footer-base {
   display: flex;
   flex-wrap: wrap;
@@ -587,19 +565,6 @@ p {
   font-size: var(--text-micro);
   color: var(--muted);
 }
-@media (max-width: 699px) {
-  .footer-top {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-6);
-  }
-  .footer-lead .button {
-    width: 100%;
-  }
-  .footer-mark {
-    margin-top: var(--space-6);
-  }
-}
-
 /* Manual brief */
 .manual-layout {
   display: grid;
@@ -1717,4 +1682,129 @@ body:has(.night-shell) {
 }
 .glass-field textarea[readonly] {
   max-height: calc(4 * 24px + 30px);
+}
+
+.scoping-answers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block: 1rem;
+}
+.scoping-answers button {
+  min-height: 44px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.proposal-card input {
+  max-width: 100%;
+  min-height: 44px;
+}
+.proposal-card textarea {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.proposal-card details p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.proposal-card[hidden] {
+  display: none;
+}
+.proposal-card .glass-field {
+  --field-action-width: 0px;
+}
+.proposal-card > .glass-button {
+  align-self: flex-start;
+}
+
+.request-preview p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--on-night);
+}
+.reference-editor summary {
+  min-height: var(--target);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.request-actions {
+  margin-block: 0;
+}
+
+.privacy-choices {
+  position: relative;
+  flex-shrink: 0;
+  width: min(720px, 100% - 2 * var(--gutter));
+  margin-inline: auto;
+  color: var(--on-night);
+  max-height: 30dvh;
+  overflow-y: auto;
+  padding-block: var(--space-1);
+}
+.privacy-choices p {
+  font-size: var(--text-small);
+  margin-block: var(--space-2);
+}
+.privacy-choices button {
+  min-height: 44px;
+}
+.privacy-panel {
+  padding-bottom: var(--space-2);
+}
+
+.privacy-choices > button {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--night);
+}
+
+/* The shared request editor also lives on the manual form's light surface.
+   Proof: removing these rules from built CSS failed scoped text/value/receipt contrast in
+   screens.mjs at all four widths; restoring identical CSS passed all 16 scoped captures. */
+.form-panel .proposal-card {
+  color: var(--ink);
+}
+.form-panel .proposal-card::before {
+  border-color: var(--line);
+  background: var(--paper);
+  backdrop-filter: none;
+  box-shadow: none;
+}
+.form-panel .proposal-card :is(.message-label, .proposal-label, p) {
+  color: var(--muted);
+}
+.form-panel .request-preview p,
+.form-panel .proposal-card :is(.harness-text-button, .proposal-privacy a) {
+  color: var(--ink-2);
+}
+.form-panel .proposal-receipt .reference {
+  color: var(--ink);
+}
+.form-panel .proposal-card .proposal-failure {
+  color: var(--accent-ink) !important;
+}
+.form-panel .proposal-card .glass-field::before {
+  display: none;
+}
+.form-panel .proposal-card :is(input, textarea) {
+  border: 1px solid var(--line-strong);
+  background: var(--paper);
+  color: var(--ink);
+}
+.form-panel .proposal-card :is(input, textarea):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+.form-panel .proposal-card :is(.glass-button, .composer-send-pill) {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+.form-panel .proposal-card .glass-button.quiet {
+  border-color: var(--line-strong);
+  background: transparent;
+  color: var(--ink-2);
 }

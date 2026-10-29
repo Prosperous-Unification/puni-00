@@ -1,7 +1,16 @@
-import { type BrowserCheckSolution, displayReply, readReplyReplacement } from '@website/contracts';
+import {
+  type BrowserCheckSolution,
+  displayReply,
+  getScopingQuestion,
+  readConversationAdmission,
+  readReplyReplacement,
+  type ScopingAnswerRequest,
+  type ScopingAnswerSelection,
+} from '@website/contracts';
 import { DefaultChatTransport, type UIMessage } from 'ai';
-import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
+import { readStartingChoice, useMilestone, useMilestones } from './analytics-flow';
 import { ApiFailure, apiOrigin, requestJson, streamFetch } from './api';
 import { describeFailure, unreachableMessage } from './app-flow';
 import { type BrowserCheckSolver, solveInBrowser } from './browser-check';
@@ -18,6 +27,7 @@ import {
   selectStoppedAttempt,
 } from './build-contract';
 import { siteOrigin } from './chrome';
+import { RequestEditor } from './request-editor';
 
 /** Characters a visitor may send after the Home request; the API refuses longer messages. */
 const messageLimit = 1_500;
@@ -77,8 +87,8 @@ function readProposalKey(): string {
 }
 
 /**
- * The live anonymous conversation: saved turns from `GET /conversation`, an explicit first Send
- * of the read-only Home request under the server identity, streamed replies with a typing
+ * The live anonymous conversation: saved turns from `GET /conversation`, one authorized
+ * versioned mount start or legacy explicit Send under the server identity, replies with a typing
  * indicator, Stop (which posts the cancel), Retry under the same identity, the inline proposal
  * card and the exhausted line. `onReload` reruns the page load when the claim or provider changed.
  */
@@ -94,6 +104,7 @@ export function LiveHarness({
   /** Solves the browser check; tests pass a stub. */
   solveCheck?: BrowserCheckSolver;
 }) {
+  const milestones = useMilestones();
   const [conversation, setConversation] = useState(initial);
   const [isChecking, setChecking] = useState(false);
   const [isCheckFailed, setCheckFailed] = useState(false);
@@ -102,6 +113,15 @@ export function LiveHarness({
   const [live, setLive] = useState<LiveReply | null>(null);
   const [draft, setDraft] = useState('');
   const [notice, setNotice] = useState('');
+  const [isReviewOpen, setReviewOpen] = useState(false);
+  const [isReviewFocused, setReviewFocused] = useState(false);
+  const reviewFocus = useRef(false);
+  const updateReviewFocus = useCallback((isFocused: boolean) => {
+    reviewFocus.current = isFocused;
+    setReviewFocused(isFocused);
+  }, []);
+  const isSending = useRef(false);
+  const isMountedStart = useRef(false);
   const [receipt, setReceipt] = useState<string | null>(null);
   const reading = useRef<AbortController | null>(null);
   const stopping = useRef<string | null>(null);
@@ -111,6 +131,30 @@ export function LiveHarness({
   const stopped = live === null ? selectStoppedAttempt(conversation) : null;
   const isBusy = live?.phase === 'submitted' || live?.phase === 'streaming';
 
+  const visibleQuestion =
+    conversation.scoping.version === 1 &&
+    mode.kind === 'open' &&
+    !isReviewFocused &&
+    !isBusy &&
+    live === null &&
+    conversation.latestOperation?.replyFailure !== 'invalid_scoping_reply'
+      ? conversation.scoping.questionId
+      : null;
+  const turnCount = conversation.visitorTurnLimit - conversation.visitorTurnsRemaining;
+  useMilestone(
+    visibleQuestion !== null && conversation.scoping.version === 1
+      ? `question:${conversation.csrfToken}:${String(conversation.scoping.revision)}:${visibleQuestion}`
+      : null,
+    visibleQuestion === null
+      ? null
+      : {
+          name: 'scoping_question_view',
+          question_id: visibleQuestion,
+          turn_bucket:
+            turnCount <= 1 ? '1' : turnCount <= 3 ? '2-3' : turnCount <= 6 ? '4-6' : '7+',
+          starting_choice: readStartingChoice(conversation.scoping),
+        },
+  );
   // The check is solved in the background as soon as a paid conversation without an operation
   // loads, so it is ready by the time the visitor presses Send.
   useEffect(() => {
@@ -118,6 +162,23 @@ export function LiveHarness({
     if (challenge !== null && check.current?.challenge.challenge !== challenge.challenge)
       startCheck(challenge);
   }, [conversation.challenge?.challenge]);
+
+  useEffect(() => {
+    // Proof: bypassing durable not-started eligibility made the unknown-initial mount test post automatically.
+    if (
+      !isMountedStart.current &&
+      // Proof: latching during recovered review prevented the one authorized initial from resuming after save.
+      !reviewFocus.current &&
+      conversation.scoping.version === 1 &&
+      conversation.scoping.startConversation &&
+      conversation.initialOperation?.state === 'not-started' &&
+      conversation.latestOperation === null &&
+      mode.kind === 'initial'
+    ) {
+      isMountedStart.current = true;
+      void send({ ...mode.attempt, automatic: true });
+    }
+  }, [isReviewFocused]);
 
   function startCheck(challenge: BrowserChallenge): PendingCheck {
     const pending: PendingCheck = { challenge, isSettled: false, number: solveCheck(challenge) };
@@ -178,17 +239,23 @@ export function LiveHarness({
     if (viewport) viewport.scrollTop = viewport.scrollHeight;
   }, [conversation.turns.length, live?.text, live?.phase, receipt, stopped?.idempotencyKey]);
 
-  async function refresh(): Promise<void> {
+  async function refresh(): Promise<Conversation | null> {
     try {
-      setConversation(parseConversation(await requestJson<unknown>('/conversation')));
+      const refreshed = parseConversation(await requestJson<unknown>('/conversation'));
+      setConversation(refreshed);
+      return refreshed;
     } catch (error) {
       if (error instanceof ApiFailure && error.status === 401) onReload();
       else setNotice(`The conversation could not be refreshed. ${describeFailure(error)}`);
+      return null;
     }
   }
 
   async function send(attempt: ConversationAttempt): Promise<void> {
-    if (isBusy || isPreparing.current) return;
+    // Proof: removing this synchronous fence admitted two posts in the selected-answer double-click test.
+    // Proof: bypassing this review fence let the hidden composer buy a stale-reference turn in request-editor.mjs.
+    if (reviewFocus.current || isSending.current || isBusy || isPreparing.current) return;
+    isSending.current = true;
     let solution: BrowserCheckSolution | undefined;
     if (attempt.initial) {
       isPreparing.current = true;
@@ -196,6 +263,7 @@ export function LiveHarness({
       isPreparing.current = false;
       if (prepared.kind === 'failed') {
         setCheckFailed(true);
+        isSending.current = false;
         return;
       }
       if (prepared.kind === 'solved') solution = prepared.check;
@@ -221,9 +289,14 @@ export function LiveHarness({
             ? {
                 idempotencyKey: attempt.idempotencyKey,
                 initial: true,
+                ...(attempt.automatic ? { automatic: true } : {}),
                 ...(solution ? { check: solution } : {}),
               }
-            : { idempotencyKey: attempt.idempotencyKey, message: attempt.message },
+            : {
+                idempotencyKey: attempt.idempotencyKey,
+                // Proof: dropping raw answer forwarding made rendered Retry post resolved prose instead of the persisted selection.
+                ...(attempt.answer ?? { message: attempt.message }),
+              },
         }),
       });
       const stream = await transport.sendMessages({
@@ -238,6 +311,20 @@ export function LiveHarness({
         const next = await reader.read();
         if (next.done) break;
         const chunk = next.value;
+        // Proof: emitting optimistically in send failed mounted analytics for both 409 and 429.
+        const admission = readConversationAdmission(chunk);
+        if (admission?.kind === 'initial')
+          milestones?.observe(`initial:${conversation.csrfToken}`, {
+            name: 'conversation_start',
+            starting_choice: readStartingChoice(conversation.scoping),
+            funnel_version: conversation.scoping.version === 1 ? '1' : 'legacy',
+          });
+        if (admission?.kind === 'answer')
+          milestones?.observe(`answer:${attempt.idempotencyKey}`, {
+            name: 'scoping_answer',
+            question_id: admission.question_id,
+            answer_mode: admission.answer_mode,
+          });
         // After Stop the remaining chunks are drained, not shown; stop() owns the state.
         if (isStopRequested()) continue;
         // A provider refusal after partial text replaces it with the stored decline.
@@ -252,10 +339,13 @@ export function LiveHarness({
           setLive({ attempt, text, phase: 'streaming', failure: '' });
         } else if (chunk.type === 'error') errorText = chunk.errorText;
         else if (chunk.type === 'finish') isFinished = true;
+        else if (chunk.type === 'data-reply-failure')
+          milestones?.failure(new Error('Invalid reply'));
       }
     } catch (error) {
       // Stop already rendered the stopped state and posts the cancel itself.
       if (controller.signal.aborted || isStopRequested()) return;
+      milestones?.failure(error);
       if (
         error instanceof ApiFailure &&
         (error.code === 'challenge_invalid' || error.code === 'challenge_required')
@@ -264,9 +354,26 @@ export function LiveHarness({
         setCheckFailed(true);
         return;
       }
+      if (
+        attempt.answer &&
+        error instanceof ApiFailure &&
+        ['stale_answer', 'idempotency_conflict'].includes(error.code)
+      ) {
+        setLive(null);
+        setNotice(
+          'The question changed. Your text is still here; review the refreshed choices and send again.',
+        );
+        await refresh();
+        return;
+      }
       setLive({ attempt, text, phase: 'failed', failure: describeStreamFailure(error) });
-      if (error instanceof ApiFailure && error.status === 503) onReload();
-      else if (changesConversation(error)) {
+      if (error instanceof ApiFailure && error.status === 503) {
+        if (conversation.scoping.version === 'legacy') onReload();
+        else {
+          await refresh();
+          setReviewOpen(true);
+        }
+      } else if (changesConversation(error)) {
         await refresh();
         if (error instanceof ApiFailure && error.status === 429 && error.code !== 'provider_busy')
           setLive(null);
@@ -274,16 +381,26 @@ export function LiveHarness({
       return;
     } finally {
       if (reading.current === controller) reading.current = null;
+      isSending.current = false;
     }
     if (isStopRequested()) return;
-    if (isFinished) {
-      await refresh();
+    const refreshed = await refresh();
+    // A saved replay has no provider finish. Only the exact attempted operation's durable
+    // completion can confirm it; text-end/EOF alone never confirms an unknown live reply.
+    const operation = attempt.initial ? refreshed?.initialOperation : refreshed?.latestOperation;
+    // Proof: removing the state/key fences accepted unknown/different-operation replay fixtures;
+    // unconditional success accepted the unavailable-authority fixture in replay-recovery.test.tsx.
+    const isReconciled =
+      operation?.state === 'completed' && operation.idempotencyKey === attempt.idempotencyKey;
+    if (isFinished || isReconciled) {
+      if (attempt.answer)
+        setDraft((current) => (current === (attempt.answer?.message ?? '') ? '' : current));
       setLive(null);
       return;
     }
-    // A stream that ends without `finish` was settled at its reservation by the server.
+    milestones?.failure(new Error('Interrupted reply'));
+    // Neither the stream nor its exact durable operation confirmed completion.
     setLive({ attempt, text, phase: 'failed', failure: errorText || interruptedText });
-    await refresh();
   }
 
   async function stop(): Promise<void> {
@@ -311,12 +428,28 @@ export function LiveHarness({
     await refresh();
   }
 
-  function sendDraft(): void {
-    const message = draft.trim();
-    if (!message || isBusy || mode.kind !== 'open') return;
-    // The message moves into the thread; a failed reply keeps it there with Retry.
-    setDraft('');
-    void send({ idempotencyKey: crypto.randomUUID(), message, initial: false });
+  function sendDraft(selected?: ScopingAnswerSelection): void {
+    const message = conversation.scoping.version === 1 ? draft : draft.trim();
+    if ((!message.trim() && !selected) || isBusy || mode.kind !== 'open') return;
+    if (conversation.scoping.version === 1) {
+      const answer: ScopingAnswerRequest = selected
+        ? { selected, ...(message.trim() ? { message } : {}) }
+        : { message };
+      const label = selected
+        ? getScopingQuestion(selected.questionId).answers.find(
+            (choice) => choice.id === selected.answerId,
+          )?.label
+        : null;
+      void send({
+        idempotencyKey: crypto.randomUUID(),
+        message: label ? `${label}${message.trim() ? `\n\n${message}` : ''}` : message,
+        initial: false,
+        answer,
+      });
+    } else {
+      setDraft('');
+      void send({ idempotencyKey: crypto.randomUUID(), message, initial: false });
+    }
   }
 
   function handleKeys(event: React.KeyboardEvent<HTMLTextAreaElement>): void {
@@ -330,7 +463,7 @@ export function LiveHarness({
 
   const retryable = live?.phase === 'stopped' || live?.phase === 'failed' ? live.attempt : stopped;
   const pendingMessage = live?.attempt.message ?? stopped?.message ?? null;
-  const assistantLabel = isSimulated ? 'PUNI · SIMULATED' : 'PUNI';
+  const assistantLabel = isSimulated ? 'PUNI · SIMULATED' : 'PUNI · AI';
   // Once the Home request is in the thread (sending, stopped or failed), the composer stops
   // repeating it; Retry in the thread resends it under the same identity.
   const isHomeInThread = mode.kind === 'initial' && pendingMessage !== null;
@@ -356,7 +489,9 @@ export function LiveHarness({
           )}
           {conversation.turns.length === 0 && pendingMessage === null && (
             <p className="harness-empty">
-              Your Home request is ready below. Press Send when you want to start the conversation.
+              {conversation.scoping.version === 1 && conversation.scoping.startConversation
+                ? 'Starting your conversation…'
+                : 'Your Home request is ready below. Press Send when you want to start the conversation.'}
             </p>
           )}
           {conversation.turns.map((turn, index) => (
@@ -408,26 +543,118 @@ export function LiveHarness({
               <button
                 type="button"
                 className="harness-text-button"
-                onClick={() => void send(retryable)}
+                disabled={isReviewFocused}
+                onClick={() => void send({ ...retryable, automatic: false })}
               >
                 [ Retry ]
               </button>
             </div>
           )}
-          {(offersProposal(conversation) || receipt !== null) && (
-            <ProposalCard
-              conversation={conversation}
-              receipt={receipt}
-              onSubmitted={(reference) => {
-                sessionStorage.removeItem(proposalKeyName);
-                setReceipt(reference);
-                onHandedOff();
-              }}
-            />
+          {conversation.scoping.version === 1 &&
+            mode.kind === 'open' &&
+            !isReviewFocused &&
+            !isBusy &&
+            live === null &&
+            // Proof: without this exclusion, the known-invalid render repeated old choices before manual review.
+            conversation.latestOperation?.replyFailure !== 'invalid_scoping_reply' &&
+            conversation.scoping.questionId !== null && (
+              <div role="group" aria-label="Suggested answers" className="scoping-answers">
+                {getScopingQuestion(conversation.scoping.questionId).answers.map((choice) => (
+                  <button
+                    type="button"
+                    className="glass-button quiet"
+                    key={choice.id}
+                    onClick={() => {
+                      // Proof: replacing the committed revision with zero failed selected-answer transport in conversation-harness.test.tsx.
+                      if (
+                        conversation.scoping.version === 1 &&
+                        conversation.scoping.questionId !== null
+                      )
+                        sendDraft({
+                          questionId: conversation.scoping.questionId,
+                          answerId: choice.id,
+                          revision: conversation.scoping.revision,
+                        });
+                    }}
+                  >
+                    {choice.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          {conversation.scoping.version === 1 && (
+            <>
+              <button
+                type="button"
+                className="harness-text-button"
+                onClick={() => {
+                  setReviewOpen(true);
+                }}
+              >
+                Send my request now
+              </button>
+              <RequestEditor
+                draft={conversation}
+                route={
+                  conversation.stage === 'exhausted'
+                    ? 'exhausted'
+                    : offersProposal(conversation)
+                      ? 'default'
+                      : 'early'
+                }
+                contact={isReviewOpen}
+                onFocusChange={updateReviewFocus}
+                open={
+                  isReviewOpen ||
+                  (offersProposal(conversation) && !conversation.scoping.emailInvitationDeclined)
+                }
+                onOpen={() => {
+                  setReviewOpen(true);
+                }}
+                onClose={() => {
+                  setReviewOpen(false);
+                }}
+                onRefresh={async () => {
+                  await refresh();
+                }}
+                onSubmitted={() => {
+                  setReceipt('saved');
+                  onHandedOff();
+                }}
+              />
+            </>
           )}
+          {conversation.scoping.version === 'legacy' &&
+            (offersProposal(conversation) || receipt !== null) && (
+              <ProposalCard
+                conversation={conversation}
+                receipt={receipt}
+                onSubmitted={(reference) => {
+                  sessionStorage.removeItem(proposalKeyName);
+                  setReceipt(reference);
+                  onHandedOff();
+                }}
+              />
+            )}
         </div>
       </div>
-      <div className="harness-dock">
+      {/* Proof: removing this Stop-only control failed the paid reply review/cancel test. */}
+      {isReviewFocused && isBusy && (
+        <div className="harness-dock">
+          <div className="harness-column">
+            <button
+              type="button"
+              className="glass-button quiet"
+              aria-label="Stop response"
+              onClick={() => void stop()}
+            >
+              Stop response
+            </button>
+          </div>
+        </div>
+      )}
+      {/* Proof: forcing this dock visible failed the human-review composer-hiding test. */}
+      <div className="harness-dock" hidden={isReviewFocused}>
         <div className="harness-column">
           {notice && (
             <p className="harness-status" role="status">
@@ -485,7 +712,7 @@ export function LiveHarness({
                     id="build-message"
                     value={draft}
                     placeholder="Reply to PUNI…"
-                    maxLength={messageLimit}
+                    maxLength={conversation.scoping.version === 1 ? 2000 : messageLimit}
                     rows={1}
                     onChange={(event) => {
                       setDraft(event.target.value);
@@ -574,6 +801,17 @@ function ProposalCard({
   const [brief, setBrief] = useState(conversation.brief || conversation.description);
   const [savedBrief, setSavedBrief] = useState(brief);
   const [isSaved, setSaved] = useState(false);
+  const milestones = useMilestones();
+  useMilestone(receipt === null ? `brief:${conversation.csrfToken}` : null, {
+    name: 'brief_view',
+    route: conversation.stage === 'exhausted' ? 'exhausted' : 'default',
+    starting_choice: readStartingChoice(conversation.scoping),
+  });
+  useMilestone(receipt === null ? `email:${conversation.csrfToken}` : null, {
+    name: 'email_request_view',
+    route: conversation.stage === 'exhausted' ? 'exhausted' : 'default',
+    starting_choice: readStartingChoice(conversation.scoping),
+  });
   const [email, setEmail] = useState('');
   const [isPending, setPending] = useState(false);
   const [failure, setFailure] = useState('');
@@ -631,8 +869,15 @@ function ProposalCard({
         headers: { 'X-Puni-CSRF': conversation.csrfToken },
         body: JSON.stringify({ email, brief, idempotencyKey: readProposalKey() }),
       });
+      milestones?.confirm(answer.receipt, {
+        name: 'generate_lead',
+        route: 'chat',
+        funnel_version: 'legacy',
+        starting_choice: readStartingChoice(conversation.scoping),
+      });
       onSubmitted(answer.receipt);
     } catch (error) {
+      milestones?.failure(error);
       setFailure(
         error instanceof ApiFailure && error.code === 'invalid_proposal'
           ? 'Check the email address and the brief.'
@@ -752,7 +997,7 @@ export function PausedHarness({
           <p className="harness-eyebrow">[ AI can do everything. It doesn’t want anything. ]</p>
           {turns.map((turn, index) => (
             <div key={index} className={`build-message ${turn.role}`}>
-              <span className="message-label">{turn.role === 'user' ? 'YOU' : 'PUNI'}</span>
+              <span className="message-label">{turn.role === 'user' ? 'YOU' : 'PUNI · AI'}</span>
               <p>{turn.role === 'assistant' ? displayReply(turn.content) : turn.content}</p>
             </div>
           ))}
@@ -763,15 +1008,26 @@ export function PausedHarness({
               Shape your brief <span aria-hidden="true">→</span>
             </a>
           </div>
-          <ProposalCard
-            conversation={conversation}
-            receipt={receipt}
-            onSubmitted={(reference) => {
-              sessionStorage.removeItem(proposalKeyName);
-              setReceipt(reference);
-              onHandedOff();
-            }}
-          />
+          {conversation.scoping.version === 1 ? (
+            <RequestEditor
+              draft={conversation}
+              route="manual"
+              open
+              onOpen={() => undefined}
+              onClose={() => undefined}
+              onSubmitted={onHandedOff}
+            />
+          ) : (
+            <ProposalCard
+              conversation={conversation}
+              receipt={receipt}
+              onSubmitted={(reference) => {
+                sessionStorage.removeItem(proposalKeyName);
+                setReceipt(reference);
+                onHandedOff();
+              }}
+            />
+          )}
         </div>
       </section>
     </div>
