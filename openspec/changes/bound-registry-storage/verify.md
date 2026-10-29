@@ -2683,3 +2683,125 @@ archives were rechecked after both audits. Closure
 and stderr `fa977c7c`. HOST61 is closed as failed, its runtime freeze is released,
 and no production safeguards were activated. The next investigation concerns the
 filler's exhaustion guarantee for the actual small allocation, not ACK acceptance.
+
+### HOST62: residual space survives large-write ENOSPC
+
+An independent Python probe used the existing owned h4claw namespace, enforced
+128 MiB ext4 registry volume, separate journal/root, read-only cgroup view,
+canonical zero-wait heavy lock and the same 896 MiB allocation envelope. It kept
+the entire isolation preamble and cleanup, replacing only the Bun application
+exec with a fixed allocation diagnostic. The inner replaced irrelevant authority
+stage receipts with a named diagnostic outcome. The inherited native bundle was
+installed but never executed. This is filesystem diagnosis, not an authority,
+current-request ACK, writer-stop, backup or recovery proof.
+
+The single run exited0 in 4.96 seconds without timeout. A one-MiB write eventually
+returned ENOSPC after 105906176 bytes. Counters still showed 55 available 4096-byte
+blocks. They stayed identical before fsync, after fsync and after close. A fresh
+UID59001 file then accepted 111 bytes and fsync succeeded; 54 blocks remained.
+Thus this run observes residual small-allocation capacity, rather than space
+released by flush/close or only a buffered-write success. It does not identify a
+kernel allocator implementation defect. The [ext4 documentation](https://www.kernel.org/doc/html/latest/admin-guide/ext4.html)
+was consulted for allocation semantics; no mount option changed.
+
+Manifest `142471ee`, driver `a3c0ff41`, archive `ff7d9a27`, raw stdout `fd7e1e1a`
+and empty stderr bind the experiment. Three periodic host-root/cgroup samples and
+the final view remained unchanged. Both cleanup audits exited0 with empty stderr:
+full-process census stdout `90e42ee2`, independent observer stdout `5927d042`.
+They confirmed exact owned root/process/namespace/lock/backing references absent,
+unchanged host identity and 113826754560 bytes root reserve. Every frozen source,
+input, configuration, payload and private archive was rechecked afterward.
+Closure `/tmp/task8-parent-host62-closure.json` (`14af2c0f`) releases the freeze.
+HOST62 is closed for this narrow diagnostic scope and will not be replayed.
+
+### Filler regression: bounded smaller writes before an exhaustion receipt
+
+The original actual filler body returned a pressure receipt while an independent
+modeled allocator still had 4207 bytes available. The targeted regression failed
+before implementation. The filler now halves its requested write size after
+ENOSPC, down through one byte, and accepts exhaustion only at that final size.
+It preserves the 128 MiB total-byte ceiling and adds a 256-call ceiling for partial
+write convergence. Unknown and code-shaped non-Error failures still propagate;
+reported progress must fit the current smaller request. The same file stays
+retained, outside captured contents, with required identity checks, fsync and close.
+No ACK classification, writer lifecycle, census or pressure-release rule changed.
+
+All 44 filler cases pass with 154 assertions, including residual space, partial
+writes, unknown/non-Error tail failures and call/byte bounds. The affected pressure,
+ACK, bridge and diagnostic suite passes 178 tests/1083 assertions. Scoped lint and
+library/spec typechecks pass. Six exact counterfactuals observed residual 4207 bytes,
+111 bytes when stopping at 4096, an independent 257th call after call-bound omission,
+an extra 129th zero-length request after byte-bound omission, false ENOSPC receipts
+for unknown/non-Error failures, and accepted oversized tail progress. The byte-bound
+case proves an extra attempted call before later refusal, not allocated bytes beyond
+the cap. Local filesystem ports remain modeled; HOST62 supplies the independent
+physical observation, not native validation of this new implementation.
+
+Cover `/tmp/task8-volume-tail-covering.json` (`706354af`) binds 42 artifacts. Final
+filler source is `3de6e1cd`; complete whitespace-only Bun emission is unchanged after
+adding the observed proof comments, with three changed-runtime controls. The final
+six counterfactuals use the exact formatted test snapshot. A new full native pressure
+run remains necessary before claiming the selected-stop/backup/recovery correction.
+
+### HOST63 packaging correction before execution
+
+The first derived build script retained a dynamic `61` output-name literal. It
+produced the new bundle under old generated filenames; the subsequent previous-pin
+check refused before any host run. Those first build receipts and wrong-output
+artifacts are retained as unaccepted. The corrected script writes actual `63`
+filenames, and its independent host/API rebuilds match byte-for-byte.
+
+The original HOST61 bundle was restored from its unchanged frozen archive, with
+its exact `62b4ceb3` hash. Its normal metafile was recovered using preserved fields
+and the original input ordering recorded in the frozen manifest; its original raw
+SHA `aa6c530f` matches exactly. Earlier serialization/order candidates failed the
+hash check before any writes. All HOST61/HOST62 payload and normal-metafile pins
+were then revalidated. The old independent-rebuild metafile had no recorded raw
+hash; its replacement carries the same recovered input graph and rebuild output
+name. Historical byte-exact rebuild metadata is not claimed. Raw host receipts,
+source archives and transport archives were unchanged. The repair is recorded in
+`/tmp/task8-host63-output-repair.json`; no earlier host attempt was replayed.
+
+### HOST63: stop and backup advance; later receipt comparison refuses
+
+The corrected packet binds manifest `ec51a772`, driver `228fcddd`, archive
+`7028f04c`, normal bundle `51b07f1a` and unchanged API bundle `29fb02f9`.
+The only runtime source change since HOST61 is the filler correction. Independent
+host/API rebuilds matched exactly; all 111 sources, 274 actual build inputs,
+configuration and private archives preceded execution. The initial input-freeze
+scope text accidentally retained a HOST61 label; its hashes describe the current
+HOST63 inputs, checked against the corrected builds and source freeze. That label
+is metadata error, not historical HOST61 build evidence. No frozen record is edited
+retroactively. The normal inner/workload remain byte-identical to HOST61.
+
+The single run exited1 after 84.62 seconds without timeout. Native installed-alias
+readbacks matched `51b07f1a`. This time the selected bridge produced a receipt:
+its actual current-request UID59001 allocation probe observed ENOSPC and its exact
+owned writer closure completed before the real stopped census. The synthetic
+Deployment reached zero replicas and its service was withdrawn. The second root
+backup snapshot and backup verification actions completed under pressure; nineteen
+bounded GET observations completed with HTTP200 and no pending requests.
+
+The controller then failed at bundle28631, the combined comparison of selected
+writer PID/start, instance hash, request hash against the later request file, and
+request freshness. The individual mismatching field was not emitted. Source
+inspection shows `persistJournal` revokes on every fenced persistence, and
+`createWritePermit.revoke` generates a new request UUID. Later request rotation
+is therefore a concrete next hypothesis. It is not a directly observed failed-field
+value. The next regression must preserve independent selected-request binding at
+the allocation witness, rather than simply delete the comparison or trust the
+probe's hash. Staged recovery was not invoked; complete pressure success and
+matching final canonical backup lineage remain unproved by this controller run.
+
+All 161 periodic host-root/cgroup samples and the final view stayed unchanged.
+Native cleanup reported normal unmount order, terminal workload, no namespace
+processes, four detached loops and removed fixture. Both distinct cleanup audits
+exited0 with empty stderr: full-process census stdout `6b43fd2e`, independent
+observer stdout `41cfb7a6`. They confirmed the exact owned root, PID/start pairs,
+namespaces, lock records, file descriptors, mounts and backing references absent,
+unchanged host identity and 113717338112 bytes root reserve. Every source, input,
+configuration, payload and private archive was rechecked after both audits.
+Closure `/tmp/task8-parent-host63-closure.json` (`23f705fb`) pins raw stdout
+`51d22165` and stderr `4bf595cd`. HOST63 is closed as failed, its source freeze is
+released, and no production safeguard was activated. Full Task8 review, the
+remaining scenarios, backup budgeting, alert adoption and exact-SHA gate remain open.
