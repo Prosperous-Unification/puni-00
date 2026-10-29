@@ -10,8 +10,8 @@ import {
   readRuntimeRequest,
   runtimeScopeKey,
 } from '../runtime-codecs';
-import { FORMAT_HASH } from './format';
-import { validateSchemaIdentity } from './schema';
+import { readRecoveryCatalog } from './read-recovery';
+import { CURRENT_FORMAT, type FormatDescriptor, validateFormatSchema } from './schema';
 
 const integer = type('number.integer >= 0').atMost(Number.MAX_SAFE_INTEGER);
 const markerCodec = type({
@@ -34,14 +34,23 @@ const commandRowCodec = type({
 
 /** Audits complete marker counts, physical keys, owned rows and reconstructed histories inside the caller's snapshot or transaction. Whole-family deletion never becomes absence. */
 export function readRuntimeCatalog(database: Database, ownership: OwnershipStatus): RuntimeCatalog {
+  return readRuntimeCatalogForFormat(database, ownership, CURRENT_FORMAT);
+}
+/** Transition-only reader requires its private compiled descriptor explicitly. */
+export function readRuntimeCatalogForFormat(
+  database: Database,
+  ownership: OwnershipStatus,
+  format: FormatDescriptor,
+): RuntimeCatalog {
   // Proof: R2F42 removed only this new call; both after-open version and physical-schema corruptions reached public reads. Exact restoration passed.
-  validateSchemaIdentity(database);
+  validateFormatSchema(database, format);
   const markers = database.query('SELECT * FROM run_format').all();
   // Proof: F51 ignored an extra format singleton; 'trusted runtime extra marker' failed and exact restoration passed.
   if (markers.length !== 1) throw new Error('corrupt runtime format marker');
   const marker = parseOrThrow(markerCodec, markers[0]);
   // Proof: F22 bypassed the complete bundle hash comparison; 'current format complete bundle hash' failed and exact restoration passed.
-  if (marker.bundle_hash !== FORMAT_HASH) throw new Error('incompatible sqlite format bundle hash');
+  if (marker.bundle_hash !== format.identity.bundleHash)
+    throw new Error('incompatible sqlite format bundle hash');
   const scopes = database
     .query('SELECT * FROM run_runtime_scope')
     .all()
@@ -96,12 +105,22 @@ export function readRuntimeCatalog(database: Database, ownership: OwnershipStatu
     scopes,
     intents,
     acceptances,
-    recovery: {
-      histories: [],
-      barriers: [],
-      active: [],
-      counts: { journals: 0, fences: 0, observations: 0, closures: 0, barriers: 0, active: 0 },
-    },
+    recovery:
+      format.identity.version === 4
+        ? readRecoveryCatalog(database)
+        : {
+            histories: [],
+            barriers: [],
+            active: [],
+            counts: {
+              journals: 0,
+              fences: 0,
+              observations: 0,
+              closures: 0,
+              barriers: 0,
+              active: 0,
+            },
+          },
   };
   auditRuntimeCatalog(catalog, ownership);
   return catalog;

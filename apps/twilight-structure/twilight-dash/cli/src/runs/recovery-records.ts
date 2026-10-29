@@ -1,8 +1,7 @@
 import type { AuthorityReceipt, ClaimReceipt, RuntimeState } from '@wbs/contracts';
 
 import type { Attempt2, Checkpoint, ClaimAcceptAck, ClaimAcceptCommand } from './execution-records';
-import type { ArtifactRef, Ownership } from './records';
-import type { ScopedAttemptGuard } from './run-store';
+import type { ArtifactRef, Ownership, ScopedAttemptGuard } from './records';
 import type {
   RuntimeAcceptance,
   RuntimeGuard,

@@ -1,8 +1,15 @@
 import { Database } from 'bun:sqlite';
 
-import { DOWN_HASH, MIGRATION_HASH, MIGRATIONS, SCHEMA_VERSION } from './format';
-import { readHistory } from './read-history';
-import { readRuntimeCatalog } from './read-runtime';
+import {
+  DOWN_HASH,
+  FORMAT3_IDENTITY,
+  FORMAT4_IDENTITY,
+  MIGRATION_HASH,
+  MIGRATIONS,
+  type SqliteFormatIdentity,
+} from './format';
+import { readHistoryForFormat } from './read-history';
+import { readRuntimeCatalogForFormat } from './read-runtime';
 import { decodeMeta } from './row-codecs';
 export {
   DOWN,
@@ -31,10 +38,12 @@ function readSchema(database: Database): readonly SchemaEntry[] {
 }
 
 /** Derives the required physical declarations from the migration rather than a second hand-maintained schema. */
-function readRequiredSchema(): readonly SchemaEntry[] {
+function readRequiredSchema(
+  migrations: readonly (typeof MIGRATIONS)[number][],
+): readonly SchemaEntry[] {
   const reference = new Database(':memory:', { strict: true });
   try {
-    for (const migration of MIGRATIONS)
+    for (const migration of migrations)
       // Proof: F53c restored whole-script reference SQL and accepted an intermediate CHECK failure; 'physical reference refuses an intermediate' failed and exact restoration passed.
       for (const statement of migration.forwardStatements) reference.run(statement);
     return readSchema(reference);
@@ -42,16 +51,35 @@ function readRequiredSchema(): readonly SchemaEntry[] {
     reference.close();
   }
 }
-const REQUIRED_SCHEMA = readRequiredSchema();
-const REQUIRED_TABLES = new Set(
-  REQUIRED_SCHEMA.filter((entry) => entry.type === 'table').map((entry) => entry.name),
-);
+/** Adapter-private descriptors select a complete compiled artifact set; ordinary opens and mutations always use CURRENT_FORMAT. Only the explicit transition boundary selects PREDECESSOR_FORMAT. */
+export interface FormatDescriptor {
+  readonly identity: SqliteFormatIdentity;
+  readonly schema: readonly SchemaEntry[];
+  readonly tables: ReadonlySet<string>;
+}
+function describeFormat(
+  identity: SqliteFormatIdentity,
+  migrations: readonly (typeof MIGRATIONS)[number][],
+): FormatDescriptor {
+  const schema = readRequiredSchema(migrations);
+  return {
+    identity,
+    schema,
+    tables: new Set(schema.filter((entry) => entry.type === 'table').map((entry) => entry.name)),
+  };
+}
+export const PREDECESSOR_FORMAT = describeFormat(FORMAT3_IDENTITY, MIGRATIONS.slice(0, 3));
+// Proof: T3M1 the ordinary current opener admitted genuine format3 when its new descriptor dependency was replaced with the predecessor; exact restoration passed.
+export const CURRENT_FORMAT = describeFormat(FORMAT4_IDENTITY, MIGRATIONS);
 
-/** Requires the migration's exact table/index declarations, including empty tables. Additional triggers and unrelated tables are outside this comparison. */
-function validatePhysicalSchema(database: Database): void {
-  const installed = readSchema(database).filter((entry) => REQUIRED_TABLES.has(entry.tbl_name));
+/** Requires exact compiled table/index declarations, including empty families. Additional triggers and unrelated tables are outside comparison. */
+function validatePhysicalSchema(database: Database, format: FormatDescriptor): void {
+  // Proof: predecessor-only filtering let an empty successor declaration reach DDL; the partial-successor upgrade test observed transition_failed instead of corrupt.
+  const installed = readSchema(database).filter((entry) =>
+    CURRENT_FORMAT.tables.has(entry.tbl_name),
+  );
   // Proof: bypassing this comparison accepted all ten empty-store column, constraint and active-index corruptions in open-stores.db.test.ts.
-  if (JSON.stringify(installed) !== JSON.stringify(REQUIRED_SCHEMA))
+  if (JSON.stringify(installed) !== JSON.stringify(format.schema))
     throw new Error('corrupt sqlite physical schema');
 }
 
@@ -84,13 +112,17 @@ export function readMeta(database: Database) {
 }
 /** Verifies the compiled physical schema and metadata identity before any predecessor witness conversion; performs no history reads or migration. */
 export function validateSchemaIdentity(database: Database): void {
+  validateFormatSchema(database, CURRENT_FORMAT);
+}
+/** Explicit transition validation only; the descriptor never comes from stored metadata or operator options. */
+export function validateFormatSchema(database: Database, format: FormatDescriptor): void {
   // Proof: removing this dispatch accepted the same ten altered empty stores before row validation could detect them.
   // Proof: F23 bypassed physical schema validation for an empty runtime table; 'empty run_runtime_scope declaration' failed and exact restoration passed.
-  validatePhysicalSchema(database);
+  validatePhysicalSchema(database, format);
   const meta = readMeta(database);
   // Proof: independently bypassing version, migration hash and down hash checks accepted each corresponding persisted alteration.
   if (
-    meta.schema_version !== SCHEMA_VERSION ||
+    meta.schema_version !== format.identity.version ||
     meta.migration_hash !== MIGRATION_HASH ||
     meta.down_hash !== DOWN_HASH
   )
@@ -99,10 +131,14 @@ export function validateSchemaIdentity(database: Database): void {
 
 /** Validates the published store, including every portable record and relational invariant. No migration runs here. */
 export function validateDatabase(database: Database): void {
-  validateSchemaIdentity(database);
+  validateDatabaseForFormat(database, CURRENT_FORMAT);
+}
+/** Performs every original history/capacity/integrity audit against the required transition descriptor under its caller transaction. */
+export function validateDatabaseForFormat(database: Database, format: FormatDescriptor): void {
+  validateFormatSchema(database, format);
   const meta = readMeta(database);
   // Proof: F63 omitted runtime audit on reopen; 'trusted runtime scope ledger' failed and exact restoration passed.
-  readRuntimeCatalog(database, meta.ownership);
+  readRuntimeCatalogForFormat(database, meta.ownership, format);
   // Proof: bypassing this diagnostic accepted an injected non-ok SQLite integrity response through the real open path.
   if (database.query<{ quick_check: string }, []>('PRAGMA quick_check').get()?.quick_check !== 'ok')
     throw new Error('corrupt sqlite database');
@@ -110,7 +146,7 @@ export function validateDatabase(database: Database): void {
   if (database.query('PRAGMA foreign_key_check').all().length !== 0)
     throw new Error('corrupt sqlite foreign key references');
   // Proof: F211 removed this delegation; open with a missing pending outbox lost its required corruption rejection. Exact restoration passed the eight-case group.
-  readHistory(database);
+  readHistoryForFormat(database, format);
   // Proof: bypassing this route failed `open rejects valid-shaped corrupt missing reservation`.
   readCapacity(database, meta.capacity);
 }
@@ -142,9 +178,13 @@ export function readCapacity(database: Database, limit: number) {
 
 /** Inspects compatibility before any mode-changing connection configuration. Older formats remain byte-for-byte untouched. */
 export function assertCompatibleFormat(database: Database): void {
+  assertFormatCompatibility(database, CURRENT_FORMAT);
+}
+/** Readonly preflight for the explicit transition boundary. */
+export function assertFormatCompatibility(database: Database, format: FormatDescriptor): void {
   const meta = readMeta(database);
   if (
-    meta.schema_version !== SCHEMA_VERSION ||
+    meta.schema_version !== format.identity.version ||
     meta.migration_hash !== MIGRATION_HASH ||
     meta.down_hash !== DOWN_HASH
   )

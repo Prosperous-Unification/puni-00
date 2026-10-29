@@ -5,6 +5,7 @@ import type {
   ExecutionSubmission,
   RecordedExecution,
 } from './execution-records';
+import { findRecoveryCommand, type RecoveryCatalog } from './plan-recovery-history';
 import { addInteger, equalRecords } from './record-codecs';
 import type {
   Attempt,
@@ -338,13 +339,38 @@ export function planExecution(
   if (transition.kind === 'refused') return transition;
   return changeAttempt(facts, transition.value, isExecuting(transition.value));
 }
-/** The current owner authorizes historical replay; guard revisions and provider context never replace original identity. */
+/** The current owner authorizes historical replay; guard revisions and provider context never replace original identity. Fresh commands must respect recovery reservations. Only the exact active original claim acceptance passes that namespace check; its planner still enforces the active-target state interlock. */
 export function replayExecution(
   previous: RecordedExecution | undefined,
   guard: AttemptGuard | ScopedAttemptGuard,
   command: ExecutionSubmission,
+  recovery: RecoveryCatalog,
 ): StoreReply<RecordedExecution> | undefined {
-  if (previous === undefined) return undefined;
+  if (previous === undefined) {
+    const reservation = findRecoveryCommand(recovery, command.commandId);
+    if (reservation !== undefined) {
+      const target = reservation.intent.target;
+      const isOriginalAcceptance =
+        reservation.closure === null &&
+        target.kind === 'claim' &&
+        target.acceptanceCommandId === command.commandId &&
+        command.kind === 'accept_claim' &&
+        target.runId === guard.runId &&
+        target.attemptId === guard.attemptId &&
+        equalRecords(target.original, command.intent);
+      if (!isOriginalAcceptance) return { kind: 'refused', reason: 'identity_conflict' };
+    }
+    // Proof: T3NWIRE removing this namespace check admitted the colliding fresh command; exact restoration passed.
+    if (
+      command.kind === 'stage_claim' &&
+      findRecoveryCommand(
+        recovery,
+        readRuntimeRequest(command.canonicalRequest).operation.commandId,
+      ) !== undefined
+    )
+      return { kind: 'refused', reason: 'identity_conflict' };
+    return undefined;
+  }
   // Proof: Task2 F24 removed command payload comparison; changing canonical wire bytes under the same local ID returned duplicate. Exact restored subset passed.
   if (
     previous.reply.attempt.attemptId !== guard.attemptId ||

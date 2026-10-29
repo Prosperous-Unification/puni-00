@@ -495,7 +495,10 @@ function executeExecutionDown(database: Database): void {
   database.run('BEGIN IMMEDIATE');
   try {
     validateDatabase(database);
-    for (const statement of MIGRATIONS[2].down.split('--> statement-breakpoint'))
+    for (const statement of [
+      ...MIGRATIONS[3].down.split('--> statement-breakpoint'),
+      ...MIGRATIONS[2].down.split('--> statement-breakpoint'),
+    ])
       if (statement.trim().length > 0) database.run(statement.trim());
     database.run('COMMIT');
   } catch (cause) {
@@ -671,18 +674,21 @@ test('bootstrap retains the complete named forward and down bundle identity', as
   const stores = await createRuntimeDatabaseFixture();
   const database = new Database(stores.options.path, { readonly: true });
   try {
-    const identities = ['0001-run-store', '0002-runtime-authority', '0003-execution-history'].map(
-      (name) => [
-        name,
-        ...['migration.sql', 'down.sql'].map((file) =>
-          createHash('sha256')
-            .update(readFileSync(new URL(`./migrations/${name}/${file}`, import.meta.url)))
-            .digest('hex'),
-        ),
-      ],
-    );
+    const identities = [
+      '0001-run-store',
+      '0002-runtime-authority',
+      '0003-execution-history',
+      '0004-runtime-recovery',
+    ].map((name) => [
+      name,
+      ...['migration.sql', 'down.sql'].map((file) =>
+        createHash('sha256')
+          .update(readFileSync(new URL(`./migrations/${name}/${file}`, import.meta.url)))
+          .digest('hex'),
+      ),
+    ]);
     const expected = createHash('sha256')
-      .update(JSON.stringify(['run-store-format', 3, identities]), 'utf8')
+      .update(JSON.stringify(['run-store-format', 4, identities]), 'utf8')
       .digest('hex');
     expect(database.query('SELECT bundle_hash FROM run_format').get()).toEqual({
       bundle_hash: expected,
@@ -803,6 +809,7 @@ function executeValidatedRuntimeDown(database: Database): void {
     // Proof: R1F02 removing this actual validation call let wrong-bundle and altered-empty-schema callers delete tables; both missing-rejection tests failed, and exact restoration passed.
     validateDatabase(database);
     for (const statement of [
+      ...MIGRATIONS[3].down.split('--> statement-breakpoint'),
       ...MIGRATIONS[2].down.split('--> statement-breakpoint'),
       ...MIGRATIONS[1].down.split('--> statement-breakpoint'),
     ])
@@ -856,6 +863,7 @@ test('validated down caller restores unused format1 declarations and all old rec
       before.tables
         .filter(
           (table) =>
+            !table.name.startsWith('run_recovery_') &&
             ![
               'run_format',
               'run_runtime_scope',
@@ -985,21 +993,33 @@ for (const history of ['generic run', 'authority pending', 'authority accepted']
         const before = captureRuntimeDatabase(database);
         executeExecutionDown(database);
         const after = captureRuntimeDatabase(database);
-        expect(after.schema).toEqual(before.schema);
-        expect(after.tables).toEqual(
-          before.tables.map((table) =>
-            table.name === 'run_meta'
-              ? { ...table, rows: table.rows.map((row) => ({ ...row, schema_version: 2 })) }
-              : table.name === 'run_format'
-                ? {
-                    ...table,
-                    rows: table.rows.map((row) => ({
-                      ...row,
-                      bundle_hash: EXECUTION_PREVIOUS_FORMAT_HASH,
-                    })),
-                  }
-                : table,
+        expect(after.schema).toEqual(
+          before.schema.filter(
+            (entry) =>
+              !(
+                typeof entry === 'object' &&
+                entry !== null &&
+                'tbl_name' in entry &&
+                String(entry.tbl_name).startsWith('run_recovery_')
+              ),
           ),
+        );
+        expect(after.tables).toEqual(
+          before.tables
+            .filter((table) => !table.name.startsWith('run_recovery_'))
+            .map((table) =>
+              table.name === 'run_meta'
+                ? { ...table, rows: table.rows.map((row) => ({ ...row, schema_version: 2 })) }
+                : table.name === 'run_format'
+                  ? {
+                      ...table,
+                      rows: table.rows.map((row) => ({
+                        ...row,
+                        bundle_hash: EXECUTION_PREVIOUS_FORMAT_HASH,
+                      })),
+                    }
+                  : table,
+            ),
         );
         expect(database.inTransaction).toBe(false);
       } finally {
@@ -1110,7 +1130,7 @@ for (const fault of ['version', 'physical'] as const)
     const database = new Database(stores.options.path);
     try {
       await stores.runs.readRuntimeScope(runtimeScope);
-      if (fault === 'version') database.run('UPDATE run_meta SET schema_version=4');
+      if (fault === 'version') database.run('UPDATE run_meta SET schema_version=3');
       else database.run('ALTER TABLE run_runtime_scope ADD COLUMN unexpected TEXT');
       await rejects(stores.runs.readRuntimeScope(runtimeScope));
     } finally {

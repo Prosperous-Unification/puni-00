@@ -4,7 +4,7 @@ import type { Database } from 'bun:sqlite';
 import { attemptId } from '../record-codecs';
 import { type HistoryCatalog, validateHistory } from '../validate-history';
 import { readOutcomes } from './read-outcomes';
-import { readRuntimeCatalog } from './read-runtime';
+import { readRuntimeCatalogForFormat } from './read-runtime';
 import { decodeConsumptionRow, decodeDecisionRow, decodeReceiptRow } from './read-signals';
 import {
   decodeAttemptRow,
@@ -14,11 +14,16 @@ import {
   decodeMeta,
   decodeRunRow,
 } from './row-codecs';
+import { CURRENT_FORMAT, type FormatDescriptor } from './schema';
 
 /** Owns one complete provider snapshot: physical rows first, scope/attempt/link fold second, and independent outbox presence last. Low-level decoders never call this owner. */
 export function readHistory(database: Database) {
+  return readHistoryForFormat(database, CURRENT_FORMAT);
+}
+/** Full predecessor/successor audit used only by the explicit migration boundary. */
+export function readHistoryForFormat(database: Database, format: FormatDescriptor) {
   const meta = decodeMeta(database.query('SELECT * FROM run_meta WHERE singleton=1').get());
-  const runtime = readRuntimeCatalog(database, meta.ownership);
+  const runtime = readRuntimeCatalogForFormat(database, meta.ownership, format);
   const catalog: HistoryCatalog = {
     ownership: meta.ownership,
     runtime,

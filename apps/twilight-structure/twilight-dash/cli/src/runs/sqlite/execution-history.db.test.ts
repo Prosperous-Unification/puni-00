@@ -46,12 +46,12 @@ async function createExecutionDatabase() {
   }
 }
 executionHistoryContract('sqlite execution history', createExecutionDatabase);
-test('execution history bootstrap declares format3', async () => {
+test('execution history bootstrap declares format4', async () => {
   const stores = await createExecutionDatabase();
   const database = new Database(stores.options.path, { readonly: true });
   try {
     expect(database.query('SELECT schema_version FROM run_meta').get()).toEqual({
-      schema_version: 3,
+      schema_version: 4,
     });
   } finally {
     database.close();

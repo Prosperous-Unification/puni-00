@@ -31,6 +31,7 @@ import {
 import { planOutcome, type RecordedCompletion } from '../plan-outcome';
 import { assertClock, planOwnership, planRenewal } from '../plan-ownership';
 import { planReceipt, type RecordedReceipt, replayReceipt } from '../plan-receipt';
+import { isActiveRecoveryAttempt, planRecoveryBegin } from '../plan-recovery';
 import type { RecoveryBarrier, RecoveryCatalog } from '../plan-recovery-history';
 import {
   auditRuntimeCatalog,
@@ -48,6 +49,7 @@ import {
   replayConsumption,
   replayDecision,
 } from '../plan-signals';
+import { decodeCurrentAttempt } from '../record-codecs';
 import { decisionId, decodeAttempt, decodeDecision, decodeReceipt } from '../record-codecs';
 import {
   addInteger,
@@ -78,6 +80,7 @@ import type {
   OwnershipStatus,
   Run,
 } from '../records';
+import { decodeRecoveryBeginCall } from '../recovery-codecs';
 import type { RecoveryHistory } from '../recovery-records';
 import type { RunStore, StoreReply } from '../run-store';
 import {
@@ -128,7 +131,7 @@ export function createMemoryStores(options: MemoryOptions): {
   const recoveries = new Map<string, RecoveryHistory>();
   const recoveryBarriers = new Map<string, RecoveryBarrier>();
   const activeRecoveries = new Map<string, RecoveryCatalog['active'][number]>();
-  const recoveryCounts: RecoveryCatalog['counts'] = {
+  let recoveryCounts: RecoveryCatalog['counts'] = {
     journals: 0,
     fences: 0,
     observations: 0,
@@ -177,35 +180,36 @@ export function createMemoryStores(options: MemoryOptions): {
   const attempts = new Map<Attempt['attemptId'], Attempt>();
   const admissions = new Map<Admission['attemptId'], Admission>();
 
-  function auditHistory() {
+  function readHistoryCatalog() {
     const held = [...attempts.values()]
       .filter((attempt) => attempt.holdsCapacity)
       .map((attempt) => attempt.attemptId);
     if (held.length !== reserved) throw new Error('corrupt memory reservation count');
-    return validateHistory(
-      structuredClone({
-        ownership: status,
-        runtime: readRuntimeCatalog(),
-        manifests: [...manifests.values()],
-        runs: [...runs.values()].map((run) => {
-          const initial = initialRuns.get(run.runId);
-          if (initial === undefined) throw new Error('run initial identity does not exist');
-          return { run, initial };
-        }),
-        attempts: [...attempts.values()].map((attempt) => {
-          const admission = admissions.get(attempt.attemptId);
-          if (admission === undefined) throw new Error('admission identity does not exist');
-          return { attempt, admission };
-        }),
-        executions: [...executions.values()],
-        consumptions: [...consumptions.values()],
-        completions: [...completions.values()],
-        receipts: [...receipts.values()],
-        decisions: [...decisions.values()],
-        reservations: held,
-        capacity,
+    return structuredClone({
+      ownership: status,
+      runtime: readRuntimeCatalog(),
+      manifests: [...manifests.values()],
+      runs: [...runs.values()].map((run) => {
+        const initial = initialRuns.get(run.runId);
+        if (initial === undefined) throw new Error('run initial identity does not exist');
+        return { run, initial };
       }),
-    );
+      attempts: [...attempts.values()].map((attempt) => {
+        const admission = admissions.get(attempt.attemptId);
+        if (admission === undefined) throw new Error('admission identity does not exist');
+        return { attempt, admission };
+      }),
+      executions: [...executions.values()],
+      consumptions: [...consumptions.values()],
+      completions: [...completions.values()],
+      receipts: [...receipts.values()],
+      decisions: [...decisions.values()],
+      reservations: held,
+      capacity,
+    });
+  }
+  function auditHistory() {
+    return validateHistory(readHistoryCatalog());
   }
   function assertOpen(): void {
     // Proof: bypassing this lifecycle fence failed the bootstrap/closed-store test on all seven public operations.
@@ -265,6 +269,33 @@ export function createMemoryStores(options: MemoryOptions): {
     return decodeAttempt(structuredClone(attempt));
   }
   const port: RunStore = {
+    async beginRecovery(input) {
+      // Proof: T3BCMCLOCK replacing the snapshot with caller input retained mutation performed by the real clock dependency; exact restoration passed.
+      const snapshot = structuredClone(input);
+      // Proof: T3BORDERM moving target decoding ahead of this owner boundary threw ValidationError instead of owner_stale; exact restoration passed.
+      const ownership = decodeOwnership(snapshot.guard.ownership);
+      const observedAt = observeClock();
+      // Proof: T3B1M removed only this new dependency; the expired-owner begin test observed an applied journal; exact restoration passed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      const catalog = readHistoryCatalog();
+      validateHistory(catalog);
+      const call = decodeRecoveryBeginCall(snapshot);
+      const reply = planRecoveryBegin(catalog, call);
+      if (reply.kind === 'applied') {
+        recoveries.set(reply.value.intent.recoveryId, structuredClone(reply.value));
+        activeRecoveries.set(
+          runtimeScopeKey(call.guard.scope),
+          structuredClone({ scope: call.guard.scope, recoveryId: reply.value.intent.recoveryId }),
+        );
+        recoveryCounts = {
+          ...recoveryCounts,
+          journals: addInteger(recoveryCounts.journals, 1),
+          active: addInteger(recoveryCounts.active, 1),
+        };
+      }
+      return await Promise.resolve(finishReply(reply, observedAt));
+    },
     async pinRuntimeScope(requested, input) {
       const ownership = decodeOwnership(structuredClone(requested));
       const snapshot = structuredClone(input);
@@ -285,24 +316,7 @@ export function createMemoryStores(options: MemoryOptions): {
       assertOpen();
       auditHistory();
       const snapshot = inspectRuntimeScope(readRuntimeCatalog(), decodeRuntimeScope(input), status);
-      if (snapshot.kind === 'uninitialized')
-        return await Promise.resolve({
-          version: 1,
-          kind: 'uninitialized',
-          scope: snapshot.scope,
-          ownerEpoch: snapshot.ownerEpoch,
-        });
-      return structuredClone({
-        version: 1,
-        kind: 'pinned',
-        pin: snapshot.pin,
-        revision: snapshot.revision,
-        ownerEpoch: snapshot.ownerEpoch,
-        intents: snapshot.intents,
-        acceptances: snapshot.acceptances,
-        pendingCommandId: snapshot.pendingCommandId,
-        grant: snapshot.grant,
-      });
+      return await Promise.resolve(structuredClone(snapshot));
     },
     async stageRuntimeRequest(inputGuard, canonicalRequest) {
       const snapshot = structuredClone(inputGuard);
@@ -429,10 +443,17 @@ export function createMemoryStores(options: MemoryOptions): {
       const run = readRun(runId(identity));
       return await Promise.resolve(
         structuredClone({
-          version: 2,
+          version: 3,
           run,
+          recoveries: readRuntimeCatalog().recovery.histories.flatMap((history) =>
+            history.intent.target.kind === 'claim' &&
+            history.intent.target.runId === run.runId &&
+            history.closure !== null
+              ? [history.closure]
+              : [],
+          ),
           attempts: [...attempts.values()]
-            .map(decodeAttempt)
+            .map(decodeCurrentAttempt)
             .filter((attempt) => attempt.identity.runId === run.runId),
           pendingIntents: [...completions.values()]
             .filter(
@@ -582,10 +603,7 @@ export function createMemoryStores(options: MemoryOptions): {
         (entry) => entry.run.runId === inputRun && entry.attempt.attemptId === inputAttempt,
       );
       if (history === undefined) throw new Error('attempt does not exist');
-      const { recoveries: _recoveries, ...legacy } = history;
-      return await Promise.resolve(
-        structuredClone({ ...legacy, version: 1, attempt: decodeAttempt(history.attempt) }),
-      );
+      return await Promise.resolve(structuredClone(history));
     },
     async recordExecution(inputGuard, inputCommand) {
       const guardSnapshot = structuredClone(inputGuard);
@@ -597,7 +615,13 @@ export function createMemoryStores(options: MemoryOptions): {
       auditHistory();
       const guard = decodeAttemptGuard(guardSnapshot);
       const command = decodeExecutionCommand(commandSnapshot);
-      const replay = replayExecution(executions.get(command.commandId), guard, command);
+      // Proof: T3NMEX withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
+      const replay = replayExecution(
+        executions.get(command.commandId),
+        guard,
+        command,
+        readRuntimeCatalog().recovery,
+      );
       if (replay !== undefined) {
         if (replay.kind === 'refused') return finishReply(replay, observedAt);
         if (replay.value.reply.kind !== 'execution')
@@ -606,6 +630,13 @@ export function createMemoryStores(options: MemoryOptions): {
       }
       const run = readRun(guard.runId);
       const attempt = requireAttempt(guard.attemptId);
+      // Proof: T3I3M removed this interlock; public reattachment applied and changed the active claiming checkpoint. Exact restoration passed.
+      if (
+        isActiveRecoveryAttempt(readRuntimeCatalog(), attempt.attemptId) &&
+        command.fact.kind !== 'recovery_required' &&
+        command.fact.kind !== 'unresolved'
+      )
+        return finishReply({ kind: 'refused', reason: 'state_conflict' }, observedAt);
       const reply = planExecution(
         {
           run,
@@ -644,7 +675,13 @@ export function createMemoryStores(options: MemoryOptions): {
       auditHistory();
       const guard = decodeScopedAttemptGuard(guardSnapshot);
       const command = decodeClaimStageCommand(commandSnapshot);
-      const replay = replayExecution(executions.get(command.commandId), guard, command);
+      // Proof: T3NMCS withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
+      const replay = replayExecution(
+        executions.get(command.commandId),
+        guard,
+        command,
+        readRuntimeCatalog().recovery,
+      );
       if (replay !== undefined) {
         if (replay.kind === 'refused') return finishReply(replay, observedAt);
         if (replay.value.reply.kind !== 'claim_staged')
@@ -698,7 +735,13 @@ export function createMemoryStores(options: MemoryOptions): {
       auditHistory();
       const guard = decodeScopedAttemptGuard(guardSnapshot);
       const command = decodeClaimAcceptCommand(commandSnapshot);
-      const replay = replayExecution(executions.get(command.commandId), guard, command);
+      // Proof: T3NMCA withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
+      const replay = replayExecution(
+        executions.get(command.commandId),
+        guard,
+        command,
+        readRuntimeCatalog().recovery,
+      );
       if (replay !== undefined) {
         if (replay.kind === 'refused') return finishReply(replay, observedAt);
         if (replay.value.reply.kind !== 'claim_accepted')
@@ -752,7 +795,13 @@ export function createMemoryStores(options: MemoryOptions): {
       auditHistory();
       const guard = decodeScopedAttemptGuard(guardSnapshot);
       const command = decodeTurnStageCommand(commandSnapshot);
-      const replay = replayExecution(executions.get(command.commandId), guard, command);
+      // Proof: T3NMTS withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
+      const replay = replayExecution(
+        executions.get(command.commandId),
+        guard,
+        command,
+        readRuntimeCatalog().recovery,
+      );
       if (replay !== undefined) {
         if (replay.kind === 'refused') return finishReply(replay, observedAt);
         if (replay.value.reply.kind !== 'turn_staged')

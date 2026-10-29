@@ -10,6 +10,7 @@ import type {
 import type {
   Admission,
   Attempt,
+  AttemptGuard,
   AttemptId,
   CommandReceipt,
   Completion,
@@ -21,11 +22,13 @@ import type {
   ManifestDigest,
   OwnerId,
   Ownership,
-  Revision,
   Run,
+  RunGuard,
   RunId,
   RunSnapshot,
+  ScopedAttemptGuard,
 } from './records';
+import type { RecoveryBeginCall, RecoveryHistory } from './recovery-records';
 import type {
   RuntimeAcceptance,
   RuntimeAcceptanceInput,
@@ -35,6 +38,8 @@ import type {
   RuntimeScope,
   RuntimeScopeSnapshot,
 } from './runtime-records';
+
+export type { AttemptGuard, RunGuard, ScopedAttemptGuard } from './records';
 
 export type StoreRefusal =
   | 'owner_busy'
@@ -51,21 +56,10 @@ export type StoreReply<T> =
   | { readonly kind: 'applied'; readonly value: T }
   | { readonly kind: 'duplicate'; readonly value: T }
   | { readonly kind: 'refused'; readonly reason: StoreRefusal };
-export interface RunGuard {
-  readonly ownership: Ownership;
-  readonly runId: RunId;
-  readonly expectedRevision: Revision;
-}
-export interface AttemptGuard extends RunGuard {
-  readonly attemptId: AttemptId;
-  readonly expectedAttemptRevision: Revision;
-}
-export interface ScopedAttemptGuard extends AttemptGuard {
-  readonly scope: RuntimeScope;
-  readonly expectedScopeRevision: Revision;
-}
 /** Async semantic persistence boundary; conflicts refuse, missing/corrupt trusted state throws. */
 export interface RunStore {
+  /** Retains an immutable recovery journal without advancing scope or target revisions. */
+  beginRecovery(call: RecoveryBeginCall): Promise<StoreReply<RecoveryHistory>>;
   /** Atomically retains one exact WBS claim request with its attempt transition; never sends it. */
   stageClaim(
     guard: ScopedAttemptGuard,

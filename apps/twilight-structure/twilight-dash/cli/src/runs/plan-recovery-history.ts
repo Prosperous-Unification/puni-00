@@ -629,3 +629,20 @@ export function auditRecoveryCatalog(catalog: RuntimeCatalog, ownership: Ownersh
       throw new Error('corrupt recovery active target');
   }
 }
+
+/** Finds a retained recovery command reservation across journal, wire-fence and future claim-acceptance domains. Ordinary run/session/artifact identities are outside this namespace. */
+export function findRecoveryCommand(
+  recovery: RecoveryCatalog,
+  commandId: string,
+): RecoveryHistory | undefined {
+  // Proof: T3N1 removed only this lookup; all six public command families plus reserved acceptance-ID execution admitted collisions in both providers. Exact restoration passed.
+  return recovery.histories.find(
+    (history) =>
+      history.intent.recoveryId === commandId ||
+      history.fences.some(
+        (fence) => readRuntimeRequest(fence.canonicalRequest).operation.commandId === commandId,
+      ) ||
+      (history.intent.target.kind === 'claim' &&
+        history.intent.target.acceptanceCommandId === commandId),
+  );
+}

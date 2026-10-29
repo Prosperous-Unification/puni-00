@@ -2,6 +2,7 @@ import type { ClaimRef } from './claim-records';
 import type { Attempt, Attempt2 } from './execution-records';
 import type * as codecs from './record-codecs';
 import type { RecoveryClosure } from './recovery-records';
+import type { RuntimeScope } from './runtime-records';
 export type {
   Attempt,
   Attempt2,
@@ -41,6 +42,19 @@ export interface Ownership {
   readonly ownerId: OwnerId;
   readonly epoch: Epoch;
   readonly expiresAt: Timestamp;
+}
+export interface RunGuard {
+  readonly ownership: Ownership;
+  readonly runId: RunId;
+  readonly expectedRevision: Revision;
+}
+export interface AttemptGuard extends RunGuard {
+  readonly attemptId: AttemptId;
+  readonly expectedAttemptRevision: Revision;
+}
+export interface ScopedAttemptGuard extends AttemptGuard {
+  readonly scope: RuntimeScope;
+  readonly expectedScopeRevision: Revision;
 }
 export interface OwnershipStatus {
   readonly storeId: StoreId;

@@ -264,6 +264,7 @@ test('migration down chain removes exactly the provider schema', async () => {
     try {
       validateDatabase(database);
       for (const statement of [
+        ...MIGRATIONS[3].down.split('--> statement-breakpoint'),
         ...MIGRATIONS[2].down.split('--> statement-breakpoint'),
         ...MIGRATIONS[1].down.split('--> statement-breakpoint'),
         ...DOWN.split(';'),

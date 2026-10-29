@@ -19,6 +19,7 @@ import { type AttemptChange, planExecution, replayExecution } from '../plan-exec
 import { planOutcome } from '../plan-outcome';
 import { assertClock, planOwnership, planRenewal } from '../plan-ownership';
 import { planReceipt, replayReceipt } from '../plan-receipt';
+import { isActiveRecoveryAttempt, planRecoveryBegin } from '../plan-recovery';
 import {
   inspectRuntimeScope,
   planRuntimeAcceptance,
@@ -32,6 +33,7 @@ import {
   decodeAttempt,
   decodeAttemptGuard,
   decodeCompletion,
+  decodeCurrentAttempt,
   decodeExecutionCommand,
   decodeOwnership,
   decodeRun,
@@ -41,6 +43,7 @@ import {
   runId,
 } from '../record-codecs';
 import type { Ownership, OwnershipStatus, Run } from '../records';
+import { decodeRecoveryBeginCall } from '../recovery-codecs';
 import type { RunStore, StoreReply } from '../run-store';
 import {
   decodeRuntimeAcceptanceInput,
@@ -53,6 +56,7 @@ import { findExecution, validateAttempt } from './read-executions';
 import { readHistory } from './read-history';
 import { readRuntimeCatalog } from './read-runtime';
 import { findConsumption, findDecision, findReceipt } from './read-signals';
+import { insertRecoveryBegin } from './recovery-store';
 import { decodeAttemptRow, decodeManifestRow, decodeRunRow } from './row-codecs';
 import { decodeCompletionRow } from './row-codecs';
 import { insertRuntimeAcceptance, insertRuntimeIntent, insertRuntimePin } from './runtime-store';
@@ -220,6 +224,24 @@ export function createSqliteRunStore(
         .run(change.attempt.attemptId);
   }
   const runs: RunStore = {
+    // Proof: T3BCS removed only this new dependency; begin detaches retained caller mutation after submission; exact restoration passed.
+    async beginRecovery(input) {
+      // Proof: T3BCSCLOCK replacing the snapshot with caller input retained mutation performed by the real clock dependency; exact restoration passed.
+      const snapshot = structuredClone(input);
+      // Proof: T3BORDERS moving target decoding ahead of this owner boundary threw ValidationError instead of owner_stale; exact restoration passed.
+      const ownership = decodeOwnership(snapshot.guard.ownership);
+      // Proof: T3BTXN bypassed only this new transaction call; a late marker abort left journal/index rows published; exact restoration passed.
+      return await transact(true, () => {
+        const { authority } = readAuthority(ownership);
+        // Proof: T3B1S removed only this new dependency; the expired-owner begin test observed an applied journal; exact restoration passed.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        const { catalog } = readHistory(database);
+        const reply = planRecoveryBegin(catalog, decodeRecoveryBeginCall(snapshot));
+        if (reply.kind === 'applied') insertRecoveryBegin(database, reply.value);
+        return finish(reply, authority.observedAt);
+      });
+    },
     async pinRuntimeScope(requested, input) {
       const ownership = decodeOwnership(structuredClone(requested));
       const snapshot = structuredClone(input);
@@ -245,24 +267,7 @@ export function createSqliteRunStore(
           scope,
           meta.ownership,
         );
-        if (snapshot.kind === 'uninitialized')
-          return {
-            version: 1,
-            kind: 'uninitialized',
-            scope: snapshot.scope,
-            ownerEpoch: snapshot.ownerEpoch,
-          };
-        return {
-          version: 1,
-          kind: 'pinned',
-          pin: snapshot.pin,
-          revision: snapshot.revision,
-          ownerEpoch: snapshot.ownerEpoch,
-          intents: snapshot.intents,
-          acceptances: snapshot.acceptances,
-          pendingCommandId: snapshot.pendingCommandId,
-          grant: snapshot.grant,
-        };
+        return snapshot;
       });
     },
     async stageRuntimeRequest(inputGuard, canonicalRequest) {
@@ -409,10 +414,17 @@ export function createSqliteRunStore(
         const snapshot = readHistory(database);
         const { run } = requireRun(runId(identity));
         return {
-          version: 2,
+          version: 3,
           run,
+          recoveries: snapshot.catalog.runtime.recovery.histories.flatMap((history) =>
+            history.intent.target.kind === 'claim' &&
+            history.intent.target.runId === run.runId &&
+            history.closure !== null
+              ? [history.closure]
+              : [],
+          ),
           attempts: snapshot.catalog.attempts
-            .map((entry) => decodeAttempt(entry.attempt))
+            .map((entry) => decodeCurrentAttempt(entry.attempt))
             .filter((attempt) => attempt.identity.runId === run.runId)
             .sort(
               (left, right) =>
@@ -602,8 +614,7 @@ export function createSqliteRunStore(
           (entry) => entry.run.runId === inputRun && entry.attempt.attemptId === inputAttempt,
         );
         if (history === undefined) throw new Error('attempt does not exist');
-        const { recoveries: _recoveries, ...legacy } = history;
-        return { ...legacy, version: 1, attempt: decodeAttempt(history.attempt) };
+        return history;
       });
     },
     async recordExecution(inputGuard, inputCommand) {
@@ -617,7 +628,13 @@ export function createSqliteRunStore(
         const snapshot = readHistory(database);
         const guard = decodeAttemptGuard(guardSnapshot);
         const command = decodeExecutionCommand(commandSnapshot);
-        const replay = replayExecution(findExecution(database, command.commandId), guard, command);
+        // Proof: T3NSEX withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
+        const replay = replayExecution(
+          findExecution(database, command.commandId),
+          guard,
+          command,
+          snapshot.catalog.runtime.recovery,
+        );
         if (replay !== undefined) {
           if (replay.kind === 'refused') return finish(replay, authority.observedAt);
           if (replay.value.reply.kind !== 'execution')
@@ -629,6 +646,13 @@ export function createSqliteRunStore(
         }
         const { run } = requireRun(guard.runId);
         const attempt = requireAttempt(guard.attemptId);
+        // Proof: T3I3S removed this interlock; public reattachment applied and changed the active claiming checkpoint. Exact restoration passed.
+        if (
+          isActiveRecoveryAttempt(snapshot.catalog.runtime, attempt.attemptId) &&
+          command.fact.kind !== 'recovery_required' &&
+          command.fact.kind !== 'unresolved'
+        )
+          return finish({ kind: 'refused', reason: 'state_conflict' }, authority.observedAt);
         const reply = planExecution(
           {
             run,
@@ -668,7 +692,13 @@ export function createSqliteRunStore(
         const snapshot = readHistory(database);
         const guard = decodeScopedAttemptGuard(guardSnapshot);
         const command = decodeClaimStageCommand(commandSnapshot);
-        const replay = replayExecution(findExecution(database, command.commandId), guard, command);
+        // Proof: T3NSCS withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
+        const replay = replayExecution(
+          findExecution(database, command.commandId),
+          guard,
+          command,
+          snapshot.catalog.runtime.recovery,
+        );
         if (replay !== undefined) {
           if (replay.kind === 'refused') return finish(replay, authority.observedAt);
           if (replay.value.reply.kind !== 'claim_staged')
@@ -731,7 +761,13 @@ export function createSqliteRunStore(
         const snapshot = readHistory(database);
         const guard = decodeScopedAttemptGuard(guardSnapshot);
         const command = decodeClaimAcceptCommand(commandSnapshot);
-        const replay = replayExecution(findExecution(database, command.commandId), guard, command);
+        // Proof: T3NSCA withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
+        const replay = replayExecution(
+          findExecution(database, command.commandId),
+          guard,
+          command,
+          snapshot.catalog.runtime.recovery,
+        );
         if (replay !== undefined) {
           if (replay.kind === 'refused') return finish(replay, authority.observedAt);
           if (replay.value.reply.kind !== 'claim_accepted')
@@ -794,7 +830,13 @@ export function createSqliteRunStore(
         const snapshot = readHistory(database);
         const guard = decodeScopedAttemptGuard(guardSnapshot);
         const command = decodeTurnStageCommand(commandSnapshot);
-        const replay = replayExecution(findExecution(database, command.commandId), guard, command);
+        // Proof: T3NSTS withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
+        const replay = replayExecution(
+          findExecution(database, command.commandId),
+          guard,
+          command,
+          snapshot.catalog.runtime.recovery,
+        );
         if (replay !== undefined) {
           if (replay.kind === 'refused') return finish(replay, authority.observedAt);
           if (replay.value.reply.kind !== 'turn_staged')

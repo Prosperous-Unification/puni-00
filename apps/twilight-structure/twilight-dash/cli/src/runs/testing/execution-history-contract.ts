@@ -141,7 +141,7 @@ export function executionHistoryContract(
           holdsCapacity: true,
         });
         expect(snapshot.attempts[0]?.state).toEqual({ kind: 'queued' });
-        expect(snapshot.version).toBe(2);
+        expect(snapshot.version).toBe(3);
         expect(snapshot.run.revision).toBe(1);
       } finally {
         await stores.close();

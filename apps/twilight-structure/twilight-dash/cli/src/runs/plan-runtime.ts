@@ -1,5 +1,6 @@
 import {
   auditRecoveryCatalog,
+  findRecoveryCommand,
   reconstructRuntimePrefix,
   type RecoveryCatalog,
 } from './plan-recovery-history';
@@ -159,6 +160,9 @@ export function planRuntimeStage(
     return previous.canonicalRequest === canonicalRequest
       ? { kind: 'duplicate', value: previous }
       : { kind: 'refused', reason: 'identity_conflict' };
+  // Proof: T3NRT removing this namespace check admitted the colliding fresh command; exact restoration passed.
+  if (findRecoveryCommand(catalog.recovery, operation.commandId) !== undefined)
+    return { kind: 'refused', reason: 'identity_conflict' };
   const snapshot = inspectRuntimeScope(catalog, scope, ownership);
   // Proof: F64 removed the named never-pinned diagnostic; 'authority history port exists' failed and exact restoration passed.
   if (snapshot.kind !== 'pinned') throw new Error('runtime scope is not pinned');
@@ -244,6 +248,9 @@ export function planRuntimeAcceptance(
   // Proof: F37 removed fresh acceptance revision comparison; 'one pending command' failed and exact restoration passed.
   if (snapshot.revision !== guard.expectedRevision)
     return { kind: 'refused', reason: 'revision_conflict' };
+  // Proof: T3I1 removed this interlock; both public acceptance calls applied behind an active journal. Exact restoration passed.
+  if (snapshot.version === 2 && snapshot.activeRecoveryId !== null)
+    return { kind: 'refused', reason: 'state_conflict' };
   if (snapshot.pendingCommandId !== retained.commandId)
     return { kind: 'refused', reason: 'state_conflict' };
   const { operation } = readRuntimeRequest(retained.canonicalRequest);

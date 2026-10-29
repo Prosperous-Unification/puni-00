@@ -275,6 +275,9 @@ export function planClaimAcceptance(
     )
   )
     return { kind: 'refused', reason: 'identity_conflict' };
+  // Proof: T3I2 removed this interlock; both public claim acceptances applied behind the active target. Exact restoration passed.
+  if (facts.runtime.recovery.active.some((active) => equalRuntimeScopes(active.scope, guard.scope)))
+    return { kind: 'refused', reason: 'state_conflict' };
   const conflict = checkScoped(facts, guard);
   if (conflict !== undefined) return conflict;
   const reply = claimAcceptTransition(facts, command);

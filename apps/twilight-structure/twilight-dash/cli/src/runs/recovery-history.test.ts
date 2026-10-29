@@ -168,6 +168,21 @@ test('verified successor execution refuses predecessor scope without recovery wi
   const history = await stores.runs.readExecutionHistory(setup.run.runId, setup.attempt.attemptId);
   const runs = {
     ...stores.runs,
+    readRuntimeScope: async (scope: Parameters<typeof stores.runs.readRuntimeScope>[0]) => {
+      const current = await stores.runs.readRuntimeScope(scope);
+      if (current.kind !== 'pinned') throw new Error('expected pinned fixture scope');
+      return {
+        version: 1 as const,
+        kind: 'pinned' as const,
+        pin: current.pin,
+        revision: current.revision,
+        ownerEpoch: current.ownerEpoch,
+        intents: current.intents,
+        acceptances: current.acceptances,
+        pendingCommandId: current.pendingCommandId,
+        grant: current.grant,
+      };
+    },
     readExecutionHistory: () =>
       Promise.resolve({ ...history, version: 2 as const, recoveries: [] }),
   };
