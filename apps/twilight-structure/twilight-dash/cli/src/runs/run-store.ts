@@ -68,8 +68,9 @@ export type StoreReply<T> =
   | { readonly kind: 'refused'; readonly reason: StoreRefusal };
 /** Async semantic persistence boundary; conflicts refuse, missing/corrupt trusted state throws. */
 export interface RunStore {
-  /** Retains an immutable recovery journal without advancing scope or target revisions. */
+  /** Atomically closes recovery with its scope barrier and target consequences while retaining capacity. Exact replay returns the immutable original closure without reapplying consequences. */
   resolveRecovery(call: RecoveryResolveCall): Promise<StoreReply<RecoveryClosure>>;
+  /** Retains an immutable recovery journal without advancing scope or target revisions. */
   beginRecovery(call: RecoveryBeginCall): Promise<StoreReply<RecoveryHistory>>;
   /** Stages one of at most three dominating receiver fences, advancing only recovery revision. Exact replay retains original provenance; trusted projections do not authenticate transport. */
   stageRecoveryFence(call: RecoveryCall<RecoveryFenceInput>): Promise<StoreReply<RecoveryFence>>;
