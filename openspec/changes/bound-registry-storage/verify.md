@@ -2613,3 +2613,73 @@ and private archive pin was rechecked after both audits. Closure
 `/tmp/task8-parent-host60-closure.json` (`2ca78273`) retains raw stdout `806122c9`
 and stderr `180da433`. HOST60 is closed as failed, its source freeze is released,
 and no production safeguards are activated.
+
+### ACK failed-child diagnostics: bounded drain and strict observation
+
+The actual launcher and actual owned-child waiter reproduce diagnostic loss with
+controlled streams: the terminal-failure case failed because cancellation arrived
+before stderr delivery. The new launcher permits draining only for the trusted
+waiter's exact nonzero-terminal error after a fulfilled direct exit and while the
+selected signal remains active. The actual waiter throws that error only after
+its group-absence convergence and abort check. Rejected exit observation,
+unconfirmed group, EPERM and selected cancellation still cancel immediately;
+the existing captured-child fallback and bounded group observation are unchanged.
+
+Failure observation uses the existing strict redactor on at most 4096 stderr
+bytes, or marks the stream unavailable. It emits only fixed categories and numeric
+frames, then preserves the original refusal. A reporter failure retains both
+failures. Zero exit with diagnostics remains a refusal. Eleven new cases passed
+with 81 assertions after the original targeted RED. Eight exact counterfactuals
+observed lost confirmed-terminal output, inappropriate draining under uncertain
+cleanup, reflected private text without the redactor, false empty observation,
+missing required reports, lost original/reporter array membership and missing
+zero-exit diagnostics. Clock/group/child/spawn/FFI and admission remain modeled;
+the tests use controlled real streams and the actual reader/redactor. Their
+100ms rescue does not prove native ten-second timing.
+
+Final affected checks pass 122 tests/1007 assertions, scoped launcher/test lint,
+and library/spec typechecks. The initial one void-callback lint failure is retained;
+an explicit callback block corrected it. Complete whitespace-only Bun emission
+matches the launcher before/after comments and formatting. Three changed-runtime
+controls differ. The test-harness transfer explicitly records its sole callback
+block normalization. Cover `/tmp/task8-pressure-probe-observation-covering.json`
+(`e2abb5b6`) binds sixty artifacts and the observed failures; final launcher is
+`07758953`, new test `762f3156`, and the actual waiter remains `20209093`.
+This local correction improves diagnosis; the underlying native ACK refusal is
+still unknown before a new native run. No production safeguards are activated.
+
+### HOST61: small ACK allocation succeeds after filler ENOSPC
+
+Manifest `63ad416b`, driver `0541434c` and archive `8947e273` bind the new normal
+bundle `62b4ceb3` and unchanged API bundle `29fb02f9`. The only runtime source
+change since HOST60 is the launcher's bounded diagnostic preservation. Complete
+111-source/274-build-input freezes and private archives preceded execution;
+independent host/API rebuilds matched byte-for-byte. The inner and workload are
+byte-identical to HOST60; outer syntax differs only in expected payload hashes.
+The existing isolation, heavy lock, 896 MiB envelope and deadlines remain intact.
+
+The one run exited1 after 60.73 seconds without timeout (`5d7805`). Native readback
+matched all three installed aliases to `62b4ceb3`. The new failure observation
+retained child exit1 and a valid bounded redacted frame at bundle27829. Inspection
+of that exact pinned bundle maps the frame to
+`Current fixture ACK allocation unexpectedly succeeded`: the ACK file opened and
+its request write succeeded after the earlier filler ENOSPC. The rejection is
+correct. A preceding large-file ENOSPC alone did not establish failure of this
+small fresh allocation. The reason it still fit remains unproved; neither a
+preallocation-release explanation nor an allocation-granularity explanation is
+established by this run. No allocation guard was weakened, and this is not a
+successful pressure-stop, new backup or recovery proof.
+
+Teardown observed the workload terminal, no remaining namespace processes,
+normal unmount order, four detached loops and the fixture removed. All 114 periodic
+host-root/cgroup samples and the final view remained unchanged. Both distinct
+read-only cleanup audits exited0 with empty stderr: full-process/mount/FD/backing
+census stdout `6c00db5f`, and independent observer stdout `4a174578`. They confirmed
+the exact owned root, namespace and outside PID/start identities absent, no owned
+lock record or backing references, unchanged host identity and 113826820096 bytes
+root reserve. Sources, actual inputs, configuration, nine payloads and private
+archives were rechecked after both audits. Closure
+`/tmp/task8-parent-host61-closure.json` (`e285f11b`) pins raw stdout `66a6d587`
+and stderr `fa977c7c`. HOST61 is closed as failed, its runtime freeze is released,
+and no production safeguards were activated. The next investigation concerns the
+filler's exhaustion guarantee for the actual small allocation, not ACK acceptance.
