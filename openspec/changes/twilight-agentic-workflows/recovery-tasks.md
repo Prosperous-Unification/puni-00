@@ -551,18 +551,22 @@ The complete validated observation accompanies each modeled pending reason; no o
 
 - [x] **RED — actual receiver fixture.** Build `createRecoveryReceiver(): Promise<RecoveryReceiverFixture>` in `testing/recovery-receiver.ts` using existing WBS SQLite source and real receiver/controller composition. Define the fixture with `client: RuntimeClient`, `scope: RuntimeScope`, `ledgerId: string`, `requests: readonly {operationId:string;commandId:string|null}[]`, `close():Promise<void>`, and narrowly controlled request barriers `pause(commandId:string): {entered:Promise<void>;release():void}`. The client uses `createRuntimeClient` over actual Response transport; pause observes the real request before receiver admission. Seed real organization/person/work/step, authority and claim through production APIs; obtain actual returned claimId/actor/basis. Add complete cleanup/child/connection ownership and bounded waits.
 - [x] **RED — delayed-original counterexample/control.** At receiver generation1, retain an original authority request expecting2 and hold its delivery. A weak expected1 fence accepts2, after which delayed original accepts3: this is the decisive unsafe control. Production recovery must refuse state1 below threshold2, or after real advancement use state≥2 and commit a fence strictly above original's accepted generation if lookup finds acceptance. For claim authority1, real fence2 must make delayed claim1 refuse. Check actual receiver receipt lookup and durable ledger, not a mocked comparison or model. Demonstrate accepted original ready binding and subsequent hold with actual receipt-derived fields.
-- [x] **RED — commit then capture.** Wrap the real provider recordRecoveryFence with an owned deferred return after invocation but before acknowledgement; block the helper's original lookup while the commit acknowledgement is unresolved. Record trace events at actual transaction commit/return and actual transport entry. The critical assertion is:
+- [x] **RED — commit then capture.** Wrap the real provider recordRecoveryFence with an owned deferred return after invocation but before acknowledgement; block the helper's original lookup while the commit acknowledgement is unresolved. Record wrapper acknowledgement release and actual transport entry; the delegate returns before the entered handshake, and physical commit is not instrumented. The critical assertion is:
 
 ```ts
-expect(trace).toContain('fence-stage-committed');
-expect(trace.indexOf('fence-post')).toBeGreaterThan(trace.indexOf('fence-stage-committed'));
+expect(trace).toContain('fence-stage-acknowledgement-released');
+expect(trace.indexOf('fence-post')).toBeGreaterThan(
+  trace.indexOf('fence-stage-acknowledgement-released'),
+);
 expect(trace).not.toContain('original-lookup');
 releaseObservation.resolve(undefined);
 await dispatch;
-expect(trace.indexOf('original-lookup')).toBeGreaterThan(trace.indexOf('observation-committed'));
+expect(trace.indexOf('original-lookup')).toBeGreaterThan(
+  trace.indexOf('observation-acknowledgement-released'),
+);
 ```
 
-`trace: string[]`, `releaseObservation = Promise.withResolvers<void>()`, and `dispatch` are owned by this test; append entries at the actual wrapper/transport events. Before releasing, assert the trace after the transport/commit entered handshake, never a sleep guess. Add supersession state-before-dependent-lookup ordering and stale pre-fence404 association rejection with plausible but mismatched typed links. Fully fabricated identical later links are not distinguishable here; only real helper/transport handshakes and faults earn chronology credit.
+`trace: string[]`, `releaseObservation = Promise.withResolvers<void>()`, and `dispatch` are owned by this test; append entries at the actual wrapper/transport events. Before releasing, assert the trace after the transport/delegate-return entered handshake, never a sleep guess. Add supersession state-before-dependent-lookup ordering and stale pre-fence404 association rejection with plausible but mismatched typed links. Fully fabricated identical later links are not distinguishable here; only real helper/transport handshakes and faults earn chronology credit.
 
 - [x] **Run RED:** `bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-dash/cli/src/runs/recovery-dispatch.test.ts ./apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/recovery-dispatch.db.test.ts --timeout=60000`.
 - [x] **GREEN — bounded orchestration.** Read and verify complete retained history; replay closed journal without POST. Renew current ownership and check live cancellation before every POST. Reuse retained exact fence bytes after pre-send/lost-reply crashes; only this helper has retransmission permission. Track POST count per invocation independently from persisted three-identity limit. Use actual state and receipt lookup for supersession; no fourth identity. On accepted fence, retain/verify reply, await recordRecoveryFence, create original_lookup context naming observation ordinal/revision/envelope/body refs, perform a new capture, verify it and derive accepted/absent decision. For accepted claim derive command through Task1. Preserve the submitted owner, run, attempt and scope preconditions across awaits; advance recovery revision only by this invocation's exact successful acknowledgements. A concurrent safe evidence change that advances a guarded revision causes the precise refusal and leaves recovery unresolved; a new explicit invocation may inspect and supply current guards. Never refresh captured guards after a lookup. Corrupt/unavailable trusted evidence throws correlated unexpected error; cancellation/transport/validated receiver refusal/below-threshold stays unresolved with precise observation. POST-budget exhaustion throws correlated exhausted error, journal active and capacity reserved.
@@ -570,6 +574,8 @@ expect(trace.indexOf('original-lookup')).toBeGreaterThan(trace.indexOf('observat
 - [x] **R5:** Break only new helper await/capture/budget/threshold dependencies and observe actual premature POST/lookup, fourth send or real receiver unsafe control. Keep receiver monotone CAS, public schema, canonical digest, old replay and store guards installed. Typed contexts alone earn no chronology/authenticity credit.
 - [x] **Validation:** Run focused tests GREEN plus ordinary authority/claim/turn dispatch contracts, typecheck and provider recovery suites. Record actual receiver state/receipt observations, not only trace ordering.
 - [x] **Commit:** `git commit -m "feat(twilight-dash): dispatch bounded journaled recovery"`.
+
+- [x] **Review round1 — fixture ownership and trace precision.** Drain all pending deliveries, always attempt receiver/store disposal, preserve single/aggregate causes including construction failure, and prove cleanup with actual rejected delivery/held second request/SQLite closure. Trace events identify wrapper acknowledgement release, never instrumented physical commit. See recovery-verify.md.
 
 ### Task 8: Prove populated-store compatibility and deliver the review packet
 

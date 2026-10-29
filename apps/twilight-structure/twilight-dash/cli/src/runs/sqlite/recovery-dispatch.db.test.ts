@@ -23,8 +23,14 @@ recoveryDispatchContract('sqlite', async () => {
     ...stores,
     clock,
     async close() {
-      await stores.close();
-      rmSync(directory, { recursive: true });
+      await closeRecoveryResources([
+        stores,
+        {
+          close: () => {
+            rmSync(directory, { recursive: true });
+          },
+        },
+      ]);
     },
   };
 });
@@ -33,7 +39,7 @@ import { expect, test } from 'bun:test';
 
 import { dispatchRecovery } from '../dispatch-recovery';
 import { beginAuthority } from '../testing/recovery-dispatch-contract';
-import { createRecoveryReceiver } from '../testing/recovery-receiver';
+import { closeRecoveryResources, createRecoveryReceiver } from '../testing/recovery-receiver';
 import { openSqliteStores } from './open-stores';
 
 for (const cut of ['before-send', 'lost-reply'] as const)
@@ -102,8 +108,14 @@ for (const cut of ['before-send', 'lost-reply'] as const)
         recoveries: [{ fences: before.recoveries[0].fences }],
       });
     } finally {
-      await receiver.close();
-      await stores.close();
-      rmSync(directory, { recursive: true });
+      await closeRecoveryResources([
+        receiver,
+        stores,
+        {
+          close: () => {
+            rmSync(directory, { recursive: true });
+          },
+        },
+      ]);
     }
   });

@@ -17,6 +17,7 @@ import type { OutcomeFixture } from './fixtures';
 import { unwrapReply } from './fixtures';
 import {
   acquireReceiverAuthority,
+  closeRecoveryResources,
   createRecoveryReceiver,
   readReceiverState,
   type RecoveryReceiverFixture,
@@ -147,8 +148,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
           generationFloor: 4,
         });
       } finally {
-        await receiver.close();
-        await stores.close();
+        await closeRecoveryResources([receiver, stores]);
       }
     });
 
@@ -173,14 +173,14 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
               const ack = await stores.runs.stageRecoveryFence(input);
               enteredStage.resolve(undefined);
               await releaseStage.promise;
-              trace.push('fence-stage-committed');
+              trace.push('fence-stage-acknowledgement-released');
               return ack;
             },
             async recordRecoveryFence(input) {
               const ack = await stores.runs.recordRecoveryFence(input);
               enteredObservation.resolve(undefined);
               await releaseObservation.promise;
-              trace.push('observation-committed');
+              trace.push('observation-acknowledgement-released');
               return ack;
             },
           },
@@ -197,9 +197,9 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
           releaseStage.resolve(undefined);
           await waitForReceiver(enteredObservation.promise);
           await readReceiverState(receiver);
-          expect(trace).toContain('fence-stage-committed');
+          expect(trace).toContain('fence-stage-acknowledgement-released');
           expect(trace.indexOf('fence-post')).toBeGreaterThan(
-            trace.indexOf('fence-stage-committed'),
+            trace.indexOf('fence-stage-acknowledgement-released'),
           );
           expect(trace).not.toContain('original-lookup');
         } catch (cause) {
@@ -217,7 +217,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
           closure: { decision: { kind: 'fenced_nonaccepted' } },
         });
         expect(trace.indexOf('original-lookup')).toBeGreaterThan(
-          trace.indexOf('observation-committed'),
+          trace.indexOf('observation-acknowledgement-released'),
         );
         const before = receiver.requests.length;
         expect(
@@ -233,8 +233,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
       } finally {
         releaseStage.resolve(undefined);
         releaseObservation.resolve(undefined);
-        await receiver.close();
-        await stores.close();
+        await closeRecoveryResources([receiver, stores]);
       }
     });
 
@@ -313,8 +312,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
               expect((await readReceiverState(receiver)).claims).toEqual([]);
             }
           } finally {
-            await receiver.close();
-            await stores.close();
+            await closeRecoveryResources([receiver, stores]);
           }
         },
       );
@@ -400,8 +398,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
               : ['recover-original:fence:1', 'recover-original:fence:1'],
           );
         } finally {
-          await receiver.close();
-          await stores.close();
+          await closeRecoveryResources([receiver, stores]);
         }
       });
 
@@ -445,8 +442,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
             pendingCommandId: 'original',
           });
         } finally {
-          await receiver.close();
-          await stores.close();
+          await closeRecoveryResources([receiver, stores]);
         }
       });
 
@@ -502,8 +498,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
           recoveries: [{ fences: [fence] }],
         });
       } finally {
-        await receiver.close();
-        await stores.close();
+        await closeRecoveryResources([receiver, stores]);
       }
     });
 
@@ -582,8 +577,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
             recoveries: [{ closure: null, observations: [{ kind: 'accepted' }] }],
           });
         } finally {
-          await receiver.close();
-          await stores.close();
+          await closeRecoveryResources([receiver, stores]);
         }
       });
 
@@ -614,8 +608,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
         );
         expect(await dispatch).toMatchObject({ kind: 'resolved' });
       } finally {
-        await receiver.close();
-        await stores.close();
+        await closeRecoveryResources([receiver, stores]);
       }
     });
 
@@ -656,8 +649,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
           );
           expect(receiver.requests.length).toBe(before);
         } finally {
-          await receiver.close();
-          await stores.close();
+          await closeRecoveryResources([receiver, stores]);
         }
       });
     for (const lostThird of [false, true])
@@ -806,8 +798,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
               recoveries: [{ fences: journal.fences }],
             });
           } finally {
-            await receiver.close();
-            await stores.close();
+            await closeRecoveryResources([receiver, stores]);
           }
         },
       );
@@ -858,8 +849,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
           receiver.requests.filter((entry) => entry.operationId === 'acquireRuntimeAuthority'),
         ).toEqual([]);
       } finally {
-        await receiver.close();
-        await stores.close();
+        await closeRecoveryResources([receiver, stores]);
       }
     });
     test('safe uncertainty evidence during original lookup refuses captured run and attempt revisions', async () => {
@@ -917,8 +907,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
           ),
         ).toMatchObject({ kind: 'resolved' });
       } finally {
-        await receiver.close();
-        await stores.close();
+        await closeRecoveryResources([receiver, stores]);
       }
     });
 
@@ -950,8 +939,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
         ).toEqual(bytes);
         expect(closed.closure.fence.observation.reply.body.value.actorId).toBe(receiver.actorId);
       } finally {
-        await receiver.close();
-        await stores.close();
+        await closeRecoveryResources([receiver, stores]);
       }
     });
 
@@ -988,8 +976,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
           closure: { original: { commandId: 'claim-original' } },
         });
       } finally {
-        await receiver.close();
-        await stores.close();
+        await closeRecoveryResources([receiver, stores]);
       }
     });
     test('state dependency overflow throws before staging or POST', async () => {
@@ -1031,8 +1018,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
           receiver.requests.filter((entry) => entry.operationId === 'acquireRuntimeAuthority'),
         ).toEqual([]);
       } finally {
-        await receiver.close();
-        await stores.close();
+        await closeRecoveryResources([receiver, stores]);
       }
     });
 
@@ -1089,8 +1075,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
           recoveries: [{ closure: null }],
         });
       } finally {
-        await receiver.close();
-        await stores.close();
+        await closeRecoveryResources([receiver, stores]);
       }
     });
 
@@ -1153,8 +1138,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
           },
         );
       } finally {
-        await receiver.close();
-        await stores.close();
+        await closeRecoveryResources([receiver, stores]);
       }
     });
 
@@ -1192,8 +1176,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
           });
         } finally {
           Response.prototype.clone = clone;
-          await receiver.close();
-          await stores.close();
+          await closeRecoveryResources([receiver, stores]);
         }
       });
 
@@ -1253,8 +1236,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
             recoveries: [{ fences: [], observations: [], closure: null }],
           });
         } finally {
-          await receiver.close();
-          await stores.close();
+          await closeRecoveryResources([receiver, stores]);
         }
       });
 
@@ -1292,8 +1274,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
           },
         );
       } finally {
-        await receiver.close();
-        await stores.close();
+        await closeRecoveryResources([receiver, stores]);
       }
     });
     test('late original acceptance wins the first CAS and is dominated by the second recovery fence', async () => {
@@ -1358,8 +1339,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
           await delayed;
         }
       } finally {
-        await receiver.close();
-        await stores.close();
+        await closeRecoveryResources([receiver, stores]);
       }
     });
 
@@ -1408,8 +1388,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
             ]);
           }
         } finally {
-          await receiver.close();
-          await stores.close();
+          await closeRecoveryResources([receiver, stores]);
         }
       });
   });

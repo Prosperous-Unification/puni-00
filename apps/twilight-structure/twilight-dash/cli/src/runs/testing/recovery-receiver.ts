@@ -20,8 +20,14 @@ export interface RecoveryReceiverFixture {
   close(): Promise<void>;
 }
 
-/** Owns the composed SQLite/controller graph. Barriers stop actual transport before receiver admission. */
-export async function createRecoveryReceiver(): Promise<RecoveryReceiverFixture> {
+/** Owns the composed SQLite/controller graph. Barriers stop actual transport before receiver admission. The optional per-instance inspection hook is solely for fixture cleanup faults; setup failure still disposes its acquired harness. */
+export async function createRecoveryReceiver(
+  inspectHarness?: (
+    harness: Pick<OrganizationHarness, 'token' | 'closeComposed'> & {
+      readonly app: Pick<OrganizationHarness['app'], 'handle'>;
+    },
+  ) => void,
+): Promise<RecoveryReceiverFixture> {
   const harness = OrganizationHarness.openComposed();
   const barriers = new Map<
     string,
@@ -34,6 +40,7 @@ export async function createRecoveryReceiver(): Promise<RecoveryReceiverFixture>
   const activeReleases = new Set<ReturnType<typeof Promise.withResolvers<undefined>>>();
   const observers: ((request: { operationId: string; commandId: string | null }) => void)[] = [];
   try {
+    inspectHarness?.(harness);
     await harness.register('ada');
     harness.organization('org-a');
     harness.member('org-a', 'ada', 'admin');
@@ -138,12 +145,19 @@ export async function createRecoveryReceiver(): Promise<RecoveryReceiverFixture>
         for (const barrier of barriers.values()) barrier.release.resolve(undefined);
         for (const release of activeReleases) release.resolve(undefined);
         barriers.clear();
-        await Promise.all(pending);
-        await harness.closeComposed();
+        await closeRecoveryResources([{ close: () => harness.closeComposed() }], pending);
       },
     };
   } catch (cause) {
-    await harness.closeComposed();
+    // Proof: R7F06 bypassed construction aggregation; 'receiver construction ... true' lost the original inspection failure.
+    await closeRecoveryResources(
+      [{ close: () => harness.closeComposed() }],
+      [
+        Promise.resolve().then(() => {
+          throw cause;
+        }),
+      ],
+    );
     throw cause;
   }
 }
@@ -190,4 +204,28 @@ export async function waitForReceiver<T>(pending: Promise<T>): Promise<T> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** Drains every owned delivery before attempting every disposal; a single failure retains identity and independent failures retain order. */
+export async function closeRecoveryResources(
+  resources: readonly { close(): void | Promise<void> }[],
+  pending: Iterable<Promise<unknown>> = [],
+): Promise<void> {
+  const failures: unknown[] = [];
+  // Proof: R7F02 used fail-fast draining; 'receiver cleanup waits for every actual delivery' observed close settled while its second real request remained blocked.
+  const deliveries = await Promise.allSettled(pending);
+  for (const delivery of deliveries)
+    if (delivery.status === 'rejected') failures.push(delivery.reason);
+  // Proof: R7F01 threw before disposal and observed actual harness disposals0; R7F03 skipped the second resource and the actual SQLite scope read still succeeded.
+  for (const resource of resources) {
+    try {
+      await resource.close();
+    } catch (cause) {
+      failures.push(cause);
+    }
+  }
+  // Proof: R7F04 wrapped the single failure; 'receiver cleanup ... false' lost exact cause identity.
+  if (failures.length === 1) throw failures[0];
+  // Proof: R7F05 threw only the last failure; actual receiver/store cleanup tests lost their independent original causes.
+  if (failures.length > 1) throw new AggregateError(failures, 'Recovery fixture cleanup failed');
 }
