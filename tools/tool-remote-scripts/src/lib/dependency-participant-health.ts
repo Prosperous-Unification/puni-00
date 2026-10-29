@@ -19,30 +19,33 @@ function inspectJson(observation: ParticipantHttpObservation): unknown {
   return parsed;
 }
 const digest = (body: string) => createHash('sha256').update(body).digest('hex');
-/** Product health explicitly reports no checkout identity; independently pinned immutable image provenance is checked separately. */
+/** Product health explicitly reports no disk or running checkout identity; independently pinned immutable image provenance is checked separately. */
 export function inspectProductBackendHealth(observation: ParticipantHttpObservation): {
   readonly sha256: string;
   readonly commit: null;
+  readonly bootCommit: null;
 } {
   try {
-    const body = readClosed(inspectJson(observation), ['status', 'commit']);
-    if (body['status'] !== 'ok' || body['commit'] !== null)
+    const body = readClosed(inspectJson(observation), ['status', 'commit', 'bootCommit']);
+    // Proof: omitting only boot equality accepted actual producer null disk/non-null boot; its product consumer failed to throw.
+    if (body['status'] !== 'ok' || body['commit'] !== null || body['bootCommit'] !== null)
       throw new Error('product health differs');
-    return { sha256: digest(observation.body), commit: null };
+    return { sha256: digest(observation.body), commit: null, bootCommit: null };
   } catch {
     throw new Error('participant product backend health refused');
   }
 }
-/** Source health must identify the independently pinned checkout; immutable input and exact process checks establish the separate loaded-input binding. */
+/** Source health must bind both disk and boot commits to the independently pinned checkout; immutable input and exact process checks establish the separate loaded-input binding. */
 export function inspectSourceBackendHealth(
   observation: ParticipantHttpObservation,
   sourceSha: string,
-): { readonly sha256: string; readonly commit: string } {
+): { readonly sha256: string; readonly commit: string; readonly bootCommit: string } {
   try {
-    const body = readClosed(inspectJson(observation), ['status', 'commit']);
-    if (body['status'] !== 'ok' || body['commit'] !== sourceSha)
+    const body = readClosed(inspectJson(observation), ['status', 'commit', 'bootCommit']);
+    // Proof: omitting only boot equality accepted actual producer expected disk/stale boot; its source consumer failed to throw.
+    if (body['status'] !== 'ok' || body['commit'] !== sourceSha || body['bootCommit'] !== sourceSha)
       throw new Error('source health differs');
-    return { sha256: digest(observation.body), commit: sourceSha };
+    return { sha256: digest(observation.body), commit: sourceSha, bootCommit: sourceSha };
   } catch {
     throw new Error('participant source backend health refused');
   }

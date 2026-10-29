@@ -83,7 +83,7 @@ test('backend restart coordinator retains fences through durable ready', async (
       if (path === '/health') {
         healthRequests++;
         effects.push('health');
-        return Response.json({ status: 'ok', commit: null });
+        return Response.json({ status: 'ok', commit: null, bootCommit: null });
       }
       if (path === '/api/runtime/dependency-capability') {
         capabilityRequests++;
@@ -251,7 +251,7 @@ test('backend restart coordinator retains fences through durable ready', async (
           expect(restored.readiness.role).toBe('backend');
           expect(restored.readiness.observation.process.pid).toBe(40002);
           expect(restored.readiness.healthSha256).toBe(
-            hash(JSON.stringify({ status: 'ok', commit: null })),
+            hash(JSON.stringify({ status: 'ok', commit: null, bootCommit: null })),
           );
           expect(healthRequests).toBe(1);
           expect(capabilityRequests).toBe(1);

@@ -610,7 +610,7 @@ for (const fault of ['none', 'after-health', 'after-capability'] as const)
         if (path === '/health') {
           healthRequests++;
           if (fault === 'after-health') current.fault = 'init-object';
-          return Response.json({ status: 'ok', commit: null });
+          return Response.json({ status: 'ok', commit: null, bootCommit: null });
         }
         if (path === '/api/runtime/dependency-capability') {
           capabilityRequests++;
@@ -778,7 +778,7 @@ for (const fault of [
         const path = new URL(request.url).pathname;
         if (path === '/health') {
           healthRequests++;
-          return Response.json({ status: 'ok', commit: null });
+          return Response.json({ status: 'ok', commit: null, bootCommit: null });
         }
         if (path === '/api/runtime/dependency-capability') {
           capabilityRequests++;

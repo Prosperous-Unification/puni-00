@@ -62,7 +62,7 @@ async function runSolverBackendCase(scenario: SolverBackendCase) {
           if (runtime === undefined) throw new Error('solver runtime fixture absent');
           runtime.setProcessDrift(true);
         }
-        return Response.json({ status: 'ok', commit: null });
+        return Response.json({ status: 'ok', commit: null, bootCommit: null });
       }
       if (path === '/api/runtime/dependency-capability') {
         capabilityRequests++;

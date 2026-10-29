@@ -104,7 +104,7 @@ for (const kind of PARTICIPANT_OPENER_CASES)
         const path = new URL(request.url).pathname;
         if (path === '/health') {
           healthRequests++;
-          return Response.json({ status: 'ok', commit: null });
+          return Response.json({ status: 'ok', commit: null, bootCommit: null });
         }
         if (path === '/api/runtime/dependency-capability') {
           capabilityRequests++;
