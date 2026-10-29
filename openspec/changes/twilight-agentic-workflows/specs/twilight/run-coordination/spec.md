@@ -581,11 +581,28 @@ Provider bundles SHALL expose close(): Promise<void> outside semantic ports. Clo
 Authority and claim recovery SHALL retain an immutable recovery journal and complete
 versioned scope and execution witnesses. Its semantic mutation surface SHALL comprise
 beginRecovery, stageRecoveryFence, recordRecoveryFence and resolveRecovery. Application
-helpers SHALL detach inputs before awaits, read actual envelope/body artifacts through
+helpers SHALL detach guards before the first await and discovered journals before verification IO, read actual envelope/body artifacts through
 their byte and public-schema owners, and derive receiver-generated claim identities from
 the actual matching receipt. Synchronous persistence SHALL validate locked correspondence
 between those trusted values, retained requests, guard, target and references without
 artifact or network IO. Typed values and references SHALL NOT establish authenticity.
+
+#### Scenario: Journal discovery fails before original intent is available
+
+- **WHEN** the initial scope read fails or no supported journal/original can be discovered
+- **THEN** an ordinary discovery Error names recoveryId and scope and retains the original read failure cause
+- **AND** no RuntimeIntent or successful/pending outcome is invented; after discovery, unexpected failures use the correlated RecoveryDispatchError
+
+#### Scenario: Claim recovery verifies its complete execution history
+
+- **WHEN** the helper discovers a claim journal
+- **THEN** it requires the existing readManifest capability and uses the complete verified execution-history reader before sending, while preserving submitted guards across that IO
+
+#### Scenario: Capture failure already crossed the RuntimeClient boundary
+
+- **WHEN** RuntimeClient classifies a clone/body-read failure as transport with its original cause
+- **THEN** the helper preserves that transport observation and leaves the journal unresolved, subject to the third-POST exhaustion rule
+- **AND** helper-owned missing/mismatched validated capture, retention/read/integrity/schema/envelope failures throw correlated unexpected errors
 
 #### Scenario: A stored projection keeps its reference but changes its value
 
@@ -655,6 +672,8 @@ subsequent exact absence lookup of the prior fence, with complete dependency cor
 - **WHEN** recovery cannot converge within three POSTs
 - **THEN** the invocation throws a correlated bounded-exhaustion error while the journal remains unresolved and capacity remains reserved
 - **AND** no fourth identity or POST is emitted and no ordinary pending request is implicitly resent
+- **AND** a transport failure on the third actual POST throws exhaustion with its original cause; earlier transport failures remain pending, cancellation stays controlled, and a normally accepted third POST can resolve
+- **AND** an accepted third fence with a lost reply can resume by exact retransmission, while three durable conflicts may remain permanently unresolved under the global identity cap
 
 ### Requirement: Ordered dominating fences precede original receipt interpretation
 
@@ -674,9 +693,10 @@ of that accepted fence; callers SHALL NOT substitute an earlier404 or an invente
 
 #### Scenario: An earlier404 is supplied after a fence
 
-- **WHEN** original lookup evidence predates the committed fence observation or names another recovery, ordinal, request, scope, ledger or observation revision
-- **THEN** the helper or locked correspondence check rejects it without publishing closure
-- **AND** stored context links alone do not prove transport authenticity or chronology
+- **WHEN** an earlier original lookup envelope names stale or mismatched recovery, ordinal, request, scope, ledger or observation associations
+- **THEN** the locked correspondence check rejects it without publishing closure
+- **AND** the private helper constructs and captures its fresh original lookup only after awaiting the real committed observation acknowledgement
+- **AND** stored context links cannot distinguish a fully fabricated earlier body naming identical later links and do not prove transport authenticity, chronology or physical quiescence
 
 ### Requirement: Closure publishes one complete plan from one valid predecessor
 

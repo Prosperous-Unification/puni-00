@@ -14,4 +14,6 @@ New-store-only support avoids upgrade work but postpones recovery of existing re
 
 Ordinary open still never upgrades or repairs state. Upgrade preserves every predecessor record and migration identity; unused successor down restores populated predecessor histories, while used recovery history refuses destructive reversal. Actual already-open and queued old-writer proofs, late rollback faults and complete historical reconstruction remain required implementation work. Logical nonacceptance proves neither worker termination nor permission to release capacity, and this intermediate slice does not complete write recovery, physical continuation or S0/S7a.
 
+The global three-fence cap may leave a journal permanently unresolved after three durable conflicts, retaining its reservation. Operator or replacement continuation remains subsequent work; the [recovery design](../../openspec/changes/twilight-agentic-workflows/recovery-design.md) owns the exact bounded protocol.
+
 Contract: [logical recovery](../../openspec/changes/twilight-agentic-workflows/recovery-design.md). Parent decision: [execution facts survive restart](0061-execution-facts-survive-coordinator-restart.md).

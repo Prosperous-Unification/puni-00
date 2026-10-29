@@ -228,6 +228,42 @@ export default ({
       rules: boundary(['^@wbs/contracts$']),
     },
     {
+      // Proof: T7P01 removed this consumer; actual-source admission failed. T7P05/P07 widened its allow list and sibling/relative denials failed. T7P06 admitted dispatch-turn and peer denial failed. All fatalErrorCount zero.
+      files: ['apps/twilight-structure/twilight-dash/cli/src/runs/dispatch-recovery.ts'],
+      rules: boundary(['^@wbs/contracts$']),
+    },
+    {
+      // Proof: T7P02 removed this consumer and actual-source admission failed. T7P08 widened Burokrat access and judge denial failed; fatalErrorCount zero.
+      files: [
+        'apps/twilight-structure/twilight-dash/cli/src/runs/testing/recovery-dispatch-contract.ts',
+      ],
+      rules: boundary(['^@twilight-burokrat/contracts$', '^@wbs/contracts$']),
+    },
+    {
+      // Proof: T7P03 removed this consumer and actual-source admission failed. T7P09 widened relative access and other-fixture denial failed; fatalErrorCount zero.
+      files: ['apps/twilight-structure/twilight-dash/cli/src/runs/testing/recovery-receiver.ts'],
+      rules: {
+        ...boundary([
+          '^@wbs/contracts$',
+          '^\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./wbs/be-01/src/testing/organization-harness$',
+        ]),
+        '@typescript-eslint/no-restricted-imports': [
+          'error',
+          {
+            patterns: [
+              {
+                // Proof: corrected T7P04 lost the other-helper restriction; corrected T7P10 denied actual harness import. Both reached fatalErrorCount zero.
+                regex:
+                  '^(?!\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./wbs/be-01/src/testing/organization-harness$).*[/]testing[/].*$',
+                message:
+                  'Only the exact composed organization harness is admitted to this recovery fixture.',
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
       files: ['apps/twilight-structure/twilight-dash/cli/src/resources/**/*.ts'],
       // Proof: removing this exact override failed `Dash resources reach only the WBS
       // transport contract at their scoped paths`; sibling/relative imports remain denied.

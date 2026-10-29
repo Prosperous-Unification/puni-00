@@ -1417,3 +1417,85 @@ describe('product lint policy discovery', () => {
     expect(unresolved.output, unresolved.output).toContain('apps/probe/eslint.product.mjs');
   }, 90_000);
 });
+
+describe('recovery dispatch exact consumer boundaries', () => {
+  const root = 'apps/twilight-structure/twilight-dash/cli/src/runs/';
+  const harness = '../../../../../../wbs/be-01/src/testing/organization-harness';
+  const consumers = [
+    ['dispatch-recovery.ts', ['@wbs/contracts']],
+    ['testing/recovery-dispatch-contract.ts', ['@wbs/contracts', '@twilight-burokrat/contracts']],
+    ['testing/recovery-receiver.ts', ['@wbs/contracts', harness]],
+  ] as const;
+  for (const [name, aliases] of consumers) {
+    it(
+      name + ' admits actual imports and denies sibling alias and relative bypass',
+      async () => {
+        const path = root + name;
+        const source = await readFile(join(workspace, path), 'utf8');
+        for (const alias of aliases) expect(importsAlias(source, alias)).toBe(true);
+        const [actual] = await lint.lintText(source, { filePath: path });
+        expect(actual.fatalErrorCount).toBe(0);
+        expect(actual.messages.map((message) => message.ruleId)).not.toContain(
+          '@nx/enforce-module-boundaries',
+        );
+        expect(actual.messages.map((message) => message.ruleId)).not.toContain(
+          '@typescript-eslint/no-restricted-imports',
+        );
+        for (const alias of [
+          '@wbs/store-memory',
+          '@twilight-burokrat/judge',
+          '@wbs/contracts/solver/supervisor-protocol',
+          relative(dirname(path), 'libs/wbs/domain/contracts/src/index.ts'),
+        ]) {
+          const [denial] = await lint.lintText('await import(' + JSON.stringify(alias) + ');', {
+            filePath: path,
+          });
+          expect(denial.fatalErrorCount).toBe(0);
+          expect(denial.messages.map((message) => message.ruleId)).toContain(
+            '@nx/enforce-module-boundaries',
+          );
+        }
+      },
+      30000,
+    );
+  }
+  it('receiver alone admits harness and keeps every other testing helper restricted', async () => {
+    const receiver = root + 'testing/recovery-receiver.ts';
+    const [denial] = await lint.lintText(
+      "import { TEST_JWT_KEY } from '../../../../../../wbs/be-01/src/testing/auth-fixture'; void TEST_JWT_KEY;",
+      { filePath: receiver },
+    );
+    expect(denial.fatalErrorCount).toBe(0);
+    expect(denial.messages.map((message) => message.ruleId)).toContain(
+      '@typescript-eslint/no-restricted-imports',
+    );
+    expect(denial.messages.map((message) => message.ruleId)).toContain(
+      '@nx/enforce-module-boundaries',
+    );
+    const [typebox] = await lint.lintText("import { Type } from '@sinclair/typebox'; void Type;", {
+      filePath: receiver,
+    });
+    expect(typebox.fatalErrorCount).toBe(0);
+    expect(typebox.messages.map((message) => message.ruleId)).toContain('no-restricted-imports');
+    for (const peer of ['plan-execution.ts', 'dispatch-turn.ts', 'dispatch-recovery.ts']) {
+      for (const alias of [harness, '@twilight-burokrat/contracts']) {
+        const [blocked] = await lint.lintText('await import(' + JSON.stringify(alias) + ');', {
+          filePath: root + peer,
+        });
+        expect(blocked.fatalErrorCount).toBe(0);
+        expect(blocked.messages.map((message) => message.ruleId)).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+      }
+      if (peer !== 'dispatch-recovery.ts') {
+        const [blocked] = await lint.lintText("await import('@wbs/contracts');", {
+          filePath: root + peer,
+        });
+        expect(blocked.fatalErrorCount).toBe(0);
+        expect(blocked.messages.map((message) => message.ruleId)).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+      }
+    }
+  }, 30000);
+});
