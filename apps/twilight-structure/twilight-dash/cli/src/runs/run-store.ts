@@ -28,7 +28,13 @@ import type {
   RunSnapshot,
   ScopedAttemptGuard,
 } from './records';
-import type { RecoveryBeginCall, RecoveryHistory } from './recovery-records';
+import type {
+  RecoveryBeginCall,
+  RecoveryCall,
+  RecoveryFence,
+  RecoveryFenceInput,
+  RecoveryHistory,
+} from './recovery-records';
 import type {
   RuntimeAcceptance,
   RuntimeAcceptanceInput,
@@ -60,6 +66,8 @@ export type StoreReply<T> =
 export interface RunStore {
   /** Retains an immutable recovery journal without advancing scope or target revisions. */
   beginRecovery(call: RecoveryBeginCall): Promise<StoreReply<RecoveryHistory>>;
+  /** Stages one of at most three dominating receiver fences, advancing only recovery revision. Exact replay retains original provenance; trusted projections do not authenticate transport. */
+  stageRecoveryFence(call: RecoveryCall<RecoveryFenceInput>): Promise<StoreReply<RecoveryFence>>;
   /** Atomically retains one exact WBS claim request with its attempt transition; never sends it. */
   stageClaim(
     guard: ScopedAttemptGuard,

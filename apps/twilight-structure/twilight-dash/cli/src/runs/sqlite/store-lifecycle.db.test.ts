@@ -473,3 +473,60 @@ test('shared fixture cleanup attempts every peer after synchronous close throws'
     failing.release();
   }
 });
+
+import { unwrapReply } from '../testing/fixtures';
+import { createRecoveryFenceCall } from '../testing/recovery-contract';
+import { authorityRequest, runtimePin, runtimeScope } from '../testing/runtime-history-contract';
+
+test('recovery fence admitted writer drains while its queued replay rejects after close', async () => {
+  const fixture = await createLifecycleFixture();
+  const pending: Promise<unknown>[] = [];
+  try {
+    const ownership = unwrapReply(await fixture.stores.runs.acquireOwnership(ownerId('owner'), 0));
+    unwrapReply(await fixture.stores.runs.pinRuntimeScope(ownership, runtimePin));
+    const original = unwrapReply(
+      await fixture.stores.runs.stageRuntimeRequest(
+        { ownership, scope: runtimeScope, expectedRevision: 0 },
+        authorityRequest('original', 2),
+      ),
+    );
+    const begin = {
+      kind: 'authority' as const,
+      guard: { ownership, scope: runtimeScope, expectedRevision: 1, expectedRecoveryRevision: 0 },
+      intent: {
+        version: 1 as const,
+        recoveryId: 'recover',
+        target: { kind: 'authority' as const, original },
+        begunScopeRevision: 1,
+        resolver: { ownerId: ownership.ownerId, epoch: ownership.epoch },
+      },
+    };
+    unwrapReply(await fixture.stores.runs.beginRecovery(begin));
+    const call = await createRecoveryFenceCall(fixture.stores.artifacts, begin);
+    fixture.blocker.run('BEGIN IMMEDIATE');
+    const active = fixture.stores.runs.stageRecoveryFence(call);
+    trackPending(pending, active);
+    await waitForBusy(fixture.busy);
+    const queued = rejects(fixture.stores.runs.stageRecoveryFence(call), /run store is closed/);
+    trackPending(pending, queued);
+    const closing = fixture.stores.close();
+    trackPending(pending, closing);
+    fixture.unlock();
+    deepEqual(await active, { kind: 'applied', value: call.input.fence });
+    await queued;
+    await closing;
+    const reopened = await openSqliteStores(fixture.options);
+    try {
+      deepEqual(await reopened.runs.stageRecoveryFence(call), {
+        kind: 'duplicate',
+        value: call.input.fence,
+      });
+    } finally {
+      await reopened.close();
+    }
+  } finally {
+    fixture.unlock();
+    await Promise.allSettled(pending);
+    fixture.release();
+  }
+});

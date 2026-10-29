@@ -1,9 +1,19 @@
 import { checkAttempt, executionCheckpoint } from './plan-execution';
+import { findRecoveryCommand } from './plan-recovery-history';
 import { inspectRuntimeScope } from './plan-runtime';
-import { equalRecords } from './record-codecs';
-import type { RecoveryBeginCall, RecoveryHistory } from './recovery-records';
+import { addInteger, equalRecords } from './record-codecs';
+import type {
+  RecoveryBeginCall,
+  RecoveryCall,
+  RecoveryContext,
+  RecoveryExchange,
+  RecoveryExchangeValue,
+  RecoveryFence,
+  RecoveryFenceInput,
+  RecoveryHistory,
+} from './recovery-records';
 import type { StoreReply } from './run-store';
-import { equalRuntimeScopes, readRuntimeRequest } from './runtime-codecs';
+import { digestRuntimeRequest, equalRuntimeScopes, readRuntimeRequest } from './runtime-codecs';
 import type { HistoryCatalog } from './validate-history';
 
 /** Plans only journal/index admission from an owner-authorized, completely audited catalog. Exact immutable replay precedes fresh revision and checkpoint checks. */
@@ -134,5 +144,202 @@ export function isActiveRecoveryAttempt(
       history.closure === null &&
       history.intent.target.kind === 'claim' &&
       history.intent.target.attemptId === attemptId,
+  );
+}
+
+/** Plans one exact receiver CAS from trusted detached projections. The caller owns current-owner authorization and the complete predecessor audit; this function neither reads artifacts nor proves transport chronology. Immutable replay retains its original owner and recovery revision. Complete predecessor audits imply open journals name their active pending target and closed journals retain an accepted last fence; the accepted-observation guard therefore refuses fresh staging after closure. Closure or supersession changes must revisit that implication. */
+export function planRecoveryFence(
+  catalog: HistoryCatalog,
+  call: RecoveryCall<RecoveryFenceInput>,
+): StoreReply<RecoveryFence> {
+  const { guard } = call;
+  const fence = call.input.fence;
+  const request = readRuntimeRequest(fence.canonicalRequest);
+  // Proof: T4F01 removing canonical digest equality admitted the malformed fresh fence in both providers. Exact restoration passed.
+  if (digestRuntimeRequest(fence.canonicalRequest) !== fence.requestDigest)
+    throw new Error('recovery fence canonical digest differs');
+  const history = catalog.runtime.recovery.histories.find(
+    (entry) => entry.intent.recoveryId === call.recoveryId,
+  );
+  // Proof: T4F02 removing the missing-journal refinement replaced its named rejection with TypeError; diagnostic only. Exact restoration passed.
+  if (history === undefined) throw new Error('recovery journal does not exist');
+  const target = history.intent.target;
+  const original = readRuntimeRequest(target.original.canonicalRequest);
+  // Proof: T4F03 removing target-kind correspondence admitted the substituted call kind in both providers. Exact restoration passed.
+  if (call.kind !== target.kind || fence.recoveryId !== call.recoveryId)
+    return { kind: 'refused', reason: 'identity_conflict' };
+  // Proof: T4F04 removing scope correspondence replayed a fence under another scope guard. Exact restoration passed.
+  if (
+    !equalRuntimeScopes(guard.scope, original.scope) ||
+    guard.scope.organizationId !== guard.ownership.organizationId
+  )
+    return { kind: 'refused', reason: 'authority_conflict' };
+  // Proof: T4F05 removing claim target correspondence admitted wrong run/attempt guards. Exact restoration passed.
+  if (
+    call.kind === 'claim' &&
+    target.kind === 'claim' &&
+    (call.guard.runId !== target.runId || call.guard.attemptId !== target.attemptId)
+  )
+    return { kind: 'refused', reason: 'identity_conflict' };
+  const commandId = request.operation.commandId;
+  const prior = history.fences.find(
+    (entry) => readRuntimeRequest(entry.canonicalRequest).operation.commandId === commandId,
+  );
+  if (prior !== undefined)
+    // Proof: T4F06 bypassing immutable equality replayed changed canonical bytes under the retained identity. Exact restoration passed.
+    return equalRecords(prior, fence)
+      ? { kind: 'duplicate', value: prior }
+      : { kind: 'refused', reason: 'identity_conflict' };
+  // Proof: T4F07 removing the global namespace check admitted runtime, recovery and local execution identity collisions in both providers. Exact restoration passed.
+  if (
+    findRecoveryCommand(catalog.runtime.recovery, commandId) !== undefined ||
+    catalog.runtime.intents.some((entry) => entry.commandId === commandId) ||
+    catalog.executions.some((entry) => entry.command.commandId === commandId)
+  )
+    return { kind: 'refused', reason: 'identity_conflict' };
+  // Proof: T4F08 removing owner correspondence admitted fresh foreign provenance. Exact restoration passed.
+  if (
+    !equalRecords(fence.owner, { ownerId: guard.ownership.ownerId, epoch: guard.ownership.epoch })
+  )
+    return { kind: 'refused', reason: 'authority_conflict' };
+  const snapshot = inspectRuntimeScope(catalog.runtime, guard.scope, catalog.ownership);
+  if (snapshot.kind !== 'pinned' || snapshot.version !== 2)
+    throw new Error('recovery scope is not current and pinned');
+  // Proof: T4F10 removing revision correspondence admitted stale guards and an incorrect staged revision. Exact restoration passed.
+  if (
+    history.revision !== guard.expectedRecoveryRevision ||
+    fence.stagedRevision !== addInteger(history.revision, 1) ||
+    snapshot.revision !==
+      (call.kind === 'authority' ? call.guard.expectedRevision : call.guard.expectedScopeRevision)
+  )
+    return { kind: 'refused', reason: 'revision_conflict' };
+  if (call.kind === 'claim' && target.kind === 'claim') {
+    const attempt = catalog.attempts.find(
+      (entry) => entry.attempt.attemptId === target.attemptId,
+    )?.attempt;
+    const run = catalog.runs.find((entry) => entry.run.runId === target.runId)?.run;
+    if (attempt === undefined || run === undefined)
+      throw new Error('recovery target does not exist');
+    const conflict = checkAttempt({ attempt, run }, call.guard);
+    // Proof: T4F11 omitting the attempt revision refusal admitted stale run/attempt guards. Exact restoration passed.
+    if (conflict !== undefined) return conflict;
+  }
+  // Proof: T4F12 removing the ordinal/budget check admitted a gap and fourth fence in both providers. Exact restoration passed.
+  if (fence.ordinal !== history.fences.length + 1 || history.fences.length >= 3)
+    return { kind: 'refused', reason: 'state_conflict' };
+  // Proof: T4F13 removing request correspondence admitted wrong scope/ledger; claim-kind substitution remained blocked by state-generation equality. Exact restoration passed.
+  if (
+    !('kind' in request.operation) ||
+    !equalRuntimeScopes(request.scope, original.scope) ||
+    request.operation.expectedLedgerId !== snapshot.pin.ledgerId
+  )
+    return { kind: 'refused', reason: 'identity_conflict' };
+  const basis = fence.basis;
+  const state = basis.state.body.value;
+  const generation = state.authority.kind === 'held' ? state.authority.generation : null;
+  const threshold =
+    'kind' in original.operation
+      ? original.operation.expectedGeneration
+      : original.operation.authority.generation;
+  // Proof: T4F14 removing state correspondence admitted wrong state scope/ledger and CAS expectation. Exact restoration passed.
+  if (
+    !equalRuntimeScopes(state.scope, original.scope) ||
+    state.ledgerId !== snapshot.pin.ledgerId ||
+    request.operation.expectedGeneration !== generation
+  )
+    return { kind: 'refused', reason: 'identity_conflict' };
+  // Proof: T4F15 removing domination admitted state1 and null against original expected2. Exact restoration passed.
+  if (threshold !== null && (generation === null || generation < threshold))
+    return { kind: 'refused', reason: 'state_conflict' };
+  // The receiver must be able to perform the exact successor increment.
+  // Proof: T4F16 omitting safe successor arithmetic admitted MAX_SAFE_INTEGER as a fence expectation. Exact restoration passed.
+  addInteger(generation ?? 0, 1);
+  const previous = history.fences.at(-1);
+  if (previous === undefined) {
+    // Proof: T4F17 removing initial-basis discrimination admitted superseding basis for the first fence. Exact restoration passed.
+    if (basis.kind !== 'initial') return { kind: 'refused', reason: 'state_conflict' };
+    // Proof: T4F18 omitting initial exchange comparison admitted wrong context/body reference. Exact restoration passed.
+    if (
+      !matchesRecoveryExchange(
+        basis.state,
+        original.scope,
+        snapshot.pin.ledgerId,
+        { kind: 'initial_state', recoveryId: call.recoveryId },
+        { kind: 'state' },
+        200,
+      )
+    )
+      return { kind: 'refused', reason: 'identity_conflict' };
+  } else {
+    const previousRequest = readRuntimeRequest(previous.canonicalRequest).operation;
+    if (!('kind' in previousRequest)) throw new Error('retained recovery fence is not authority');
+    // Proof: T4F19 removing supersession constraints admitted wrong previous ordinal and generation regression. Exact restoration passed.
+    if (
+      basis.kind !== 'superseding' ||
+      basis.previousOrdinal !== previous.ordinal ||
+      generation === null ||
+      (previousRequest.expectedGeneration !== null &&
+        generation <= previousRequest.expectedGeneration) ||
+      history.observations.some(
+        (entry) => entry.fence.ordinal === previous.ordinal && entry.kind === 'accepted',
+      )
+    )
+      return { kind: 'refused', reason: 'state_conflict' };
+    // Proof: T4F20 omitting supersession-state comparison admitted the wrong previous digest. Exact restoration passed.
+    if (
+      !matchesRecoveryExchange(
+        basis.state,
+        original.scope,
+        snapshot.pin.ledgerId,
+        {
+          kind: 'supersession_state',
+          recoveryId: call.recoveryId,
+          previousOrdinal: previous.ordinal,
+          previousRequestDigest: previous.requestDigest,
+        },
+        { kind: 'state' },
+        200,
+      )
+    )
+      return { kind: 'refused', reason: 'identity_conflict' };
+    // Proof: T4F21 omitting supersession lookup comparison admitted wrong state linkage and status200. Exact restoration passed.
+    if (
+      !matchesRecoveryExchange(
+        basis.lookup,
+        original.scope,
+        snapshot.pin.ledgerId,
+        {
+          kind: 'supersession_lookup',
+          recoveryId: call.recoveryId,
+          previousOrdinal: previous.ordinal,
+          stateExchange: basis.state.envelope.artifact,
+        },
+        { kind: 'lookup', commandId: previousRequest.commandId },
+        404,
+      )
+    )
+      return { kind: 'refused', reason: 'identity_conflict' };
+  }
+  return { kind: 'applied', value: fence };
+}
+
+/** Compares purpose and reference associations only; the trusted value is not an artifact authenticity brand. */
+function matchesRecoveryExchange(
+  pair: RecoveryExchangeValue<unknown>,
+  scope: RecoveryExchange['scope'],
+  ledgerId: string,
+  context: RecoveryContext,
+  request: RecoveryExchange['request'],
+  status: number,
+): boolean {
+  const exchange = pair.envelope.value;
+  // Proof: T4F22 returning true from this matcher admitted wrong state request/status. Exact restoration passed.
+  return (
+    equalRecords(exchange.body, pair.body.artifact) &&
+    equalRuntimeScopes(exchange.scope, scope) &&
+    exchange.ledgerId === ledgerId &&
+    equalRecords(exchange.context, context) &&
+    equalRecords(exchange.request, request) &&
+    exchange.status === status
   );
 }

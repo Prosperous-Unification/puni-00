@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { organizationId } from '../record-codecs';
 import { FixtureClock } from '../testing/fixtures';
-import { recoveryContract } from '../testing/recovery-contract';
+import { createRecoveryFenceCall, recoveryContract } from '../testing/recovery-contract';
 import { bootstrapSqliteStores } from './open-stores';
 
 recoveryContract('sqlite recovery', async () => {
@@ -587,5 +587,82 @@ test('complete accepted claim hold reopens preserves old acknowledgements and re
         rmSync(directory, { recursive: true, force: true });
       }
     }
+  }
+});
+
+test('recovery fence late marker abort rolls back exact predecessor and resumes after reopen', async () => {
+  const fixture = await createPhysicalFixture(false);
+  try {
+    const call = await createRecoveryFenceCall(fixture.stores.artifacts, fixture.call, 2);
+    fixture.database.run(
+      "CREATE TRIGGER fence_marker_abort BEFORE UPDATE ON run_recovery_format WHEN NEW.fence_count=1 BEGIN SELECT RAISE(ABORT,'late fence marker injected'); END",
+    );
+    const before = captureRecovery(fixture.database);
+    await rejects(fixture.stores.runs.stageRecoveryFence(call), /late fence marker injected/);
+    expect(captureRecovery(fixture.database)).toEqual(before);
+    const reopened = await openSqliteStores(fixture.options);
+    try {
+      expect(await reopened.runs.readRuntimeScope(runtimeScope)).toMatchObject({
+        recoveries: [{ revision: 0, fences: [] }],
+      });
+      fixture.database.run('DROP TRIGGER fence_marker_abort');
+      expect(await reopened.runs.stageRecoveryFence(call)).toEqual({
+        kind: 'applied',
+        value: call.input.fence,
+      });
+      const persisted = await openSqliteStores(fixture.options);
+      try {
+        expect(await persisted.runs.stageRecoveryFence(call)).toEqual({
+          kind: 'duplicate',
+          value: call.input.fence,
+        });
+      } finally {
+        await persisted.close();
+      }
+    } finally {
+      await reopened.close();
+    }
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('recovery fence complete audit precedes replay and decoding', async () => {
+  const fixture = await createPhysicalFixture(false);
+  try {
+    const call = await createRecoveryFenceCall(fixture.stores.artifacts, fixture.call, 2);
+    unwrapReply(await fixture.stores.runs.stageRecoveryFence(call));
+    fixture.database.run('UPDATE run_recovery_format SET fence_count=2');
+    await rejects(fixture.stores.runs.stageRecoveryFence(call), /corrupt recovery physical counts/);
+    Object.assign(call.input, { fence: null });
+    await rejects(fixture.stores.runs.stageRecoveryFence(call), /corrupt recovery physical counts/);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('recovery fence closed journal refuses a fresh identity but retains exact replay', async () => {
+  const fixture = await createPhysicalFixture(true);
+  try {
+    const snapshot = await fixture.stores.runs.readRuntimeScope(runtimeScope);
+    if (snapshot.kind !== 'pinned' || snapshot.version !== 2)
+      throw new Error('fixture scope missing');
+    const history = snapshot.recoveries[0];
+    const previous = history.fences[0];
+    const call = await createRecoveryFenceCall(fixture.stores.artifacts, fixture.call, 2, previous);
+    expect(
+      await fixture.stores.runs.stageRecoveryFence({ ...call, input: { fence: previous } }),
+    ).toEqual({ kind: 'duplicate', value: previous });
+    Object.assign(call.guard, {
+      expectedRevision: snapshot.revision,
+      expectedRecoveryRevision: history.revision,
+    });
+    Object.assign(call.input.fence, { stagedRevision: history.revision + 1 });
+    expect(await fixture.stores.runs.stageRecoveryFence(call)).toEqual({
+      kind: 'refused',
+      reason: 'state_conflict',
+    });
+  } finally {
+    await fixture.close();
   }
 });

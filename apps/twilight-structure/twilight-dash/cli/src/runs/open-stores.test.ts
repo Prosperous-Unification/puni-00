@@ -20,6 +20,7 @@ import {
   stageFixtureTurn,
   unwrapReply,
 } from './testing/fixtures';
+import { createRecoveryFenceCall } from './testing/recovery-contract';
 import {
   authorityReceipt,
   authorityRequest,
@@ -215,7 +216,31 @@ test('production close is idempotent and every public operation refuses closed d
   )
     throw new Error('required fixture execution commands missing');
   const scopedGuard = { ...setup.guard, scope: setup.scope, expectedScopeRevision: 0 };
+  const recoveryScope = { ...runtimeScope, personId: 'recovering-person' };
+  unwrapReply(
+    await stores.runs.pinRuntimeScope(ownership, { ...runtimePin, scope: recoveryScope }),
+  );
+  const recoveryOriginal = unwrapReply(
+    await stores.runs.stageRuntimeRequest(
+      { ownership, scope: recoveryScope, expectedRevision: 0 },
+      authorityRequest('recovering-original', 2, recoveryScope),
+    ),
+  );
+  const recoveryBegin = {
+    kind: 'authority' as const,
+    guard: { ownership, scope: recoveryScope, expectedRevision: 1, expectedRecoveryRevision: 0 },
+    intent: {
+      version: 1 as const,
+      recoveryId: 'lifecycle-recovery',
+      target: { kind: 'authority' as const, original: recoveryOriginal },
+      begunScopeRevision: 1,
+      resolver: { ownerId: ownership.ownerId, epoch: ownership.epoch },
+    },
+  };
+  unwrapReply(await stores.runs.beginRecovery(recoveryBegin));
+  const fenceCall = await createRecoveryFenceCall(stores.artifacts, recoveryBegin);
   const operations = {
+    stageRecoveryFence: () => stores.runs.stageRecoveryFence(fenceCall),
     beginRecovery: () =>
       stores.runs.beginRecovery({
         kind: 'authority',

@@ -5,9 +5,19 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import type { ArtifactStore } from '../artifact-store';
 import { acceptClaimReceipt, stageClaimRequest } from '../claim-history';
 import { executionCheckpoint } from '../plan-execution';
-import { executionCommandId } from '../record-codecs';
+import { artifactDigest, executionCommandId } from '../record-codecs';
 import { decodeDecision, decodeReceipt, ownerId } from '../record-codecs';
-import type { RecoveryBeginCall } from '../recovery-records';
+import { readRecoveryExchange } from '../recovery-evidence';
+import type {
+  RecoveryBeginCall,
+  RecoveryCall,
+  RecoveryContext,
+  RecoveryExchange,
+  RecoveryFence,
+  RecoveryFenceInput,
+} from '../recovery-records';
+import { digestRuntimeRequest, readRuntimeRequest } from '../runtime-codecs';
+import { readRuntimeHistory } from '../runtime-history';
 import { closeFixtures } from './close-fixtures';
 import {
   createCompletion,
@@ -25,6 +35,116 @@ import {
   runtimeScope,
 } from './runtime-history-contract';
 
+/** Captures actual JSON bytes before constructing the trusted staging input. */
+export async function createRecoveryFenceCall(
+  artifacts: ArtifactStore,
+  begin: RecoveryBeginCall,
+  generation: number | null = 2,
+  previous?: RecoveryFence,
+): Promise<RecoveryCall<RecoveryFenceInput>> {
+  const recoveryId = begin.intent.recoveryId;
+  const scope = begin.guard.scope;
+  async function retain(value: unknown) {
+    const retained = await artifacts.retainArtifact(
+      new TextEncoder().encode(JSON.stringify(value)),
+      'application/json',
+    );
+    if (retained.kind !== 'retained') throw new Error('recovery fixture artifact refused');
+    return retained.reference;
+  }
+  async function capture(
+    value: unknown,
+    context: RecoveryContext,
+    request: RecoveryExchange['request'],
+    status: number,
+  ) {
+    const body = await retain(value);
+    return await retain({ version: 1, scope, ledgerId: 'ledger', context, request, status, body });
+  }
+  const state = await readRecoveryExchange(
+    artifacts,
+    await capture(
+      {
+        schemaVersion: 1,
+        ledgerId: 'ledger',
+        scope,
+        basis: 'rb1:' + 'a'.repeat(64),
+        facts: { projectRevision: 0, workItems: [], steps: [] },
+        claims: [],
+        authority:
+          generation === null
+            ? { kind: 'uninitialized' }
+            : { kind: 'held', ownerId: 'receiver-owner', generation },
+      },
+      previous === undefined
+        ? { kind: 'initial_state', recoveryId }
+        : {
+            kind: 'supersession_state',
+            recoveryId,
+            previousOrdinal: previous.ordinal,
+            previousRequestDigest: previous.requestDigest,
+          },
+      { kind: 'state' },
+      200,
+    ),
+    { kind: 'state' },
+  );
+  if (state.kind !== 'state') throw new Error('recovery fixture state missing');
+  const ordinal = previous === undefined ? 1 : previous.ordinal + 1;
+  const canonicalRequest = authorityRequest('fence-' + String(ordinal), generation, scope);
+  let basis: RecoveryFence['basis'] = { kind: 'initial', state: state.exchange };
+  if (previous !== undefined) {
+    const lookup = await readRecoveryExchange(
+      artifacts,
+      await capture(
+        { error: 'runtime_receipt_not_found' },
+        {
+          kind: 'supersession_lookup',
+          recoveryId,
+          previousOrdinal: previous.ordinal,
+          stateExchange: state.exchange.envelope.artifact,
+        },
+        {
+          kind: 'lookup',
+          commandId: readRuntimeRequest(previous.canonicalRequest).operation.commandId,
+        },
+        404,
+      ),
+      { kind: 'absent' },
+    );
+    if (lookup.kind !== 'absent') throw new Error('recovery fixture absence missing');
+    basis = {
+      kind: 'superseding',
+      previousOrdinal: previous.ordinal,
+      state: state.exchange,
+      lookup: lookup.exchange,
+    };
+  }
+  const fence: RecoveryFence = {
+    version: 1,
+    recoveryId,
+    ordinal,
+    canonicalRequest,
+    requestDigest: digestRuntimeRequest(canonicalRequest),
+    owner: begin.intent.resolver,
+    stagedRevision: ordinal,
+    basis,
+  };
+  return begin.kind === 'authority'
+    ? {
+        kind: 'authority',
+        guard: { ...begin.guard, expectedRecoveryRevision: ordinal - 1 },
+        recoveryId,
+        input: { fence },
+      }
+    : {
+        kind: 'claim',
+        guard: { ...begin.guard, expectedRecoveryRevision: ordinal - 1 },
+        recoveryId,
+        input: { fence },
+      };
+}
+
 /** Exercises the same recovery admission and immutable replay contract against independent providers. */
 export function recoveryContract(
   name: string,
@@ -35,7 +155,7 @@ export function recoveryContract(
     afterEach(async () => {
       await closeFixtures(opened.splice(0));
     });
-    async function createAuthorityFixture() {
+    async function createAuthorityFixture(generation: number | null = 2) {
       const stores = await create();
       opened.push(stores);
       const ownership = unwrapReply(await stores.runs.acquireOwnership(ownerId('local-A'), 0));
@@ -43,7 +163,7 @@ export function recoveryContract(
       const original = unwrapReply(
         await stores.runs.stageRuntimeRequest(
           { ownership, scope: runtimeScope, expectedRevision: 0 },
-          authorityRequest('original', 2),
+          authorityRequest('original', generation),
         ),
       );
       const call: RecoveryBeginCall = {
@@ -91,6 +211,429 @@ export function recoveryContract(
       };
       return { ...setup, call, staged };
     }
+    test('recovery fence preserves scope and replays exact provenance after supersession and takeover', async () => {
+      const stores = await createAuthorityFixture();
+      unwrapReply(await stores.runs.beginRecovery(stores.call));
+      const call = await createRecoveryFenceCall(stores.artifacts, stores.call);
+      const before = await stores.runs.readRuntimeScope(call.guard.scope);
+      const staged = unwrapReply(await stores.runs.stageRecoveryFence(call));
+      expect(staged.stagedRevision).toBe(call.guard.expectedRecoveryRevision + 1);
+      expect(await stores.runs.stageRecoveryFence(call)).toEqual({
+        kind: 'duplicate',
+        value: staged,
+      });
+      const changed = structuredClone(call);
+      Object.assign(changed.input.fence, { requestDigest: artifactDigest('f'.repeat(64)) });
+      await rejects(stores.runs.stageRecoveryFence(changed));
+      const second = await createRecoveryFenceCall(stores.artifacts, stores.call, 3, staged);
+      unwrapReply(await stores.runs.stageRecoveryFence(second));
+      const after = await stores.runs.readRuntimeScope(call.guard.scope);
+      if (before.kind !== 'pinned' || after.kind !== 'pinned' || after.version !== 2)
+        throw new Error('fixture pin missing');
+      expect(after.revision).toBe(before.revision);
+      expect(after.pendingCommandId).toBe(before.pendingCommandId);
+      expect(after.recoveries[0]).toMatchObject({
+        revision: 2,
+        fences: [staged, second.input.fence],
+      });
+      expect(await readRuntimeHistory(stores.runs, stores.artifacts, call.guard.scope)).toEqual(
+        after,
+      );
+      stores.clock.advance(101);
+      const current = unwrapReply(await stores.runs.acquireOwnership(ownerId('local-B'), 1));
+      Object.assign(call.guard, { ownership: current });
+      expect(await stores.runs.stageRecoveryFence(call)).toEqual({
+        kind: 'duplicate',
+        value: staged,
+      });
+    });
+    for (const generation of [null, 2] as const)
+      test('recovery fence accepts matching initial generation ' + String(generation), async () => {
+        const stores = await createAuthorityFixture(generation);
+        unwrapReply(await stores.runs.beginRecovery(stores.call));
+        const call = await createRecoveryFenceCall(stores.artifacts, stores.call, generation);
+        expect(await stores.runs.stageRecoveryFence(call)).toEqual({
+          kind: 'applied',
+          value: call.input.fence,
+        });
+        expect(await stores.runs.readRuntimeScope(runtimeScope)).toMatchObject({
+          recoveries: [{ revision: 1, fences: [call.input.fence] }],
+        });
+      });
+    for (const generation of [1, null, Number.MAX_SAFE_INTEGER] as const)
+      test(
+        'recovery fence refuses insufficient or overflowing generation ' + String(generation),
+        async () => {
+          const stores = await createAuthorityFixture();
+          unwrapReply(await stores.runs.beginRecovery(stores.call));
+          const call = await createRecoveryFenceCall(stores.artifacts, stores.call, generation);
+          const before = await stores.runs.readRuntimeScope(runtimeScope);
+          if (generation === Number.MAX_SAFE_INTEGER)
+            await rejects(stores.runs.stageRecoveryFence(call));
+          else
+            expect(await stores.runs.stageRecoveryFence(call)).toEqual({
+              kind: 'refused',
+              reason: 'state_conflict',
+            });
+          expect(await stores.runs.readRuntimeScope(runtimeScope)).toEqual(before);
+        },
+      );
+    test('recovery fence changed valid canonical bytes under retained identity conflict', async () => {
+      const stores = await createAuthorityFixture();
+      unwrapReply(await stores.runs.beginRecovery(stores.call));
+      const call = await createRecoveryFenceCall(stores.artifacts, stores.call);
+      unwrapReply(await stores.runs.stageRecoveryFence(call));
+      const canonicalRequest = authorityRequest('fence-1', 3);
+      const changed = {
+        ...call,
+        input: {
+          fence: {
+            ...call.input.fence,
+            canonicalRequest,
+            requestDigest: digestRuntimeRequest(canonicalRequest),
+          },
+        },
+      };
+      const before = await stores.runs.readRuntimeScope(runtimeScope);
+      expect(await stores.runs.stageRecoveryFence(changed)).toEqual({
+        kind: 'refused',
+        reason: 'identity_conflict',
+      });
+      expect(await stores.runs.readRuntimeScope(runtimeScope)).toEqual(before);
+    });
+    for (const fault of [
+      'scope',
+      'kind',
+      'recovery',
+      'owner',
+      'revision',
+      'staged revision',
+      'ordinal',
+      'command',
+      'state scope',
+      'ledger',
+      'expected',
+      'context',
+      'body ref',
+    ] as const)
+      test('recovery fence rejects initial ' + fault, async () => {
+        const stores = await createAuthorityFixture();
+        unwrapReply(await stores.runs.beginRecovery(stores.call));
+        const call = await createRecoveryFenceCall(stores.artifacts, stores.call);
+        const fence = call.input.fence;
+        if (fault === 'scope')
+          Object.assign(call.guard, { scope: { ...runtimeScope, personId: 'other' } });
+        if (fault === 'kind')
+          Object.assign(call, {
+            kind: 'claim',
+            guard: {
+              ...call.guard,
+              runId: 'missing',
+              attemptId: 'missing',
+              expectedAttemptRevision: 0,
+              expectedScopeRevision: 1,
+            },
+          });
+        if (fault === 'recovery') Object.assign(fence, { recoveryId: 'other' });
+        if (fault === 'owner') Object.assign(fence.owner, { ownerId: 'other' });
+        if (fault === 'revision') Object.assign(call.guard, { expectedRecoveryRevision: 1 });
+        if (fault === 'staged revision') Object.assign(fence, { stagedRevision: 2 });
+        if (fault === 'ordinal') Object.assign(fence, { ordinal: 2 });
+        if (fault === 'command' || fault === 'expected') {
+          const canonicalRequest = authorityRequest(
+            fault === 'command' ? 'recover-authority' : 'fence-1',
+            fault === 'expected' ? 3 : 2,
+          );
+          Object.assign(fence, {
+            canonicalRequest,
+            requestDigest: digestRuntimeRequest(canonicalRequest),
+          });
+        }
+        if (fault === 'state scope')
+          Object.assign(fence.basis.state.body.value, {
+            scope: { ...runtimeScope, personId: 'other' },
+          });
+        if (fault === 'ledger') Object.assign(fence.basis.state.body.value, { ledgerId: 'other' });
+        if (fault === 'context')
+          Object.assign(fence.basis.state.envelope.value.context, { recoveryId: 'other' });
+        if (fault === 'body ref')
+          Object.assign(fence.basis.state.envelope.value, { body: runtimeEvidence });
+        const before = await stores.runs.readRuntimeScope(runtimeScope);
+        expect(await stores.runs.stageRecoveryFence(call)).toMatchObject({ kind: 'refused' });
+        expect(await stores.runs.readRuntimeScope(runtimeScope)).toEqual(before);
+      });
+    for (const fault of [
+      'previous ordinal',
+      'previous digest',
+      'state link',
+      'receipt found',
+      'regression',
+      'gap',
+      'fourth',
+    ] as const)
+      test('recovery fence rejects supersession ' + fault, async () => {
+        const stores = await createAuthorityFixture();
+        unwrapReply(await stores.runs.beginRecovery(stores.call));
+        let call = await createRecoveryFenceCall(stores.artifacts, stores.call);
+        let previous = unwrapReply(await stores.runs.stageRecoveryFence(call));
+        for (let ordinal = 2; fault === 'fourth' && ordinal <= 3; ordinal += 1) {
+          call = await createRecoveryFenceCall(
+            stores.artifacts,
+            stores.call,
+            ordinal + 1,
+            previous,
+          );
+          previous = unwrapReply(await stores.runs.stageRecoveryFence(call));
+        }
+        call = await createRecoveryFenceCall(
+          stores.artifacts,
+          stores.call,
+          fault === 'regression' ? 2 : previous.ordinal + 2,
+          previous,
+        );
+        const basis = call.input.fence.basis;
+        if (basis.kind !== 'superseding') throw new Error('missing supersession');
+        if (fault === 'previous ordinal') Object.assign(basis, { previousOrdinal: 2 });
+        if (fault === 'previous digest')
+          Object.assign(basis.state.envelope.value.context, {
+            previousRequestDigest: artifactDigest('f'.repeat(64)),
+          });
+        if (fault === 'state link')
+          Object.assign(basis.lookup.envelope.value.context, { stateExchange: runtimeEvidence });
+        if (fault === 'receipt found') Object.assign(basis.lookup.envelope.value, { status: 200 });
+        if (fault === 'gap') Object.assign(call.input.fence, { ordinal: 3 });
+        const before = await stores.runs.readRuntimeScope(runtimeScope);
+        expect(await stores.runs.stageRecoveryFence(call)).toMatchObject({ kind: 'refused' });
+        expect(await stores.runs.readRuntimeScope(runtimeScope)).toEqual(before);
+      });
+    test('recovery fence claim preserves reservation and rejects authority substitution', async () => {
+      const setup = await createClaimFixture();
+      unwrapReply(await setup.runs.beginRecovery(setup.call));
+      const call = await createRecoveryFenceCall(setup.artifacts, setup.call, 1);
+      const before = await setup.runs.readRun(setup.run.runId);
+      unwrapReply(await setup.runs.stageRecoveryFence(call));
+      expect(await setup.runs.readRun(setup.run.runId)).toEqual(before);
+      expect(
+        await setup.runs.stageRecoveryFence({
+          kind: 'authority',
+          guard: {
+            ownership: setup.ownership,
+            scope: setup.scope,
+            expectedRevision: 0,
+            expectedRecoveryRevision: 0,
+          },
+          recoveryId: call.recoveryId,
+          input: call.input,
+        }),
+      ).toEqual({ kind: 'refused', reason: 'identity_conflict' });
+      expect(await setup.runs.readRun(setup.run.runId)).toEqual(before);
+    });
+    test('recovery fence owner fencing precedes malformed input and replay', async () => {
+      const stores = await createAuthorityFixture();
+      unwrapReply(await stores.runs.beginRecovery(stores.call));
+      const call = await createRecoveryFenceCall(stores.artifacts, stores.call);
+      unwrapReply(await stores.runs.stageRecoveryFence(call));
+      stores.clock.advance(101);
+      expect(await stores.runs.stageRecoveryFence(call)).toEqual({
+        kind: 'refused',
+        reason: 'owner_stale',
+      });
+      Object.assign(call.input, { fence: null });
+      expect(await stores.runs.stageRecoveryFence(call)).toEqual({
+        kind: 'refused',
+        reason: 'owner_stale',
+      });
+    });
+    test('recovery fence snapshots before clock and detaches returned fence', async () => {
+      const stores = await createAuthorityFixture();
+      unwrapReply(await stores.runs.beginRecovery(stores.call));
+      const call = await createRecoveryFenceCall(stores.artifacts, stores.call);
+      const submitted = structuredClone(call);
+      const read = stores.clock.read.bind(stores.clock);
+      stores.clock.read = () => {
+        Object.assign(submitted.input.fence, { ordinal: 2 });
+        return read();
+      };
+      let staged: RecoveryFence;
+      try {
+        staged = unwrapReply(await stores.runs.stageRecoveryFence(submitted));
+        expect(staged.ordinal).toBe(1);
+      } finally {
+        stores.clock.read = read;
+      }
+      Object.assign(staged, { ordinal: 3 });
+      expect(await stores.runs.stageRecoveryFence(call)).toEqual({
+        kind: 'duplicate',
+        value: call.input.fence,
+      });
+    });
+    test('recovery fence detaches queued caller input', async () => {
+      const stores = await createAuthorityFixture();
+      unwrapReply(await stores.runs.beginRecovery(stores.call));
+      const call = await createRecoveryFenceCall(stores.artifacts, stores.call);
+      const submitted = structuredClone(call);
+      const pending = stores.runs.stageRecoveryFence(submitted);
+      Object.assign(submitted.input.fence, { ordinal: 3 });
+      expect(await pending).toEqual({ kind: 'applied', value: call.input.fence });
+    });
+    test('recovery fence replay precedes stale guard revisions', async () => {
+      const stores = await createAuthorityFixture();
+      unwrapReply(await stores.runs.beginRecovery(stores.call));
+      const call = await createRecoveryFenceCall(stores.artifacts, stores.call);
+      const staged = unwrapReply(await stores.runs.stageRecoveryFence(call));
+      Object.assign(call.guard, { expectedRevision: 0, expectedRecoveryRevision: 99 });
+      expect(await stores.runs.stageRecoveryFence(call)).toEqual({
+        kind: 'duplicate',
+        value: staged,
+      });
+    });
+    for (const field of [
+      'runId',
+      'attemptId',
+      'expectedRevision',
+      'expectedAttemptRevision',
+      'expectedScopeRevision',
+    ] as const)
+      test('recovery fence claim guard rejects ' + field, async () => {
+        const setup = await createClaimFixture();
+        unwrapReply(await setup.runs.beginRecovery(setup.call));
+        const call = await createRecoveryFenceCall(setup.artifacts, setup.call, 1);
+        Object.assign(call.guard, {
+          [field]: field === 'runId' || field === 'attemptId' ? 'other' : 0,
+        });
+        const before = await setup.runs.readRun(setup.run.runId);
+        expect(await setup.runs.stageRecoveryFence(call)).toMatchObject({ kind: 'refused' });
+        expect(await setup.runs.readRun(setup.run.runId)).toEqual(before);
+      });
+    for (const identity of ['original', 'recover-authority'] as const)
+      test('recovery fence global identity rejects ' + identity, async () => {
+        const stores = await createAuthorityFixture();
+        unwrapReply(await stores.runs.beginRecovery(stores.call));
+        const call = await createRecoveryFenceCall(stores.artifacts, stores.call);
+        const canonicalRequest = authorityRequest(identity, 2);
+        Object.assign(call.input.fence, {
+          canonicalRequest,
+          requestDigest: digestRuntimeRequest(canonicalRequest),
+        });
+        expect(await stores.runs.stageRecoveryFence(call)).toEqual({
+          kind: 'refused',
+          reason: 'identity_conflict',
+        });
+      });
+    test('recovery fence global identity rejects local execution and reserved acceptance IDs', async () => {
+      const setup = await createClaimFixture();
+      unwrapReply(await setup.runs.beginRecovery(setup.call));
+      for (const commandId of ['stage-claim', 'accept-claim']) {
+        const call = await createRecoveryFenceCall(setup.artifacts, setup.call, 1);
+        const canonicalRequest = authorityRequest(commandId, 1, setup.scope);
+        Object.assign(call.input.fence, {
+          canonicalRequest,
+          requestDigest: digestRuntimeRequest(canonicalRequest),
+        });
+        expect(await setup.runs.stageRecoveryFence(call)).toEqual({
+          kind: 'refused',
+          reason: 'identity_conflict',
+        });
+      }
+    });
+    test('recovery fence identity interlocks later ordinary runtime and execution commands', async () => {
+      const setup = await createClaimFixture();
+      unwrapReply(await setup.runs.beginRecovery(setup.call));
+      const call = await createRecoveryFenceCall(setup.artifacts, setup.call, 1);
+      unwrapReply(await setup.runs.stageRecoveryFence(call));
+      const other = { ...runtimeScope, personId: 'other' };
+      unwrapReply(
+        await setup.runs.pinRuntimeScope(setup.ownership, { ...runtimePin, scope: other }),
+      );
+      expect(
+        await setup.runs.stageRuntimeRequest(
+          { ownership: setup.ownership, scope: other, expectedRevision: 0 },
+          authorityRequest('fence-1', null, other),
+        ),
+      ).toEqual({ kind: 'refused', reason: 'identity_conflict' });
+      expect(
+        await setup.runs.recordExecution(
+          await setup.currentGuard(),
+          createExecutionCommand({ kind: 'recovery_required', reason: 'uncertain' }, 'fence-1'),
+        ),
+      ).toEqual({ kind: 'refused', reason: 'identity_conflict' });
+    });
+    test('recovery fence fresh malformed digest throws before publication', async () => {
+      const stores = await createAuthorityFixture();
+      unwrapReply(await stores.runs.beginRecovery(stores.call));
+      const call = await createRecoveryFenceCall(stores.artifacts, stores.call);
+      Object.assign(call.input.fence, { requestDigest: artifactDigest('f'.repeat(64)) });
+      const before = await stores.runs.readRuntimeScope(runtimeScope);
+      await rejects(stores.runs.stageRecoveryFence(call), /canonical digest differs/);
+      expect(await stores.runs.readRuntimeScope(runtimeScope)).toEqual(before);
+    });
+    test('recovery fence replay rejects another scope guard', async () => {
+      const stores = await createAuthorityFixture();
+      unwrapReply(await stores.runs.beginRecovery(stores.call));
+      const call = await createRecoveryFenceCall(stores.artifacts, stores.call);
+      unwrapReply(await stores.runs.stageRecoveryFence(call));
+      Object.assign(call.guard, { scope: { ...runtimeScope, personId: 'other' } });
+      expect(await stores.runs.stageRecoveryFence(call)).toEqual({
+        kind: 'refused',
+        reason: 'authority_conflict',
+      });
+    });
+    for (const fault of [
+      'request scope',
+      'request ledger',
+      'request kind',
+      'initial basis',
+      'state request',
+      'state status',
+      'malformed shape',
+    ] as const)
+      test('recovery fence rejects boundary ' + fault, async () => {
+        const stores = await createAuthorityFixture();
+        unwrapReply(await stores.runs.beginRecovery(stores.call));
+        const call = await createRecoveryFenceCall(stores.artifacts, stores.call);
+        const fence = call.input.fence;
+        if (fault === 'request scope' || fault === 'request ledger') {
+          const canonicalRequest =
+            fault === 'request scope'
+              ? authorityRequest('fence-1', 2, { ...runtimeScope, personId: 'other' })
+              : fence.canonicalRequest.replace(
+                  '"expectedLedgerId":"ledger"',
+                  '"expectedLedgerId":"other"',
+                );
+          Object.assign(fence, {
+            canonicalRequest,
+            requestDigest: digestRuntimeRequest(canonicalRequest),
+          });
+        }
+        if (fault === 'request kind') {
+          const setup = await createClaimFixture();
+          Object.assign(fence, {
+            canonicalRequest: setup.canonicalRequest,
+            requestDigest: digestRuntimeRequest(setup.canonicalRequest),
+          });
+        }
+        if (fault === 'initial basis') {
+          const next = await createRecoveryFenceCall(stores.artifacts, stores.call, 3, fence);
+          if (next.input.fence.basis.kind !== 'superseding')
+            throw new Error('fixture supersession missing');
+          Object.assign(fence.basis, {
+            kind: 'superseding',
+            previousOrdinal: 1,
+            lookup: next.input.fence.basis.lookup,
+          });
+        }
+        if (fault === 'state request')
+          Object.assign(fence.basis.state.envelope.value, {
+            request: { kind: 'lookup', commandId: 'fence-1' },
+          });
+        if (fault === 'state status')
+          Object.assign(fence.basis.state.envelope.value, { status: 404 });
+        if (fault === 'malformed shape') Object.assign(fence, { version: 2 });
+        const before = await stores.runs.readRuntimeScope(runtimeScope);
+        if (fault === 'malformed shape') await rejects(stores.runs.stageRecoveryFence(call));
+        else expect(await stores.runs.stageRecoveryFence(call)).toMatchObject({ kind: 'refused' });
+        expect(await stores.runs.readRuntimeScope(runtimeScope)).toEqual(before);
+      });
     test('claim begin preserves target and capacity while refusing fresh acceptance', async () => {
       const setup = await createClaimFixture();
       const before = await setup.runs.readRun(setup.run.runId);

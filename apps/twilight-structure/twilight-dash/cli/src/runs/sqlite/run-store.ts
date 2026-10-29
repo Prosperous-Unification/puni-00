@@ -19,7 +19,7 @@ import { type AttemptChange, planExecution, replayExecution } from '../plan-exec
 import { planOutcome } from '../plan-outcome';
 import { assertClock, planOwnership, planRenewal } from '../plan-ownership';
 import { planReceipt, replayReceipt } from '../plan-receipt';
-import { isActiveRecoveryAttempt, planRecoveryBegin } from '../plan-recovery';
+import { isActiveRecoveryAttempt, planRecoveryBegin, planRecoveryFence } from '../plan-recovery';
 import {
   inspectRuntimeScope,
   planRuntimeAcceptance,
@@ -43,7 +43,7 @@ import {
   runId,
 } from '../record-codecs';
 import type { Ownership, OwnershipStatus, Run } from '../records';
-import { decodeRecoveryBeginCall } from '../recovery-codecs';
+import { decodeRecoveryBeginCall, decodeRecoveryFenceCall } from '../recovery-codecs';
 import type { RunStore, StoreReply } from '../run-store';
 import {
   decodeRuntimeAcceptanceInput,
@@ -56,7 +56,7 @@ import { findExecution, validateAttempt } from './read-executions';
 import { readHistory } from './read-history';
 import { readRuntimeCatalog } from './read-runtime';
 import { findConsumption, findDecision, findReceipt } from './read-signals';
-import { insertRecoveryBegin } from './recovery-store';
+import { insertRecoveryBegin, insertRecoveryFence } from './recovery-store';
 import { decodeAttemptRow, decodeManifestRow, decodeRunRow } from './row-codecs';
 import { decodeCompletionRow } from './row-codecs';
 import { insertRuntimeAcceptance, insertRuntimeIntent, insertRuntimePin } from './runtime-store';
@@ -224,6 +224,25 @@ export function createSqliteRunStore(
         .run(change.attempt.attemptId);
   }
   const runs: RunStore = {
+    async stageRecoveryFence(input) {
+      // Proof: T4S01 using caller input instead of its snapshot let the clock mutation alter the requested ordinal. Exact restoration passed.
+      const snapshot = structuredClone(input);
+      const ownership = decodeOwnership(snapshot.guard.ownership);
+      // Proof: T4S04 bypassing only this transaction call left fence/journal writes after the late marker abort. Exact restoration passed.
+      return await transact(true, () => {
+        const { authority } = readAuthority(ownership);
+        // Proof: T4S02 removing the current-owner gate replayed an expired-owner fence. Exact restoration passed.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        // Proof: T4S05 moving decoding ahead of this audit reported malformed-input error instead of corrupt retained physical counts; ordering proof only. Exact restoration passed.
+        const { catalog } = readHistory(database);
+        // Proof: T4S03 omitting trusted decoding admitted a version2 fence. Exact restoration passed.
+        const reply = planRecoveryFence(catalog, decodeRecoveryFenceCall(snapshot));
+        // Proof: T4S06 omitting publication returned applied again instead of the required retained duplicate. Exact restoration passed.
+        if (reply.kind === 'applied') insertRecoveryFence(database, reply.value);
+        return finish(reply, authority.observedAt);
+      });
+    },
     // Proof: T3BCS removed only this new dependency; begin detaches retained caller mutation after submission; exact restoration passed.
     async beginRecovery(input) {
       // Proof: T3BCSCLOCK replacing the snapshot with caller input retained mutation performed by the real clock dependency; exact restoration passed.

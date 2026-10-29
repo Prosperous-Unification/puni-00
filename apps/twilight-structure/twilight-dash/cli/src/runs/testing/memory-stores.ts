@@ -31,7 +31,7 @@ import {
 import { planOutcome, type RecordedCompletion } from '../plan-outcome';
 import { assertClock, planOwnership, planRenewal } from '../plan-ownership';
 import { planReceipt, type RecordedReceipt, replayReceipt } from '../plan-receipt';
-import { isActiveRecoveryAttempt, planRecoveryBegin } from '../plan-recovery';
+import { isActiveRecoveryAttempt, planRecoveryBegin, planRecoveryFence } from '../plan-recovery';
 import type { RecoveryBarrier, RecoveryCatalog } from '../plan-recovery-history';
 import {
   auditRuntimeCatalog,
@@ -80,7 +80,7 @@ import type {
   OwnershipStatus,
   Run,
 } from '../records';
-import { decodeRecoveryBeginCall } from '../recovery-codecs';
+import { decodeRecoveryBeginCall, decodeRecoveryFenceCall } from '../recovery-codecs';
 import type { RecoveryHistory } from '../recovery-records';
 import type { RunStore, StoreReply } from '../run-store';
 import {
@@ -269,6 +269,35 @@ export function createMemoryStores(options: MemoryOptions): {
     return decodeAttempt(structuredClone(attempt));
   }
   const port: RunStore = {
+    async stageRecoveryFence(input) {
+      // Proof: T4M01 using caller input instead of its snapshot let the clock mutation alter the requested ordinal. Exact restoration passed.
+      const snapshot = structuredClone(input);
+      const ownership = decodeOwnership(snapshot.guard.ownership);
+      const observedAt = observeClock();
+      // Proof: T4M02 removing the current-owner gate replayed an expired-owner fence. Exact restoration passed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      const catalog = readHistoryCatalog();
+      // Proof: T4M04 omitting this complete audit replayed despite actual unrelated retained run-revision drift. Exact restoration passed.
+      validateHistory(catalog);
+      // Proof: T4M03 omitting trusted decoding admitted a version2 fence. Exact restoration passed.
+      const call = decodeRecoveryFenceCall(snapshot);
+      const reply = planRecoveryFence(catalog, call);
+      if (reply.kind === 'applied') {
+        const history = recoveries.get(call.recoveryId);
+        if (history === undefined) throw new Error('planned recovery journal does not exist');
+        const next = structuredClone({
+          ...history,
+          revision: reply.value.stagedRevision,
+          fences: [...history.fences, reply.value],
+        });
+        const counts = { ...recoveryCounts, fences: addInteger(recoveryCounts.fences, 1) };
+        // Proof: T4M05 omitting the journal update left the incremented count inconsistent and broke the next replay. Exact restoration passed.
+        recoveries.set(call.recoveryId, next);
+        recoveryCounts = counts;
+      }
+      return await Promise.resolve(finishReply(reply, observedAt));
+    },
     async beginRecovery(input) {
       // Proof: T3BCMCLOCK replacing the snapshot with caller input retained mutation performed by the real clock dependency; exact restoration passed.
       const snapshot = structuredClone(input);
