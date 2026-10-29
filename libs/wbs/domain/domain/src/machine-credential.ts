@@ -207,7 +207,9 @@ function matchesProof(
         // predicate replaced by `true`, mounted `keeps the id, admits both
         // secrets for 24 hours, then only the new one`
         // (machine-credential-admin.controller.db.test.ts) admitted the rotated
-        // key at T0 + 25 h; watched 2026-10-22.
+        // key at T0 + 25 h; watched 2026-10-22. Only its `/api` line saw it on
+        // 2026-10-29: through mcp-01 the grant's lifetime cap at the secret's
+        // expiry refuses the key too, so after 7.1 the unit test is its negative.
         const unexpired = secret.expiresAt === null || secret.expiresAt > now;
         // Proof: with the matched expiry answered null, `answers the matched
         // secret's expiry…` (machine-credential.test.ts) and be-01's `never

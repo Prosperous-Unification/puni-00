@@ -1,18 +1,29 @@
 import { resourceRuntimeAdmission, resourceRuntimeEvent } from '@wbs/contracts';
 import { openDatabase } from '@wbs/store-sqlite';
-import { afterEach, beforeEach, expect, it } from 'bun:test';
+import { afterEach, beforeAll, beforeEach, expect, it } from 'bun:test';
 
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
-import { OrganizationHarness } from '../testing/organization-harness';
+import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
+import { type HarnessMachineGrants, OrganizationHarness } from '../testing/organization-harness';
 
+let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
 let projectId: string;
 let leaf: string;
 let resourceId: string;
 let key: string;
 let path: string;
+beforeAll(async () => {
+  machineGrants = await forwardingMachineGrants();
+});
+/**
+ * Resource uses and the runtime authority's events over be-01's production
+ * composition and real SQLite. Every machine key, the agent's and the runtime
+ * controller's, reaches be-01 through mcp-01's forwarded grant
+ * ({@link callForwarded}), as on the MCP path.
+ */
 beforeEach(async () => {
-  h = OrganizationHarness.openComposed();
+  h = OrganizationHarness.openComposedWith({ machineGrants });
   for (const username of ['owner', 'viewer', 'other']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
@@ -109,7 +120,7 @@ it('binds idempotency to exact body and actor and refuses stale concurrent write
   expect(first.status).toBe(201);
   expect(await h.call('owner', 'POST', path, body)).toEqual(first);
   expect((await h.call('owner', 'POST', path, { ...body, units: 4 })).status).toBe(409);
-  expect((await h.callWith(key, 'POST', path, body)).status).toBe(409);
+  expect((await callForwarded(h, key, 'POST', path, body)).status).toBe(409);
   const id = (first.body as { use: { id: string } }).use.id;
   const append = {
     eventId: 'event-1',
@@ -161,7 +172,8 @@ it('guards project reads and writes, viewer writes, machine attribution and fore
   ).toBe(404);
   expect((await h.call('viewer', 'POST', path, draft())).status).toBe(403);
   expect(
-    (await h.callWith(key, 'POST', path, { ...draft(), responsiblePersonId: 'agent-b' })).status,
+    (await callForwarded(h, key, 'POST', path, { ...draft(), responsiblePersonId: 'agent-b' }))
+      .status,
   ).toBe(403);
   expect(
     (await h.call('owner', 'POST', path, { ...draft(), responsiblePersonId: 'agent-b' })).status,
@@ -169,7 +181,7 @@ it('guards project reads and writes, viewer writes, machine attribution and fore
   expect((await h.call('owner', 'POST', path, { ...draft(), workItemId: 'absent' })).status).toBe(
     404,
   );
-  expect((await h.callWith(key, 'POST', path, draft())).status).toBe(201);
+  expect((await callForwarded(h, key, 'POST', path, draft())).status).toBe(201);
 });
 async function commands(commands: unknown[]) {
   return h.call('owner', 'POST', `/api/projects/${projectId}/commands`, { commands });
@@ -231,7 +243,7 @@ it('signals lease expiry through the composed sweep without reporting release', 
   const [dev] = await steps();
   expect(
     (
-      await h.callWith(key, 'POST', `/api/projects/${projectId}/commands`, {
+      await callForwarded(h, key, 'POST', `/api/projects/${projectId}/commands`, {
         commands: [
           {
             kind: 'claimWorkItem',
@@ -304,7 +316,7 @@ it('keeps deleted planning snapshots and limits orphan access to original organi
   expect((await h.call('viewer', 'GET', path)).status).toBe(404);
   expect((await h.call('other', 'GET', `${path}/${use.id}/history`)).status).toBe(404);
   expect((await event(use.id, 'cleanup_requested', 1)).status).toBe(200);
-  expect((await h.callWith(key, 'GET', path)).status).toBe(404);
+  expect((await callForwarded(h, key, 'GET', path)).status).toBe(404);
 });
 it('tracking writes leave scheduling and occupancy unchanged', async () => {
   const before = await h.optimizationHash(projectId);
@@ -318,7 +330,7 @@ it('tracking writes leave scheduling and occupancy unchanged', async () => {
   });
 });
 it('identifies the actual reporting agent in immutable history', async () => {
-  const answer = await h.callWith(key, 'POST', path, draft());
+  const answer = await callForwarded(h, key, 'POST', path, draft());
   expect(answer.status).toBe(201);
   const use = (answer.body as { use: { id: string } }).use;
   expect((await h.call('owner', 'GET', `${path}/${use.id}/history`)).body).toMatchObject({
@@ -371,7 +383,9 @@ it('replays the original response after later events and refuses a different eve
   const first = await h.call('owner', 'POST', `${path}/${use.id}/events`, pending);
   await event(use.id, 'release_reported', 2, { evidence: 'e:1' });
   expect(await h.call('owner', 'POST', `${path}/${use.id}/events`, pending)).toEqual(first);
-  expect((await h.callWith(key, 'POST', `${path}/${use.id}/events`, pending)).status).toBe(409);
+  expect((await callForwarded(h, key, 'POST', `${path}/${use.id}/events`, pending)).status).toBe(
+    409,
+  );
   expect((await h.call('owner', 'GET', `${path}/${use.id}/history?limit=2`)).body).toMatchObject({
     events: [{ revision: 1 }, { revision: 2 }],
     nextCursor: '2',
@@ -513,27 +527,33 @@ async function runtimeSetup() {
 it('admits only the exact live runtime credential and preserves ordered event replay', async () => {
   const r = await runtimeSetup();
   expect((await h.call('owner', 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(403);
-  expect((await h.callWith(key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(403);
+  expect((await callForwarded(h, key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(403);
   const samePerson = await issueApiKey(h.sqlite, {
     organizationId: 'org-a',
     personId: 'runtime-controller',
     issuedBy: h.userId('owner'),
     name: 'not-the-bound-key',
   });
-  expect((await h.callWith(samePerson.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(403);
-  const wrote = await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent);
+  expect((await callForwarded(h, samePerson.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(
+    403,
+  );
+  const wrote = await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent);
   expect(wrote).toMatchObject({
     status: 200,
     body: { acceptedSequence: 1, useId: r.runtimeUseId, revision: 1 },
   });
-  expect(await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).toEqual(wrote);
+  expect(await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).toEqual(wrote);
   expect(
-    (await h.callWith(r.issued.key, 'PUT', r.eventsPath, { ...r.runtimeEvent, reason: 'changed' }))
-      .status,
+    (
+      await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, {
+        ...r.runtimeEvent,
+        reason: 'changed',
+      })
+    ).status,
   ).toBe(409);
   expect(
     (
-      await h.callWith(r.issued.key, 'PUT', r.eventsPath, {
+      await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, {
         ...r.runtimeEvent,
         eventId: 'gap',
         sequence: 3,
@@ -544,7 +564,7 @@ it('admits only the exact live runtime credential and preserves ordered event re
   ).toBe(409);
   expect(
     (
-      await h.callWith(r.issued.key, 'PUT', r.eventsPath, {
+      await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, {
         ...r.runtimeEvent,
         eventId: 'epoch',
         epoch: 'wrong',
@@ -555,11 +575,15 @@ it('admits only the exact live runtime credential and preserves ordered event re
     ).status,
   ).toBe(409);
   h.sqlite.run('UPDATE machine_credential SET revoked_at=1 WHERE id=?', [r.issued.id]);
-  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(401);
+  expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(
+    401,
+  );
 });
 it('queues runtime cleanup without changing the physical observation and acknowledges via trusted events', async () => {
   const r = await runtimeSetup();
-  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(200);
+  expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(
+    200,
+  );
   expect(
     (await event(r.runtimeUseId, 'release_reported', 1, { evidence: 'worker assertion' })).status,
   ).toBe(403);
@@ -576,7 +600,8 @@ it('queues runtime cleanup without changing the physical observation and acknowl
       },
     },
   });
-  const read = await h.callWith(
+  const read = await callForwarded(
+    h,
     r.issued.key,
     'GET',
     `/api/resource-authorities/${r.authorityId}/cleanup-requests?after=0`,
@@ -595,7 +620,7 @@ it('queues runtime cleanup without changing the physical observation and acknowl
     kind: 'cleanup_pending',
     requestId: requests[0].requestId,
   };
-  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, pending)).status).toBe(200);
+  expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, pending)).status).toBe(200);
   expect((await h.call('owner', 'GET', path)).body).toMatchObject({
     uses: [{ state: 'cleanup_pending', pendingCleanupRequest: false, runtimeRevision: 2 }],
   });
@@ -606,10 +631,10 @@ it('queues runtime cleanup without changing the physical observation and acknowl
     revision: 3,
     kind: 'release_verified',
   };
-  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, released)).status).toBe(400);
+  expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, released)).status).toBe(400);
   expect(
     (
-      await h.callWith(r.issued.key, 'PUT', r.eventsPath, {
+      await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, {
         ...released,
         evidence: {
           digest: 'a'.repeat(64),
@@ -629,7 +654,7 @@ it('protects runtime authority binding, request stream and source identity from 
   const r = await runtimeSetup();
   const bindPath = `/api/organization/resource-authorities/${r.authorityId}`;
   expect((await h.call('viewer', 'PUT', bindPath, r.binding)).status).toBe(403);
-  expect((await h.callWith(key, 'PUT', bindPath, r.binding)).status).toBe(403);
+  expect((await callForwarded(h, key, 'PUT', bindPath, r.binding)).status).toBe(403);
   expect(
     (await h.call('owner', 'PUT', bindPath, { ...r.binding, epoch: 'replacement' })).status,
   ).toBe(409);
@@ -639,13 +664,21 @@ it('protects runtime authority binding, request stream and source identity from 
       .status,
   ).toBe(403);
   expect(
-    (await h.callWith(key, 'GET', `/api/resource-authorities/${r.authorityId}/cleanup-requests`))
-      .status,
+    (
+      await callForwarded(
+        h,
+        key,
+        'GET',
+        `/api/resource-authorities/${r.authorityId}/cleanup-requests`,
+      )
+    ).status,
   ).toBe(403);
-  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(200);
+  expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(
+    200,
+  );
   expect(
     (
-      await h.callWith(r.issued.key, 'PUT', r.eventsPath, {
+      await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, {
         ...r.runtimeEvent,
         eventId: 'changed-use',
         sequence: 2,
@@ -658,7 +691,9 @@ it('protects runtime authority binding, request stream and source identity from 
 });
 it('refuses cascading provider and resource deletion while runtime cleanup remains outstanding', async () => {
   const r = await runtimeSetup();
-  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(200);
+  expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(
+    200,
+  );
   expect(
     (
       await h.call(
@@ -681,16 +716,17 @@ it('refuses cascading provider and resource deletion while runtime cleanup remai
 });
 it('acknowledges a stale queued request with the existing terminal proof and no revived use', async () => {
   const r = await runtimeSetup();
-  await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent);
+  await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent);
   await event(r.runtimeUseId, 'cleanup_requested', 1);
   const requests = (
-    await h.callWith(
+    await callForwarded(
+      h,
       r.issued.key,
       'GET',
       `/api/resource-authorities/${r.authorityId}/cleanup-requests`,
     )
   ).body as { requests: { requestId: number }[] };
-  await h.callWith(r.issued.key, 'PUT', r.eventsPath, {
+  await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, {
     ...r.runtimeEvent,
     eventId: 'pending-auto',
     sequence: 2,
@@ -705,7 +741,7 @@ it('acknowledges a stale queued request with the existing terminal proof and no 
   };
   expect(
     (
-      await h.callWith(r.issued.key, 'PUT', r.eventsPath, {
+      await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, {
         ...r.runtimeEvent,
         eventId: 'released-auto',
         sequence: 3,
@@ -717,7 +753,7 @@ it('acknowledges a stale queued request with the existing terminal proof and no 
   ).toBe(200);
   expect(
     (
-      await h.callWith(r.issued.key, 'PUT', r.eventsPath, {
+      await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, {
         ...r.runtimeEvent,
         eventId: 'terminal-ack',
         sequence: 4,
@@ -730,7 +766,8 @@ it('acknowledges a stale queued request with the existing terminal proof and no 
   ).toBe(200);
   expect(
     (
-      await h.callWith(
+      await callForwarded(
+        h,
         r.issued.key,
         'GET',
         `/api/resource-authorities/${r.authorityId}/cleanup-requests`,
@@ -743,7 +780,7 @@ it('revoking the worker queues runtime cleanup while its separate authority stay
   const [dev] = await steps();
   expect(
     (
-      await h.callWith(key, 'POST', `/api/projects/${projectId}/commands`, {
+      await callForwarded(h, key, 'POST', `/api/projects/${projectId}/commands`, {
         commands: [
           {
             kind: 'claimWorkItem',
@@ -756,7 +793,9 @@ it('revoking the worker queues runtime cleanup while its separate authority stay
       })
     ).status,
   ).toBe(200);
-  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(200);
+  expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(
+    200,
+  );
   h.claimLeaseSweep().start();
   await h.claimLeaseSweep().settled();
   const credential = h.sqlite
@@ -769,7 +808,8 @@ it('revoking the worker queues runtime cleanup while its separate authority stay
   ).toBe(204);
   await h.claimLeaseSweep().settled();
   await h.claimLeaseSweep().stop();
-  const queued = await h.callWith(
+  const queued = await callForwarded(
+    h,
     r.issued.key,
     'GET',
     `/api/resource-authorities/${r.authorityId}/cleanup-requests`,
@@ -789,7 +829,7 @@ it('queues cleanup for runtime registration delivered after its attempt already 
   ]);
   expect(
     (
-      await h.callWith(r.issued.key, 'PUT', r.eventsPath, {
+      await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, {
         ...r.runtimeEvent,
         use: { ...r.runtimeEvent.use, stepId: dev, attemptNumber: 1 },
       })
@@ -797,7 +837,8 @@ it('queues cleanup for runtime registration delivered after its attempt already 
   ).toBe(200);
   expect(
     (
-      await h.callWith(
+      await callForwarded(
+        h,
         r.issued.key,
         'GET',
         `/api/resource-authorities/${r.authorityId}/cleanup-requests`,
@@ -807,11 +848,12 @@ it('queues cleanup for runtime registration delivered after its attempt already 
 });
 it('keeps a newer cleanup request pending when later runtime events retain the older request cause', async () => {
   const r = await runtimeSetup();
-  await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent);
+  await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent);
   await event(r.runtimeUseId, 'cleanup_requested', 1);
   const first = (
     (
-      await h.callWith(
+      await callForwarded(
+        h,
         r.issued.key,
         'GET',
         `/api/resource-authorities/${r.authorityId}/cleanup-requests`,
@@ -820,7 +862,7 @@ it('keeps a newer cleanup request pending when later runtime events retain the o
   ).requests[0].requestId;
   expect(
     (
-      await h.callWith(r.issued.key, 'PUT', r.eventsPath, {
+      await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, {
         ...r.runtimeEvent,
         eventId: 'pending-cause',
         sequence: 2,
@@ -833,7 +875,8 @@ it('keeps a newer cleanup request pending when later runtime events retain the o
   expect((await event(r.runtimeUseId, 'cleanup_requested', 3)).status).toBe(200);
   const second = (
     (
-      await h.callWith(
+      await callForwarded(
+        h,
         r.issued.key,
         'GET',
         `/api/resource-authorities/${r.authorityId}/cleanup-requests`,
@@ -854,13 +897,14 @@ it('keeps a newer cleanup request pending when later runtime events retain the o
       reclaimedBytes: null,
     },
   };
-  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, released)).status).toBe(200);
+  expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, released)).status).toBe(200);
   expect((await h.call('owner', 'GET', path)).body).toMatchObject({
     uses: [{ state: 'release_verified', pendingCleanupRequest: true }],
   });
   expect(
     (
-      await h.callWith(
+      await callForwarded(
+        h,
         r.issued.key,
         'GET',
         `/api/resource-authorities/${r.authorityId}/cleanup-requests`,
@@ -885,7 +929,7 @@ it('keeps a newer cleanup request pending when later runtime events retain the o
   ).toBe(409);
   expect(
     (
-      await h.callWith(r.issued.key, 'PUT', r.eventsPath, {
+      await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, {
         ...released,
         eventId: 'terminal-cause',
         sequence: 4,
@@ -901,8 +945,12 @@ it('keeps a newer cleanup request pending when later runtime events retain the o
 it('refuses another in-scope person as the machine report owner', async () => {
   addAgentPerson(h.sqlite, 'sibling-agent', 'org-a', h.userId('owner'));
   expect(
-    (await h.callWith(key, 'POST', path, { ...draft(), responsiblePersonId: 'sibling-agent' }))
-      .status,
+    (
+      await callForwarded(h, key, 'POST', path, {
+        ...draft(),
+        responsiblePersonId: 'sibling-agent',
+      })
+    ).status,
   ).toBe(403);
 });
 it('rechecks a runtime grant after upstream credential admission', async () => {
@@ -955,7 +1003,9 @@ it('rolls the empty runtime migration back and forward but preserves a binding-o
 
 it('accepts authoritative retry observations without manufacturing an intermediate cleanup request', async () => {
   const r = await runtimeSetup();
-  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(200);
+  expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(
+    200,
+  );
   const kinds = [
     'cleanup_pending',
     'cleanup_pending',
@@ -988,7 +1038,7 @@ it('accepts authoritative retry observations without manufacturing an intermedia
           }
         : {}),
     };
-    expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, observed)).status).toBe(200);
+    expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, observed)).status).toBe(200);
   }
   expect((await h.call('owner', 'GET', path)).body).toMatchObject({
     uses: [{ state: 'release_verified', runtimeRevision: 9 }],
@@ -997,7 +1047,9 @@ it('accepts authoritative retry observations without manufacturing an intermedia
 
 it('delivers historical retention after its deadline without wedging ordered recovery', async () => {
   const r = await runtimeSetup();
-  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(200);
+  expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(
+    200,
+  );
   const observedAt = Date.now() - 60000;
   const reviewAt = observedAt + 1000;
   const retained = {
@@ -1011,19 +1063,19 @@ it('delivers historical retention after its deadline without wedging ordered rec
   };
   expect(
     (
-      await h.callWith(r.issued.key, 'PUT', r.eventsPath, {
+      await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, {
         ...retained,
         retention: { ...retained.retention, reviewAt: observedAt },
       })
     ).status,
   ).toBe(400);
-  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, retained)).status).toBe(200);
+  expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, retained)).status).toBe(200);
   expect((await h.call('owner', 'GET', path)).body).toMatchObject({
     uses: [{ state: 'retained', retention: { reviewAt } }],
   });
   expect(
     (
-      await h.callWith(r.issued.key, 'PUT', r.eventsPath, {
+      await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, {
         ...r.runtimeEvent,
         eventId: 'after-retention',
         sequence: 3,
@@ -1038,7 +1090,9 @@ it.each(['unbound', 'rebound'] as const)(
   'rejects a queued runtime actor after its person is %s',
   async (change) => {
     const r = await runtimeSetup();
-    expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(200);
+    expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(
+      200,
+    );
     const actor = {
       id: h.userId('owner'),
       personId: 'runtime-controller',
@@ -1105,7 +1159,8 @@ it.each(['unbound', 'rebound'] as const)(
     if (change === 'unbound')
       expect(
         (
-          await h.callWith(
+          await callForwarded(
+            h,
             r.issued.key,
             'GET',
             `/api/resource-authorities/${r.authorityId}/cleanup-requests`,
@@ -1117,16 +1172,17 @@ it.each(['unbound', 'rebound'] as const)(
 
 it('requires the whole original terminal evidence before acknowledging a pending request', async () => {
   const r = await runtimeSetup();
-  await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent);
+  await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent);
   await event(r.runtimeUseId, 'cleanup_requested', 1);
   const requests = (
-    await h.callWith(
+    await callForwarded(
+      h,
       r.issued.key,
       'GET',
       `/api/resource-authorities/${r.authorityId}/cleanup-requests`,
     )
   ).body as { requests: { requestId: number }[] };
-  await h.callWith(r.issued.key, 'PUT', r.eventsPath, {
+  await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, {
     ...r.runtimeEvent,
     eventId: 'proof-pending',
     sequence: 2,
@@ -1147,7 +1203,7 @@ it('requires the whole original terminal evidence before acknowledging a pending
     kind: 'release_verified',
     evidence: proof,
   };
-  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, released)).status).toBe(200);
+  expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, released)).status).toBe(200);
   const acknowledgment = {
     ...released,
     eventId: 'proof-acknowledged',
@@ -1157,7 +1213,7 @@ it('requires the whole original terminal evidence before acknowledging a pending
   };
   expect(
     (
-      await h.callWith(r.issued.key, 'PUT', r.eventsPath, {
+      await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, {
         ...acknowledgment,
         evidence: { ...proof, disposition: 'not_created' },
       })
@@ -1169,7 +1225,9 @@ it('requires the whole original terminal evidence before acknowledging a pending
   expect((await h.call('owner', 'GET', path)).body).toMatchObject({
     uses: [{ state: 'release_verified', pendingCleanupRequest: true, runtimeRevision: 3 }],
   });
-  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, acknowledgment)).status).toBe(200);
+  expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, acknowledgment)).status).toBe(
+    200,
+  );
 });
 
 function admissionOf(event: Awaited<ReturnType<typeof runtimeSetup>>['runtimeEvent']) {
@@ -1187,7 +1245,7 @@ it('durable admission survives task deletion and preserves pre-publication clean
   const r = await runtimeSetup();
   const admission = admissionOf(r.runtimeEvent);
   const endpoint = `/api/resource-authorities/${r.authorityId}/admissions`;
-  const accepted = await h.callWith(r.issued.key, 'PUT', endpoint, admission);
+  const accepted = await callForwarded(h, r.issued.key, 'PUT', endpoint, admission);
   expect(accepted.status).toBe(200);
   expect((await h.call('owner', 'GET', path)).body).toMatchObject({
     uses: [{ runtimeRevision: 0, revision: 1 }],
@@ -1195,7 +1253,8 @@ it('durable admission survives task deletion and preserves pre-publication clean
   expect((await event(r.runtimeUseId, 'cleanup_requested', 1)).status).toBe(200);
   expect(
     (
-      await h.callWith(
+      await callForwarded(
+        h,
         r.issued.key,
         'GET',
         `/api/resource-authorities/${r.authorityId}/cleanup-requests`,
@@ -1203,8 +1262,10 @@ it('durable admission survives task deletion and preserves pre-publication clean
     ).body,
   ).toMatchObject({ requests: [{ expectedRevision: 0 }] });
   expect((await commands([{ kind: 'deleteWorkItem', workItemId: leaf }])).status).toBe(200);
-  expect(await h.callWith(r.issued.key, 'PUT', endpoint, admission)).toEqual(accepted);
-  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(200);
+  expect(await callForwarded(h, r.issued.key, 'PUT', endpoint, admission)).toEqual(accepted);
+  expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(
+    200,
+  );
   expect((await h.call('owner', 'GET', path)).body).toMatchObject({
     uses: [{ workItemName: 'Leaf', revision: 2, runtimeRevision: 1, pendingCleanupRequest: true }],
   });
@@ -1214,13 +1275,13 @@ it('durable admission survives task deletion and preserves pre-publication clean
       { kind: 'cleanup_requested', revision: 2 },
     ],
   });
-  expect(await h.callWith(r.issued.key, 'PUT', endpoint, admission)).toEqual(accepted);
+  expect(await callForwarded(h, r.issued.key, 'PUT', endpoint, admission)).toEqual(accepted);
 });
 it('provisional admission protects provider and resource deletion without consuming source sequence', async () => {
   const r = await runtimeSetup();
   const endpoint = `/api/resource-authorities/${r.authorityId}/admissions`;
   expect(
-    (await h.callWith(r.issued.key, 'PUT', endpoint, admissionOf(r.runtimeEvent))).status,
+    (await callForwarded(h, r.issued.key, 'PUT', endpoint, admissionOf(r.runtimeEvent))).status,
   ).toBe(200);
   expect(
     (
@@ -1250,49 +1311,54 @@ it('admission refuses foreign or missing attribution and changed replay while la
     { ...admission.use, workItemId: 'missing' },
     { ...admission.use, responsiblePersonId: 'agent-b' },
   ])
-    expect((await h.callWith(r.issued.key, 'PUT', endpoint, { ...admission, use })).status).toBe(
-      404,
-    );
+    expect(
+      (await callForwarded(h, r.issued.key, 'PUT', endpoint, { ...admission, use })).status,
+    ).toBe(404);
   expect((await h.call('owner', 'PUT', endpoint, admission)).status).toBe(403);
-  expect((await h.callWith(key, 'PUT', endpoint, admission)).status).toBe(403);
+  expect((await callForwarded(h, key, 'PUT', endpoint, admission)).status).toBe(403);
   expect(
-    (await h.callWith(r.issued.key, 'PUT', endpoint, { ...admission, epoch: 'wrong' })).status,
+    (await callForwarded(h, r.issued.key, 'PUT', endpoint, { ...admission, epoch: 'wrong' }))
+      .status,
   ).toBe(409);
-  expect((await h.callWith(r.issued.key, 'PUT', endpoint, admission)).status).toBe(200);
+  expect((await callForwarded(h, r.issued.key, 'PUT', endpoint, admission)).status).toBe(200);
   expect(
     (
-      await h.callWith(r.issued.key, 'PUT', endpoint, {
+      await callForwarded(h, r.issued.key, 'PUT', endpoint, {
         ...admission,
         use: { ...admission.use, locator: '/changed' },
       })
     ).status,
   ).toBe(409);
-  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(200);
+  expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(
+    200,
+  );
   h.sqlite.run('UPDATE machine_credential SET revoked_at=? WHERE id=?', [Date.now(), r.issued.id]);
-  expect((await h.callWith(r.issued.key, 'PUT', endpoint, admission)).status).toBe(401);
+  expect((await callForwarded(h, r.issued.key, 'PUT', endpoint, admission)).status).toBe(401);
 });
 
 it('admission replay survives project deletion with original organization authority and immutable history', async () => {
   const r = await runtimeSetup();
   const endpoint = `/api/resource-authorities/${r.authorityId}/admissions`;
   const admission = admissionOf(r.runtimeEvent);
-  const accepted = await h.callWith(r.issued.key, 'PUT', endpoint, admission);
+  const accepted = await callForwarded(h, r.issued.key, 'PUT', endpoint, admission);
   expect(accepted.status).toBe(200);
   expect((await commands([{ kind: 'deleteWorkItem', workItemId: leaf }])).status).toBe(200);
   // Project deletion has no public route in this increment; mirror the existing orphan-history fixture.
   h.sqlite.run('DELETE FROM project_access WHERE project_id=?', [projectId]);
   h.sqlite.run('DELETE FROM step WHERE project_id=?', [projectId]);
   h.sqlite.run('DELETE FROM project WHERE id=?', [projectId]);
-  expect(await h.callWith(r.issued.key, 'PUT', endpoint, admission)).toEqual(accepted);
+  expect(await callForwarded(h, r.issued.key, 'PUT', endpoint, admission)).toEqual(accepted);
   expect(
     (
-      await h.callWith(r.issued.key, 'PUT', r.eventsPath, {
+      await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, {
         ...r.runtimeEvent,
         use: { ...r.runtimeEvent.use, locator: '/substituted' },
       })
     ).status,
   ).toBe(409);
-  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(200);
+  expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, r.runtimeEvent)).status).toBe(
+    200,
+  );
   expect((await h.call('owner', 'GET', `${path}/${r.runtimeUseId}/history`)).body).toMatchObject({
     events: [{ kind: 'registered', revision: 1 }],
   });
@@ -1309,7 +1375,7 @@ it('resource deletion before admission refuses without sequence allocation and t
     ).status,
   ).toBe(200);
   expect(
-    (await h.callWith(r.issued.key, 'PUT', endpoint, admissionOf(r.runtimeEvent))).status,
+    (await callForwarded(h, r.issued.key, 'PUT', endpoint, admissionOf(r.runtimeEvent))).status,
   ).toBe(404);
   const created = await h.call('owner', 'POST', '/api/directory/commands', {
     commands: [
@@ -1318,8 +1384,10 @@ it('resource deletion before admission refuses without sequence allocation and t
   });
   const nextResourceId = (created.body as { results: { id: string }[] }).results[0].id;
   const next = { ...r.runtimeEvent, use: { ...r.runtimeEvent.use, resourceId: nextResourceId } };
-  expect((await h.callWith(r.issued.key, 'PUT', endpoint, admissionOf(next))).status).toBe(200);
-  expect((await h.callWith(r.issued.key, 'PUT', r.eventsPath, next)).body).toMatchObject({
+  expect((await callForwarded(h, r.issued.key, 'PUT', endpoint, admissionOf(next))).status).toBe(
+    200,
+  );
+  expect((await callForwarded(h, r.issued.key, 'PUT', r.eventsPath, next)).body).toMatchObject({
     acceptedSequence: 1,
   });
 });
@@ -1328,7 +1396,7 @@ it('admission identities cannot reserve the same authority event for two differe
   const r = await runtimeSetup();
   const endpoint = `/api/resource-authorities/${r.authorityId}/admissions`;
   expect(
-    (await h.callWith(r.issued.key, 'PUT', endpoint, admissionOf(r.runtimeEvent))).status,
+    (await callForwarded(h, r.issued.key, 'PUT', endpoint, admissionOf(r.runtimeEvent))).status,
   ).toBe(200);
   const project = await h.call('owner', 'POST', '/api/projects', { name: 'Second project' });
   const secondProject = (project.body as { project: { id: string } }).project.id;
@@ -1341,7 +1409,7 @@ it('admission identities cannot reserve the same authority event for two differe
     useId: crypto.randomUUID(),
     use: { ...r.runtimeEvent.use, projectId: secondProject, workItemId: secondLeaf },
   };
-  expect((await h.callWith(r.issued.key, 'PUT', endpoint, duplicate)).status).toBe(409);
+  expect((await callForwarded(h, r.issued.key, 'PUT', endpoint, duplicate)).status).toBe(409);
   expect(
     (await h.call('owner', 'GET', `/api/projects/${secondProject}/resource-uses`)).body,
   ).toMatchObject({ uses: [] });
