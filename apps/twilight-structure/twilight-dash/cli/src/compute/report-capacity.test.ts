@@ -155,6 +155,9 @@ async function exitOf(run: Promise<never>): Promise<Error> {
   throw new Error('the reporter returned');
 }
 
+// Flips in `wbs-mcp-agent-surface` task 7.2: the reporter still PUTs with its `wbs_mk_` key
+// itself on be-01's `/api`, which M9 (task 7.1) refuses, and 7.2 makes it an MCP client. The
+// fake WBS below is that `/api` route; be-01's side is already on the MCP path (task 7.0).
 describe('report-capacity against a fake WBS', () => {
   test('sends one PUT per binding per tick with cadenceSeconds, the credential only in the header', async () => {
     const wbs = fakeWbs([stored]);
