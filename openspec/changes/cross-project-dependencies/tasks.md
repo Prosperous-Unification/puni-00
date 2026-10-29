@@ -1062,3 +1062,14 @@ native acceptance and Kubernetes completion are not granted by this prerequisite
 - [x] Recheck the eleven formerly masked pilot semantic cases and the scoped compiler/lint/format/OpenSpec owners; record exact source and receipt pins in verify-ci-be344-policy-corrections.md.
 
 The separate worker and cutover synchronization cases passed one unchanged-bound local diagnostic run each; original diagnostic source bytes were restored. Their CI causes remain unproven and no synchronization fix is claimed.
+
+### Pure source frontend HTTP prerequisite (independent Slice 1)
+
+- [x] Reach missing-inspector RED only after the trusted pinned Vite producer returns its two exact observations and all original producer resources join.
+- [x] Implement only the two pure complete transported-text inspectors and captured text fixtures; preserve status/MIME and explicit BOM representation boundaries.
+- [x] Watch independent complete-document, complete-entry, status and MIME omissions fail at their intended consumers, then restore exact bytes and observe the same consumers pass.
+- [x] Freeze scoped compiler/lint/format/OpenSpec and exact source/producer receipts for independent review in [verify-source-frontend-http.md](verify-source-frontend-http.md).
+
+This prerequisite grants no original manifest profile capture, source readiness,
+startup permission, observer/collector integration, controller/exposure behavior,
+native/browser acceptance or completion of parent10.2. Those remain separately authorized work.
