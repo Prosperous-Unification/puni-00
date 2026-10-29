@@ -1,0 +1,28 @@
+{"argv": ["bun", "test", "--preload", "./tools/test/scratch/preload.ts", "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts", "--test-name-pattern=^isolated source restoration refuses source backend as prod opener$", "--timeout=320000"], "pid": 3103961, "exit": 0, "signal": null, "stdoutEOF": true, "stderrEOF": true, "elapsedSeconds": 115.91407608496957, "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47", "stderrSHA256": "11427959c8f015bbe2d389be24f726a8915683794271e440c8f173d4b0e28a58"}
+bun test v1.4.4 (38afee6c8)
+
+
+tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:
+
+test/dependency-source-restoration-model-child.test.ts:
+SOURCE_RESTORATION_REACHED: original prepare/consume/solver/backend/gateway complete; source cold and dev openers excluded
+SOURCE_RESTORATION_AUTHORITY_WIRE: prod-source decoded original-family collection
+SOURCE_RESTORATION_REFUSED: prod-source reached actual new source-phase consumer
+(pass) source restoration refuses source backend as prod opener [115818.28ms]
+
+ 1 pass
+ 22 filtered out
+ 0 fail
+ 511 expect() calls
+Ran 1 test across 1 file. [115.88s]
+SOURCE_RESTORATION_INNER_CUSTODY: {"name":"source restoration refuses source backend as prod opener","exitCode":0,"signal":null,"stdoutEof":true,"stderrEof":true}
+(pass) isolated source restoration refuses source backend as prod opener [115901.22ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 1 pass
+ 22 filtered out
+ 0 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [115.91s]
+

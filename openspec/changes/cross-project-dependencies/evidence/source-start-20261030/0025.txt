@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "bun",
+    "test",
+    "--preload",
+    "./tools/test/scratch/preload.ts",
+    "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+    "--test-name-pattern=^isolated source restoration refuses absent and copied phases before genuine continuation$",
+    "--timeout=320000"
+  ],
+  "pid": 2888643,
+  "exit": 0,
+  "signal": null,
+  "stdoutEOF": true,
+  "stderrEOF": true,
+  "elapsedSeconds": 144.28778872697148,
+  "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+  "stderrSHA256": "3314554edcfe6d7066ac0f85d848b82e02f6b0c8a977d52f2b061874ecfbbd67"
+}

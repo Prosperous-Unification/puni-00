@@ -1,0 +1,25 @@
+{
+  "argv": [
+    "bunx",
+    "eslint",
+    "tools/tool-remote-scripts/src/lib/dependency-participant-restoration.ts",
+    "tools/tool-remote-scripts/src/lib/dependency-product-process.ts",
+    "tools/tool-remote-scripts/src/fixtures/source-role-process.ts",
+    "tools/tool-remote-scripts/src/lib/dependency-product-process-model.model.ts",
+    "tools/tool-remote-scripts/src/fixtures/participant-solver-runtime.ts",
+    "tools/tool-remote-scripts/src/fixtures/participant-process-bytes.ts",
+    "tools/tool-remote-scripts/src/fixtures/participant-source-restoration.ts",
+    "tools/tool-remote-scripts/src/fixtures/participant-source-restoration-cases.ts",
+    "tools/tool-remote-scripts/src/lib/dependency-source-restoration.model.ts",
+    "tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+    "tools/tool-remote-scripts/test/dependency-source-restoration-model-child.test.ts"
+  ],
+  "pid": 3190392,
+  "exit": 1,
+  "signal": null,
+  "stdoutEOF": true,
+  "stderrEOF": true,
+  "elapsedSeconds": 7.137319793924689,
+  "stdoutSHA256": "9d7aba388e7894e28d6461b959fd815720867c8581bb020a581ab339d8042145",
+  "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -8,7 +8,7 @@ import type { productProcessFixture } from './dependency-product-process';
 
 /** Raw fixture service transition with a real owned socket; it returns no readiness or authority observation. */
 export function createParticipantSolverRuntime(
-  fixture: Awaited<ReturnType<typeof productProcessFixture>>,
+  fixture: Pick<Awaited<ReturnType<typeof productProcessFixture>>, 'root' | 'ports'>,
 ) {
   const base = fixture.ports.solver;
   const runHost = base.runHost;

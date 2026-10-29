@@ -1,0 +1,65 @@
+{
+  "scope": "Grouped PID/start/UID/cgroup; known defined BE expected and same executable gateway fault",
+  "fault": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+        "--test-name-pattern=^isolated source restoration refuses dev gateway database opener$",
+        "--timeout=320000"
+      ],
+      "pid": 3087277,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 99.21559898799751,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "b35b8b78a9cdc39462231d2dd242c18cededa6d074398ff702182fc5b1958900"
+    },
+    "wrapper": {
+      "pid": 3087276,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "f787eab16538da77b9882273dbfb73a61a031b840e4a1c81d0c6137819301f75",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderrSHA256": "b35b8b78a9cdc39462231d2dd242c18cededa6d074398ff702182fc5b1958900"
+  },
+  "restored": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+        "--test-name-pattern=^isolated source restoration refuses dev gateway database opener$",
+        "--timeout=320000"
+      ],
+      "pid": 3090549,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 99.62605050799903,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "b3c97603d6504ad461c4c7f78f06a599fc57eb0c3feca9ec09fdb02d48e8a939"
+    },
+    "wrapper": {
+      "pid": 3090548,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "b7a00ecf75e76bc48423ef2421b6a5a3234cf8d50c273f2f05f0e22d0c0830ef",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderrSHA256": "b3c97603d6504ad461c4c7f78f06a599fc57eb0c3feca9ec09fdb02d48e8a939"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "bun",
+    "test",
+    "--preload",
+    "./tools/test/scratch/preload.ts",
+    "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+    "--test-name-pattern=^isolated source restoration refuses late fence drift after final source observation$",
+    "--timeout=320000"
+  ],
+  "pid": 2969671,
+  "exit": 0,
+  "signal": null,
+  "stdoutEOF": true,
+  "stderrEOF": true,
+  "elapsedSeconds": 122.77572590694763,
+  "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+  "stderrSHA256": "a3d927698e26f81d59eae696bcc9b883f19093cc2cd09c72ec2e8e89d5c98ef2"
+}

@@ -1109,3 +1109,10 @@ separately authorized Slice2 supplies only the retained profile prerequisite.
 - [x] Complete final factual comments/docs, required scoped checks and exact source freeze for independent source review; retain the additional strict warning-only failure separately.
 
 Actual receipts and limits live in [verify-source-readiness.md](verify-source-readiness.md). This bounded source component does not complete parent10.2 or authorize source startup, DB admission, coordinator/opener/controller/exposure integration, native/browser acceptance, main adoption or deployment.
+
+### Original gateway to source continuation (bounded part of10.2)
+
+- [x] Reach the missing context-only source entry after genuine original preparation, consumption and solver→backend→gateway success; retain prior setup/diagnostic failures separately.
+- [x] Couple the exact original source start and actual dev-source-backend-only opener admission; observe minimal raw process/HTTP/record GREEN with unchanged budgets.
+- [x] Exercise finite new phase, lifetime, opener, retained identity and closing negatives; independently review exact new dependency fault recipes before omissions.
+- [ ] Record factual scoped proofs/current checks and independent source review before Root's normal checkpoint. Parent10.2, native source/controller/exposure acceptance remain open.

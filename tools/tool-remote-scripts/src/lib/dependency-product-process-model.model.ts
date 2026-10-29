@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { afterEach, expect, mock, test } from 'bun:test';
 
 import { productProcessFixture } from '../fixtures/dependency-product-process';
+import { productBytes } from '../fixtures/participant-process-bytes';
 import { assertProductByteTransportFixture } from '../fixtures/product-byte-transport';
 import { assertReadinessByteTransportFixture } from '../fixtures/product-readiness-byte-transport';
 import { roots } from '../fixtures/source-startup';
@@ -92,55 +93,11 @@ export const current = {
   execs: 0,
   readinessTransport: false,
 };
-const clock = '2026-10-24 08:00:00.000000000 +0000';
-const metadata = (inode: string) => `2049:${inode}:123456|${clock}|${clock}`;
-const digest = (label: string) => createHash('sha256').update(label).digest('hex');
-const stat = (pid: number, parent: number, ticks: number) => {
-  const fields = Array.from({ length: 50 }, () => '1');
-  fields[0] = 'S';
-  fields[1] = String(parent);
-  fields[19] = String(ticks);
-  return `${String(pid)} (product) ${fields.join(' ')}`;
-};
-const host = (pid: number) => {
-  const inner = pid % 100;
-  const root = inner === 1;
-  const role = pid >= 50000 ? 'gateway' : 'backend';
-  return {
-    role,
-    inner,
-    parent: root ? 1 : pid - 1,
-    ticks: pid + 100000,
-  };
-};
-const status = (pid: number, inner: number, hostPid = false) =>
-  `Name:\tproduct\nTgid:\t${String(pid)}\nUid:\t0\t0\t0\t0\nNSpid:\t${hostPid ? `${String(pid)}\t` : ''}${String(inner)}\n`;
-
 // This isolated mock supplies independently constructed host proc bytes. Production uses the
 // real bounded file reader; neither the observer API nor its context receives a proc override.
 await mock.module('./product-host-proc', () => ({
   readProductHostProc: (path: string) => {
-    const match = /^\/proc\/(4000[123]|5000[123])\/(stat|status|cgroup|uid_map|gid_map)$/.exec(
-      path,
-    );
-    if (match === null) throw new Error('modeled host proc path unsupported');
-    const pid = Number(match[1]);
-    const member = host(pid);
-    switch (match[2]) {
-      case 'stat':
-        return Promise.resolve(stat(pid, member.parent, member.ticks));
-      case 'status':
-        return Promise.resolve(status(pid, member.inner, true));
-      case 'cgroup':
-        return Promise.resolve(`0::/docker/${member.role}\n`);
-      case 'uid_map':
-        if (current.fault === 'host-map') return Promise.resolve('0 1000 4294967295\n');
-        return Promise.resolve('0 0 4294967295\n');
-      case 'gid_map':
-        return Promise.resolve('0 0 4294967295\n');
-      default:
-        throw new Error('modeled proc field unsupported');
-    }
+    return productBytes.read(path, current);
   },
 }));
 
@@ -153,84 +110,8 @@ function feed(consume: (token: string) => boolean, ...tokens: string[]): boolean
   return acknowledged;
 }
 
-function processFrames(role: Role, label: 'before' | 'after'): string[] {
-  const rootPid = role === 'backend' ? 40001 : 50001;
-  const cwd = `/app/apps/wbs/${role === 'backend' ? 'be-01' : 'gw-01'}`;
-  const port = role === 'backend' ? '0C1C' : '0C80';
-  const namespace = { pid: 'pid:[101]', net: 'net:[102]', mnt: 'mnt:[103]' };
-  const process = (inner: number) => {
-    const root = inner === 1;
-    const wrapper = current.wrapper && inner === 2;
-    const argv = root
-      ? [
-          '/sbin/docker-init',
-          current.fault === 'init-argv' ? '--changed' : '--',
-          ...(role === 'gateway' ? ['/usr/local/bin/docker-entrypoint.sh'] : []),
-          'bun',
-          'run',
-          'src/main.ts',
-        ]
-      : current.fault === 'wrapper-argv' && wrapper
-        ? ['/usr/local/bin/bun', 'run', 'src/main.ts']
-        : current.wrapper && !wrapper
-          ? ['bun', 'src/main.ts']
-          : ['bun', 'run', 'src/main.ts'];
-    const executable = root ? '/sbin/docker-init' : '/usr/local/bin/bun';
-    const inode = root
-      ? current.fault === 'init-object'
-        ? '993'
-        : '991'
-      : wrapper && current.fault === 'wrapper-object'
-        ? '994'
-        : !wrapper && current.fault === 'application-object'
-          ? '995'
-          : '992';
-    return [
-      'PROC',
-      String(inner),
-      stat(inner, root ? 0 : inner - 1, rootPid + inner + 100000 - 1),
-      status(inner, inner),
-      Buffer.from(`${argv.join('\0')}\0`).toString('base64'),
-      root
-        ? current.fault === 'init-cwd'
-          ? '/changed'
-          : cwd
-        : wrapper && current.fault === 'wrapper-cwd'
-          ? '/changed'
-          : cwd,
-      executable,
-      metadata(inode),
-      digest(`${role}-${root ? 'init' : 'bun'}`),
-      namespace.pid,
-      namespace.net,
-      current.fault === 'mount' && !root ? 'mnt:[999]' : namespace.mnt,
-    ];
-  };
-  const tcp = `  sl  local_address rem_address st tx_queue rx_queue tr tm->when retrnsmt uid timeout inode\n  0: 0100007F:${port} 00000000:0000 0A 00000000:00000000 00:00000000 00000000 0 0 12345\n`;
-  return [
-    'PASS',
-    label,
-    ...process(1),
-    ...(current.fault === 'listener-owner' ? ['FD', '1', '3', 'socket:[12345]'] : []),
-    ...process(2),
-    ...(current.wrapper ? process(3) : []),
-    ...(current.fault === 'listener-owner'
-      ? []
-      : ['FD', current.wrapper ? '3' : '2', '3', 'socket:[12345]']),
-    'SELF',
-    namespace.pid,
-    namespace.net,
-    namespace.mnt,
-    'TCP',
-    '4',
-    tcp,
-    'TCP',
-    '6',
-    '  sl  local_address rem_address st tx_queue rx_queue tr tm->when retrnsmt uid timeout inode\n',
-    'ADDR',
-    '1: lo inet 127.0.0.1/8 scope host lo\n',
-  ];
-}
+const processFrames = (role: Role, label: 'before' | 'after') =>
+  productBytes.frames(role, label, current);
 
 afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });

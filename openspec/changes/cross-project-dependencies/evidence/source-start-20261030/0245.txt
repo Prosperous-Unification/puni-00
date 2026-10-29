@@ -1,0 +1,14 @@
+{
+  "originalSHA256": "1f96475065f6b79228c6ea0e7bd80b60f93cf0be5d3d9bb5a46db2f93a05720d",
+  "mutantSHA256": "de244010ca805d9c23e8c59589a345b0fbd0ed26f8995a54d6dad37e23148e81",
+  "before": "              restoration: createReference(restoration),\n              role: 'source',\n              id: sourceStarted.id,",
+  "after": "              restoration: createReference(gatewayReady),\n              role: 'source',\n              id: sourceStarted.id,",
+  "sourceStat": {
+    "device": 66307,
+    "inode": 22631290,
+    "mode": 436,
+    "size": 33957,
+    "mtimeNs": 1793313840195810380,
+    "ctimeNs": 1793313840195810380
+  }
+}

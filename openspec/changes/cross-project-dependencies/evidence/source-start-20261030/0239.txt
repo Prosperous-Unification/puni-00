@@ -1,0 +1,66 @@
+{"argv": ["bun", "test", "--preload", "./tools/test/scratch/preload.ts", "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts", "--test-name-pattern=^isolated source restoration retains original gateway authority through ready$", "--timeout=320000"], "pid": 3136951, "exit": 1, "signal": null, "stdoutEOF": true, "stderrEOF": true, "elapsedSeconds": 173.8718762480421, "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47", "stderrSHA256": "be7da867975bffd7b94b1f3fab18764c080fd25e512bf443ff6df7ab532a19d8"}
+bun test v1.4.4 (38afee6c8)
+
+
+tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:
+
+test/dependency-source-restoration-model-child.test.ts:
+SOURCE_RESTORATION_REACHED: original prepare/consume/solver/backend/gateway complete; source cold and dev openers excluded
+312 |           restoration: gatewayRecord['restoration'],
+313 |           role: 'source',
+314 |           id: context.originals.source.id,
+315 |         },
+316 |       ]);
+317 |       expect(record).toEqual({
+                           ^
+error: expect(received).toEqual(expected)
+
+  {
+    "format": "dependency-participant-ready",
+    "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "readinessSha256": "daa8cdbe77aeebf429d5190e6e83b933b22617cae1863d923d6fd94386397300",
+    "restoration": {
+-     "name": "edge-owner-007668-activation-participant-restore-intent.json",
+-     "sha256": "55829cef230e9ec28f1331e0b6009ddb4f984d72c14b1d6870cd8f9fa93dc969",
++     "name": "edge-owner-008093-activation-participant-ready.json",
++     "sha256": "41d3a1e9a83cea5080cd4be0547f8cb04240f22c64e632fb666808e0f1ff5304",
+    },
+    "role": "source",
+    "version": 1,
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.model.ts:317:22)
+(fail) source restoration retains original gateway authority through ready [173771.53ms]
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+ 586 expect() calls
+Ran 1 test across 1 file. [173.84s]
+SOURCE_RESTORATION_INNER_CUSTODY: {"name":"source restoration retains original gateway authority through ready","exitCode":1,"signal":null,"stdoutEof":true,"stderrEof":true}
+60 |       // This receipt follows the ORIGINAL child exit and both EOF joins, with
+61 |       // normal exit0/1 and null signal; an outcome line alone proves no custody.
+62 |       process.stderr.write(
+63 |         `SOURCE_RESTORATION_INNER_CUSTODY: ${JSON.stringify({ name, exitCode: exit.value, signal: null, stdoutEof: true, stderrEof: true })}\n`,
+64 |       );
+65 |       expect(exit.value).toBe(0);
+                              ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:65:26)
+(fail) isolated source restoration retains original gateway authority through ready [173860.20ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [173.87s]
+

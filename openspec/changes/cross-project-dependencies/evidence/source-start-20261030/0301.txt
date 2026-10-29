@@ -1,0 +1,22 @@
+{
+  "original": "1f96475065f6b79228c6ea0e7bd80b60f93cf0be5d3d9bb5a46db2f93a05720d",
+  "mutant": "464b1363f56ad4f29aa39699a26bfe15b3f1b810f410d2842c88e2c2bd00a1cf",
+  "restored": "1f96475065f6b79228c6ea0e7bd80b60f93cf0be5d3d9bb5a46db2f93a05720d",
+  "mode": 436,
+  "mutantStat": {
+    "device": 66307,
+    "inode": 22631290,
+    "mode": 436,
+    "size": 33958,
+    "mtimeNs": 1793315425233389211,
+    "ctimeNs": 1793315425233389211
+  },
+  "restoredStat": {
+    "device": 66307,
+    "inode": 22631290,
+    "mode": 436,
+    "size": 33957,
+    "mtimeNs": 1793315504465871470,
+    "ctimeNs": 1793315504465871470
+  }
+}

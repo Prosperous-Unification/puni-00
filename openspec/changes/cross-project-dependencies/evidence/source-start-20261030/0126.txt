@@ -1,0 +1,65 @@
+{
+  "scope": "Before-intent/start ordering; later refusal is not sufficient",
+  "fault": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+        "--test-name-pattern=^isolated source restoration refuses wrong selected source before intent and start$",
+        "--timeout=320000"
+      ],
+      "pid": 3056859,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 89.60966734506655,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "d1a25892ca1d99d215ca86ac213a91c0a70730a422f4527bcd40caa549886b3e"
+    },
+    "wrapper": {
+      "pid": 3056858,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "a9c002736c71a1caed2d5ac32462592435c9806db1ccfe40f9af0964418ab10c",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderrSHA256": "d1a25892ca1d99d215ca86ac213a91c0a70730a422f4527bcd40caa549886b3e"
+  },
+  "restored": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+        "--test-name-pattern=^isolated source restoration refuses wrong selected source before intent and start$",
+        "--timeout=320000"
+      ],
+      "pid": 3060400,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 95.0347019348992,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "e1beff5613f919ba274ddf0c9208b6982bd979d450afdc53cf1d91c05d7cc9da"
+    },
+    "wrapper": {
+      "pid": 3060399,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "58236b57f4051c0810481bd2b675ccea7f1697788d2e414dc67d9279b0940c2c",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderrSHA256": "e1beff5613f919ba274ddf0c9208b6982bd979d450afdc53cf1d91c05d7cc9da"
+  }
+}
