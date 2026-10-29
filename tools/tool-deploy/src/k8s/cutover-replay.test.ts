@@ -207,7 +207,10 @@ for (const fault of [
     if (fault === 'unreadable-incoming') chmodSync(incoming, 0o600);
     expect(readFileSync(exported)).toEqual(before);
     if (fault === 'none') {
-      expect(restored.exitCode).toBe(0);
+      expect(
+        restored.exitCode,
+        `stdout:\n${restored.stdout.toString()}\nstderr:\n${restored.stderr.toString()}`,
+      ).toBe(0);
       expect(readFileSync(target)).toEqual(before);
       expect(parseSqliteReport(restored.stdout.toString()).replay).toEqual(report.replay);
     } else {
