@@ -1084,3 +1084,17 @@ open.
 This prerequisite grants no original manifest profile capture, source readiness,
 startup permission, observer/collector integration, controller/exposure behavior,
 native/browser acceptance or completion of parent10.2. Those remain separately authorized work.
+
+### Original-manifest frontend profile prerequisite (bounded Slice 2)
+
+- [x] Reach missing-frontend RED after actual prepared Git/tree/manifest and original owner-bound capture; retain the frontend literal only inside original captureRestart.
+- [x] Implement the fixed eighteen size/hash tuples and private declared-link namespace lookup; correct only participantActivationFixture and the direct restoration-input test through their existing prepareSource callbacks.
+- [x] Exercise fixed-input/namespace/ancestor/root/link negatives and watch seven new capture/selection/lookup faults fail their intended consumers, followed by exact restoration.
+- [x] Verify final uninstrumented source in the explicit private execution mode: complete32-case profile suite, then only after joined outcome/pin inspection the same single shared preparation positive; preserve all failed/diagnostic epochs separately.
+- [x] Freeze exact scoped compiler/graph-lint/format/OpenSpec/source receipts for independent review in [verify-source-frontend-profile.md](verify-source-frontend-profile.md).
+
+This closes only original-manifest profile selection when independently accepted.
+It grants no source HTTP composer, startup/phase/opener/controller/exposure action,
+native/browser/host acceptance, deployment or completion of parent10.2. The earlier
+Slice1 deferred-capture statements describe that historical checkpoint; this
+separately authorized Slice2 supplies only the retained profile prerequisite.

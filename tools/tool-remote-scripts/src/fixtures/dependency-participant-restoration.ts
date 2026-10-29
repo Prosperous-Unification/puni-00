@@ -8,6 +8,7 @@ import {
 import { readFields } from '../lib/managed-cohort';
 import type { SourceConfigSlot } from '../lib/source-startup-manifest';
 import { completeActivationFixture } from './dependency-complete-activation';
+import { prepareSourceFrontendProfile } from './source-frontend-profile';
 import { sourceRestorationConfiguration } from './source-restoration';
 
 /** Actual scratch stores/source pins with native emitter execution and full product image launch observations. */
@@ -21,6 +22,7 @@ export async function participantActivationFixture(
     activate,
     undefined,
     async (root) => {
+      await prepareSourceFrontendProfile(root);
       await mkdir(join(root, 'apps/wbs/be-01/src/openapi'), { recursive: true });
       await writeFile(
         join(root, 'apps/wbs/be-01/src/openapi/emit-openapi-cli.ts'),
