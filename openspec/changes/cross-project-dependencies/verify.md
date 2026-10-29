@@ -7792,3 +7792,7 @@ the isolated host gate remain pending. Main `50862bc` overlap is unreconciled by
 leaf; parent 10.1/10.2, complete B2/B3, main/deploy adoption and activation remain held.
 
 Private main508 MCP preflight reconciliation: [actual owning checks and composition proofs](verify-main508-reconciliation-20261029.md). Earlier leaf/parity evidence keeps its original epoch; MAIN, full feature acceptance and deployment remain held.
+
+## Reviewed backend continuation in the reconciled tree — 2026-10-29
+
+[Original-context solver-to-backend proof and integration record](verify-solver-backend-context.md) preserves the accepted leaf and its historical guard witnesses, then records the fresh selected readiness, reader, inventory and compiler checks after main508 reconciliation. Current full CI, host and complete restoration acceptance remain separate.

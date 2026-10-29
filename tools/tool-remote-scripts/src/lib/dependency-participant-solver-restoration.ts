@@ -7,7 +7,9 @@ import type { SolverPorts, SolverRestorePorts } from './solver-host';
 
 type RestoredSolver = Awaited<ReturnType<typeof restoreSolverUnderOwner>>;
 type SolverRestorationPhase =
-  { readonly state: 'attempted' } | { readonly state: 'ready'; readonly solver: RestoredSolver };
+  | { readonly state: 'attempted' }
+  | { readonly state: 'ready'; readonly solver: RestoredSolver }
+  | { readonly state: 'backend-attempted'; readonly solver: RestoredSolver };
 
 /** Effect accounting belongs to the original consumed context; summaries cannot recreate this phase. */
 const restorations = new WeakMap<FinalizedParticipantRestorationContext, SolverRestorationPhase>();
@@ -128,4 +130,28 @@ export async function restoreSolverForPreparedParticipants(
   } catch {
     throw new Error('solver participant restoration refused');
   }
+}
+
+/**
+ * Internal one-way effect accounting for the backend entry. Only the original
+ * consumed context can reserve the actual retained solver result; serialized
+ * records, summaries or caller-created phases supply no authority. Reservation
+ * is synchronous before any subsequent transition work and remains terminal.
+ * Without retained readiness, admission refuses before reservation. The first
+ * valid solver restoration may still follow; failure after admission is terminal.
+ */
+export async function consumeSolverReadyForBackend(
+  context: FinalizedParticipantRestorationContext,
+): Promise<RestoredSolver> {
+  // Proof: omitting this admission returned retained readiness after release;
+  // 'solver-first backend refuses released original readiness' failed its
+  // direct-consumer refusal assertion, then passed after exact restoration.
+  await assertParticipantRestorationContext(context);
+  const phase = restorations.get(context);
+  // Proof: accepting the consumed backend phase let the direct consumer return
+  // after an admitted record failure and repair; 'solver-first backend refuses
+  // ready record faults and terminal retry' failed, then passed restored.
+  if (phase?.state !== 'ready') throw new Error('original solver readiness is not retained');
+  restorations.set(context, { state: 'backend-attempted', solver: phase.solver });
+  return phase.solver;
 }
