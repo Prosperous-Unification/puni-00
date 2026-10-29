@@ -81,7 +81,7 @@ function reviveCell(_key: string, value: unknown): unknown {
   return value;
 }
 
-/** Owns an immutable git archive, pinned-module worker, bounded request IDs, drained pipes and final child cleanup. The worker is loaded before the caller can migrate its database. */
+/** Owns an immutable git archive, pinned-module worker, bounded request IDs, drained pipes and final child cleanup. The worker is loaded before the caller can migrate its database. Terminal failures survive idle periods and are reported after cleanup, including on repeated close. Read-only worker metadata lets lifecycle tests await actual process termination without timing guesses. */
 export async function createFormat3Fixture(path: string) {
   const root = resolve('.');
   const directory = mkdtempSync(join(tmpdir(), 'format3-source-'));
@@ -104,13 +104,17 @@ export async function createFormat3Fixture(path: string) {
   });
   let stderr = '';
   let isReady = false;
+  let terminalFailure: { readonly cause: unknown } | undefined;
   child.stderr.setEncoding('utf8');
   child.stderr.on('data', (chunk: string) => {
     stderr += chunk;
   });
   const ready = Promise.withResolvers<undefined>();
   // close also settles failed process creation, which emits error without exit.
-  const exited = Promise.withResolvers<undefined>();
+  const exited = Promise.withResolvers<{
+    readonly code: number | null;
+    readonly signal: NodeJS.Signals | null;
+  }>();
   const pending = new Map<
     string,
     {
@@ -120,7 +124,8 @@ export async function createFormat3Fixture(path: string) {
     }
   >();
   const lines = createInterface({ input: child.stdout });
-  function rejectRequests(cause: unknown) {
+  function failWorker(cause: unknown) {
+    terminalFailure ??= { cause };
     ready.reject(cause);
     for (const request of pending.values()) {
       clearTimeout(request.timer);
@@ -129,14 +134,14 @@ export async function createFormat3Fixture(path: string) {
     pending.clear();
   }
   const readyTimer = setTimeout(() => {
-    rejectRequests(new Error('format3 worker readiness timed out'));
+    failWorker(new Error('format3 worker readiness timed out'));
     child.kill('SIGKILL');
   }, 30_000);
-  child.on('error', rejectRequests);
+  child.on('error', failWorker);
   child.on('close', (code, signal) => {
     const failure = new Error(`format3 worker exited ${String(code)}/${String(signal)}: ${stderr}`);
-    if (!isReady || code !== 0 || pending.size !== 0) rejectRequests(failure);
-    exited.resolve(undefined);
+    if (!isReady || code !== 0 || signal !== null || pending.size !== 0) failWorker(failure);
+    exited.resolve({ code, signal });
   });
   lines.on('line', (line) => {
     try {
@@ -164,7 +169,7 @@ export async function createFormat3Fixture(path: string) {
         );
       else request.resolve(response.value);
     } catch (cause) {
-      rejectRequests(cause);
+      failWorker(cause);
       child.kill('SIGKILL');
     }
   });
@@ -180,13 +185,12 @@ export async function createFormat3Fixture(path: string) {
     const requestId = String(nextId);
     const response = Promise.withResolvers<unknown>();
     const timer = setTimeout(() => {
-      pending.delete(requestId);
-      response.reject(new Error(`format3 request ${requestId} timed out`));
+      failWorker(new Error(`format3 request ${requestId} timed out`));
       child.kill('SIGKILL');
     }, 30_000);
     pending.set(requestId, { ...response, timer });
     child.stdin.write(JSON.stringify({ ...command, requestId }) + '\n', (cause) => {
-      if (cause !== null && cause !== undefined) rejectRequests(cause);
+      if (cause !== null && cause !== undefined) failWorker(cause);
     });
     return await response.promise;
   }
@@ -196,20 +200,46 @@ export async function createFormat3Fixture(path: string) {
       return;
     }
     closing = (async () => {
-      const timer = setTimeout(() => child.kill('SIGKILL'), 5_000);
+      const failures: unknown[] = [];
+      const timer = setTimeout(() => {
+        failWorker(new Error('format3 worker close timed out'));
+        child.kill('SIGKILL');
+      }, 5_000);
       try {
         if (child.exitCode === null && child.signalCode === null)
           await requestWorker({ kind: 'close' });
-      } finally {
-        child.stdin.end();
-        await exited.promise;
-        clearTimeout(timer);
-        clearTimeout(readyTimer);
-        lines.close();
-        child.stdout.destroy();
-        child.stderr.destroy();
-        rmSync(directory, { recursive: true, force: true });
+      } catch (cause) {
+        failures.push(cause);
       }
+      try {
+        child.stdin.end();
+      } catch (cause) {
+        failures.push(cause);
+      }
+      await exited.promise;
+      clearTimeout(timer);
+      clearTimeout(readyTimer);
+      for (const release of [
+        () => {
+          lines.close();
+        },
+        () => child.stdout.destroy(),
+        () => child.stderr.destroy(),
+        () => {
+          rmSync(directory, { recursive: true, force: true });
+        },
+      ]) {
+        try {
+          release();
+        } catch (cause) {
+          failures.push(cause);
+        }
+      }
+      // Proof: T3FIX1 removed only this reporting dependency; actual idle BB14 SIGKILL followed by observed terminal event made close resolve after cleanup; exact restoration passed.
+      if (terminalFailure !== undefined && !failures.includes(terminalFailure.cause))
+        failures.unshift(terminalFailure.cause);
+      if (failures.length === 1) throw failures[0];
+      if (failures.length > 1) throw new AggregateError(failures, 'format3 worker cleanup failed');
     })();
     await closing;
   }
@@ -226,6 +256,7 @@ export async function createFormat3Fixture(path: string) {
   return {
     sourceCommit: commit,
     format: FORMAT3_IDENTITY,
+    worker: Object.freeze({ pid: child.pid, exited: exited.promise }),
     async populate(population: Format3Population) {
       return await requestWorker({ kind: 'populate', population });
     },
