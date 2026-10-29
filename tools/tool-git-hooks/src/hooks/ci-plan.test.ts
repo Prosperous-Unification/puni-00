@@ -349,7 +349,7 @@ describe('production CI plan and execution', () => {
   test('fixed remote leaves retain one logical owner and explicit static/dependency execution', () => {
     const candidate = history('modules/tool-remote-scripts/source.ts');
     for (const mode of ['affected', 'full']) {
-      for (const part of ['remote-rest', 'remote-model']) {
+      for (const part of ['remote-rest', 'remote-model', 'remote-model-continuation']) {
         const { invocation, calls } = invokeRuntime(candidate, part, '0', mode);
         expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
         const commands = readFileSync(calls, 'utf8');
@@ -360,7 +360,7 @@ describe('production CI plan and execution', () => {
             .filter((line) => line.includes(':test:ci:')),
         ).toHaveLength(1);
         expect(commands).toContain(
-          `run tool-remote-scripts:test:ci:${part === 'remote-rest' ? 'rest' : 'model'} --head=${candidate.head} --skip-nx-cache --parallel=2`,
+          `run tool-remote-scripts:test:ci:${part === 'remote-rest' ? 'rest' : part === 'remote-model' ? 'model' : 'model-continuation'} --head=${candidate.head} --skip-nx-cache --parallel=2`,
         );
         expect(commands).not.toContain('-t test ');
         if (part === 'remote-rest')
@@ -374,7 +374,7 @@ describe('production CI plan and execution', () => {
 
   test('each fixed remote leaf rejects wrong head, unknown mode and an excluded plan', () => {
     const candidate = history('modules/tool-remote-scripts/source.ts');
-    for (const part of ['remote-rest', 'remote-model']) {
+    for (const part of ['remote-rest', 'remote-model', 'remote-model-continuation']) {
       expect(
         invokeRuntime({ ...candidate, head: candidate.base }, part, '0', 'full').invocation
           .exitCode,

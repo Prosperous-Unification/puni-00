@@ -2,7 +2,7 @@ import { mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it, test } from 'bun:test';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
 const SCRIPT = join(import.meta.dir, 'pr-merge-base.ts');
@@ -238,6 +238,7 @@ exec '${process.execPath}' "$@"
       ...h.env,
       GITHUB_OUTPUT: output,
       NX_CALLS: calls,
+      RUNTIME_PARTITION: 'remote-model',
       PATH: `${bin}:${process.env['PATH'] ?? ''}`,
       ...env,
     },
@@ -380,3 +381,28 @@ describe('production workflow PR consumers', () => {
     },
   );
 });
+
+test.each(['remote-model', 'remote-model-continuation'])(
+  'actual model matrix shell dispatches %s with its immutable merge base and status',
+  async (partition) => {
+    const h = history();
+    const execution = runStep(
+      h,
+      step('gate_remote_model', 'Remote model — test, lint, typecheck, build'),
+      {
+        GATE_MODE: 'affected',
+        GATE_BASE: h.base,
+        RUNTIME_PARTITION: partition,
+        RUNTIME_STATUS: '23',
+      },
+    );
+    expect(execution.invocation.exitCode).toBe(23);
+    expect(await execution.calls.text()).toContain(
+      `ci-run-runtime.ts ${partition} ${h.base} ${h.merge} . affected`,
+    );
+    const phase = await Bun.file(join(h.root, 'nx-gate.log')).text();
+    expect(phase).toContain(`runtime phase start partition=${partition} head=${h.merge}`);
+    expect(phase).toContain(`runtime phase end partition=${partition}`);
+    expect(phase).toContain('exit=23');
+  },
+);

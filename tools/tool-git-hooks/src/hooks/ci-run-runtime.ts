@@ -44,7 +44,7 @@ async function runNx(repository: string, args: string[]): Promise<void> {
 async function runRemoteLeaf(
   repository: string,
   head: string,
-  leaf: 'model' | 'rest',
+  leaf: 'model' | 'model-continuation' | 'rest',
   mode: string,
 ): Promise<void> {
   if (leaf === 'rest')
@@ -61,13 +61,13 @@ async function runRemoteLeaf(
     ]);
   // Proof: omitting or duplicating this dispatch failed the exact-one-leaf production CLI test.
   // Leaf targets are noncached and retain explicit canonical inputs/env and dependency builds.
-  // Only rest owns test:caddy; neither leaf depends on the canonical unsplit test target.
+  // Only rest owns test:caddy; no leaf depends on the canonical unsplit test target.
   await runNx(repository, [
     'run',
     `tool-remote-scripts:test:ci:${leaf}`,
     `--head=${head}`,
     '--skip-nx-cache',
-    // Proof: dropping this bound failed actual model/rest dispatch; nx.json otherwise allows four.
+    // Proof: dropping this bound failed actual fixed-leaf dispatch; nx.json otherwise allows four.
     '--parallel=2',
     '--output-style=stream',
   ]);
@@ -93,6 +93,7 @@ export async function runRuntime(
       'remote',
       'remote-rest',
       'remote-model',
+      'remote-model-continuation',
       'frontend',
       'twilight',
     ].includes(partition)
@@ -100,8 +101,15 @@ export async function runRuntime(
     throw new Error('Unknown runtime partition');
   // Proof: removing this refusal made the unknown-mode CLI case execute affected work and fail.
   if (mode !== 'affected' && mode !== 'full') throw new Error('Unknown runtime mode');
+  // Proof: mapping continuation to core failed exact production CLI dispatch in affected/full modes (2026-10-29).
   const remoteLeaf =
-    partition === 'remote-model' ? 'model' : partition === 'remote-rest' ? 'rest' : undefined;
+    partition === 'remote-model'
+      ? 'model'
+      : partition === 'remote-model-continuation'
+        ? 'model-continuation'
+        : partition === 'remote-rest'
+          ? 'rest'
+          : undefined;
   const owner = remoteLeaf === undefined ? partition : 'remote';
   if (mode === 'full') {
     if (partition === 'twilight') throw new Error('Twilight retains its existing full runner');
@@ -261,7 +269,7 @@ if (import.meta.main) {
     repository === undefined
   ) {
     throw new Error(
-      'Usage: ci-run-runtime.ts <workspace|backend|remote|remote-rest|remote-model|frontend|twilight> <base-sha> <head-sha> <repository> [affected|full]',
+      'Usage: ci-run-runtime.ts <workspace|backend|remote|remote-rest|remote-model|remote-model-continuation|frontend|twilight> <base-sha> <head-sha> <repository> [affected|full]',
     );
   }
   try {

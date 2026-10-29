@@ -5,6 +5,7 @@ import { isDeepStrictEqual, stripVTControlCharacters } from 'node:util';
 
 const PROJECT = 'tools/tool-remote-scripts';
 const MODEL = 'src/lib/dependency-product-process-model.test.ts';
+const CONTINUATION = 'src/lib/dependency-participant-continuation-model.test.ts';
 const DISCOVERY = [
   'src',
   'test/edge-init.test.ts',
@@ -17,7 +18,7 @@ const DISCOVERY = [
 ];
 const OPTIONS = ['--preload', '../test/scratch/preload.ts', '--timeout=10000'];
 
-type Leaf = 'model' | 'rest';
+type Leaf = 'model' | 'model-continuation' | 'rest';
 
 class TestFailure extends Error {
   constructor(readonly status: number) {
@@ -108,7 +109,8 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
     })
   )
     throw new Error('Unsupported canonical remote test environment');
-  for (const name of ['model', 'rest'] as const) {
+  // Proof: omitting continuation target validation let actual malformed-target negatives execute tests (2026-10-29).
+  for (const name of ['model', 'model-continuation', 'rest'] as const) {
     const target = requireRecord(targets[`test:ci:${name}`]);
     // Proof: removing this check admitted missing inputs and a changed leaf env in actual-runner tests.
     if (
@@ -142,12 +144,23 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
   // Proof: removing the pin check ran actual tiny tests against a substituted 0.0.0 pin.
   if (readFileSync(join(repository, '.bun-version'), 'utf8').trim() !== Bun.version)
     throw new Error('Remote leaf requires the pinned Bun version');
-  for (const path of [MODEL, ...DISCOVERY.slice(1)]) requireFile(join(repository, PROJECT, path));
+  // Proof: omitting the continuation file requirement made the actual missing-owner refusal fail (2026-10-29).
+  for (const path of [MODEL, CONTINUATION, ...DISCOVERY.slice(1)])
+    requireFile(join(repository, PROJECT, path));
   requireFile(join(repository, 'tools/test/scratch/preload.ts'));
   // Proof: dotted/widened ignores and a dropped discovery token broke real canonical union/disjointness.
+  // Proof: dropping only the continuation ignore duplicated its actual Bun coverage in rest (2026-10-29).
   return leaf === 'model'
     ? ['test', `./${MODEL}`, ...OPTIONS]
-    : ['test', ...DISCOVERY, ...OPTIONS, `--path-ignore-patterns=${MODEL}`];
+    : leaf === 'model-continuation'
+      ? ['test', `./${CONTINUATION}`, ...OPTIONS]
+      : [
+          'test',
+          ...DISCOVERY,
+          ...OPTIONS,
+          `--path-ignore-patterns=${MODEL}`,
+          `--path-ignore-patterns=${CONTINUATION}`,
+        ];
 }
 
 /**
@@ -161,7 +174,8 @@ export async function runRemoteTests(
 ): Promise<void> {
   const repository = resolve(repositoryPath);
   // Proof: omitting the leaf allowlist admitted unknown as the complementary actual Bun execution.
-  if (leafName !== 'model' && leafName !== 'rest') throw new Error('Unknown remote test leaf');
+  if (leafName !== 'model' && leafName !== 'model-continuation' && leafName !== 'rest')
+    throw new Error('Unknown remote test leaf');
   const checkedOut = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], {
     cwd: repository,
     stdout: 'pipe',
@@ -213,7 +227,7 @@ export async function runRemoteTests(
     Number(passes[1]) === 0 ||
     !/^\s*0 fail\b/m.test(summary) ||
     count === null ||
-    (leafName === 'model' && Number(count[2]) !== 1)
+    (leafName !== 'rest' && Number(count[2]) !== 1)
   )
     throw new Error('Remote leaf produced no successful nonempty execution receipt');
   process.stdout.write(
@@ -232,7 +246,7 @@ if (import.meta.main) {
     leaf === undefined ||
     headFlag?.startsWith('--head=') !== true
   )
-    throw new Error('Usage: ci-leaf.ts <repository> <model|rest> --head=<sha>');
+    throw new Error('Usage: ci-leaf.ts <repository> <model|model-continuation|rest> --head=<sha>');
   try {
     await runRemoteTests(repository, leaf, headFlag.slice('--head='.length));
   } catch (cause) {

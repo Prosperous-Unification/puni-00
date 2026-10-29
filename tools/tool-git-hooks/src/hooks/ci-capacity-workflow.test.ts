@@ -9,6 +9,7 @@ interface Step {
   if?: string;
   run?: string;
   uses?: string;
+  env?: Record<string, string>;
   with?: Record<string, unknown>;
 }
 interface Job {
@@ -17,6 +18,7 @@ interface Job {
   if?: string;
   'timeout-minutes'?: number;
   steps?: Step[];
+  strategy?: unknown;
 }
 const workflow = Bun.YAML.parse(
   readFileSync(resolve(import.meta.dir, '../../../../.github/workflows/ci.yml'), 'utf8'),
@@ -132,7 +134,7 @@ test('non-Nx checks retain their own finite budget and each required original co
   );
 });
 
-test('remote has exactly two independently required finite execution leaves under one selection bit', () => {
+test('remote retains finite rest and model runners under one selection bit', () => {
   for (const [name, partition, title] of [
     ['gate_remote', 'remote-rest', 'Remote'],
     ['gate_remote_model', 'remote-model', 'Remote model'],
@@ -146,16 +148,35 @@ test('remote has exactly two independently required finite execution leaves unde
     const execution = step(runtime, `${title} — test, lint, typecheck, build`);
     expect(execution.run).toContain('timeout --signal=TERM --kill-after=30s 75m \\');
     expect(execution.run).toContain(
-      `ci-run-runtime.ts ${partition} "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE"`,
+      `ci-run-runtime.ts ${name === 'gate_remote_model' ? '"$RUNTIME_PARTITION"' : partition} "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE"`,
     );
     expect(execution.run).toContain('if [ "$GATE_BASE" != "$base" ]; then');
     expect(execution.run).toContain('gate_status=$?');
-    expect(execution.run).toContain(`runtime phase start partition=${partition} head=%s utc=%s`);
+    expect(execution.run).toContain(
+      `runtime phase start partition=${name === 'gate_remote_model' ? '%s' : partition} head=%s utc=%s`,
+    );
+    if (name === 'gate_remote_model') {
+      expect(execution.env?.['RUNTIME_PARTITION']).toBe('${{ matrix.partition }}');
+      expect(execution.run).toContain('"$RUNTIME_PARTITION" "$GITHUB_SHA"');
+      expect(execution.run).toContain(
+        'runtime phase end partition=%s utc=%s elapsedSeconds=%s exit=%s',
+      );
+    }
     expect(execution.run).toContain('exit "$gate_status"');
     expect(execution.run).toContain('exit "$annotation_status"');
     const upload = step(runtime, 'Upload gate log');
     expect(upload.if).toBe("${{ always() && steps.nx_gate.outcome != 'skipped' }}");
-    expect(upload.with?.['name']).toBe(`nx-gate-log-${partition}-\${{ github.run_attempt }}`);
+    expect(upload.with?.['name']).toBe(
+      `nx-gate-log-${name === 'gate_remote_model' ? '${{ matrix.partition }}' : partition}-\${{ github.run_attempt }}`,
+    );
     expect(upload.with?.['if-no-files-found']).toBe('error');
   }
+});
+
+test('model matrix is exactly two independent whole-file runners', () => {
+  const runtime = job('gate_remote_model');
+  expect(runtime.strategy).toEqual({
+    'fail-fast': false,
+    matrix: { partition: ['remote-model', 'remote-model-continuation'] },
+  });
 });

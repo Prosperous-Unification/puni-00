@@ -6,230 +6,22 @@ import { join } from 'node:path';
 
 import { expect, test } from 'bun:test';
 
-import { GATEWAY_RESTORATION_CASES } from '../fixtures/gateway-restoration-cases';
+import {
+  assertRealHostReader,
+  type ModelChild,
+  type ModelChildProbe,
+  ModelPoolFailure,
+  type ModelProcess,
+  type ModelReader,
+  type OwnedModelChild,
+  releaseModelReader,
+  runModelChild,
+  startModelChild,
+  withModelFixture,
+} from '../fixtures/model-child-custody';
 import { PARTICIPANT_OPENER_CASES } from '../fixtures/participant-opener-cases';
 import { createProductByteTransportFixture } from '../fixtures/product-byte-transport';
 import { createReadinessByteTransportFixture } from '../fixtures/product-readiness-byte-transport';
-import { SOLVER_BACKEND_CASES } from '../fixtures/solver-backend-cases';
-import { readProductHostProc } from './product-host-proc';
-
-async function assertRealHostReader(): Promise<void> {
-  const status = await readProductHostProc('/proc/self/status', 65536, performance.now() + 5000);
-  expect(status).toMatch(/^NSpid:\s+\d+/m);
-}
-
-interface ModelChild {
-  readonly exit: number | null;
-  readonly expired: boolean;
-  readonly signal: NodeJS.Signals | null;
-  readonly output: string;
-  readonly settled: boolean;
-  readonly failure: unknown;
-}
-
-interface OwnedModelChild {
-  readonly cancel: () => void;
-  readonly completed: Promise<ModelChild>;
-}
-
-class ModelPoolFailure extends Error {
-  constructor(
-    message: string,
-    readonly settled: boolean,
-    cause: unknown,
-  ) {
-    super(message, { cause });
-  }
-}
-
-type ModelProcess = Bun.Subprocess<'ignore', 'ignore', 'pipe'>;
-type ModelReader = ReadableStreamDefaultReader<Uint8Array>;
-type ModelChildProbe = (child: ModelProcess, reader: ModelReader) => Promise<void>;
-
-async function removeModelFixture(directory: string, failures: readonly unknown[]): Promise<void> {
-  try {
-    await rm(directory, { recursive: true });
-  } catch (cause) {
-    if (failures.length > 0)
-      throw new AggregateError([...failures, cause], 'model fixture refusal and cleanup failed', {
-        cause,
-      });
-    throw cause;
-  }
-}
-
-async function withModelFixture<T>(directory: string, action: () => Promise<T>): Promise<T> {
-  const cleanup = { retain: false };
-  const failures: unknown[] = [];
-  try {
-    return await action();
-  } catch (cause) {
-    failures.push(cause);
-    // Proof: removing retention deleted the real unread child's fixture; the shared-owner
-    // control expected the directory to exist and observed false (2026-10-26).
-    if (cause instanceof ModelPoolFailure && !cause.settled) cleanup.retain = true;
-    throw cause;
-  } finally {
-    if (!cleanup.retain) await removeModelFixture(directory, failures);
-  }
-}
-
-function releaseModelReader(
-  reader: ModelReader,
-  failures: readonly unknown[],
-  refuse: (cause: unknown) => void,
-): void {
-  try {
-    reader.releaseLock();
-  } catch (cause) {
-    const failure =
-      failures.length === 0
-        ? cause
-        : new AggregateError(
-            [...failures, cause],
-            'model stderr refusal and reader cleanup failed',
-            { cause },
-          );
-    refuse(failure);
-    throw failure;
-  }
-}
-
-function startModelChild(
-  command: readonly string[],
-  deadline: number,
-  project: string,
-  environment?: NodeJS.ProcessEnv,
-  onFailure: (cause: unknown) => void = () => undefined,
-  beforeDrain?: ModelChildProbe,
-): OwnedModelChild {
-  const child = Bun.spawn([...command], {
-    cwd: project,
-    // Proof: inherited FORCE_COLOR=1 made the actual child emit ANSI/checkmarks; the exact-name reporter control failed without this fixed child format.
-    env: { ...(environment ?? process.env), FORCE_COLOR: '0' },
-    stdin: 'ignore',
-    stdout: 'ignore',
-    stderr: 'pipe',
-    killSignal: 'SIGKILL',
-  });
-  const cancel = () => {
-    child.kill('SIGKILL');
-  };
-  let failure: unknown = null;
-  let expired = false;
-  const refuse = (cause: unknown) => {
-    if (failure === null) {
-      failure = cause;
-      onFailure(cause);
-    }
-    cancel();
-  };
-  // Proof: removing the SIGKILL watchdog let a late valid-looking child finish;
-  // the focused owned-child timer negative failed its signal assertion.
-  const timer = setTimeout(
-    () => {
-      expired = true;
-      refuse(new Error('modeled product process child deadline expired'));
-    },
-    Math.max(0, deadline - performance.now()),
-  );
-  let output = '';
-  const exit = child.exited.then(
-    (code) => {
-      if (code !== 0 || child.signalCode !== null)
-        refuse(new Error('modeled product process child failed'));
-      return code;
-    },
-    (cause: unknown) => {
-      refuse(cause);
-      throw cause;
-    },
-  );
-  const drain = (async () => {
-    let reader: ModelReader | undefined;
-    const failures: unknown[] = [];
-    const decoder = new TextDecoder();
-    let bytes = 0;
-    try {
-      reader = child.stderr.getReader();
-      // The control receives only original handles before the first read, not after an observed EOF.
-      await beforeDrain?.(child, reader);
-      for (;;) {
-        const frame = await reader.read();
-        if (frame.done) break;
-        const remaining = Math.max(0, 65536 - bytes);
-        bytes += frame.value.byteLength;
-        output += decoder.decode(frame.value.subarray(0, remaining), { stream: true });
-        // Proof: removing the byte-bound refusal accepted an actual 65537-byte child;
-        // the owned-child output control failed with Missing expected rejection (2026-10-26).
-        if (bytes > 65536 || output.length > 65536)
-          refuse(new Error('modeled product process child output bound exceeded'));
-        // Refusal cancels the exact child but keeps draining to EOF without retaining excess bytes.
-      }
-      output += decoder.decode();
-    } catch (cause) {
-      failures.push(cause);
-      // Proof: omitting this refusal replaced the actual released-reader TypeError with
-      // the later watchdog error; the shared-owner control failed its TypeError assertion.
-      refuse(cause);
-      throw cause;
-    } finally {
-      if (reader !== undefined)
-        releaseModelReader(reader, failures, (cause) => {
-          refuse(cause);
-          failure = cause;
-        });
-    }
-  })();
-  const completed = (async (): Promise<ModelChild> => {
-    // Proof: omitting this actual reader join let the external fixture observer run while
-    // its pre-read continuation was held; the pool settlement control observed true instead of false.
-    const terminal = await Promise.allSettled([exit, drain]);
-    clearTimeout(timer);
-    if (performance.now() >= deadline) {
-      expired = true;
-      refuse(new Error('modeled product process child deadline expired'));
-    }
-    const stopped = terminal[0];
-    const drained = terminal[1];
-    return {
-      exit: stopped.status === 'fulfilled' ? stopped.value : null,
-      expired,
-      signal: child.signalCode,
-      output,
-      settled: stopped.status === 'fulfilled' && drained.status === 'fulfilled',
-      failure,
-    };
-  })();
-  return { cancel, completed };
-}
-
-async function runModelChild(
-  command: readonly string[],
-  deadlineMs: number,
-  project: string,
-  environment?: NodeJS.ProcessEnv,
-  probe?: ModelChildProbe,
-): Promise<ModelChild> {
-  const owned = startModelChild(
-    command,
-    performance.now() + deadlineMs,
-    project,
-    environment,
-    undefined,
-    probe,
-  );
-  const child = await owned.completed;
-  if (!child.settled)
-    throw new ModelPoolFailure(
-      'modeled child exit or stderr settlement unproved',
-      false,
-      child.failure,
-    );
-  if (child.failure instanceof Error && child.failure.message.includes('output bound exceeded'))
-    throw child.failure;
-  return child;
-}
 
 const MODEL_CHILD_WORK_MS = 1_440_000;
 // Frozen measurement: 16 cases took 1111.14s; 60 * ceil((1111.14 + 277.785) / 60) = 1440s.
@@ -492,7 +284,23 @@ test('model child output refusal joins exact owned child before returning', asyn
         [process.execPath, '-e', source],
         1000,
         new URL('../..', import.meta.url).pathname,
-      ),
+      ).then((child) => {
+        // Unexpected fulfillment necessarily fails the unchanged rejects oracle; preserve the original child.
+        process.stderr.write(
+          `${JSON.stringify({
+            exit: child.exit,
+            signal: child.signal,
+            expired: child.expired,
+            settled: child.settled,
+            failure:
+              child.failure instanceof Error
+                ? { name: child.failure.name, message: child.failure.message }
+                : String(child.failure),
+            stderr: child.output,
+          })}\n`,
+        );
+        return child;
+      }),
       /output bound exceeded/,
     );
     const pid = Number(await readFile(path, 'utf8'));
@@ -1057,50 +865,6 @@ for (const kind of PARTICIPANT_OPENER_CASES)
       expect(child.output).toMatch(/\b1 pass\b/);
       expect(child.output).toMatch(/\b0 fail\b/);
       expect(child.output).toMatch(/\b41 filtered out\b/);
-      const passed = [...child.output.matchAll(/^\(pass\) (.+) \[[0-9.]+ms\]$/gm)].map(
-        (match) => match[1],
-      );
-      expect(passed).toEqual([name]);
-    });
-    await assertRealHostReader();
-  }, 310000);
-
-for (const scenario of [...SOLVER_BACKEND_CASES, ...GATEWAY_RESTORATION_CASES])
-  test(`isolated ${scenario.name}`, async () => {
-    const deadline = performance.now() + 310000;
-    await assertRealHostReader();
-    const project = new URL('../..', import.meta.url).pathname;
-    const fixture = await createReadinessByteTransportFixture();
-    await withModelFixture(fixture.directory, async () => {
-      const name = scenario.name;
-      const childWork = Math.min(300000, deadline - performance.now() - 10000);
-      if (childWork <= 0) throw new Error('solver-backend child cleanup reserve unavailable');
-      const child = await runModelChild(
-        [
-          process.execPath,
-          'test',
-          'test/dependency-solver-backend-model-child.test.ts',
-          '-t',
-          `^${name}$`,
-          '--preload',
-          '../test/scratch/preload.ts',
-          '--timeout=300000',
-        ],
-        childWork,
-        project,
-        fixture.environment,
-      );
-      process.stderr.write(child.output);
-      expect(child.expired).toBe(false);
-      expect(child.signal).toBeNull();
-      expect(child.exit).toBe(0);
-      expect(child.output).toMatch(/\b1 pass\b/);
-      expect(child.output).toMatch(/\b0 fail\b/);
-      expect(child.output).toMatch(
-        new RegExp(
-          `\\b${String(27 + SOLVER_BACKEND_CASES.length + GATEWAY_RESTORATION_CASES.length)} filtered out\\b`,
-        ),
-      );
       const passed = [...child.output.matchAll(/^\(pass\) (.+) \[[0-9.]+ms\]$/gm)].map(
         (match) => match[1],
       );

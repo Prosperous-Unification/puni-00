@@ -228,6 +228,49 @@
       },
       "dependsOn": ["^build"]
     },
+    "test:ci:model-continuation": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/apps/wbs/be-01/**/*",
+        "{workspaceRoot}/apps/wbs/gw-01/src/dependency-capabilities-cli.ts",
+        "{workspaceRoot}/apps/wbs/gw-01/src/runtime/dependency-support.ts",
+        "{workspaceRoot}/apps/wbs/mcp-01/src/dependency-capabilities-cli.ts",
+        "{workspaceRoot}/apps/wbs/mcp-01/src/runtime/dependency-support.ts",
+        "{workspaceRoot}/libs/wbs/**/*",
+        "{workspaceRoot}/libs/shared/**/*",
+        "{workspaceRoot}/apps/wbs/be-01/src/config.ts",
+        "{workspaceRoot}/apps/wbs/be-01/src/step-blockage-replay-kinds-cli.ts",
+        "{workspaceRoot}/apps/wbs/be-01/src/controller/oidc-options.ts",
+        "{workspaceRoot}/apps/wbs/be-01/Dockerfile",
+        "{workspaceRoot}/libs/wbs/adapters/observability/src/index.ts",
+        "{workspaceRoot}/libs/wbs/adapters/store-sqlite/src/source.ts",
+        "{workspaceRoot}/apps/wbs/gw-01/src/config.ts",
+        "{workspaceRoot}/apps/wbs/gw-01/src/service/jwt-auth.ts",
+        "{workspaceRoot}/apps/wbs/gw-01/Dockerfile",
+        "{workspaceRoot}/libs/wbs/adapters/auth/src/*.ts",
+        "!{workspaceRoot}/libs/wbs/adapters/auth/src/*.test.ts",
+        "{workspaceRoot}/libs/wbs/adapters/config/src/*.ts",
+        "!{workspaceRoot}/libs/wbs/adapters/config/src/*.test.ts",
+        "{workspaceRoot}/libs/wbs/domain/validation/src/*.ts",
+        "!{workspaceRoot}/libs/wbs/domain/validation/src/*.test.ts",
+        "{workspaceRoot}/deploy/compose/site-dev.caddy.candidate",
+        "{workspaceRoot}/deploy/compose/base.yml",
+        "{workspaceRoot}/docs/runbook-dev-deploy.md",
+        "{workspaceRoot}/node_modules/nx/dist/src/**/*"
+      ],
+      "options": {
+        "command": "bun run tools/tool-remote-scripts/test/ci-leaf.ts . model-continuation",
+        "cwd": ".",
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        }
+      },
+      "dependsOn": ["^build"]
+    },
     "test:ci:rest": {
       "executor": "nx:run-commands",
       "cache": false,
