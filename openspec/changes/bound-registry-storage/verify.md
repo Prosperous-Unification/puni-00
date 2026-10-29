@@ -3100,3 +3100,52 @@ and test lint, complete semantic R5 work, guardian supplement integration/R2 nam
 actual upload/inode exhaustion, ordinary supervisor/CLI serving continuation,
 formal original-BASE review, Tasks9–11 and the exact-SHA host gate remain required.
 No h4 rehearsal, closed successful-scope replay or production activation occurred.
+
+## Task8 untrusted value typing — 2026-10-29
+
+Twenty-four type-only annotations across13 modules removed31 lint findings:
+13 decoded-JSON response envelopes receive an explicit unknown state context before
+the existing canonical validator, seven promise rejection parameters are `unknown`,
+and four mapped return types preserve decoded values or rejection reasons as
+unknown. No validator, trusted-state assertion, unsafe cast, exception conversion,
+field access, signal, lock, branch or execution order was added or removed.
+
+Every edited module's complete emitted JavaScript is byte-identical before/after
+formatting; added-effect controls differ. All11 production CLI build outputs also
+match the immediately preceding Array-read build byte-for-byte. This does not
+claim equality to historical HOST64. Return types become precise without changing
+the original rejected values or their identity.
+
+The first read-only edit selector assumed that every canonical response envelope
+contained a direct JSON decode. It stopped before any source write when it met a
+valid envelope with another producer. Selection was restricted to the direct JSON
+decode cases, enforcing the exact13-target count; other parser calls were unchanged.
+The separate virtual-source prototype confirmed the unknown context clears its
+unsafe-assignment finding while preserving emitted runtime.
+
+Final configured tool-fleet command, with pinned native restic enabled, exited0:
+2056 passes, zero failures/skips,8756 assertions across164 files,103.98seconds.
+All333 captured TypeScript/config pins matched during and after execution. Library
+and spec checks exited0 with empty output; formatting passed all13 files. The11
+production entrypoints built into an owner-only temporary archive and were not
+installed or activated.
+
+Fresh96-file runtime lint remains failing at169 errors, zero warnings. Compared
+with the previous inventory, unsafe assignments decrease20, unsafe returns four
+and unknown rejection-parameter findings seven; no other rule count changes.
+Remaining unsafe assignments include native spawn interposition and one raw fixture
+journal/token read. Their boundaries require separate review; no blanket cast or
+lint suppression was introduced here. Test/full-repository lint remains uncertified.
+
+`/tmp/task8-unknown-covering.json`, SHA256
+`1654d0e799aa1d84657cd15fd5ab76d55c99e4395400b7e12e10df6eb631d999`,90pins,
+binds source snapshots, emitted-code controls, build equality, terminal checks and
+raw logs. The final project receipt is
+`/tmp/task8-project-after-unknown/exit.json` (stdout `3415d09d`, stderr `e504ac5e`).
+Current lint/check receipts are under `/tmp/task8-unknown-checks/`.
+
+The original17 requirements/24 scenarios and Task8/4.2 remain incomplete. Remaining
+runtime/test lint, semantic R5 reconciliation, guardian supplement integration/R2
+naming, actual upload/inode exhaustion, ordinary supervisor/CLI serving continuation,
+formal original-BASE review, Tasks9–11 and the exact-SHA host gate remain required.
+There was no h4 rehearsal, closed successful-scope replay or production activation.
