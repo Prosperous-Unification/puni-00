@@ -274,11 +274,13 @@
 - [x] 4.4 Bound mcp-01's grant-client fetch to be-01 at the token endpoint with a timeout (it
       holds a pending slot while it waits; review of PR #765). Negative: a never-answering be-01
       frees the slot. (Slice 7: `BE_CALL_TIMEOUT_MS`, raced; verify.md, slice 7.)
-- [ ] 4.5 Raise one be-01's capacity toward M10's design load (200 tool calls a second), or
+- [x] 4.5 Raise one be-01's capacity toward M10's design load (200 tool calls a second), or
       restate M10's sizing to the measured one (slice 11: about 85 a second on h2puni, bound by
       be-01 CPU per call). Candidates from the profile: prepare hot statements once, index the
       endpoint table, cache the activation marker and the expected secret's digest. Evidence:
-      re-run `m10-load.ts --agents=100` under the heavy lock.
+      re-run `m10-load.ts --agents=100` under the heavy lock. (Slice 12: 86.2 → 120.6 calls a second
+      on h2puni; M10's sizing restated to about 60 agents per be-01. The activation marker is not
+      cached.)
 
 ## 5. Human-only tools by policy
 
@@ -343,10 +345,26 @@
       with `twilight-dash mcp token`, each with its own `wbs_run`: they claim, heartbeat and
       release. Re-key mid-run, then revoke, and observe the leases end. Record it. This gates
       slice 7.
-- [ ] 8.2 Prod runbook:
+      (Not done: the dev run waits on a pool in the dev web app. Its rehearsal on a throwaway stack,
+      `apps/wbs/mcp-01/src/load/pool-swarm-rehearsal.ts`, passed; verify.md slice 13.)
+- [x] 8.2 Prod runbook:
   - seed `WBS_MACHINE_GRANT_SIGNING_KEY_*`, `MCP_BE_INTERNAL_SECRET` and
     `WBS_MCP_AUTHORIZATION_SERVER`;
   - run the audience preflight in the candidate container (Compose) or the schema Job
     (Kubernetes), with `WBS_ACCEPT_BREAKING_AUDIENCES` set from the deploy CLI's
     `--accept-breaking`;
   - order the secret cutover.
+    (`docs/runbook-prod-deploy.md`, "MCP agent surface"; verify.md slice 14. The preflight
+    was a manual `docker run` until 8.3 wired it into both deploys; verify.md slice 15.)
+- [x] 8.3 Deploy wiring the runbook found missing (verify.md slice 14, gaps):
+  - the Compose swap and the Kubernetes schema Job run `trusted-issuer-audience-check-cli.ts`
+    with the candidate image before migrating, and both deploy CLIs take
+    `--accept-breaking=<ids>` into `WBS_ACCEPT_BREAKING_AUDIENCES`. Negative: skip the step,
+    and a fixture with an unaccepted `wbs:org:` registration swaps;
+  - `deploy/k8s/wbs/base/mcp.yaml` gives mcp-01 `MCP_BE_INTERNAL_SECRET` from
+    `wbs-mcp-secrets`, and the prod and staging `wbs-backend-config` carry
+    `WBS_MCP_AUTHORIZATION_SERVER`. Negative: drop the ref, and `mcp-manifest.test.ts` reddens;
+  - the be swap preflight requires the three settings when the store is activated, so a
+    missing key refuses before migration instead of at be-01 boot.
+    (verify.md slice 15: the be swap's `mcp-preflight` step and the capture Job; neither has
+    run on a host.)

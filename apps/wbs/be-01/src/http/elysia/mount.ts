@@ -21,7 +21,7 @@ import {
   type RequestFailure,
   type RequestMetadata,
 } from '../endpoint';
-import { matchPath } from '../route';
+import { indexEndpoints } from '../endpoint-index';
 import { decodeForm } from './form';
 import type { UnexpectedFailureReporter } from './unexpected-failure';
 
@@ -65,6 +65,7 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
       throw new Error(`Endpoint ${shape.operationId} has incompatible identity policies`);
   }
   const admissions = new WeakMap<Request, Admission>();
+  const lookupEndpoint = indexEndpoints(endpoints);
   const app = new Elysia();
   // Elysia exports onRequest hooks into a parent before routing, so their error
   // hook must follow them. Limit it to this adapter's selected requests.
@@ -110,17 +111,7 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
       // Proof: a fresh signal here made 'cancels the provider read when the request aborts' see the provider signal still open (2026-10-24).
       signal: request.signal,
     };
-    const matched = endpoints
-      .filter(
-        ({ shape }) =>
-          shape.method === request.method || (request.method === 'HEAD' && shape.method === 'GET'),
-      )
-      .flatMap((endpoint) => {
-        const params = matchPath(endpoint.shape.path, metadata.url.pathname);
-        return params === null ? [] : [{ endpoint, params }];
-      })
-      .sort((left, right) => comparePaths(left.endpoint.shape.path, right.endpoint.shape.path))
-      .at(0);
+    const matched = lookupEndpoint(request.method, metadata.url.pathname);
     // Proof: on 2026-09-21, reporting here made “admits static and parameter siblings
     // with their own ordered policies” receive an injected failure instead of an empty list.
     if (matched === undefined) return undefined;
@@ -395,21 +386,6 @@ function parserMedia(contentType: string): BodyMedia | undefined {
     default:
       return undefined;
   }
-}
-
-/**
- * Elysia gives a static segment precedence over a parameter at the first divergence.
- * Proof: omitting this ordering applies the protected parameter route's policy
- * to its public static sibling, and the sibling test receives 401 instead of 200.
- */
-function comparePaths(left: string, right: string): number {
-  const rightSegments = right.split('/');
-  for (const [index, segment] of left.split('/').entries()) {
-    const difference =
-      Number(segment.startsWith(':')) - Number(rightSegments[index]?.startsWith(':'));
-    if (difference !== 0) return difference;
-  }
-  return 0;
 }
 
 /**

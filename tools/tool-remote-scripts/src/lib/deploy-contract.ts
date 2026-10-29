@@ -103,6 +103,7 @@ export function bundleFilesFor(root: string): BundleFile[] {
 
 export { writeAtomic } from './atomic';
 export { withLock } from './lock';
+export { parseAcceptBreaking } from './mcp-preflight';
 export { decodeSolverSupervisorConfig } from './solver-supervisor-config';
 export {
   SOLVER_SUPERVISOR_BUN,

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -169,5 +169,38 @@ describe('the trusted issuer audience preflight', () => {
       expect(ran.exitCode).not.toBe(3);
       expect(ran.stdout).toBe('');
     }
+  });
+
+  it('passes a store the trusted issuer migration has not reached', () => {
+    const before = join(directory, 'before.db');
+    const staged = join(directory, 'drizzle');
+    mkdirSync(staged);
+    for (const name of readdirSync(migrations))
+      if (name < '20261022100000_add_machine_credential')
+        cpSync(join(migrations, name), join(staged, name), { recursive: true });
+    runMigrations(before, staged);
+    const ran = run({ DB_PATH: before });
+    expect(ran.exitCode).toBe(0);
+    expect(JSON.parse(ran.stdout)).toEqual({
+      authorizationServer: SERVER,
+      notMigrated: '20261022100000_add_machine_credential',
+      breaking: [],
+      unaccepted: [],
+    });
+  });
+
+  it('refuses a trusted issuer table the ledger does not record', () => {
+    const database = openDatabase(path);
+    try {
+      database.run(
+        "DELETE FROM __drizzle_migrations WHERE name = '20261022100000_add_machine_credential'",
+      );
+    } finally {
+      database.close();
+    }
+    const ran = run({});
+    expect(ran.exitCode).not.toBe(0);
+    expect(ran.exitCode).not.toBe(3);
+    expect(ran.stderr).toContain('the ledger lacks 20261022100000_add_machine_credential');
   });
 });

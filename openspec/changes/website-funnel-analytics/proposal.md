@@ -34,7 +34,7 @@ None. Existing funnel count remains a stored-row count; a GA4 event is a separat
 
 ## Decisions Recorded
 
-[Proposed analytics boundary](../../../docs/adr/0063-consented-traffic-analytics-stays-separate-from-request-content.md).
+[Proposed analytics boundary](../../../docs/adr/0064-consented-traffic-analytics-stays-separate-from-request-content.md).
 
 ## Impact
 
