@@ -11,4 +11,4 @@
 - [x] 6. Extract only neutral child custody and move the unchanged final 24-case loop; preserve the complete retained core body, catalogs, assertions and bounds.
 - [x] 7. Configure closed continuation leaf/runtime mapping and separate-runner matrix; observe independent omission RED/restored GREEN for new file, ignore, target, mapping and matrix boundaries.
 - [x] 8. Finish scoped static/document validation and freeze exact source for independent review, preserving the known intermittent baseline control limitation.
-- [ ] 9. Fresh exact-source hosted core and continuation jobs plus required aggregate finish successfully before claiming this observed CI deadline corrected (Root owns publication and CI).
+- [x] 9. Fresh exact-source hosted core and continuation jobs plus required aggregate finish successfully before claiming this observed CI deadline corrected (Root owns publication and CI).

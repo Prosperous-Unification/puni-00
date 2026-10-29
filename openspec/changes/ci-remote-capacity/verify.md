@@ -230,3 +230,34 @@ target are unchanged, and workflow bytes outside `gate_remote_model` are unchang
 (`unchanged-contracts.log`). Final scoped format/diff receipts and exact file pins
 are retained in the private frozen handoff packet. Normal commit hooks and fresh
 hosted matrix acceptance remain Root-owned.
+
+## Hosted completion of the fixed model partition
+
+[CI run40888534895](https://github.com/Prosperous-Unification/puni-00/actions/runs/40888534895)
+completed successfully for feature commit
+`b297c2275cb860fa8f4ae13891418fa56cbb7660`. Its synthetic merge
+`c8d9a869fb7a89bdee5de70da820d8bf6b6b3ba3` has parents50862bc37 and
+b297c2275 and tree`50cbad76e96f7fedae63f7b00b986ac66242772a`, exactly
+the feature tree. Both required model jobs, the remote gate and aggregate
+job123543667320 passed, together with every other required gate and all eight
+browser shards. Matching infrastructure run40888534754 also passed.
+
+The core job passed43 tests across one file in2971.49s (phase2983s); continuation
+passed24 across one file in1692.04s (phase1700s). The full original Nx logs were
+retained and their actual outer-case counts checked. All individual90-minute job,
+75-minute phase,30-second cleanup and original child/parent limits were preserved;
+the separate-runner model allocation is two jobs. These observations establish
+completion for this candidate, not a new performance threshold.
+
+Core full-log SHA256:
+`e59a5534f7026a15c51d72b7cfb6a714f989302e8a4fe5df564bbea4868d7ac3`.
+Continuation full-log SHA256:
+`6f4ad06aa9bad80f3437b004755765ce25cd3a293bbc5239da1c3f70e3caacb0`.
+Original completed job logs, artifacts, run metadata and synthetic-tree metadata
+are frozen under`/tmp/puni-b297-ci-results-20261029`.
+
+The output-control case passed in this hosted epoch. Its earlier local failures
+and single diagnostic pass remain valid history with unknown cause; this is no
+synchronization repair claim. The newer private Node/frontend prerequisites and
+later profile/readiness work are separate source epochs and are not certified by
+this b297 run. Native/full-source/main/deployment acceptance remains open.
