@@ -31,7 +31,12 @@ import {
 import { planOutcome, type RecordedCompletion } from '../plan-outcome';
 import { assertClock, planOwnership, planRenewal } from '../plan-ownership';
 import { planReceipt, type RecordedReceipt, replayReceipt } from '../plan-receipt';
-import { isActiveRecoveryAttempt, planRecoveryBegin, planRecoveryFence } from '../plan-recovery';
+import {
+  isActiveRecoveryAttempt,
+  planRecoveryBegin,
+  planRecoveryFence,
+  planRecoveryObservation,
+} from '../plan-recovery';
 import type { RecoveryBarrier, RecoveryCatalog } from '../plan-recovery-history';
 import {
   auditRuntimeCatalog,
@@ -80,7 +85,11 @@ import type {
   OwnershipStatus,
   Run,
 } from '../records';
-import { decodeRecoveryBeginCall, decodeRecoveryFenceCall } from '../recovery-codecs';
+import {
+  decodeRecoveryBeginCall,
+  decodeRecoveryFenceCall,
+  decodeRecoveryObservationCall,
+} from '../recovery-codecs';
 import type { RecoveryHistory } from '../recovery-records';
 import type { RunStore, StoreReply } from '../run-store';
 import {
@@ -269,6 +278,40 @@ export function createMemoryStores(options: MemoryOptions): {
     return decodeAttempt(structuredClone(attempt));
   }
   const port: RunStore = {
+    async recordRecoveryFence(input) {
+      // Proof: T5M01 using caller input instead of its snapshot let clock mutation change the retained reply. Exact restoration passed.
+      const snapshot = structuredClone(input);
+      const ownership = decodeOwnership(snapshot.guard.ownership);
+      const observedAt = observeClock();
+      // Proof: T5M02 removing current ownership fencing replayed an expired-owner observation. Exact restoration passed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      const catalog = readHistoryCatalog();
+      // Proof: T5M03 omitting the complete audit replayed despite unrelated retained run drift. Exact restoration passed.
+      validateHistory(catalog);
+      // Proof: T5M04 omitting typed decoding admitted a schemaVersion2 receipt. Exact restoration passed.
+      const call = decodeRecoveryObservationCall(snapshot);
+      const reply = planRecoveryObservation(catalog, call);
+      if (reply.kind === 'applied') {
+        const history = catalog.runtime.recovery.histories.find(
+          (entry) => entry.intent.recoveryId === call.recoveryId,
+        );
+        if (history === undefined) throw new Error('planned recovery journal does not exist');
+        const next = structuredClone({
+          ...history,
+          revision: reply.value.observedRevision,
+          observations: [...history.observations, reply.value],
+        });
+        const counts = {
+          ...recoveryCounts,
+          observations: addInteger(recoveryCounts.observations, 1),
+        };
+        // Proof: T5M05 omitting journal publication left count mismatch and broke exact replay. Exact restoration passed.
+        recoveries.set(call.recoveryId, next);
+        recoveryCounts = counts;
+      }
+      return await Promise.resolve(finishReply(reply, observedAt));
+    },
     async stageRecoveryFence(input) {
       // Proof: T4M01 using caller input instead of its snapshot let the clock mutation alter the requested ordinal. Exact restoration passed.
       const snapshot = structuredClone(input);

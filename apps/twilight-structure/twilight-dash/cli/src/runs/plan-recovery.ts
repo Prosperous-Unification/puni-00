@@ -10,7 +10,9 @@ import type {
   RecoveryExchangeValue,
   RecoveryFence,
   RecoveryFenceInput,
+  RecoveryFenceReplyInput,
   RecoveryHistory,
+  RecoveryObservation,
 } from './recovery-records';
 import type { StoreReply } from './run-store';
 import { digestRuntimeRequest, equalRuntimeScopes, readRuntimeRequest } from './runtime-codecs';
@@ -342,4 +344,114 @@ function matchesRecoveryExchange(
     equalRecords(exchange.request, request) &&
     exchange.status === status
   );
+}
+
+/** Plans one immutable reply for the latest staged fence from an owner-authorized audited catalog. Exact replay retains historical provenance and precedes fresh revisions. Trusted pairs establish correspondence only, never byte integrity or transport chronology. Complete predecessor audits imply the pinned scope, target rows and authority request exist; their refinements are diagnostics, not additional admission guards. A closed journal already observed its final fence, so exact replay or latest-stage refusal covers it. */
+export function planRecoveryObservation(
+  catalog: HistoryCatalog,
+  call: RecoveryCall<RecoveryFenceReplyInput>,
+): StoreReply<RecoveryObservation> {
+  const { guard, input } = call;
+  const history = catalog.runtime.recovery.histories.find(
+    (entry) => entry.intent.recoveryId === call.recoveryId,
+  );
+  // Proof: T5O01 removing missing-journal refinement changed its named rejection to TypeError; diagnostic only. Exact restoration passed.
+  if (history === undefined) throw new Error('recovery journal does not exist');
+  const target = history.intent.target;
+  const original = readRuntimeRequest(target.original.canonicalRequest);
+  // Proof: T5O02 removing target-kind correspondence admitted a claim call for an authority journal. Exact restoration passed.
+  if (call.kind !== target.kind || input.fence.recoveryId !== call.recoveryId)
+    return { kind: 'refused', reason: 'identity_conflict' };
+  // Proof: T5O03 removing scope correspondence replayed an observation under a foreign scope guard. Exact restoration passed.
+  if (
+    !equalRuntimeScopes(guard.scope, original.scope) ||
+    guard.scope.organizationId !== guard.ownership.organizationId
+  )
+    return { kind: 'refused', reason: 'authority_conflict' };
+  // Proof: T5O04 removing claim target correspondence admitted wrong run/attempt guards. Exact restoration passed.
+  if (
+    call.kind === 'claim' &&
+    target.kind === 'claim' &&
+    (call.guard.runId !== target.runId || call.guard.attemptId !== target.attemptId)
+  )
+    return { kind: 'refused', reason: 'identity_conflict' };
+  const fence = history.fences.find((entry) => entry.ordinal === input.fence.ordinal);
+  // Proof: T5O05 removing retained-fence equality admitted altered fence provenance. Exact restoration passed.
+  if (fence === undefined || !equalRecords(fence, input.fence))
+    return { kind: 'refused', reason: 'identity_conflict' };
+  const prior = history.observations.find((entry) => entry.fence.ordinal === fence.ordinal);
+  // Proof: T5O06 bypassing immutable equality replayed a changed receipt actor. Exact restoration passed.
+  if (prior !== undefined)
+    return equalRecords(prior, { ...input, version: 1, observedRevision: prior.observedRevision })
+      ? { kind: 'duplicate', value: prior }
+      : { kind: 'refused', reason: 'identity_conflict' };
+  // A complete predecessor implies a closed journal already observed its last fence.
+  // Proof: T5O07 removing latest-stage correspondence admitted a late observation for a superseded fence. Exact restoration passed.
+  if (history.fences.at(-1)?.ordinal !== fence.ordinal || history.revision !== fence.stagedRevision)
+    return { kind: 'refused', reason: 'state_conflict' };
+  const snapshot = inspectRuntimeScope(catalog.runtime, guard.scope, catalog.ownership);
+  if (snapshot.kind !== 'pinned' || snapshot.version !== 2)
+    throw new Error('recovery scope is not current and pinned');
+  // Proof: T5O08 removing revision correspondence admitted stale recovery/scope guards. Exact restoration passed.
+  if (
+    history.revision !== guard.expectedRecoveryRevision ||
+    snapshot.revision !==
+      (call.kind === 'authority' ? call.guard.expectedRevision : call.guard.expectedScopeRevision)
+  )
+    return { kind: 'refused', reason: 'revision_conflict' };
+  if (call.kind === 'claim' && target.kind === 'claim') {
+    const attempt = catalog.attempts.find(
+      (entry) => entry.attempt.attemptId === target.attemptId,
+    )?.attempt;
+    const run = catalog.runs.find((entry) => entry.run.runId === target.runId)?.run;
+    if (attempt === undefined || run === undefined)
+      throw new Error('recovery target does not exist');
+    const conflict = checkAttempt({ attempt, run }, call.guard);
+    // Proof: T5O09 ignoring the attempt revision refusal admitted stale run/attempt guards. Exact restoration passed.
+    if (conflict !== undefined) return conflict;
+  }
+  const request = readRuntimeRequest(fence.canonicalRequest);
+  if (!('kind' in request.operation)) throw new Error('retained recovery fence is not authority');
+  // Proof: T5O10 omitting exchange correspondence admitted wrong context, body reference, scope, ledger, request and status. Exact restoration passed.
+  if (
+    !matchesRecoveryExchange(
+      input.reply,
+      original.scope,
+      snapshot.pin.ledgerId,
+      {
+        kind: 'fence_reply',
+        recoveryId: call.recoveryId,
+        ordinal: fence.ordinal,
+        requestDigest: fence.requestDigest,
+        stagedRevision: fence.stagedRevision,
+      },
+      input.kind === 'accepted' && input.reply.envelope.value.request.kind === 'lookup'
+        ? { kind: 'lookup', commandId: request.operation.commandId }
+        : { kind: 'authority', canonicalRequest: fence.canonicalRequest },
+      input.kind === 'accepted' ? 200 : 409,
+    )
+  )
+    return { kind: 'refused', reason: 'identity_conflict' };
+  if (input.kind === 'accepted') {
+    const receipt = input.reply.body.value;
+    // Proof: T5O11 removing receipt identity checks admitted wrong scope, ledger, command and digest. Exact restoration passed.
+    if (
+      !equalRuntimeScopes(receipt.scope, request.scope) ||
+      receipt.ledgerId !== request.operation.expectedLedgerId ||
+      receipt.commandId !== request.operation.commandId ||
+      receipt.requestDigest !== fence.requestDigest
+    )
+      return { kind: 'refused', reason: 'identity_conflict' };
+    // Proof: T5O12 removing authority correspondence admitted a foreign owner and non-successor generation. Exact restoration passed.
+    if (
+      receipt.acceptance.authority.ownerId !== request.operation.ownerId ||
+      receipt.acceptance.authority.generation !==
+        addInteger(request.operation.expectedGeneration ?? 0, 1)
+    )
+      return { kind: 'refused', reason: 'identity_conflict' };
+  }
+  return {
+    kind: 'applied',
+    value: { ...input, version: 1, observedRevision: addInteger(history.revision, 1) },
+  };
 }

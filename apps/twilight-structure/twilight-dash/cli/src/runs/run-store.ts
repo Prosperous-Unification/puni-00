@@ -33,7 +33,9 @@ import type {
   RecoveryCall,
   RecoveryFence,
   RecoveryFenceInput,
+  RecoveryFenceReplyInput,
   RecoveryHistory,
+  RecoveryObservation,
 } from './recovery-records';
 import type {
   RuntimeAcceptance,
@@ -68,6 +70,10 @@ export interface RunStore {
   beginRecovery(call: RecoveryBeginCall): Promise<StoreReply<RecoveryHistory>>;
   /** Stages one of at most three dominating receiver fences, advancing only recovery revision. Exact replay retains original provenance; trusted projections do not authenticate transport. */
   stageRecoveryFence(call: RecoveryCall<RecoveryFenceInput>): Promise<StoreReply<RecoveryFence>>;
+  /** Retains one complete immutable verified fence reply, advancing only recovery revision and observation count. */
+  recordRecoveryFence(
+    call: RecoveryCall<RecoveryFenceReplyInput>,
+  ): Promise<StoreReply<RecoveryObservation>>;
   /** Atomically retains one exact WBS claim request with its attempt transition; never sends it. */
   stageClaim(
     guard: ScopedAttemptGuard,

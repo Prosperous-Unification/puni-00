@@ -19,7 +19,12 @@ import { type AttemptChange, planExecution, replayExecution } from '../plan-exec
 import { planOutcome } from '../plan-outcome';
 import { assertClock, planOwnership, planRenewal } from '../plan-ownership';
 import { planReceipt, replayReceipt } from '../plan-receipt';
-import { isActiveRecoveryAttempt, planRecoveryBegin, planRecoveryFence } from '../plan-recovery';
+import {
+  isActiveRecoveryAttempt,
+  planRecoveryBegin,
+  planRecoveryFence,
+  planRecoveryObservation,
+} from '../plan-recovery';
 import {
   inspectRuntimeScope,
   planRuntimeAcceptance,
@@ -43,7 +48,11 @@ import {
   runId,
 } from '../record-codecs';
 import type { Ownership, OwnershipStatus, Run } from '../records';
-import { decodeRecoveryBeginCall, decodeRecoveryFenceCall } from '../recovery-codecs';
+import {
+  decodeRecoveryBeginCall,
+  decodeRecoveryFenceCall,
+  decodeRecoveryObservationCall,
+} from '../recovery-codecs';
 import type { RunStore, StoreReply } from '../run-store';
 import {
   decodeRuntimeAcceptanceInput,
@@ -56,7 +65,11 @@ import { findExecution, validateAttempt } from './read-executions';
 import { readHistory } from './read-history';
 import { readRuntimeCatalog } from './read-runtime';
 import { findConsumption, findDecision, findReceipt } from './read-signals';
-import { insertRecoveryBegin, insertRecoveryFence } from './recovery-store';
+import {
+  insertRecoveryBegin,
+  insertRecoveryFence,
+  insertRecoveryObservation,
+} from './recovery-store';
 import { decodeAttemptRow, decodeManifestRow, decodeRunRow } from './row-codecs';
 import { decodeCompletionRow } from './row-codecs';
 import { insertRuntimeAcceptance, insertRuntimeIntent, insertRuntimePin } from './runtime-store';
@@ -224,6 +237,25 @@ export function createSqliteRunStore(
         .run(change.attempt.attemptId);
   }
   const runs: RunStore = {
+    async recordRecoveryFence(input) {
+      // Proof: T5S01 using caller input instead of its snapshot let clock mutation change the retained reply. Exact restoration passed.
+      const snapshot = structuredClone(input);
+      const ownership = decodeOwnership(snapshot.guard.ownership);
+      // Proof: T5S06 bypassing this transaction left observation/journal writes after a late marker abort. Exact restoration passed.
+      return await transact(true, () => {
+        const { authority } = readAuthority(ownership);
+        // Proof: T5S02 removing current ownership fencing replayed an expired-owner observation. Exact restoration passed.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        // Proof: T5S03 moving decoding before the audit changed the corruption diagnostic to malformed input; ordering only. Exact restoration passed.
+        const { catalog } = readHistory(database);
+        // Proof: T5S04 omitting typed decoding admitted a schemaVersion2 receipt. Exact restoration passed.
+        const reply = planRecoveryObservation(catalog, decodeRecoveryObservationCall(snapshot));
+        // Proof: T5S05 omitting publication returned applied on exact replay. Exact restoration passed.
+        if (reply.kind === 'applied') insertRecoveryObservation(database, reply.value);
+        return finish(reply, authority.observedAt);
+      });
+    },
     async stageRecoveryFence(input) {
       // Proof: T4S01 using caller input instead of its snapshot let the clock mutation alter the requested ordinal. Exact restoration passed.
       const snapshot = structuredClone(input);

@@ -1,6 +1,6 @@
 import type { Database } from 'bun:sqlite';
 
-import type { RecoveryFence, RecoveryHistory } from '../recovery-records';
+import type { RecoveryFence, RecoveryHistory, RecoveryObservation } from '../recovery-records';
 import { readRuntimeRequest, runtimeScopeKey } from '../runtime-codecs';
 
 /** Publishes a planned revision-zero journal and its active index in the caller's write transaction. Scope, run, attempt and reservation rows remain untouched. */
@@ -43,4 +43,27 @@ export function insertRecoveryFence(database: Database, fence: RecoveryFence): v
     .query('UPDATE run_recovery_journal SET revision=? WHERE recovery_id=?')
     .run(fence.stagedRevision, fence.recoveryId);
   database.run('UPDATE run_recovery_format SET fence_count=fence_count+1 WHERE singleton=1');
+}
+
+/** Publishes the complete observation, revision and count in the caller's transaction without changing execution or scope rows. */
+export function insertRecoveryObservation(
+  database: Database,
+  observation: RecoveryObservation,
+): void {
+  database
+    .query(
+      'INSERT INTO run_recovery_observation(recovery_id,ordinal,revision,record) VALUES (?,?,?,?)',
+    )
+    .run(
+      observation.fence.recoveryId,
+      observation.fence.ordinal,
+      observation.observedRevision,
+      JSON.stringify(observation),
+    );
+  database
+    .query('UPDATE run_recovery_journal SET revision=? WHERE recovery_id=?')
+    .run(observation.observedRevision, observation.fence.recoveryId);
+  database.run(
+    'UPDATE run_recovery_format SET observation_count=observation_count+1 WHERE singleton=1',
+  );
 }

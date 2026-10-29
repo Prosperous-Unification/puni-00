@@ -4,7 +4,11 @@ import { join } from 'node:path';
 
 import { organizationId } from '../record-codecs';
 import { FixtureClock } from '../testing/fixtures';
-import { createRecoveryFenceCall, recoveryContract } from '../testing/recovery-contract';
+import {
+  createRecoveryFenceCall,
+  createRecoveryObservationCall,
+  recoveryContract,
+} from '../testing/recovery-contract';
 import { bootstrapSqliteStores } from './open-stores';
 
 recoveryContract('sqlite recovery', async () => {
@@ -666,3 +670,173 @@ test('recovery fence closed journal refuses a fresh identity but retains exact r
     await fixture.close();
   }
 });
+
+test('recovery observation late marker abort rolls back exact predecessor and resumes after reopen', async () => {
+  const fixture = await createPhysicalFixture(false);
+  try {
+    const staged = await createRecoveryFenceCall(fixture.stores.artifacts, fixture.call, 2);
+    unwrapReply(await fixture.stores.runs.stageRecoveryFence(staged));
+    const call = await createRecoveryObservationCall(fixture.stores.artifacts, staged);
+    fixture.database.run(
+      "CREATE TRIGGER observation_marker_abort BEFORE UPDATE ON run_recovery_format WHEN NEW.observation_count=1 BEGIN SELECT RAISE(ABORT,'late observation marker injected'); END",
+    );
+    const before = captureRecovery(fixture.database);
+    await rejects(
+      fixture.stores.runs.recordRecoveryFence(call),
+      /late observation marker injected/,
+    );
+    expect(captureRecovery(fixture.database)).toEqual(before);
+    const reopened = await openSqliteStores(fixture.options);
+    try {
+      expect(await reopened.runs.readRuntimeScope(runtimeScope)).toMatchObject({
+        recoveries: [{ revision: 1, observations: [] }],
+      });
+      fixture.database.run('DROP TRIGGER observation_marker_abort');
+      const observed = unwrapReply(await reopened.runs.recordRecoveryFence(call));
+      const persisted = await openSqliteStores(fixture.options);
+      try {
+        expect(await persisted.runs.recordRecoveryFence(call)).toEqual({
+          kind: 'duplicate',
+          value: observed,
+        });
+      } finally {
+        await persisted.close();
+      }
+    } finally {
+      await reopened.close();
+    }
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('recovery observation complete audit precedes replay and decoding', async () => {
+  const fixture = await createPhysicalFixture(false);
+  try {
+    const staged = await createRecoveryFenceCall(fixture.stores.artifacts, fixture.call, 2);
+    unwrapReply(await fixture.stores.runs.stageRecoveryFence(staged));
+    const call = await createRecoveryObservationCall(fixture.stores.artifacts, staged);
+    unwrapReply(await fixture.stores.runs.recordRecoveryFence(call));
+    fixture.database.run('UPDATE run_recovery_format SET observation_count=2');
+    await rejects(
+      fixture.stores.runs.recordRecoveryFence(call),
+      /corrupt recovery physical counts/,
+    );
+    Object.assign(call, { input: null });
+    await rejects(
+      fixture.stores.runs.recordRecoveryFence(call),
+      /corrupt recovery physical counts/,
+    );
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('recovery observation closed journal retains exact old replay', async () => {
+  const fixture = await createPhysicalFixture(true);
+  try {
+    const snapshot = await fixture.stores.runs.readRuntimeScope(runtimeScope);
+    if (snapshot.kind !== 'pinned' || snapshot.version !== 2)
+      throw new Error('fixture scope missing');
+    const observation = snapshot.recoveries[0].observations[0];
+    const input =
+      observation.kind === 'accepted'
+        ? { kind: observation.kind, fence: observation.fence, reply: observation.reply }
+        : { kind: observation.kind, fence: observation.fence, reply: observation.reply };
+    const call = {
+      kind: 'authority' as const,
+      guard: fixture.call.guard,
+      recoveryId: fixture.call.intent.recoveryId,
+      input,
+    };
+    expect(await fixture.stores.runs.recordRecoveryFence(call)).toEqual({
+      kind: 'duplicate',
+      value: observation,
+    });
+    Object.assign(input.reply.body.value, { actorId: 'changed' });
+    expect(await fixture.stores.runs.recordRecoveryFence(call)).toEqual({
+      kind: 'refused',
+      reason: 'identity_conflict',
+    });
+  } finally {
+    await fixture.close();
+  }
+});
+
+import { readRuntimeHistory } from '../runtime-history';
+
+test('recovery observation coherent same-reference receipt rewrite passes raw audit but fails verified read', async () => {
+  const fixture = await createPhysicalFixture(false);
+  try {
+    const staged = await createRecoveryFenceCall(fixture.stores.artifacts, fixture.call, 2);
+    unwrapReply(await fixture.stores.runs.stageRecoveryFence(staged));
+    const call = await createRecoveryObservationCall(fixture.stores.artifacts, staged);
+    const observed = unwrapReply(await fixture.stores.runs.recordRecoveryFence(call));
+    Object.assign(observed.reply.body.value, { actorId: 'forged' });
+    fixture.database
+      .query('UPDATE run_recovery_observation SET record=?')
+      .run(JSON.stringify(observed));
+    expect(await fixture.stores.runs.readRuntimeScope(runtimeScope)).toMatchObject({
+      recoveries: [{ observations: [observed] }],
+    });
+    const reopened = await openSqliteStores(fixture.options);
+    try {
+      await rejects(
+        readRuntimeHistory(reopened.runs, reopened.artifacts, runtimeScope),
+        /recovery value differs from actual artifact/,
+      );
+    } finally {
+      await reopened.close();
+    }
+  } finally {
+    await fixture.close();
+  }
+});
+
+for (const field of ['actorId', 'body', 'observedRevision', 'fence'] as const)
+  test('recovery observation reopen refuses missing retained field ' + field, async () => {
+    const fixture = await createPhysicalFixture(false);
+    try {
+      const staged = await createRecoveryFenceCall(fixture.stores.artifacts, fixture.call, 2);
+      unwrapReply(await fixture.stores.runs.stageRecoveryFence(staged));
+      const call = await createRecoveryObservationCall(fixture.stores.artifacts, staged);
+      const observed = unwrapReply(await fixture.stores.runs.recordRecoveryFence(call));
+      if (field === 'actorId') Reflect.deleteProperty(observed.reply.body.value, field);
+      else if (field === 'body') Reflect.deleteProperty(observed.reply.envelope.value, field);
+      else Reflect.deleteProperty(observed, field);
+      fixture.database
+        .query('UPDATE run_recovery_observation SET record=?')
+        .run(JSON.stringify(observed));
+      await rejects(fixture.stores.runs.readRuntimeScope(runtimeScope));
+      await rejects(fixture.stores.runs.recordRecoveryFence(call));
+      await rejects(openSqliteStores(fixture.options));
+    } finally {
+      await fixture.close();
+    }
+  });
+
+for (const part of ['envelope', 'body'] as const)
+  test(
+    'recovery observation verified history rejects actual absent ' + part + ' bytes',
+    async () => {
+      const fixture = await createPhysicalFixture(false);
+      try {
+        const staged = await createRecoveryFenceCall(fixture.stores.artifacts, fixture.call, 2);
+        unwrapReply(await fixture.stores.runs.stageRecoveryFence(staged));
+        const call = await createRecoveryObservationCall(fixture.stores.artifacts, staged);
+        const observed = unwrapReply(await fixture.stores.runs.recordRecoveryFence(call));
+        fixture.database
+          .query('DELETE FROM run_artifact WHERE digest=?')
+          .run(observed.reply[part].artifact.digest);
+        expect(await fixture.stores.runs.readRuntimeScope(runtimeScope)).toMatchObject({
+          recoveries: [{ observations: [observed] }],
+        });
+        await rejects(
+          readRuntimeHistory(fixture.stores.runs, fixture.stores.artifacts, runtimeScope),
+          /artifact does not exist/,
+        );
+      } finally {
+        await fixture.close();
+      }
+    },
+  );

@@ -20,7 +20,10 @@ import {
   stageFixtureTurn,
   unwrapReply,
 } from './testing/fixtures';
-import { createRecoveryFenceCall } from './testing/recovery-contract';
+import {
+  createRecoveryFenceCall,
+  createRecoveryObservationCall,
+} from './testing/recovery-contract';
 import {
   authorityReceipt,
   authorityRequest,
@@ -239,7 +242,10 @@ test('production close is idempotent and every public operation refuses closed d
   };
   unwrapReply(await stores.runs.beginRecovery(recoveryBegin));
   const fenceCall = await createRecoveryFenceCall(stores.artifacts, recoveryBegin);
+  unwrapReply(await stores.runs.stageRecoveryFence(fenceCall));
+  const observationCall = await createRecoveryObservationCall(stores.artifacts, fenceCall);
   const operations = {
+    recordRecoveryFence: () => stores.runs.recordRecoveryFence(observationCall),
     stageRecoveryFence: () => stores.runs.stageRecoveryFence(fenceCall),
     beginRecovery: () =>
       stores.runs.beginRecovery({

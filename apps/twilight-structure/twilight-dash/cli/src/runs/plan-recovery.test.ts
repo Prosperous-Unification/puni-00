@@ -1,11 +1,14 @@
 import { expect, test } from 'bun:test';
 
-import { planRecoveryFence } from './plan-recovery';
+import { planRecoveryFence, planRecoveryObservation } from './plan-recovery';
 import { organizationId, ownerId } from './record-codecs';
 import type { RecoveryBeginCall } from './recovery-records';
 import { FixtureClock, unwrapReply } from './testing/fixtures';
 import { createMemoryStores } from './testing/memory-stores';
-import { createRecoveryFenceCall } from './testing/recovery-contract';
+import {
+  createRecoveryFenceCall,
+  createRecoveryObservationCall,
+} from './testing/recovery-contract';
 import { authorityRequest, runtimePin, runtimeScope } from './testing/runtime-history-contract';
 import type { HistoryCatalog } from './validate-history';
 
@@ -86,4 +89,18 @@ test('recovery fence planner refuses malformed canonical digest before retained 
   const { catalog, call } = await createPlannerFixture();
   Object.assign(call.input.fence, { requestDigest: 'f'.repeat(64) });
   expect(() => planRecoveryFence(catalog, call)).toThrow('recovery fence canonical digest differs');
+});
+
+test('recovery observation planner is pure and retains full detached reply', async () => {
+  const { catalog, call, stores } = await createPlannerFixture();
+  const fence = unwrapReply(await stores.runs.stageRecoveryFence(call));
+  const observation = await createRecoveryObservationCall(stores.artifacts, call);
+  Object.assign(catalog.runtime.recovery.histories[0], { revision: 1, fences: [fence] });
+  Object.assign(catalog.runtime.recovery.counts, { fences: 1 });
+  const before = structuredClone(catalog);
+  expect(planRecoveryObservation(catalog, observation)).toEqual({
+    kind: 'applied',
+    value: { ...observation.input, version: 1, observedRevision: 2 },
+  });
+  expect(catalog).toEqual(before);
 });
