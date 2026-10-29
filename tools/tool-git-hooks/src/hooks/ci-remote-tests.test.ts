@@ -17,6 +17,7 @@ const ROOT = resolve(import.meta.dir, '../../../..');
 const CLI = join(ROOT, 'tools/tool-remote-scripts/test/ci-leaf.ts');
 const PROJECT = 'tools/tool-remote-scripts';
 const MODEL = 'src/lib/dependency-product-process-model.test.ts';
+const CONTINUATION = 'src/lib/dependency-participant-continuation-model.test.ts';
 const explicit = [
   'test/edge-init.test.ts',
   'test/solver-drain-transport.test.ts',
@@ -39,9 +40,12 @@ function fixture(): string {
   write(root, 'tools/test/scratch/preload.ts', '');
   for (const path of [
     MODEL,
+    CONTINUATION,
     ...explicit,
     'src/new.test.ts',
     'src/lib/dependency-product-process-model-extra.test.ts',
+    'src/lib/dependency-participant-continuation-model-extra.test.ts',
+    `elsewhere/${CONTINUATION}`,
     'elsewhere/src-shadow/new.test.ts',
     `elsewhere/${MODEL}`,
   ])
@@ -108,6 +112,10 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
   );
   expect(canonical.exitCode).toBe(0);
   const model = invoke(root, 'model');
+  const continuation = invoke(root, 'model-continuation');
+  expect(continuation.exitCode, continuation.stderr.toString()).toBe(0);
+  const moved = executed(continuation.stdout.toString());
+  expect(moved).toEqual([CONTINUATION]);
   const rest = invoke(root, 'rest');
   expect(model.exitCode, model.stderr.toString()).toBe(0);
   expect(rest.exitCode, rest.stderr.toString()).toBe(0);
@@ -119,35 +127,50 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
   expect(complement).toContain(`elsewhere/${MODEL}`);
   expect(complement).toContain('src/lib/dependency-product-process-model-extra.test.ts');
   expect(complement).not.toContain(MODEL);
-  expect([...singleton, ...complement].sort()).toEqual(executed(canonical.stdout.toString()));
-  expect(new Set([...singleton, ...complement]).size).toBe(singleton.length + complement.length);
+  expect(complement).not.toContain(CONTINUATION);
+  expect(complement).toContain(`elsewhere/${CONTINUATION}`);
+  expect(complement).toContain('src/lib/dependency-participant-continuation-model-extra.test.ts');
+  expect([...singleton, ...moved, ...complement].sort()).toEqual(
+    executed(canonical.stdout.toString()),
+  );
+  expect(new Set([...singleton, ...moved, ...complement]).size).toBe(
+    singleton.length + moved.length + complement.length,
+  );
   expect(model.stdout.toString()).toContain('"fresh":true');
   expect(rest.stdout.toString()).toContain('"fresh":true');
 });
 
-test.each(['model', 'rest'])(
+test.each(['model', 'model-continuation', 'rest'])(
   'each leaf refuses absent, renamed, unreadable or aliased model and missing explicit tests: %s',
   (leaf) => {
-    for (const fault of ['absent', 'renamed', 'unreadable', 'alias', 'parent-alias', 'explicit']) {
-      const root = fixture();
-      const model = join(root, PROJECT, MODEL);
-      if (fault === 'absent') rmSync(model);
-      if (fault === 'renamed') renameSync(model, `${model}.renamed`);
-      if (fault === 'unreadable') chmodSync(model, 0);
-      if (fault === 'alias') {
-        renameSync(model, `${model}.owned`);
-        symlinkSync(`${model}.owned`, model);
+    for (const owner of [MODEL, CONTINUATION])
+      for (const fault of [
+        'absent',
+        'renamed',
+        'unreadable',
+        'alias',
+        'parent-alias',
+        'explicit',
+      ]) {
+        const root = fixture();
+        const model = join(root, PROJECT, owner);
+        if (fault === 'absent') rmSync(model);
+        if (fault === 'renamed') renameSync(model, `${model}.renamed`);
+        if (fault === 'unreadable') chmodSync(model, 0);
+        if (fault === 'alias') {
+          renameSync(model, `${model}.owned`);
+          symlinkSync(`${model}.owned`, model);
+        }
+        if (fault === 'parent-alias') {
+          renameSync(dirname(model), `${dirname(model)}-owned`);
+          symlinkSync(`${dirname(model)}-owned`, dirname(model));
+        }
+        if (fault === 'explicit') rmSync(join(root, PROJECT, explicit[0]));
+        const invocation = invoke(root, leaf);
+        expect(invocation.exitCode, fault).not.toBe(0);
+        expect(executed(invocation.stdout.toString()), fault).toEqual([]);
+        if (fault === 'unreadable') chmodSync(model, 0o644);
       }
-      if (fault === 'parent-alias') {
-        renameSync(dirname(model), `${dirname(model)}-owned`);
-        symlinkSync(`${dirname(model)}-owned`, dirname(model));
-      }
-      if (fault === 'explicit') rmSync(join(root, PROJECT, explicit[0]));
-      const invocation = invoke(root, leaf);
-      expect(invocation.exitCode, fault).not.toBe(0);
-      expect(executed(invocation.stdout.toString()), fault).toEqual([]);
-      if (fault === 'unreadable') chmodSync(model, 0o644);
-    }
   },
 );
 
@@ -251,7 +274,7 @@ test('actual noncached Nx leaf targets preserve environment and run dependency b
   const head = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], { cwd: root, stdout: 'pipe' })
     .stdout.toString()
     .trim();
-  for (const leaf of ['model', 'rest']) {
+  for (const leaf of ['model', 'model-continuation', 'rest']) {
     const child = Bun.spawnSync(
       [
         process.execPath,
@@ -280,9 +303,9 @@ test('actual noncached Nx leaf targets preserve environment and run dependency b
     );
     expect(child.exitCode, `${child.stdout.toString()}\n${child.stderr.toString()}`).toBe(0);
     expect(child.stdout.toString()).toContain('"fresh":true');
-    if (leaf === 'model') expect(existsSync(caddyMarker)).toBe(false);
+    if (leaf !== 'rest') expect(existsSync(caddyMarker)).toBe(false);
   }
-  expect(readFileSync(dependencyMarker, 'utf8').trim().split('\n')).toHaveLength(2);
+  expect(readFileSync(dependencyMarker, 'utf8').trim().split('\n')).toHaveLength(3);
   expect(readFileSync(caddyMarker, 'utf8')).toBe('caddy\n');
 }, 20000);
 
@@ -363,3 +386,35 @@ test('the leaf refuses an unsupported Bun pin or test-selection environment', ()
     expect(executed(child.stdout.toString()), fault).toEqual([]);
   }
 });
+
+test.each(['empty', 'failed'])('continuation refuses invalid actual child: %s', (fault) => {
+  const root = fixture();
+  write(
+    root,
+    `${PROJECT}/${CONTINUATION}`,
+    fault === 'empty' ? 'export const empty = true;' : 'process.exit(23);',
+  );
+  const invocation = invoke(root, 'model-continuation');
+  expect(invocation.exitCode).toBe(fault === 'empty' ? 1 : 23);
+  expect(invocation.stdout.toString()).not.toContain('"fresh":true');
+});
+
+test.each(['absent', 'environment', 'inputs'])(
+  'every leaf validates the continuation target before discovery: %s',
+  (fault) => {
+    const root = fixture();
+    const path = join(root, PROJECT, 'project.json');
+    const project = JSON.parse(readFileSync(path, 'utf8')) as {
+      targets: Record<string, Record<string, unknown>>;
+    };
+    if (fault === 'absent') delete project.targets['test:ci:model-continuation'];
+    if (fault === 'inputs') project.targets['test:ci:model-continuation']['inputs'] = ['default'];
+    if (fault === 'environment') project.targets['test:ci:model-continuation']['options'] = {};
+    writeFileSync(path, JSON.stringify(project));
+    for (const leaf of ['model', 'model-continuation', 'rest']) {
+      const invocation = invoke(root, leaf);
+      expect(invocation.exitCode).not.toBe(0);
+      expect(executed(invocation.stdout.toString())).toEqual([]);
+    }
+  },
+);

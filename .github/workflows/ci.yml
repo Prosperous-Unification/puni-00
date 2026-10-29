@@ -667,11 +667,16 @@ jobs:
           if-no-files-found: error
 
   gate_remote_model:
-    name: gate remote model
+    name: gate remote model (${{ matrix.partition }})
     needs: gate_mode
     if: ${{ needs.gate_mode.outputs.mode == 'full' || needs.gate_mode.outputs.remote == 'run' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    # Proof: deleting the continuation entry failed the exact parsed workflow matrix test (2026-10-29).
+    strategy:
+      fail-fast: false
+      matrix:
+        partition: [remote-model, remote-model-continuation]
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and
       # nx falls back to a different file scope rather than failing. Since
@@ -735,6 +740,7 @@ jobs:
       - name: Remote model — test, lint, typecheck, build
         id: nx_gate
         env:
+          RUNTIME_PARTITION: ${{ matrix.partition }}
           GATE_MODE: ${{ needs.gate_mode.outputs.mode }}
           GATE_BASE: ${{ needs.gate_mode.outputs.base }}
           EVENT_NAME: ${{ github.event_name }}
@@ -759,15 +765,15 @@ jobs:
             exit 1
           fi
           phase_started=$SECONDS
-          printf 'runtime phase start partition=remote-model head=%s utc=%s\n' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > nx-gate.log
+          printf 'runtime phase start partition=%s head=%s utc=%s\n' "$RUNTIME_PARTITION" "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > nx-gate.log
           set +e
           timeout --signal=TERM --kill-after=30s 75m \
-            bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts remote-model "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \
+            bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts "$RUNTIME_PARTITION" "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \
             >> nx-gate.log 2>&1
           gate_status=$?
           set -e
-          printf 'runtime phase end partition=remote-model utc=%s elapsedSeconds=%s exit=%s\n' \
-            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$((SECONDS - phase_started))" "$gate_status" >> nx-gate.log
+          printf 'runtime phase end partition=%s utc=%s elapsedSeconds=%s exit=%s\n' \
+            "$RUNTIME_PARTITION" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$((SECONDS - phase_started))" "$gate_status" >> nx-gate.log
           annotation_status=0
           bun run tools/tool-git-hooks/src/hooks/ci-gate-annotations.ts nx-gate.log --tail 200 || annotation_status=$?
           if [ "$gate_status" -ne 0 ]; then
@@ -779,7 +785,7 @@ jobs:
         if: ${{ always() && steps.nx_gate.outcome != 'skipped' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nx-gate-log-remote-model-${{ github.run_attempt }}
+          name: nx-gate-log-${{ matrix.partition }}-${{ github.run_attempt }}
           path: nx-gate.log
           if-no-files-found: error
 
