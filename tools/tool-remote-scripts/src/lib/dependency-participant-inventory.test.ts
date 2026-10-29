@@ -119,3 +119,57 @@ for (const fault of [
       assertParticipantInventory(original, current, chosen, bindings, removed);
     }).toThrow();
   });
+
+test('participant full inventory permits only an explicitly removed terminal managed solver', () => {
+  const { current, bindings } = running();
+  const id = '0123456789abcdef'.repeat(4);
+  expect(original.some((member) => readFields(member)['Id'] === id)).toBe(false);
+  const token = '018f3f08-2ef7-7d1c-b645-14f877575d66';
+  const terminal = {
+    Id: id,
+    Name: `/wbs-solver-${token}`,
+    Image: `sha256:${'c'.repeat(64)}`,
+    Path: 'bun',
+    Args: ['worker'],
+    RestartCount: 0,
+    Config: {
+      Image: `registry/solver@sha256:${'c'.repeat(64)}`,
+      Env: [],
+      Labels: {
+        'wbs-managed-solver': 'true',
+        'wbs-attempt-token': token,
+        'wbs-caller-id': 'b'.repeat(64),
+        'wbs-project-id': token,
+        'wbs-objective': 'pri',
+      },
+    },
+    HostConfig: {
+      RestartPolicy: { Name: 'no', MaximumRetryCount: 0 },
+      PidMode: '',
+      Privileged: false,
+      CapAdd: null,
+    },
+    State: {
+      Running: false,
+      Restarting: false,
+      Paused: false,
+      Dead: false,
+      Status: 'exited',
+      Pid: 0,
+      ExitCode: 137,
+      OOMKilled: false,
+      Error: '',
+      StartedAt: '2026-01-01T00:00:00Z',
+      FinishedAt: '2026-01-01T00:01:00Z',
+    },
+    Mounts: [],
+    NetworkSettings: { Networks: {} },
+  };
+  const parked = [...original, terminal];
+  expect(() => {
+    assertParticipantInventory(parked, current, selected, bindings, new Set());
+  }).toThrow();
+  assertParticipantInventory(parked, current, selected, bindings, new Set([id]));
+  expect(current.some((member) => readFields(member)['Id'] === id)).toBe(false);
+  expect(bindings.get(backendId)?.pid).toBe(1234);
+});

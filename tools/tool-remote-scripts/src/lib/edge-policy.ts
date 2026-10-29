@@ -212,6 +212,23 @@ export async function captureEdgeRecord(
   return captureRecord(edgeState, name, maximum);
 }
 
+/**
+ * Captures only the numbered solver completion family through the shared bounded
+ * reader. That family also contains policy-publication records; this filename
+ * boundary validates no ready phase and grants no restoration authority.
+ * @throws for another family, malformed name or unreadable/invalid private bytes.
+ */
+export async function captureSolverRestorationCompletion(
+  edgeState: string,
+  name: string,
+): Promise<EdgeRecordSnapshot> {
+  // Proof: omitting this family guard read a real wrong-family intent; the
+  // completion reader refusal assertion failed, then exact restoration passed.
+  if (!/^edge-owner-[0-9]{6,12}-solver-restore-complete\.json$/.test(name))
+    throw new Error('unsupported solver restoration completion path');
+  return captureRecord(edgeState, name, 65536);
+}
+
 /** Reads only filenames already admitted by this module's closed capture entrypoints. */
 async function captureRecord(
   edgeState: string,

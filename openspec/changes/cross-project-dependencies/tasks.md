@@ -896,6 +896,14 @@ Solver audit recognition is part of X3/X4: opaque runtime-lock-scoped tokens bin
 - [x] Retain actual primitive readiness privately; preserve original tuple/static authority, empty openers and closing activation barriers. Observe six ordinary cases and five finite guard omissions with exact same-case restoration. [Local evidence and limits](verify-solver-first-context.md).
 - [ ] Complete solver→backend→gateway→source composition, restart-policy/controller handoff, exposure and separately authorized host/Kubernetes acceptance. Parent P2b/P3/S4 and 10.2 remain open.
 
+### Original-context solver-to-backend checkpoint (bounded P2b-3)
+
+- [x] Observe genuine solver-first RED at the missing backend stage, bind the exact actual ready producer snapshot and preserve the closed legacy reader boundary.
+- [x] Compose the original private solver-ready phase with backend readiness under the same context/owner/deadline; observe seven ordinary cases, two additional authority/closing negatives, one parked-only regression and focused nonempty inventory coverage. [Evidence and limits](verify-solver-backend-context.md).
+- [x] Observe the ten finite new guard omissions and identical restored cases, preserving exact source custody and explicit grouped-proof limits.
+- [x] Complete independent actual/source review and final static checks for this bounded checkpoint.
+- [ ] Complete gateway/source/controller/restart-policy handoff, exposure and separately authorized native/Kubernetes acceptance. Parent P2b/P3/S4 and 10.2 remain open.
+
 ### Bounded source/solver physical acceptance runner source
 
 - [x] XS1 Add the invocation-labelled complete-inventory transport and reuse the strict solver fixture lifecycle for the unchanged source/managed coordinator; include focused transport tests and watched fault receipts. See [runner source receipt](verify-source-exclusion-acceptance.md).

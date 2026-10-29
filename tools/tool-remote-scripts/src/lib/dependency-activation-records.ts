@@ -114,6 +114,7 @@ export interface ActivationRecordByLabel {
       readonly record: ActivationRecordReference;
     }[];
     readonly solverIntent: ActivationRecordReference;
+    readonly solverReady?: ActivationRecordReference;
     readonly selected: readonly {
       readonly role: DependencyParticipantRole;
       readonly id: string;

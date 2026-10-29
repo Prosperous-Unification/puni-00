@@ -12,6 +12,7 @@ import {
   observeProductParticipantReadiness,
   type ProductParticipantReadiness,
 } from './dependency-participant-readiness';
+import { consumeSolverReadyForBackend } from './dependency-participant-solver-restoration';
 import {
   assertParticipantTransition,
   type ParticipantSnapshot,
@@ -55,6 +56,16 @@ const attempted = new WeakSet<FinalizedParticipantRestorationContext>();
 export async function restoreBackendParticipantUnderOwner(
   context: FinalizedParticipantRestorationContext,
 ): Promise<BackendParticipantRestoration> {
+  return restoreBackend(context, null);
+}
+
+type RestoredSolver = Awaited<ReturnType<typeof consumeSolverReadyForBackend>>;
+
+/** Shared lifecycle machinery; its phase comes only from one of the context-only entries. */
+async function restoreBackend(
+  context: FinalizedParticipantRestorationContext,
+  solver: RestoredSolver | null,
+): Promise<BackendParticipantRestoration> {
   try {
     await assertParticipantRestorationContext(context);
     if (attempted.has(context)) throw new Error('backend restoration already attempted');
@@ -63,7 +74,10 @@ export async function restoreBackendParticipantUnderOwner(
     const roles = ['backend', 'gateway', 'source'] as const;
     const selected = new Set(roles.map((role) => context.originals[role].id));
     const running = new Map<string, ParticipantSnapshot>();
-    const removed = new Set<string>();
+    // Proof: replacing the actual removed set with a new empty set failed the
+    // exact forwarding assertion in 'solver-first backend retains original
+    // authority through ready'; exact restoration passed. This is identity coverage.
+    const removed = solver === null ? new Set<string>() : solver.removed;
     const retained: EdgeRecordSnapshot[] = [];
     const retainedFences: {
       readonly directory: string;
@@ -112,6 +126,10 @@ export async function restoreBackendParticipantUnderOwner(
     }
     async function inspectRetained(): Promise<void> {
       await assertParticipantRestorationContext(context);
+      // Proof: omitting all four backend monitor calls accepted a missing actual
+      // ready file; 'solver-first backend refuses ready record faults and terminal
+      // retry' failed its integrated refusal, then passed restored. This is grouped coverage.
+      if (solver !== null) await solver.inspectReady();
       assertCompleteActivationDeadline(context.deadline);
       await context.storage.evidence.inspect();
       context.artifact.verify();
@@ -119,7 +137,7 @@ export async function restoreBackendParticipantUnderOwner(
       await context.source.inspectCold();
       await assertRetainedSolverRestoration(context.owner, context.solverIntent);
       assertSame(
-        context.originalPolicy,
+        solver === null ? context.originalPolicy : solver.policy,
         await captureEdgePolicy(context.directory),
         'backend original fenced edge policy',
       );
@@ -159,9 +177,11 @@ export async function restoreBackendParticipantUnderOwner(
         context.ports.docker,
         context.deadline,
       );
+      if (solver !== null) await solver.inspectReady();
       await assertParticipantRestorationContext(context);
     }
     async function inspectAuthorities(backend: HostProcessIdentity | null): Promise<void> {
+      if (solver !== null) await solver.inspectReady();
       const observed = await context.observeAuthorities();
       const projectAuthorityIdentity = (authority: InstalledAuthorityObservation) => ({
         sourceSha: authority.sourceSha,
@@ -172,13 +192,37 @@ export async function restoreBackendParticipantUnderOwner(
         files: authority.files,
         solver: authority.solver,
       });
-      if (context.authorities.solver.phase !== 'stopped')
-        throw new Error('backend partial restoration requires original parked solver');
-      assertSame(
-        projectAuthorityIdentity(context.authorities),
-        projectAuthorityIdentity(observed),
-        'backend original installed restart authority',
-      );
+      if (solver === null) {
+        if (context.authorities.solver.phase !== 'stopped')
+          throw new Error('backend partial restoration requires original parked solver');
+        assertSame(
+          projectAuthorityIdentity(context.authorities),
+          projectAuthorityIdentity(observed),
+          'backend original installed restart authority',
+        );
+      } else {
+        const projectRunningAuthority = (authority: InstalledAuthorityObservation) => ({
+          format: authority.format,
+          version: authority.version,
+          activation: authority.activation,
+          sourceSha: authority.sourceSha,
+          writerManifestSha256: authority.writerManifestSha256,
+          hostMachineIdSha256: authority.hostMachineIdSha256,
+          bootId: authority.bootId,
+          launchConfigurationSha256: authority.launchConfigurationSha256,
+          files: authority.files,
+          tuple: authority.solver.tuple,
+          scope: authority.scope,
+        });
+        // Proof: omitting this grouped equality admitted raw boot drift;
+        // 'solver-first backend refuses restored authority boot drift' failed
+        // its refusal assertion, then passed restored. Other fields are not separate proofs.
+        assertSame(
+          { ...projectRunningAuthority(context.authorities), phase: 'running' },
+          { ...projectRunningAuthority(observed), phase: observed.solver.phase },
+          'backend original installed authority under restored solver',
+        );
+      }
       // Proof: omitting the empty-opener check let the prestart authority case
       // return readiness; its refusal assertion failed and passed after restoration.
       if (backend === null)
@@ -187,6 +231,9 @@ export async function restoreBackendParticipantUnderOwner(
         for (const opener of observed.databaseOpeners) {
           // Proof: omitting this grouped tuple guard let the dev authority case
           // return readiness; its refusal assertion failed and passed after restoration.
+          // Proof: the same grouped omission in the restored-solver phase made
+          // 'solver-first backend refuses a dev database opener' return readiness;
+          // its refusal assertion failed, then passed after exact restoration.
           if (
             opener.environment !== 'prod' ||
             opener.pid !== backend.pid ||
@@ -201,6 +248,7 @@ export async function restoreBackendParticipantUnderOwner(
           // readiness; its refusal assertion failed and passed after restoration.
           assertSame(backend.executable, opener.executable, 'backend database opener executable');
         }
+      if (solver !== null) await solver.inspectReady();
       await assertParticipantRestorationContext(context);
     }
 
@@ -211,17 +259,17 @@ export async function restoreBackendParticipantUnderOwner(
     for (const committed of context.storage.commitRecords)
       await retainReference(committed.reference);
     await assertRetainedSolverRestoration(context.owner, context.solverIntent);
-    const solver = await captureEdgeRecord(
+    const solverIntent = await captureEdgeRecord(
       context.directory,
       basename(context.solverIntent.path),
       65536,
     );
     assertSame(
       context.solverIntent.contents,
-      solver.contents,
+      solverIntent.contents,
       'backend original solver intent bytes',
     );
-    retained.push(solver);
+    retained.push(solverIntent);
     const fences = [
       { directory: context.layouts.dev.stateDir, name: 'dependency-source-dev-intent.json' },
       { directory: context.layouts.dev.stateDir, name: 'dependency-source-dev-complete.json' },
@@ -258,7 +306,11 @@ export async function restoreBackendParticipantUnderOwner(
           environment: entry.environment,
           record: entry.reference,
         })),
-        solverIntent: createReference(solver),
+        solverIntent: createReference(solverIntent),
+        // Proof: omitting this field left the actual intent reference undefined;
+        // 'solver-first backend retains original authority through ready' failed
+        // its post-return publication equality, then passed restored.
+        ...(solver === null ? {} : { solverReady: createReference(solver.readySnapshot) }),
         selected: roles.map((role) => ({
           role,
           id: context.originals[role].id,
@@ -329,6 +381,10 @@ export async function restoreBackendParticipantUnderOwner(
       await observeSelectedProductRole(context, 'backend'),
       'backend returned readiness inner process binding',
     );
+    // Proof: omitting this closing check returned after raw source policy drift
+    // following the final actual product observation; 'solver-first backend refuses
+    // source drift after final observer' failed its refusal, then passed restored.
+    await inspectRetained();
     return {
       state: 'backend-ready-participants-fenced',
       exposure: 'closed',
@@ -336,6 +392,24 @@ export async function restoreBackendParticipantUnderOwner(
       readiness,
       ready,
     };
+  } catch {
+    throw new Error('backend participant restoration refused');
+  }
+}
+
+/**
+ * Starts only the original backend after consuming this context's real solver
+ * readiness. It preserves restoring policy and exact ready-record/process
+ * monitoring while gateway/source, controllers and ingress remain fenced.
+ * No caller supplies a phase, result, alternate ports or owner. Failure after
+ * solver-phase admission is terminal and retains current storage and attended recovery evidence.
+ */
+export async function restoreBackendAfterSolver(
+  context: FinalizedParticipantRestorationContext,
+): Promise<BackendParticipantRestoration> {
+  try {
+    const solver = await consumeSolverReadyForBackend(context);
+    return await restoreBackend(context, solver);
   } catch {
     throw new Error('backend participant restoration refused');
   }
