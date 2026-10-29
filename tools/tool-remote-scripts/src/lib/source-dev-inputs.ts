@@ -16,6 +16,7 @@ import {
   inspectSourceDevExclusion,
   type SourceDevExclusion,
 } from './source-dev-exclusion';
+import { selectSourceFrontendProfile, type SourceFrontendProfile } from './source-frontend-profile';
 import type { SourceRestorationConfiguration } from './source-restoration-configuration';
 import {
   assertSourceDeadline,
@@ -46,8 +47,9 @@ export interface SourceDevInputObservation {
   readonly containerId: string;
   readonly capabilities: readonly SourceCapability[];
 }
-/** Read-only source monitors remain bound to the original outer owner, never to a revived exclusion token. */
+/** Original-manifest frontend selection and read-only source monitors remain bound to the original outer owner, never to a revived exclusion token. The frontend literal grants no startup or HTTP readiness. */
 export interface SourceDevRestartInputs {
+  readonly frontend: SourceFrontendProfile;
   readonly openapiSha256: string;
   readonly configuration: SourceRestorationConfiguration;
   inspectCold(): Promise<void>;
@@ -374,6 +376,8 @@ export async function observeSourceDevInputs(
     async function captureRestart(runtimeReference: string): Promise<SourceDevRestartInputs> {
       if (!/^[^\s@]+@sha256:[a-f0-9]{64}$/.test(runtimeReference)) refuse();
       await recheck();
+      // Proof: replacing original-manifest selection with the supported literal admitted changed inputs; the original capture negative failed, then passed after restoration.
+      const frontend = selectSourceFrontendProfile(manifest);
       const assignments = member.config['Env'];
       if (!Array.isArray(assignments)) refuse();
       const inherited: string[] = [];
@@ -468,6 +472,7 @@ export async function observeSourceDevInputs(
       }
       await inspect(true);
       return Object.freeze({
+        frontend,
         openapiSha256,
         configuration,
         inspectCold: () => inspect(true),

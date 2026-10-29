@@ -1762,3 +1762,30 @@ Pure source frontend HTTP inspectors SHALL require status 200, the observed role
 - **WHEN** the existing bounded HTTP reader decodes a response with a leading UTF-8 BOM
 - **THEN** the pure inspector compares the complete transported text returned by that reader
 - **AND** its UTF-8 text digest is not claimed to authenticate universal original-wire bytes
+
+### Requirement: Original source restart inputs retain one supported frontend profile
+
+Source restart-input capture SHALL select the frontend response profile only from its original decoded canonical manifest using the eighteen fixed public file size/hash tuples. Selection SHALL follow declared relative links in the source/dependencies/git namespace without live filesystem lookup or fallback. Unsupported inputs SHALL refuse. The frozen retained profile literal SHALL grant neither readiness nor startup authority.
+
+#### Scenario: Supported inputs belong to another source commit
+
+- **WHEN** the original owner-bound observation and actual prepared tree retain all eighteen supported input tuples under a different valid source commit
+- **THEN** restart capture retains the supported immutable frontend literal alongside its existing configuration, OpenAPI identity and cold/running monitors
+- **AND** copied observations and released owners remain invalid
+
+#### Scenario: A valid link now selects different implementation bytes
+
+- **WHEN** a canonical declared dependency link points to an unsupported target while the prior good target remains present
+- **THEN** original restart capture refuses instead of selecting the still-present good file by hash, version or fallback
+
+#### Scenario: Private lookup must preserve namespace and ancestor meaning
+
+- **WHEN** selected-path traversal crosses the synthetic dependencies/git roots or declared relative links
+- **THEN** it preserves the shared namespace root, real directory ancestors before dot-dot, unambiguous entries and the forty-link ceiling
+- **AND** missing/non-file/changed tuples, namespace ambiguity, missing/file ancestors, root escape and a forty-first link refuse
+
+#### Scenario: Inputs drift after original capture
+
+- **WHEN** a selected frontend file changes after a supported original capture
+- **THEN** the existing original cold/running tree monitor refuses
+- **AND** the captured profile cannot be replaced with caller hashes or learned running-frontend responses
