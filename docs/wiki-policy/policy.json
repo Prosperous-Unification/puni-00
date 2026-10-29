@@ -64,6 +64,10 @@
           {
             "kind": "segment",
             "value": "__fixtures__"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/cross-project-dependencies/evidence/source-role-observer/baseline/tools/tool-remote-scripts/test/source-role-process-model-child.test.ts.txt"
           }
         ]
       },
@@ -107,7 +111,16 @@
             "value": "__fixtures__"
           }
         ],
-        "exclude": []
+        "exclude": [
+          {
+            "kind": "path",
+            "value": "openspec/changes/cross-project-dependencies/evidence/source-role-observer/baseline/tools/tool-remote-scripts/src/fixtures/product-readiness-byte-transport.ts.txt"
+          },
+          {
+            "kind": "path",
+            "value": "openspec/changes/cross-project-dependencies/evidence/source-role-observer/baseline/tools/tool-remote-scripts/src/fixtures/source-role-process.ts.txt"
+          }
+        ]
       },
       {
         "contentClass": "migration",

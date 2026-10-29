@@ -133,3 +133,5 @@ native Docker/image acceptance, installed processes, source startup, full
 restoration, exposure, architectural adoption, CI for this patch or deployment.
 No remote gate, full Nx gate, old campaign or backend producer change belongs to
 this packet. Root retains Git integration and independent review authority.
+
+The later [be344 CI policy correction](verify-ci-be344-policy-corrections.md) records the graph oracle’s exact static sole-test-import attribution and its actual extra-production-importer/implicit-edge refusals. The approved typed producer test remains unchanged.

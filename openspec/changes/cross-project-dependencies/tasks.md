@@ -1054,3 +1054,11 @@ The two completed custody rows above cover the independently accepted eight-comm
 
 Parent10.2 remains incomplete; source readiness/start, controller/exposure handoff,
 native acceptance and Kubernetes completion are not granted by this prerequisite.
+
+### be344 CI policy corrections (bounded)
+
+- [x] Observe six exact archived source tuples refuse both shipped policies, then add only the three exact competing-rule exclusions per policy; retain tuple/blob identity and ordinary ambiguity/unknown/active-class controls.
+- [x] Admit only the existing static health producer test edge through its sole actual Nx importer; observe a real extra production importer and real implicit edge refuse, then restore exact graph inputs.
+- [x] Recheck the eleven formerly masked pilot semantic cases and the scoped compiler/lint/format/OpenSpec owners; record exact source and receipt pins in verify-ci-be344-policy-corrections.md.
+
+The separate worker and cutover synchronization cases passed one unchanged-bound local diagnostic run each; original diagnostic source bytes were restored. Their CI causes remain unproven and no synchronization fix is claimed.

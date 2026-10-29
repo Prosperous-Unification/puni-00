@@ -609,6 +609,102 @@ describe('entry classification production CLI', () => {
     ]);
   });
 
+  // Proof: before the six exact shipped-policy exclusions, all six real retained-tuple CLI cases refused matched 2 classification rules; the same tuples passed afterward.
+  for (const policyName of ['policy.json', 'bootstrap-policy.json']) {
+    const retained = [
+      [
+        'openspec/changes/cross-project-dependencies/evidence/source-role-observer/baseline/tools/tool-remote-scripts/src/fixtures/product-readiness-byte-transport.ts.txt',
+        '01a81c963b54de4f02404608decdf914d06f2bf6',
+      ],
+      [
+        'openspec/changes/cross-project-dependencies/evidence/source-role-observer/baseline/tools/tool-remote-scripts/src/fixtures/source-role-process.ts.txt',
+        '3967718006f049e2983530cbc92f99c17bb09425',
+      ],
+      [
+        'openspec/changes/cross-project-dependencies/evidence/source-role-observer/baseline/tools/tool-remote-scripts/test/source-role-process-model-child.test.ts.txt',
+        'fe4bb3ab18ff5fba8e43158fb3493d7ea2c29a3e',
+      ],
+    ] as const;
+    for (const [path, blob] of retained)
+      test(`classifies exact retained source snapshot ${policyName}: ${path}`, async () => {
+        const repository = createRepository();
+        write(repository, path, readFileSync(join(import.meta.dir, '../../../../../..', path)));
+        const revision = commitAll(repository);
+        const trustedPolicy = JSON.parse(
+          readFileSync(
+            join(import.meta.dir, '../../../../../../docs/wiki-policy', policyName),
+            'utf8',
+          ),
+        ) as { classificationPolicy: object };
+        const invocation = await classify(
+          repository,
+          revision,
+          writePolicy(repository, trustedPolicy.classificationPolicy),
+        );
+        expect(invocation.exitCode, output(invocation)).toBe(0);
+        const classified = JSON.parse(standardOutput(invocation)) as { entries: unknown[] };
+        expect(classified.entries).toEqual([
+          {
+            path,
+            mode: '100644',
+            blob,
+            classification: { kind: 'content', contentClass: 'openspec' },
+          },
+        ]);
+      });
+
+    test(`retained source snapshot boundary preserves ambiguity and active classes ${policyName}`, async () => {
+      const trustedPolicy = JSON.parse(
+        readFileSync(
+          join(import.meta.dir, '../../../../../../docs/wiki-policy', policyName),
+          'utf8',
+        ),
+      ) as { classificationPolicy: object };
+      const repository = createRepository();
+      const unlisted =
+        'openspec/changes/cross-project-dependencies/evidence/source-role-observer/baseline/tools/tool-remote-scripts/src/fixtures/unlisted-source-role-process.ts.txt';
+      write(
+        repository,
+        unlisted,
+        readFileSync(join(import.meta.dir, '../../../../../..', retained[0][0])),
+      );
+      const revision = commitAll(repository);
+      const refused = await classify(
+        repository,
+        revision,
+        writePolicy(repository, trustedPolicy.classificationPolicy),
+      );
+      expect(refused.exitCode, output(refused)).toBe(1);
+      expect(output(refused)).toContain(
+        `ordinary content ${unlisted} matched 2 classification rules`,
+      );
+
+      const active = createRepository();
+      const controls = [
+        ['tools/tool-remote-scripts/src/fixtures/product-readiness-byte-transport.ts', 'fixture'],
+        ['tools/tool-remote-scripts/test/source-role-process-model-child.test.ts', 'test'],
+      ] as const;
+      for (const [path] of controls)
+        write(active, path, readFileSync(join(import.meta.dir, '../../../../../..', path)));
+      const activeRevision = commitAll(active);
+      const accepted = await classify(
+        active,
+        activeRevision,
+        writePolicy(active, trustedPolicy.classificationPolicy),
+      );
+      expect(accepted.exitCode, output(accepted)).toBe(0);
+      const classified = JSON.parse(standardOutput(accepted)) as { entries: unknown[] };
+      expect(classified.entries).toEqual(
+        controls.map(([path, contentClass]) => ({
+          path,
+          mode: '100644',
+          blob: hash(active, path),
+          classification: { kind: 'content', contentClass },
+        })),
+      );
+    });
+  }
+
   // Proof: missing exact patch selectors made both production CLI cases fail
   // (0 pass / 2 fail); registration restored both, including unlisted-patch refusal.
   test.each(['policy.json', 'bootstrap-policy.json'])(

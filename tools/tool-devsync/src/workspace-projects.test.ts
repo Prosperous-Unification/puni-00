@@ -501,6 +501,21 @@ describe('productConstraints', () => {
         ) {
           continue;
         }
+        if (project.name === 'tool-remote-scripts' && target.name === 'wbs-be-01') {
+          // Proof: a real implicit manifest edge with the valid health importer retained failed here with Received implicit.
+          expect(dependency.type).toBe('static');
+          const importers = getFileMap()
+            .fileMap.projectFileMap[project.name].filter((file) =>
+              file.deps?.some((reached) => fileDataDepTarget(reached) === target.name),
+            )
+            .map((file) => file.file)
+            .sort();
+          // Proof: an actual extra production importer failed this sole-file equality; exact restoration passed.
+          expect(importers).toEqual([
+            'tools/tool-remote-scripts/src/lib/dependency-participant-health.test.ts',
+          ]);
+          continue;
+        }
         if (project.name === 'wbs-be-01' && target.name === 'twilight-dash') {
           const importers = getFileMap()
             .fileMap.projectFileMap[project.name].filter((file) =>
