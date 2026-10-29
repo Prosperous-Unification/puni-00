@@ -1760,3 +1760,51 @@ body:has(.night-shell) {
   z-index: 1;
   background: var(--night);
 }
+
+/* The shared request editor also lives on the manual form's light surface.
+   Proof: removing these rules from built CSS failed scoped text/value/receipt contrast in
+   screens.mjs at all four widths; restoring identical CSS passed all 16 scoped captures. */
+.form-panel .proposal-card {
+  color: var(--ink);
+}
+.form-panel .proposal-card::before {
+  border-color: var(--line);
+  background: var(--paper);
+  backdrop-filter: none;
+  box-shadow: none;
+}
+.form-panel .proposal-card :is(.message-label, .proposal-label, p) {
+  color: var(--muted);
+}
+.form-panel .request-preview p,
+.form-panel .proposal-card :is(.harness-text-button, .proposal-privacy a) {
+  color: var(--ink-2);
+}
+.form-panel .proposal-receipt .reference {
+  color: var(--ink);
+}
+.form-panel .proposal-card .proposal-failure {
+  color: var(--accent-ink) !important;
+}
+.form-panel .proposal-card .glass-field::before {
+  display: none;
+}
+.form-panel .proposal-card :is(input, textarea) {
+  border: 1px solid var(--line-strong);
+  background: var(--paper);
+  color: var(--ink);
+}
+.form-panel .proposal-card :is(input, textarea):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+.form-panel .proposal-card :is(.glass-button, .composer-send-pill) {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+.form-panel .proposal-card .glass-button.quiet {
+  border-color: var(--line-strong);
+  background: transparent;
+  color: var(--ink-2);
+}

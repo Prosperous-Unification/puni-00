@@ -4,6 +4,8 @@ import { env } from 'node:process';
 
 import { chromium } from 'playwright';
 
+import { auditScopedEditor } from './scoped-contrast.mjs';
+
 // Two fixture stacks: demo replies (DEMO_AUTH=1, 4218/3118) and AI chat off (DEMO_AUTH=0, 4219/3119).
 // PUNI_SCREENS_PORT_OFFSET shifts all six ports, so a second checkout can audit beside a first.
 const portOffsetText = env['PUNI_SCREENS_PORT_OFFSET'] ?? '0';
@@ -52,7 +54,7 @@ function nextVisitor() {
   return `${runPrefix}.${String(visitorCount % 250)}`;
 }
 
-async function createDraftCookie(stack) {
+async function createDraftCookie(stack, startingChoice) {
   const intake = await globalThis.fetch(`${stack.api}/intakes`, {
     method: 'POST',
     headers: {
@@ -60,7 +62,11 @@ async function createDraftCookie(stack) {
       'content-type': 'application/json',
       'x-forwarded-for': nextVisitor(),
     },
-    body: JSON.stringify({ description }),
+    body: JSON.stringify(
+      startingChoice === undefined
+        ? { description }
+        : { description, startingChoice, startConversation: true },
+    ),
   });
   if (intake.status !== 201) throw new Error(`Fixture intake failed: ${String(intake.status)}`);
   const cookie = intake.headers.get('set-cookie')?.split(';')[0];
@@ -381,6 +387,92 @@ states.push({
   },
   ready: (page) => page.locator('.build-paused-row').waitFor(),
 });
+const scopedBrief = 'Synthetic contrast audit: keep bicycle workshop bookings easy to read.';
+const scopedReferences = 'https://synthetic.example.test/demo — borrow the clear calendar layout';
+
+/** Exercises the same scoped editor used on the live manual page, including its edit entry. */
+async function prepareScopedRequest(page, stage) {
+  await page.getByRole('button', { name: 'Change this', exact: true }).click();
+  await page.locator('.reference-editor summary').click();
+  await page.getByRole('textbox', { name: 'Your brief', exact: true }).fill(scopedBrief);
+  await page
+    .getByRole('textbox', { name: 'Optional references', exact: true })
+    .fill(scopedReferences);
+  await page.getByRole('button', { name: 'No references yet', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: 'No references needed.' }).waitFor();
+  if (stage === 'edit') return;
+  await page.getByRole('button', { name: 'Review request', exact: true }).click();
+  await page.getByRole('region', { name: 'Final request', exact: true }).waitFor();
+  await page.getByText('Draft saved. This has not sent a request.', { exact: true }).waitFor();
+  if (stage === 'dark') return;
+  receiptCount += 1;
+  await page
+    .getByRole('textbox', { name: 'Email', exact: true })
+    .fill(
+      `synthetic-contrast-${runPrefix.replaceAll('.', '-')}-${String(receiptCount)}@example.test`,
+    );
+  if (stage !== 'receipt') return;
+  await page.getByRole('button', { name: 'Send my request', exact: true }).click();
+  await page.getByText('Request saved.', { exact: true }).waitFor();
+}
+
+for (const stage of ['edit', 'preview', 'receipt', 'dark']) {
+  const isDark = stage === 'dark';
+  states.push({
+    name: isDark ? 'build-scoped-review' : `manual-scoped-${stage}`,
+    stack: aiOff,
+    path: isDark ? '/' : '/manual',
+    cookie: true,
+    startingChoice: 'improve',
+    pausedProvider: isDark,
+    // A local media failure gives a deterministic rendered gradient; no live media is fetched.
+    abortMedia: true,
+    allowed: ['net::ERR_FAILED'],
+    ready: (page) => prepareScopedRequest(page, stage),
+    // Proof: removing the manual palette from built CSS failed actual preview/label/value/receipt
+    // contrast in all 12 manual captures; restoring identical CSS passed all 16 scoped captures.
+    check: async (page) => {
+      const problems = await auditScopedEditor(page, isDark);
+      if (stage === 'edit') {
+        if (
+          (await page.getByRole('textbox', { name: 'Your brief', exact: true }).inputValue()) !==
+          scopedBrief
+        )
+          problems.push('the entered brief changed');
+        if (
+          (await page
+            .getByRole('textbox', { name: 'Optional references', exact: true })
+            .inputValue()) !== scopedReferences
+        )
+          problems.push('the entered references changed');
+      } else if (stage === 'receipt') {
+        const reference = page.locator('.proposal-receipt .reference');
+        if (!(await reference.innerText()).trim()) problems.push('receipt reference is empty');
+      } else {
+        const preview = await page
+          .getByRole('region', { name: 'Final request', exact: true })
+          .innerText();
+        if (preview !== `${scopedBrief}\n\nReferences\n${scopedReferences}`)
+          problems.push('review changed the exact brief or references');
+      }
+      if (isDark) {
+        await page.getByRole('button', { name: 'Change this', exact: true }).click();
+        if (
+          !(await page
+            .getByRole('textbox', { name: 'Optional references', exact: true })
+            .isVisible())
+        )
+          await page.locator('.reference-editor summary').click();
+        problems.push(...(await auditScopedEditor(page, true)));
+        await page.screenshot({
+          path: `${outDir}/app-build-scoped-edit-${String(page.viewportSize().width)}.png`,
+          fullPage: true,
+        });
+      }
+      return problems;
+    },
+  });
+}
 if (operatorPassword)
   states.push(
     {
@@ -670,7 +762,8 @@ try {
         ...(state.reducedMotion ? { reducedMotion: state.reducedMotion } : {}),
       });
       await routeSiteMedia(context, state.stack, state.abortMedia === true);
-      if (state.cookie) await context.addCookies([await createDraftCookie(state.stack)]);
+      if (state.cookie)
+        await context.addCookies([await createDraftCookie(state.stack, state.startingChoice)]);
       const page = await context.newPage();
       const consoleErrors = [];
       const consoleTexts = [];
