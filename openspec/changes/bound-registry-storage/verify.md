@@ -3149,3 +3149,57 @@ runtime/test lint, semantic R5 reconciliation, guardian supplement integration/R
 naming, actual upload/inode exhaustion, ordinary supervisor/CLI serving continuation,
 formal original-BASE review, Tasks9–11 and the exact-SHA host gate remain required.
 There was no h4 rehearsal, closed successful-scope replay or production activation.
+
+## Task8 native call and callback capability typing — 2026-10-29
+
+Six local return-type assertions across three fixture modules recover the captured
+`Bun.spawn` contract erased by `Reflect.apply`. Each target was verified to call
+a const captured from `Bun.spawn`, with the original receiver and argument forwarding.
+Each assertion has an adjacent comment naming that trusted callable boundary;
+stdio remains opaque. No decoded/untrusted payload was asserted. Native child
+identity, existing PID/exit/signal checks, throws and returned capabilities remain
+unchanged. This removed37 unsafe-assignment/member/call/argument/return findings.
+
+Seven method-reference findings came from six callback declarations in five other
+modules. Their implementations were reviewed as closure-backed capabilities.
+The first `this: void` representation passed type checking and removed those seven
+findings, but the repository's default invalid-void rule rejected it six times.
+That intermediate lint run remains failing at131 errors and is not certified.
+
+The final representation uses five function-valued property signatures and an
+explicit channel result type with a function-valued frame callback. The original
+inferred channel fields and actual method implementations remain intact. No
+function is rebound, and no lint policy or suppression changed. This removes all
+seven unbound-method findings without the six invalid-void errors.
+
+All eight edited modules emit complete JavaScript byte-identical to their saved
+pre-change sources; added-effect controls differ. All11 final production CLI
+build outputs also match the preceding unknown-boundary build byte-for-byte.
+This does not claim equality to historical HOST64 or add R5 guard-removal coverage.
+
+Final configured project execution with pinned native restic exited0:2056 passes,
+zero failures/skips,8756 assertions across164 files,100.57seconds. All333 captured
+TypeScript/config pins matched during and after the run. Library/spec checks
+exited0 with empty output. Formatting passed the three native-call files and five
+callback-contract files;11 production entrypoints built successfully into private
+temporary archives. Earlier full runs for the return assertions and intermediate
+receiver spelling also passed, but their lint inventories remain historical.
+
+Fresh96-file runtime lint reports125 errors, zero warnings:44 fewer than the
+169-error baseline. The remaining untyped JSON observations are confined to the
+sudo fixture's contender output and journal/token read and require separate
+boundary work. Test/full-repository lint remains uncertified.
+
+`/tmp/task8-capability-covering.json`, SHA256
+`27f10d09f242ac3b4728d15f489c953af60b7f99f24b2433ca94288d427fc1ae`,158pins,
+binds the final eight sources, snapshots, controls, all three check/run stages,
+rejected receiver representation and production build equality. The final project
+receipt is `/tmp/task8-project-after-function-capabilities/exit.json` (stdout
+`55913c96`, stderr `ff021366`). Current lint/check receipts are under
+`/tmp/task8-function-capability-checks/`.
+
+The original17 requirements/24 scenarios and Task8/4.2 remain incomplete. Remaining
+runtime/test lint, semantic R5 reconciliation, guardian supplement integration/R2
+naming, actual upload/inode exhaustion, ordinary supervisor/CLI serving continuation,
+formal original-BASE review, Tasks9–11 and the exact-SHA host gate remain required.
+No h4 rehearsal, closed successful-scope replay or production activation occurred.
