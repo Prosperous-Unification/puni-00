@@ -1,0 +1,17 @@
+
+> nx run tool-deploy:lint
+
+> bunx eslint tools/tool-deploy/src
+
+(node:945649) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+
+ NX   Successfully ran target lint for project tool-deploy
+
+
+  Run duration:      8.4s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     8.1s (1 task)
+  Recoverable time:  <1ms

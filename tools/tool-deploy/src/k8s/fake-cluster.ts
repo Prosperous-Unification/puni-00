@@ -1,6 +1,9 @@
 import type { ControllerTarget } from './controller-adapter';
 import type { ControllerAuthority, ControllerLifecycle } from './controller-lifecycle';
-import type { DependencyBinaryObservation } from './dependency-observation';
+import type {
+  DependencyBinaryObservation,
+  DependencyStoreObservation,
+} from './dependency-observation';
 import type { ReleaseEffects } from './execute';
 import type { JournalRecord, ReleaseJournal } from './journal';
 import { sealMigrationCapture, sha256Of } from './migration-capture';
@@ -271,6 +274,27 @@ export class FakeCluster implements ReleaseEffects {
       },
     );
     return Promise.resolve(observations);
+  }
+  observeDependencyStore(attempt: string, image: string): Promise<DependencyStoreObservation> {
+    this.enter('observeDependencyStore');
+    this.admit(image);
+    return Promise.resolve({
+      evidence: {
+        observationId: attempt,
+        namespace: 'wbs-solver',
+        jobName: attempt,
+        jobUid: 'store-job',
+        podUid: 'store-pod',
+        image,
+        commandSha256: sha256Of('store scanner'),
+      },
+      authority: {
+        protocol: 'wbs-dependency-preservation',
+        version: 1,
+        state: 'DISABLED',
+        externalRelationships: 0,
+      },
+    });
   }
   suspendFlux() {
     this.enter('suspendFlux');

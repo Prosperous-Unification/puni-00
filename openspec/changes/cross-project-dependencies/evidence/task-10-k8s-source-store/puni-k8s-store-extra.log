@@ -1,0 +1,13 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+(pass) mounted post-observation consumer drift refuses source replay [3170.13ms]
+(pass) mounted successful store observation retains sticky heartbeat Lease loss [3050.34ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 2 pass
+ 50 filtered out
+ 0 fail
+ 18 expect() calls
+Ran 2 tests across 1 file. [6.29s]

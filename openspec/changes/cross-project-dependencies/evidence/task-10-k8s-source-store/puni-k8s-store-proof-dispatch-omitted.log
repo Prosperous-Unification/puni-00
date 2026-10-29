@@ -1,0 +1,65 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+897 |       await effects.parkLease(holder, state.phase);
+898 |     }
+899 |   } finally {
+900 |     clearInterval(heartbeat);
+901 |   }
+902 |   if (state.phase !== 'lease-released') throw new ReleaseFailedError(state, journal.path);
+                                                    ^
+ReleaseFailedError: release bbbbbbbbbbbb-2143c0b52b0a ended at rollback-failed
+journal: /tmp/wbs-test-825296-muyk9Q/k8s-controller-release-Gv9Clz/release.json
+failed step: rollback-check-replay: expect(received).toBe(expected)
+
+Expected: 1
+Received: undefined
+
+captured migration set: (not captured)
+replay forward: (not checked)
+replay rollback: (not checked)
+snapshot: (none)
+writes remain fenced and the Lease stays held
+manual command: reopen writes and delete the Lease of bbbbbbbbbbbb-2143c0b52b0a
+      state: {
+  releaseId: "bbbbbbbbbbbb-2143c0b52b0a",
+  transactionId: "bbbbbbbbbbbb-2143c0b52b0a-47e136",
+  phase: "rollback-failed",
+  rollbackFrom: "writer-stopped",
+  capture: null,
+  replayForward: null,
+  replayRollback: null,
+  previous: [Object ...],
+  snapshot: null,
+  controllers: [Object ...],
+  fluxSuspendedByUs: true,
+  writesReopened: false,
+  failure: [Object ...],
+},
+ journalPath: "/tmp/wbs-test-825296-muyk9Q/k8s-controller-release-Gv9Clz/release.json",
+
+      at executeRelease (/home/df/.codex/worktrees/3410/puni-00/tools/tool-deploy/src/k8s/execute.ts:902:47)
+      at async <anonymous> (/home/df/.codex/worktrees/3410/puni-00/tools/tool-deploy/src/k8s/controller-release.test.ts:1078:25)
+(fail) mounted fresh store observation completes after durable drain before source replay [3838.57ms]
+1118 |           fixture.journal,
+1119 |           fixture.fake,
+1120 |           () => undefined,
+1121 |           fixture.options,
+1122 |         ),
+1123 |       ).rejects.toThrow('attended compatible recovery');
+                       ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/home/df/.codex/worktrees/3410/puni-00/tools/tool-deploy/src/k8s/controller-release.test.ts:1123:17)
+(fail) mounted store enabled retains drained fences without automatic recovery [6118.87ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 0 pass
+ 48 filtered out
+ 2 fail
+ 5 expect() calls
+Ran 2 tests across 1 file. [10.01s]

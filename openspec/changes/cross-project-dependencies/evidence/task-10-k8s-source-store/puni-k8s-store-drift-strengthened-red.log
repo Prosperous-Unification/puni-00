@@ -1,0 +1,40 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+1124 |       }
+1125 |       await expect(executeRelease(fixture.request, fixture.journal, fixture.fake, () => undefined, fixture.options)).rejects.toThrow();
+1126 |       fixture.load();
+1127 |       expect(fixture.objects.logged).toBe(1);
+1128 |       expect(fixture.fake.calls).not.toContain('observeReplayInventory');
+1129 |       expect(fixture.journal.read()?.state.phase).toBe('writer-stopped');
+                                                         ^
+error: expect(received).toBe(expected)
+
+Expected: "writer-stopped"
+Received: "rollback-failed"
+
+      at <anonymous> (/home/df/.codex/worktrees/3410/puni-00/tools/tool-deploy/src/k8s/controller-release.test.ts:1129:51)
+(fail) mounted post-observation pvc drift refuses source replay [5279.23ms]
+1124 |       }
+1125 |       await expect(executeRelease(fixture.request, fixture.journal, fixture.fake, () => undefined, fixture.options)).rejects.toThrow();
+1126 |       fixture.load();
+1127 |       expect(fixture.objects.logged).toBe(1);
+1128 |       expect(fixture.fake.calls).not.toContain('observeReplayInventory');
+1129 |       expect(fixture.journal.read()?.state.phase).toBe('writer-stopped');
+                                                         ^
+error: expect(received).toBe(expected)
+
+Expected: "writer-stopped"
+Received: "rollback-failed"
+
+      at <anonymous> (/home/df/.codex/worktrees/3410/puni-00/tools/tool-deploy/src/k8s/controller-release.test.ts:1129:51)
+(fail) mounted post-observation controller drift refuses source replay [4812.29ms]
+(pass) mounted post-observation lease drift refuses source replay [6038.20ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=1
+
+ 1 pass
+ 47 filtered out
+ 2 fail
+ 18 expect() calls
+Ran 3 tests across 1 file. [16.25s]

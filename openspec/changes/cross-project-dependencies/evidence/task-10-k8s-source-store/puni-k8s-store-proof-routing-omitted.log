@@ -1,0 +1,25 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+1125 |       expect(fixture.fake.calls).not.toContain('capture');
+1126 |       expect(fixture.fake.calls).not.toContain('migrate');
+1127 |       expect(fixture.fake.calls).not.toContain('rollbackSchema');
+1128 |       expect(fixture.fake.calls).not.toContain('rolloutTiers');
+1129 |       expect(fixture.fake.calls).not.toContain('reopenWrites');
+1130 |       expect(fixture.journal.read()?.state.phase).toBe('writer-stopped');
+                                                         ^
+error: expect(received).toBe(expected)
+
+Expected: "writer-stopped"
+Received: "rollback-failed"
+
+      at <anonymous> (/home/df/.codex/worktrees/3410/puni-00/tools/tool-deploy/src/k8s/controller-release.test.ts:1130:51)
+(fail) mounted store enabled retains drained fences without automatic recovery [4376.54ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 0 pass
+ 49 filtered out
+ 1 fail
+ 8 expect() calls
+Ran 1 test across 1 file. [4.41s]
