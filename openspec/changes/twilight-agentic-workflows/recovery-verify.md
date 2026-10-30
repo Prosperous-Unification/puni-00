@@ -678,3 +678,85 @@ The [readable39-decision record](evidence/recovery-decisions-20261030.md) preser
 A separate current-provider defect prevents a complete accepted-ID portability claim. On the required Bun1.4.4, public SQLite creation acknowledged D800, but read-only physical inspection after close found `hex(run_id)=EFBFBD` while both JSON record IDs remained D800. Only the physical-ID comparison failed. The finite public-store probe remains nonpassing; no broad collision or exact native-conversion-function claim is made. The first-provider WBS leaf has been reopened. Preserving the admitted domain is approved; a concrete new encoding/migration proposal awaits design approval and is not implemented by this candidate.
 
 The full review/gate delivery checkbox remains open pending complete CI and its final evidence. No parent recovery/S0/S7a completion, main merge, physical quiescence, provenance authenticity or current execution permission follows from this checkpoint.
+
+## Checkpoint inventory repair — 2026-10-30
+
+This restores the existing exact-path binary inventory contract at BASE
+`e8a79c91575cf68da0aff32ded6aaf613f4e019d`. The dedicated branch is
+`fix/r2-checkpoint-inventory-20261030`; initial tracked status was clean. Required and
+observed Bun are both 1.4.4. Each shipped policy appends exactly one declaration for
+`evidence/r2-review-gate-checkpoint-20261030.json.gz`, with format
+`application/gzip`, this document as consumer, and the existing historical-execution
+external regeneration authority. Whole parsed policies equal BASE after removing exactly
+that row. The archive remains 245975 bytes, SHA256
+`bc443fef1b4a95adb2103e0f1eb118635ebf810d9d582e4e6a2352b0a15cc336`.
+No classifier, guard, archive, dependency, migration or runtime behavior changed.
+
+Original [CI41077234896](https://github.com/Prosperous-Unification/puni-00/actions/runs/41077234896)
+is **FAILED**: Dash 4821 pass/0 fail; Burokrat 2533 pass/11 fail; packed suite skipped.
+The failed Nx original-byte intake is 4325566 bytes, SHA256
+`1a8d88170f9b6acda59bb419d121d1de80240d377616253ae1d94f0238e7e74c`;
+all four intake copies matched their handoff manifest. An existing pre-fix host gate
+cannot certify this repair.
+
+The unchanged focused pilot genuinely failed at production observe lint on the named
+undeclared archive: exit 1, 0 pass/1 fail, 59 assertions. Exact command from the repair
+worktree:
+
+`bun --no-env-file test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts --test-name-pattern 'pins exact pre-index tuples and passes observe lint from external trust' --timeout=60000`
+
+The first complete post-row run used the same command without the name filter: exit 1,
+18 pass/6 fail, 336 assertions. Three failures reached the existing missing trusted-TypeScript
+configuration refusal; three multi-candidate cases exhausted the shared disk (1.3 GB free).
+This is retained as an environment failure, not GREEN. One corrected complete-file run used
+the target's existing explicit dependency and owned tmpfs scratch:
+
+`env TOOL_WIKI_TRUSTED_NODE_MODULES=/tmp/puni-agentic-runtime-dispatch-20261026/node_modules TMPDIR=/dev/shm/puni-r2-inventory-pilot-20261030-3817947 bun --no-env-file test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts --timeout=60000`
+
+Corrected full-file GREEN: exit 0; 24 pass 0 fail 430 expect() calls.
+It exercises all eleven cases previously masked by the archive refusal. No source-fault edit
+overlapped a healthy test. The test changes only an adjacent observed Proof comment.
+
+Production controls use `bun run apps/twilight-structure/twilight-burokrat/cli/src/cli.ts classify-candidate committed <owned-repository> HEAD <owned-classification-policy.json>`.
+The JSON CLI takes each shipped policy's unchanged `classificationPolicy` object.
+Each minimal committed fixture contains only the named archive or its unlisted sibling
+`r2-unlisted-inventory-control-20261030.json.gz`, copied from the exact same bytes.
+Thus bootstrap remains within its existing classification scope. Removing only the new row
+in each owned policy copy exits 1 naming the checkpoint; restoring it exits 0 with exact
+binary metadata; both restored policies still reject the same-byte unlisted sibling with
+exit 1. Inherited guards stay installed. Owned fixture repositories were removed, and policy
+copies restored; no shipped-policy fault edit was used. Complete commands and independently
+drained raw streams remain in the controller handoff workspace
+`.superpowers/sdd/puni-r2-checkpoint-inventory-repair-20261030/proof/`.
+The scratch recorder's first pass retained a mutable argv reference; its original artifacts
+are preserved in `initial-controls/`. It was corrected to snapshot argv and all six controls
+rerun; only the corrected command records below carry proof credit.
+
+| Invocation                 | Exit | Raw stdout SHA256                                                  | Raw stderr SHA256                                                  |
+| -------------------------- | ---- | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| focused RED                | 1    | `bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47` | `4b97ddaaaeb05baf076a24a391bfcbd4e67275b9acfb31d5561a8009f0ba8cb6` |
+| unconfigured full file     | 1    | `bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47` | `08e81c7efba75e54e4694c365efadf2bcebaddba196eafef821f7f3763bc2cab` |
+| configured full-file GREEN | 0    | `bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47` | `198d8c1568e451b5f518a7e36f670ef6f3fa2395b16e82616a34f5d74c683270` |
+| policy-0-removed           | 1    | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` | `a46d2eb738983d4145dd98643c3d37964d994aa25f5335a4246c8ab19eb512ea` |
+| policy-0-restored          | 0    | `52ac18414e2566c661351bc713a59abc3321ad363cb977be8bb860fa1ad519c9` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| policy-0-unlisted          | 1    | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` | `a768a5fcdb3d1381b2e1ca88ad3875a06251e90be7fdd5b1c9fe6baae539bc6a` |
+| policy-1-removed           | 1    | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` | `a46d2eb738983d4145dd98643c3d37964d994aa25f5335a4246c8ab19eb512ea` |
+| policy-1-restored          | 0    | `52ac18414e2566c661351bc713a59abc3321ad363cb977be8bb860fa1ad519c9` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| policy-1-unlisted          | 1    | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` | `a768a5fcdb3d1381b2e1ca88ad3875a06251e90be7fdd5b1c9fe6baae539bc6a` |
+
+Unchanged production CLI SHA256 is
+`6ccc79edd252891dfc9079484a36ac8a5752b6946a3f8ff9f62bb76fdefb4d78`;
+classifier SHA256 is
+`48d3d6aaa4e975c58c6ff145c5e65caf9ff7dc03c16559493a5e5c4ecc563caa`.
+Repaired full/bootstrap policy SHA256 values are respectively
+`7a5faa008fd53d921362374bc4989dab889afe780073b4feed8bbbf46d92d099` and
+`01dc7ac9c41279903e68e93c92890ffcd5e2975a572495627942886c253f969e`.
+
+Scoped validation command `bunx openspec validate twilight-agentic-workflows --json`
+exited 0 with 18 existing requirement-length warnings. The exploratory strict variant exited 1
+on those same warnings; the initial sandboxed strict invocation exited 1 with empty streams
+and earns no validation credit. Exact-path Prettier, scoped ESLint, diff checks, cleanup and
+normal-hook commit outcomes are retained in the task report. Full Burokrat/recovery suites,
+typecheck and build were intentionally not rerun locally for metadata/comment/evidence edits.
+Corrected-source canonical and CI gates remain the controller's pending acceptance work;
+this repair grants no completion, merge, deployment or production permission.

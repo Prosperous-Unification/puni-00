@@ -491,6 +491,10 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // See openspec/changes/burokrat-workflow-binding-validation/evidence/inventory-repair.json.
     // Proof (2026-10-27): P2 removed only the five BE inputs from the full declaration;
     // production lint emitted fact check.be-01.test authority-selector mismatch.
+    // Proof (2026-10-30): this pilot refused the undeclared R2 checkpoint gzip (59 assertions).
+    // Removing only its exact row from either shipped policy made production classify-candidate
+    // exit 1 naming that archive; restoration emitted exact binary metadata. Both policies still
+    // refused a same-byte unlisted sibling; the configured full pilot passed 24/0 (430 assertions).
     expect(invocation.exitCode, output(invocation)).toBe(0);
     expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
       mode: 'observe',
