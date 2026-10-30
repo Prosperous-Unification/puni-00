@@ -184,7 +184,12 @@ async function fixture(request: Request, path: string): Promise<Response | undef
     const providerId = (provider.body as { id: string }).id;
     const declared = await h.call('dany', 'POST', '/api/directory/commands', {
       commands: [
-        { kind: 'createResource', name: 'h4claw ram', resourceKind: 'divisible', unitLabel: 'GB' },
+        {
+          kind: 'createResource',
+          name: `h4claw ram ${crypto.randomUUID()}`,
+          resourceKind: 'divisible',
+          unitLabel: 'GB',
+        },
       ],
     });
     const resourceId = (declared.body as { results?: { id?: string }[] }).results?.at(0)?.id;

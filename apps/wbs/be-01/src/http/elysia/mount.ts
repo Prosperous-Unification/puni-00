@@ -160,14 +160,20 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
         // A machine grant's bearer-level refusals (`wbs-mcp-agent-surface`
         // M3, M14) reach any route the same way: `internal_unauthorized` for
         // a missing or wrong mcp-01 secret, `unknown_grant_key` for a grant
-        // under no configured key.
+        // under no configured key. `machine_bearer_not_accepted`
+        // (`wbs-mcp-agent-surface` M9) is a machine bearer on any route.
+        // Proof: with it dropped from this condition, `is refused
+        // machine_bearer_not_accepted before any credential read or key set
+        // fetch` (oidc-credential.controller.db.test.ts) answered 500
+        // `undeclared refusal`; watched 2026-10-29.
         if (
           !identity.ok &&
           'error' in identity.body &&
           (identity.body.error === 'unknown_identity' ||
             identity.body.error === 'invalid_token' ||
             identity.body.error === 'internal_unauthorized' ||
-            identity.body.error === 'unknown_grant_key')
+            identity.body.error === 'unknown_grant_key' ||
+            identity.body.error === 'machine_bearer_not_accepted')
         )
           return Response.json(identity.body, {
             status: 401,

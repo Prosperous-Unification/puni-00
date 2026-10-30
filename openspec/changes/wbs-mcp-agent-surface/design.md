@@ -559,8 +559,16 @@ _Alternatives:_ the path list; admin tools for consented humans.
 
 - The refusal is `401 machine_bearer_not_accepted`, which names `/mcp`, for `wbs_mk_` keys,
   trusted-issuer tokens and **groups-less configured-issuer tokens**.
-- **Precondition: #731 merged.** It retires operator links, so the groups-less branch admits
-  nobody.
+- **It ships in two halves** (0.2 (e) ASSUMED, slice 18; Dany may reverse): keys and every
+  JWT of a non-sign-in issuer now; the groups-less configured-issuer half after #731.
+- **Precondition, for the groups-less half only: #731 merged.** It retires operator links, so
+  the groups-less branch admits nobody.
+- **No read before the refusal, and no issuer oracle** (slice 18, review of PR #785): any JWT
+  whose `iss` is not the sign-in issuer is refused, whether or not an organization trusts it.
+  Telling the two apart would take a registration read and tell a caller which issuers are
+  trusted, and EKS and GKE issuer URLs embed account and cluster ids. No human path carries
+  another `iss`: registering the sign-in issuer as trusted is refused (`issuer_reserved`), and
+  mcp-01 forwards only configured-issuer human tokens.
 - There is no environment switch. Tests that need raw-key `/api` behaviour use a test-only
   composition seam in `src/testing`, which `production-entrypoint.test.ts` keeps unreachable
   from `main.ts`.

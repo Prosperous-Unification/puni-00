@@ -1,8 +1,11 @@
+import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
 import { WriteCoordinator } from '@wbs/store-sqlite/gate';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 
 import { openDatabase } from '../repository/db';
 import { addAgentPerson, issueApiKey } from './machine-credential-fixture';
+import { TEST_MACHINE_GRANT_ENV } from './machine-grant-fixture';
+import { forwardingMachineGrants, requestGrant } from './mcp-forwarded-call';
 import { OrganizationHarness } from './organization-harness';
 
 function requireOk(reply: { status: number }): void {
@@ -11,6 +14,7 @@ function requireOk(reply: { status: number }): void {
 const pushes: string[] = [];
 const harness = OrganizationHarness.openComposedWith({
   now: () => 1_792_368_000_000,
+  machineGrants: await forwardingMachineGrants(),
   withOptimizer: process.env['MCP_PARITY_OPTIMIZER'] === 'installed',
   solverVersion: '0.4.0',
   spawn: () => {
@@ -90,8 +94,24 @@ const credential = await issueApiKey(harness.sqlite, {
   issuedBy: harness.userId('ada'),
 });
 
+const issued = await requestGrant(
+  harness,
+  { kind: 'api_key', key: credential.key },
+  { now: 1_792_368_000_000 },
+);
+requireOk(issued);
+// The successful production grant route supplies this fixture's signed grant and identity.
+const grant = (await issued.json()) as { grant: string };
 requireOk(
-  await harness.callWith(credential.key, 'GET', `/api/projects/${successor.projectId}/work-items`),
+  await harness.callWith(
+    grant.grant,
+    'GET',
+    `/api/projects/${successor.projectId}/work-items`,
+    undefined,
+    {
+      [MCP_INTERNAL_SECRET_HEADER]: TEST_MACHINE_GRANT_ENV['MCP_BE_INTERNAL_SECRET'],
+    },
+  ),
 );
 pushes.length = 0;
 const controlToken = crypto.randomUUID();
@@ -253,5 +273,12 @@ process.on('SIGTERM', () => {
   })();
 });
 console.log(
-  JSON.stringify({ port: backend.port, key: credential.key, controlToken, predecessor, successor }),
+  JSON.stringify({
+    port: backend.port,
+    grant,
+    secret: TEST_MACHINE_GRANT_ENV['MCP_BE_INTERNAL_SECRET'],
+    controlToken,
+    predecessor,
+    successor,
+  }),
 );

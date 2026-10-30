@@ -3,7 +3,11 @@ import { digestMachineSecret } from '@wbs/core';
 import { CLAIM_LEASE_MS } from '@wbs/domain';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
-import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import {
+  addAgentPerson,
+  issueApiKey,
+  MACHINE_BEARER_NOT_ACCEPTED,
+} from '../testing/machine-credential-fixture';
 import {
   TEST_MACHINE_GRANT_ENV,
   TEST_MCP_AUTHORIZATION_SERVER,
@@ -19,6 +23,7 @@ const PATH = '/api/organization/agent-pools';
 const T = 1_900_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
 const UNKNOWN = { status: 401, body: { error: 'unknown_identity' } };
+const NOT_ACCEPTED = MACHINE_BEARER_NOT_ACCEPTED;
 const SECRET = TEST_MACHINE_GRANT_ENV['MCP_BE_INTERNAL_SECRET'];
 const AUTHORIZATION_SERVER = TEST_MCP_AUTHORIZATION_SERVER;
 
@@ -344,9 +349,9 @@ describe('a refused creation', () => {
     });
     const refused = { status: 403, body: { error: 'insufficient_scope' } };
     expect(await asAgent(machine.key, 'POST', PATH, { name: 'swarm-a', size: 2 })).toEqual(refused);
-    // Removed by 7.1 (M9): the key itself as a Bearer on `/api`.
+    // The key itself as a Bearer on `/api` is refused before any route (M9).
     expect(await h.callWith(machine.key, 'POST', PATH, { name: 'swarm-a', size: 2 })).toEqual(
-      refused,
+      NOT_ACCEPTED,
     );
     const doc = await createPool('dany', { name: 'swarm-b', size: 1 });
     const agent = doc.agents.at(0);
@@ -358,8 +363,7 @@ describe('a refused creation', () => {
     ] as const) {
       const body = method === 'POST' ? {} : undefined;
       expect(await asAgent(agent.key, method, path, body)).toEqual(refused);
-      // Removed by 7.1 (M9): the key itself as a Bearer on `/api`.
-      expect(await h.callWith(agent.key, method, path, body)).toEqual(refused);
+      expect(await h.callWith(agent.key, method, path, body)).toEqual(NOT_ACCEPTED);
     }
     expect(pools()).toBe(1);
   });

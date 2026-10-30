@@ -1,7 +1,13 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
+import { DEPENDENCY_SEMANTICS, DEPENDENCY_SEMANTICS_HEADER } from '@wbs/contracts/dependency-claim';
 import { expect, setDefaultTimeout, test } from 'bun:test';
+import { decodeJwt } from 'jose';
 
+import { MachineCaller, RefusedMachineTokens } from './machine-admission';
+import type { IssuedMachineGrant } from './machine-grant-client';
+import { NO_MACHINE_LIMITS } from './machine-limits';
 import { readDocument, toolsFromDocument } from './openapi-tools';
 import { createServer } from './server';
 import type { FetchLike } from './wbs-client';
@@ -19,7 +25,7 @@ interface FixtureFaults {
 type ParityBackend = Bun.Subprocess<'ignore', 'pipe', 'inherit'>;
 type ForwardedRequest = Parameters<FetchLike>[1] & { url: Parameters<FetchLike>[0] };
 
-/** Real machine-key authentication; this packet does not exercise delegated OAuth authority. */
+/** Real machine grant forwarding; this packet does not exercise delegated OAuth authority. */
 async function openFixture(active = true, scopes = ['read', 'write'], faults: FixtureFaults = {}) {
   const backend = Bun.spawn(
     [process.execPath, 'apps/wbs/be-01/src/testing/mcp-command-parity-backend.ts'],
@@ -90,7 +96,8 @@ async function openFixture(active = true, scopes = ['read', 'write'], faults: Fi
     }
     const ready = JSON.parse(printed.split('\n')[0] ?? '') as {
       port: number;
-      key: string;
+      grant: Omit<IssuedMachineGrant, 'kind'>;
+      secret: string;
       controlToken: string;
       predecessor: Endpoint;
       successor: Endpoint;
@@ -105,6 +112,18 @@ async function openFixture(active = true, scopes = ['read', 'write'], faults: Fi
         throw new Error(`parity inspection failed: ${String(reply.status)}`);
       return (await reply.json()) as Snapshot;
     };
+    const jti = decodeJwt(ready.grant.grant).jti;
+    if (jti === undefined) throw new Error('issued parity grant has no identity');
+    // The trusted in-memory admission carries the real backend-issued identity and grant.
+    const machine = new MachineCaller(
+      { ...ready.grant, jti },
+      ready.secret,
+      new RefusedMachineTokens(() => 1_792_368_000_000),
+      (cause) => {
+        throw cause;
+      },
+      NO_MACHINE_LIMITS,
+    );
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     transports.push(
       () => clientTransport.close(),
@@ -115,7 +134,7 @@ async function openFixture(active = true, scopes = ['read', 'write'], faults: Fi
     clientTransport.send = (message, options) =>
       send(message, {
         ...options,
-        authInfo: { token: ready.key, clientId: 'parity', scopes },
+        authInfo: { token: ready.grant.grant, clientId: 'parity', scopes, extra: { machine } },
       });
     const forwarded: ForwardedRequest[] = [];
     const server = createServer({
@@ -195,12 +214,15 @@ async function openFixture(active = true, scopes = ['read', 'write'], faults: Fi
       },
       forwarded,
       apiUrl,
-      key: ready.key,
+      grant: ready.grant.grant,
+      secret: ready.secret,
       http: async (method: string, path: string, body?: unknown) => {
         const reply = await fetch(`${apiUrl}${path}`, {
           method,
           headers: {
-            authorization: `Bearer ${ready.key}`,
+            authorization: `Bearer ${ready.grant.grant}`,
+            [MCP_INTERNAL_SECRET_HEADER]: ready.secret,
+            [DEPENDENCY_SEMANTICS_HEADER]: DEPENDENCY_SEMANTICS,
             ...(body === undefined ? {} : { 'content-type': 'application/json' }),
           },
           ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -338,7 +360,8 @@ for (const transport of ['HTTP', 'MCP'] as const) {
           signal: expect.any(AbortSignal) as unknown,
           headers: {
             'X-WBS-Dependency-Semantics': 'cross-project-dependencies-v1',
-            authorization: `Bearer ${fixture.key}`,
+            authorization: `Bearer ${fixture.grant}`,
+            [MCP_INTERNAL_SECRET_HEADER]: fixture.secret,
             'content-type': 'application/json',
           },
           body: JSON.stringify({ commands }),
@@ -955,7 +978,8 @@ for (const transport of ['HTTP', 'MCP'] as const) {
               signal: expect.any(AbortSignal) as unknown,
               headers: {
                 'X-WBS-Dependency-Semantics': 'cross-project-dependencies-v1',
-                authorization: `Bearer ${fixture.key}`,
+                authorization: `Bearer ${fixture.grant}`,
+                [MCP_INTERNAL_SECRET_HEADER]: fixture.secret,
                 'content-type': 'application/json',
               },
               body: JSON.stringify({ commands }),

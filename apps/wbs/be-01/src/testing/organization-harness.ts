@@ -1042,7 +1042,8 @@ export class OrganizationHarness {
                 activationState: () => readOrganizationActivation(source.db),
                 keys: machineGrants.keys,
                 authorizationServer: machineGrants.authorizationServer,
-                admitProof: (presented) => services.auth.admitMachineProof(presented),
+                admitProof: (presented, audienceRoot) =>
+                  services.auth.admitMachineProof(presented, audienceRoot),
                 audit: new MachineTokenAuditRepository(source.db, services.gate),
                 now: () => services.clock.now(),
                 ...(machineGrants.newId === undefined ? {} : { newId: machineGrants.newId }),

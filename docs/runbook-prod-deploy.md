@@ -193,6 +193,12 @@ three settings is [step 2c](runbook-organization-activation.md#step-2c-seed-the-
 half applies. No agent can reach a machine grant there until an mcp-01 serves prod's `/mcp`.
 The Kubernetes release does run mcp-01; what it needs is under [Kubernetes](#kubernetes).
 
+**Machine credentials have no working surface on Compose prod until `/mcp` is routed.** Since
+slice 7 (M9), be-01's `/api` refuses `wbs_mk_` keys and trusted issuers' tokens
+(`401 machine_bearer_not_accepted`), and that surface is not replaced until an mcp-01 serves
+prod's `/mcp`. Deploying this release to Compose prod therefore cuts off any fleet that still
+calls `/api` with a key.
+
 ### The three settings
 
 | Setting                                  | Kind                         | Compose prod file                                                      |
@@ -276,10 +282,19 @@ and writes nothing. Its exit codes:
   `<n> stored audience(s) break WBS_MCP_AUTHORIZATION_SERVER and are not accepted: …`;
 - non-zero, by throwing, on arguments, a missing `DB_PATH` or a non-canonical server.
 
-Until slice 7 (task 1.5's "with slice 7") stored rows keep verifying, so a listed row breaks
-nothing yet. The listing names the work that slice 7, or any change of `MCP_PUBLIC_URL`, will
-force. Each listed registration needs its identity provider changed and the registration
-re-made.
+Since slice 7 (task 1.5 at use), a listed row is refused at use: a workload token verified
+against that audience gets `invalid_grant` at mcp-01's token endpoint. A change of
+`MCP_PUBLIC_URL` breaks rows the same way. Before deploying, re-register each listed row:
+
+1. Change the identity provider so its tokens carry an audience equal to
+   `WBS_MCP_AUTHORIZATION_SERVER` or under it after a `/` (the organization page suggests
+   `<audienceRoot>/org/<organization id>`).
+2. Delete the registration and register it again with that audience, and re-create its
+   credentials. A credential's own narrowing must meet the same rule.
+
+`--accept-breaking=<ids>` (`WBS_ACCEPT_BREAKING_AUDIENCES`) therefore no longer means "breaks
+later": it lets the swap proceed while the named rows **stop verifying at once**. Name an id
+only for a row whose workload you accept losing until it is re-registered.
 
 **Wired into both deploys.** Both run it with the candidate image, before any migration, and
 take the accepted ids from the deploy CLI:

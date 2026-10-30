@@ -605,6 +605,12 @@ type BareRefusalCode =
    * fault mcp-01 reports, never a user's refusal.
    */
   | 'internal_unauthorized'
+  /**
+   * A `wbs_mk_` key or another issuer's JWT presented to `/api`
+   * (`wbs-mcp-agent-surface` M9): machines call WBS through `/mcp`, which the
+   * refusal's `endpoint` names. Refused before any read.
+   */
+  | 'machine_bearer_not_accepted'
   /** A machine grant whose `kid` names no configured grant key (M3): mcp-01 re-fetches. */
   | 'unknown_grant_key'
   /** A workload assertion whose `typ` is neither absent nor `JWT` (M2). */
