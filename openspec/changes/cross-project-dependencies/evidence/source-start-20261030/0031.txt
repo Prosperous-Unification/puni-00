@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "bun",
+    "test",
+    "--preload",
+    "./tools/test/scratch/preload.ts",
+    "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+    "--test-name-pattern=^isolated source restoration refuses unreadable gateway record$",
+    "--timeout=320000"
+  ],
+  "pid": 2900743,
+  "exit": 0,
+  "signal": null,
+  "stdoutEOF": true,
+  "stderrEOF": true,
+  "elapsedSeconds": 74.08203398494516,
+  "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+  "stderrSHA256": "54a2fa860707faf4d3c4c819fbb29c7d7151d86c6816a576e1fad6c46aadca98"
+}

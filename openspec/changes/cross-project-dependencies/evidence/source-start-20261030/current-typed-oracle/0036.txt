@@ -1,0 +1,27 @@
+{"argv": ["bun", "test", "--preload", "./tools/test/scratch/preload.ts", "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts", "--test-name-pattern=^isolated source restoration refuses wrong selected source before intent and start$", "--timeout=320000"], "pid": 3238672, "exit": 0, "signal": null, "stdoutEOF": true, "stderrEOF": true, "elapsedSeconds": 70.66976164095104, "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47", "stderrSHA256": "d4b09ad1dcee74815ed33e7fd3bf4e35b2501db155063f03b074032b91116dd7"}
+bun test v1.4.4 (38afee6c8)
+
+
+tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:
+
+test/dependency-source-restoration-model-child.test.ts:
+SOURCE_RESTORATION_REACHED: original prepare/consume/solver/backend/gateway complete; source cold and dev openers excluded
+SOURCE_RESTORATION_SELECTED_REFUSED: wrong selected ID before intent/start and terminal after exact repair
+(pass) source restoration refuses wrong selected source before intent and start [70580.96ms]
+
+ 1 pass
+ 22 filtered out
+ 0 fail
+ 486 expect() calls
+Ran 1 test across 1 file. [70.64s]
+SOURCE_RESTORATION_INNER_CUSTODY: {"name":"source restoration refuses wrong selected source before intent and start","exitCode":0,"signal":null,"stdoutEof":true,"stderrEof":true}
+(pass) isolated source restoration refuses wrong selected source before intent and start [70656.16ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 1 pass
+ 22 filtered out
+ 0 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [70.67s]
+

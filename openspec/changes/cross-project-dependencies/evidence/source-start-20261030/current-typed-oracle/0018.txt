@@ -1,0 +1,14 @@
+{
+  "originalSHA256": "deb803e4a47c3cd6279456ec7b6462947a4d1d68b7a678cb3c2ce2d36720ccff",
+  "mutantSHA256": "1dd3c19950c3d0c8773796315c71d85273bc1f0d601de061f00bb68fea3f4421",
+  "before": "          if (\n            opener.pid !== expected?.pid ||\n            opener.startTime !== expected.startTime ||\n            opener.uid !== expected.uid ||\n            opener.cgroup !== expected.cgroup\n          )\n            throw new Error('backend authority has an unbound database opener');",
+  "after": "          if (expected === undefined) throw new Error('backend authority has an unbound database opener');",
+  "sourceStat": {
+    "device": 66307,
+    "inode": 22631290,
+    "mode": 436,
+    "size": 37643,
+    "mtimeNs": 1793316362458722032,
+    "ctimeNs": 1793316362458722032
+  }
+}

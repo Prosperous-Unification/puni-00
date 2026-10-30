@@ -1,0 +1,65 @@
+{
+  "scope": "Actual retained gateway phase dependency, no missing-phase guard independence claim",
+  "fault": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+        "--test-name-pattern=^isolated source restoration retains original gateway authority through ready$",
+        "--timeout=320000"
+      ],
+      "pid": 3044106,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 102.9757424480049,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "84cea09e21675e950c58c83f268fbce23d616b418a6f20ca3b2924ef352954ef"
+    },
+    "wrapper": {
+      "pid": 3044105,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "516771f19423c872fb21c9a6047f469bae3cc198890f526a9c2a3cf6b491ecde",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderrSHA256": "84cea09e21675e950c58c83f268fbce23d616b418a6f20ca3b2924ef352954ef"
+  },
+  "restored": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+        "--test-name-pattern=^isolated source restoration retains original gateway authority through ready$",
+        "--timeout=320000"
+      ],
+      "pid": 3047012,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 120.2308073140448,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "79618e4834590f72d0c5196f25865940864f0b0fc82efe6e0a95366729622f04"
+    },
+    "wrapper": {
+      "pid": 3047011,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "b340848192337305ef82a2589d3ea25623f8f231d6cc428ea8d91b9bd631d0e4",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "stderrSHA256": "79618e4834590f72d0c5196f25865940864f0b0fc82efe6e0a95366729622f04"
+  }
+}

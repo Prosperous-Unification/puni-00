@@ -1824,3 +1824,28 @@ Source HTTP observation SHALL accept only the original consumed context whose ma
 - **THEN** returned observations and digests are detached and recursively frozen
 - **AND** no startup, DB-opener, durable source-ready, coordinator, controller, exposure or browser/native acceptance is granted
 - **AND** frontend comparison retains the existing transported-text/BOM boundary without evaluation or normalization
+
+### Requirement: Source start follows original gateway readiness with narrow dev writer admission
+
+The private continuation SHALL start only the original source after its original consumed context's actual solver, backend and gateway success. It SHALL admit only the verified source backend's dev database openers while preserving original product/solver authority, retained state, controller fences and closed exposure.
+
+#### Scenario: Source phase admission precedes one exact start
+
+- **WHEN** the original gateway closing phase is admitted
+- **THEN** the attempt is reserved terminally before further I/O
+- **AND** an intent bound to the original restoration reference precedes one owner-bound original source start
+- **AND** actual whole-source binding precedes every post-start authority collection
+
+#### Scenario: The original source backend opens its original dev family
+
+- **WHEN** the actual gateway closing phase is retained and the original source starts once
+- **THEN** its actual whole-source backend identity admits only dev-family openers matching the full PID/start/UID/cgroup/non-null executable tuple
+- **AND** production openers remain bound to the retained production backend
+- **AND** successful source readiness publishes a digest bound to the original restoration reference
+- **AND** another source role, foreign tuple, crossed environment, repeated admitted attempt or late retained drift refuses without releasing policy, controllers or exposure
+
+#### Scenario: Closing retained state precedes source success
+
+- **WHEN** source readiness reaches publication and return
+- **THEN** actual six-response readiness, original product/solver monitors, records, fences, storage and closing source checks precede success
+- **AND** controllers remain fenced and exposure closed

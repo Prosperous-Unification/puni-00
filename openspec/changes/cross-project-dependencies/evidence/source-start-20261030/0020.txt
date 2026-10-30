@@ -1,0 +1,46 @@
+
+tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:
+
+test/dependency-source-restoration-model-child.test.ts:
+SOURCE_RESTORATION_REACHED: original prepare/consume/solver/backend/gateway complete; source cold and dev openers excluded
+44 |     );
+45 |     const entry: unknown = Reflect.get(restoration, 'restoreSourceAfterGateway');
+46 |     expect(
+47 |       typeof entry,
+48 |       'missing context-only source restoration entry AFTER actual gateway completion',
+49 |     ).toBe('function');
+           ^
+error: missing context-only source restoration entry AFTER actual gateway completion
+
+Expected: "function"
+Received: "undefined"
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.model.ts:49:7)
+(fail) source restoration retains original gateway authority through ready [107854.30ms]
+
+ 0 pass
+ 1 fail
+ 474 expect() calls
+Ran 1 test across 1 file. [107.92s]
+SOURCE_RESTORATION_INNER_CUSTODY: {"name":"source restoration retains original gateway authority through ready","exitCode":1,"signal":null,"stdoutEof":true,"stderrEof":true}
+60 |       // This receipt follows the ORIGINAL child exit and both EOF joins, with
+61 |       // normal exit0/1 and null signal; an outcome line alone proves no custody.
+62 |       process.stderr.write(
+63 |         `SOURCE_RESTORATION_INNER_CUSTODY: ${JSON.stringify({ name, exitCode: exit.value, signal: null, stdoutEof: true, stderrEof: true })}\n`,
+64 |       );
+65 |       expect(exit.value).toBe(0);
+                              ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:65:26)
+(fail) isolated source restoration retains original gateway authority through ready [107941.37ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 0 pass
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [107.95s]

@@ -1,0 +1,24 @@
+
+tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:
+
+test/dependency-source-restoration-model-child.test.ts:
+SOURCE_RESTORATION_REACHED: original prepare/consume/solver/backend/gateway complete; source cold and dev openers excluded
+SOURCE_RESTORATION_HTTP_FAULT: solver-drift actual source response
+SOURCE_RESTORATION_REFUSED: solver-drift reached actual new source-phase consumer
+(pass) source restoration refuses solver drift during source HTTP [104580.29ms]
+
+ 1 pass
+ 20 filtered out
+ 0 fail
+ 548 expect() calls
+Ran 1 test across 1 file. [104.64s]
+SOURCE_RESTORATION_INNER_CUSTODY: {"name":"source restoration refuses solver drift during source HTTP","exitCode":0,"signal":null,"stdoutEof":true,"stderrEof":true}
+(pass) isolated source restoration refuses solver drift during source HTTP [104657.13ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 1 pass
+ 20 filtered out
+ 0 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [104.67s]

@@ -1,0 +1,57 @@
+[
+  {
+    "path": "tools/tool-remote-scripts/src/fixtures/participant-process-bytes.ts",
+    "orderedSyntaxEqual": true,
+    "syntaxSHA256": "2091dad5fb1d33e30a2dcef9b8ec4f30790e57e3ae50f9bc98303ac953173c5a"
+  },
+  {
+    "path": "tools/tool-remote-scripts/src/fixtures/participant-solver-runtime.ts",
+    "orderedSyntaxEqual": true,
+    "syntaxSHA256": "de3288f135f67066fe28781f4ba7052244cea684f71d13ba05c1cffaa591569e"
+  },
+  {
+    "path": "tools/tool-remote-scripts/src/fixtures/participant-source-restoration-cases.ts",
+    "orderedSyntaxEqual": true,
+    "syntaxSHA256": "205f87281141718ebfcaff8ec1fe647891fcf8fc7b75ed500b7eb4702430a461"
+  },
+  {
+    "path": "tools/tool-remote-scripts/src/fixtures/participant-source-restoration.ts",
+    "orderedSyntaxEqual": true,
+    "syntaxSHA256": "d4c29a24d16886e72b44d3515febd0014502cdb879aceba92ed8434d62ba7d51"
+  },
+  {
+    "path": "tools/tool-remote-scripts/src/fixtures/source-role-process.ts",
+    "orderedSyntaxEqual": true,
+    "syntaxSHA256": "ed1397f7f09ac7d2bac8dfee36db38ee08e7147faa2b556480c75f0c7f40b20f"
+  },
+  {
+    "path": "tools/tool-remote-scripts/src/lib/dependency-participant-restoration.ts",
+    "orderedSyntaxEqual": true,
+    "syntaxSHA256": "22a64cac221606c95c540fb562714ce523dfb78803989efd4a36f06996f5f709"
+  },
+  {
+    "path": "tools/tool-remote-scripts/src/lib/dependency-product-process-model.model.ts",
+    "orderedSyntaxEqual": true,
+    "syntaxSHA256": "94fea001d6d9619dae36761885d1e0d1c90b5cead479aadda66370ca5a58f349"
+  },
+  {
+    "path": "tools/tool-remote-scripts/src/lib/dependency-product-process.ts",
+    "orderedSyntaxEqual": true,
+    "syntaxSHA256": "d52665fc4e9365f213ac84e00004dae381462df3211d8baee89a1f5bcd3fe4ac"
+  },
+  {
+    "path": "tools/tool-remote-scripts/src/lib/dependency-source-restoration.model.ts",
+    "orderedSyntaxEqual": true,
+    "syntaxSHA256": "150dff8013350a84dc8c80fab4588ee10c2c9398029fd1efef9b10055b4720c8"
+  },
+  {
+    "path": "tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+    "orderedSyntaxEqual": true,
+    "syntaxSHA256": "7bc83d0390e91e3230773f13441695e2c0a262575193e0780535b9aa0bd9fbff"
+  },
+  {
+    "path": "tools/tool-remote-scripts/test/dependency-source-restoration-model-child.test.ts",
+    "orderedSyntaxEqual": true,
+    "syntaxSHA256": "403237b9d3c77035d8cfdfab5451fba45942d279364129679fd91193ce974a2a"
+  }
+]

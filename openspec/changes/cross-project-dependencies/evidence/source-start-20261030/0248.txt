@@ -1,0 +1,61 @@
+
+tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:
+
+test/dependency-source-restoration-model-child.test.ts:
+SOURCE_RESTORATION_REACHED: original prepare/consume/solver/backend/gateway complete; source cold and dev openers excluded
+312 |           restoration: gatewayRecord['restoration'],
+313 |           role: 'source',
+314 |           id: context.originals.source.id,
+315 |         },
+316 |       ]);
+317 |       expect(record).toEqual({
+                           ^
+error: expect(received).toEqual(expected)
+
+  {
+    "format": "dependency-participant-ready",
+    "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+-   "readinessSha256": "5f11ea70edc87acd46c531685c209dd3489989639fde2d26cda4038db343240e",
++   "readinessSha256": "4b3b3629d1aba3d98feb3360f282d8e055d87f1b91a72400115971980de17309",
+    "restoration": {
+      "name": "edge-owner-007668-activation-participant-restore-intent.json",
+      "sha256": "81a64a54aa7881b86ab27b0db88bc842b405cdd3b9b1a1f0a1492f3e92b8b1c8",
+    },
+    "role": "source",
+    "version": 1,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.model.ts:317:22)
+(fail) source restoration retains original gateway authority through ready [170729.98ms]
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+ 586 expect() calls
+Ran 1 test across 1 file. [170.80s]
+SOURCE_RESTORATION_INNER_CUSTODY: {"name":"source restoration retains original gateway authority through ready","exitCode":1,"signal":null,"stdoutEof":true,"stderrEof":true}
+60 |       // This receipt follows the ORIGINAL child exit and both EOF joins, with
+61 |       // normal exit0/1 and null signal; an outcome line alone proves no custody.
+62 |       process.stderr.write(
+63 |         `SOURCE_RESTORATION_INNER_CUSTODY: ${JSON.stringify({ name, exitCode: exit.value, signal: null, stdoutEof: true, stderrEof: true })}\n`,
+64 |       );
+65 |       expect(exit.value).toBe(0);
+                              ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:65:26)
+(fail) isolated source restoration retains original gateway authority through ready [170817.51ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [170.82s]

@@ -59,7 +59,8 @@ interface ProcessBinding {
   readonly localAddresses: readonly string[];
 }
 
-const OBSERVER_PROGRAM = String.raw`nonce=$1
+/** Fixed product collector body; isolated raw fixtures compare the actual dispatched command. */
+export const OBSERVER_PROGRAM = String.raw`nonce=$1
 shift
 emit() { printf '%s\000' "$@"; }
 pass() {

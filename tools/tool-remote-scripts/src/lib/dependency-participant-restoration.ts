@@ -32,6 +32,8 @@ import {
 import type { HostProcessIdentity, InstalledAuthorityObservation } from './installed-authorities';
 import { assertSame, readFields, readIdentity } from './managed-cohort';
 import { assertRetainedSolverRestoration } from './solver-restoration';
+import { observeSourceReadiness, type SourceReadiness } from './source-readiness';
+import { observeSelectedSourceRoles } from './source-role-process';
 
 export interface BackendParticipantRestoration {
   readonly state: 'backend-ready-participants-fenced';
@@ -73,6 +75,19 @@ export async function restoreBackendParticipantUnderOwner(
 
 type RestoredSolver = Awaited<ReturnType<typeof consumeSolverReadyForBackend>>;
 
+type SourceObservation = Awaited<ReturnType<typeof observeSelectedSourceRoles>>;
+type SourceContinuation =
+  | {
+      readonly state: 'gateway-ready';
+      readonly restoreSource: () => Promise<SourceParticipantRestoration>;
+    }
+  | { readonly state: 'source-attempted' };
+/** Only actual gateway closing success retains this original-context continuation. */
+const sourceContinuations = new WeakMap<
+  FinalizedParticipantRestorationContext,
+  SourceContinuation
+>();
+
 /** Shared lifecycle machinery; its phase comes only from one of the context-only entries. */
 async function restoreBackend(
   context: FinalizedParticipantRestorationContext,
@@ -86,6 +101,8 @@ async function restoreBackend(
     const roles = ['backend', 'gateway', 'source'] as const;
     const selected = new Set(roles.map((role) => context.originals[role].id));
     const running = new Map<string, ParticipantSnapshot>();
+    let sourceStarted: ParticipantSnapshot | null = null;
+    let sourceBinding: SourceObservation | null = null;
     // Proof: replacing the actual removed set with a new empty set failed the
     // exact forwarding assertion in 'solver-first backend retains original
     // authority through ready'; exact restoration passed. This is identity coverage.
@@ -131,7 +148,7 @@ async function restoreBackend(
     }
     function readSelectedSnapshot(
       members: readonly unknown[],
-      role: 'backend' | 'gateway',
+      role: 'backend' | 'gateway' | 'source',
     ): ParticipantSnapshot {
       const matches = members.filter(
         (member) => readFields(member)['Id'] === context.originals[role].id,
@@ -172,7 +189,10 @@ async function restoreBackend(
       await context.storage.evidence.inspect();
       context.artifact.verify();
       await context.storage.stores.inspect();
-      await context.source.inspectCold();
+      // Proof: keeping the cold monitor after start made the genuine source-ready
+      // consumer refuse; exact restoration passed. This checks the running-phase dependency.
+      if (sourceStarted === null) await context.source.inspectCold();
+      else await context.source.inspectRunning();
       await assertRetainedSolverRestoration(context.owner, context.solverIntent);
       assertSame(
         solver === null ? context.originalPolicy : solver.policy,
@@ -252,6 +272,7 @@ async function restoreBackend(
         assertSame([], observed.databaseOpeners, 'backend pre-start database openers');
       else
         for (const opener of observed.databaseOpeners) {
+          // Historical proofs below exercised the backend/gateway-only phase; they do not qualify source admission.
           // Proof: omitting this grouped tuple guard let the dev authority case
           // return readiness; its refusal assertion failed and passed after restoration.
           // Proof: the same grouped omission in the restored-solver phase made
@@ -260,19 +281,30 @@ async function restoreBackend(
           // Proof: omitting this tuple guard AND the executable equality let
           // 'solver-backend gateway refuses a gateway database opener' return
           // readiness; refusal failed, then passed restored. This proves the group.
+          // Proof: a prod conditional that fell back to the source for a non-product
+          // PID admitted a prod-tagged source backend; its refusal failed, then passed restored.
+          const expected =
+            opener.environment === 'prod' ? backend : sourceBinding?.roles.backend.process;
+          // Proof: omitting this PID/start/UID/cgroup group admitted the dev gateway
+          // with the same executable. The actual wire consumer resolved instead of
+          // refusing, then passed restored. Individual tuple fields are not separate proofs.
+          // Proof: the current Node rejects consumer also reported Missing expected
+          // rejection under this group omission and passed restored. Its frame-based
+          // recorder remains failed; attribution/restored-only evidence was audited separately.
           if (
-            opener.environment !== 'prod' ||
-            opener.pid !== backend.pid ||
-            opener.startTime !== backend.startTime ||
-            opener.uid !== backend.uid ||
-            opener.cgroup !== backend.cgroup
+            opener.pid !== expected?.pid ||
+            opener.startTime !== expected.startTime ||
+            opener.uid !== expected.uid ||
+            opener.cgroup !== expected.cgroup
           )
             throw new Error('backend authority has an unbound database opener');
           // The actual inner-process decoder/profile requires a non-null executable;
           // comparing that bound identity also refuses a null opener executable.
           // Proof: omitting this equality let the exe-null authority case return
           // readiness; its refusal assertion failed and passed after restoration.
-          assertSame(backend.executable, opener.executable, 'backend database opener executable');
+          // Proof: omitting this equality admitted the dev backend's null executable;
+          // the actual wire consumer resolved instead of refusing, then passed restored.
+          assertSame(expected.executable, opener.executable, 'backend database opener executable');
         }
       if (solver !== null) await solver.inspectReady();
       await assertParticipantRestorationContext(context);
@@ -517,6 +549,125 @@ async function restoreBackend(
         // source drift after final observation' return readiness after late source
         // policy drift; refusal failed, then passed restored. Fence is ordinary coverage.
         await inspectGatewayRetained();
+        const retainedGateway = structuredClone(gatewayReadiness);
+        // Proof: omitting this whole closure lost refusal in the backend, gateway
+        // and solver drift consumers after six actual source HTTP responses. Each
+        // passed restored; these are three witnesses of one monitoring group.
+        async function inspectSourceRetained(): Promise<void> {
+          await inspectGatewayRetained();
+          assertSame(
+            retainedGateway.observation,
+            await observeSelectedProductRole(context, 'gateway'),
+            'source retained gateway inner process',
+          );
+          await inspectRetained();
+        }
+        async function inspectSourceBinding(): Promise<SourceObservation> {
+          if (sourceStarted === null || sourceBinding === null)
+            throw new Error('source verified running binding absent');
+          const observed = await observeSelectedSourceRoles(context);
+          assertParticipantTransition(sourceStarted, observed.runtime.native, 'stable');
+          assertSame(sourceBinding.roles, observed.roles, 'source retained serving roles');
+          assertSame(sourceBinding.namespaces, observed.namespaces, 'source retained namespaces');
+          return observed;
+        }
+        async function restoreSource(): Promise<SourceParticipantRestoration> {
+          await inspectSourceRetained();
+          // Proof: selecting the parked backend here made the genuine ready
+          // consumer refuse; exact restoration passed. This qualifies selection
+          // dataflow, not independent necessity of the redundant ID comparison.
+          const originalSource = readSelectedSnapshot(context.parkedInventory, 'source');
+          assertSame(
+            context.originals.source.id,
+            originalSource.id,
+            'source original parked identity',
+          );
+          // Proof: omitting this equality allowed an intent and start for the wrong
+          // public selection. The before-start assertion failed despite later refusal;
+          // exact restoration passed. This is ordering/effect coverage.
+          assertSame(
+            context.participants.selected.source.id,
+            originalSource.id,
+            'source original selected participant',
+          );
+          // Proof: naming the backend in this source intent made the genuine ready
+          // consumer refuse; its start port consumes the matching actual record.
+          // Exact restoration passed. This qualifies the intent-to-start dataflow.
+          const sourceIntent = await retainActivationRecord(
+            context.owner,
+            context.layouts,
+            'participant-start-intent',
+            {
+              format: 'dependency-participant-start-intent',
+              version: 1,
+              restoration: createReference(restoration),
+              role: 'source',
+              id: originalSource.id,
+            },
+          );
+          retained.push(sourceIntent);
+          await inspectSourceRetained();
+          const sourceDocker = ownerDockerHashed(
+            context.owner,
+            context.layouts.dev,
+            context.ports.docker,
+          );
+          await runDockerBefore(['start', originalSource.id], sourceDocker, context.deadline);
+          sourceStarted = assertParticipantTransition(
+            originalSource,
+            readSelectedSnapshot(await readInventory(), 'source').native,
+            'start',
+          );
+          running.set(sourceStarted.id, sourceStarted);
+          // No authority collection can precede the actual whole-source role binding.
+          // Proof: calling the actual observer without retaining its return made
+          // the genuine ready consumer refuse; exact restoration passed. This is
+          // returned-binding dataflow, not an inference about a hidden sanitized cause.
+          sourceBinding = await observeSelectedSourceRoles(context);
+          assertParticipantTransition(sourceStarted, sourceBinding.runtime.native, 'stable');
+          await inspectSourceRetained();
+          // Proof: passing a spread context to the actual composer made the
+          // genuine ready consumer refuse; the original context passed restored.
+          const sourceReadiness = await observeSourceReadiness(context);
+          await inspectSourceBinding();
+          await inspectSourceRetained();
+          const sourceReady = await retainActivationRecord(
+            context.owner,
+            context.layouts,
+            'participant-ready',
+            {
+              format: 'dependency-participant-ready',
+              version: 1,
+              // Proof: referencing gateway-ready instead failed actual published
+              // record name/SHA equality; the original restoration reference passed restored.
+              restoration: createReference(restoration),
+              role: 'source',
+              id: sourceStarted.id,
+              // Proof: publishing the gateway digest failed the actual source-ready
+              // record equality; the six-response source digest passed restored.
+              readinessSha256: sourceReadiness.sha256,
+            },
+          );
+          // Proof: omitting this retention lost refusal after the actual source-ready
+          // file was removed. The same publication/removal consumer passed restored.
+          retained.push(structuredClone(sourceReady));
+          await inspectSourceRetained();
+          // Proof: omitting this final whole-source call lost refusal after actual
+          // ready publication activated coherent listener replacement. The restored
+          // call read the replacement bytes and refused; inherited predicates were unchanged.
+          await inspectSourceBinding();
+          // Proof: omitting this final barrier returned readiness after the real
+          // source observer returned and the physical fence changed; the restored consumer refused.
+          await inspectSourceRetained();
+          return {
+            state: 'source-ready-participants-fenced',
+            exposure: 'closed',
+            controllers: 'fenced',
+            readiness: sourceReadiness,
+            ready: sourceReady,
+          };
+        }
+        sourceContinuations.set(context, { state: 'gateway-ready', restoreSource });
         return {
           state: 'gateway-ready-participants-fenced',
           exposure: 'closed',
@@ -591,5 +742,43 @@ export async function restoreGatewayAfterBackend(
     return await phase.restoreGateway();
   } catch {
     throw new Error('gateway participant restoration refused');
+  }
+}
+
+/** One observed source start with original products/solver retained; controllers and exposure remain held. */
+export interface SourceParticipantRestoration {
+  readonly state: 'source-ready-participants-fenced';
+  readonly exposure: 'closed';
+  readonly controllers: 'fenced';
+  readonly readiness: SourceReadiness;
+  readonly ready: EdgeRecordSnapshot;
+}
+
+/**
+ * Continues only this live original context's actual gateway closing success.
+ * Phase admission reserves the attempt before further I/O; any later refusal is terminal.
+ * Starts only the original source and admits dev database openers only after actual
+ * whole-source backend identity binding. No restart policy/controller/exposure is released.
+ * @throws a sanitized refusal for absent/reused phase, drift or unproved cleanup/readiness.
+ */
+export async function restoreSourceAfterGateway(
+  context: FinalizedParticipantRestorationContext,
+): Promise<SourceParticipantRestoration> {
+  // Proof: omitting the early context check consumed the physically repaired
+  // original phase; genuine continuation then refused. Exact restoration preserved
+  // availability after same-inode fence repair. Spread copies remain separate coverage.
+  try {
+    await assertParticipantRestorationContext(context);
+    const phase = sourceContinuations.get(context);
+    // Proof: requiring the wrong retained phase made the genuine source-ready
+    // consumer refuse; the actual gateway-ready phase passed restored.
+    if (phase?.state !== 'gateway-ready')
+      throw new Error('original gateway readiness is not retained');
+    // Proof: omitting reservation allowed retry after the actual gateway record
+    // was repaired. Its terminal-refusal assertion failed, then passed restored.
+    sourceContinuations.set(context, { state: 'source-attempted' });
+    return await phase.restoreSource();
+  } catch {
+    throw new Error('source participant restoration refused');
   }
 }

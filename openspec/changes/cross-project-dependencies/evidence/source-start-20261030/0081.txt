@@ -1,0 +1,59 @@
+--- /home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.model.ts
++++ /home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.model.ts
+@@ -57,12 +57,18 @@
+ 
+ async function runSourceRestorationCase(scenario: SourceRestorationCase): Promise<void> {
+   await withParticipantSourceRestoration(async (context, fixture, runtime, audit) => {
++    let readyPublished = false;
++    let injected = false;
+     const sourceObserver = await import('./source-role-process');
+     const observeSource = sourceObserver.observeSelectedSourceRoles;
+     const sourceReturn = spyOn(sourceObserver, 'observeSelectedSourceRoles').mockImplementation(
+       async (...args) => {
+         const observed = await observeSource(...args);
+         audit.sourceObserved = true;
++        if (scenario === 'late-fence' && readyPublished && !injected) {
++          await writeFile(context.fencedComplete.path, context.fencedComplete.contents + ' ');
++          injected = true;
++        }
+         return observed;
+       },
+     );
+@@ -196,12 +202,8 @@
+       }
+       audit.fault = scenario;
+       if (scenario !== 'ready' && scenario !== 'admission') {
+-        const sourceObserver = await import('./source-role-process');
+         const ownership = await import('./edge-ownership');
+-        const observe = sourceObserver.observeSelectedSourceRoles;
+         const retain = ownership.retainActivationRecord;
+-        let readyPublished = false;
+-        let injected = false;
+         const publication = spyOn(ownership, 'retainActivationRecord').mockImplementation(
+           async (...args) => {
+             const snapshot = await retain(...args);
+@@ -220,16 +222,6 @@
+               }
+             }
+             return snapshot;
+-          },
+-        );
+-        const observation = spyOn(sourceObserver, 'observeSelectedSourceRoles').mockImplementation(
+-          async (...args) => {
+-            const observed = await observe(...args);
+-            if (scenario === 'late-fence' && readyPublished && !injected) {
+-              await writeFile(context.fencedComplete.path, context.fencedComplete.contents + ' ');
+-              injected = true;
+-            }
+-            return observed;
+           },
+         );
+         try {
+@@ -261,7 +253,6 @@
+             `SOURCE_RESTORATION_REFUSED: ${scenario} reached actual new source-phase consumer`,
+           );
+         } finally {
+-          observation.mockRestore();
+           publication.mockRestore();
+         }
+         return;
