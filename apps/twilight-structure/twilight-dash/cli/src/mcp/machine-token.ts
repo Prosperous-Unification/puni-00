@@ -37,7 +37,7 @@ export interface McpEndpoint {
  * (`@wbs/contracts`, which Dash's product boundary does not reach) derives it: the origin and
  * path without a trailing slash, then `/oauth`. The SDK refuses a stamped issuer that differs from
  * the one mcp-01 advertises, so `mcp-token.boot.test.ts` pins the two together. The credential crosses the wire to it, so only `https:`
- * or loopback `http:` is accepted (as `report-capacity`'s `wbsOrigin`).
+ * or loopback `http:` is accepted (as `report-capacity`'s `mcpResource`).
  * @throws when `url` is not an absolute URL, or is plain HTTP off loopback.
  */
 export function mcpEndpointOf(url: string): McpEndpoint {

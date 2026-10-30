@@ -4,6 +4,7 @@ import {
   type AuthMethodId,
   authMethodOfSubject,
   type CredentialAuthentication,
+  isUnderMcpAuthorizationServer,
   type OidcIdentity,
   type WbsScope,
 } from '@wbs/contracts';
@@ -107,8 +108,16 @@ export interface TrustedIssuerVerification {
   readonly configuredIssuer: () => Promise<string | null>;
 }
 
-/** What {@link AuthService.authenticateOrRefuse} answers besides a principal. */
+/** What a machine admission answers besides an admitted proof or principal. */
 export type AuthenticationRefusal = 'unknown_identity' | 'invalid_token';
+
+/**
+ * What {@link AuthService.authenticateOrRefuse} answers besides a principal:
+ * {@link AuthenticationRefusal}, or a machine bearer presented to the HTTP API
+ * (`machine_bearer_not_accepted`, `wbs-mcp-agent-surface` M9), which is
+ * refused before any read because machines call WBS through mcp-01.
+ */
+export type BearerRefusal = AuthenticationRefusal | 'machine_bearer_not_accepted';
 
 /**
  * A machine credential's proof as mcp-01's token endpoint received it
@@ -128,13 +137,6 @@ export interface AdmittedMachineProof {
   /** The matched API-key secret's expiry in milliseconds; null when it has none. */
   readonly secretExpiresAt: number | null;
 }
-
-/**
- * Whether a machine admission refuses a non-member account before recording
- * the use (`members_only`, grant issuance), or leaves membership to
- * organization access (`any_member_state`, `/api`).
- */
-type MembershipRule = 'members_only' | 'any_member_state';
 
 /**
  * What a machine grant names, as its verifier read it (M3): the run is the
@@ -271,7 +273,7 @@ export class AuthService {
    */
   async authenticate(token: string | null): Promise<AuthenticatedUser | null> {
     const outcome = await this.authenticateOrRefuse(token);
-    return outcome === 'unknown_identity' || outcome === 'invalid_token' ? null : outcome;
+    return typeof outcome === 'string' ? null : outcome;
   }
 
   /**
@@ -286,16 +288,18 @@ export class AuthService {
    * ({@link scopesOfRoles}); the per-organization role checks then apply as for
    * any session of that account. A token with the claim keeps the login path.
    *
-   * **A token with the `wbs_mk_` prefix is an API key and nothing else**
-   * (`wbs-machine-credentials` A13, A22): it is parsed once and never handed
-   * to a JWT verifier. It answers `unknown_identity` when it does not parse,
-   * before any read, and when no live credential admits it.
-   *
-   * **A JWT whose `iss` is not the configured issuer is a trusted issuer's or
-   * nobody's** (`wbs-machine-credentials` A13 steps 3 and 5), once
-   * {@link AuthServiceOptions.trustedIssuers} is wired: see
-   * {@link authenticateTrustedIssuerToken}. It never falls back to another
-   * verifier, and a token of the configured issuer never reaches it.
+   * **Machine bearers are refused `machine_bearer_not_accepted` before any
+   * read** (`wbs-mcp-agent-surface` M9): a token with the `wbs_mk_` prefix,
+   * well-formed or not; and, once {@link AuthServiceOptions.trustedIssuers} is
+   * wired, any JWT whose `iss` is not the configured sign-in issuer, trusted
+   * by some organization or by none. Telling those apart would take a
+   * registration read and answer which issuers are trusted (an enumeration
+   * oracle: EKS and GKE issuer URLs embed account and cluster ids). Neither is
+   * handed to any verifier.
+   * Machines present them at mcp-01's token endpoint, whose
+   * {@link admitMachineProof} verifies them, and call through `/mcp`.
+   * A groups-less configured-issuer token keeps the D6b path below until
+   * #731 retires operator links (M9's precondition).
    *
    * **A native session never reads the OIDC verifier**: when password
    * sessions are admitted it verifies on the JWT key first, so a session
@@ -303,20 +307,28 @@ export class AuthService {
    */
   async authenticateOrRefuse(
     token: string | null,
-  ): Promise<AuthenticatedUser | AuthenticationRefusal | null> {
+  ): Promise<AuthenticatedUser | BearerRefusal | null> {
     if (this.opts.localIdentity !== undefined) return this.opts.localIdentity;
     if (token === null) return null;
-    const machineKey = parseMachineKey(token);
-    if (machineKey === 'malformed') return 'unknown_identity';
-    // Proof: with this branch removed, the key fell through to the OIDC
-    // verifier and `routes an API key to its credential and never to the JWT
-    // verifier` in `machine-credential.controller.db.test.ts` failed, with 16
-    // more cases of that file; watched 2026-10-22.
-    if (machineKey !== null) return this.authenticateMachineKey(machineKey);
-    if (this.opts.trustedIssuers !== undefined) {
-      const trusted = await this.authenticateTrustedIssuerToken(token, this.opts.trustedIssuers);
-      if (trusted !== 'configured_path') return trusted;
-    }
+    // M9's refusal comes before any read. Proof: moved after the key's
+    // admission, `is refused machine_bearer_not_accepted before any credential
+    // read, recording no use` (be-01 machine-credential.controller.db.test.ts)
+    // failed; removed, `refuses a live, a malformed or an unwired key…`
+    // (machine-key.test.ts) failed; both watched 2026-10-29.
+    if (parseMachineKey(token) !== null) return 'machine_bearer_not_accepted';
+    // Proof: with a registration read put back in front of this refusal (the
+    // stranger/trusted split, an enumeration oracle), and separately with the
+    // refusal disabled, `refuses any other issuer’s JWT
+    // machine_bearer_not_accepted, reading and verifying nothing`
+    // (machine-key.test.ts) failed; watched 2026-10-30. With the credential
+    // admitted and verified before it, `is refused machine_bearer_not_accepted
+    // before any credential read or key set fetch` (be-01
+    // oidc-credential.controller.db.test.ts) failed; watched 2026-10-29.
+    if (
+      this.opts.trustedIssuers !== undefined &&
+      (await isForeignIssuerToken(token, this.opts.trustedIssuers))
+    )
+      return 'machine_bearer_not_accepted';
     // A native session verifies on the JWT key alone, before any OIDC read:
     // the OIDC verifier accepts RS256 only, so it never admits a token the
     // codec does, and asking it first made every cookie session wait on, and
@@ -401,37 +413,20 @@ export class AuthService {
   }
 
   /**
-   * One API key: its credential read by id, its secret's digest compared with
-   * that credential's secrets by {@link admitMachineCredential}, the admitted
-   * actor's account read for its username, and the use recorded (coarsely);
-   * `unknown_identity` when the credential was removed before the record.
+   * One API key's admission at the grant route: its credential read by id,
+   * its secret's digest compared with that credential's secrets by
+   * {@link admitMachineCredential}, the admitted actor's account read for its
+   * username, a non-member account refused `unknown_identity` before the use
+   * is recorded (issuance refuses it, so nothing was used), then the use
+   * recorded (coarsely); `unknown_identity` when the credential was removed
+   * before the record. Answers the actor, its username and the matched
+   * secret's expiry.
    *
    * @throws when machine credentials are not wired, when the bound account
    * does not exist (the foreign key makes that corrupt state), and on every
    * store failure, the last-use write included.
    */
-  private async authenticateMachineKey(
-    key: MachineKey,
-  ): Promise<AuthenticatedUser | 'unknown_identity'> {
-    const admitted = await this.admitMachineKey(key, 'any_member_state');
-    if (admitted === 'unknown_identity') return admitted;
-    return machinePrincipalOf(admitted.actor, admitted.username, null);
-  }
-
-  /**
-   * {@link authenticateMachineKey}'s admission: the actor, its account's
-   * username and the matched secret's expiry, the use recorded. With
-   * `members_only` (a grant request) a non-member account is refused
-   * `unknown_identity` before the use is recorded: issuance refuses it, so
-   * nothing was used. `/api` keeps answering it `403 not_a_member` from
-   * organization access, after the use.
-   *
-   * @throws as {@link authenticateMachineKey} does.
-   */
-  private async admitMachineKey(
-    key: MachineKey,
-    membership: MembershipRule,
-  ): Promise<
+  private async admitMachineKey(key: MachineKey): Promise<
     | {
         readonly actor: MachineActor;
         readonly username: string;
@@ -465,11 +460,11 @@ export class AuthService {
     // non-member key alike, recording no use` (be-01
     // machine-grant.controller.db.test.ts) saw the non-member's last use
     // recorded; watched 2026-10-26.
-    if (membership === 'members_only' && admission.actor.accountRole === null)
-      return 'unknown_identity';
+    if (admission.actor.accountRole === null) return 'unknown_identity';
     // Proof: with this rejection caught and dropped, `fails as a server error
     // when its last use cannot be recorded` in
-    // `machine-credential.controller.db.test.ts` failed; watched 2026-10-22.
+    // `machine-credential.controller.db.test.ts` failed; watched 2026-10-22,
+    // and at the grant route 2026-10-29.
     // A removal committed since admission: the 401 the next request gets.
     // Proof: with `'absent'` answered as a principal, `refuses
     // unknown_identity when its credential is removed before the use is
@@ -485,15 +480,18 @@ export class AuthService {
 
   /**
    * The machine credential a token request presents (`wbs-mcp-agent-surface`
-   * M2, M3), admitted through the same verifiers and the same
-   * {@link admitMachineCredential} decision as on `/api`, its last use
-   * recorded:
+   * M2, M3), admitted by the {@link admitMachineCredential} decision, its
+   * last use recorded. This is the only path that verifies either source:
+   * `/api` refuses both before any read (M9, {@link authenticateOrRefuse}).
    *
    * - an API key must be a whole `wbs_mk_` key; anything else, malformed or
    *   not, is `unknown_identity` with no read;
-   * - an assertion must be a trusted issuer's ({@link authenticateTrustedIssuerToken});
-   *   a token of the configured sign-in issuer, or no JWT at all, is
-   *   `unknown_identity` with no credential read, never the browser path.
+   * - an assertion must be a trusted issuer's ({@link admitTrustedIssuerToken}),
+   *   its stored audience under `audienceRoot`; a token of the configured
+   *   sign-in issuer, or no JWT at all, is `unknown_identity` with no
+   *   credential read, never the browser path.
+   *
+   * `audienceRoot` is be-01's `WBS_MCP_AUTHORIZATION_SERVER`.
    *
    * @throws when machine credentials or trusted issuers are not wired, when
    * the admitted credential's account does not exist, and on every store
@@ -501,6 +499,7 @@ export class AuthService {
    */
   async admitMachineProof(
     presented: PresentedMachineCredential,
+    audienceRoot: string,
   ): Promise<AdmittedMachineProof | AuthenticationRefusal> {
     // No assertion `jti` is consumed (M3): one projected Kubernetes token
     // serves every process of its pod until it rotates.
@@ -511,7 +510,7 @@ export class AuthService {
     if (presented.kind === 'api_key') {
       const key = parseMachineKey(presented.key);
       if (key === null || key === 'malformed') return 'unknown_identity';
-      const admitted = await this.admitMachineKey(key, 'members_only');
+      const admitted = await this.admitMachineKey(key);
       if (admitted === 'unknown_identity') return admitted;
       return {
         actor: admitted.actor,
@@ -523,11 +522,7 @@ export class AuthService {
     const trusted = this.opts.trustedIssuers;
     if (trusted === undefined)
       throw new Error('a workload assertion was presented but trusted issuers are not wired');
-    const admitted = await this.admitTrustedIssuerToken(
-      presented.assertion,
-      trusted,
-      'members_only',
-    );
+    const admitted = await this.admitTrustedIssuerToken(presented.assertion, trusted, audienceRoot);
     if (admitted === 'configured_path') return 'unknown_identity';
     if (typeof admitted === 'string') return admitted;
     return {
@@ -584,8 +579,8 @@ export class AuthService {
   }
 
   /**
-   * One JWT of a trusted issuer (`wbs-machine-credentials` A13 steps 2, 3
-   * and 5, A25), in this order:
+   * One workload assertion of a trusted issuer (`wbs-machine-credentials` A13
+   * steps 2, 3 and 5, A25), in this order:
    *
    * 1. No JWT, no string `iss`, or the configured issuer's `iss`: the
    *    configured path (`configured_path`), with no trusted-issuer read.
@@ -595,38 +590,28 @@ export class AuthService {
    *    registrations must have its audience among the token's `aud` values;
    *    none, or more than one, is `invalid_token` with no fetch.
    * 4. The credential is read by that registration and the `sub`, within the
-   *    registration's own organization; the token is verified against the
-   *    registration's key set with the credential's own audience, or else the
-   *    registration's (a credential's audience narrows: its token carries
-   *    both). Any failure, an unfetchable key set included, is
-   *    `invalid_token`.
-   * 5. Verified with no credential: `unknown_identity`; with one, the same
-   *    {@link admitMachineCredential} decision and {@link machinePrincipalOf}
-   *    principal as an API key, its last use recorded (`unknown_identity`
-   *    when the credential was removed before the record).
+   *    registration's own organization. The audience it is verified with is
+   *    the credential's own, or else the registration's (a credential's
+   *    audience narrows: its token carries both). That audience must name
+   *    `audienceRoot` ({@link isUnderMcpAuthorizationServer}, task 1.5 at
+   *    use), else `invalid_token` with no fetch: a row stored before the M2
+   *    rule (a `wbs:org:` audience) stops verifying here, as the audience
+   *    preflight lists. Then the token is verified against the
+   *    registration's key set; any failure, an unfetchable key set included,
+   *    is `invalid_token`.
+   * 5. Verified with no credential: `unknown_identity`; with one, the
+   *    {@link admitMachineCredential} decision; a non-member account is
+   *    `unknown_identity` before the use is recorded; then the use is
+   *    recorded (`unknown_identity` when the credential was removed before
+   *    the record). Answers the actor, its username and the token's `exp`.
    *
    * @throws when machine credentials are not wired, when the admitted
    * credential's account does not exist, and on every store failure.
    */
-  private async authenticateTrustedIssuerToken(
-    token: string,
-    trusted: TrustedIssuerVerification,
-  ): Promise<AuthenticatedUser | AuthenticationRefusal | 'configured_path'> {
-    const admitted = await this.admitTrustedIssuerToken(token, trusted, 'any_member_state');
-    if (typeof admitted === 'string') return admitted;
-    return machinePrincipalOf(admitted.actor, admitted.username, null);
-  }
-
-  /**
-   * {@link authenticateTrustedIssuerToken}'s admission: the actor, its
-   * account's username and the verified token's `exp`, the use recorded.
-   *
-   * @throws as {@link authenticateTrustedIssuerToken} does.
-   */
   private async admitTrustedIssuerToken(
     token: string,
     trusted: TrustedIssuerVerification,
-    membership: MembershipRule,
+    audienceRoot: string,
   ): Promise<
     | {
         readonly actor: MachineActor;
@@ -666,15 +651,22 @@ export class AuthService {
       claims.subject === null
         ? null
         : await machines.credentials.findOidcCredential(registration.id, claims.subject);
+    // Proof: answering the registration's audience alone made `refuses a
+    // wrong audience, the credential audience winning over the default`
+    // (oidc-credential.controller.db.test.ts) admit a token without the
+    // credential's own audience; watched 2026-10-22, and again through
+    // mcp-01's jwt-bearer grant 2026-10-29.
+    const audience = pair?.audience ?? registration.audience;
+    // Task 1.5 at use. Proof: with this check disabled, `refuses a stored
+    // audience outside the authorization server invalid_token, verifying
+    // nothing` (machine-key.test.ts) saw the key set asked, and be-01's `is
+    // refused invalid_token through the grant…` (oidc-credential.controller.db.test.ts)
+    // failed; watched 2026-10-29.
+    if (!isUnderMcpAuthorizationServer(audience, audienceRoot)) return 'invalid_token';
     const verdict = await trusted.tokens.verify(token, {
       issuer: claims.issuer,
       jwksUri: registration.jwksUri,
-      // Proof: answering the registration's audience alone made `refuses a
-      // wrong audience, the credential audience winning over the default`
-      // (oidc-credential.controller.db.test.ts) admit a token without the
-      // credential's own audience; watched 2026-10-22, and again through
-      // mcp-01's jwt-bearer grant 2026-10-29.
-      audience: pair?.audience ?? registration.audience,
+      audience,
     });
     // Proof: with only `key_set_unavailable` refused here (an `invalid`
     // verdict admitted), `refuses a token signed by another key` and `refuses
@@ -700,8 +692,7 @@ export class AuthService {
     // Proof: with this refusal removed, `refuses a non-member's assertion
     // unknown_identity, recording no use` (be-01 machine-grant.controller.db.test.ts)
     // saw the last use recorded; watched 2026-10-26.
-    if (membership === 'members_only' && admission.actor.accountRole === null)
-      return 'unknown_identity';
+    if (admission.actor.accountRole === null) return 'unknown_identity';
     // As on the API-key path: a removal committed since admission.
     if ((await machines.credentials.touchLastUsed(admission.actor.credentialId, now)) === 'absent')
       return 'unknown_identity';
@@ -722,6 +713,21 @@ export class AuthService {
 }
 
 /**
+ * Whether `token` is a JWT naming an issuer other than the deployment's
+ * configured sign-in issuer: a trusted issuer's token, or nobody's. `/api`
+ * refuses both alike (M9), so it reveals nothing of which issuers some
+ * organization trusts. Only the unverified claims and the configured issuer
+ * are read, never a store or a key set.
+ */
+async function isForeignIssuerToken(
+  token: string,
+  trusted: TrustedIssuerVerification,
+): Promise<boolean> {
+  const claims = trusted.tokens.peek(token);
+  return claims !== null && claims.issuer !== (await trusted.configuredIssuer());
+}
+
+/**
  * The principal an admitted machine credential acts as
  * (`wbs-machine-credentials` A12): **the account its person is bound to**,
  * with exactly the credential's capped scopes (`read`, `write`; never
@@ -734,9 +740,8 @@ export class AuthService {
  * gains the bound account's administration.
  *
  * `runId` is a machine grant's opted-in run (`wbs-mcp-agent-surface` M15),
- * null for a raw API key, a trusted-issuer token on `/api` or a grant without
- * one: those principals carry no run, so their renewal and claims are the
- * person's (M6 parity).
+ * null for a grant without one: that principal carries no run, so its
+ * renewal and claims are the person's (M6 parity).
  *
  * The one place the acting account is decided, with
  * {@link organizationRoleOf} beside it: A12 is the assumption most likely to

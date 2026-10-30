@@ -5,7 +5,11 @@ import { generateKeyPair } from 'jose';
 
 import { openDrizzle } from '../repository/db';
 import { WriteCoordinator } from '../repository/gate';
-import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import {
+  addAgentPerson,
+  issueApiKey,
+  MACHINE_BEARER_NOT_ACCEPTED,
+} from '../testing/machine-credential-fixture';
 import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
 import {
   type Answer,
@@ -23,9 +27,9 @@ import { delegationFor, mapUpstream } from '../testing/scim-fixture';
  *
  * An agent's key reaches be-01 on the MCP path (`wbs-mcp-agent-surface` task
  * 7.0): mcp-01 exchanges it for a grant and forwards each tool call with it
- * ({@link callForwarded}). The cases marked "removed by 7.1 (M9)" send the key
- * itself as a Bearer on `/api`, as Dash's `report-capacity` still does until
- * task 7.2 makes it an MCP client.
+ * ({@link callForwarded}), as Dash's `report-capacity` does since task 7.2. The
+ * key itself as a Bearer on `/api` is refused `machine_bearer_not_accepted`
+ * (M9, task 7.1).
  */
 const PATH = '/api/organization/compute-providers';
 
@@ -119,7 +123,7 @@ function report(key: string, providerId: string, resourceId: string, body: unkno
   return callForwarded(h, key, 'PUT', reportPath(providerId, resourceId), body);
 }
 
-/** A capacity report bearing `bearer` itself on `/api`: a delegation, or a raw key until 7.1. */
+/** A capacity report bearing `bearer` itself on `/api`: a delegation, or a refused raw key. */
 function reportBearing(bearer: string, providerId: string, resourceId: string, body: unknown) {
   return h.callWith(bearer, 'PUT', reportPath(providerId, resourceId), body);
 }
@@ -276,7 +280,7 @@ describe('provider instance administration', () => {
   });
 
   // The routes are `humanOnly`, so mcp-01 lists no tool for them; be-01 still
-  // refuses a forwarded grant. The raw key's refusal goes with 7.1 (M9).
+  // refuses a forwarded grant, and the raw key before any route (M9).
   it('refuses a machine key and an MCP delegation every route insufficient_scope', async () => {
     const id = await registered('dany', 'h4claw');
     const { agent } = await keys();
@@ -291,11 +295,7 @@ describe('provider instance administration', () => {
         status: 403,
         body: { error: 'insufficient_scope' },
       });
-      // Removed by 7.1 (M9): the key itself as a Bearer on `/api`.
-      expect(await h.callWith(agent, method, path, body)).toEqual({
-        status: 403,
-        body: { error: 'insufficient_scope' },
-      });
+      expect(await h.callWith(agent, method, path, body)).toEqual(MACHINE_BEARER_NOT_ACCEPTED);
     }
     h.close();
     const signing = await generateKeyPair('RS256');
@@ -728,15 +728,12 @@ describe('a capacity report', () => {
     });
   });
 
-  // Removed by 7.1 (M9): Dash's `report-capacity` sends the key itself until
-  // task 7.2 makes it an MCP client, and be-01 stores that report until M9.
-  it('stores a report bearing the key itself on /api, removed by 7.1 (M9)', async () => {
-    const observedAt = Date.now() - 1000;
-    expect(await reportBearing(agent, h4claw, ram, measured(observedAt))).toMatchObject({
-      status: 200,
-      body: { providerId: h4claw, observedAt, reportedBy: 'dash-a' },
-    });
-    expect(reportCount()).toBe(1);
+  // Dash's `report-capacity` before task 7.2: the key itself on `/api` (M9).
+  it('refuses a report bearing the key itself on /api machine_bearer_not_accepted, storing nothing', async () => {
+    expect(await reportBearing(agent, h4claw, ram, measured(Date.now() - 1000))).toEqual(
+      MACHINE_BEARER_NOT_ACCEPTED,
+    );
+    expect(reportCount()).toBe(0);
   });
 
   it("refuses a key pinned to a human's person, storing nothing", async () => {

@@ -56,6 +56,11 @@ export type IdentityResolution =
           | 'unknown_grant_key';
       };
     }
+  | {
+      ok: false;
+      status: 401;
+      body: { error: 'machine_bearer_not_accepted'; endpoint: string };
+    }
   | { ok: false; status: 403; body: { error: 'insufficient_scope' } };
 
 /** Credential failures are modeled; unexpected account-store failures reject. */

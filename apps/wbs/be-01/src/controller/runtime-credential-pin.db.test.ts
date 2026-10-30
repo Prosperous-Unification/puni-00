@@ -43,6 +43,9 @@ for (const kind of ['machine', 'consent'] as const) {
       pinnedPersonId = 'agent-a';
       // Verified-principal dependency seam only: the mounted routes, current admission,
       // runtime receiver, command runner and SQLite stay real. This does not test cryptography.
+      // The stub replaces the method that refuses machine bearers on `/api`
+      // (`wbs-mcp-agent-surface` M9): its machine principal stands for the one a forwarded
+      // grant yields (`admitMachineGrant`, the same `machinePrincipalOf` shape).
       const principal = spyOn(AuthService.prototype, 'authenticateOrRefuse').mockImplementation(
         (token) => {
           if (token !== 'verified-runtime-principal')
