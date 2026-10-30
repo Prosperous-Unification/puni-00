@@ -521,10 +521,8 @@ export class McpOAuthServer implements McpOAuthHandler {
    * - `machine`: signature, issuer, audience, `exp`, the grant, and this replica's refused set;
    *   no store is read or written, so another replica sharing only the keys and the secret
    *   admits it too;
-   * - `consent`, or none for a consent token issued before slice 2 (until
-   *   `MCP_ACCESS_TOKEN_TTL` after that release): the session store, and the session's
-   *   upstream token refreshed when due;
-   * - any other `token_use` is refused;
+   * - `consent`: the session store, and the session's upstream token refreshed when due;
+   * - any other `token_use`, or none, is refused (task 3.8 retired the pre-slice-2 tokens);
    * - a token of another issuer is an upstream token, admitted only before activation.
    *
    * @throws {ActivationMarkersDisagree} when be-01 is activated and mcp-01's epoch is not.
@@ -621,14 +619,16 @@ export class McpOAuthServer implements McpOAuthHandler {
   }
 
   /**
-   * A consent token's claims after its session row is found (M5): `token_use: consent`, or none
-   * for one issued before `token_use` existed.
+   * A consent token's claims after its session row is found (M5): only `token_use: consent`.
+   * A token without the claim was issued before slice 2; task 3.8 retired it once one
+   * `MCP_ACCESS_TOKEN_TTL` had passed on dev, and prod's first mcp-01 already issues the claim.
    */
   private consentClaimsOf(payload: JWTPayload): JwtClaims {
-    const use = payload['token_use'];
     // Proof: with this refusal removed, `refuses a consent session token of any use but consent`
-    // (oauth.test.ts) admitted a live session's token of use `other`; watched 2026-10-27.
-    if (use !== undefined && use !== 'consent') throw new Error('MCP token is of an unknown use');
+    // (oauth.test.ts) admitted a live session's token of use `other`; watched 2026-10-27. With
+    // the pre-3.8 `use !== undefined &&` guard restored, the same test admitted a re-signed token
+    // without `token_use`; watched 2026-10-30.
+    if (payload['token_use'] !== 'consent') throw new Error('MCP token is of an unknown use');
     this.sessionOf(payload);
     if (typeof payload.sub !== 'string' || payload.sub === '') {
       throw new Error('verified MCP token has no subject');
