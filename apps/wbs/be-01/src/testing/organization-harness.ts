@@ -140,6 +140,7 @@ import type { FakeOidcProvider } from './fake-oidc-provider';
 import { testHistoryService } from './history-fixture';
 import { testLoginThrottle } from './login-throttle-fixture';
 import { TEST_MCP_AUTHORIZATION_SERVER } from './machine-grant-fixture';
+import { requestGrant } from './mcp-forwarded-call';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './organization-limits-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from './priority-band-fixture';
 import { testReplay } from './replay-fixture';
@@ -244,7 +245,7 @@ export class OrganizationHarness {
     private readonly composedSource?: SqliteSource,
     private readonly composedCommands?: PlanCommandRunner,
     private readonly commandPrincipal?: (
-      token: string,
+      token: string | { readonly kind: 'machine'; readonly key: string },
       cookie: string,
     ) => Promise<AuthenticatedUser>,
     private readonly composedWrites?: RecoveryWriteBoundary,
@@ -348,11 +349,11 @@ export class OrganizationHarness {
     return this.commandPrincipal(this.token(username), cookie);
   }
 
-  /** Verifies a machine key before a direct runner test queues its retained principal. */
+  /** Issues and admits a real machine grant before a direct runner queues its retained principal. */
   authenticatedMachinePrincipal(key: string): Promise<AuthenticatedUser> {
     if (this.commandPrincipal === undefined)
       throw new Error('composed command principal fixture is absent');
-    return this.commandPrincipal(key, '');
+    return this.commandPrincipal({ kind: 'machine', key }, '');
   }
 
   /** The actual core runner installed beside the mounted HTTP runner. */
@@ -1097,6 +1098,34 @@ export class OrganizationHarness {
       source,
       services.commands,
       async (token, cookie) => {
+        if (typeof token !== 'string') {
+          const keys = machineGrants?.keys;
+          if (keys === undefined || keys === null)
+            throw new Error('command fixture machine grants are not configured');
+          const issued = await requestGrant(
+            harness,
+            { kind: 'api_key', key: token.key },
+            { now: services.clock.now() },
+          );
+          const answer: unknown = await issued.json();
+          if (
+            issued.status !== 200 ||
+            typeof answer !== 'object' ||
+            answer === null ||
+            !('grant' in answer) ||
+            typeof answer.grant !== 'string'
+          )
+            throw new Error(`command fixture grant issuance failed: ${String(issued.status)}`);
+          const verified = await machineGrantVerifier(keys, () => services.clock.now())(
+            answer.grant,
+          );
+          if (verified.kind !== 'verified')
+            throw new Error(`command fixture grant verification failed: ${verified.kind}`);
+          const admitted = await services.auth.admitMachineGrant(verified.claims);
+          if (admitted === 'unknown_identity')
+            throw new Error('command fixture grant did not authenticate');
+          return admitted;
+        }
         const principal = await services.auth.authenticate(token);
         if (principal === null) throw new Error('command fixture token did not authenticate');
         if (principal.authentication?.kind === 'machine') return principal;

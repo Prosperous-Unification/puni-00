@@ -1,7 +1,11 @@
+import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
+import { DEPENDENCY_SEMANTICS, DEPENDENCY_SEMANTICS_HEADER } from '@wbs/contracts/dependency-claim';
 import { readPreconditions } from '@wbs/core/service/compensating';
 import { afterEach, expect, test } from 'bun:test';
 
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import { TEST_MACHINE_GRANT_ENV } from '../testing/machine-grant-fixture';
+import { forwardingMachineGrants, requestGrant } from '../testing/mcp-forwarded-call';
 import { closeFixture, harness, openFixture, readTables } from './cross-project-dependency-fixture';
 
 afterEach(closeFixture);
@@ -131,7 +135,11 @@ for (const interveningEdit of [false, true])
 
 test('connected replay rebases only its acting person stack and discards only its stale selected row', async () => {
   const pushes: string[] = [];
-  const fixture = await openFixture({ syntheticExternalCommands: true, pushes });
+  const fixture = await openFixture({
+    syntheticExternalCommands: true,
+    pushes,
+    machineGrants: await forwardingMachineGrants(),
+  });
   const accountId = fixture.principal.id;
   for (const person of ['history-agent', 'other-history-agent'])
     addAgentPerson(harness.sqlite, person, 'org-a', accountId);
@@ -145,11 +153,24 @@ test('connected replay rebases only its acting person stack and discards only it
     personId: 'other-history-agent',
     issuedBy: accountId,
   });
+  const issueGrant = async (key: string) => {
+    const issued = await requestGrant(harness, { kind: 'api_key', key });
+    expect(issued.status).toBe(200);
+    const { grant } = (await issued.json()) as { grant: string };
+    expect(typeof grant).toBe('string');
+    return grant;
+  };
+  const firstGrant = await issueGrant(first.key);
+  const secondGrant = await issueGrant(second.key);
+  const serviceHeaders = {
+    [MCP_INTERNAL_SECRET_HEADER]: TEST_MACHINE_GRANT_ENV['MCP_BE_INTERNAL_SECRET'],
+    [DEPENDENCY_SEMANTICS_HEADER]: DEPENDENCY_SEMANTICS,
+  };
   const route = `/api/projects/${fixture.owner.projectId}`;
-  const command = (key: string, commands: unknown[]) =>
-    harness.callWith(key, 'POST', `${route}/commands`, { commands });
+  const command = (grant: string, commands: unknown[]) =>
+    harness.callWith(grant, 'POST', `${route}/commands`, { commands }, serviceHeaders);
   expect(
-    (await command(first.key, [{ kind: 'addTypedDependency', ...fixture.input }])).status,
+    (await command(firstGrant, [{ kind: 'addTypedDependency', ...fixture.input }])).status,
   ).toBe(200);
   const older = readLatestEntry(fixture.owner.projectId);
   const relationship = harness.sqlite
@@ -158,7 +179,7 @@ test('connected replay rebases only its acting person stack and discards only it
   if (relationship === null) throw new Error('mixed history relationship missing');
   expect(
     (
-      await command(second.key, [
+      await command(secondGrant, [
         {
           kind: 'patchWorkItem',
           workItemId: fixture.owner.workItemId,
@@ -175,7 +196,7 @@ test('connected replay rebases only its acting person stack and discards only it
   expect(other).toHaveLength(1);
   expect(
     (
-      await command(first.key, [
+      await command(firstGrant, [
         {
           kind: 'updateTypedDependency',
           dependencyId: relationship.id,
@@ -185,11 +206,17 @@ test('connected replay rebases only its acting person stack and discards only it
       ])
     ).status,
   ).toBe(200);
-  expect((await harness.callWith(first.key, 'POST', `${route}/undo`)).status).toBe(200);
+  expect(
+    (await harness.callWith(firstGrant, 'POST', `${route}/undo`, undefined, serviceHeaders)).status,
+  ).toBe(200);
   expect(readOther()).toEqual(other);
-  expect((await harness.callWith(first.key, 'POST', `${route}/redo`)).status).toBe(200);
+  expect(
+    (await harness.callWith(firstGrant, 'POST', `${route}/redo`, undefined, serviceHeaders)).status,
+  ).toBe(200);
   expect(readOther()).toEqual(other);
-  expect((await harness.callWith(first.key, 'POST', `${route}/undo`)).status).toBe(200);
+  expect(
+    (await harness.callWith(firstGrant, 'POST', `${route}/undo`, undefined, serviceHeaders)).status,
+  ).toBe(200);
   expect(readOther()).toEqual(other);
   expect(
     (
@@ -206,7 +233,13 @@ test('connected replay rebases only its acting person stack and discards only it
   ).toBe(200);
   const before = readTables();
   const sent = [...pushes];
-  const refused = await harness.callWith(first.key, 'POST', `${route}/undo`);
+  const refused = await harness.callWith(
+    firstGrant,
+    'POST',
+    `${route}/undo`,
+    undefined,
+    serviceHeaders,
+  );
   expect(refused.status).toBe(409);
   expect(refused.body).toMatchObject({ error: 'stale_undo' });
   expect(readTables()).toEqual(

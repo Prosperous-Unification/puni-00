@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 
+import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
+import { DEPENDENCY_SEMANTICS, DEPENDENCY_SEMANTICS_HEADER } from '@wbs/contracts/dependency-claim';
 import { runRecoveryWrite } from '@wbs/core/http/recovery-write';
 import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
 import { WriteCoordinator } from '@wbs/store-sqlite/gate';
@@ -8,6 +10,8 @@ import { decodeJwt } from 'jose';
 
 import { openDatabase } from '../repository/db';
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import { TEST_MACHINE_GRANT_ENV } from '../testing/machine-grant-fixture';
+import { forwardingMachineGrants, requestGrant } from '../testing/mcp-forwarded-call';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 let harness: OrganizationHarness;
@@ -32,6 +36,7 @@ async function open() {
   observedPushes = 0;
   harness = OrganizationHarness.openComposedWith({
     sessionBinding: true,
+    machineGrants: await forwardingMachineGrants(),
     now: () => instant,
     afterResolve: () => afterResolve?.(),
     onBorrowedUnitOfWork: () => {
@@ -596,6 +601,14 @@ for (const operation of [
       personId: 'agent',
       issuedBy: harness.userId('ada'),
     });
+    const issued = await requestGrant(
+      harness,
+      { kind: 'api_key', key: credential.key },
+      { now: instant },
+    );
+    expect(issued.status).toBe(200);
+    const { grant } = (await issued.json()) as { grant: string };
+    expect(typeof grant).toBe('string');
     let release!: () => void;
     let resolved!: () => void;
     let held: Promise<void> | undefined;
@@ -612,7 +625,7 @@ for (const operation of [
       );
     };
     const pending = harness.callWith(
-      credential.key,
+      grant,
       operation === 'prelude' || operation === 'ordinary'
         ? 'PATCH'
         : operation === 'recovery'
@@ -636,6 +649,10 @@ for (const operation of [
             : operation === 'ordinary'
               ? { name: 'Queued' }
               : undefined,
+      {
+        [MCP_INTERNAL_SECRET_HEADER]: TEST_MACHINE_GRANT_ENV['MCP_BE_INTERNAL_SECRET'],
+        [DEPENDENCY_SEMANTICS_HEADER]: DEPENDENCY_SEMANTICS,
+      },
     );
     await ready;
     try {

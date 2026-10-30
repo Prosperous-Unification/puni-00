@@ -1,3 +1,5 @@
+import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
+import { DEPENDENCY_SEMANTICS, DEPENDENCY_SEMANTICS_HEADER } from '@wbs/contracts/dependency-claim';
 import { clockOf, type Scope, type UnitOfWork } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import type { CommandAdmission } from '@wbs/core/module/plan-commands/admitted-scope.resource';
@@ -10,6 +12,8 @@ import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-ac
 import { afterEach, expect, it, spyOn } from 'bun:test';
 
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import { TEST_MACHINE_GRANT_ENV } from '../testing/machine-grant-fixture';
+import { forwardingMachineGrants, requestGrant } from '../testing/mcp-forwarded-call';
 import { type ComposedHarnessOptions, OrganizationHarness } from '../testing/organization-harness';
 
 const T = 1_900_000_000_000;
@@ -20,7 +24,11 @@ afterEach(async () => {
 
 async function fixture(options: ComposedHarnessOptions = {}) {
   let now = T;
-  const harness = OrganizationHarness.openComposedWith({ ...options, now: () => now });
+  const harness = OrganizationHarness.openComposedWith({
+    ...options,
+    machineGrants: await forwardingMachineGrants(),
+    now: () => now,
+  });
   opened.push(harness);
   await harness.register('ada');
   harness.organization('org-a');
@@ -70,8 +78,12 @@ async function fixture(options: ComposedHarnessOptions = {}) {
     "INSERT INTO resource_organization (resource_id, organization_id, name) VALUES ('lease-slot', 'org-a', 'slot')",
   );
   const owner = projects[0];
+  const issued = await requestGrant(harness, { kind: 'api_key', key: credential.key }, { now });
+  expect(issued.status).toBe(200);
+  const { grant } = (await issued.json()) as { grant: string };
+  expect(typeof grant).toBe('string');
   const claim = await harness.callWith(
-    credential.key,
+    grant,
     'POST',
     `/api/projects/${owner.projectId}/commands`,
     {
@@ -84,6 +96,10 @@ async function fixture(options: ComposedHarnessOptions = {}) {
           resources: [{ resourceId: 'lease-slot', units: 1 }],
         },
       ],
+    },
+    {
+      [MCP_INTERNAL_SECRET_HEADER]: TEST_MACHINE_GRANT_ENV['MCP_BE_INTERNAL_SECRET'],
+      [DEPENDENCY_SEMANTICS_HEADER]: DEPENDENCY_SEMANTICS,
     },
   );
   if (claim.status !== 200) throw new Error(`claim refused: ${JSON.stringify(claim)}`);

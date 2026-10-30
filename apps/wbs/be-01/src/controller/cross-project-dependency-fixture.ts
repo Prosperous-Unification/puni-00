@@ -12,7 +12,7 @@ import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { expect } from 'bun:test';
 
-import { OrganizationHarness } from '../testing/organization-harness';
+import { type ComposedHarnessOptions, OrganizationHarness } from '../testing/organization-harness';
 
 export let harness: OrganizationHarness;
 let afterRequestResolve: (() => void) | undefined;
@@ -23,10 +23,12 @@ export async function openFixture(options?: {
   syntheticExternalCommands?: true;
   dependencyCapability?: DependencyRuntimeCapability;
   pushes?: string[];
+  machineGrants?: ComposedHarnessOptions['machineGrants'];
 }) {
   afterRequestResolve = undefined;
   harness = OrganizationHarness.openComposedWith({
     sessionBinding: true,
+    ...(options?.machineGrants === undefined ? {} : { machineGrants: options.machineGrants }),
     ...(options?.dependencyCapability === undefined
       ? {}
       : { dependencyCapability: options.dependencyCapability }),

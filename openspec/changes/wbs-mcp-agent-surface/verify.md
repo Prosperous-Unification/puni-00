@@ -3289,3 +3289,58 @@ is not hosted CI, full workspace/h2 gate, source-policy/initial-handoff/native
 acceptance, deployment or architectural main adoption. The separate initializer
 fault campaign remains unexecuted pending explicit user approval. PR630 stays
 held/draft at its existing head; no publication or host action follows here.
+
+## Full backend discovery and six-fixture correction (2026-10-30)
+
+One fresh full owning backend target on the clean private64dc6c85 checkpoint
+failed: `bunx nx run wbs-be-01:test --skip-nx-cache`. Original3775831 settled
+exit1 with both actual output EOFs in2111.629s. Bun reported4885 passes,
+82 failures,3 explicit opt-in skips,104267 assertions and4970 tests across
+322 files. Exact observed file membership matched all322 prelaunch source pins;
+source/manifests remained unchanged. This invocation is FAILED, not green.
+The skips were two opt-in real-Docker proofs and one opt-in solver-orphan proof;
+their environment gates were not enabled.
+
+Failures were26 import-current-authority,47 command-current-authority,
+8 claim-lease-integration and1 cross-project-history-neighbors. Their causes
+were65 direct raw-key principal setup refusals,8 queued raw-key timeouts,
+8 mounted claim401 responses and1 history401. Main's M9 refusal was correct.
+The correction preserves that refusal and changes only test transport/setup.
+
+Astra direction48da12289750d1d908092cde80b5a4abaa465f609d22150b26df853327475fe0
+bounded six existing test/fixture paths. The shared helper now requests an actual
+mounted grant, verifies it through the configured authority and calls
+AuthService.admitMachineGrant, rather than casting proof or authenticating a raw
+machine key. Browser string handling and raw callWith stay byte-identical.
+Machine grant issuance occurs before snapshots, afterResolve arming and writer
+holds; the same retained grant reaches the original current-authority checks.
+Existing consent-marker tests remain lower-layer tests. One typed optional
+machineGrants pass-through in cross-project-dependency-fixture enables only the
+history caller; no global fixture default or production authorization changed.
+
+Independent source/actual review SHA256:
+`ed54beede35ae3e7444394b1fc987b6b57a32a4a5fba7fd5815bfbf6cec932db`.
+Final six-source pin packet:
+`0db4a2ad18b517d8e555e8f2cbd4cbca4cafc6b874159f08a8fe827280d610b7`.
+
+| Current focused verification    | Outcome                                       |
+| ------------------------------- | --------------------------------------------- |
+| Four complete owning files      | 188 passes/0 failures/1403 assertions,64.305s |
+| Actual grant/M9 controls        | 68 passes/0 failures/291 assertions,44.406s   |
+| Backend/module configured types | Two tasks passed, cache skipped               |
+| Six-file lint and formatting    | Passed                                        |
+| OpenSpec                        | 310 passed/0 failed;712 warnings retained     |
+
+The ordered188 case names match the old full-run owners exactly, and all82
+previously failed names now pass. Original processes and both actual pipe EOFs
+joined; frozen six-source hashes matched after checks. Original raw-key401,
+credential/consent/retained-authority, full-snapshot/no-effects and15s queue
+bounds remain unchanged. No source was edited during the final focused runs.
+
+This is bounded repair evidence. It does not turn the old full invocation into
+a current full-backend PASS or combine old passing names into one coherent green
+run. A fresh coherent full backend target is justified before full-backend
+acceptance; the exact final combined CI can supply it. Normal private checkpoint
+hooks, full workspace/host gate, native/controller acceptance and deployment
+remain separate. No fault campaign or Source/CI/initializer execution grant is
+provided here; the initializer24 explicit-approval question remains pending.
