@@ -4685,3 +4685,36 @@ no cluster apply or persistent Secret operation occurred. Complete physical capa
 effective Pods/CNI/storage, stored signals/views/isolation/history/recovery and live
 dev acceptance stay open at 4/11. Current implementation CI still lacks a passing
 required gate after the recorded 90-minute timeout; no rerun or policy change occurred.
+
+## Additional source-key permission evidence — 2026-10-30
+
+Read-only repository deploy-key metadata and an on-host public-identity derivation
+now identify the managed source key as the unique matching enabled GitHub deploy
+key with read_only=true and provider verified=true. Private key bytes remained
+on the existing host; no private credential copy, key grant or mutation occurred.
+The comparison uses the actual configured private key's derived public fingerprint,
+not an assumed matching .pub sibling. All three GitHub host-key entries selected
+from the existing pinned trust file also match GitHub's published HTTPS metadata.
+These are current provider-specific observations, outside the shared domain model.
+
+GitHub documents deploy keys as scoped to a single repository and able to be
+read-only: https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys.
+The result establishes this key's observed GitHub repository read scope; it does
+not attest other services' use of that key or replace independent trust approval.
+The earlier immutable component receipt still states external/unverified trust
+and global credential scope. It was not rewritten to imply later observations
+were available during that run. Future checks need their own fresh metadata.
+
+The first fingerprint inspection assumed no optional OpenSSH public-key comment
+and refused before returning the projection. Its dependent local comparison also
+refused the absent observation; no empty success was substituted. Correcting the
+inspection parser produced only public fingerprints, after which the retained
+provider metadata matched. No Secret value, key comment or private key material
+was exported. Actual provider permission and trust metadata, safe fingerprint
+projection and command diagnostics are retained in the private source-key-authority
+evidence manifest. No source-component test, CI, chart or runtime was rerun.
+
+Full physical admission, larger isolated rehearsal target, Kubernetes/Flux handoff,
+effective workloads/storage and live signal/history/recovery acceptance remain
+open at 4/11. This permission observation does not authorize a host upgrade,
+persistent Secret change, production activation or final implementation merge.
