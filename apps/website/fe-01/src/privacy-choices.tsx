@@ -7,7 +7,7 @@ export function PrivacyChoices() {
   const milestones = useMilestones();
   const analytics = milestones?.analytics;
   const [state, setState] = useState(() => analytics?.getState());
-  const [isOpen, setOpen] = useState(() => state?.status === 'denied');
+  const [isOpen, setOpen] = useState(() => state?.status !== 'ready');
   const id = useId();
   useEffect(() => {
     if (!analytics) return;
@@ -31,8 +31,9 @@ export function PrivacyChoices() {
       {isOpen && (
         <div id={id} className="privacy-panel">
           <p>
-            Optional analytics helps us understand visits and completed requests. Your request text
-            and email stay out of analytics. You can change this choice here.
+            Basic cookieless measurement starts on arrival to help us understand visits and
+            completed requests. Analytics cookies require your permission. Your request text and
+            email stay out of analytics. Disable measurement to stop further collection.
           </p>
           <div className="scoping-answers">
             <button
@@ -43,7 +44,7 @@ export function PrivacyChoices() {
                 setOpen(false);
               }}
             >
-              Accept analytics
+              Allow analytics cookies
             </button>
             <button
               className="glass-button quiet"
@@ -53,7 +54,7 @@ export function PrivacyChoices() {
                 setOpen(false);
               }}
             >
-              Reject analytics
+              Disable measurement
             </button>
           </div>
         </div>
@@ -64,8 +65,14 @@ export function PrivacyChoices() {
       {state.status === 'unavailable' && (
         <p role="status">Optional analytics is unavailable. Your request can continue.</p>
       )}
+      {isOpen && state.status === 'cookieless' && (
+        <p role="status">Analytics cookies are off. Basic cookieless measurement is active.</p>
+      )}
       {isOpen && state.status === 'ready' && (
-        <p role="status">Analytics is accepted. Reject analytics to withdraw.</p>
+        <p role="status">Analytics cookies are allowed. Disable measurement to withdraw.</p>
+      )}
+      {isOpen && state.status === 'denied' && (
+        <p role="status">Measurement is disabled. No further analytics is collected.</p>
       )}
     </aside>
   );

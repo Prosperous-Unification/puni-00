@@ -28,18 +28,16 @@ async function loaded(window: Window & typeof globalThis) {
   await Promise.resolve();
 }
 
-test('browser has no loader before acceptance and sets sanitized global/config metadata before insertion', async () => {
+test('browser starts cookieless before interaction and sets sanitized global/config metadata before insertion', async () => {
   const { dom, window } = browser();
   const analytics = createBrowserAnalytics(window, options);
-  expect(window.document.scripts).toHaveLength(0);
-  analytics.accept();
   expect(window.document.scripts).toHaveLength(1);
   const commands = queue(window);
   expect(commands[0]).toEqual([
     'consent',
     'default',
     {
-      analytics_storage: 'granted',
+      analytics_storage: 'denied',
       ad_storage: 'denied',
       ad_user_data: 'denied',
       ad_personalization: 'denied',
@@ -64,7 +62,7 @@ test('browser has no loader before acceptance and sets sanitized global/config m
   ]);
   expect(JSON.stringify(commands)).not.toContain('secret');
   await loaded(window);
-  expect(analytics.getState()).toEqual({ status: 'ready' });
+  expect(analytics.getState()).toEqual({ status: 'cookieless' });
   expect(queue(window).filter((command) => command[0] === 'event')).toHaveLength(1);
   analytics.dispose();
   dom.window.close();
@@ -131,7 +129,7 @@ test('focus/pageshow resynchronize cross-host choice and storage denial is optio
   await loaded(window);
   window.document.cookie = 'puni_dev_consent_v1=malformed; Domain=puni.dev; Path=/';
   window.dispatchEvent(new window.Event('pageshow'));
-  expect(analytics.getState()).toEqual({ status: 'denied' });
+  expect(analytics.getState()).toEqual({ status: 'cookieless' });
   Object.defineProperty(window.document, 'cookie', {
     configurable: true,
     get() {
@@ -263,8 +261,8 @@ test('real domain cookies share development consent across hosts without grantin
     environment: 'production',
     measurementId: 'G-TESTPROD12',
   });
-  expect(productionAnalytics.getState()).toEqual({ status: 'denied' });
-  expect(production.window.document.scripts).toHaveLength(0);
+  expect(productionAnalytics.getState()).toEqual({ status: 'loading' });
+  expect(queue(production.window)[0]?.[2]).toMatchObject({ analytics_storage: 'denied' });
   siteAnalytics.reject();
   app.window.dispatchEvent(new app.window.Event('focus'));
   expect(appAnalytics.getState()).toEqual({ status: 'denied' });
@@ -274,4 +272,172 @@ test('real domain cookies share development consent across hosts without grantin
   site.window.close();
   app.window.close();
   production.window.close();
+});
+
+test('startup preserves Home and safe steps, grants cookies in place and never replays events', async () => {
+  const { dom, window } = browser('https://dev.puni.dev/?email=SECRET#SECRET');
+  const analytics = createBrowserAnalytics(window, options);
+  expect(window.document.cookie).toBe('');
+  expect(window.sessionStorage.length).toBe(0);
+  analytics.dispatch({ name: 'funnel_failure', category: 'network' });
+  window.history.pushState({}, '', '/services?email=SECRET');
+  analytics.navigate();
+  const events = () => queue(window).filter((command) => command[0] === 'event');
+  expect(events().map((command) => command[1])).toEqual([
+    'page_view',
+    'funnel_failure',
+    'page_view',
+  ]);
+  expect(events()[0]?.[2]).toMatchObject({
+    page_id: 'home',
+    page_location: 'https://dev.puni.dev/',
+  });
+  analytics.accept();
+  const commands = queue(window);
+  expect(commands.at(-1)).toEqual([
+    'consent',
+    'update',
+    {
+      analytics_storage: 'granted',
+      ad_storage: 'denied',
+      ad_user_data: 'denied',
+      ad_personalization: 'denied',
+    },
+  ]);
+  expect(events()).toHaveLength(3);
+  await loaded(window);
+  expect(analytics.getState()).toEqual({ status: 'ready' });
+  expect(events()).toHaveLength(3);
+  expect(JSON.stringify(commands)).not.toContain('SECRET');
+  analytics.dispose();
+  dom.window.close();
+});
+
+test('a valid explicit rejection prevents even the initial Google script', () => {
+  const { dom, window } = browser();
+  const preference = JSON.stringify({ version: 1, accepted: false, expires: Date.now() + 60000 });
+  window.document.cookie = `puni_dev_consent_v1=${encodeURIComponent(preference)}; Domain=puni.dev; Path=/`;
+  const analytics = createBrowserAnalytics(window, options);
+  expect(analytics.getState()).toEqual({ status: 'denied' });
+  expect(window.document.scripts).toHaveLength(0);
+  expect(Reflect.has(window, 'puniAnalyticsLayer')).toBe(false);
+  analytics.dispose();
+  dom.window.close();
+});
+
+test('startup commands are bounded and overflow visibly disables optional measurement', async () => {
+  const { dom, window } = browser();
+  const analytics = createBrowserAnalytics(window, options);
+  for (let count = 0; count < 110; count++)
+    analytics.dispatch({ name: 'funnel_failure', category: 'network' });
+  expect(analytics.getState()).toEqual({ status: 'unavailable', reason: 'transport' });
+  expect(queue(window)).toHaveLength(0);
+  expect(window.document.scripts).toHaveLength(0);
+  await Promise.resolve();
+  expect(analytics.getState()).toEqual({ status: 'unavailable', reason: 'transport' });
+  analytics.dispose();
+  dom.window.close();
+});
+
+test('full startup queue refuses consent updates visibly without an implicit loader retry', async () => {
+  const { dom, window } = browser();
+  const analytics = createBrowserAnalytics(window, options);
+  for (let count = 0; count < 94; count++)
+    analytics.dispatch({ name: 'funnel_failure', category: 'network' });
+  expect(queue(window)).toHaveLength(100);
+  analytics.accept();
+  expect(analytics.getState()).toEqual({ status: 'unavailable', reason: 'transport' });
+  expect(queue(window)).toHaveLength(0);
+  expect(window.document.scripts).toHaveLength(0);
+  await Promise.resolve();
+  analytics.dispose();
+  dom.window.close();
+});
+
+test('returning permission grants only analytics storage before config and resumed consent uses update', async () => {
+  const { dom, window } = browser();
+  const preference = JSON.stringify({ version: 1, accepted: true, expires: Date.now() + 60000 });
+  window.document.cookie = `puni_dev_consent_v1=${encodeURIComponent(preference)}; Domain=puni.dev; Path=/`;
+  const analytics = createBrowserAnalytics(window, options);
+  expect(queue(window)[0]).toEqual([
+    'consent',
+    'default',
+    {
+      analytics_storage: 'granted',
+      ad_storage: 'denied',
+      ad_user_data: 'denied',
+      ad_personalization: 'denied',
+    },
+  ]);
+  await loaded(window);
+  analytics.reject();
+  analytics.accept();
+  expect(queue(window)[0]).toEqual([
+    'consent',
+    'update',
+    {
+      analytics_storage: 'granted',
+      ad_storage: 'denied',
+      ad_user_data: 'denied',
+      ad_personalization: 'denied',
+    },
+  ]);
+  await Promise.resolve();
+  expect(analytics.getState()).toEqual({ status: 'ready' });
+  analytics.dispose();
+  dom.window.close();
+});
+
+test('navigation never grows a full startup layer beyond the command bound', () => {
+  const { dom, window } = browser();
+  const analytics = createBrowserAnalytics(window, options);
+  for (let count = 0; count < 94; count++)
+    analytics.dispatch({ name: 'funnel_failure', category: 'network' });
+  const layer = Reflect.get(window, 'puniAnalyticsLayer') as IArguments[];
+  let peak = layer.length;
+  const append = layer.push.bind(layer);
+  layer.push = (...commands) => {
+    const length = append(...commands);
+    peak = Math.max(peak, length);
+    return length;
+  };
+  window.history.pushState({}, '', '/manual');
+  analytics.navigate();
+  expect(peak).toBe(100);
+  expect(analytics.getState()).toEqual({ status: 'unavailable', reason: 'transport' });
+  expect(layer).toHaveLength(0);
+  analytics.dispose();
+  dom.window.close();
+});
+
+test('unreadable initial preference blocks optional loading while an absent choice starts it', () => {
+  const { dom, window } = browser();
+  Object.defineProperty(window.document, 'cookie', {
+    get() {
+      throw new window.DOMException('denied', 'SecurityError');
+    },
+  });
+  const analytics = createBrowserAnalytics(window, options);
+  expect(analytics.getState()).toEqual({ status: 'unavailable', reason: 'storage' });
+  expect(window.document.scripts).toHaveLength(0);
+  expect(Reflect.has(window, 'puniAnalyticsLayer')).toBe(false);
+  analytics.dispose();
+  dom.window.close();
+});
+
+test('cookieless browser leads work with unreadable session storage and write no cookies', () => {
+  const { dom, window } = browser();
+  Object.defineProperty(window, 'sessionStorage', {
+    get() {
+      throw new window.DOMException('denied', 'SecurityError');
+    },
+  });
+  const analytics = createBrowserAnalytics(window, options);
+  const lead = { name: 'generate_lead', route: 'manual', funnel_version: '1' } as const;
+  expect(analytics.dispatchLead('PRIVATE_RECEIPT', lead)).toBe('sent');
+  expect(analytics.dispatchLead('PRIVATE_RECEIPT', lead)).toBe('duplicate');
+  expect(window.document.cookie).toBe('');
+  expect(JSON.stringify(queue(window))).not.toContain('PRIVATE_RECEIPT');
+  analytics.dispose();
+  dom.window.close();
 });
