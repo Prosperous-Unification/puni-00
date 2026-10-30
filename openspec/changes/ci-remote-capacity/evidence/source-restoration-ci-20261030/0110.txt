@@ -1,0 +1,20 @@
+{
+  "argv": [
+    "bunx",
+    "eslint",
+    "tools/tool-remote-scripts/test/ci-leaf.ts",
+    "tools/tool-git-hooks/src/hooks/ci-run-runtime.ts",
+    "tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts",
+    "tools/tool-git-hooks/src/hooks/ci-plan.test.ts",
+    "tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts",
+    "tools/tool-git-hooks/src/hooks/pr-merge-base.test.ts"
+  ],
+  "pid": 3304580,
+  "exit": 0,
+  "signal": null,
+  "stdoutEOF": true,
+  "stderrEOF": true,
+  "elapsedSeconds": 5.1604613199597225,
+  "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

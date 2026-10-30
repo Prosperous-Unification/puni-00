@@ -1,0 +1,18 @@
+{
+  "argv": [
+    "bun",
+    "test",
+    "--preload",
+    "./tools/test/scratch/preload.ts",
+    "tools/tool-git-hooks/src/hooks/ci-plan.test.ts",
+    "--test-name-pattern=fixed\\ remote\\ leaves\\ retain\\ one\\ logical\\ owner\\ and\\ explicit\\ static/dependency\\ execution$"
+  ],
+  "pid": 3320031,
+  "exit": 0,
+  "signal": null,
+  "stdoutEOF": true,
+  "stderrEOF": true,
+  "elapsedSeconds": 4.461915269028395,
+  "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+  "stderrSHA256": "577b82323e1de1dd4ec7382f5195d0594da4188513f5346bf6fe09a2ef633dca"
+}

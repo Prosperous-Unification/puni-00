@@ -1,0 +1,48 @@
+from pathlib import Path
+import json,hashlib,stat,subprocess,re
+P=Path('/tmp/puni-source-restoration-ci-20261030/proof-v1');R=Path('/home/df/.codex/worktrees/f7f1/puni-00');sha=lambda b:hashlib.sha256(b).hexdigest()
+packet=json.loads((P/'packet.json').read_text());rows=json.loads((P/'recipes.json').read_text());assert len(rows)==7
+if sha(Path(__file__).read_bytes())!=packet['driverSHA256'] or sha((P/'recipes.json').read_bytes())!=packet['recipesSHA256']:raise RuntimeError('sealed protocol drift')
+def controls(mutantPath=None,mutantSHA=None):
+ for e in packet['controls']:
+  f=Path(e['path']) if e['absolute'] else R/e['path'];s=f.lstat();expected=mutantSHA if f==mutantPath else e['sha256']
+  if not stat.S_ISREG(s.st_mode) or stat.S_IMODE(s.st_mode)!=e['mode'] or sha(f.read_bytes())!=expected:raise RuntimeError('current/saved/protocol source custody drift')
+for path in packet['future']:
+ try:Path(path).lstat()
+ except FileNotFoundError:continue
+ raise RuntimeError('future receipt path already exists')
+controls()
+def run(row,phase):
+ label=f"{row['index']:02d}-{row['id']}-{phase}";pattern=re.escape(row['name'])+'$'
+ argv=['python3','/tmp/puni-source-restoration-ci-20261030/run.py','proof-v1/'+label,'bun','test','--preload','./tools/test/scratch/preload.ts',row['testfile'],'--test-name-pattern='+pattern]
+ child=subprocess.Popen(argv,cwd=R,stdout=subprocess.PIPE,stderr=subprocess.PIPE);out,err=child.communicate()
+ for suffix,raw in [('driver.stdout',out),('driver.stderr',err)]:
+  with (P/(label+'.'+suffix)).open('xb') as stream:stream.write(raw)
+ wrapper={'pid':child.pid,'exit':child.returncode if child.returncode>=0 else None,'signal':-child.returncode if child.returncode<0 else None,'stdoutEOF':True,'stderrEOF':True,'stdoutSHA256':sha(out),'stderrSHA256':sha(err)}
+ with (P/(label+'.wrapper.json')).open('x') as stream:stream.write(json.dumps(wrapper,indent=2)+'\n')
+ original=json.loads((P/(label+'.json')).read_text());stdout=(P/(label+'.stdout')).read_bytes();stderr=(P/(label+'.stderr')).read_bytes();expected=1 if phase=='fault' else 0
+ if sha(stdout)!=original['stdoutSHA256'] or sha(stderr)!=original['stderrSHA256']:raise RuntimeError('original stream custody drift; RETAIN')
+ if original['exit']!=expected or original['signal'] is not None or not original['stdoutEOF'] or not original['stderrEOF'] or wrapper['exit']!=expected or wrapper['signal'] is not None:raise RuntimeError('unexpected original exit/custody; RETAIN')
+ text=stderr.decode();name=row['outcomeName'];outcome='fail' if phase=='fault' else 'pass'
+ selected=re.findall(r'^\((pass|fail)\) (.+) \[[0-9.]+ms\]$',text,re.M)
+ if selected!=[(outcome,name)]:raise RuntimeError('exact selected test outcome/count mismatch; RETAIN')
+ if phase=='fault':
+  if not re.search(re.escape(Path(row['testfile']).name)+':'+str(row['site'])+r':\d+',text):raise RuntimeError('intended assertion frame absent; RETAIN')
+  for witness in row['witnesses']:
+   if witness not in text:raise RuntimeError('finite intended assertion witness absent; RETAIN')
+  for marker in row['markers']:
+   if not any(line.startswith(marker) for line in text.splitlines()):raise RuntimeError('actual dependency delivery marker absent; RETAIN')
+ else:
+  if not re.search(r'^\s*1 pass\s*$',text,re.M) or not re.search(r'^\s*0 fail\s*$',text,re.M):raise RuntimeError('restored selected summary absent; RETAIN')
+ return {'original':original,'wrapper':wrapper}
+for row in rows:
+ controls();path=R/row['path'];before=path.read_bytes();s=path.lstat();identity=(s.st_dev,s.st_ino,stat.S_IMODE(s.st_mode));needle=row['before'].encode();assert before.count(needle)==1;mutant=before.replace(needle,row['after'].encode());mutantSHA=sha(mutant)
+ with (P/(f"{row['index']:02d}-{row['id']}-mutation.json")).open('x') as stream:stream.write(json.dumps({'source':row['path'],'originalSHA256':sha(before),'mutantSHA256':mutantSHA,'device':s.st_dev,'inode':s.st_ino,'mode':identity[2],'before':row['before'],'after':row['after']},indent=2)+'\n')
+ print('CI fault begin '+row['id'],flush=True);path.write_bytes(mutant);controls(path,mutantSHA);fault=run(row,'fault');controls(path,mutantSHA);now=path.lstat()
+ if (now.st_dev,now.st_ino,stat.S_IMODE(now.st_mode))!=identity:raise RuntimeError('source identity drift; RETAIN')
+ path.write_bytes(before);controls()
+ with (P/(f"{row['index']:02d}-{row['id']}-inverse.json")).open('x') as stream:stream.write(json.dumps({'source':row['path'],'restoredSHA256':sha(path.read_bytes()),'mode':identity[2],'device':identity[0],'inode':identity[1]},indent=2)+'\n')
+ print('CI exact inverse '+row['id'],flush=True);restored=run(row,'restored');controls()
+ with (P/(f"{row['index']:02d}-{row['id']}-local.json")).open('x') as stream:stream.write(json.dumps({'scope':row['scope'],'fault':fault,'restored':restored},indent=2)+'\n')
+ print('CI pair settled '+row['id'],flush=True)
+print('Closed7 new CI dependency pairs locally settled; independent actual review pending',flush=True)

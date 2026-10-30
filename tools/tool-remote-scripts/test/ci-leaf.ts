@@ -6,6 +6,7 @@ import { isDeepStrictEqual, stripVTControlCharacters } from 'node:util';
 const PROJECT = 'tools/tool-remote-scripts';
 const MODEL = 'src/lib/dependency-product-process-model.test.ts';
 const CONTINUATION = 'src/lib/dependency-participant-continuation-model.test.ts';
+const RESTORATION = 'src/lib/dependency-source-restoration.test.ts';
 const SOURCE = [
   'src/lib/source-role-process.test.ts',
   'src/lib/source-inner-command.test.ts',
@@ -28,7 +29,7 @@ const DISCOVERY = [
 ];
 const OPTIONS = ['--preload', '../test/scratch/preload.ts', '--timeout=10000'];
 
-type Leaf = 'model' | 'model-continuation' | 'source' | 'rest';
+type Leaf = 'model' | 'model-continuation' | 'source' | 'source-restoration' | 'rest';
 
 class TestFailure extends Error {
   constructor(readonly status: number) {
@@ -121,7 +122,15 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
     throw new Error('Unsupported canonical remote test environment');
   // Proof: omitting continuation target validation let actual malformed-target negatives execute tests (2026-10-29).
   // Proof: excluding source validation admitted the absent-source-target actual-runner negative (2026-10-29).
-  for (const name of ['model', 'model-continuation', 'source', 'rest'] as const) {
+  // Proof: omitting only the restoration target entry ran the actual model child
+  // despite its missing target; the new target-refusal assertion failed, then passed restored.
+  for (const name of [
+    'model',
+    'model-continuation',
+    'source',
+    'source-restoration',
+    'rest',
+  ] as const) {
     const target = requireRecord(targets[`test:ci:${name}`]);
     // Proof: removing this check admitted missing inputs and a changed leaf env in actual-runner tests.
     if (
@@ -157,7 +166,9 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
     throw new Error('Remote leaf requires the pinned Bun version');
   // Proof: omitting the continuation file requirement made the actual missing-owner refusal fail (2026-10-29).
   // Proof: omitting SOURCE presence admitted an aliased parent in the actual source-owner refusal (2026-10-29).
-  for (const path of [MODEL, CONTINUATION, ...SOURCE, ...DISCOVERY.slice(1)])
+  // Proof: omitting RESTORATION launched Bun for its missing parent. The actual
+  // child marker broke the pre-dispatch assertion, then passed restored; Bun's later refusal is separate.
+  for (const path of [MODEL, CONTINUATION, ...SOURCE, RESTORATION, ...DISCOVERY.slice(1)])
     requireFile(join(repository, PROJECT, path));
   requireFile(join(repository, 'tools/test/scratch/preload.ts'));
   // Proof: dotted/widened ignores and a dropped discovery token broke real canonical union/disjointness.
@@ -169,14 +180,21 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
       ? ['test', `./${CONTINUATION}`, ...OPTIONS]
       : leaf === 'source'
         ? ['test', ...SOURCE.map((path) => `./${path}`), ...OPTIONS]
-        : [
-            'test',
-            ...DISCOVERY,
-            ...OPTIONS,
-            `--path-ignore-patterns=${MODEL}`,
-            `--path-ignore-patterns=${CONTINUATION}`,
-            ...SOURCE.map((path) => `--path-ignore-patterns=${path}`),
-          ];
+        : // Proof: dispatching this singleton to MODEL broke actual tiny-Bun membership;
+          // exact restoration passed the same canonical-union consumer.
+          leaf === 'source-restoration'
+          ? ['test', `./${RESTORATION}`, ...OPTIONS]
+          : [
+              'test',
+              ...DISCOVERY,
+              ...OPTIONS,
+              `--path-ignore-patterns=${MODEL}`,
+              `--path-ignore-patterns=${CONTINUATION}`,
+              ...SOURCE.map((path) => `--path-ignore-patterns=${path}`),
+              // Proof: omitting this literal duplicated the actual restoration parent
+              // in rest; disjointness failed, then passed after exact restoration.
+              `--path-ignore-patterns=${RESTORATION}`,
+            ];
 }
 
 /**
@@ -197,6 +215,7 @@ export async function runRemoteTests(
     leafName !== 'model' &&
     leafName !== 'model-continuation' &&
     leafName !== 'source' &&
+    leafName !== 'source-restoration' &&
     leafName !== 'rest'
   )
     throw new Error('Unknown remote test leaf');
@@ -274,7 +293,7 @@ if (import.meta.main) {
     headFlag?.startsWith('--head=') !== true
   )
     throw new Error(
-      'Usage: ci-leaf.ts <repository> <model|model-continuation|source|rest> --head=<sha>',
+      'Usage: ci-leaf.ts <repository> <model|model-continuation|source|source-restoration|rest> --head=<sha>',
     );
   try {
     await runRemoteTests(repository, leaf, headFlag.slice('--head='.length));

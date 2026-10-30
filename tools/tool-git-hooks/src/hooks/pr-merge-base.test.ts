@@ -382,7 +382,12 @@ describe('production workflow PR consumers', () => {
   );
 });
 
-test.each(['remote-model', 'remote-model-continuation', 'remote-source'])(
+test.each([
+  'remote-model',
+  'remote-model-continuation',
+  'remote-source',
+  'remote-source-restoration',
+])(
   'actual model matrix shell dispatches %s with its immutable merge base and status',
   async (partition) => {
     const h = history();

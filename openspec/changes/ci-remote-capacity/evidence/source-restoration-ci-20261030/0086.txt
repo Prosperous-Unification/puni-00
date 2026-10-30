@@ -1,0 +1,11 @@
+
+tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts:
+(pass) both source matrix members provision the exact CI Node runtime [0.12ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 1 pass
+ 5 filtered out
+ 0 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [33.00ms]

@@ -25,3 +25,10 @@
 
 - [x] 15. Add only the accepted source-readiness parent to the exact source owner list and existing canonical union/count consumers; observe missing-membership RED then all owning runner-contract cases GREEN.
 - [x] 16. Complete current private integration static checks and independent review. Fresh exact-head hosted acceptance remains task14.
+
+## Accepted source-restoration whole-parent follow-up
+
+- [x] 17. Observe actual tiny-Bun singleton/canonical-union and parsed workflow RED, then add only the tracked source-restoration parent as a fifth disjoint leaf and fourth isolated matrix runner.
+- [x] 18. Exercise actual CLI/parsed-shell mapping and required file/target refusals with zero-child evidence; retain the seven-source list, static/Caddy ownership and every bound.
+- [x] 19. Observe the seven independently accepted new dependency pairs and finish final scoped static/source review before Root checkpoint.
+- [ ] 20. Require fresh complete published source/source-restoration jobs, remainder and strict aggregate success before accepting this added capacity. Root owns publication and hosted validation.

@@ -1,0 +1,7 @@
+{
+  "source": "tools/tool-git-hooks/src/hooks/ci-run-runtime.ts",
+  "restoredSHA256": "072c7ca534c6648949a3e61efbbc3b9e367d36936a52b45f89721bc4beb5324a",
+  "mode": 436,
+  "device": 66307,
+  "inode": 22386837
+}

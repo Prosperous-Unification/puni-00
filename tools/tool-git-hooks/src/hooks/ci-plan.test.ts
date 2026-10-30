@@ -354,6 +354,7 @@ describe('production CI plan and execution', () => {
         'remote-model',
         'remote-model-continuation',
         'remote-source',
+        'remote-source-restoration',
       ]) {
         const { invocation, calls } = invokeRuntime(candidate, part, '0', mode);
         expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
@@ -365,7 +366,7 @@ describe('production CI plan and execution', () => {
             .filter((line) => line.includes(':test:ci:')),
         ).toHaveLength(1);
         expect(commands).toContain(
-          `run tool-remote-scripts:test:ci:${part === 'remote-rest' ? 'rest' : part === 'remote-model' ? 'model' : part === 'remote-source' ? 'source' : 'model-continuation'} --head=${candidate.head} --skip-nx-cache --parallel=2`,
+          `run tool-remote-scripts:test:ci:${part === 'remote-rest' ? 'rest' : part === 'remote-model' ? 'model' : part === 'remote-source' ? 'source' : part === 'remote-source-restoration' ? 'source-restoration' : 'model-continuation'} --head=${candidate.head} --skip-nx-cache --parallel=2`,
         );
         expect(commands).not.toContain('-t test ');
         if (part === 'remote-rest')
@@ -384,6 +385,7 @@ describe('production CI plan and execution', () => {
       'remote-model',
       'remote-model-continuation',
       'remote-source',
+      'remote-source-restoration',
     ]) {
       expect(
         invokeRuntime({ ...candidate, head: candidate.base }, part, '0', 'full').invocation

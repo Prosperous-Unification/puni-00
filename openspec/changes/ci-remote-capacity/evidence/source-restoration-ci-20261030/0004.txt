@@ -1,0 +1,1774 @@
+# The gate. Before this existed, lefthook pre-commit was the only mechanical
+# check in the repo and `--no-verify` bypassed all of it, so every rule in
+# AGENTS.md was advisory. This is what makes them binding.
+#
+# Every step here is proven to fail on a real fault, not assumed to:
+#   secrets-scan   Proof: `plaintext-secrets.ts` on a file containing a literal
+#                  AWS access key id exits 1 naming that pattern. (The example
+#                  key is not reproduced here — the scanner reads this file and
+#                  would flag it, which is itself the proof.)
+#   migration-lint Proof: `migration-lint.ts` on a file containing
+#                  `DROP TABLE users;` exits 1 with "destructive statement".
+#   corpus-version- Proof, against real git history from `0adaf700` on h2puni,
+#   lint           2026-09-07: with `libs/domain/fixtures/solver-quantum-golden-
+#                  corpus.json` regenerated and the constant left at 8
+#                  (`6e86c115`) it exits 1 naming the fixture and "8 to 8"; with
+#                  the constant then moved to 9 (`8d5068c6`) it exits 0; moved to
+#                  7 instead (`ae13f70f`) it exits 1 naming the decrease; with
+#                  only a comment added to `contract-version.ts` beside the moved
+#                  fixture (`566bd302`) it exits 1, so a prose edit is not a
+#                  bump; on `0adaf700^..0adaf700`, which touches neither, it
+#                  exits 0; and on an all-zero base it exits 1 rather than
+#                  skipping. The remaining control — a genuine semantic change
+#                  regenerated and watched red INSIDE a CI run rather than
+#                  through the script — is TASK-338 AC #2 and is still owed.
+# All three were run against the real scripts before this file was committed. See
+# AGENTS.md, "Non-vacuous checks".
+#
+# Run-many everywhere except `pull_request`, which runs `nx affected` against
+# its own merge base. This paragraph said "deliberately run-many, not affected"
+# until 2026-09-16, and the reason it gave has not been retired — it has been
+# answered. `nx affected` with a base ref that is wrong or missing is a gate
+# that silently narrows, and a gate that skips work it should have run is the
+# exact failure this repo keeps hitting.
+#
+# What changed is that the base is no longer guessed. `Gate mode` below takes
+# it from the validated PR synthetic merge first parent, and
+# refuses outright any event it has no rule for; `merge_group`, `push` and
+# `workflow_dispatch` keep the unchanged full run, so nothing narrows for the
+# merge queue or for `main`, and the h2puni exact-head gate is still the final
+# proof. What a pull-request run no longer proves is composition across
+# projects it did not touch — that proof moves to the merge queue, which is the
+# only place a merged tree exists to prove it on, and it is why the queue is a
+# prerequisite of this change rather than a follow-up to it.
+#
+# The cost it buys back: the full run was 38 minutes at PR #457, and the merged
+# tree then ran all of it again.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Subscribed BEFORE a merge queue exists, on purpose. Measured 2026-09-08:
+  # `GET /repos/…/rulesets` is `[]` and `GET /branches/main/protection` is 404,
+  # so no queue can form here today and this trigger fires never. That is the
+  # point — a merge queue is enabled in the settings UI in one click, and an
+  # unsubscribed workflow is not "skipped" in the queue's checks, it is simply
+  # absent, so the day someone turns it on is the day this gate silently stops
+  # covering the merges that matter most. The `merge_group` arm of
+  # `Corpus version lint` and the `concurrency` exemption below land with this
+  # line and are not separable from it: the step's `*)` arm exits 1 on an event
+  # it has no boundary rule for, so subscribing alone would make every queue
+  # entry red. (TASK-351 I2.)
+  #
+  # `types` is named rather than left to default, on GitHub's own advice for
+  # this event: `checks_requested` is the only activity type Actions supports
+  # today, the default is "all of them", and the webhook payload already
+  # documents a second one (`destroyed`). Naming the one we mean is what stops a
+  # future activity type from silently starting gate runs nobody asked for.
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+    # `Corpus version lint` compares two commits, and a manual run has neither a
+    # push boundary nor a `base_ref`. Rather than let it guess one — every guess
+    # is either a false red or a silent skip — the boundary is an input, and the
+    # step fails closed when it is empty.
+    inputs:
+      base_ref:
+        description: 'Revision to compare golden corpora against (branch, tag or SHA)'
+        required: false
+        default: 'origin/main'
+
+# Cancel superseded runs on branches, never on `main`. A push to a PR branch
+# makes the run before it irrelevant, so cancelling is free. A push to `main` is
+# a *different commit* whose verdict nobody else will ever produce, and
+# cancelling it loses that verdict silently: the run shows `cancelled`, no job
+# reports a failure, and a red commit reads as unproven rather than broken.
+#
+# Measured 2026-09-07 over the last 195 completed runs: 90 were `cancelled`,
+# 46% of them, burning 647 minutes for no verdict. TASK-329 lost a real
+# solver-py red to exactly this — its own log says "BOTH CANCELLED CI RUNS HID
+# A REAL RED" — and TASK-360 then found `main` red at 7a026bee for a lint rule
+# whose introducing merge had had its run cancelled by the next merge.
+#
+# The cost of this change is CI minutes on `main` when merges land close
+# together, which is the cheaper side of the trade by a wide margin.
+#
+# A merge-queue run is exempt for the SAME reason `main` is, and the predicate
+# had to be widened rather than left alone: a `merge_group` event's ref is
+# `refs/heads/gh-readonly-queue/main/pr-<n>-<sha>`, which is `!= 'refs/heads/main'`,
+# so the old expression answered `true` for it. Stated at the strength it is
+# actually known: the group key is `github.ref` and a queue entry's ref is
+# unique to it, so no collision is *measured* today — this closes a latent
+# hazard, not an observed loss. It is worth one expression anyway, because a
+# queue verdict is the least reproducible kind there is. The branch behind a
+# cancelled PR run is still there to push to again; the ref behind a cancelled
+# queue run is deleted when the entry leaves the queue, and the commit it was
+# proving is by then either merged or dropped.
+#
+# `cancel-in-progress: false` is necessary and NOT sufficient — the other half
+# of the same loss, measured on `main` on 2026-09-08. That key governs the
+# RUNNING member of a group. GitHub keeps at most one PENDING member beside it,
+# and a third entrant evicts the pending one; `cancel-in-progress` has no say in
+# that. Five consecutive pushes to `main` between 01:09Z and 01:37Z left
+# f64ceea4, 564af749, be5eedc5 and 6ddba437 all `cancelled` with ZERO jobs
+# dispatched while 5bb095a5 held the group — four of five commits with no
+# verdict, reading as unproven rather than broken, which is the exact outcome
+# the paragraph above exists to prevent. 564af749 is the merge of TASK-351, the
+# change that widened the predicate below, so the fix lost its own verdict to
+# the door it had not closed.
+#
+# The 46% above is two different faults, and the split — called unmeasured when
+# this was filed — is clean and time-separated. Over the 195 `ci` runs from
+# 2026-09-07T06:27Z to 2026-09-08T01:48Z, 71 were cancelled: 52 on
+# `pull_request` (the intended supersession), 3 on `workflow_dispatch`, and 16
+# on pushes to `main`. Of those 16, split at `d2e14214` — the commit above that
+# exempted `main`, merged 2026-09-07T22:06Z:
+#   BEFORE  31 main pushes, 11 cancelled, ALL 11 with jobs dispatched
+#           — cancelled mid-flight, which is exactly what that commit fixed
+#   AFTER   14 main pushes,  5 cancelled, ALL 5 with ZERO jobs dispatched
+#           — every one of them a queue eviction, this bug and nothing else
+# So the `main` cancellation rate barely moved, 35% to 36%; what changed was the
+# door. The exemption did the thing it claimed and the loss continued at the
+# same rate through the gap beside it, which is why this is a second fix and not
+# a revision of the first.
+#
+# So `main` is keyed PER COMMIT: a group of one has nothing to evict and nothing
+# to be evicted by. Proved rather than assumed, on 2026-09-08 at 01:44Z, on two
+# throwaway branches taking three pushes each about two seconds apart against a
+# 120s job — same base commit, same job, same `cancel-in-progress: false`, the
+# group key the only difference between the two tables:
+#
+#   CONTROL, `group: t386-${{ github.ref }}` — the shape this file shipped
+#     34177651957  6a7d163e  success    1 job
+#     34177653881  9203ca2d  CANCELLED  0 jobs   <- the middle verdict, lost
+#     34177655790  f17d7b9f  success    1 job
+#   FIXED, `group: t386-${{ github.ref }}-${{ github.sha }}`
+#     34177653252  f43d2ea3  success    1 job
+#     34177654756  63f01d8a  success    1 job
+#     34177656561  492f8635  success    1 job
+#
+# The control is the falsification the remedy had to beat, and it fails in the
+# reported-as-healthy way: `9203ca2d` never dispatched a job, so no step is red
+# and only the run's own `cancelled` says anything happened at all.
+#
+# `pull_request` keeps the ref-only group: superseding a branch run really is
+# free, because the branch is still there to push again. `merge_group` keeps it
+# too and needs nothing added — a queue entry's ref is unique to that entry, so
+# the ref-only key is already per-commit there.
+#
+# The cost, stated at the same strength as the trade above and stated exactly:
+# the old key never ran two `main` runs at once — it ran ONE and held ONE
+# pending behind it, and only the running member consumed a runner. The change
+# is from one executing `main` run to several. At this repo's merge rate that is
+# a few concurrent 20-minute runs, and when the account's concurrency limit is
+# reached GitHub QUEUES the surplus instead of cancelling it — that verdict is
+# delayed, never lost, which is the whole point.
+#
+# The `github.run_id` half is TASK-395, and it is what makes the key per-RUN
+# rather than per-COMMIT. TASK-386 stopped at the sha, and one commit is entered
+# by more than one run: `GITHUB_SHA` for `workflow_dispatch` is the tip of the
+# selected ref, so a manual dispatch on `main` at commit S joined
+# `ci-refs/heads/main-S` with S's push run and with any re-run of it, and a
+# force-push back to S collided the same way. Those runs are not
+# interchangeable — a dispatch supplies its own `base_ref` while the push run
+# compares `github.event.before`, so `Corpus version lint` checks a different
+# boundary in each and the evicted member is a verdict nothing else produces.
+# They are separated, not deduplicated, for exactly that reason.
+#
+# run_id is ADDED to the sha rather than replacing it. Keying on run_id alone
+# behaves identically while everything works, but fails far worse: if run_id
+# ever renders empty at the workflow level, that key collapses every `main` run
+# into the one shared group and silently reopens TASK-386, whereas this one
+# degrades no further than TASK-386's own per-commit key. The sha also keeps the
+# group readable in the Actions UI.
+#
+# That run_id does render — non-empty and distinct per run — in the
+# WORKFLOW-level `concurrency:` context is measured, not assumed, because an
+# echo inside a job would only prove the job context. One commit
+# (`f925a3f6`) pushed to `probe/t395-a|b|c` at 2026-09-08T02:54:49Z ran, under
+# this key, as three OVERLAPPING runs that all reached a verdict: 34181692131,
+# 34181693807 and 34181694261, executing 02:54:52–02:56:35, 02:54:53–02:56:36
+# and 02:54:54–02:56:37, all `success`. The same three pushes under TASK-386's
+# sha-only key shared one group: 34181692093 `success`, 34181693813 `cancelled`
+# with zero jobs — the evicted middle entrant — and 34181694263 held until
+# 34181692093 finished at 02:56:34Z and only then succeeding, at 02:58:20Z. The
+# control's third member is the point: it was serialised, not lost, so the
+# candidate's three overlapping verdicts cannot be explained by dispatch
+# entrants simply never queueing against each other.
+# TASK-386 peer review I1, `queue/reviews/t386-r1-sol.txt`, openai/gpt-5.6-sol.
+#
+# Overlapping runs are safe here for a reason that was checked rather than
+# assumed: this workflow has no deploy job. `gate`, `pixels_mode` and
+# `pixels_shard` read the tree and validate — `docker compose config -q` parses
+# the deploy files, it does not apply them, and `pixels_mode` only asks Nx which
+# projects a diff reaches — so two `main` runs share nothing but the actions cache,
+# where a concurrent write is a "cache already exists" warning and not a
+# corruption. If a job that mutates anything outside its own runner is ever
+# added to this file, that job needs its own serialising `concurrency:` block
+# and this paragraph stops being true.
+#
+# `cancel-in-progress` is deliberately left exactly as TASK-351 wrote it: for
+# `main` it is now redundant, and that redundancy is the backstop if this key
+# ever regresses.
+concurrency:
+  group: ci-${{ github.ref }}${{ github.ref == 'refs/heads/main' && format('-{0}-{1}', github.sha, github.run_id) || '' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.event_name != 'merge_group' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # The stable gate reducer requires one scope job, four whole-project runtime jobs,
+  # a non-Nx checks job, the Twilight runner and the docs alternative. Each runtime
+  # runner retains Nx --parallel=2 and an independent finite budget.
+  gate_mode:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      mode: ${{ steps.gate_mode.outputs.mode }}
+      base: ${{ steps.gate_mode.outputs.base }}
+      twilight: ${{ steps.gate_mode.outputs.twilight }}
+      projects: ${{ steps.gate_mode.outputs.projects }}
+      backend: ${{ steps.gate_mode.outputs.backend }}
+      remote: ${{ steps.gate_mode.outputs.remote }}
+      frontend: ${{ steps.gate_mode.outputs.frontend }}
+    steps:
+      # Full history: `Gate mode` resolves a validated PR synthetic merge base against this
+      # clone, which a depth-1 checkout does not contain. Pinned by `toolchain-pins.test.ts`,
+      # `checks every gate job out at full depth`.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # Proof: in gate-workflow.test.ts, removing each selection clause separately
+      # failed `refuses malformed, inconsistent and polluted plans before publishing scope`.
+      # Resolver/planner dependencies that print a valid answer then fail publish no scope.
+      - name: Gate mode
+        id: gate_mode
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          case "$EVENT_NAME" in
+            pull_request)
+              base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"
+              bun run tools/tool-git-hooks/src/hooks/ci-plan.ts "$base" "$GITHUB_SHA" . > ci-selection.json
+              # A single versioned plan must explain both job membership and immutable revisions.
+              # Proof: replacing the project-name refusal with true admitted a synthetic
+              # `--skip-nx-cache` project; the malformed-plan production-step test failed.
+              jq -s -e --arg base "$base" --arg head "$GITHUB_SHA" '
+                length == 1 and (.[0] |
+                  .schemaVersion == 1 and .base == $base and .head == $head and
+                  (.mode == "docs" or .mode == "affected") and
+                  ([.projects, .workspaceProjects, .twilightProjects, .reasons,
+                    .partitions.backend, .partitions.remote, .partitions.frontend, .partitions.workspace] |
+                    all(.[]; type == "array" and all(.[]; type == "string" and length > 0))) and
+                  (.reasons | length > 0) and
+                  (.projects == (.projects | unique)) and
+                  (.projects | all(.[]; test("^(?!-)[a-zA-Z0-9@_./-]+$"))) and
+                  (.projects == ((.workspaceProjects + .twilightProjects) | sort)) and
+                  (.workspaceProjects | all(.[]; . != "twilight-burokrat" and . != "twilight-dash")) and
+                  (.partitions | keys == ["backend", "frontend", "remote", "workspace"]) and
+                  (.partitions.backend == (if (.workspaceProjects | index("wbs-be-01")) then ["wbs-be-01"] else [] end)) and
+                  (.partitions.remote == (if (.workspaceProjects | index("tool-remote-scripts")) then ["tool-remote-scripts"] else [] end)) and
+                  (.partitions.frontend == (if (.workspaceProjects | index("wbs-fe-01")) then ["wbs-fe-01"] else [] end)) and
+                  (.partitions.workspace == [.workspaceProjects[] | select(. != "wbs-be-01" and . != "tool-remote-scripts" and . != "wbs-fe-01")]) and
+                  (.twilightProjects | all(.[]; . == "twilight-burokrat" or . == "twilight-dash")) and
+                  (.twilight == (if (.twilightProjects | length) > 0 then "run" else "skip" end)) and
+                  (.mode != "docs" or (.projects | length) == 0)
+                )' ci-selection.json > /dev/null
+              jq -r '"mode=\(.mode)\nbase=\(.base)\ntwilight=\(.twilight)\nprojects=\(.projects | tojson)\nbackend=\(if (.partitions.backend | length) > 0 then "run" else "skip" end)\nremote=\(if (.partitions.remote | length) > 0 then "run" else "skip" end)\nfrontend=\(if (.partitions.frontend | length) > 0 then "run" else "skip" end)"' \
+                ci-selection.json >> "$GITHUB_OUTPUT"
+              cat ci-selection.json
+              ;;
+            push | merge_group | workflow_dispatch)
+              printf 'mode=full\n' >> "$GITHUB_OUTPUT"
+              printf 'twilight=run\n' >> "$GITHUB_OUTPUT"
+              printf 'backend=run\nremote=run\nfrontend=run\n' >> "$GITHUB_OUTPUT"
+              printf 'full CI scope: %s\n' "$EVENT_NAME"
+              ;;
+            *)
+              printf 'no gate mode for event %s\n' "$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Upload CI selection
+        if: ${{ github.event_name == 'pull_request' && steps.gate_mode.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ci-selection-${{ github.run_attempt }}
+          path: ci-selection.json
+          if-no-files-found: error
+
+  gate_workspace:
+    name: gate workspace
+    needs: gate_mode
+    if: ${{ needs.gate_mode.outputs.mode != 'docs' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      # Full history: with the default depth of 1 the `main` ref is absent, and
+      # nx falls back to a different file scope rather than failing. Since
+      # 2026-09-16 depth 0 is load-bearing rather than precautionary — this said
+      # it kept `nx affected` usable "if this ever moves off run-many", and it
+      # has: `Gate mode` below resolves a validated PR synthetic merge base against
+      # this clone, which a depth-1 checkout does not contain. Pinned by
+      # `toolchain-pins.test.ts`, `checks the gate job out at full depth`.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      # Pinned, not `latest`. The coverage-report flake fixed in #6 was a timing
+      # race inside bun's own output write, so the runtime version is part of
+      # what this gate is testing. On `latest` a bun release can change the
+      # verdict with no commit to attribute it to, and the next person debugging
+      # a red main has no version to bisect against. The pin is `.bun-version`,
+      # the same file the Dockerfiles are held to by `toolchain-pins.test.ts`.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.14.4'
+          cache: pip
+          cache-dependency-path: libs/wbs/adapters/solver-py/requirements.lock
+
+      # `nx run-many -t build` shellchecks the deploy scripts and is no longer
+      # allowed to skip itself when shellcheck is absent. ubuntu-latest ships
+      # it, but assert rather than discovering the absence as a green build
+      # that checked nothing.
+      # Proof: removing this block failed toolchain-pins.test.ts's workspace native provisioning check.
+      - name: Provision bubblewrap for native runtime tests
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends bubblewrap busybox
+          # Ubuntu 24.04 runners restrict unprivileged user namespaces through AppArmor; the probe
+          # below then failed "bwrap: setting up uid map: Permission denied" (ci run 35334617736).
+          # This profile grants user namespaces to /usr/bin/bwrap alone, the way Ubuntu's own
+          # profiles admit sandboxing tools, and leaves the host-wide restriction on.
+          printf '%s\n' 'abi <abi/4.0>,' 'include <tunables/global>' \
+            'profile bwrap /usr/bin/bwrap flags=(unconfined) {' '  userns,' '}' |
+            sudo tee /etc/apparmor.d/bwrap > /dev/null
+          sudo apparmor_parser --replace /etc/apparmor.d/bwrap
+          bwrap --die-with-parent --new-session --unshare-all --uid 1000 --gid 1000 --ro-bind / / --dev /dev --proc /proc /bin/true
+          /bin/busybox sh -c ':'
+
+      - name: Assert shellcheck present
+        run: shellcheck --version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Install solver dependencies
+        run: python3 -m pip install --require-hashes -r libs/wbs/adapters/solver-py/requirements.lock
+
+      # The shared runner records the validated project roster, commands and elapsed time.
+      # A failed or timed-out Nx phase remains failed after annotation and log upload.
+      - name: Gate — test, lint, typecheck, build
+        id: nx_gate
+        env:
+          GATE_MODE: ${{ needs.gate_mode.outputs.mode }}
+          GATE_BASE: ${{ needs.gate_mode.outputs.base }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          if [ "$GATE_MODE" = affected ]; then
+            # Proof: swallowing resolver failure let wrong PR identity reach Nx;
+            # the workspace production-step negative failed (31 pass / 1 fail).
+            base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"
+            # Proof: removing this comparison accepted a stale cross-job base
+            # in the production workflow test (29 pass / 1 fail).
+            if [ "$GATE_BASE" != "$base" ]; then
+              printf 'GATE_BASE does not match validated PR merge base\n' >&2
+              exit 1
+            fi
+          # Proof: removing this refusal failed pr-merge-base.test.ts's runtime-mode
+          # negative for this shard; an unknown mode otherwise took the full branch.
+          elif [ "$GATE_MODE" != full ]; then
+            printf 'invalid runtime gate mode: %s\n' "$GATE_MODE" >&2
+            exit 1
+          fi
+          phase_started=$SECONDS
+          printf 'runtime phase start partition=workspace head=%s utc=%s\n' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > nx-gate.log
+          set +e
+          timeout --signal=TERM --kill-after=30s 75m \
+            bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts workspace "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \
+            >> nx-gate.log 2>&1
+          gate_status=$?
+          set -e
+          # Proof: renaming this end record made the workspace production-shell
+          # status/timing oracle fail with a missing completion marker.
+          printf 'runtime phase end partition=workspace utc=%s elapsedSeconds=%s exit=%s\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$((SECONDS - phase_started))" "$gate_status" >> nx-gate.log
+          annotation_status=0
+          bun run tools/tool-git-hooks/src/hooks/ci-gate-annotations.ts nx-gate.log --tail 200 || annotation_status=$?
+          if [ "$gate_status" -ne 0 ]; then
+            exit "$gate_status"
+          fi
+          exit "$annotation_status"
+
+      - name: Upload gate log
+        if: ${{ always() && steps.nx_gate.outcome != 'skipped' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nx-gate-log-workspace-${{ github.run_attempt }}
+          path: nx-gate.log
+          if-no-files-found: error
+
+  gate_backend:
+    name: gate backend
+    needs: gate_mode
+    if: ${{ needs.gate_mode.outputs.mode == 'full' || needs.gate_mode.outputs.backend == 'run' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      # Full history: with the default depth of 1 the `main` ref is absent, and
+      # nx falls back to a different file scope rather than failing. Since
+      # 2026-09-16 depth 0 is load-bearing rather than precautionary — this said
+      # it kept `nx affected` usable "if this ever moves off run-many", and it
+      # has: `Gate mode` below resolves a validated PR synthetic merge base against
+      # this clone, which a depth-1 checkout does not contain. Pinned by
+      # `toolchain-pins.test.ts`, `checks the gate job out at full depth`.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      # Pinned, not `latest`. The coverage-report flake fixed in #6 was a timing
+      # race inside bun's own output write, so the runtime version is part of
+      # what this gate is testing. On `latest` a bun release can change the
+      # verdict with no commit to attribute it to, and the next person debugging
+      # a red main has no version to bisect against. The pin is `.bun-version`,
+      # the same file the Dockerfiles are held to by `toolchain-pins.test.ts`.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.14.4'
+          cache: pip
+          cache-dependency-path: libs/wbs/adapters/solver-py/requirements.lock
+
+      # `nx run-many -t build` shellchecks the deploy scripts and is no longer
+      # allowed to skip itself when shellcheck is absent. ubuntu-latest ships
+      # it, but assert rather than discovering the absence as a green build
+      # that checked nothing.
+      # Proof: removing this block failed toolchain-pins.test.ts's workspace native provisioning check.
+      - name: Provision bubblewrap for native runtime tests
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends bubblewrap busybox
+          # Ubuntu 24.04 runners restrict unprivileged user namespaces through AppArmor; the probe
+          # below then failed "bwrap: setting up uid map: Permission denied" (ci run 35334617736).
+          # This profile grants user namespaces to /usr/bin/bwrap alone, the way Ubuntu's own
+          # profiles admit sandboxing tools, and leaves the host-wide restriction on.
+          printf '%s\n' 'abi <abi/4.0>,' 'include <tunables/global>' \
+            'profile bwrap /usr/bin/bwrap flags=(unconfined) {' '  userns,' '}' |
+            sudo tee /etc/apparmor.d/bwrap > /dev/null
+          sudo apparmor_parser --replace /etc/apparmor.d/bwrap
+          bwrap --die-with-parent --new-session --unshare-all --uid 1000 --gid 1000 --ro-bind / / --dev /dev --proc /proc /bin/true
+          /bin/busybox sh -c ':'
+
+      - name: Assert shellcheck present
+        run: shellcheck --version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Install solver dependencies
+        run: python3 -m pip install --require-hashes -r libs/wbs/adapters/solver-py/requirements.lock
+
+      # The shared runner records the validated project roster, commands and elapsed time.
+      # A failed or timed-out Nx phase remains failed after annotation and log upload.
+      - name: Backend — test, lint, typecheck, build
+        id: nx_gate
+        env:
+          GATE_MODE: ${{ needs.gate_mode.outputs.mode }}
+          GATE_BASE: ${{ needs.gate_mode.outputs.base }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          if [ "$GATE_MODE" = affected ]; then
+            # Proof: swallowing resolver failure let wrong PR identity reach Nx;
+            # the workspace production-step negative failed (31 pass / 1 fail).
+            base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"
+            # Proof: removing this comparison accepted a stale cross-job base
+            # in the production workflow test (29 pass / 1 fail).
+            if [ "$GATE_BASE" != "$base" ]; then
+              printf 'GATE_BASE does not match validated PR merge base\n' >&2
+              exit 1
+            fi
+          # Proof: removing this refusal failed pr-merge-base.test.ts's runtime-mode
+          # negative for this shard; an unknown mode otherwise took the full branch.
+          elif [ "$GATE_MODE" != full ]; then
+            printf 'invalid runtime gate mode: %s\n' "$GATE_MODE" >&2
+            exit 1
+          fi
+          phase_started=$SECONDS
+          printf 'runtime phase start partition=backend head=%s utc=%s\n' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > nx-gate.log
+          set +e
+          timeout --signal=TERM --kill-after=30s 75m \
+            bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts backend "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \
+            >> nx-gate.log 2>&1
+          gate_status=$?
+          set -e
+          printf 'runtime phase end partition=backend utc=%s elapsedSeconds=%s exit=%s\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$((SECONDS - phase_started))" "$gate_status" >> nx-gate.log
+          annotation_status=0
+          bun run tools/tool-git-hooks/src/hooks/ci-gate-annotations.ts nx-gate.log --tail 200 || annotation_status=$?
+          if [ "$gate_status" -ne 0 ]; then
+            exit "$gate_status"
+          fi
+          exit "$annotation_status"
+
+      - name: Upload gate log
+        if: ${{ always() && steps.nx_gate.outcome != 'skipped' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nx-gate-log-backend-${{ github.run_attempt }}
+          path: nx-gate.log
+          if-no-files-found: error
+
+  gate_remote:
+    name: gate remote
+    needs: gate_mode
+    if: ${{ needs.gate_mode.outputs.mode == 'full' || needs.gate_mode.outputs.remote == 'run' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      # Full history: with the default depth of 1 the `main` ref is absent, and
+      # nx falls back to a different file scope rather than failing. Since
+      # 2026-09-16 depth 0 is load-bearing rather than precautionary — this said
+      # it kept `nx affected` usable "if this ever moves off run-many", and it
+      # has: `Gate mode` below resolves a validated PR synthetic merge base against
+      # this clone, which a depth-1 checkout does not contain. Pinned by
+      # `toolchain-pins.test.ts`, `checks the gate job out at full depth`.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      # Pinned, not `latest`. The coverage-report flake fixed in #6 was a timing
+      # race inside bun's own output write, so the runtime version is part of
+      # what this gate is testing. On `latest` a bun release can change the
+      # verdict with no commit to attribute it to, and the next person debugging
+      # a red main has no version to bisect against. The pin is `.bun-version`,
+      # the same file the Dockerfiles are held to by `toolchain-pins.test.ts`.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.14.4'
+          cache: pip
+          cache-dependency-path: libs/wbs/adapters/solver-py/requirements.lock
+
+      # `nx run-many -t build` shellchecks the deploy scripts and is no longer
+      # allowed to skip itself when shellcheck is absent. ubuntu-latest ships
+      # it, but assert rather than discovering the absence as a green build
+      # that checked nothing.
+      # Proof: removing this block failed toolchain-pins.test.ts's workspace native provisioning check.
+      - name: Provision bubblewrap for native runtime tests
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends bubblewrap busybox
+          # Ubuntu 24.04 runners restrict unprivileged user namespaces through AppArmor; the probe
+          # below then failed "bwrap: setting up uid map: Permission denied" (ci run 35334617736).
+          # This profile grants user namespaces to /usr/bin/bwrap alone, the way Ubuntu's own
+          # profiles admit sandboxing tools, and leaves the host-wide restriction on.
+          printf '%s\n' 'abi <abi/4.0>,' 'include <tunables/global>' \
+            'profile bwrap /usr/bin/bwrap flags=(unconfined) {' '  userns,' '}' |
+            sudo tee /etc/apparmor.d/bwrap > /dev/null
+          sudo apparmor_parser --replace /etc/apparmor.d/bwrap
+          bwrap --die-with-parent --new-session --unshare-all --uid 1000 --gid 1000 --ro-bind / / --dev /dev --proc /proc /bin/true
+          /bin/busybox sh -c ':'
+
+      - name: Assert shellcheck present
+        run: shellcheck --version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Install solver dependencies
+        run: python3 -m pip install --require-hashes -r libs/wbs/adapters/solver-py/requirements.lock
+
+      # The shared runner records the validated project roster, commands and elapsed time.
+      # A failed or timed-out Nx phase remains failed after annotation and log upload.
+      - name: Remote — test, lint, typecheck, build
+        id: nx_gate
+        env:
+          GATE_MODE: ${{ needs.gate_mode.outputs.mode }}
+          GATE_BASE: ${{ needs.gate_mode.outputs.base }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          if [ "$GATE_MODE" = affected ]; then
+            # Proof: swallowing resolver failure let wrong PR identity reach Nx;
+            # the workspace production-step negative failed (31 pass / 1 fail).
+            base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"
+            # Proof: removing this comparison accepted a stale cross-job base
+            # in the production workflow test (29 pass / 1 fail).
+            if [ "$GATE_BASE" != "$base" ]; then
+              printf 'GATE_BASE does not match validated PR merge base\n' >&2
+              exit 1
+            fi
+          # Proof: removing this refusal failed pr-merge-base.test.ts's runtime-mode
+          # negative for this shard; an unknown mode otherwise took the full branch.
+          elif [ "$GATE_MODE" != full ]; then
+            printf 'invalid runtime gate mode: %s\n' "$GATE_MODE" >&2
+            exit 1
+          fi
+          phase_started=$SECONDS
+          printf 'runtime phase start partition=remote-rest head=%s utc=%s\n' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > nx-gate.log
+          set +e
+          timeout --signal=TERM --kill-after=30s 75m \
+            bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts remote-rest "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \
+            >> nx-gate.log 2>&1
+          gate_status=$?
+          set -e
+          printf 'runtime phase end partition=remote-rest utc=%s elapsedSeconds=%s exit=%s\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$((SECONDS - phase_started))" "$gate_status" >> nx-gate.log
+          annotation_status=0
+          bun run tools/tool-git-hooks/src/hooks/ci-gate-annotations.ts nx-gate.log --tail 200 || annotation_status=$?
+          if [ "$gate_status" -ne 0 ]; then
+            exit "$gate_status"
+          fi
+          exit "$annotation_status"
+
+      - name: Upload gate log
+        if: ${{ always() && steps.nx_gate.outcome != 'skipped' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nx-gate-log-remote-rest-${{ github.run_attempt }}
+          path: nx-gate.log
+          if-no-files-found: error
+
+  gate_remote_model:
+    name: gate remote isolated leaf (${{ matrix.partition }})
+    needs: gate_mode
+    if: ${{ needs.gate_mode.outputs.mode == 'full' || needs.gate_mode.outputs.remote == 'run' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    # Proof: deleting the continuation entry failed the exact parsed workflow matrix test (2026-10-29).
+    strategy:
+      fail-fast: false
+      matrix:
+        partition:
+          [remote-model, remote-model-continuation, remote-source, remote-source-restoration]
+    steps:
+      # Full history: with the default depth of 1 the `main` ref is absent, and
+      # nx falls back to a different file scope rather than failing. Since
+      # 2026-09-16 depth 0 is load-bearing rather than precautionary — this said
+      # it kept `nx affected` usable "if this ever moves off run-many", and it
+      # has: `Gate mode` below resolves a validated PR synthetic merge base against
+      # this clone, which a depth-1 checkout does not contain. Pinned by
+      # `toolchain-pins.test.ts`, `checks the gate job out at full depth`.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      # Pinned, not `latest`. The coverage-report flake fixed in #6 was a timing
+      # race inside bun's own output write, so the runtime version is part of
+      # what this gate is testing. On `latest` a bun release can change the
+      # verdict with no commit to attribute it to, and the next person debugging
+      # a red main has no version to bisect against. The pin is `.bun-version`,
+      # the same file the Dockerfiles are held to by `toolchain-pins.test.ts`.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.14.4'
+          cache: pip
+          cache-dependency-path: libs/wbs/adapters/solver-py/requirements.lock
+
+      # `nx run-many -t build` shellchecks the deploy scripts and is no longer
+      # allowed to skip itself when shellcheck is absent. ubuntu-latest ships
+      # it, but assert rather than discovering the absence as a green build
+      # that checked nothing.
+      # Proof: removing this block failed toolchain-pins.test.ts's workspace native provisioning check.
+      - name: Provision bubblewrap for native runtime tests
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends bubblewrap busybox
+          # Ubuntu 24.04 runners restrict unprivileged user namespaces through AppArmor; the probe
+          # below then failed "bwrap: setting up uid map: Permission denied" (ci run 35334617736).
+          # This profile grants user namespaces to /usr/bin/bwrap alone, the way Ubuntu's own
+          # profiles admit sandboxing tools, and leaves the host-wide restriction on.
+          printf '%s\n' 'abi <abi/4.0>,' 'include <tunables/global>' \
+            'profile bwrap /usr/bin/bwrap flags=(unconfined) {' '  userns,' '}' |
+            sudo tee /etc/apparmor.d/bwrap > /dev/null
+          sudo apparmor_parser --replace /etc/apparmor.d/bwrap
+          bwrap --die-with-parent --new-session --unshare-all --uid 1000 --gid 1000 --ro-bind / / --dev /dev --proc /proc /bin/true
+          /bin/busybox sh -c ':'
+
+      - name: Assert shellcheck present
+        run: shellcheck --version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Install solver dependencies
+        run: python3 -m pip install --require-hashes -r libs/wbs/adapters/solver-py/requirements.lock
+
+      - name: Set up source test Node
+        if: ${{ matrix.partition == 'remote-source' || matrix.partition == 'remote-source-restoration' }}
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.20.0'
+          package-manager-cache: false
+
+      # The shared runner records the validated project roster, commands and elapsed time.
+      # A failed or timed-out Nx phase remains failed after annotation and log upload.
+      - name: Remote isolated leaf — test
+        id: nx_gate
+        env:
+          RUNTIME_PARTITION: ${{ matrix.partition }}
+          GATE_MODE: ${{ needs.gate_mode.outputs.mode }}
+          GATE_BASE: ${{ needs.gate_mode.outputs.base }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          if [ "$GATE_MODE" = affected ]; then
+            # Proof: swallowing resolver failure let wrong PR identity reach Nx;
+            # the workspace production-step negative failed (31 pass / 1 fail).
+            base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"
+            # Proof: removing this comparison accepted a stale cross-job base
+            # in the production workflow test (29 pass / 1 fail).
+            if [ "$GATE_BASE" != "$base" ]; then
+              printf 'GATE_BASE does not match validated PR merge base\n' >&2
+              exit 1
+            fi
+          # Proof: removing this refusal failed pr-merge-base.test.ts's runtime-mode
+          # negative for this shard; an unknown mode otherwise took the full branch.
+          elif [ "$GATE_MODE" != full ]; then
+            printf 'invalid runtime gate mode: %s\n' "$GATE_MODE" >&2
+            exit 1
+          fi
+          phase_started=$SECONDS
+          printf 'runtime phase start partition=%s head=%s utc=%s\n' "$RUNTIME_PARTITION" "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > nx-gate.log
+          set +e
+          timeout --signal=TERM --kill-after=30s 75m \
+            bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts "$RUNTIME_PARTITION" "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \
+            >> nx-gate.log 2>&1
+          gate_status=$?
+          set -e
+          printf 'runtime phase end partition=%s utc=%s elapsedSeconds=%s exit=%s\n' \
+            "$RUNTIME_PARTITION" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$((SECONDS - phase_started))" "$gate_status" >> nx-gate.log
+          annotation_status=0
+          bun run tools/tool-git-hooks/src/hooks/ci-gate-annotations.ts nx-gate.log --tail 200 || annotation_status=$?
+          if [ "$gate_status" -ne 0 ]; then
+            exit "$gate_status"
+          fi
+          exit "$annotation_status"
+
+      - name: Upload gate log
+        if: ${{ always() && steps.nx_gate.outcome != 'skipped' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nx-gate-log-${{ matrix.partition }}-${{ github.run_attempt }}
+          path: nx-gate.log
+          if-no-files-found: error
+
+  gate_frontend:
+    name: gate frontend
+    needs: gate_mode
+    if: ${{ needs.gate_mode.outputs.mode == 'full' || needs.gate_mode.outputs.frontend == 'run' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      # Full history: with the default depth of 1 the `main` ref is absent, and
+      # nx falls back to a different file scope rather than failing. Since
+      # 2026-09-16 depth 0 is load-bearing rather than precautionary — this said
+      # it kept `nx affected` usable "if this ever moves off run-many", and it
+      # has: `Gate mode` below resolves a validated PR synthetic merge base against
+      # this clone, which a depth-1 checkout does not contain. Pinned by
+      # `toolchain-pins.test.ts`, `checks the gate job out at full depth`.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      # Pinned, not `latest`. The coverage-report flake fixed in #6 was a timing
+      # race inside bun's own output write, so the runtime version is part of
+      # what this gate is testing. On `latest` a bun release can change the
+      # verdict with no commit to attribute it to, and the next person debugging
+      # a red main has no version to bisect against. The pin is `.bun-version`,
+      # the same file the Dockerfiles are held to by `toolchain-pins.test.ts`.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.14.4'
+          cache: pip
+          cache-dependency-path: libs/wbs/adapters/solver-py/requirements.lock
+
+      # `nx run-many -t build` shellchecks the deploy scripts and is no longer
+      # allowed to skip itself when shellcheck is absent. ubuntu-latest ships
+      # it, but assert rather than discovering the absence as a green build
+      # that checked nothing.
+      # Proof: removing this block failed toolchain-pins.test.ts's workspace native provisioning check.
+      - name: Provision bubblewrap for native runtime tests
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends bubblewrap busybox
+          # Ubuntu 24.04 runners restrict unprivileged user namespaces through AppArmor; the probe
+          # below then failed "bwrap: setting up uid map: Permission denied" (ci run 35334617736).
+          # This profile grants user namespaces to /usr/bin/bwrap alone, the way Ubuntu's own
+          # profiles admit sandboxing tools, and leaves the host-wide restriction on.
+          printf '%s\n' 'abi <abi/4.0>,' 'include <tunables/global>' \
+            'profile bwrap /usr/bin/bwrap flags=(unconfined) {' '  userns,' '}' |
+            sudo tee /etc/apparmor.d/bwrap > /dev/null
+          sudo apparmor_parser --replace /etc/apparmor.d/bwrap
+          bwrap --die-with-parent --new-session --unshare-all --uid 1000 --gid 1000 --ro-bind / / --dev /dev --proc /proc /bin/true
+          /bin/busybox sh -c ':'
+
+      - name: Assert shellcheck present
+        run: shellcheck --version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Install solver dependencies
+        run: python3 -m pip install --require-hashes -r libs/wbs/adapters/solver-py/requirements.lock
+
+      # The shared runner records the validated project roster, commands and elapsed time.
+      # A failed or timed-out Nx phase remains failed after annotation and log upload.
+      - name: Frontend — test, lint, typecheck, build
+        id: nx_gate
+        env:
+          GATE_MODE: ${{ needs.gate_mode.outputs.mode }}
+          GATE_BASE: ${{ needs.gate_mode.outputs.base }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          if [ "$GATE_MODE" = affected ]; then
+            # Proof: swallowing resolver failure let wrong PR identity reach Nx;
+            # the workspace production-step negative failed (31 pass / 1 fail).
+            base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"
+            # Proof: removing this comparison accepted a stale cross-job base
+            # in the production workflow test (29 pass / 1 fail).
+            if [ "$GATE_BASE" != "$base" ]; then
+              printf 'GATE_BASE does not match validated PR merge base\n' >&2
+              exit 1
+            fi
+          # Proof: removing this refusal failed pr-merge-base.test.ts's runtime-mode
+          # negative for this shard; an unknown mode otherwise took the full branch.
+          elif [ "$GATE_MODE" != full ]; then
+            printf 'invalid runtime gate mode: %s\n' "$GATE_MODE" >&2
+            exit 1
+          fi
+          phase_started=$SECONDS
+          printf 'runtime phase start partition=frontend head=%s utc=%s\n' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > nx-gate.log
+          set +e
+          timeout --signal=TERM --kill-after=30s 75m \
+            bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts frontend "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \
+            >> nx-gate.log 2>&1
+          gate_status=$?
+          set -e
+          printf 'runtime phase end partition=frontend utc=%s elapsedSeconds=%s exit=%s\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$((SECONDS - phase_started))" "$gate_status" >> nx-gate.log
+          annotation_status=0
+          bun run tools/tool-git-hooks/src/hooks/ci-gate-annotations.ts nx-gate.log --tail 200 || annotation_status=$?
+          if [ "$gate_status" -ne 0 ]; then
+            exit "$gate_status"
+          fi
+          exit "$annotation_status"
+
+      - name: Upload gate log
+        if: ${{ always() && steps.nx_gate.outcome != 'skipped' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nx-gate-log-frontend-${{ github.run_attempt }}
+          path: nx-gate.log
+          if-no-files-found: error
+
+  gate_checks:
+    name: gate checks
+    needs: gate_mode
+    if: ${{ needs.gate_mode.outputs.mode != 'docs' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # Full history: with the default depth of 1 the `main` ref is absent, and
+      # nx falls back to a different file scope rather than failing. Since
+      # 2026-09-16 depth 0 is load-bearing rather than precautionary — this said
+      # it kept `nx affected` usable "if this ever moves off run-many", and it
+      # has: `Gate mode` below resolves a validated PR synthetic merge base against
+      # this clone, which a depth-1 checkout does not contain. Pinned by
+      # `toolchain-pins.test.ts`, `checks the gate job out at full depth`.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      # Pinned, not `latest`. The coverage-report flake fixed in #6 was a timing
+      # race inside bun's own output write, so the runtime version is part of
+      # what this gate is testing. On `latest` a bun release can change the
+      # verdict with no commit to attribute it to, and the next person debugging
+      # a red main has no version to bisect against. The pin is `.bun-version`,
+      # the same file the Dockerfiles are held to by `toolchain-pins.test.ts`.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.14.4'
+          cache: pip
+          cache-dependency-path: libs/wbs/adapters/solver-py/requirements.lock
+
+      # `nx run-many -t build` shellchecks the deploy scripts and is no longer
+      # allowed to skip itself when shellcheck is absent. ubuntu-latest ships
+      # it, but assert rather than discovering the absence as a green build
+      # that checked nothing.
+      # Proof: removing this block failed toolchain-pins.test.ts's workspace native provisioning check.
+      - name: Provision bubblewrap for native runtime tests
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends bubblewrap busybox
+          # Ubuntu 24.04 runners restrict unprivileged user namespaces through AppArmor; the probe
+          # below then failed "bwrap: setting up uid map: Permission denied" (ci run 35334617736).
+          # This profile grants user namespaces to /usr/bin/bwrap alone, the way Ubuntu's own
+          # profiles admit sandboxing tools, and leaves the host-wide restriction on.
+          printf '%s\n' 'abi <abi/4.0>,' 'include <tunables/global>' \
+            'profile bwrap /usr/bin/bwrap flags=(unconfined) {' '  userns,' '}' |
+            sudo tee /etc/apparmor.d/bwrap > /dev/null
+          sudo apparmor_parser --replace /etc/apparmor.d/bwrap
+          bwrap --die-with-parent --new-session --unshare-all --uid 1000 --gid 1000 --ro-bind / / --dev /dev --proc /proc /bin/true
+          /bin/busybox sh -c ':'
+
+      - name: Assert shellcheck present
+        run: shellcheck --version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Install solver dependencies
+        run: python3 -m pip install --require-hashes -r libs/wbs/adapters/solver-py/requirements.lock
+
+      # This candidate-owned workflow is diagnostic on PR and merge-queue events. It is not an
+      # admission authority; repository rules must require the base-owned trusted-wiki workflow.
+      - name: Tool wiki — diagnostic/non-certifying
+        # Temporarily run Tool Wiki only through the local command/hook.
+        if: false
+        env:
+          TOOL_WIKI_ACTIVATION_ROOT: ${{ vars.TOOL_WIKI_ACTIVATION_ROOT }}
+        run: bash bin/tool-wiki-lint.sh committed . "$GITHUB_SHA"
+
+      # A repository with no archive variables remains visibly inactive. Once any variable is set,
+      # partial or broken provisioning fails here instead of collapsing back into a green no-op.
+      # Proof: gate-entrypoints.test.ts pins this step ahead of the audit, the three guarded
+      # variables, digest verification before extraction, and the selected-package check.
+      - name: Provision immutable external activation for push audit
+        # Temporarily run Tool Wiki only through the local command/hook.
+        if: false
+        env:
+          ACTIVATION_ARCHIVE_SHA256: ${{ vars.TOOL_WIKI_ACTIVATION_ARCHIVE_SHA256 }}
+          ACTIVATION_ARCHIVE_URL: ${{ vars.TOOL_WIKI_ACTIVATION_ARCHIVE_URL }}
+          ACTIVATION_VERSION: ${{ vars.TOOL_WIKI_ACTIVATION_VERSION }}
+        run: |
+          set -euo pipefail
+          : "${ACTIVATION_ARCHIVE_SHA256:?trusted activation archive digest is not configured}"
+          : "${ACTIVATION_ARCHIVE_URL:?trusted activation archive URL is not configured}"
+          : "${ACTIVATION_VERSION:?trusted activation version is not configured}"
+          # Proof: gate-entrypoints.test.ts executes this production block with `main` and
+          # observes exit 78 before the mutable ref can select an activation archive directory.
+          [[ "$ACTIVATION_VERSION" =~ ^[0-9a-f]{40}$ ]] || {
+            printf 'activation version must be a full commit SHA\n' >&2
+            exit 78
+          }
+          archive="$RUNNER_TEMP/tool-wiki-activation.tar"
+          curl --fail --location --proto '=https' --tlsv1.2 --output "$archive" "$ACTIVATION_ARCHIVE_URL"
+          printf '%s  %s\n' "$ACTIVATION_ARCHIVE_SHA256" "$archive" | sha256sum --check --strict
+          activation_root="$RUNNER_TEMP/tool-wiki-activation/$ACTIVATION_VERSION"
+          mkdir -m 0700 -p "$activation_root"
+          tar --extract --file "$archive" --directory "$activation_root" --no-same-owner --no-same-permissions
+          test -s "$activation_root/selected.json"
+          activation_root=$(realpath -- "$activation_root")
+          # Proof: `jq --raw-output` prints the literal `null` for an absent or non-string key, so a
+          # malformed selection reached the manifest read as `<root>/null/manifest.json` (rc 2) and
+          # a malformed manifest certified a revision named `null`. Refuse the malformed state by
+          # name instead of reporting it as a missing file.
+          if ! selected_directory=$(jq --exit-status --raw-output \
+            'if (.directory|type) == "string" then .directory else empty end' \
+            "$activation_root/selected.json"); then
+            printf 'activation selection has no string directory: %s\n' \
+              "$activation_root/selected.json" >&2
+            exit 78
+          fi
+          # Proof: gate-entrypoints.test.ts points the selection at a manifest beside the
+          # extraction directory that names the configured version; without this shape refusal the
+          # step joined a manifest the pinned archive never carried and exported the root.
+          if [[ ! "$selected_directory" =~ ^[0-9A-Za-z][0-9A-Za-z._-]*(/[0-9A-Za-z][0-9A-Za-z._-]*)*$ ]]; then
+            printf 'activation selection names no version directory: %s\n' "$selected_directory" >&2
+            exit 78
+          fi
+          # Proof: a symlinked version directory passes any textual check; with containment textual
+          # only, the step read a manifest outside the extracted archive, matched the configured
+          # version and exported the root at exit 0. The launcher canonicalises the same way.
+          if ! version_directory=$(realpath -- "$activation_root/$selected_directory") ||
+            [[ "$version_directory" != "$activation_root"/* ]]; then
+            printf 'activation selection escapes the extracted archive root: %s\n' \
+              "$selected_directory" >&2
+            exit 78
+          fi
+          if ! certified_revision=$(jq --exit-status --raw-output \
+            'if (.sourceRevision|type) == "string" then .sourceRevision else empty end' \
+            "$version_directory/manifest.json"); then
+            printf 'activation manifest has no string sourceRevision: %s\n' \
+              "$version_directory/manifest.json" >&2
+            exit 78
+          fi
+          # Proof: gate-entrypoints.test.ts provisions an archive certifying 4444... with the
+          # version set to 5555...; without this join the step exited 0 and made an archive that
+          # certifies no configured commit the admission authority.
+          if [[ "$certified_revision" != "$ACTIVATION_VERSION" ]]; then
+            printf 'activation archive certifies %s, not the configured version %s\n' \
+              "$certified_revision" "$ACTIVATION_VERSION" >&2
+            exit 78
+          fi
+          # Provenance for whoever reads this log. Nothing on the admission path reads the
+          # descriptor, so its absence or contents change no decision.
+          if [[ -r "$activation_root/toolkit-release" ]]; then
+            printf 'toolkit release: %s\n' \
+              "$(head -c 200 -- "$activation_root/toolkit-release" | tr -dc '[:print:]')"
+          fi
+          printf 'TOOL_WIKI_ACTIVATION_ROOT=%s\n' "$activation_root" >> "$GITHUB_ENV"
+
+      # A protected-default push is already admitted. Its audit still refuses candidate authority:
+      # both launcher and runtime modules come from the downloaded, digest-pinned activation.
+      - name: Tool wiki — externally activated push audit
+        # Temporarily run Tool Wiki only through the local command/hook.
+        if: false
+        run: bash bin/tool-wiki-push-audit.sh . "$GITHUB_SHA"
+
+      # --all, not the default base..HEAD comparison. Without it the scope is
+      # whatever `git diff main HEAD` returns, which is EMPTY on a push to main
+      # — a format gate that checks nothing and passes. When the base ref is
+      # missing entirely, nx silently widens to all files instead of failing.
+      # Both are scope that moves without saying so. --all does not move.
+      - name: Format
+        run: bunx nx format:check --all
+
+      - name: Solver image smoke
+        run: bunx nx run wbs-be-01:solver-image-smoke
+
+      # The host-wide heavy-work mutex, which is the only thing keeping two
+      # heavy runs off one machine. It went unexercised until 2026-08-30, when
+      # its lock path was still h2puni's `/home/puni1/...` and its primitive was
+      # `flock` — so on every Mac `bin/h2puni-gate.sh` exited 127 and local runs
+      # bypassed serialisation entirely. Untested locking is not locking.
+      - name: Heavy-work lock
+        run: bash bin/heavy-lock.test.sh
+
+      # The other half of that mutex: the gate steps were serialised, the
+      # checkout they read was not, and a lane sharing the tree could move the
+      # head mid-run (TASK-328). Same reason as above — the hole was invisible
+      # because nothing failed loudly when it opened.
+      - name: Gate head pinning
+        run: bash bin/h2puni-gate.test.sh
+
+      # `bin/dev.sh` and the port preflight it calls. This is the dev image's
+      # CMD (`deploy/dev-src/Dockerfile`), so a guard rotting here breaks the
+      # dev deployment and not only somebody's terminal — and until 2026-09-12
+      # this suite ran nowhere but a developer typing `bun run dev:test`.
+      #
+      # It binds ephemeral sockets and reads a mode-000 file. The mode-000 case
+      # is meaningless as root, which reads anything: on `ubuntu-latest` the job
+      # is `runner`, and `the check path refuses an unreadable .env` would pass
+      # for the wrong reason inside a root container.
+      - name: Dev entrypoint
+        run: bash bin/dev.test.sh
+
+      # The two lefthook hooks, re-run here over every tracked file rather than
+      # only the staged ones. A `--no-verify` commit reaches this.
+      # xargs, not `$files`. The file list was passed as one unquoted argv, which
+      # has two failure modes: a path containing whitespace splits into two
+      # non-existent paths, and the whole list will eventually exceed ARG_MAX
+      # and fail as E2BIG -- a scanner that stops running because the repo grew,
+      # reported as a broken gate rather than an unscanned commit. -0 and
+      # --no-run-if-empty keep the vacuity check meaningful.
+      - name: Secrets scan
+        run: |
+          set -euo pipefail
+          test -n "$(git ls-files)" || { echo "no tracked files — scan would be vacuous"; exit 1; }
+          git ls-files -z | xargs -0 --no-run-if-empty \
+            bun run tools/tool-git-hooks/src/hooks/plaintext-secrets.ts
+
+      # Nothing under private/ (nested private checkouts) may reach the public repository: no
+      # tracked path, no gitlink, no .gitmodules, and the /private/ ignore line itself. Over the
+      # whole tree so a `--no-verify` commit is caught. gate-workflow.test.ts runs this step.
+      - name: Private nesting
+        run: |
+          set -euo pipefail
+          test -n "$(git ls-files)" || { echo "no tracked files — scan would be vacuous"; exit 1; }
+          git ls-files -z | xargs -0 --no-run-if-empty \
+            bun run tools/tool-git-hooks/src/hooks/private-nesting.ts
+
+      # The deploy artifacts. Neither Compose file nor the trigger script was
+      # checked by any Nx target, so dev's whole container definition and the
+      # command that deploys it could be syntactically broken while the gate
+      # stayed green. `config -q` interpolates and validates without starting
+      # anything. bin/dev-deploy.sh is shellchecked by tool-devsync:build.
+      # AGENTS.md caps LLM_README.md at 150 lines and nothing enforced it: the
+      # file reached 207. A stated rule with no check is advisory, which is the
+      # same category as a check that cannot fail.
+      - name: Doc caps
+        run: bun run tools/tool-git-hooks/src/hooks/doc-caps.ts
+
+      - name: Compose files
+        run: |
+          set -euo pipefail
+          docker compose -f deploy/dev-src/compose.yml config -q
+          docker compose -f deploy/compose/base.yml config -q
+          docker compose -f deploy/compose/base.yml config --format json |
+            jq -e '.networks["aivn-dev-net"].external == true and (.services.caddy.networks | has("aivn-dev-net"))'
+
+      - name: Migration lint
+        run: |
+          set -euo pipefail
+          files="$(git ls-files '*.sql')"
+          if [ -z "$files" ]; then
+            echo "no .sql files tracked — nothing to lint"
+            exit 0
+          fi
+          # shellcheck disable=SC2086
+          bun run tools/tool-git-hooks/src/hooks/migration-lint.ts $files
+
+      # The two golden corpora each assert that the fixture's `contractVersion`
+      # equals the tree's constant and that the fixture's cases equal the tree's
+      # computation. Both are assertions about ONE tree, and each writer emits
+      # the current constant beside the current cases — so a semantic change
+      # with the constant left where it is, followed by the documented writer,
+      # regenerates the fixture and both assertions still pass. This step is the
+      # two-commit half those tests cannot be. See the header of
+      # `corpus-version-lint.ts` for why it is a script here rather than a case
+      # in the suite.
+      #
+      # The event-specific boundary is selected by the executable below. Pull
+      # requests and merge groups use their immutable payload SHA; a missing or
+      # unreadable trusted SHA is a refusal, never a mutable-ref fallback. Push
+      # and manual-dispatch boundaries retain their distinct contracts. The
+      # selector's tests drive its production entry through real Git histories,
+      # while `corpus-lint-workflow.test.ts` holds the selector's supported
+      # events to this workflow's subscriptions.
+      - name: Corpus version lint
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          DISPATCH_BASE_REF: ${{ inputs.base_ref }}
+        run: |
+          set -euo pipefail
+          base="$(bun run tools/tool-git-hooks/src/hooks/corpus-version-base.ts)"
+          bun run tools/tool-git-hooks/src/hooks/corpus-version-lint.ts "$base" HEAD
+
+      # package.json pins @fission-ai/openspec; the frozen install above provides
+      # its executable and locked dependencies. Use that path directly so an
+      # absent local installation cannot resolve a different package or CLI.
+      #
+      # `--json` used to only *emit* JSON. Nothing read it, so what actually
+      # gated was the process exit status — an inference from the command's own
+      # behaviour, which is the one thing a "parsed from JSON" gate exists to
+      # rule out. The verdict now comes from a named field.
+      #
+      # `passed > 0` is not decoration. `failed == 0` alone is also true of a
+      # run that validated nothing, which is what an empty checkout or an
+      # `--all` that stopped matching looks like from here.
+      #
+      # `pipefail` is load-bearing, not boilerplate: without it a validator that
+      # crashes after writing a well-formed green JSON goes green, because `tee`
+      # succeeds and `jq` reads the good bytes.
+      #
+      # Proof of the validator half: with a change's scenarios written `###`
+      # instead of `####`, it exits 1 with failed: 1. Restored, it exits 0 with
+      # passed: 2.
+      # Proof of the assertion half, against the real JSON this step emitted on
+      # CI 34083621444 (`summary.totals` = items 39 / passed 39 / failed 0):
+      # unmodified it exits 0; with `failed` forced to 1 it exits 1; with
+      # `passed` forced to 0 it exits 1; with the validator stubbed to exit 1
+      # the step reds through the pipe, and with `pipefail` removed that same
+      # case goes green. The field path is `.summary.totals.*` and not a
+      # top-level `.failed`/`.passed` — the latter is `null` on the real
+      # document and would make the assertion fail on a green run.
+      - name: OpenSpec
+        run: |
+          set -euo pipefail
+          ./node_modules/.bin/openspec validate --all --json \
+            | tee "$RUNNER_TEMP/openspec-validate.json"
+          jq -e '.summary.totals.failed == 0 and .summary.totals.passed > 0' \
+            "$RUNNER_TEMP/openspec-validate.json" > /dev/null
+
+      # The integration target probes twilight-v1 against the same locked CLI
+      # as validation. Its version assertion rejects a stale installation before
+      # checking that planning stays blocked until design.md exists.
+      #
+      # Proof: with `design` removed from twilight-v1's `tasks.requires`, this
+      # target failed on `Expected: "blocked" / Received: "ready"`, observed
+      # locally on 2026-09-06
+      # (openspec/changes/twilight-review-hardening/evidence/design-traversal-red.txt).
+      # This step has never been observed running on a runner; see that change's
+      # verify.md, "Not verified".
+      - name: OpenSpec schema graph (pinned CLI)
+        run: |
+          set -euo pipefail
+          OPENSPEC_CLI="$PWD/node_modules/@fission-ai/openspec/bin/openspec.js" \
+            bunx nx run tool-workflows:integration
+
+  gate_docs:
+    name: gate docs
+    needs: gate_mode
+    if: ${{ needs.gate_mode.outputs.mode == 'docs' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Format
+        run: bunx nx format:check --all
+
+      - name: Current documents
+        run: |
+          set -euo pipefail
+          started=$SECONDS
+          bunx nx run tool-devsync:check:docs --skip-nx-cache
+          printf 'documentation validation elapsed_seconds=%s\n' "$((SECONDS - started))"
+
+      - name: Secrets scan
+        run: |
+          set -euo pipefail
+          test -n "$(git ls-files)" || { echo "no tracked files — scan would be vacuous"; exit 1; }
+          git ls-files -z | xargs -0 --no-run-if-empty \
+            bun run tools/tool-git-hooks/src/hooks/plaintext-secrets.ts
+
+      - name: Private nesting
+        run: |
+          set -euo pipefail
+          test -n "$(git ls-files)" || { echo "no tracked files — scan would be vacuous"; exit 1; }
+          git ls-files -z | xargs -0 --no-run-if-empty \
+            bun run tools/tool-git-hooks/src/hooks/private-nesting.ts
+
+      - name: Doc caps
+        run: bun run tools/tool-git-hooks/src/hooks/doc-caps.ts
+
+      - name: OpenSpec
+        run: |
+          set -euo pipefail
+          ./node_modules/.bin/openspec validate --all --json \
+            | tee "$RUNNER_TEMP/openspec-validate.json"
+          jq -e '.summary.totals.failed == 0 and .summary.totals.passed > 0' \
+            "$RUNNER_TEMP/openspec-validate.json" > /dev/null
+
+  # The Twilight shard: Twilight Burokrat's own targets, its explicit source lint and the packed
+  # package suite — 28 minutes of the single job's 62 on main 262d006c, almost all of it one
+  # `twilight-burokrat:test` task that no other gate task waits on — and, since 2026-10-12
+  # (WBS a81d93a0), Twilight Dash's targets and lint, because Dash receives the activation
+  # controller. It runs whenever `gate_mode` puts either project in scope, and the `gate` check
+  # below refuses its skip on any other verdict.
+  gate_twilight:
+    name: gate twilight
+    needs: gate_mode
+    if: ${{ needs.gate_mode.outputs.twilight == 'run' }}
+    runs-on: ubuntu-latest
+    # Run 39330836237 spent 49m25s in Nx; the packed suite separately took 4m45s in
+    # run 39330011791. Seventy-five minutes accommodates both phases and runner variation.
+    timeout-minutes: 75
+    steps:
+      # Full history for parity with the workspace shard: the suites read git state and ran
+      # against a depth-0 clone in the single job these came from.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # Dash's real process fixtures require UID mapping and an isolated procfs before Nx starts.
+      # Proof: toolchain-pins.test.ts failed with this step absent, late or unscoped, with a
+      # wrong executable/missing probe, and with either loader/probe failure ignored (2026-10-25).
+      - name: Provision unshare for Dash resource tests
+        if: ${{ needs.gate_mode.outputs.mode == 'full' || contains(fromJSON(needs.gate_mode.outputs.projects), 'twilight-dash') }}
+        run: |
+          set -euo pipefail
+          # Ubuntu restricts user namespaces through AppArmor. Admit this executable only;
+          # preserve the host-wide restriction and run the probe/tests as the runner account.
+          printf '%s\n' 'abi <abi/4.0>,' 'include <tunables/global>' \
+            'profile unshare /usr/bin/unshare flags=(unconfined) {' '  userns,' '}' |
+            sudo tee /etc/apparmor.d/unshare > /dev/null
+          sudo apparmor_parser --replace /etc/apparmor.d/unshare
+          unshare --user --map-root-user --pid --fork --mount-proc setpriv --bounding-set=-sys_ptrace true
+
+      # The same log, annotation and exit-status contract as the workspace shard's Nx step,
+      # whose note explains each part. The workspace shard excludes `twilight-dash`, so its lint
+      # runs here, uncached like Burokrat's source lint.
+      - name: Twilight — test, typecheck, build, lint
+        id: nx_twilight
+        env:
+          GATE_MODE: ${{ needs.gate_mode.outputs.mode }}
+          GATE_BASE: ${{ needs.gate_mode.outputs.base }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          if [ "$GATE_MODE" = affected ]; then
+            # Proof: pr-merge-base.test.ts's valid-output/failing-resolver negative
+            # failed when this command's failure was swallowed; no runtime work may start.
+            base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"
+            # Proof: removing this comparison failed the stale GATE_BASE negative.
+            if [ "$GATE_BASE" != "$base" ]; then
+              printf 'GATE_BASE does not match validated PR merge base\n' >&2
+              exit 1
+            fi
+          # Proof: removing this refusal failed this shard's unknown-mode negative.
+          elif [ "$GATE_MODE" != full ]; then
+            printf 'invalid runtime gate mode: %s\n' "$GATE_MODE" >&2
+            exit 1
+          fi
+          set +e
+          if [ "$GATE_MODE" = affected ]; then
+            bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts twilight "$GATE_BASE" "$GITHUB_SHA" . \
+              > nx-gate.log 2>&1
+          else
+            {
+              bunx nx run-many -t test typecheck build -p twilight-burokrat,twilight-dash \
+                --parallel=2 --output-style=stream &&
+              bunx nx run twilight-burokrat:lint:source --skip-nx-cache --output-style=stream &&
+              bunx nx run twilight-dash:lint --skip-nx-cache --output-style=stream
+            } > nx-gate.log 2>&1
+          fi
+          gate_status=$?
+          annotation_status=0
+          bun run tools/tool-git-hooks/src/hooks/ci-gate-annotations.ts nx-gate.log --tail 200 || annotation_status=$?
+          if [ "$gate_status" -ne 0 ]; then
+            exit "$gate_status"
+          fi
+          exit "$annotation_status"
+
+      - name: Upload gate log
+        if: ${{ always() && steps.nx_twilight.outcome != 'skipped' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nx-gate-log-twilight-${{ github.run_attempt }}
+          path: nx-gate.log
+          if-no-files-found: error
+
+      # The packed suite holds the end-to-end package admission and malicious-candidate matrix. It
+      # needs only the tarball it packs, a loopback registry and bubblewrap: no credentials and no
+      # registry beyond 127.0.0.1. A Dash-only selection does not run Burokrat packaging.
+      # Proof: toolchain-pins.test.ts pins exact JSON membership on both package steps;
+      # removing either condition fails its packaging-scope test.
+      - name: Provision bubblewrap for the packed package suite
+        if: ${{ needs.gate_mode.outputs.mode == 'full' || contains(fromJSON(needs.gate_mode.outputs.projects), 'twilight-burokrat') }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends bubblewrap
+          # Ubuntu 24.04 runners restrict unprivileged user namespaces through AppArmor; the probe
+          # below then failed "bwrap: setting up uid map: Permission denied" (ci run 35334617736).
+          # This profile grants user namespaces to /usr/bin/bwrap alone, the way Ubuntu's own
+          # profiles admit sandboxing tools, and leaves the host-wide restriction on.
+          printf '%s\n' 'abi <abi/4.0>,' 'include <tunables/global>' \
+            'profile bwrap /usr/bin/bwrap flags=(unconfined) {' '  userns,' '}' |
+            sudo tee /etc/apparmor.d/bwrap > /dev/null
+          sudo apparmor_parser --replace /etc/apparmor.d/bwrap
+          bwrap --die-with-parent --new-session --ro-bind / / --dev /dev --proc /proc true
+
+      - name: Twilight Burokrat packed package suite
+        if: ${{ needs.gate_mode.outputs.mode == 'full' || contains(fromJSON(needs.gate_mode.outputs.projects), 'twilight-burokrat') }}
+        run: bunx nx run twilight-burokrat:test:package --skip-nx-cache --output-style=stream
+
+  # The one check the integrator and the deploy descriptor read by name (`tool-deploy`'s
+  # descriptor requires a `gate` job concluding `success`). It reports even after a
+  # failed/cancelled shard, requiring the scope job first and explaining every skipped job.
+  # Proof: `gate-workflow.test.ts` runs this production script with each shard result; with
+  # the workspace assertion deleted, `refuses a workspace shard that did not succeed` failed on
+  # `failure` exiting 0; with the then Tool Wiki arm weakened to `!= failure`, its twin failed
+  # on `cancelled` exiting 0 (2026-09-28).
+  gate:
+    if: ${{ always() }}
+    needs:
+      [
+        gate_mode,
+        gate_docs,
+        gate_workspace,
+        gate_backend,
+        gate_remote,
+        gate_remote_model,
+        gate_frontend,
+        gate_checks,
+        gate_twilight,
+      ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Require every gate shard
+        env:
+          MODE_RESULT: ${{ needs.gate_mode.result }}
+          MODE: ${{ needs.gate_mode.outputs.mode }}
+          DOCS_RESULT: ${{ needs.gate_docs.result }}
+          TWILIGHT: ${{ needs.gate_mode.outputs.twilight }}
+          WORKSPACE_RESULT: ${{ needs.gate_workspace.result }}
+          BACKEND: ${{ needs.gate_mode.outputs.backend }}
+          REMOTE: ${{ needs.gate_mode.outputs.remote }}
+          FRONTEND: ${{ needs.gate_mode.outputs.frontend }}
+          BACKEND_RESULT: ${{ needs.gate_backend.result }}
+          REMOTE_RESULT: ${{ needs.gate_remote.result }}
+          REMOTE_MODEL_RESULT: ${{ needs.gate_remote_model.result }}
+          FRONTEND_RESULT: ${{ needs.gate_frontend.result }}
+          CHECKS_RESULT: ${{ needs.gate_checks.result }}
+          TWILIGHT_RESULT: ${{ needs.gate_twilight.result }}
+        run: |
+          set -euo pipefail
+          test "$MODE_RESULT" = success
+          # Proof: gate-workflow.test.ts runs failed/cancelled/absent/unexplained
+          # skipped jobs through this reducer; removing each assertion admits its fault.
+          case "$MODE" in
+            docs)
+              test "$DOCS_RESULT" = success
+              test "$WORKSPACE_RESULT" = skipped
+              test "$BACKEND_RESULT" = skipped
+              test "$REMOTE_RESULT" = skipped
+              test "$REMOTE_MODEL_RESULT" = skipped
+              test "$FRONTEND_RESULT" = skipped
+              test "$CHECKS_RESULT" = skipped
+              test "$BACKEND" = skip
+              test "$REMOTE" = skip
+              test "$FRONTEND" = skip
+              test "$TWILIGHT_RESULT" = skipped
+              test "$TWILIGHT" = skip
+              ;;
+            affected | full)
+              test "$DOCS_RESULT" = skipped
+              test "$WORKSPACE_RESULT" = success
+              test "$CHECKS_RESULT" = success
+              # Proof: omitting REMOTE_MODEL admitted a failed model leaf; the production reducer negative failed.
+              for owner in BACKEND REMOTE REMOTE_MODEL FRONTEND; do
+                case "$owner" in
+                  BACKEND) selected="$BACKEND"; outcome="$BACKEND_RESULT" ;;
+                  REMOTE) selected="$REMOTE"; outcome="$REMOTE_RESULT" ;;
+                  REMOTE_MODEL) selected="$REMOTE"; outcome="$REMOTE_MODEL_RESULT" ;;
+                  FRONTEND) selected="$FRONTEND"; outcome="$FRONTEND_RESULT" ;;
+                esac
+                if [ "$MODE" = full ]; then
+                  test "$selected" = run
+                  test "$outcome" = success
+                elif [ "$selected" = run ]; then
+                  test "$outcome" = success
+                elif [ "$selected" = skip ]; then
+                  test "$outcome" = skipped
+                else
+                  printf 'gate mode reported no %s verdict: %s\n' "$owner" "$selected" >&2
+                  exit 1
+                fi
+              done
+              case "$TWILIGHT" in
+                run) test "$TWILIGHT_RESULT" = success ;;
+                skip) test "$TWILIGHT_RESULT" = skipped ;;
+                *)
+                  printf 'gate mode reported no Twilight verdict: %s\n' "$TWILIGHT" >&2
+                  exit 1
+                  ;;
+              esac
+              ;;
+            *)
+              printf 'gate mode reported no supported mode: %s\n' "$MODE" >&2
+              exit 1
+              ;;
+          esac
+
+  # Whether a pull request can reach the browser stack at all — the shards' half of
+  # the switch `Gate mode` makes for the Nx gate, with the same refusal arm and the
+  # same JSON read.
+  #
+  # The boot set is read from `playwright.config.ts`, not from this job's name:
+  # `webServer` starts be-01, gw-01 AND fe-01, so a backend-only pull request can
+  # break the rendered table while `wbs-fe-01` is not affected at all. Measured
+  # 2026-09-16 on Nx 23.2.0, `bunx nx show projects --affected
+  # --files=apps/wbs/be-01/src/main.ts` answers
+  # `["wbs-be-01","tool-devsync","twilight-burokrat","tool-dagger"]` — no `wbs-fe-01`. A
+  # switch keyed on the frontend alone would have skipped the eyes for exactly the
+  # changes they exist to catch.
+  #
+  # This job pays one checkout and one install to save all browser shards,
+  # and it cannot itself skip: `pixels` below reads its result, so a scope job that
+  # failed is never mistaken for a deliberate skip.
+  #
+  # It follows successful `gate_mode`, including on full events where it prints
+  # `stack=affected`. A failed scope leaves this job skipped and the pixels reducer fails.
+  # A docs plan omits browsers explicitly after revalidating the immutable PR boundary.
+  pixels_mode:
+    needs: gate_mode
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      stack: ${{ steps.stack.outputs.stack }}
+    steps:
+      # Full history for the same reason the `gate` job takes it: `--base` cannot
+      # resolve a payload SHA against a depth-1 clone.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # Proof for the `*)` arm below (2026-09-16), re-observed after the nested
+      # `case "$stack_status"` landed. `the CI pixels scope > decides the browser scope from
+      # the event, and refuses one it has no rule for`:
+      #   whole arm deleted         -> `Expected: ["*"] · Received: []`, 5 passed / 1 failed
+      #   only its `exit 1` deleted -> the normalised message-and-exit pair absent,
+      #                                5 passed / 1 failed
+      # Without the arm a newly subscribed event would scope the browser gate by falling
+      # through rather than by a rule; without its `exit` it would do the same after printing
+      # a warning nobody reads.
+      #
+      # This note lives OUTSIDE the `run:` block on purpose. Inside it, the pin's own literal
+      # would be part of the script the pin reads: on 2026-09-16 a one-line reflow of this
+      # comment plus deleting the arm's `exit 1` left all six cases green. The suites now
+      # strip comment lines before normalising, and this keeps the script commands-only.
+      - name: Browser stack scope
+        id: stack
+        env:
+          GATE_MODE: ${{ needs.gate_mode.outputs.mode }}
+          GATE_BASE: ${{ needs.gate_mode.outputs.base }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          case "$EVENT_NAME" in
+            pull_request)
+              # Proof: stale payload substitution or swallowed resolution failure made
+              # this production-step test accept the wrong boundary (29 pass / 1 fail).
+              base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"
+              # Proof: pixels-workflow.test.ts drives stale bases and unknown modes;
+              # skipping either validation admits an unproved browser exemption.
+              if [ "$GATE_BASE" != "$base" ]; then
+                printf 'GATE_BASE does not match validated PR merge base\n' >&2
+                exit 1
+              fi
+              if [ "$GATE_MODE" = docs ]; then
+                printf 'stack=unaffected\n' >> "$GITHUB_OUTPUT"
+                printf 'browser scope: docs plan explicitly omits browser checks\n'
+                exit 0
+              elif [ "$GATE_MODE" != affected ]; then
+                printf 'invalid PR browser gate mode: %s\n' "$GATE_MODE" >&2
+                exit 1
+              fi
+              affected="$(bunx nx show projects --affected --base="$base" --head=HEAD --json)"
+              # Three answers, not two, and `-s` so a stray document ahead of the array
+              # cannot hide it. The plan step separately validates one complete selection object.
+              # Here the stakes are higher: reading a jq ERROR, or a leading warning line, as
+              # `false` sets `stack=unaffected`, skips all browser shards, and turns the
+              # REQUIRED `pixels` check green having booted no browser at all.
+              jq -s -e 'length == 1 and (.[0] | type == "array")' <<< "$affected" > /dev/null || {
+                printf 'nx show projects did not return one JSON array: %s\n' "$affected" >&2
+                exit 1
+              }
+              stack_status=0
+              jq -s -e 'any(.[0][]; . == "wbs-fe-01" or . == "wbs-be-01" or . == "wbs-gw-01")' \
+                <<< "$affected" > /dev/null || stack_status=$?
+              case "$stack_status" in
+                0) printf 'stack=affected\n' >> "$GITHUB_OUTPUT" ;;
+                1) printf 'stack=unaffected\n' >> "$GITHUB_OUTPUT" ;;
+                *)
+                  printf 'jq failed reading the affected project list (status %s)\n' \
+                    "$stack_status" >&2
+                  exit "$stack_status"
+                  ;;
+              esac
+              ;;
+            push | merge_group | workflow_dispatch)
+              printf 'stack=affected\n' >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              printf 'no browser-stack rule for event %s\n' "$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+
+  # The eyes. Everything the `gate` job runs sees this table through jsdom,
+  # which lays nothing out: the overlap that prompted this job passed 450 unit
+  # tests while a pinned Name painted over "Depends on" on screen. One chromium,
+  # the real three-app stack, and arithmetic on bounding boxes.
+  #
+  # Independent of `gate` on purpose. It needs a browser download and a running
+  # backend, so it is the slowest and flakiest thing here; making `gate` wait
+  # for it would make every unrelated red slower to read. Both must pass.
+  #
+  # Proven non-vacuous on 2026-08-08. The faults are written out at the bottom
+  # of `apps/wbs/fe-01/e2e/layout.spec.ts`, each with the failure it was watched
+  # producing against a real chromium;
+  # `openspec/changes/table-geometry-and-tab-order/verify.md` has the run
+  # output, including the two faults that turned out NOT to break the test they
+  # were predicted to.
+  pixels_shard:
+    name: pixels shard ${{ matrix.shard }}/8
+    runs-on: ubuntu-latest
+    needs: pixels_mode
+    if: ${{ needs.pixels_mode.outputs.stack == 'affected' }}
+    # Eight shards move the 58-case Gantt file off shard 1; see
+    # openspec/changes/pixels-shard-capacity/verify.md. Budget each selected path:
+    # 15 minutes for Chromium, 25 for layout, at most 10 for the dedicated
+    # cross-project check on shard 4 (or 5 for organization on shard 1), and 5
+    # for checkout, dependency installation and artifacts: 15 + 25 + 10 + 5 = 55.
+    strategy:
+      fail-fast: false
+      matrix:
+        # All entries and the stable aggregate are read from this production
+        # workflow by pixels-workflow.test.ts.
+        # Proof: removing shard 8 made the production-workflow oracle fail with
+        # expected [1..8], received [1..7] (2026-10-23).
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    # Proof: omitting this bound or lowering it to 50 failed the parsed-YAML
+    # per-shard budget oracle; shard 4 lacked its five-minute overhead reserve.
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # The same pin as `gate` above, read from the same file, for the same
+      # reason: bun is part of what is being tested here — it runs be-01 and
+      # gw-01 — and `latest` changes the verdict with no commit to blame.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # Chromium alone, with its system libraries. `--with-deps` is not
+      # optional on a bare runner: without it the browser downloads and then
+      # fails to start on a missing shared object, which reads as a broken
+      # spec rather than a missing package.
+      - name: Install chromium
+        # Proof: omitting this timeout failed the parsed-YAML per-shard budget oracle.
+        timeout-minutes: 15
+        run: bunx playwright install --with-deps chromium
+
+      # Starts be-01, gw-01 and Vite itself (see playwright.config.ts) against
+      # a per-run SQLite file, and waits for all three health URLs before the
+      # first test. `bun run e2e` seeds the three `.env` files first — a fresh
+      # checkout has none, and every app refuses to boot without one.
+      - name: Layout gate
+        # Proof: omitting this timeout failed the parsed-YAML per-shard budget oracle.
+        timeout-minutes: 25
+        run: bun run e2e -- --shard=${{ matrix.shard }}/8
+
+      - name: Activated organization context
+        # Proof: omitting this timeout failed the parsed-YAML per-shard budget oracle.
+        timeout-minutes: 5
+        if: ${{ matrix.shard == 1 }}
+        run: bunx nx run wbs-fe-01:e2e-organization
+
+      # The ordinary config excludes this dedicated real-stack spec. Shard 4
+      # had 31 ordinary cases and a 5m40s hosted job in run 39902390852.
+      - name: Cross-project dependency delivery
+        # Proof: omitting this timeout failed the budget oracle; raising it to 11
+        # failed shard 4's parsed-YAML arithmetic with only 55 minutes available.
+        timeout-minutes: 10
+        if: ${{ matrix.shard == 4 }}
+        run: bunx nx run wbs-fe-01:e2e-cross-project
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: wbs-table-screenshot-${{ matrix.shard }}-${{ github.run_attempt }}
+          # Successful runs keep the deliberate geometry screenshot and HTML
+          # report; failed runs additionally keep Playwright's retained trace.
+          path: |
+            apps/wbs/fe-01/test-results/
+            apps/wbs/fe-01/playwright-report/
+
+  # Branch protection asks for one stable `pixels` check. The matrix above has
+  # changing display names, so this job reduces its aggregate result without
+  # hiding a failed or cancelled shard.
+  # Proof: changing `needs` to `gate` made pixels-workflow.test.ts fail with
+  # expected "pixels_shard", received "gate".
+  #
+  # Since 2026-09-16 the shards can legitimately not run, and `skipped` is the
+  # result this job then reads. Accepting `skipped` on its own would have been the
+  # whole point thrown away: `pixels_shard` is also skipped when `pixels_mode`
+  # FAILS, so a broken scope job would have reported the required check green
+  # having booted nothing and decided nothing. Hence both jobs in `needs` and the
+  # scope job's own verdict asserted first, before its answer is read at all.
+  # Proof: reduced to its previous `test "${{ needs.pixels_shard.result }}" = success`,
+  # `the required check refuses a skip it cannot explain` failed on the exact
+  # environment and script (2026-09-16).
+  pixels:
+    if: ${{ always() }}
+    needs: [pixels_mode, pixels_shard]
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Require every browser shard
+        env:
+          STACK: ${{ needs.pixels_mode.outputs.stack }}
+          STACK_RESULT: ${{ needs.pixels_mode.result }}
+          SHARD_RESULT: ${{ needs.pixels_shard.result }}
+        run: |
+          set -euo pipefail
+          test "$STACK_RESULT" = success
+          case "$STACK" in
+            affected)
+              test "$SHARD_RESULT" = success
+              ;;
+            unaffected)
+              test "$SHARD_RESULT" = skipped
+              ;;
+            *)
+              printf 'pixels mode reported no browser-stack verdict: %s\n' "$STACK" >&2
+              exit 1
+              ;;
+          esac

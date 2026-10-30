@@ -18,6 +18,7 @@ const CLI = join(ROOT, 'tools/tool-remote-scripts/test/ci-leaf.ts');
 const PROJECT = 'tools/tool-remote-scripts';
 const MODEL = 'src/lib/dependency-product-process-model.test.ts';
 const CONTINUATION = 'src/lib/dependency-participant-continuation-model.test.ts';
+const RESTORATION = 'src/lib/dependency-source-restoration.test.ts';
 const SOURCE = [
   'src/lib/source-role-process.test.ts',
   'src/lib/source-inner-command.test.ts',
@@ -50,6 +51,9 @@ function fixture(): string {
   for (const path of [
     MODEL,
     CONTINUATION,
+    RESTORATION,
+    `elsewhere/${RESTORATION}`,
+    'src/lib/dependency-source-restoration-extra.test.ts',
     ...explicit,
     ...SOURCE,
     'src/new.test.ts',
@@ -142,6 +146,10 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
   expect(source.exitCode, source.stderr.toString()).toBe(0);
   const sourceCases = executed(source.stdout.toString());
   expect(sourceCases).toEqual([...SOURCE].sort());
+  const restoration = invoke(root, 'source-restoration');
+  expect(restoration.exitCode, restoration.stderr.toString()).toBe(0);
+  const restorationCases = executed(restoration.stdout.toString());
+  expect(restorationCases).toEqual([RESTORATION]);
   const rest = invoke(root, 'rest');
   expect(model.exitCode, model.stderr.toString()).toBe(0);
   expect(rest.exitCode, rest.stderr.toString()).toBe(0);
@@ -156,13 +164,22 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
   expect(complement).toContain('src/lib/dependency-product-process-model-extra.test.ts');
   expect(complement).not.toContain(MODEL);
   expect(complement).not.toContain(CONTINUATION);
+  expect(complement).not.toContain(RESTORATION);
+  expect(complement).toContain(`elsewhere/${RESTORATION}`);
+  expect(complement).toContain('src/lib/dependency-source-restoration-extra.test.ts');
   expect(complement).toContain(`elsewhere/${CONTINUATION}`);
   expect(complement).toContain('src/lib/dependency-participant-continuation-model-extra.test.ts');
-  expect([...singleton, ...moved, ...sourceCases, ...complement].sort()).toEqual(
-    executed(canonical.stdout.toString()),
-  );
-  expect(new Set([...singleton, ...moved, ...sourceCases, ...complement]).size).toBe(
-    singleton.length + moved.length + sourceCases.length + complement.length,
+  expect(
+    [...singleton, ...moved, ...sourceCases, ...restorationCases, ...complement].sort(),
+  ).toEqual(executed(canonical.stdout.toString()));
+  expect(
+    new Set([...singleton, ...moved, ...sourceCases, ...restorationCases, ...complement]).size,
+  ).toBe(
+    singleton.length +
+      moved.length +
+      sourceCases.length +
+      restorationCases.length +
+      complement.length,
   );
   expect(model.stdout.toString()).toContain('"fresh":true');
   expect(rest.stdout.toString()).toContain('"fresh":true');
@@ -302,7 +319,7 @@ test('actual noncached Nx leaf targets preserve environment and run dependency b
   const head = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], { cwd: root, stdout: 'pipe' })
     .stdout.toString()
     .trim();
-  for (const leaf of ['model', 'model-continuation', 'rest']) {
+  for (const leaf of ['model', 'model-continuation', 'source-restoration', 'rest']) {
     const child = Bun.spawnSync(
       [
         process.execPath,
@@ -333,7 +350,7 @@ test('actual noncached Nx leaf targets preserve environment and run dependency b
     expect(child.stdout.toString()).toContain('"fresh":true');
     if (leaf !== 'rest') expect(existsSync(caddyMarker)).toBe(false);
   }
-  expect(readFileSync(dependencyMarker, 'utf8').trim().split('\n')).toHaveLength(3);
+  expect(readFileSync(dependencyMarker, 'utf8').trim().split('\n')).toHaveLength(4);
   expect(readFileSync(caddyMarker, 'utf8')).toBe('caddy\n');
 }, 20000);
 
@@ -599,3 +616,76 @@ test('remainder rejects a malformed terminal outer summary after a real nested c
     'Remote leaf produced no successful nonempty execution receipt',
   );
 });
+
+function recordChildStarts(root: string) {
+  const marker = join(root, 'restoration-test-child-started');
+  const preload = join(root, 'record-restoration-child.ts');
+  writeFileSync(
+    preload,
+    `
+    import { appendFileSync } from 'node:fs';
+    const spawn = Bun.spawn;
+    Bun.spawn = (...args) => {
+      appendFileSync(${JSON.stringify(marker)}, 'child\\n');
+      return spawn(...args);
+    };
+  `,
+  );
+  return { marker, preload };
+}
+
+test.each(['missing', 'unreadable', 'alias'] as const)(
+  'restoration owner refuses invalid parent before actual child selection: %s',
+  (fault) => {
+    const root = fixture();
+    const path = join(root, PROJECT, RESTORATION);
+    if (fault === 'missing') rmSync(path);
+    if (fault === 'unreadable') chmodSync(path, 0);
+    if (fault === 'alias') {
+      renameSync(path, `${path}.owned`);
+      symlinkSync(`${path}.owned`, path);
+    }
+    const starts = recordChildStarts(root);
+    for (const leaf of ['source-restoration', 'rest']) {
+      const refused = invoke(root, leaf, starts.preload);
+      if (existsSync(starts.marker))
+        console.error(
+          `RESTORATION_PARENT_CHILD: ${JSON.stringify({ leaf, executed: executed(refused.stdout.toString()) })}`,
+        );
+      expect(refused.exitCode, fault).not.toBe(0);
+      expect(executed(refused.stdout.toString())).toEqual([]);
+      expect(existsSync(starts.marker), 'no test child before required-parent validation').toBe(
+        false,
+      );
+    }
+    if (fault === 'unreadable') chmodSync(path, 0o644);
+  },
+);
+
+test.each(['absent', 'inputs', 'environment'])(
+  'all leaves refuse malformed restoration target before actual children: %s',
+  (fault) => {
+    const root = fixture();
+    const path = join(root, PROJECT, 'project.json');
+    const project = JSON.parse(readFileSync(path, 'utf8')) as {
+      targets: Record<string, { inputs?: string[]; options?: Record<string, unknown> }>;
+    };
+    if (fault === 'absent') delete project.targets['test:ci:source-restoration'];
+    if (fault === 'inputs') project.targets['test:ci:source-restoration'].inputs = ['default'];
+    if (fault === 'environment') project.targets['test:ci:source-restoration'].options = {};
+    writeFileSync(path, JSON.stringify(project));
+    const starts = recordChildStarts(root);
+    for (const leaf of ['model', 'model-continuation', 'source', 'source-restoration', 'rest']) {
+      const refused = invoke(root, leaf, starts.preload);
+      if (existsSync(starts.marker))
+        console.error(
+          `RESTORATION_TARGET_CHILD: ${JSON.stringify({ leaf, executed: executed(refused.stdout.toString()) })}`,
+        );
+      expect(refused.exitCode).not.toBe(0);
+      expect(executed(refused.stdout.toString())).toEqual([]);
+      expect(existsSync(starts.marker), 'no test child before required-target validation').toBe(
+        false,
+      );
+    }
+  },
+);

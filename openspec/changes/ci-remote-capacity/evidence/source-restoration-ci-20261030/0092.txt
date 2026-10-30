@@ -1,0 +1,18 @@
+# Seven CI dependency pairs: independent actual audit
+
+PASS for the seven bounded pairs authorized by sourced9e2f004. Actual manifest8b7da8fc7e398c5188733196c132f887a2cc3047f1a54dcecd6c67ce558534a6 in /tmp/puni-source-restoration-ci-20261030/proof-v1 binds133 independently verified regular/mode/size/SHA bodies. Fresh readback verifies all27 current/saved/protocol controls exact. Original driver owner80561 joined0/683a7f; that completion is not substituted for raw audit.
+
+All fourteen original Bun receipts and fourteen Python wrapper receipts have expected normal1 fault/0 restored, null signal, original stdout/stderr EOF and matching raw hashes. Each pair uses identical selected argv. All seven unique recipe mutations independently reconstruct recorded mutant hashes from accepted baseline; exact inverses and current device/inode/mode agree. No source/protocol drift or unexpected phase was observed.
+
+Actual selected witnesses read independently:
+- membership: PID3317822 failed ci-remote-tests152 with actual MODEL versus expected RESTORATION; same consumer3318047 passed27 assertions.
+- required-parent:3318255 emitted actual child-start marker with empty execution list, then failed657 Expectedfalse/Receivedtrue;3318395 passed6. Dispatch ordering only: Bun still refused the missing test file.
+- required-target:3318491 emitted independently observed MODEL execution/child marker, then failed684 Expectednot0;3318584 passed15. New target loop dependency, not every target field separately.
+- rest-exclusion:3318725 failed167 with RESTORATION actually present among canonical remainder/collision names;3318935 passed27.
+- runtime-mapping:3319162 failed ci-plan368 with source instead of source-restoration in actual CLI ledger;3320031 passed50. Fault reached first affected-mode branch; restored traversed affected and full. No separately observed full-mode fault is claimed.
+- matrix:3321032 failed workflow184 with missing fourth member;3321061 passed1. Parsed workflow metadata only.
+- Node condition:3321076 failed workflow202 with original-source-only condition rather than both source members;3321085 passed3. Parsed metadata only.
+
+Every raw phase has exactly its expected selected outcome and returned scratch cleanup. Fault frames and semantic diffs are actual, not inferred from exit codes. Both independent child-start markers survive their omitted dependency. No old summary/decoder proof, long source-restoration parent, network/native activity, hosted matrix execution or capacity qualification is claimed.
+
+Proceed under Root’s existing scope with adjacent factual Proof comments, truthful documentation and final scoped static/source freeze, then request final source/checkpoint review. Preserve exact tested bodies and comment inverses; no further runtime or broad replay is required by this audit. Reviewer performed only readback/hash/receipt/source reconstruction, not test execution or repository mutation.

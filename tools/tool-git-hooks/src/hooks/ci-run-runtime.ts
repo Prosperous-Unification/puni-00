@@ -44,7 +44,7 @@ async function runNx(repository: string, args: string[]): Promise<void> {
 async function runRemoteLeaf(
   repository: string,
   head: string,
-  leaf: 'model' | 'model-continuation' | 'source' | 'rest',
+  leaf: 'model' | 'model-continuation' | 'source' | 'source-restoration' | 'rest',
   mode: string,
 ): Promise<void> {
   if (leaf === 'rest')
@@ -95,6 +95,7 @@ export async function runRuntime(
       'remote-model',
       'remote-model-continuation',
       'remote-source',
+      'remote-source-restoration',
       'frontend',
       'twilight',
     ].includes(partition)
@@ -111,9 +112,13 @@ export async function runRuntime(
         ? 'model-continuation'
         : partition === 'remote-source'
           ? 'source'
-          : partition === 'remote-rest'
-            ? 'rest'
-            : undefined;
+          : // Proof: routing restoration to source broke the actual affected-mode
+            // CLI ledger; exact restoration passed affected/full. No separate full-mode fault is claimed.
+            partition === 'remote-source-restoration'
+            ? 'source-restoration'
+            : partition === 'remote-rest'
+              ? 'rest'
+              : undefined;
   const owner = remoteLeaf === undefined ? partition : 'remote';
   if (mode === 'full') {
     if (partition === 'twilight') throw new Error('Twilight retains its existing full runner');
@@ -273,7 +278,7 @@ if (import.meta.main) {
     repository === undefined
   ) {
     throw new Error(
-      'Usage: ci-run-runtime.ts <workspace|backend|remote|remote-rest|remote-model|remote-model-continuation|remote-source|frontend|twilight> <base-sha> <head-sha> <repository> [affected|full]',
+      'Usage: ci-run-runtime.ts <workspace|backend|remote|remote-rest|remote-model|remote-model-continuation|remote-source|remote-source-restoration|frontend|twilight> <base-sha> <head-sha> <repository> [affected|full]',
     );
   }
   try {

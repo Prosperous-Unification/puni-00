@@ -311,3 +311,37 @@ The original source job receipt records fresh60tests/7files/2157063ms/exit0 at t
 PR786's reversible main-only rehearsal correction independently passed its exact-head CI40953004986 and CodeQL before squash merge80174a65ce978bacb44406b0210821148184f24f. PrivateR21 reconciliation observes an EMPTYcontent merge intoad41: its complete predocument merge tree remains exactlyfacc08ad16b33278ddcf47b0ce48c35766ec85e4. Source identity is recorded in /tmp/puni-r21-reconciliation-20261029/merge-source-identity.json. Only factual receipt docs and task14 checkbox follow. No runtime or qualification replay is required for that documentary delta; Root's normal private merge hooks remain separate.
 
 The newer source-start/devBE-opener test parent is uncommitted work in another isolated tree and is NOT certified by this run. Its23-case mixed-epoch duration projection plus the published source leaf exceeds the unchanged75-minute phase; separate exact whole-file runner preparation remains unimplemented/unaccepted here. No new deadline, missing-parent requirement or discovery exclusion is introduced by these receipts. New current-source CI, full host/native/controller/exposure acceptance, architectural PR630 main adoption and deployment remain open.
+
+## Source-restoration whole-parent leaf — 2026-10-30
+
+After accepted source checkpoint 6d2b86ee and private union 70ca6403, only the exact tracked `dependency-source-restoration.test.ts` parent moves to fixed `source-restoration` / `remote-source-restoration`. Existing source-seven, canonical discovery/options/summary, all old targets, deadlines and static/Caddy ownership are retained. The fourth isolated matrix member gets the same explicitly selected Node 24.20.0; strict aggregate behavior remains required.
+
+Genuine tiny-Bun union RED 3292105 failed at the new unknown leaf after real canonical execution; parsed-workflow RED 3292097 failed both missing fourth-member and Node-condition consumers. Minimum GREEN passed real five-leaf union/disjointness and both parsed workflow cases. Four owning files then passed 122 tests/879 assertions in 43.48s. The six new required-file/target negatives, refined to record actual child launch rather than infer it from absent test output, passed 6/63 separately. Neither epoch executes the long restoration parent.
+
+The exact reviewed seven-pair protocol c198858f/driver fdaea2a8/recipes 048d5e96 retained 27 source/saved/protocol controls and 105 fresh outputs. Original 80561 joined normal 0; each exact mutant exited 1, source bytes/mode/inode were restored, and the SAME consumer exited 0 with original stdout/stderr EOF and null signals. Independent actual review 7f84fe93 verified all 133 frozen bodies, 27 controls, seven mutants/inverses and 14 original/wrapper outcomes. Closed private receipts were not fsynced; no crash-durability claim follows.
+
+| New dependency       | Actual witness scope                                                                                                                         |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| singleton membership | MODEL dispatch broke actual restoration membership in canonical union                                                                        |
+| required parent      | missing-parent omission launched a real child; pre-dispatch marker assertion failed even though Bun later refused                            |
+| required target      | omitted new loop entry executed the actual model sentinel before absent-target refusal                                                       |
+| rest exclusion       | omitted exact ignore duplicated the restoration parent in actual complement                                                                  |
+| runtime mapping      | wrong source target broke the first affected-mode CLI ledger; restored consumer covers affected/full, with no separate full-mode fault claim |
+| matrix               | dropped fourth entry failed parsed metadata consumer; no hosted execution claim                                                              |
+| Node condition       | dropped only second source equality failed parsed metadata consumer; pinned version/action remain unchanged                                  |
+
+[Flat proof/source/actual archive](evidence/source-restoration-ci-20261030/manifest.json) preserves exact tested bytes separately from final factual comments. Current owning type/lint receipts precede only comments; final source syntax/YAML equality, formatting, file inclusion and required OpenSpec checks bind them to the frozen current source. Earlier source/runtime proof archives and all actual long-parent bounds are untouched.
+
+Fresh complete published source, source-restoration, remainder and strict aggregate outcomes remain required by open task 20. Mixed-epoch 2351.860495+published 2157.063=4508.923495 seconds motivated isolation but is not measured combined failure, stable headroom or resource sufficiency. No new timing/native/namespace/long-source/old-generic-guard campaign ran. Final independent source review and Root's normal checkpoint/publication remain separate.
+
+Final bounded checks: owning hook library/spec and remote spec compilers, configured six-file lint, thirteen-path formatting, required OpenSpec310/310 and scoped1/1 all pass. Inclusion evidence binds runtime CLI to the hook library, four tests to the hook spec and the leaf runner to the remote spec; subprocess execution is not mistaken for a TypeScript import. Final six-TypeScript ordered syntax and project/workflow parsed values equal the accepted seven-pair epoch after only factual comments/format. Exact before/after carriers preserve that semantic-epoch binding. All own original sessions joined; no Source runtime file or prior Source archive changed. Final source review and Root checkpoint are still required; hosted task20 remains open.
+
+### Final private source review (2026-10-30)
+
+Independent final source/static review passed for the exact 125-path packet
+`914b6c09c9c67725a5783cbe15a59b9d90900bae0564cb9fb7fd81db0ab08b25`;
+review SHA256 `dcbfd96bc212df8ed84acd76f348ba874cd1c1d4e3608e8aa5888b2cd89d237c`.
+The normal private checkpoint follows this factual documentation update. Task 19
+is complete; task 20 remains open for fresh published source, source-restoration,
+remainder and strict aggregate results. Exact-SHA host and native acceptance,
+architectural main adoption and deployment remain open or held.

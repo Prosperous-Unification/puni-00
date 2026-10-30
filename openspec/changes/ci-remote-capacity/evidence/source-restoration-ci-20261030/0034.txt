@@ -1,0 +1,11 @@
+
+tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts:
+(pass) restoration owner refuses invalid parent before actual child selection: missing [94.75ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=2
+
+ 1 pass
+ 37 filtered out
+ 0 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [134.00ms]

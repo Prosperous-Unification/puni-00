@@ -1,0 +1,61 @@
+{
+  "scope": "Parsed fourth isolatedmatrix membership; not hosted execution",
+  "fault": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts",
+        "--test-name-pattern=isolated\\ remote\\ matrix\\ is\\ exactly\\ four\\ independent\\ whole\\-file\\ runners$"
+      ],
+      "pid": 3321032,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 0.03586613305378705,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "168791ccc5af0f5b5d379d7ec198aade6960348a2a11da6c64a90e8dc1375df2"
+    },
+    "wrapper": {
+      "pid": 3321031,
+      "exit": 1,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "9c63e6f35db2c5a1cf16673869f74067394719e3a3f079f7c45c4fdbf60f72cc",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "restored": {
+    "original": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts",
+        "--test-name-pattern=isolated\\ remote\\ matrix\\ is\\ exactly\\ four\\ independent\\ whole\\-file\\ runners$"
+      ],
+      "pid": 3321061,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "elapsedSeconds": 0.03996796102728695,
+      "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "stderrSHA256": "12c9b8d79cb8fd47220f4605c954bf824112c807456c894c5f319cc99e8fb96a"
+    },
+    "wrapper": {
+      "pid": 3321058,
+      "exit": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "stdoutSHA256": "8fc8f7c65225cc3b93c1347475086dd9943805637defa7f063b4fb4d3fc3532b",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}

@@ -179,19 +179,28 @@ test('remote retains finite rest and model runners under one selection bit', () 
 });
 
 // Proof: dropping remote-source failed this parsed matrix consumer; exact restoration passed (2026-10-29).
-test('isolated remote matrix is exactly three independent whole-file runners', () => {
+test('isolated remote matrix is exactly four independent whole-file runners', () => {
   const runtime = job('gate_remote_model');
   expect(runtime.strategy).toEqual({
     'fail-fast': false,
-    matrix: { partition: ['remote-model', 'remote-model-continuation', 'remote-source'] },
+    matrix: {
+      partition: [
+        'remote-model',
+        'remote-model-continuation',
+        'remote-source',
+        'remote-source-restoration',
+      ],
+    },
   });
 });
 
 // Proof: changing only the configured Node version to 24.20.1 failed this metadata consumer (2026-10-29).
-test('only the source matrix member provisions the exact CI Node runtime', () => {
+test('both source matrix members provision the exact CI Node runtime', () => {
   const runtime = job('gate_remote_model');
   const setup = step(runtime, 'Set up source test Node');
   expect(setup.uses).toBe('actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38');
-  expect(setup.if).toBe("${{ matrix.partition == 'remote-source' }}");
+  expect(setup.if).toBe(
+    "${{ matrix.partition == 'remote-source' || matrix.partition == 'remote-source-restoration' }}",
+  );
   expect(setup.with).toEqual({ 'node-version': '24.20.0', 'package-manager-cache': false });
 });

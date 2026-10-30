@@ -1,0 +1,15 @@
+{"argv": ["bun", "test", "--preload", "./tools/test/scratch/preload.ts", "tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts", "--test-name-pattern=isolated\\ remote\\ matrix\\ is\\ exactly\\ four\\ independent\\ whole\\-file\\ runners$"], "pid": 3321061, "exit": 0, "signal": null, "stdoutEOF": true, "stderrEOF": true, "elapsedSeconds": 0.03996796102728695, "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47", "stderrSHA256": "12c9b8d79cb8fd47220f4605c954bf824112c807456c894c5f319cc99e8fb96a"}
+bun test v1.4.4 (38afee6c8)
+
+
+tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts:
+(pass) isolated remote matrix is exactly four independent whole-file runners [0.09ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 1 pass
+ 5 filtered out
+ 0 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [38.00ms]
+

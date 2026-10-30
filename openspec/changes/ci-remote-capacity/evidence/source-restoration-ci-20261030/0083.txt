@@ -1,0 +1,28 @@
+{"argv": ["bun", "test", "--preload", "./tools/test/scratch/preload.ts", "tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts", "--test-name-pattern=both\\ source\\ matrix\\ members\\ provision\\ the\\ exact\\ CI\\ Node\\ runtime$"], "pid": 3321076, "exit": 1, "signal": null, "stdoutEOF": true, "stderrEOF": true, "elapsedSeconds": 0.034160512033849955, "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47", "stderrSHA256": "5763813ecc02d84cf855bd7ef7014dcfe34f76bfb90d73ac13fa16f94a02af7e"}
+bun test v1.4.4 (38afee6c8)
+
+
+tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts:
+197 | // Proof: changing only the configured Node version to 24.20.1 failed this metadata consumer (2026-10-29).
+198 | test('both source matrix members provision the exact CI Node runtime', () => {
+199 |   const runtime = job('gate_remote_model');
+200 |   const setup = step(runtime, 'Set up source test Node');
+201 |   expect(setup.uses).toBe('actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38');
+202 |   expect(setup.if).toBe(
+                         ^
+error: expect(received).toBe(expected)
+
+Expected: "${{ matrix.partition == 'remote-source' || matrix.partition == 'remote-source-restoration' }}"
+Received: "${{ matrix.partition == 'remote-source' }}"
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts:202:20)
+(fail) both source matrix members provision the exact CI Node runtime [0.28ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [32.00ms]
+
