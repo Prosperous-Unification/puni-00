@@ -458,8 +458,9 @@ _Alternative:_ a 1 h cap, which breaks any orchestrator that hands out a token p
   3's machine path requires `token_use: machine` **and** `wbs_machine_grant`, and its consent
   path refuses any `token_use` other than `consent` (an absent one only until the consent
   tokens issued before slice 2 have expired, at most `MCP_ACCESS_TOKEN_TTL`). Slice 3 still
-  admits an absent one; task 3.8 removes that branch once `MCP_ACCESS_TOKEN_TTL` has passed
-  since the slice-2 release reached each deployment (review of PR #764). Since slice 2,
+  admitted an absent one; task 3.8 removed that branch on 2026-10-30, once
+  `MCP_ACCESS_TOKEN_TTL` had passed since the slice-2 release reached dev; prod runs no mcp-01
+  yet, so its first one never issued a token without the claim (review of PR #764). Since slice 2,
   a token naming mcp-01's issuer that fails local verification is never handed to the
   upstream verifier.
 - be-01 refuses, `invalid_token`, a workload assertion whose `iss` is

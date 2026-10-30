@@ -3067,3 +3067,15 @@ Commands after the review (laptop, `env -u CLAUDECODE`, 2026-10-30, merged with 
 
 The suites ran before the `{ cause }` lint fix in `loadResourceConfiguration`; after it, its
 file (`runtime-wbs.test.ts`, 8 pass) and Dash's typecheck and lint were rerun.
+
+## Slice 19 — task 3.8: consent tokens must carry `token_use`
+
+- **Change:** `consentClaimsOf` (`apps/wbs/mcp-01/src/oauth.ts`) refuses any `token_use` but
+  `consent`, including none. `admitCaller`'s JSDoc, design M5 and the prod runbook's step 6 say so.
+- **Timing:** slice 2 (PR #761) reached dev with #751 on 2026-10-27, so one
+  `MCP_ACCESS_TOKEN_TTL` (3,600 s) had long passed. The Compose prod swap deploys only be, gw and
+  fe and routes no `/mcp` (slice 14), so prod's first mcp-01 already issues `token_use: consent`.
+- **Proof:** `refuses a consent session token of any use but consent` (`oauth.test.ts`) now
+  expects a re-signed token without `token_use` to be refused. With the pre-3.8 guard
+  `use !== undefined &&` restored, it received `"admitted"` and failed (1 fail); with the fix,
+  1 pass. Watched 2026-10-30 (`env -u CLAUDECODE bun test src/oauth.test.ts -t "of any use but consent"`).

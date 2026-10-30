@@ -262,12 +262,10 @@ calls `/api` with a key.
    [team claims swap window](#team-claims-swap-window-and-rollback). While an older be-01 can
    still serve, create no pool with a near `expiresAt`. To stop a pool in the window, revoke it
    rather than let it expire.
-6. **Task 3.8 timing.** The consent path's `use === undefined` branch (`consentClaimsOf` in
-   `apps/wbs/mcp-01/src/oauth.ts`) may be removed one `MCP_ACCESS_TOKEN_TTL` (default
-   3,600 s) after the swap that brings slice 2 (PR #761) to the mcp-01 serving prod. If prod's
-   first mcp-01 already carries #761, no consent token without `token_use` was ever issued
-   there, and prod adds no wait. The owner is whoever lands that swap; record the time in the
-   change's `verify.md`.
+6. **Task 3.8 is done.** The consent path refuses a token without `token_use` (no fallback).
+   Dev was past one `MCP_ACCESS_TOKEN_TTL` since slice 2 (PR #761, live 2026-10-27), and the
+   Compose prod swap routes no `/mcp` yet, so prod's first mcp-01 already issues
+   `token_use: consent` and needs no wait.
 
 ### Audience preflight
 
