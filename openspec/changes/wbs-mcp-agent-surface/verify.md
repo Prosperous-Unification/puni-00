@@ -3344,3 +3344,52 @@ acceptance; the exact final combined CI can supply it. Normal private checkpoint
 hooks, full workspace/host gate, native/controller acceptance and deployment
 remain separate. No fault campaign or Source/CI/initializer execution grant is
 provided here; the initializer24 explicit-approval question remains pending.
+
+## Full backend regression under the observed file-creation mask (2026-10-30)
+
+The complete backend target on clean private checkpoint
+`804dc7fed43e8d569b83df31ce7c1b7acc63f434` completed successfully:
+`bunx nx run wbs-be-01:test --skip-nx-cache`. The original process exited0;
+both actual captured PIPEs reached EOF before the receipt finalized at2003.527s.
+Nx completed the test target and its MCP-document prerequisite with cache skipped.
+
+| Observed full-target result | Count     |
+| --------------------------- | --------- |
+| Passed                      | 4967      |
+| Failed                      | 0         |
+| Explicit opt-in skips       | 3         |
+| Tests / files               | 4970 /322 |
+| Assertions                  | 104610    |
+
+Independent parsing found the same complete ordered4970 case identities and322
+file identities as the earlier failed64dc run. All82 formerly failed cases now
+pass. The six correction pins, two manifest pins and322 test-source pins matched
+before, after and current source; these overlapping groups are not330 distinct
+files. The owning worktree remained clean at804dc7f until source custody released.
+The three unchanged skips require the real-Docker host-restore opt-in or a solver
+orphan image; those native scenarios did not execute.
+
+This run inherited file-creation mask `0077` from the capture launch shell,
+instead of the observed ordinary local `0002`. It proves the coherent804dc7f
+backend regression result in that actual context. It does not establish
+identical normal-context behavior, canonical CI, the required exact-SHA host
+gate, native handoff or deployment acceptance. The same invocation settled
+without source edits, signals, environment changes or a restart. No automatic
+full rerun is requested. Future private capture files must use explicit exclusive
+`0600` creation while preserving the caller's inherited mask and environment.
+
+The actual original exit and separate PIPE EOFs were checked against the capture
+implementation and raw logs; they do not establish an arbitrary descendant or
+inner-drain census. Independent actual review SHA256:
+`651e8130fa7db3ab2ba0d0510a058d0a8e99797635e00f20d3e022563b437192`.
+Original receipt SHA256:
+`5b5bba76bbe18f6d7bd88b0d9c349a501e2c692f34811ed3e7db51d585cfc5c9`.
+Complete report SHA256:
+`7ff77becf6b5d5d7f2b47e64a3e5022b760e869cec641c5ed9dfb4bef853ab74`.
+Independent ordered-membership ledger SHA256:
+`25f69cd7208a4b793dfab00fd5c49503036b9c5923f0dca8cd27d525bfeb5a8c`.
+
+The old full run remains FAILED4885/82/3; the earlier188+68 focused cases retain
+their separate evidence epochs. No fault campaign ran or gained authorization
+here. The initializer24 explicit-approval question remains pending, and the
+architectural PR630/main/deployment holds remain unchanged.
