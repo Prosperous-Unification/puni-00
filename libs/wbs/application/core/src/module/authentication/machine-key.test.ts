@@ -14,6 +14,8 @@ import {
 
 const NOW = 1_800_000_000_000;
 const CREDENTIAL = '0f8fad5b-d9cb-469f-a165-70867728950e';
+/** be-01's `WBS_MCP_AUTHORIZATION_SERVER` in these cases. */
+const ROOT = 'https://wbs.example/mcp/oauth';
 
 const passwords: PasswordHasher = {
   hash: (password) => Promise.resolve(password),
@@ -29,15 +31,21 @@ const tokens: TokenCodec = {
  * `accountId`, its OIDC twin for subject `agent` of trusted issuer `ti-1`, and
  * whose touch answers `touched`.
  */
-async function credentialsFor(accountId: string, touched: LastUseOutcome = 'recorded') {
+async function credentialsFor(
+  accountId: string,
+  touched: LastUseOutcome = 'recorded',
+  audience = `${ROOT}/org/org-a`,
+) {
   const { key, secret } = newMachineKey(CREDENTIAL);
   const digest = await digestMachineSecret(secret);
   const reads: string[] = [];
   const credentials: MachineCredentials = {
-    trustedRegistrationsOf: () =>
-      Promise.resolve([
-        { id: 'ti-1', organizationId: 'org-a', audience: 'api://wbs', jwksUri: 'https://idp/jwks' },
-      ]),
+    trustedRegistrationsOf: (issuer) => {
+      reads.push(`registrations of ${issuer}`);
+      return Promise.resolve([
+        { id: 'ti-1', organizationId: 'org-a', audience, jwksUri: 'https://idp/jwks' },
+      ]);
+    },
     findOidcCredential: (trustedIssuerId, subject) =>
       Promise.resolve(
         trustedIssuerId === 'ti-1' && subject === 'agent'
@@ -91,14 +99,25 @@ function usersWithDany() {
   return inMemoryUsers(table);
 }
 
-/** A trusted issuer `https://idp` whose every token verifies as subject `agent`. */
-const trustedIssuers: TrustedIssuerVerification = {
-  configuredIssuer: () => Promise.resolve(null),
-  tokens: {
-    peek: () => ({ issuer: 'https://idp', subject: 'agent', audiences: ['api://wbs'] }),
-    verify: () => Promise.resolve({ kind: 'verified', subject: 'agent', expiresAt: 2_000_000_000 }),
-  },
-};
+/**
+ * A trusted issuer `https://idp` whose every token verifies as subject `agent`
+ * for the audience `audience`; `verified` lists each verification's audience.
+ */
+function trustedIssuersFor(audience = `${ROOT}/org/org-a`) {
+  const verified: string[] = [];
+  const trusted: TrustedIssuerVerification = {
+    configuredIssuer: () => Promise.resolve(null),
+    tokens: {
+      peek: () => ({ issuer: 'https://idp', subject: 'agent', audiences: [audience] }),
+      verify: (_token, expected) => {
+        verified.push(expected.audience);
+        return Promise.resolve({ kind: 'verified', subject: 'agent', expiresAt: 2_000_000_000 });
+      },
+    },
+  };
+  return { trusted, verified };
+}
+const { trusted: trustedIssuers } = trustedIssuersFor();
 
 function service(
   machineKeys?: MachineKeyVerification,
@@ -139,11 +158,54 @@ describe('parseMachineKey', () => {
   });
 });
 
-describe('AuthService with an API key', () => {
+describe('AuthService on /api: machine bearers (wbs-mcp-agent-surface M9)', () => {
+  it('refuses a live, a malformed or an unwired key machine_bearer_not_accepted, reading nothing', async () => {
+    const { key, reads, credentials } = await credentialsFor('dany-id');
+    const auth = service({ credentials, now: () => NOW }, usersWithDany());
+    expect(await auth.authenticateOrRefuse(key)).toBe('machine_bearer_not_accepted');
+    expect(await auth.authenticateOrRefuse('wbs_mk_not-a-key')).toBe('machine_bearer_not_accepted');
+    expect(await service().authenticateOrRefuse(key)).toBe('machine_bearer_not_accepted');
+    expect(reads).toEqual([]);
+  });
+
+  it('refuses any other issuer’s JWT machine_bearer_not_accepted, reading and verifying nothing', async () => {
+    for (const registered of [true, false]) {
+      const { reads, credentials } = await credentialsFor('dany-id');
+      const { trusted, verified } = trustedIssuersFor();
+      const auth = service(
+        {
+          credentials: registered
+            ? credentials
+            : { ...credentials, trustedRegistrationsOf: () => Promise.resolve([]) },
+          now: () => NOW,
+        },
+        usersWithDany(),
+        trusted,
+      );
+      expect(await auth.authenticateOrRefuse('header.payload.sig')).toBe(
+        'machine_bearer_not_accepted',
+      );
+      // No registration read: `/api` must not answer which issuers are trusted.
+      expect(reads).toEqual([]);
+      expect(verified).toEqual([]);
+    }
+  });
+
+  it('answers machine_bearer_not_accepted as no principal where a route reads none', async () => {
+    const { key, credentials } = await credentialsFor('dany-id');
+    expect(
+      await service({ credentials, now: () => NOW }, usersWithDany()).authenticate(key),
+    ).toBeNull();
+  });
+});
+
+describe('AuthService.admitMachineProof with an API key', () => {
   it('refuses a malformed key unknown_identity without reading a credential', async () => {
     const { reads, credentials } = await credentialsFor('nobody');
     const auth = service({ credentials, now: () => NOW });
-    expect(await auth.authenticateOrRefuse('wbs_mk_not-a-key')).toBe('unknown_identity');
+    expect(await auth.admitMachineProof({ kind: 'api_key', key: 'wbs_mk_not-a-key' }, ROOT)).toBe(
+      'unknown_identity',
+    );
     expect(reads).toEqual([]);
   });
 
@@ -151,7 +213,9 @@ describe('AuthService with an API key', () => {
   // throwing, this resolved; watched 2026-10-22.
   it('throws on a well-formed key when machine credentials are not wired', async () => {
     const { key } = await credentialsFor('nobody');
-    expect(service().authenticateOrRefuse(key)).rejects.toThrow(/not wired/);
+    expect(service().admitMachineProof({ kind: 'api_key', key }, ROOT)).rejects.toThrow(
+      /not wired/,
+    );
   });
 
   // The bound account's foreign key makes this corrupt state, not a refusal.
@@ -159,9 +223,9 @@ describe('AuthService with an API key', () => {
   // resolved; watched 2026-10-22.
   it('throws when the admitted credential’s account does not exist', async () => {
     const { key, credentials } = await credentialsFor('missing-account');
-    expect(service({ credentials, now: () => NOW }).authenticateOrRefuse(key)).rejects.toThrow(
-      /missing account/,
-    );
+    expect(
+      service({ credentials, now: () => NOW }).admitMachineProof({ kind: 'api_key', key }, ROOT),
+    ).rejects.toThrow(/missing account/);
   });
 
   it('admits a live key whose use is recorded or fresh', async () => {
@@ -170,26 +234,31 @@ describe('AuthService with an API key', () => {
       const admitted = await service(
         { credentials, now: () => NOW },
         usersWithDany(),
-      ).authenticateOrRefuse(key);
-      expect(admitted).toMatchObject({ id: 'dany-id', username: 'dany' });
+      ).admitMachineProof({ kind: 'api_key', key }, ROOT);
+      expect(admitted).toMatchObject({ source: 'api_key', actor: { accountId: 'dany-id' } });
     }
   });
 
   // A removal (A24's person cascade) may commit between admission and the
-  // touch: the 401 the next request gets, never a 500 or an admission.
+  // touch: the refusal the next request gets, never a 500 or an admission.
   it('refuses unknown_identity when its credential is removed before the use is recorded', async () => {
     const { key, credentials } = await credentialsFor('dany-id', 'absent');
     expect(
-      await service({ credentials, now: () => NOW }, usersWithDany()).authenticateOrRefuse(key),
+      await service({ credentials, now: () => NOW }, usersWithDany()).admitMachineProof(
+        { kind: 'api_key', key },
+        ROOT,
+      ),
     ).toBe('unknown_identity');
   });
 });
 
-describe('AuthService with a trusted-issuer token', () => {
-  it('admits a verified token whose use is recorded', async () => {
+describe('AuthService.admitMachineProof with a trusted-issuer assertion', () => {
+  it('admits a verified assertion whose use is recorded', async () => {
     const { credentials } = await credentialsFor('dany-id');
     const auth = service({ credentials, now: () => NOW }, usersWithDany(), trustedIssuers);
-    expect(await auth.authenticateOrRefuse('header.payload.sig')).toMatchObject({ id: 'dany-id' });
+    expect(
+      await auth.admitMachineProof({ kind: 'oidc', assertion: 'header.payload.sig' }, ROOT),
+    ).toMatchObject({ source: 'oidc', actor: { accountId: 'dany-id' } });
   });
 
   // Proof: with the OIDC path's `'absent'` branch removed (answered as a
@@ -197,6 +266,31 @@ describe('AuthService with a trusted-issuer token', () => {
   it('refuses unknown_identity when its credential is removed before the use is recorded', async () => {
     const { credentials } = await credentialsFor('dany-id', 'absent');
     const auth = service({ credentials, now: () => NOW }, usersWithDany(), trustedIssuers);
-    expect(await auth.authenticateOrRefuse('header.payload.sig')).toBe('unknown_identity');
+    expect(
+      await auth.admitMachineProof({ kind: 'oidc', assertion: 'header.payload.sig' }, ROOT),
+    ).toBe('unknown_identity');
+  });
+
+  // Task 1.5 at use: a row stored before the M2 rule stops verifying.
+  it('refuses a stored audience outside the authorization server invalid_token, verifying nothing', async () => {
+    for (const audience of ['wbs:org:org-a', `${ROOT}.evil.example`, 'https://idp/api']) {
+      const { credentials } = await credentialsFor('dany-id', 'recorded', audience);
+      const { trusted, verified } = trustedIssuersFor(audience);
+      const auth = service({ credentials, now: () => NOW }, usersWithDany(), trusted);
+      expect(
+        await auth.admitMachineProof({ kind: 'oidc', assertion: 'header.payload.sig' }, ROOT),
+      ).toBe('invalid_token');
+      expect(verified).toEqual([]);
+    }
+  });
+
+  it('admits an audience equal to the authorization server', async () => {
+    const { credentials } = await credentialsFor('dany-id', 'recorded', ROOT);
+    const { trusted, verified } = trustedIssuersFor(ROOT);
+    const auth = service({ credentials, now: () => NOW }, usersWithDany(), trusted);
+    expect(
+      await auth.admitMachineProof({ kind: 'oidc', assertion: 'header.payload.sig' }, ROOT),
+    ).toMatchObject({ source: 'oidc' });
+    expect(verified).toEqual([ROOT]);
   });
 });

@@ -13,9 +13,14 @@ import { runActivationChecksCommand, spawnCheck } from './check-runs/run-activat
 import type { Monotonic, WallClock } from './clock';
 import { dockerAdapter } from './compute/docker';
 import { kubernetesStubAdapter } from './compute/kubernetes';
-import { reportCapacityCommand, sleepUnlessInterrupted } from './compute/report-capacity';
+import {
+  reportCapacityCommand,
+  REQUEST_TIMEOUT_MS,
+  sleepUnlessInterrupted,
+} from './compute/report-capacity';
 import { sshHostAdapter } from './compute/ssh-host';
 import { accountOutcomes } from './ledger/account-outcomes';
+import { McpWbsTools } from './mcp/wbs-tools';
 import { recordBoundProgress, recordProgress } from './progress/record-progress';
 import { runResources } from './resources/command';
 
@@ -31,6 +36,9 @@ const enrollmentFlags = [
 ] as const;
 
 type PlanEnrollment = (argv: readonly string[]) => Promise<void>;
+
+/** A resource runtime tool call's deadline, as its HTTP requests had. */
+const RESOURCE_CALL_TIMEOUT_MS = 15_000;
 
 /** Everything `runDash` reaches outside its arguments, composed once by `entrypoint.ts`. */
 export interface DashDependencies {
@@ -73,8 +81,19 @@ export async function runDash(argv: readonly string[], deps: DashDependencies): 
   }
   const [command, ...argumentsAfterCommand] = argv;
   if (command === 'resources') {
-    process.exitCode = await runResources(argumentsAfterCommand, deps.clock, (text) =>
-      deps.stdout.write(text),
+    process.exitCode = await runResources(
+      argumentsAfterCommand,
+      deps.clock,
+      (text) => deps.stdout.write(text),
+      (endpoint, key) =>
+        new McpWbsTools({
+          endpoint,
+          key,
+          send: (input, init) => fetch(input, init),
+          monotonic: deps.monotonic,
+          timeoutMs: RESOURCE_CALL_TIMEOUT_MS,
+          clientName: 'twilight-dash-resources',
+        }),
     );
     return;
   }
@@ -150,7 +169,15 @@ export async function runDash(argv: readonly string[], deps: DashDependencies): 
       },
       {
         clock: deps.clock,
-        send: (request) => fetch(request),
+        connect: (endpoint, key) =>
+          new McpWbsTools({
+            endpoint,
+            key,
+            send: (input, init) => fetch(input, init),
+            monotonic: deps.monotonic,
+            timeoutMs: REQUEST_TIMEOUT_MS,
+            clientName: 'twilight-dash-report-capacity',
+          }),
         sleep: sleepUnlessInterrupted,
         write: (text) => deps.stdout.write(text),
       },

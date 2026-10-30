@@ -32,9 +32,8 @@ beforeAll(async () => {
  * A machine grant's principal and its opted-in run (`wbs-mcp-agent-surface`
  * tasks 1.4 and 1.6, design M6, M15) over be-01's production composition and
  * real SQLite, with the services clock held at `now`. A grant is fetched as
- * mcp-01 fetches it and presented with the dedicated secret; a raw key is
- * presented on `/api` only in the parity case, whose raw-key half is removed
- * by 7.1 (M9).
+ * mcp-01 fetches it and presented with the dedicated secret. The key itself
+ * is never presented on `/api`, which refuses it (M9, task 7.1).
  */
 beforeEach(async () => {
   now = T;
@@ -107,14 +106,6 @@ function asGrant(grant: string) {
   return (path: string, body: unknown) => withGrant(grant, 'POST', path, body);
 }
 
-/**
- * The key itself as a Bearer on `/api`, for the parity case only. Removed by
- * 7.1 (M9), which refuses it; the grant's half of that case stays.
- */
-function asKey(key: string) {
-  return (path: string, body: unknown) => h.callWith(key, 'POST', path, body);
-}
-
 /** Root leaves, or children of `parentId`, by id in creation order. */
 async function workItems(names: string[], parentId: string | null = null): Promise<string[]> {
   const created = await h.call('dany', 'POST', `/api/projects/${projectId}/commands`, {
@@ -165,13 +156,15 @@ describe('a machine grant yields the API-key principal (task 1.4)', () => {
   // (`machinePrincipalOf`), this case failed at the grant's claim: with no
   // pinned person it took no lease and its default claimant was refused
   // person_required (#758 reads the same person); watched 2026-10-27.
-  it('parity with a raw key: one person, leased, renewed, and the same cap', async () => {
-    const [byGrant, byKey, third] = await workItems(['By grant', 'By key', 'Third']);
+  // The raw-key half of this case went with 7.1 (M9): a second grant of the
+  // same key, with no run, is the other process of the same person.
+  it('two grants of one key without a run: one person, leased, renewed, and the same cap', async () => {
+    const [byGrant, byOther, third] = await workItems(['By grant', 'By other', 'Third']);
     const grant = await grantFor(claireKey);
+    const other = await grantFor(claireKey);
     capClaims(2);
     expectApplied(await commands(asGrant(grant), [{ kind: 'claimWorkItem', workItemId: byGrant }]));
-    // Removed by 7.1 (M9): each raw-key call below (`asKey`, the key's renew).
-    expectApplied(await commands(asKey(claireKey), [{ kind: 'claimWorkItem', workItemId: byKey }]));
+    expectApplied(await commands(asGrant(other), [{ kind: 'claimWorkItem', workItemId: byOther }]));
     const held = claimRows();
     expect(new Set(held.map(({ personId }) => personId))).toEqual(new Set(['claire']));
     expect(new Set(held.map(({ runId }) => runId))).toEqual(new Set([null]));
@@ -184,15 +177,15 @@ describe('a machine grant yields the API-key principal (task 1.4)', () => {
       body: { leases: held.length, leaseExpiresAt: now + CLAIM_LEASE_MS },
     });
     now = T + 4 * MINUTE;
-    expect(await h.callWith(claireKey, 'POST', '/api/claims/renew')).toMatchObject({
+    expect(await withGrant(other, 'POST', '/api/claims/renew')).toMatchObject({
       status: 200,
       body: { leases: held.length, leaseExpiresAt: now + CLAIM_LEASE_MS },
     });
     const third_ = [{ kind: 'claimWorkItem', workItemId: third }];
     const refusedGrant = await commands(asGrant(grant), third_);
-    const refusedKey = await commands(asKey(claireKey), third_);
+    const refusedOther = await commands(asGrant(other), third_);
     expect(refusedGrant).toMatchObject({ body: { error: 'claim_limit', cap: 2, current: 2 } });
-    expect(refusedKey).toEqual(refusedGrant);
+    expect(refusedOther).toEqual(refusedGrant);
   });
 });
 

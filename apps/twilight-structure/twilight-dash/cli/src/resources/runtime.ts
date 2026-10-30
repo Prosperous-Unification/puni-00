@@ -31,25 +31,81 @@ import {
 import { Database } from 'bun:sqlite';
 
 import type { WallClock } from '../clock';
-import { WbsCredential } from '../compute/configuration';
+import { ApiKey, type McpEndpoint, mcpEndpointOf } from '../mcp/machine-token';
+import { type ToolAnswer, type WbsTools, WbsUnreachable } from '../mcp/wbs-tools';
 
 const Identifier = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 const Configuration = type({
-  schemaVersion: '1',
+  schemaVersion: '2',
   root: 'string',
   authorityId: Identifier,
   epoch: Identifier,
   providerId: Identifier,
-  wbsOrigin: 'string',
+  mcpResource: 'string',
   credential: 'string > 0',
   diskUnitBytes: 'number.integer > 0',
   diskBudgetUnits: 'number.integer > 0',
   workspaceSlots: 'number.integer > 0',
   headroomBytes: 'number.integer >= 0',
 }).onUndeclaredKey('reject');
-export type ResourceConfiguration = Omit<typeof Configuration.infer, 'credential'> & {
-  credential: WbsCredential;
+export type ResourceConfiguration = Omit<
+  typeof Configuration.infer,
+  'credential' | 'mcpResource'
+> & {
+  /** WBS's MCP endpoint (`wbs-mcp-agent-surface` M9, M12): the runtime calls its tools. */
+  endpoint: McpEndpoint;
+  credential: ApiKey;
 };
+
+/** The three runtime routes as mcp-01's tools (`resource-runtime-shapes.ts`). */
+const ADMISSION_TOOL = 'putApiResourceAuthoritiesByAuthorityIdAdmissions';
+const EVENT_TOOL = 'putApiResourceAuthoritiesByAuthorityIdEvents';
+const CLEANUP_REQUESTS_TOOL = 'getApiResourceAuthoritiesByAuthorityIdCleanupRequests';
+/** mcp-01's reasons for an uncompleted call that a retry cannot change: the credential's. */
+const REFUSING_REASONS = new Set(['machine_credential_refused', 'insufficient_scope']);
+
+/**
+ * WBS did not answer a runtime call, refused it `429`, or mcp-01 left it uncompleted for a
+ * reason a retry may change: the durable outbox keeps the work, and `watch` retries.
+ */
+export class ResourceWbsUnavailable extends Error {
+  public constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'ResourceWbsUnavailable';
+  }
+}
+
+/**
+ * The body of `tool`'s 2xx answer. `what` names the call in every refusal.
+ * @throws ResourceWbsUnavailable when WBS did not answer, answered `429`, or mcp-01 left the call
+ * uncompleted for a transient reason; a plain error for any other refusal, which a retry cannot
+ * change, and for an answer that cannot be attributed.
+ */
+async function answeredBody(
+  tools: WbsTools,
+  tool: string,
+  input: Readonly<Record<string, unknown>>,
+  what: string,
+): Promise<unknown> {
+  let answer: ToolAnswer;
+  try {
+    answer = await tools.call(tool, input);
+  } catch (cause) {
+    if (cause instanceof WbsUnreachable)
+      throw new ResourceWbsUnavailable(`${what}: WBS unreachable`, { cause });
+    throw cause;
+  }
+  if (answer.kind === 'answered') return answer.body;
+  if (answer.kind === 'refused') {
+    const message = `${what} HTTP ${String(answer.status)}${answer.error === null ? '' : ` ${answer.error}`}`;
+    if (answer.status === 429) throw new ResourceWbsUnavailable(message);
+    throw new Error(message);
+  }
+  // Proof: retrying every uncompleted call made `stops on a refused credential`
+  // (runtime-wbs.test.ts) answer ResourceWbsUnavailable; watched 2026-10-29.
+  if (REFUSING_REASONS.has(answer.reason)) throw new Error(`${what} refused: ${answer.reason}`);
+  throw new ResourceWbsUnavailable(`${what} not completed: ${answer.reason}`);
+}
 const Attribution = type({
   projectId: Identifier,
   resourceId: Identifier,
@@ -161,36 +217,66 @@ export function loadResourceConfiguration(path: string): ResourceConfiguration {
   } finally {
     closeSync(descriptor);
   }
-  let parsed: typeof Configuration.infer;
+  let input: unknown;
   try {
-    parsed = parseSecretsOrThrow(Configuration, JSON.parse(source));
+    input = JSON.parse(source);
   } catch {
-    throw new Error('resource configuration malformed');
+    // No cause: a JSON syntax error quotes the bytes around it, which may be the credential.
+    throw new Error('resource configuration malformed: not JSON');
   }
-  let origin: URL;
-  try {
-    origin = new URL(parsed.wbsOrigin);
-  } catch {
-    throw new Error('resource WBS origin malformed');
-  }
+  // Schema 1 named a `wbsOrigin` for `/api`, which refuses machine bearers since
+  // `wbs-mcp-agent-surface` M9; its owner needs to know what to write instead.
+  // Proof: without it, `refuses schema 1, saying what to write instead` (runtime-wbs.test.ts)
+  // saw only the field list (2026-10-30).
   if (
-    (origin.protocol !== 'https:' &&
-      !(
-        origin.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(origin.hostname)
-      )) ||
-    origin.username ||
-    origin.password ||
-    origin.pathname !== '/' ||
-    origin.search ||
-    origin.hash
+    typeof input === 'object' &&
+    input !== null &&
+    'schemaVersion' in input &&
+    input.schemaVersion === 1
   )
     throw new Error(
-      'resource WBS origin must be HTTPS or loopback HTTP without credentials or path',
+      "resource configuration malformed: schemaVersion 1 is retired; write schemaVersion 2 with mcpResource (WBS's MCP endpoint) in place of wbsOrigin",
+    );
+  let parsed: typeof Configuration.infer;
+  try {
+    parsed = parseSecretsOrThrow(Configuration, input);
+  } catch (cause) {
+    // `parseSecretsOrThrow` names the failing field paths, never a value, so its error is safe
+    // to keep as the cause.
+    // Proof: a bare `malformed` made `names the failing fields, never the credential` fail
+    // (2026-10-30).
+    const fields = cause instanceof Error ? cause.message : 'the value itself';
+    throw new Error(`resource configuration malformed: ${fields}`, { cause });
+  }
+  let resource: URL;
+  try {
+    resource = new URL(parsed.mcpResource);
+  } catch {
+    throw new Error('resource MCP endpoint malformed');
+  }
+  if (
+    (resource.protocol !== 'https:' &&
+      !(
+        resource.protocol === 'http:' &&
+        ['127.0.0.1', 'localhost', '[::1]'].includes(resource.hostname)
+      )) ||
+    resource.username ||
+    resource.password ||
+    resource.search ||
+    resource.hash
+  )
+    throw new Error(
+      'resource MCP endpoint must be HTTPS or loopback HTTP without credentials, query or fragment',
     );
   if (!Number.isSafeInteger(parsed.diskUnitBytes * parsed.diskBudgetUnits))
     throw new Error('resource budget exceeds safe integer range');
   checkRoot(parsed.root);
-  return { ...parsed, wbsOrigin: origin.origin, credential: new WbsCredential(parsed.credential) };
+  const { mcpResource, credential, ...settings } = parsed;
+  return {
+    ...settings,
+    endpoint: mcpEndpointOf(mcpResource),
+    credential: ApiKey.of(credential, 'resource configuration credential'),
+  };
 }
 
 /** Dedicated canonical directory required; broad host roots and symlink aliases cannot become managed pools. */
@@ -631,31 +717,18 @@ export class ResourceRuntime {
     };
   }
   /** Persist an exact authorized admission before allocating a source sequence or creating a path. */
-  private async admit(
-    id: string,
-    send: (request: Request) => Promise<Response>,
-  ): Promise<ResourceUse> {
+  private async admit(id: string, tools: WbsTools): Promise<ResourceUse> {
     const use = this.inspect(id);
     if (use.revision > 0) return use;
     if (use.admission === undefined) throw new Error('resource admission intent missing');
-    const response = await send(
-      new Request(
-        `${this.configuration.wbsOrigin}/api/resource-authorities/${encodeURIComponent(this.configuration.authorityId)}/admissions`,
-        {
-          method: 'PUT',
-          redirect: 'error',
-          headers: {
-            authorization: this.configuration.credential.authorization(),
-            'content-type': 'application/json',
-          },
-          body: JSON.stringify(use.admission),
-          signal: AbortSignal.timeout(15000),
-        },
+    const receipt = resourceRuntimeAdmissionReceipt.assert(
+      await answeredBody(
+        tools,
+        ADMISSION_TOOL,
+        { authorityId: this.configuration.authorityId, ...use.admission },
+        'resource admission',
       ),
     );
-    if (response.status !== 200)
-      throw new Error(`resource admission HTTP ${String(response.status)}`);
-    const receipt = resourceRuntimeAdmissionReceipt.assert(await response.json());
     // Proof: bypassing receipt identity made the exact-receipt fixture create a path (final-fix-mutations/admission-receipt.log).
     if (
       receipt.eventId !== use.admission.eventId ||
@@ -679,10 +752,7 @@ export class ResourceRuntime {
    * Whole-account process visibility is required at cleanup, not creation: an unrelated protected process
    * may block release without preventing work under the existing account.
    */
-  async create(
-    input: CreationRequest,
-    send: (request: Request) => Promise<Response> = fetch,
-  ): Promise<ResourceUse> {
+  async create(input: CreationRequest, tools: WbsTools): Promise<ResourceUse> {
     const request = Creation.assert(input);
     if ((request.kind === 'git_worktree') !== (request.source !== undefined))
       throw new Error('worktree requires a stable source repository');
@@ -765,7 +835,7 @@ export class ResourceRuntime {
     let use: ResourceUse;
     try {
       // Proof: bypassing admission stranded first publication after real deleteWorkItem (admission-before-effects.log).
-      use = await this.admit(intent.id, send);
+      use = await this.admit(intent.id, tools);
     } catch (cause) {
       this.transaction(() => {
         const pending = this.inspect(intent.id);
@@ -1329,15 +1399,15 @@ export class ResourceRuntime {
     return cursor.value;
   }
   /** Ordered publication retries exact bytes; request acceptance and cursor advancement share one SQLite transaction. */
-  async synchronize(send: (request: Request) => Promise<Response> = fetch): Promise<void> {
-    const prefix = `${this.configuration.wbsOrigin}/api/resource-authorities/${encodeURIComponent(this.configuration.authorityId)}`;
+  async synchronize(tools: WbsTools): Promise<void> {
+    const authorityId = this.configuration.authorityId;
     let admissionFailure: Error | undefined;
     // Proof: recovering a live in-flight admission failed the watcher/creator race fixture (2026-10-25).
     for (const pending of this.list().filter(
       (use) => use.revision === 0 && (use.sealed || !alive(use.creator)),
     )) {
       try {
-        await this.admit(pending.id, send);
+        await this.admit(pending.id, tools);
         this.transaction(() => {
           const admitted = this.inspect(pending.id);
           if (admitted.state === 'creating')
@@ -1356,25 +1426,13 @@ export class ResourceRuntime {
     }
 
     for (const event of this.outbox()) {
-      const response = await send(
-        new Request(`${prefix}/events`, {
-          method: 'PUT',
-          redirect: 'error',
-          headers: {
-            authorization: this.configuration.credential.authorization(),
-            'content-type': 'application/json',
-          },
-          body: JSON.stringify(event),
-          signal: AbortSignal.timeout(15000),
-        }),
-      );
-      if (response.status !== 200)
-        throw new Error(`resource publication HTTP ${String(response.status)}`);
       const acknowledgment = type({
         acceptedSequence: 'number.integer > 0',
         useId: 'string',
         revision: 'number.integer > 0',
-      }).assert(await response.json());
+      }).assert(
+        await answeredBody(tools, EVENT_TOOL, { authorityId, ...event }, 'resource publication'),
+      );
       if (
         acknowledgment.acceptedSequence !== event.sequence ||
         acknowledgment.useId !== event.useId ||
@@ -1387,19 +1445,17 @@ export class ResourceRuntime {
           .run(event.sequence, JSON.stringify(event));
       });
     }
-    const response = await send(
-      new Request(`${prefix}/cleanup-requests?after=${String(this.requestCursor())}&limit=100`, {
-        headers: { authorization: this.configuration.credential.authorization() },
-        redirect: 'error',
-        signal: AbortSignal.timeout(15000),
-      }),
-    );
-    if (response.status !== 200)
-      throw new Error(`resource request read HTTP ${String(response.status)}`);
     const page = type({
       requests: resourceCleanupRequest.array(),
       nextCursor: 'string | null',
-    }).assert(await response.json());
+    }).assert(
+      await answeredBody(
+        tools,
+        CLEANUP_REQUESTS_TOOL,
+        { authorityId, after: String(this.requestCursor()), limit: '100' },
+        'resource request read',
+      ),
+    );
     this.transaction(() => {
       let cursor = this.requestCursor();
       for (const request of page.requests) {

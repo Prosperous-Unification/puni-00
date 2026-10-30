@@ -69,7 +69,8 @@ export class MachineCredentialRepository implements MachineCredentials {
    *
    * Proof: each of the three shape checks removed in turn made its case of
    * `fails as a server error on a malformed stored …` in
-   * `machine-credential.controller.db.test.ts` fail; watched 2026-10-22.
+   * `machine-credential.controller.db.test.ts` fail; watched 2026-10-22, and
+   * again through the grant route mcp-01 calls 2026-10-29.
    */
   async findById(id: string): Promise<MachineCredentialRecord | null> {
     await Promise.resolve();

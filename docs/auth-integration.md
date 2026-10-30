@@ -460,16 +460,36 @@ docker exec be-01-<colour> bun run src/link-credential-cli.ts --unlink \
 
 ### Fleets and the MCP endpoint
 
-A headless fleet calls be-01 over HTTP, with an API key (`wbs_mk_…`, minted by
-`POST /api/organization/machine-credentials`) or with a linked OIDC credential
-as above. Neither works on mcp-01's `/mcp`: mcp-01 accepts only a JWT its own
-OAuth server issued (standalone, the deployed mode) or its trusted gateway
-verified, so a `wbs_mk_` key there is `401
-invalid_token` (observed in the 2026-10-25 swarm rehearsal). An MCP agent
-exists only through a human's consent: the human signs in to the connector and
-picks an agent bound to their account, which mints an `mcp_consent` credential
-([MCP organization delegation](#mcp-organization-delegation)). Neither local
-stack completes that consent ([local development](local-dev.md#an-activated-organization-with-mcp-agents)).
+Machines call WBS through mcp-01's `/mcp`, never be-01's `/api`
+(`openspec/changes/wbs-mcp-agent-surface` M1, M9). be-01 refuses a `wbs_mk_` API key, and any
+JWT whose issuer is not the configured sign-in issuer (trusted by an organization or not),
+presented on any `/api` route with
+`401 {"error":"machine_bearer_not_accepted","endpoint":"/mcp"}`, before any read, so the answer
+says nothing of which issuers are trusted. There is no switch. A
+groups-less token of the configured sign-in issuer keeps the linked-credential path above until
+#731 retires operator links, M9's precondition.
+
+A fleet agent takes an mcp-01 access token at `<MCP_PUBLIC_URL>/oauth/token` and calls tools with
+it:
+
+- **An API key** (`wbs_mk_…`, minted on the organization page or by
+  `POST /api/organization/machine-credentials`): `client_credentials`, the key as HTTP Basic.
+- **A workload token** of a trusted issuer (Kubernetes, GitHub Actions): the RFC 7523 JWT-bearer
+  grant. Its audience, the registration's or the credential's, must be mcp-01's issuer
+  `<MCP_PUBLIC_URL>/oauth` or sit under it after a `/`. A row stored before that rule (a
+  `wbs:org:` audience) is refused at use (`invalid_grant`); the deploy's audience preflight
+  lists those rows first ([prod runbook](runbook-prod-deploy.md)).
+
+mcp-01 asks be-01 for a machine grant at `/internal/mcp/machine-grants` under
+`MCP_BE_INTERNAL_SECRET`, the only route that verifies either source. Twilight Dash is the
+helper and client: `twilight-dash mcp token` as Claude Code's `headersHelper`,
+`WorkloadJwtBearerProvider` for MCP SDK clients, and its `report-capacity` and `resources`
+commands as MCP clients themselves
+([Dash README](../apps/twilight-structure/twilight-dash/cli/README.md#mcp-token)). A human, a
+human-consented agent and every claude.ai connector still connect through consent
+([MCP organization delegation](#mcp-organization-delegation)); claude.ai Team and Enterprise
+request headers are shared by every member and must never carry a machine credential. Both local
+stacks serve the machine path ([local development](local-dev.md#an-activated-organization-with-mcp-agents)).
 
 ## Historical Okta mapping
 

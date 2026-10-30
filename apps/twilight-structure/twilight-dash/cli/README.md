@@ -172,7 +172,10 @@ continues producing schema 1 for the existing conversion workflow.
 ## `report-capacity`
 
 Measures the resources a tenant's hosts fulfil and reports each to WBS as a capacity report
-(`openspec/changes/compute-providers` P8 to P11; port in [`src/compute`](src/compute/provider.ts)):
+(`openspec/changes/compute-providers` P8 to P11; port in [`src/compute`](src/compute/provider.ts)),
+through WBS's MCP endpoint with its API key, as every machine calls WBS
+(`openspec/changes/wbs-mcp-agent-surface` M9, M12; be-01's `/api` refuses the key itself
+`401 machine_bearer_not_accepted`):
 
 ```sh
 bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts report-capacity --config /path/to/reporter.json
@@ -184,8 +187,8 @@ credential:
 
 ```json
 {
-  "schemaVersion": 1,
-  "wbsOrigin": "https://wbs.example",
+  "schemaVersion": 2,
+  "mcpResource": "https://wbs.example/mcp",
   "credential": "<wbs_mk_ API key of an agent person>",
   "cadenceSeconds": 300,
   "instances": [
@@ -216,8 +219,10 @@ credential:
 }
 ```
 
-- `wbsOrigin` is an origin only: `https:`, or `http:` on loopback. `cadenceSeconds` defaults to
-  300 (30 to 86,400). A resource is bound once in the whole file.
+- `mcpResource` is WBS's MCP endpoint (`MCP_PUBLIC_URL`): `https:`, or `http:` on loopback,
+  with no user info, query or fragment. Schema version 1 named a `wbsOrigin` for `/api`; it is
+  refused `config_malformed`. `cadenceSeconds` defaults to 300 (30 to 86,400). A resource is
+  bound once in the whole file.
 - `ssh_host` reaches `host` through the `sshTransportFile` that fleet discovery uses
   ([`readSshTransport`](../../../../tools/tool-fleet/src/ssh-transport.ts)): the remote user, an
   owner-only `known_hosts` pinning `host`, and the agent in `SSH_AUTH_SOCK`. `ssh` must be on
@@ -253,16 +258,23 @@ credential:
   `provider_not_implemented` (`kubernetes`, whose adapter is a stub answering
   `not_implemented`), `unsupported_measure`, and the SSH transport's own refusals.
 
-Each tick observes every binding and `PUT`s one report per binding with `cadenceSeconds`; a tick
-runs every cadence and right after a run starts or ends. Each report prints one JSON line on
-stdout (instance, resource, `observedAt`, outcome, evidence or reason, WBS's answer). An
-unreachable host (connection refused, timeout, host-key mismatch, authentication failure, name
-or route fault) is reported as `unreachable`; any other answer the adapter cannot parse ends the
-command with that error. The command exits 1 with one `error:` line on: three consecutive
-`report_superseded` on one binding (`another_reporter`), any `4xx` or redirect (`refused`, with
-the status and WBS's error code), or a `5xx` or transport fault to WBS that repeats on the retry
-one cadence later (`wbs_unavailable`). The credential appears only in the `Authorization`
-header; no output, refusal or error carries it.
+The reporter takes an access token at `<mcpResource>/oauth/token` with its key
+(`client_credentials`, the key as HTTP Basic, as [`mcp token`](#mcp-token) does) and renews it
+on a 401; it never sends the key anywhere else, and never follows a redirect. Each tick observes
+every binding and calls the capacity report tool
+(`putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report`) once per binding with
+`cadenceSeconds`; a tick runs every cadence and right after a run starts or ends. Each report
+prints one JSON line on stdout (instance, resource, `observedAt`, outcome, evidence or reason,
+WBS's answer). An unreachable host (connection refused, timeout, host-key mismatch,
+authentication failure, name or route fault) is reported as `unreachable`; any other answer the
+adapter cannot parse ends the command with that error. The command exits 1 with one `error:`
+line on: three consecutive `report_superseded` on one binding (`another_reporter`); any refusal
+be-01 relays (`refused`, with the status and WBS's error code); mcp-01's
+`machine_credential_refused` (a revoked or expired key, also when the token endpoint refuses it
+`invalid_client`) or `insufficient_scope` (`refused`); or a call that got no answer, or that
+mcp-01 left uncompleted for another reason (`rate_limited`, `server_error`, …), repeating on the
+retry one cadence later (`wbs_unavailable`). An answer it cannot attribute ends the command at
+once. No output, refusal or error carries the key.
 
 ## `mcp token`
 

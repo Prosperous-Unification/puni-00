@@ -49,8 +49,10 @@ export interface MachineGrantAuthorityDependencies {
   readonly keys: MachineGrantKeys | null;
   /** `WBS_MCP_AUTHORIZATION_SERVER`, null when not configured. */
   readonly authorizationServer: string | null;
+  /** The proof admitted with its trusted-issuer audience under `audienceRoot` (task 1.5). */
   readonly admitProof: (
     presented: PresentedMachineCredential,
+    audienceRoot: string,
   ) => Promise<AdmittedMachineProof | AuthenticationRefusal>;
   readonly audit: MachineTokenAudit;
   readonly now: () => number;
@@ -69,9 +71,11 @@ export interface MachineGrantAuthorityDependencies {
  *    is `invalid_body`: it would be written to the audit row.
  * 4. An assertion whose `typ` is neither absent nor `JWT` is
  *    `unsupported_assertion_type`, before any verification.
- * 5. The proof is admitted through the `/api` verifiers ({@link
- *    MachineGrantAuthorityDependencies.admitProof}); no `jti` is consumed, so
- *    one workload token serves many processes until its `exp`.
+ * 5. The proof is admitted by the machine verifiers ({@link
+ *    MachineGrantAuthorityDependencies.admitProof}), which `/api` no longer
+ *    reaches (M9), a trusted issuer's stored audience judged against the
+ *    authorization server at use (task 1.5); no `jti` is consumed, so one
+ *    workload token serves many processes until its `exp`.
  * 6. The terms ({@link machineGrantTermsOf}): `unknown_identity` for a
  *    non-member account and for an `exp` not after now.
  * 7. The bounded audit row (M3), then the grant, signed with the current
@@ -130,7 +134,7 @@ export function machineGrantAuthority(
         if (declared.issuer === deps.authorizationServer)
           return { kind: 'refused', refusal: 'invalid_token' };
       }
-      const admitted = await deps.admitProof(request.credential);
+      const admitted = await deps.admitProof(request.credential, deps.authorizationServer);
       if (typeof admitted === 'string') return { kind: 'refused', refusal: admitted };
       const now = deps.now();
       const terms = machineGrantTermsOf(
