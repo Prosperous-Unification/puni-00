@@ -6,14 +6,18 @@ import type { ClaimStore, PlanCommand, Scope } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
+import { expectCreated } from '@wbs/core/testing/expect-created';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const F = 'account-f';
@@ -31,7 +35,10 @@ beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'claim-occupancy-race-'));
   const dbPath = join(directory, 'plan.db');
   runMigrations(dbPath, folder);
-  source = openSqliteSource({ dbPath });
+  source = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath,
+  });
 });
 
 afterEach(async () => {
@@ -57,6 +64,7 @@ async function seeded(hold: Hold) {
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
+    dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
   for (const id of [F, G]) {
@@ -65,7 +73,7 @@ async function seeded(hold: Hold) {
       { at: 1, by: id },
     );
   }
-  const created = await graph.projects.create('Race', F);
+  const created = expectCreated(await graph.projects.create('Race', F));
   const projectId = created.project.id;
   for (const id of ['claire', 'codex']) {
     await source.stores.directory.addPerson({ id, name: id, kind: 'agent' }, [], { at: 1, by: F });
@@ -100,13 +108,18 @@ async function seeded(hold: Hold) {
   });
   let acting = F;
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
       servicesOver(
         { ...scope.stores, claims: withIdentity(scope.stores.claims, () => acting) },
-        { ...options, broadcast: announcements },
+        {
+          ...options,
+          broadcast: announcements,
+          dependencyContext: createLocalDependencyContext(scope.stores),
+        },
       ),
   });
   const as = (actor: string, commands: PlanCommand[]) => () => {

@@ -1,0 +1,35 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/module/optimization/connected-publication.test.ts:
+200 |   const q2Generation = readGeneration(f.source.db, 'B', q1.pri.contractVersion);
+201 |   f.change({ kind: 'connected', stage: stage(true) });
+202 |   const before = f.source.db.select().from(eventLog).all();
+203 |   await f.admit();
+204 |   await f.coordinator.drain();
+205 |   expect(readGeneration(f.source.db, 'B', q1.pri.contractVersion)).toEqual(q2Generation);
+                                                                         ^
+error: expect(received).toEqual(expected)
+
+  {
+    "admissionState": "open",
+    "cancelEpoch": 0,
+    "contractVersion": "18+0.4.0",
+-   "generation": 2,
+-   "inputHash": "4b66eb178f920f72f00ba0ebce3edb09e226191c31956233f9f30f457b2782ac",
++   "generation": 3,
++   "inputHash": "4e470d1c391035d4b1fe223ecdef66ae06e3ac7e2934fc1528f7c14146c5e4b9",
+    "projectId": "B",
+    "updatedAt": 10,
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-optimizer-lifecycle/apps/wbs/be-01/src/module/optimization/connected-publication.test.ts:205:68)
+(fail) Q1 to Q2 to Q1 admission and Retry read the retained certificate before generation mutation [193.86ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.63s]

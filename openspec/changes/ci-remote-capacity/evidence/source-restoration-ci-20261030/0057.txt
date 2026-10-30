@@ -1,0 +1,10 @@
+{
+  "source": "tools/tool-remote-scripts/test/ci-leaf.ts",
+  "originalSHA256": "bffe766cb816bf50872c27ccff675481682d3fbbad92751f463f4e56b3780de5",
+  "mutantSHA256": "f761fd9e3de6dc0cb59dea2cf414f4acf28ca4b8084b73b399070aa403c38c62",
+  "device": 66307,
+  "inode": 22792243,
+  "mode": 436,
+  "before": "              `--path-ignore-patterns=${RESTORATION}`,",
+  "after": ""
+}

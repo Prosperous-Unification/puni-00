@@ -1,0 +1,233 @@
+{
+  "sourcePacket": "/tmp/puni-source-node-proofs-8fgbwgoa/packet.json",
+  "sourcePacketSha256": "232b23010a8dc6c244f65a9a6e4cc39f67cec09e7d2f391b44b31c551f70f034",
+  "actualAuditSha256": "5b47ecb43db7295cc4b7c97aaa805f1f38bb7eef86356c90c4ea01db46f4a297",
+  "originals": {
+    "tools/tool-remote-scripts/src/lib/source-inner-program.ts": "28d586b9cb4490ae0f2ac878e847b735dc9bd29df9d801f6906cf1307a22f9ad",
+    "tools/tool-remote-scripts/src/lib/source-inner-process.ts": "c3a3bb6e6e5acedb0ed9025816daf4a267a67bb614a2bd372a5c9d5fd11895f6"
+  },
+  "edits": [
+    {
+      "group": "collector-credentials",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "requireTrue(process.getuid()===1000&&process.getgid()===1000,'source collector UID/GID differs');",
+      "after": "/* Proof: collector-credentials group; reported UID0. actual source collector function boundary refuses uid failed with this group omitted and passed after exact restoration. */requireTrue(process.getuid()===1000&&process.getgid()===1000,'source collector UID/GID differs');"
+    },
+    {
+      "group": "collector-arguments",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "requireTrue(/^[A-Za-z0-9-]{1,64}$/.test(nonce),'source nonce malformed');",
+      "after": "/* Proof: collector-arguments group; out-of-range PID. actual source collector function boundary refuses pid-argument failed with this group omitted and passed after exact restoration. */requireTrue(/^[A-Za-z0-9-]{1,64}$/.test(nonce),'source nonce malformed');"
+    },
+    {
+      "group": "bounded-proc-read",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "requireTrue(count<=maximum,'source read bound exceeded');",
+      "after": "/* Proof: bounded-proc-read group; owned65537-byte input. actual source collector function boundary refuses proc-bound failed with this group omitted and passed after exact restoration. */requireTrue(count<=maximum,'source read bound exceeded');"
+    },
+    {
+      "group": "proc-stat-grammar",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "requireTrue(text.startsWith(String(pid)+' (')&&closing>1,'source proc identity malformed');",
+      "after": "/* Proof: proc-stat-grammar group; foreign PID in proc stat. actual source collector function boundary refuses stat-identity failed with this group omitted and passed after exact restoration. */requireTrue(text.startsWith(String(pid)+' (')&&closing>1,'source proc identity malformed');"
+    },
+    {
+      "group": "link-projection",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "requireTrue(Buffer.byteLength(text)<=65536&&!text.includes('\\0'),'source link unsupported');",
+      "after": "/* Proof: link-projection group; NUL link view. actual source collector function boundary refuses link-input failed with this group omitted and passed after exact restoration. */requireTrue(Buffer.byteLength(text)<=65536&&!text.includes('\\0'),'source link unsupported');"
+    },
+    {
+      "group": "fatal-byte-decoder",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "new TextDecoder('utf-8',{fatal:true})",
+      "after": "/* Proof: fatal-byte-decoder group; actual nonUTF8 link target. actual source collector function boundary refuses link-utf8 failed with this group omitted and passed after exact restoration. */new TextDecoder('utf-8',{fatal:true})"
+    },
+    {
+      "group": "timestamp-projection",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "requireTrue(seconds>=-62167219200n&&seconds<=253402300799n,'source timestamp range unsupported');",
+      "after": "/* Proof: timestamp-projection group; coherent out-of-range stat/fstat mtime. actual source collector normal proc boundary observes timestamp-range failed with this group omitted and passed after exact restoration. */requireTrue(seconds>=-62167219200n&&seconds<=253402300799n,'source timestamp range unsupported');"
+    },
+    {
+      "group": "receipt-output-bounds",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "requireTrue(output<=32*1024*1024&&tokens.every(token=>Buffer.byteLength(token)<=4*1024*1024),'source output bound exceeded');",
+      "after": "/* Proof: receipt-output-bounds group; output beyond32MiB. actual source collector function boundary refuses output-total failed with this group omitted and passed after exact restoration. */requireTrue(output<=32*1024*1024&&tokens.every(token=>Buffer.byteLength(token)<=4*1024*1024),'source output bound exceeded');"
+    },
+    {
+      "group": "write-progress",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "requireTrue(Number.isSafeInteger(written)&&written>0&&written<=bytes.length-offset,'source output write progress refused');",
+      "after": "/* Proof: write-progress group; write count beyond remaining bytes. actual source writer handles excess byte progress at its output boundary failed with this group omitted and passed after exact restoration. */requireTrue(Number.isSafeInteger(written)&&written>0&&written<=bytes.length-offset,'source output write progress refused');"
+    },
+    {
+      "group": "address-projection",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "requireTrue(/^[A-Za-z0-9_.:@-]{1,64}$/.test(name),'source interface name unsupported');",
+      "after": "/* Proof: address-projection group; expanded IPv6 builtin view. actual source address projection refuses canonical-v6 builtin observation failed with this group omitted and passed after exact restoration. */requireTrue(/^[A-Za-z0-9_.:@-]{1,64}$/.test(name),'source interface name unsupported');"
+    },
+    {
+      "group": "executable-capture",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "requireTrue(attributes.isFile()&&attributes.size>0n&&attributes.size<=134217728n,'source executable bound exceeded');",
+      "after": "/* Proof: executable-capture group; premature executable EOF. actual source collector normal proc boundary observes short-read failed with this group omitted and passed after exact restoration. */requireTrue(attributes.isFile()&&attributes.size>0n&&attributes.size<=134217728n,'source executable bound exceeded');"
+    },
+    {
+      "group": "process-readback",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "requireTrue(cwd.startsWith('/')&&executable.startsWith('/')&&!cwd.endsWith(' (deleted)')&&!executable.endsWith(' (deleted)'),'source executable path unsupported');",
+      "after": "/* Proof: process-readback group; closing start-tick drift. actual source collector normal proc boundary observes pid-start failed with this group omitted and passed after exact restoration. */requireTrue(cwd.startsWith('/')&&executable.startsWith('/')&&!cwd.endsWith(' (deleted)')&&!executable.endsWith(' (deleted)'),'source executable path unsupported');"
+    },
+    {
+      "group": "descriptor-roster",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "requireTrue(descriptors.length<=4096,'source FD count exceeded');",
+      "after": "/* Proof: descriptor-roster group; FD4097 view with an owned descriptor. actual source collector normal proc boundary observes fd-identity failed with this group omitted and passed after exact restoration. */requireTrue(descriptors.length<=4096,'source FD count exceeded');"
+    },
+    {
+      "group": "census-provenance",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "requireTrue(arguments_.length===4,'source census identity absent');",
+      "after": "/* Proof: census-provenance group; missing expected session tick. actual source fresh census refuses arguments at its identity boundary failed with this group omitted and passed after exact restoration. */requireTrue(arguments_.length===4,'source census identity absent');"
+    },
+    {
+      "group": "census-bound",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "requireTrue(names.length<=10000,'source census count exceeded');",
+      "after": "/* Proof: census-bound group; 10001-entry discovery view. actual source fresh census refuses count at its identity boundary failed with this group omitted and passed after exact restoration. */requireTrue(names.length<=10000,'source census count exceeded');"
+    },
+    {
+      "group": "census-probe",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "if(probeFailure&&probeFailure.code==='ENOENT')continue;throw probeFailure;",
+      "after": "/* Proof: census-probe group; second-probe EACCES. actual source census second probe models EACCES explicitly failed with this group omitted and passed after exact restoration. */if(probeFailure&&probeFailure.code==='ENOENT')continue;throw probeFailure;"
+    },
+    {
+      "group": "launcher-input",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "if(process.getuid()!==1000||process.getgid()!==1000||!/^[A-Za-z0-9-]{1,64}$/.test(nonce)||!['observe','cleanup'].includes(mode))throw new Error('source launcher input refused');",
+      "after": "/* Proof: launcher-input group; reported GID0. actual source launcher rejects credential before granting reap failed with this group omitted and passed after exact restoration. */if(process.getuid()!==1000||process.getgid()!==1000||!/^[A-Za-z0-9-]{1,64}$/.test(nonce)||!['observe','cleanup'].includes(mode))throw new Error('source launcher input refused');"
+    },
+    {
+      "group": "owned-child-identity",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "if(Buffer.byteLength(text)>65536)throw new Error('source child stat bound');",
+      "after": "/* Proof: owned-child-identity group; foreign owned-child group view. actual source launcher rejects identity before granting reap failed with this group omitted and passed after exact restoration. */if(Buffer.byteLength(text)>65536)throw new Error('source child stat bound');"
+    },
+    {
+      "group": "independent-watchdog",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "const timer=setTimeout(()=>stop(new Error('source independent work/ACK deadline exceeded')),15000);",
+      "after": "/* Proof: independent-watchdog group; synchronously blocked collector. actual independent launcher deadline kills a synchronously blocked collector failed with this group omitted and passed after exact restoration. */const timer=setTimeout(()=>stop(new Error('source independent work/ACK deadline exceeded')),15000);"
+    },
+    {
+      "group": "input-settlement",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "if(settleAcknowledgement!==null){settleAcknowledgement();process.stdin.destroy();}",
+      "after": "/* Proof: input-settlement group; withheld ACK input left pending. actual source launcher refuses withheld ACK and settles original custody failed with this group omitted and passed after exact restoration. */if(settleAcknowledgement!==null){settleAcknowledgement();process.stdin.destroy();}"
+    },
+    {
+      "group": "ack-validation",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "if(input!=='ACK '+nonce+'\\n'){stop(new Error('source ACK malformed'));}else ack=true;",
+      "after": "/* Proof: ack-validation group; malformed ACK. actual source launcher refuses malformed ACK and settles original custody failed with this group omitted and passed after exact restoration. */if(input!=='ACK '+nonce+'\\n'){stop(new Error('source ACK malformed'));}else ack=true;"
+    },
+    {
+      "group": "ack-bound",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "if(Buffer.byteLength(input)>128){stop(new Error('source ACK bound'));resolve();}",
+      "after": "/* Proof: ack-bound group; 129-byte open ACK. actual source launcher bounds an open ACK channel before its work deadline failed with this group omitted and passed after exact restoration. */if(Buffer.byteLength(input)>128){stop(new Error('source ACK bound'));resolve();}"
+    },
+    {
+      "group": "launcher-stdout",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "if(stdoutBytes>32*1024*1024){stop(new Error('source collector output bound'));return;}",
+      "after": "/* Proof: launcher-stdout group; 33MiB owned-child output. actual source launcher refuses stdout from its owned collector boundary failed with this group omitted and passed after exact restoration. */if(stdoutBytes>32*1024*1024){stop(new Error('source collector output bound'));return;}"
+    },
+    {
+      "group": "launcher-stderr",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "if(stderrBytes>65536){stop(new Error('source collector stderr bound'));return;}",
+      "after": "/* Proof: launcher-stderr group; owned-child stderr warning. actual source launcher refuses stderr from its owned collector boundary failed with this group omitted and passed after exact restoration. */if(stderrBytes>65536){stop(new Error('source collector stderr bound'));return;}"
+    },
+    {
+      "group": "original-reap",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-program.ts",
+      "before": "if(outcome.status!=='fulfilled'||outcome.value.code!==0||outcome.value.signal!==null||!ack||!inputEnded||identity===null||failures.length>0){process.stderr.write('source collector session refused\\n');process.exitCode=1;return;}",
+      "after": "/* Proof: original-reap group; nonzero original-child exit. actual source launcher rejects exit-status before granting reap failed with this group omitted and passed after exact restoration. */if(outcome.status!=='fulfilled'||outcome.value.code!==0||outcome.value.signal!==null||!ack||!inputEnded||identity===null||failures.length>0){process.stderr.write('source collector session refused\\n');process.exitCode=1;return;}"
+    },
+    {
+      "group": "fixed-source-command",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+      "before": "      '1000:1000',",
+      "after": "      // Proof: fixed-source-command group; UID0 command dispatch. source original context dispatches the complete fixed Node command failed with this group omitted and passed after exact restoration.\n      '1000:1000',"
+    },
+    {
+      "group": "source-receipt-bound",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+      "before": "    if (Buffer.byteLength(token) > 4 * 1024 * 1024 || frames.length > 40000)\n      throw new Error('source receipt bound exceeded');",
+      "after": "    // Proof: source-receipt-bound group; oversized SESSION token. source original context dispatches the complete fixed Node command failed with this group omitted and passed after exact restoration.\n    if (Buffer.byteLength(token) > 4 * 1024 * 1024 || frames.length > 40000)\n      throw new Error('source receipt bound exceeded');"
+    },
+    {
+      "group": "source-tag-boundary",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+      "before": "      if (!Object.hasOwn(arity, token) || (done && token !== 'REAPED'))\n        throw new Error('source receipt tag unsupported');",
+      "after": "      // Proof: source-tag-boundary group; unknown raw tag. source original context dispatches the complete fixed Node command failed with this group omitted and passed after exact restoration.\n      if (!Object.hasOwn(arity, token) || (done && token !== 'REAPED'))\n        throw new Error('source receipt tag unsupported');"
+    },
+    {
+      "group": "source-session-tuple",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+      "before": "      if (\n        session !== null ||\n        frames.length !== 0 ||\n        attempt !== nonce ||\n        !/^[1-9][0-9]*$/.test(pid) ||\n        group !== pid ||\n        sid !== pid ||\n        !/^[1-9][0-9]*$/.test(ticks)\n      )\n        throw new Error('source private session malformed');",
+      "after": "      // Proof: source-session-tuple group; foreign SESSION nonce. source original context dispatches the complete fixed Node command failed with this group omitted and passed after exact restoration.\n      if (\n        session !== null ||\n        frames.length !== 0 ||\n        attempt !== nonce ||\n        !/^[1-9][0-9]*$/.test(pid) ||\n        group !== pid ||\n        sid !== pid ||\n        !/^[1-9][0-9]*$/.test(ticks)\n      )\n        throw new Error('source private session malformed');"
+    },
+    {
+      "group": "source-session-before-ack",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+      "before": "    if (session === null) throw new Error('source receipt lacks private session');",
+      "after": "    // Proof: source-session-before-ack group; absent SESSION with later ACK. source original context dispatches the complete fixed Node command failed with this group omitted and passed after exact restoration.\n    if (session === null) throw new Error('source receipt lacks private session');"
+    },
+    {
+      "group": "source-done",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+      "before": "      if (\n        done ||\n        fields[0] !== nonce ||\n        (mode === 'observe'\n          ? fields[1] !== '2'\n          : !/^[0-9]+$/.test(fields[1]) || Number(fields[1]) > 10000)\n      )\n        throw new Error('source completion malformed');",
+      "after": "      // Proof: source-done group; DONE pass count1. source original context dispatches the complete fixed Node command failed with this group omitted and passed after exact restoration.\n      if (\n        done ||\n        fields[0] !== nonce ||\n        (mode === 'observe'\n          ? fields[1] !== '2'\n          : !/^[0-9]+$/.test(fields[1]) || Number(fields[1]) > 10000)\n      )\n        throw new Error('source completion malformed');"
+    },
+    {
+      "group": "source-before-ack-join",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+      "before": "        if (roster === undefined) throw new Error('source expected process roster absent');\n        decodePasses(frames, roster);",
+      "after": "        // Proof: source-before-ack-join group; missing modeled MCP process. source original context dispatches the complete fixed Node command failed with this group omitted and passed after exact restoration.\n        if (roster === undefined) throw new Error('source expected process roster absent');\n        decodePasses(frames, roster);"
+    },
+    {
+      "group": "source-reap-frame",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+      "before": "      if (!done || reaped || fields[0] !== nonce) throw new Error('source reap malformed');",
+      "after": "      // Proof: source-reap-frame group; foreign REAPED nonce. source original context dispatches the complete fixed Node command failed with this group omitted and passed after exact restoration.\n      if (!done || reaped || fields[0] !== nonce) throw new Error('source reap malformed');"
+    },
+    {
+      "group": "source-mode-frame",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+      "before": "    if (done || (mode === 'observe') === (frame === 'MEMBER'))\n      throw new Error('source receipt frame unsupported');",
+      "after": "    // Proof: source-mode-frame group; observe-mode MEMBER. source original context dispatches the complete fixed Node command failed with this group omitted and passed after exact restoration.\n    if (done || (mode === 'observe') === (frame === 'MEMBER'))\n      throw new Error('source receipt frame unsupported');"
+    },
+    {
+      "group": "source-complete-reap",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+      "before": "  const isComplete = () => tag === null && done && reaped;",
+      "after": "  // Proof: source-complete-reap group; REAPED lost at the consumer dependency. source original context dispatches the complete fixed Node command failed with this group omitted and passed after exact restoration.\n  const isComplete = () => tag === null && done && reaped;"
+    },
+    {
+      "group": "source-transport-failure",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+      "before": "  if (receipt.failure !== null) throw new Error('source observer receipt refused');",
+      "after": "  // Proof: source-transport-failure group; bad DONE error after valid passes. source original context dispatches the complete fixed Node command failed with this group omitted and passed after exact restoration.\n  if (receipt.failure !== null) throw new Error('source observer receipt refused');"
+    },
+    {
+      "group": "source-empty-census",
+      "file": "tools/tool-remote-scripts/src/lib/source-inner-process.ts",
+      "before": "  if (receipt.failure !== null || receipt.session === null || receipt.frames.length !== 0)\n    throw new Error('source observer group remains');",
+      "after": "  // Proof: source-empty-census group; nonempty raw cleanup census. source original context dispatches the complete fixed Node command failed with this group omitted and passed after exact restoration.\n  if (receipt.failure !== null || receipt.session === null || receipt.frames.length !== 0)\n    throw new Error('source observer group remains');"
+    }
+  ]
+}

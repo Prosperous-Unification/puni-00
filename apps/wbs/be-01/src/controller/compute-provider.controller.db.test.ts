@@ -820,12 +820,16 @@ describe('a capacity report', () => {
     expect(await h.call('dany', 'GET', `/api/projects/${projectA}/startable`)).toEqual(
       startableBefore,
     );
+    const readyStep = steps.at(0)?.id;
+    if (readyStep === undefined) throw new Error('project has no first step');
     const claimed = await callForwarded(h, agent, 'POST', `/api/projects/${projectA}/commands`, {
       commands: [
         {
           kind: 'claimWorkItem',
           workItemId: leaf,
           personId: 'dash-a',
+          // A whole-leaf claim also asks for blocked later workflow steps.
+          steps: [readyStep],
           resources: [{ resourceId: ram, units: 12 }],
         },
       ],

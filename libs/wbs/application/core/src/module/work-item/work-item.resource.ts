@@ -1,12 +1,10 @@
 import {
   addWorkdays,
   agentMinutesOf,
-  allowanceOf,
   type AllowancePercent,
   assumedAssignee,
   type Attempt,
   type AttemptOutcome,
-  type AuthoredDependencyGraph,
   type BudgetExhausted,
   type BudgetPolicy,
   type BudgetRead,
@@ -16,17 +14,14 @@ import {
   CalendarRangeError,
   canDepend,
   canReparent,
-  chargedDemandsOf,
   type ChargedEstimate,
   chargedWorkdays,
-  chargedWorkdaysOf,
   type Claim,
   CLAIM_LEASE_MS,
   type ClaimCaller,
   claimRunOf,
   type Days,
   deadlineOffsetOf,
-  deadlineOffsetsOf,
   decideBudget,
   decideClaim,
   decideMeasureEstimate,
@@ -37,17 +32,14 @@ import {
   definitionKeyOf,
   definitionsOrUnowned,
   type Demand,
-  type DependencyEndpoint,
   deriveNumbers,
-  effectiveTeamsOf,
   type EstimateRule,
   estimateUnitOf,
   findExhaustedBudget,
-  findTypedEndpointDefect,
   firstWorkdayOf,
+  formatScopedDependencyKey,
   formatStepNodeId,
   formatStepReference,
-  formatTypedDependencyKey,
   freeUnitsOf,
   haveSameSliceOrder,
   type Hold,
@@ -82,15 +74,14 @@ import {
   placeAfter,
   POSITION_STEP,
   type PriorityBand,
+  projectExecutionBlockers,
   readBudgets,
   type Readiness,
   refuseDemand,
   refuseLimit,
   refuseOccupancy,
-  resolveStepResources,
   type Resource,
   type ResourceCapacity,
-  type ResourceDemand,
   type ResourceOccupancy,
   type ResourceUnits,
   rollUp,
@@ -103,30 +94,29 @@ import {
   type Schedule,
   ScheduleCycleError,
   type Scheduled,
+  type ScopedDependencyEndpoint,
   type SettableStatus,
   type Sibling,
-  type Slice,
   sliceKey,
   soleMoneyBasesOf,
   SOLVER_OBJECTIVES,
   type SolverObjectiveName,
   type Span,
   spanOfAttempts,
-  type StepAllowances,
   type StepNodeCycle,
   type StepNodeRef,
-  type StepPolicy,
   type StepState,
   TOKEN_ESTIMATE_KEY,
   treeOrder,
   type TypedDependency,
   UNKNOWN,
-  withoutHeldSubtrees,
-  workdaysBetween,
   workedStepsOf,
   type WorkItemStatus,
 } from '@wbs/domain';
-import { arrangeBySchedule as arrangeSiblingsBySchedule } from '@wbs/domain/arrange-siblings';
+import {
+  arrangeBySchedule as arrangeSiblingsBySchedule,
+  arrangeInSlots,
+} from '@wbs/domain/arrange-siblings';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import type { ActualStore, StoredActual } from '../../ports/actual-store';
@@ -151,16 +141,33 @@ import type {
   UndoState,
 } from '../../ports/command-journal-store';
 import type { DemandStore } from '../../ports/demand-store';
+import {
+  type DependencyContext,
+  type EndpointEvidence,
+  type ScopedRevision,
+  type ServiceDependencyContext,
+  withDependencyContext,
+} from '../../ports/dependency-context';
 import type { DependencyStore, StoredDependency } from '../../ports/dependency-store';
 import type { Assignment, DirectoryCatalog, DirectoryStore } from '../../ports/directory-store';
 import type { EditAdmission } from '../../ports/edit-admission';
 import type { EstimateStore, StoredEstimate } from '../../ports/estimate-store';
+import {
+  type ExternalDependencyAuthoringSource,
+  permitsExternalDependencies,
+  validateExternalDependencyAuthoring,
+} from '../../ports/external-dependency-authoring';
 import type {
   MeasureEstimateKey,
   MeasureEstimateStore,
   StoredMeasureEstimate,
 } from '../../ports/measure-estimate-store';
 import type { MeasureStore, StoredMeasure } from '../../ports/measure-store';
+import type {
+  ConnectedOptimizationAdmission,
+  OptimizationCapture,
+  OptimizationInput,
+} from '../../ports/optimization-input';
 import {
   findProjectWithin,
   LEGACY_ACCESS,
@@ -187,7 +194,9 @@ import type {
 } from '../../ports/scheduler';
 import type {
   AccessRefused,
+  CapturedLocalPlan,
   ElsewhereHolderLabel,
+  LivePlanExportRead,
   LivePlanRead,
   PlanDocumentReads,
 } from '../../ports/shared-people-values';
@@ -200,6 +209,7 @@ import type {
 import type { StepParallelStore } from '../../ports/step-parallel-store';
 import type { Step } from '../../ports/step-store';
 import type { SubtreeStore } from '../../ports/subtree-store';
+import type { TreeRead } from '../../ports/tree-read';
 import type {
   StoredTypedDependency,
   TypedDependencyStore,
@@ -219,6 +229,8 @@ import {
   type DeletionState,
   estimateStepsOf,
   expectedProgressOwnersOf,
+  externalAddressesOf,
+  type ExternalRevisionPreconditions,
   type Preconditions,
   progressKeysOf,
   quoteName,
@@ -226,15 +238,23 @@ import {
   readPayload,
   readPreconditions,
   referencesOf,
+  requireExternalRevisions,
+  requiresExternalAuthoring,
+  restoredTypedAddressesOf,
   type Revisions,
+  scopedRevisionKey,
   stepOfRevisionKey,
   stepRevisionKey,
   subjectOf,
   touchedBy,
 } from '../../service/compensating';
-import { DependencyGraphGuard, resolveDependencyGraph } from '../../service/dependency-graph';
+import { resolveConnectedDependencyGraph } from '../../service/connected-dependency-graph';
+import { deriveExecutionReadiness } from '../../service/connected-readiness';
+import { type ConnectedTreeProjection, projectConnectedTree } from '../../service/connected-tree';
+import { type DependencyGraphChange, resolveDependencyGraph } from '../../service/dependency-graph';
 import { projectNodeReadings } from '../../service/node-readings';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
+import { prepareCapturedScheduleParts, prepareScheduleParts } from '../../service/schedule-parts';
 import { workItemStatusesOf } from '../../service/work-item-statuses';
 import { type BudgetHeadroom, findBudgetHeadroom } from './budget-headroom';
 import { withBudgets } from './budget-read';
@@ -258,6 +278,7 @@ import {
   refusalOf,
   type ReleaseInput,
 } from './claims';
+import { remapCopiedDependency, selectCopiedDependencies } from './copy-typed-dependencies';
 import { withMeasureEstimates } from './measure-estimate-read';
 import { findPersonWork, type PersonWork } from './person-work';
 import { findProjectClaims, type ProjectClaims } from './project-claims';
@@ -282,26 +303,6 @@ function statusOfRow(statuses: ReadonlyMap<string, WorkItemStatus>, id: string):
  * absent schedule and a zero-day one look identical to a caller, and only one of
  * them is a plan.
  */
-/**
- * The deadlines a project **off the calendar** offers, which is none of them.
- *
- * No longer the placeholder it was: the plan read now resolves the stored
- * `deadline` column against `project.startDate` and hands the offsets to
- * `schedule()`. This constant is what is left of that state — the one branch
- * where there is still nothing to say, because a project with no start date has
- * no day zero to count workdays from. It is the same rule the floors beside it
- * take and the same one 6.1's write path takes when it asks such a project
- * nothing about a deadline it is being handed.
- *
- * An empty map is the true value there rather than a stand-in: a plan whose
- * dates cannot be resolved states no deadline to the hash, so it keys the same
- * as a plan that has none, and both read the same cached row.
- *
- * Frozen into a module constant rather than built per read so the empty case
- * cannot be handed a map somebody later writes into.
- */
-export const NO_DEADLINES: ReadonlyMap<string, number> = new Map<string, number>();
-
 const UNSCHEDULED: Scheduled = {
   duration: 0,
   estimated: false,
@@ -313,171 +314,8 @@ const UNSCHEDULED: Scheduled = {
   critical: false,
 };
 
-/**
- * The project's plan as slices: one per leaf and step, in step order.
- *
- * The order is the project's, and it is the order the work runs in — Dev
- * finishes, then QA starts. That was an assumption written as a sum until this
- * change; it is now an edge, and the schedule can say when each step's part of
- * a work item happens rather than only when the whole of it does.
- *
- * A pair nobody has estimated carries `null` rather than zero, which is what
- * lets the schedule report it as unestimated instead of instant. Every leaf
- * gets a slice for every step even so, because an unestimated `Dev` in front of
- * an estimated `QA` is what hands `QA` the work item's predecessors.
- *
- * Two shapes the project's own step list does not cover:
- *
- * - **No steps at all.** Reachable — a project's last step can be removed. Each
- *   leaf gets one slice belonging to nobody, so the plan still schedules
- *   instead of losing every row that a neighbour depends on.
- * - **An estimate naming a step the project does not hold.** Not reachable
- *   through the API — every write that names a step is refused with
- *   `unknown_step`, and `estimate.step_id` is a foreign key — but the days are
- *   somebody's typing and they already count towards today's duration. They are
- *   kept, in a slice after the steps the project does hold, rather than dropped
- *   silently or thrown over the whole project's read.
- */
+export { NO_DEADLINES, slicesOf } from '../../service/schedule-slices';
 export { poolsFor } from '@wbs/domain';
-
-/**
- * The slices a plan runs, from rows that are already in memory.
- *
- * Exported since `saved-plan-schedule.ts` — a **second** production caller —
- * needs the same slicing the live projection gets. A saved plan that computed
- * its own slices would be a second arithmetic over one estimate rule, and the
- * bar a saved plan draws would drift from the bar the live plan draws for the
- * same numbers. There is one `slicesOf`, and both callers pass it detached
- * values.
- *
- * The tests reach it directly too, exactly as {@link poolsFor} beside it does
- * and for the same kind of reason: `dual-optimized-scheduler/tasks.md` §1.8
- * requires the `ORDER BY` proof to assert the **raw `schedule()` argument
- * tuple** — the `rows` and `slices` arrays as Fast receives them — rather than
- * a hash of them, because 1.1(c) normalises the row order away by design and a
- * hash assertion there can never fail.
- */
-export function slicesOf(
-  rows: readonly WorkItem[],
-  estimates: readonly StoredEstimate[],
-  hasChildren: ReadonlySet<string>,
-  /**
-   * The project's steps in step order, each with its allowance. Every estimate
-   * must name one of them: {@link allowanceOf} throws for a step outside this
-   * list rather than charging it at no allowance.
-   */
-  steps: readonly StepPolicy[],
-  /**
-   * The project's whole estimate arithmetic — method, weights and rounding.
-   * The number a slice runs for is `chargedWorkdaysOf`'s own, so the bar the chart
-   * draws and the figure the table prints are one number rather than two
-   * roundings of one estimate.
-   */
-  rule: EstimateRule,
-  /**
-   * Each work item's assignees by step, from which every slice's person is
-   * read.
-   *
-   * The planner takes the person per slice and never derives one, so this is
-   * the only place the assumed assignee becomes a queue: a work item with one
-   * named person carries them on **every** slice, which is what "when just one
-   * is assigned it is assumed they do both" means once time is involved.
-   */
-  assigneesOf: ReadonlyMap<string, Record<string, string>>,
-  /**
-   * Each row's effective team set — its own, or the nearest ancestor's, from
-   * {@link effectiveTeamsOf}.
-   *
-   * Passed in rather than resolved here, because the reading is shared: the
-   * table cell, the cards, the Gantt and the export all show the same inherited
-   * label, and a second walk here would be the copy that drifts.
-   */
-  teamOf: ReadonlyMap<string, { teamIds: readonly string[] }>,
-  /**
-   * How many people each **sized** team may have at work at once. A team nobody
-   * has sized is simply absent, and its work draws from no pool.
-   */
-  teamSizes: ReadonlyMap<string, number>,
-  /**
-   * Each leaf's charged demand vector, from `chargedDemandsOf`: its own
-   * demands on resources the project states a capacity for, clamped to it.
-   * Charged on **every** step's slice of the leaf (`wbs-resources` R2), as the
-   * team pools are; a leaf absent from the map demands nothing.
-   */
-  demandsOf: ReadonlyMap<string, readonly ResourceDemand[]>,
-): Slice[] {
-  const inProject = new Set(rows.map((row) => row.id));
-  const allowances: StepAllowances = new Map(steps.map((step) => [step.id, step.allowancePercent]));
-  const units = new Map(steps.map((step) => [step.id, step.estimateUnit]));
-  const days = new Map<string, number>();
-  for (const estimate of estimates) {
-    if (hasChildren.has(estimate.workItemId)) continue;
-    if (!inProject.has(estimate.workItemId)) continue;
-    // The shared slice seam: Fast, the solver request and a saved plan's
-    // schedule all read charged effort from here, so the allowance is applied
-    // once, before rounding, for every scheduler.
-    //
-    // Proof: with the allowance replaced by 0 here, `schedules charged effort,
-    // and the edit changes the canonical input` failed on `Expected: 3,
-    // Received: 2` (2026-09-27).
-    days.set(
-      sliceKey(estimate.workItemId, estimate.stepId),
-      chargedWorkdaysOf(
-        estimateUnitOf(units, estimate.stepId),
-        estimate,
-        rule,
-        allowanceOf(allowances, estimate.stepId),
-      ),
-    );
-  }
-
-  const order = steps.map((step) => step.id);
-  const slices: Slice[] = [];
-  for (const row of rows) {
-    if (hasChildren.has(row.id)) continue;
-    const resourcesFor = (stepId: string | null) =>
-      resolveStepResources(
-        row.maxParallel,
-        stepId,
-        assigneesOf.get(row.id) ?? {},
-        teamOf.get(row.id)?.teamIds ?? [],
-        teamSizes,
-      );
-    // Present only on a leaf that demands something, so a plan with no
-    // demand hands the engines the slices it always did.
-    // Proof: `{}` in place of the vector made `serialises two leaves on the
-    // one staging environment and names it` (resource-schedule.test.ts) place
-    // demanding blocks on top of each other; watched 2026-10-20.
-    const vector = demandsOf.get(row.id) ?? [];
-    const demands = vector.length === 0 ? {} : { demands: vector };
-    if (order.length === 0) {
-      const { personId, width, poolIds } = resourcesFor(null);
-      slices.push({
-        workItemId: row.id,
-        stepId: null,
-        days: null,
-        personId,
-        width,
-        poolIds,
-        ...demands,
-      });
-      continue;
-    }
-    for (const stepId of order) {
-      const { personId, width, poolIds } = resourcesFor(stepId);
-      slices.push({
-        workItemId: row.id,
-        stepId,
-        days: days.get(sliceKey(row.id, stepId)) ?? null,
-        personId,
-        width,
-        poolIds,
-        ...demands,
-      });
-    }
-  }
-  return slices;
-}
 
 interface CanonicalScheduleParts {
   readonly input: ScheduleInput;
@@ -486,14 +324,6 @@ interface CanonicalScheduleParts {
   readonly rule: EstimateRule;
 }
 
-/**
- * Assemble the one canonical solver/Fast input from repository readings.
- *
- * Both the interactive tree read and the restart queue pump call this seam.
- * Keeping the slicing, assignments, calendar offsets, capacity and reach here
- * prevents a restarted solve from rebuilding a different hash than the plan
- * read that enqueued it.
- */
 /**
  * Which schedule a project is **drawn by**: Fast, or the ready optimized
  * variant the project selects.
@@ -530,6 +360,14 @@ function selectedSchedule(
   return { schedule: ready, displayed: project.scheduleObjective, awaitingSolve: false };
 }
 
+/**
+ * Assemble the one canonical solver/Fast input from repository readings.
+ *
+ * Both the interactive tree read and the restart queue pump call this seam.
+ * Keeping the slicing, assignments, calendar offsets, capacity and reach here
+ * prevents a restarted solve from rebuilding a different hash than the plan
+ * read that enqueued it.
+ */
 function canonicalScheduleParts(
   project: Project,
   rows: readonly LabelledWorkItem[],
@@ -544,83 +382,18 @@ function canonicalScheduleParts(
   /** The project's stated resource capacities. */
   resourceCapacities: readonly ResourceCapacity[],
 ): CanonicalScheduleParts {
-  const hasChildren = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
-  const capacityByResource = new Map(
-    resourceCapacities.map(({ resourceId, units }) => [resourceId, units] as const),
-  );
-  const assigneesOf = new Map<string, Record<string, string>>();
-  for (const assignment of assignments) {
-    assigneesOf.set(assignment.workItemId, {
-      ...(assigneesOf.get(assignment.workItemId) ?? {}),
-      [assignment.stepId]: assignment.personId,
-    });
-  }
-  const rule: EstimateRule = {
-    method: project.estimateMethod,
-    pertWeights: project.pertWeights,
-    rounding: project.estimateRounding,
-  };
-  const slices = slicesOf(
+  return prepareScheduleParts(
+    project,
     rows,
     estimates,
-    hasChildren,
+    edges,
+    typed,
+    assignments,
     steps,
-    rule,
-    assigneesOf,
-    effectiveTeamsOf(rows),
     poolSizes,
-    chargedDemandsOf(demands, capacityByResource),
+    demands,
+    resourceCapacities,
   );
-  const notBefore = new Map<string, number>();
-  if (project.startDate !== null) {
-    for (const row of rows) {
-      if (row.startNoEarlierThan === null) continue;
-      notBefore.set(row.id, workdaysBetween(project.startDate, row.startNoEarlierThan));
-    }
-  }
-  const deadlines =
-    project.startDate === null
-      ? NO_DEADLINES
-      : deadlineOffsetsOf(
-          project.startDate,
-          new Map(
-            rows
-              .filter((row): row is typeof row & { deadline: IsoDate } => row.deadline !== null)
-              .map((row) => [row.id, row.deadline]),
-          ),
-        );
-  // On hold takes a leaf, and every ancestor all of whose leaves are held, out
-  // of the input before either engine reads it (ADR 0032). Blocked, readiness
-  // and blocked by proxy change nothing here.
-  // Proof: this reduction bypassed (an empty held set) made `lets a successor
-  // start at day zero, and reports the held row with no schedule` fail — the
-  // held row came back scheduled over days 0 to 5; watched 2026-09-29.
-  const heldLeafIds = new Set(
-    rows.filter((row) => row.hold === 'on_hold' && !hasChildren.has(row.id)).map((row) => row.id),
-  );
-  return {
-    input: withoutHeldSubtrees(
-      {
-        rows,
-        edges,
-        slices,
-        notBefore,
-        poolSizes,
-        reach: project.depReach,
-        deadlines,
-        typed,
-        // Stated only when the project states one, so every plan with no
-        // resource keeps the input, and the hash, it had before.
-        // Proof: left out, both levelling cases of resource-schedule.test.ts
-        // threw `no capacity for resource …`; watched 2026-10-20.
-        ...(capacityByResource.size === 0 ? {} : { resourceCapacities: capacityByResource }),
-      },
-      heldLeafIds,
-    ),
-    hasChildren,
-    assigneesOf,
-    rule,
-  };
 }
 
 /** One compensating command, or a `batch` of them when there are several. */
@@ -792,6 +565,9 @@ function finalsOf(charged: ReadonlyMap<string, ChargedEstimate>): {
 export type DeleteStrategy = 'cascade' | 'promote';
 
 export type WorkItemRefusal =
+  | 'project_deleting'
+  | 'external_dependencies_inactive'
+  | 'referenced_by_external_dependency'
   | 'not_found'
   | 'forbidden'
   | 'strategy_required'
@@ -807,6 +583,9 @@ export type WorkItemRefusal =
    * write.
    */
   | 'calendar_range'
+  /** Connected sibling order cannot fit finite positions around immutable held slots. */
+  | 'arrangement_positions_unavailable'
+  | 'dependency_calendar_missing'
   | 'schedule_not_ready'
   /** The selected engine's adapter is not installed in this deployment. */
   | 'engine_unavailable'
@@ -1143,6 +922,8 @@ export interface MoveWorkItem {
 }
 
 export interface WorkItemServiceOptions {
+  dependencyContext: ServiceDependencyContext;
+  externalDependencyAuthoring: ExternalDependencyAuthoringSource;
   livePlans?: LivePlanStore;
   workItems: WorkItemStore;
   /** Required scope-bound evidence; create refuses retained facts before any writes. */
@@ -1267,6 +1048,8 @@ export interface WorkItemServiceOptions {
   admission: EditAdmission;
   /** The installed scheduling capabilities for live plan reads. */
   scheduler: Scheduler;
+  /** Required for enabled connected live reads; capture-only graphs omit admission. */
+  admitConnectedOptimization?: ConnectedOptimizationAdmission;
   /** A borrowed command scope reads the captured cache on its own source connection. */
   schedulerMode?: 'capture';
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
@@ -1275,6 +1058,7 @@ export interface WorkItemServiceOptions {
 
 /** Why an undo or a redo did not happen. */
 export type UndoRefusal =
+  | 'external_dependencies_inactive'
   | 'not_found'
   | 'forbidden'
   /** The account has nothing left in that half of its stack for this project. */
@@ -1426,26 +1210,6 @@ function subtreeOf(rows: readonly WorkItem[], rootId: string): string[] {
   };
   visit(rootId);
   return collected;
-}
-
-/** Finds a relationship whose step endpoint no longer fits a projected tree. */
-function findInvalidTypedShape(
-  rows: readonly WorkItem[],
-  relationships: readonly StoredTypedDependency[],
-): StoredTypedDependency | undefined {
-  const held = new Set(rows.map((row) => row.id));
-  const parents = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
-  return relationships.find((relationship) =>
-    [relationship.predecessor, relationship.successor].some((endpoint) => {
-      if (!held.has(endpoint.workItemId)) {
-        throw new Error(`typed relationship ${relationship.id} names a missing work item`);
-      }
-      return (
-        (endpoint.scope === 'node' && parents.has(endpoint.workItemId)) ||
-        (endpoint.scope === 'descendant-step' && !parents.has(endpoint.workItemId))
-      );
-    }),
-  );
 }
 
 /** One row of `rows`, or a throw: an id from the same read is not allowed to be missing. */
@@ -1773,6 +1537,7 @@ interface ReplayNeighbor {
 }
 
 export interface Recording {
+  externalBefore?: readonly ScopedRevision[];
   /** What a redo re-applies. */
   forward: CompensatingCommand;
   /** What an undo applies. */
@@ -1805,12 +1570,127 @@ export class WorkItemService {
   /** The {@link Command batch} collecting this service's recordings, or none. */
   private collector: BatchCollector | null = null;
 
-  /** The combined step-node graph every graph-changing write is checked against. */
-  private readonly graph: DependencyGraphGuard;
-
   constructor(private readonly opts: WorkItemServiceOptions) {
     this.clock = opts.clock;
-    this.graph = new DependencyGraphGuard(opts);
+    // Proof: required-authoring-construction bypass failed `actual typed service rejects an unknown`'s selected assertion
+    // (actual service with memory stores; watched 2026-10-22).
+    validateExternalDependencyAuthoring(opts.externalDependencyAuthoring);
+  }
+
+  /**
+   * Reads current trusted authoring authority at each external operation's existing
+   * admission point, after principal, owner and endpoint concealment checks.
+   * Constructor validation rejects missing or unknown explicit fixture authority;
+   * borrowed production readers remain unopened until an admitted operation.
+   * Later unreadability throws inside the caller's transaction instead of retaining
+   * construction-time permission. Local commands do not require this capability.
+   */
+  private get externalDependenciesActive(): boolean {
+    // Proof: restoring the construction cache failed current-capability add,
+    // update in both directions, remove, undo and redo mounted SQLite refusals
+    // (inactive and unreadable), watched 2026-10-23.
+    // Proof: returning true here made `current capability inactive admits or
+    // refuses remove atomically` receive ok:true instead of inactive refusal,
+    // watched 2026-10-23 (other entry/replay guards were left installed).
+    return permitsExternalDependencies(this.opts.externalDependencyAuthoring);
+  }
+
+  /** Checks changed typed endpoint lifecycle and shape before graph expansion or persistence. */
+  private structuralRefusal(
+    projectId: string,
+    actorId: string,
+    change: DependencyGraphChange,
+  ): Promise<
+    | { ok: false; reason: 'cycle' | 'self_node' | 'project_deleting' }
+    | { ok: false; reason: 'node_on_parent' | 'descendant_step_on_leaf'; dependencyIds: string[] }
+    | null
+  > {
+    return withDependencyContext(
+      this.opts.dependencyContext,
+      projectId,
+      actorId,
+      async (context) => {
+        if (change.typed !== undefined) {
+          const existing = await this.opts.typedDependencies.listByProject(projectId);
+          for (const proposed of change.typed) {
+            const previous = existing.find((relationship) => relationship.id === proposed.id);
+            if (
+              previous !== undefined &&
+              formatScopedDependencyKey(previous) === formatScopedDependencyKey(proposed)
+            )
+              continue;
+            // Proof: removing this preflight restored HTTP500 in mounted createWorkItem
+            // and duplicateWorkItem implicit-write tests (2026-10-22).
+            if (await this.opts.typedDependencies.hasDeletingEndpoint(proposed))
+              return { ok: false, reason: 'project_deleting' };
+          }
+        }
+        const conflict = await context.graph.findEndpointConflict(projectId, change);
+        if (conflict !== null) return { ok: false, ...conflict };
+        const cycle = await context.graph.findCycle(projectId, change);
+        return cycle === null
+          ? null
+          : { ok: false, reason: cycle.kind === 'self_node' ? 'self_node' : 'cycle' };
+      },
+    );
+  }
+
+  /** Checks every doomed incident under current endpoint read authority before a structural delete. */
+  private deletionIncidents(
+    projectId: string,
+    actorId: string,
+    doomed: readonly string[],
+  ): Promise<
+    | { ok: true; externalBefore: readonly ScopedRevision[]; ownedIncomingIds: readonly string[] }
+    | { ok: false; reason: WorkItemRefusal; dependencyIds?: string[] }
+  > {
+    return withDependencyContext(
+      this.opts.dependencyContext,
+      projectId,
+      actorId,
+      async (context) => {
+        const inside = new Set(doomed);
+        const incident = (await this.opts.typedDependencies.listIncident([projectId])).filter(
+          (relationship) =>
+            relationship.predecessor.projectId !== relationship.successor.projectId &&
+            [relationship.predecessor, relationship.successor].some(
+              (endpoint) => endpoint.projectId === projectId && inside.has(endpoint.workItemId),
+            ),
+        );
+        const checked = await this.typedEvidence(context, projectId, incident);
+        if (!checked.ok) return checked;
+        const outgoing = incident
+          .filter(
+            (relationship) =>
+              relationship.predecessor.projectId === projectId &&
+              inside.has(relationship.predecessor.workItemId) &&
+              !(
+                relationship.successor.projectId === projectId &&
+                inside.has(relationship.successor.workItemId)
+              ),
+          )
+          .map((relationship) => relationship.id)
+          .sort();
+        // Proof: disabling this refusal made the admitted predecessor-delete test
+        // throw at the later graph guard instead of returning its exact modeled
+        // conflict; watched with the real SQLite UoW, 2026-10-22.
+        // Proof: bypassing this refusal made mounted promote outgoing return 500 instead of typed 409 (2026-10-22).
+        if (outgoing.length > 0)
+          return {
+            ok: false,
+            reason: 'referenced_by_external_dependency',
+            dependencyIds: outgoing,
+          };
+        const ownedIncomingIds = incident
+          .filter(
+            (relationship) =>
+              relationship.projectId === projectId && inside.has(relationship.successor.workItemId),
+          )
+          .map((relationship) => relationship.id)
+          .sort();
+        return { ok: true, externalBefore: checked.externalBefore, ownedIncomingIds };
+      },
+    );
   }
 
   /**
@@ -1822,8 +1702,19 @@ export class WorkItemService {
    * sees the batch's own writes inside its transaction, so the state it judges
    * is the state that would be committed. See {@link DependencyGraphGuard}.
    */
-  findDependencyCycle(projectId: string): Promise<StepNodeCycle | null> {
-    return this.graph.findCycle(projectId);
+  async findDependencyCycle(
+    projectId: string,
+    actorId: string,
+    change: DependencyGraphChange = {},
+  ): Promise<StepNodeCycle | null> {
+    const project = await this.opts.projects.findById(projectId);
+    // Proof: graph-helper-owner-admission bypass failed `runner-facing graph inspection requires`'s selected assertion
+    // (actual service with memory stores; watched 2026-10-22).
+    if (project === null || !this.opts.admission.admits(project, actorId))
+      throw new Error('dependency graph owner is not admitted');
+    return withDependencyContext(this.opts.dependencyContext, projectId, actorId, (context) =>
+      context.graph.findCycle(projectId, change),
+    );
   }
 
   /**
@@ -1839,14 +1730,57 @@ export class WorkItemService {
     return this.scheduleInput(projectId);
   }
 
-  /** Human-scoped Retry input; the shared chain and settings leave one closed authorized read. */
+  /** Private detached observation for the connected coordinator integration; never admits work. */
+  async optimizationCaptureWithin(
+    projectId: string,
+    access: ResourceAccess,
+  ): Promise<OptimizationCapture | AccessRefused> {
+    const captured = await this.opts.livePlans?.read(projectId, access);
+    if (captured?.kind === 'access_refused') return captured;
+    if (captured?.kind === 'not_found') return captured;
+    if (captured?.kind === 'connected') return captureConnectedOptimization(captured, projectId);
+    if (captured?.kind === 'shared') return captureSharedOptimization(captured);
+    const input = await this.scheduleInputWithin(projectId, access);
+    if (input === null) return { kind: 'not_found' };
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) throw new Error('optimizer project disappeared during input capture');
+    return {
+      kind: 'scheduled',
+      input: { kind: 'local', input },
+      enabled: project.optimizationEnabled,
+    };
+  }
+
+  /** Private project-owned detached observation; no returned value borrows the snapshot. */
+  async optimizationCapture(projectId: string): Promise<OptimizationCapture> {
+    const captured = await this.opts.livePlans?.readProject(projectId);
+    if (captured?.kind === 'not_found') return captured;
+    if (captured?.kind === 'connected') return captureConnectedOptimization(captured, projectId);
+    if (captured?.kind === 'shared') return captureSharedOptimization(captured);
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return { kind: 'not_found' };
+    const input = await this.scheduleInput(projectId);
+    if (input === null) throw new Error('optimizer project disappeared during input capture');
+    return {
+      kind: 'scheduled',
+      input: { kind: 'local', input },
+      enabled: project.optimizationEnabled,
+    };
+  }
+
+  /** Human-scoped Retry input; connected pre-selection boundaries and settings leave one closed authorized read. */
   async optimizationInputWithin(
     projectId: string,
     access: ResourceAccess,
   ): Promise<
-    | { readonly kind: 'scheduled'; readonly input: ScheduleInput; readonly enabled: boolean }
+    | {
+        readonly kind: 'scheduled';
+        readonly input: ScheduleInput | OptimizationInput;
+        readonly enabled: boolean;
+      }
     | { readonly kind: 'not_found' }
     | AccessRefused
+    | Extract<OptimizationCapture, { readonly kind: 'idle' | 'dependency_calendar_missing' }>
     | {
         readonly kind: 'unavailable';
         readonly reason: 'engine_unavailable' | 'cycle' | 'calendar_range';
@@ -1856,6 +1790,11 @@ export class WorkItemService {
     const captured = await this.opts.livePlans?.read(projectId, access);
     if (captured?.kind === 'access_refused') return captured;
     if (captured?.kind === 'not_found') return { kind: 'not_found' };
+    // Proof: restoring the connected refusal made mounted terminal/stale Retry return 500 instead of 409.
+    if (captured?.kind === 'connected') {
+      const observation = captureConnectedOptimization(captured, projectId);
+      return observation.kind === 'unavailable' ? { ...observation, projectId } : observation;
+    }
     if (captured?.kind === 'shared') {
       if (captured.chain.kind === 'engine_unavailable')
         return {
@@ -1892,6 +1831,8 @@ export class WorkItemService {
   > {
     const captured = await this.opts.livePlans?.readProject(projectId);
     if (captured?.kind === 'not_found') return { kind: 'not_found' };
+    if (captured?.kind === 'connected')
+      throw new Error('connected optimization input is unsupported');
     if (captured?.kind === 'shared') {
       if (captured.chain.kind === 'engine_unavailable')
         return { kind: 'unavailable', reason: 'engine_unavailable' };
@@ -1931,6 +1872,12 @@ export class WorkItemService {
     | AccessRefused
     | EngineUnavailable
     | {
+        kind: 'connected';
+        project: Project & { timezone: string };
+        tree: PlanTree;
+        observation: Extract<LivePlanExportRead, { kind: 'connected' }>;
+      }
+    | {
         kind: 'shared';
         project: Project & { timezone: string };
         tree: PlanTree;
@@ -1939,8 +1886,17 @@ export class WorkItemService {
   > {
     if (this.opts.livePlans === undefined) return { kind: 'isolated' };
     const captured = await this.opts.livePlans.readExport(projectId, access);
+    if (captured.kind === 'connected') {
+      const projection = projectConnectedTree(captured, projectId);
+      return {
+        kind: 'connected',
+        project: { ...projection.metadata.project, timezone: projection.reads.project.timezone },
+        tree: presentConnectedTree(projection),
+        observation: captured,
+      };
+    }
     if (captured.kind !== 'shared') return captured;
-    const tree = projectSharedTree(captured);
+    const tree = projectCapturedTree(captured);
     if ('kind' in tree) return tree;
     return {
       kind: 'shared',
@@ -1986,6 +1942,12 @@ export class WorkItemService {
     access: ResourceAccess,
     teamId: string | null,
   ): Promise<StartableWork | { readonly kind: 'unknown_team' } | null> {
+    if (this.opts.livePlans !== undefined) {
+      const observed = await this.opts.livePlans.readExecution(projectId, access, teamId);
+      if (observed.kind === 'not_found' || observed.kind === 'access_refused') return null;
+      if (observed.kind === 'unknown_team') return { kind: 'unknown_team' };
+      return findStartableWork(observed.reads);
+    }
     if (!(await this.admits(projectId, access))) return null;
     const { directory } = this.opts;
     const rows = await this.opts.workItems.listByProject(projectId);
@@ -2014,7 +1976,14 @@ export class WorkItemService {
           ]);
     const teamNames = new Map(teams.map((team) => [team.id, team.name] as const));
     if (teamId !== null && !teamNames.has(teamId)) return { kind: 'unknown_team' };
-    const { statuses, stated, dependencies } = await this.statusReadsOf(projectId, rows);
+    const {
+      statuses,
+      stated,
+      dependencies,
+      evidenceByNode,
+      eligibilityByNode,
+      predecessorIdsByLeaf,
+    } = await this.statusReadsOf(projectId, rows);
     const capacities = await this.resourceCapacitiesOf(projectId);
     const resources =
       capacities.length === 0
@@ -2030,6 +1999,9 @@ export class WorkItemService {
       claims,
       assignments,
       dependencies,
+      evidenceByNode,
+      eligibilityByNode,
+      predecessorIdsByLeaf,
       personNames: new Map(people.map((person) => [person.id, person.name] as const)),
       teamNames,
       teamId,
@@ -2213,15 +2185,42 @@ export class WorkItemService {
     return nameClaimHistory(decoded, rows, names);
   }
 
-  /** {@link tree} through the caller's access; see {@link scheduleInputWithin}. */
+  /**
+   * Read through caller access and admit a connected target only after its owned observation closes.
+   * Capture mode never admits; the response retains the original captured projection.
+   * Throws when an enabled scheduled connected live observation lacks installed admission.
+   * See {@link tree} and {@link scheduleInputWithin}.
+   */
   async treeWithin(
     projectId: string,
     access: ResourceAccess,
   ): Promise<Awaited<ReturnType<WorkItemService['tree']>> | AccessRefused> {
     if (this.opts.livePlans !== undefined) {
       const captured = await this.opts.livePlans.read(projectId, access);
+      if (captured.kind === 'connected') {
+        const tree = presentConnectedTree(projectConnectedTree(captured, projectId));
+        // Proof: bypassing this capture guard made the borrowed mounted read enter admission.
+        if (this.opts.schedulerMode !== 'capture') {
+          const observation = captureConnectedOptimization(captured, projectId);
+          // Proof: removing enablement failed the disabled read; bypassing scheduled kind failed the missing-calendar HTTP response.
+          if (observation.kind === 'scheduled' && observation.enabled) {
+            // Proof: removing this invariant made the configured missing-admission test resolve.
+            if (this.opts.admitConnectedOptimization === undefined)
+              throw new Error('connected optimizer admission is not installed');
+            // The existing target stage belongs to the closed observation, before final projection.
+            // Proof: omitting admission left cold mounted connected reads with zero launches.
+            // Proof: reconstructing final positions here failed displaced mounted live stage bytes after C Pri selection.
+            await this.opts.admitConnectedOptimization({
+              projectId,
+              input: observation.input,
+              enabled: observation.enabled,
+            });
+          }
+        }
+        return tree;
+      }
       if (captured.kind !== 'isolated') {
-        const projected = await this.withMeasureEstimates(projectId, projectSharedTree(captured));
+        const projected = await this.withMeasureEstimates(projectId, projectCapturedTree(captured));
         // The snapshot's own demands and catalog, already under the
         // organization's names, so a row's demand and its bar are one observation.
         const tree =
@@ -2325,36 +2324,36 @@ export class WorkItemService {
   async sharedTreesWithin(
     actorId: string,
     access: ResourceAccess,
-  ): Promise<
-    | AccessRefused
-    | { readonly kind: 'isolated' }
-    | {
-        readonly kind: 'shared';
-        readonly entries: readonly {
-          readonly projectId: string;
-          readonly name: string;
-          readonly rank: number;
-          readonly revision: number;
-          readonly seq: number;
-          readonly basis: string | null;
-          readonly tree: PlanTree | EngineUnavailable;
-        }[];
-      }
-  > {
+  ): ReturnType<TreeRead['sharedTreesWithin']> {
     if (this.opts.livePlans === undefined) return { kind: 'isolated' };
     const captured = await this.opts.livePlans.readAggregate(actorId, access);
-    if (captured.kind !== 'shared') return captured;
+    if (captured.kind !== 'shared' && captured.kind !== 'isolated-connected') return captured;
     return {
-      kind: 'shared',
-      entries: captured.entries.map(({ rank, basis, plan }) => ({
-        projectId: plan.project.id,
-        name: plan.project.name,
-        rank,
-        revision: plan.project.revision,
-        seq: plan.seq,
-        basis,
-        tree: projectSharedTree(plan),
-      })),
+      kind: captured.kind,
+      entries: captured.entries.map(({ projectId, rank, basis, plan }) => {
+        if (plan.kind === 'connected') {
+          // Proof: selecting the component's first member failed mounted target identity and dates.
+          const projection = projectConnectedTree(plan, projectId);
+          return {
+            projectId,
+            name: projection.metadata.project.name,
+            rank,
+            revision: projection.metadata.project.revision,
+            seq: projection.metadata.seq,
+            basis,
+            tree: presentConnectedTree(projection),
+          };
+        }
+        return {
+          projectId,
+          name: plan.project.name,
+          rank,
+          revision: plan.project.revision,
+          seq: plan.seq,
+          basis,
+          tree: projectCapturedTree(plan),
+        };
+      }),
     };
   }
 
@@ -2408,6 +2407,8 @@ export class WorkItemService {
     if (references.projects.some((each) => each !== projectId)) return true;
     for (const id of new Set(references.workItems)) {
       const row = await this.opts.workItems.findById(id);
+      // Proof: ordinary-reference-partition bypass failed `mixed nested replay`'s selected assertion
+      // (actual SQLite boundary; watched 2026-10-22).
       if (row !== null && row.projectId !== projectId) return true;
     }
     const steps = new Set((await this.opts.projects.stepsOf(projectId)).map((step) => step.id));
@@ -2553,8 +2554,10 @@ export class WorkItemService {
   async tree(projectId: string): Promise<PlanTree | EngineUnavailable | null> {
     if (this.opts.livePlans !== undefined) {
       const captured = await this.opts.livePlans.readProject(projectId);
+      if (captured.kind === 'connected')
+        return presentConnectedTree(projectConnectedTree(captured, projectId));
       if (captured.kind !== 'isolated')
-        return this.withMeasureEstimates(projectId, projectSharedTree(captured));
+        return this.withMeasureEstimates(projectId, projectCapturedTree(captured));
     }
     return this.treeIsolated(projectId);
   }
@@ -2921,6 +2924,89 @@ export class WorkItemService {
       // at 1 — see {@link NumberedWorkItem.revision}.
       revision: 0,
     };
+    const construct = () =>
+      this.insertWorkItem(projectId, actorId, input, rows, workItem, firstChildOf, placed, stamp);
+    return withDependencyContext(
+      this.opts.dependencyContext,
+      projectId,
+      actorId,
+      async (context) => {
+        const handDown =
+          firstChildOf === undefined
+            ? null
+            : { fromWorkItemId: firstChildOf.id, toWorkItemId: workItem.id };
+        const transition =
+          handDown === null
+            ? {
+                ok: true as const,
+                value: await construct(),
+                evidence: { receipts: [], externalBefore: [] },
+              }
+            : await context.incidents.run(
+                projectId,
+                actorId,
+                { kind: 'fresh', ...handDown },
+                stamp,
+                construct,
+              );
+        if (!transition.ok) {
+          if (transition.reason === 'structure_refused') return transition.value;
+          return {
+            ok: false as const,
+            reason: transition.reason === 'stale_undo' ? ('not_found' as const) : transition.reason,
+          };
+        }
+        const built = transition.value;
+        if (!built.ok) return built;
+        const { receipts, externalBefore } = transition.evidence;
+        const recording: Recording =
+          receipts.length === 0 || handDown === null
+            ? built.recording
+            : {
+                ...built.recording,
+                forward: {
+                  do: 'transition_incident_nodes',
+                  projectId,
+                  fromWorkItemId: handDown.fromWorkItemId,
+                  toWorkItemId: workItem.id,
+                  structural: built.recording.forward,
+                  receipts,
+                },
+                inverse: {
+                  do: 'transition_incident_nodes',
+                  projectId,
+                  fromWorkItemId: workItem.id,
+                  toWorkItemId: handDown.fromWorkItemId,
+                  structural: built.recording.inverse,
+                  receipts: receipts.map(({ from, to }) => ({ from: to, to: from })),
+                },
+                externalBefore,
+              };
+        recording.touched = [
+          ...new Set([
+            ...built.recording.touched,
+            ...touchedBy(recording.forward),
+            ...touchedBy(recording.inverse),
+          ]),
+        ];
+        await this.record(projectId, stamp, 'create', `add ${quoteName(workItem.name)}`, recording);
+        await this.announceTree(projectId);
+        return { ok: true as const, value: workItem, stepNodeMapping: built.stepNodeMapping };
+      },
+    );
+  }
+
+  /** Prepares the complete local recording inside its caller's admitted structural transition. */
+  private async insertWorkItem(
+    projectId: string,
+    actorId: string,
+    input: CreateWorkItem,
+    rows: readonly WorkItem[],
+    workItem: WorkItem,
+    firstChildOf: WorkItem | undefined,
+    placed: ReturnType<typeof placeAfter>,
+    stamp: WriteStamp,
+  ) {
     const statementsHandedDown =
       firstChildOf !== undefined && (firstChildOf.readiness !== null || firstChildOf.hold !== null)
         ? {
@@ -2987,6 +3073,45 @@ export class WorkItemService {
         replacementBlockedAt: null,
       }),
     );
+    const gainsFirstChild =
+      input.parentId !== null && !rows.some((row) => row.parentId === input.parentId)
+        ? input.parentId
+        : null;
+    const proposedTyped = (await this.opts.typedDependencies.listByProject(projectId)).map(
+      (relationship) => ({
+        ...relationship,
+        predecessor:
+          gainsFirstChild !== null &&
+          relationship.successor.projectId === projectId &&
+          relationship.predecessor.scope === 'node' &&
+          relationship.predecessor.projectId === projectId &&
+          relationship.predecessor.workItemId === gainsFirstChild
+            ? { ...relationship.predecessor, workItemId: workItem.id }
+            : relationship.predecessor,
+        successor:
+          gainsFirstChild !== null &&
+          relationship.predecessor.projectId === projectId &&
+          relationship.successor.scope === 'node' &&
+          relationship.successor.projectId === projectId &&
+          relationship.successor.workItemId === gainsFirstChild
+            ? { ...relationship.successor, workItemId: workItem.id }
+            : relationship.successor,
+      }),
+    );
+    const proposedEstimates = (await this.opts.estimates.listByProject(projectId)).map(
+      (estimate) =>
+        gainsFirstChild !== null && estimate.workItemId === gainsFirstChild
+          ? { ...estimate, workItemId: workItem.id }
+          : estimate,
+    );
+    // Proof: bypassing this call failed `connected create refuses an injected failed graph read`
+    // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
+    const structural = await this.structuralRefusal(projectId, actorId, {
+      rows: [...rows, workItem],
+      typed: proposedTyped,
+      estimates: proposedEstimates,
+    });
+    if (structural !== null) return structural;
     // The repository validates leaf ownership even while clearing; capture and clear
     // before insertion, then restore only after undo has removed the child.
     for (const command of clearParentBlockages) {
@@ -3005,10 +3130,6 @@ export class WorkItemService {
     // the estimate described the work, and the work is the child now. Moving it
     // down keeps the total identical, which is what makes this safe to do
     // silently — the plan's numbers do not shift under the user.
-    const gainsFirstChild =
-      input.parentId !== null && !rows.some((row) => row.parentId === input.parentId)
-        ? input.parentId
-        : null;
     // Read before the move, because afterwards they are the child's. This is
     // the whole before-state an undo of this create has to put back.
     const handedDown =
@@ -3109,7 +3230,10 @@ export class WorkItemService {
         : (await this.opts.typedDependencies.listByProject(projectId))
             .filter((dependency) =>
               [dependency.predecessor, dependency.successor].some(
-                (endpoint) => endpoint.scope === 'node' && endpoint.workItemId === gainsFirstChild,
+                (endpoint) =>
+                  endpoint.scope === 'node' &&
+                  endpoint.projectId === projectId &&
+                  endpoint.workItemId === gainsFirstChild,
               ),
             )
             .map((original) => ({
@@ -3118,11 +3242,13 @@ export class WorkItemService {
                 ...original,
                 predecessor:
                   original.predecessor.scope === 'node' &&
+                  original.predecessor.projectId === projectId &&
                   original.predecessor.workItemId === gainsFirstChild
                     ? { ...original.predecessor, workItemId: workItem.id }
                     : original.predecessor,
                 successor:
                   original.successor.scope === 'node' &&
+                  original.successor.projectId === projectId &&
                   original.successor.workItemId === gainsFirstChild
                     ? { ...original.successor, workItemId: workItem.id }
                     : original.successor,
@@ -3189,7 +3315,6 @@ export class WorkItemService {
         if (!cleared.ok) throw new Error(`cannot clear parent assignment: ${cleared.reason}`);
       }
     }
-    await this.announceTree(projectId);
     const forward: CompensatingCommand = {
       do: 'restore_subtree',
       rows: [workItem],
@@ -3203,7 +3328,10 @@ export class WorkItemService {
       // Proof: left out, `skips a number removed before the first child, across
       // the create's undo and redo` in `step-node-attempt.controller.db.test.ts`
       // read the child's numbers `[1, 2]` where `[1, 3]` was owed; watched 2026-10-12.
-      issuedAttemptNumbers: issuedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
+      issuedAttemptNumbers: issuedHandedDown.map((each) => ({
+        ...each,
+        workItemId: workItem.id,
+      })),
       assignments: assignedHandedDown.map((assignment) => ({
         ...assignment,
         workItemId: workItem.id,
@@ -3361,7 +3489,7 @@ export class WorkItemService {
       forwardSteps.length === 1 ? forward : { do: 'batch', steps: forwardSteps };
     const inverseCommand: CompensatingCommand =
       inverseSteps.length === 1 ? inverse : { do: 'batch', steps: inverseSteps };
-    await this.record(projectId, stamp, 'create', `add ${quoteName(workItem.name)}`, {
+    const recording: Recording = {
       forward: forwardCommand,
       inverse: inverseCommand,
       // Both batches name every typed endpoint whose revision replay writes.
@@ -3376,8 +3504,8 @@ export class WorkItemService {
         ]),
       ],
       before: rows,
-    });
-    return { ok: true, value: workItem, stepNodeMapping };
+    };
+    return { ok: true as const, value: workItem, stepNodeMapping, recording };
   }
 
   async patch(
@@ -3830,8 +3958,31 @@ export class WorkItemService {
         each.state,
       ]),
     );
-    const status = (await this.statusesOf(projectId, rows)).get(id);
+    const observed = await this.opts.livePlans?.readExecution(projectId, access, null);
+    if (observed !== undefined && observed.kind !== 'ready')
+      return { ok: false, reason: 'not_found' };
+    const execution =
+      observed === undefined ? await this.statusReadsOf(projectId, rows) : observed.reads;
+    const status = execution.statuses.get(id);
     if (status === undefined) throw new Error(`work item ${id} has no derived status`);
+    const admission = new Map(
+      steps.map((step) => {
+        const key = sliceKey(id, step.id);
+        const evidence = execution.evidenceByNode.get(key);
+        const eligibility = execution.eligibilityByNode.get(key);
+        if (lineage.isLeaf && (evidence === undefined || eligibility === undefined))
+          throw new Error(`missing execution reading ${key}`);
+        return [
+          step.id,
+          {
+            started: evidence?.started === true,
+            canStart: eligibility?.canStart === true,
+            blockers:
+              eligibility === undefined ? [] : projectExecutionBlockers(eligibility.startBlockers),
+          },
+        ] as const;
+      }),
+    );
     const pinnedPersonId = await identity.pinnedPersonOf(credential);
     const caller: ClaimCaller = {
       accountId: actorId,
@@ -3840,6 +3991,7 @@ export class WorkItemService {
       pinnedRunId: pinnedRunOf(credential),
     };
     const decided = decideClaim({
+      admission,
       target: {
         workItemId: id,
         isLeaf: lineage.isLeaf,
@@ -4420,38 +4572,55 @@ export class WorkItemService {
    * {@link statusesOf} with the reads it folded, so a caller that needs the
    * same progress statements and dependency edges reads them once.
    */
-  private async statusReadsOf(
-    projectId: string,
-    rows: readonly LabelledWorkItem[],
-  ): Promise<{
-    statuses: Map<string, WorkItemStatus>;
-    stated: StoredProgress[];
-    dependencies: AuthoredDependencyGraph;
-  }> {
+  private async statusReadsOf(projectId: string, rows: readonly LabelledWorkItem[]) {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) throw new Error(`execution project ${projectId} is missing`);
+    const steps = await this.opts.projects.stepsOf(projectId);
     const stated = await this.opts.progress.listByProject(projectId);
     const attempted = await this.opts.attempts.listByProject(projectId);
-    const progress = rollUpWorkItemStatuses(
-      rows,
-      rollUpProgress(
-        rows,
-        stated,
-        workedStepsOf(
-          await this.opts.estimates.listByProject(projectId),
-          await this.opts.actuals.listByProject(projectId),
-          stated,
-          attempted,
-        ),
-        attempted.filter((attempt) => attempt.endedAt === null),
-      ),
-    );
-    const rowIds = new Set(rows.map((row) => row.id));
+    const estimates = await this.opts.estimates.listByProject(projectId);
+    const actuals = await this.opts.actuals.listByProject(projectId);
+    const blockages = await this.opts.blockages.listByProject(projectId);
     const dependencies = {
-      edges: (await this.opts.dependencies.listByProject(projectId)).filter(
-        (edge) => rowIds.has(edge.predecessorId) && rowIds.has(edge.successorId),
-      ),
+      edges: await this.opts.dependencies.listByProject(projectId),
       typed: await this.opts.typedDependencies.listByProject(projectId),
     };
-    return { statuses: workItemStatusesOf(rows, progress, dependencies), stated, dependencies };
+    const authored = resolveConnectedDependencyGraph({
+      projects: [
+        {
+          projectId,
+          state: {
+            rows,
+            steps,
+            estimates,
+            legacy: dependencies.edges,
+            typed: dependencies.typed,
+            reach: project.depReach,
+          },
+        },
+      ],
+      external: [],
+    });
+    const readiness = deriveExecutionReadiness(
+      [
+        {
+          projectId,
+          reads: {
+            workItems: rows,
+            steps,
+            progress: stated,
+            stepBlockages: blockages,
+            estimates,
+            actuals,
+            dependencies: dependencies.edges,
+          },
+        },
+      ],
+      dependencies.typed,
+      authored,
+      new Map([[projectId, attempted]]),
+    );
+    return { ...readiness, statuses: new Map(readiness.statuses), stated, dependencies };
   }
 
   /**
@@ -4611,6 +4780,12 @@ export class WorkItemService {
 
     const group = this.groupUnder(rows, input.parentId).filter((sibling) => sibling.id !== id);
     const placed = placeAfter(group, input.afterId);
+    // Proof: bypassing this call failed `connected move refuses an injected failed graph read`
+    // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
+    const structural = await this.structuralRefusal(workItem.projectId, actorId, {
+      rows: rows.map((row) => (row.id === id ? { ...row, parentId: input.parentId } : row)),
+    });
+    if (structural !== null) return structural;
     const stamp = this.clock.stampFor(actorId);
     // A leaf another row moves under becomes a parent, and a parent holds no
     // readiness or hold: its status is folded from its children. The moved row
@@ -4844,10 +5019,10 @@ export class WorkItemService {
    *   frozen row. Two rows answering one ticket is the failure freezing
    *   exists to prevent. The original is untouched, so a frozen work item can
    *   still be duplicated: copying is not moving.
-   * - **Only internal dependencies.** Legacy and typed relationships with one
-   *   end outside the subtree are left behind. Internal typed relationships
-   *   receive new IDs and address the copied work items; their scopes, steps
-   *   and type stay the same.
+   * - Legacy dependencies copy only when both ends are inside. Typed prerequisites
+   *   copy with their successor: internal endpoints remap, outside predecessors
+   *   retain their authorized scoped identity, and every copied link has a new ID.
+   *   Outgoing links to successors outside the subtree stay with their original.
    *
    * Direct step blockage belongs to the original work and is omitted from copies.
    * Proof: injecting copied facts failed the blocked leaf/descendant regression;
@@ -5001,28 +5176,48 @@ export class WorkItemService {
         predecessorId: copyOf(edge.predecessorId),
         successorId: copyOf(edge.successorId),
       }));
-    const copiedTyped = typed
-      // Proof: 2026-09-28, admitting either outside endpoint made the mounted
-      // copy test receive 500 instead of 200 (no copy exists for X).
-      .filter(
-        (dependency) =>
-          inside.has(dependency.predecessor.workItemId) &&
-          inside.has(dependency.successor.workItemId),
-      )
-      .map((dependency) => ({
-        ...dependency,
-        id: this.clock.newId(),
-        // Proof: 2026-09-27, retaining C1's source id failed the mounted copy test's copied-predecessor assertion.
-        predecessor: {
-          ...dependency.predecessor,
-          workItemId: copyOf(dependency.predecessor.workItemId),
-        },
-        successor: {
-          ...dependency.successor,
-          workItemId: copyOf(dependency.successor.workItemId),
-        },
-      }));
+    const selection = {
+      sourceProjectId: workItem.projectId,
+      destinationProjectId: workItem.projectId,
+      workItemIds: newIds,
+      stepIds: new Map(
+        (await this.opts.projects.stepsOf(workItem.projectId)).map((step) => [step.id, step.id]),
+      ),
+    };
+    const selected = selectCopiedDependencies(typed, selection);
+    const checked = await withDependencyContext(
+      this.opts.dependencyContext,
+      workItem.projectId,
+      actorId,
+      async (dependencyContext) => {
+        // Proof: skipping source evidence changed the absent-row copy's modeled
+        // refusal into a later recording throw; watched 2026-10-22.
+        const evidence = await this.typedEvidence(dependencyContext, workItem.projectId, selected);
+        if (!evidence.ok) return evidence;
+        // Proof: bypassing current capability made the production mounted dormant
+        // copy return 200 instead of 409 with zero expected changes, 2026-10-22.
+        if (
+          selected.some((dependency) => dependency.predecessor.projectId !== workItem.projectId) &&
+          !permitsExternalDependencies(this.opts.externalDependencyAuthoring)
+        )
+          return { ok: false as const, reason: 'external_dependencies_inactive' as const };
+        return evidence;
+      },
+    );
+    if (!checked.ok) return checked;
+    const copiedTyped = selected.map((dependency) =>
+      remapCopiedDependency(dependency, selection, this.clock.newId()),
+    );
 
+    // Proof: bypassing this call failed `connected duplicate refuses an injected failed graph read`
+    // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
+    const structural = await this.structuralRefusal(workItem.projectId, actorId, {
+      rows: [...rows, ...copies],
+      estimates: [...stored, ...copiedEstimates],
+      legacy: [...edges, ...copiedEdges],
+      typed: [...typed, ...copiedTyped],
+    });
+    if (structural !== null) return structural;
     // One stamp for the copy: it is one transaction and one act, so
     // every row it writes — work items, estimates, measures, assignments, dependencies
     // and the respacing of the originals' siblings — carries one instant.
@@ -5138,10 +5333,21 @@ export class WorkItemService {
                   deleteCopy,
                 ],
               },
-        // Every copied row, including endpoint revisions bumped by copied
-        // typed relationships. Later writes to the copy make undo refuse.
-        touched: copyIds,
+        // Proof: dropping retained local predecessors failed the mounted copy's
+        // exact from[X] revision and touched-identity assertions, 2026-10-22.
+        touched: [
+          ...new Set([
+            ...copyIds,
+            ...copiedTyped
+              .flatMap((dependency) => [dependency.predecessor, dependency.successor])
+              .filter((endpoint) => endpoint.projectId === workItem.projectId)
+              .map((endpoint) => endpoint.workItemId),
+          ]),
+        ],
         before: rows,
+        // Proof: dropping this evidence made the admitted semantic copy throw
+        // journal external revision coverage is not exact; watched 2026-10-22.
+        externalBefore: checked.externalBefore,
       },
     );
     return { ok: true, value: { id: copyOf(id) } };
@@ -5186,6 +5392,8 @@ export class WorkItemService {
     // exact leaf/cascade or promote-policy tests; early lookup broke missing/auth/
     // strategy precedence, and late lookup changed the statement snapshot, 2026-10-17.
     const doomed = children.length === 0 || strategy === 'cascade' ? subtreeOf(rows, id) : [id];
+    const incidents = await this.deletionIncidents(workItem.projectId, actorId, doomed);
+    if (!incidents.ok) return incidents;
     const parallels = await this.opts.stepParallels.listByWorkItems(workItem.projectId, doomed);
     if (parallels.length > 0) {
       return {
@@ -5536,6 +5744,26 @@ export class WorkItemService {
           }
         }
       }
+      // Proof: bypassing this call failed `connected cascade refuses an injected failed graph read`
+      // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
+      const structural = await this.structuralRefusal(workItem.projectId, actorId, {
+        rows: rows.filter((row) => !inside.has(row.id)),
+        estimates: [
+          ...storedEstimates.filter((estimate) => !inside.has(estimate.workItemId)),
+          ...handedUp,
+        ],
+        legacy: allEdges.filter(
+          (edge) => !inside.has(edge.predecessorId) && !inside.has(edge.successorId),
+        ),
+        typed: authored.filter(
+          (relationship) =>
+            ![relationship.predecessor, relationship.successor].some(
+              (endpoint) =>
+                endpoint.projectId === workItem.projectId && inside.has(endpoint.workItemId),
+            ),
+        ),
+      });
+      if (structural !== null) return structural;
       for (const each of handedUp) await this.opts.estimates.set(each, stamp);
       for (const each of recordedHandedUp) await this.opts.actuals.set(each, stamp);
       for (const each of statedHandedUp) await this.opts.progress.set(each, stamp);
@@ -5647,6 +5875,9 @@ export class WorkItemService {
       }
       await this.announceTree(workItem.projectId);
       await this.record(workItem.projectId, stamp, 'delete', label, {
+        // Proof: replacing both delete before-images with [] made the admitted
+        // successor delete fail exact journal coverage and roll back (2026-10-22).
+        externalBefore: incidents.externalBefore,
         // Proof: the demand hand-up left out of the forward, `hands the last
         // child’s demand back up when its delete promotes the parent` read no
         // demand after the redo; left out of the inverse, its undo read the
@@ -5828,11 +6059,32 @@ export class WorkItemService {
     // The same reason as the cascade branch above: an edge to a row that is
     // going has nothing to point at, and the foreign keys say so. Only this row
     // leaves here — its children are promoted, and their edges stay valid.
+    // Proof: bypassing this call failed `connected promote refuses an injected failed graph read`
+    // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
+    const structural = await this.structuralRefusal(workItem.projectId, actorId, {
+      rows: rows
+        .filter((row) => row.id !== id)
+        .map((row) => (row.parentId === id ? { ...row, parentId: workItem.parentId } : row)),
+      estimates: storedEstimates.filter((estimate) => estimate.workItemId !== id),
+      legacy: allEdges.filter((edge) => edge.predecessorId !== id && edge.successorId !== id),
+      typed: authored.filter(
+        (relationship) =>
+          ![relationship.predecessor, relationship.successor].some(
+            (endpoint) => endpoint.projectId === workItem.projectId && endpoint.workItemId === id,
+          ),
+      ),
+    });
+    if (structural !== null) return structural;
     await this.opts.dependencies.removeAllFor([id], stamp);
+    // Proof: broadening this promotion to subtreeOf(rows, id) made mounted promote replay return 500 instead of 200 (2026-10-22).
     const removedTyped = await this.opts.typedDependencies.removeAllFor([id], stamp);
     await this.opts.workItems.remove([id], promoted, stamp);
     await this.announceTree(workItem.projectId);
     await this.record(workItem.projectId, stamp, 'delete', label, {
+      // Proof: replacing both delete before-images with [] made the admitted
+      // successor delete fail exact journal coverage and roll back (2026-10-22).
+      // Proof: omitting only the promotion before-image made mounted promote replay return 500 instead of 200 (2026-10-22).
+      externalBefore: incidents.externalBefore,
       forward: withRemovedTyped(
         {
           do: 'delete_subtree',
@@ -5899,6 +6151,7 @@ export class WorkItemService {
           },
           removedClaims,
         ),
+        // Proof: omitting promotion inverse typed links made mounted promote replay undo return 404 instead of 200 (2026-10-22).
         removedTyped,
         true,
       ),
@@ -5928,71 +6181,103 @@ export class WorkItemService {
    *
    * A project already in schedule order writes nothing, journals nothing and
    * announces nothing — {@link freeze}'s precedent for a write that pinned
-   * nothing, and what keeps a second press off the undo stack.
+   * nothing, and what keeps a second press off the undo stack. Connected commands
+   * borrow the final target placement; selected readiness comes from its retained
+   * optimization stage. No command read admits optimizer work.
    */
   async arrangeBySchedule(projectId: string, actorId: string): Promise<WorkItemOutcome<null>> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
 
-    const rows = await this.opts.workItems.listByProject(projectId);
-    const stored = await this.opts.estimates.listByProject(projectId);
-    const edges = await this.opts.dependencies.listByProject(projectId);
-    const assigned = await this.opts.directory.assignmentsOf(rows.map((row) => row.id));
-    const steps = await this.opts.projects.stepsOf(projectId);
-    const slotsOf = await this.opts.capacity.slotsFor(projectId);
-    const canonical = canonicalScheduleParts(
-      project,
-      rows,
-      stored,
-      edges,
-      await this.opts.typedDependencies.listByProject(projectId),
-      assigned,
-      steps,
-      slotsOf,
-      await this.opts.demands.listByProject(projectId),
-      await this.opts.resourceCapacity.listFor(projectId),
-    );
-
-    const captured =
-      this.opts.livePlans === undefined
-        ? undefined
-        : await this.opts.livePlans.readProject(projectId);
+    const captured = await this.opts.livePlans?.readProject(projectId);
     if (captured?.kind === 'not_found') return { ok: false, reason: 'not_found' };
-    const shared = captured?.kind === 'shared' ? captured.chain : undefined;
-    if (shared?.kind === 'engine_unavailable') return { ok: false, reason: 'engine_unavailable' };
-    if (shared?.kind === 'unavailable') return { ok: false, reason: shared.reason };
-    const input = shared?.kind === 'scheduled' ? shared.input : canonical.input;
-    let selected;
-    try {
-      const read =
-        shared?.kind === 'scheduled'
-          ? shared.scheduled
-          : await this.opts.scheduler.read({
-              projectId: project.id,
-              input: canonical.input,
-              engine: project.scheduleEngine,
-              objective: project.scheduleObjective,
-              enabled: project.optimizationEnabled,
-              mode: this.opts.schedulerMode ?? 'live',
-            });
-      if (read.kind === 'engine_unavailable') return { ok: false, reason: 'engine_unavailable' };
-      selected = selectedSchedule(project, read.fast, read.optimization);
-    } catch (err) {
-      // Only the modeled failure, for the plan read's reason exactly: an
-      // unqualified catch would turn any future mistake in `slicesOf` into
-      // "your dependencies run in a circle", which is a lie told confidently.
-      if (!(err instanceof ScheduleCycleError)) throw err;
-      return { ok: false, reason: 'cycle' };
-    }
-    if (selected.awaitingSolve) return { ok: false, reason: 'schedule_not_ready' };
+    let rows: readonly LabelledWorkItem[];
+    let arrangement: ReturnType<typeof arrangeSiblingsBySchedule>;
+    // Proof: routing connected observations through the local scheduler made the mounted
+    // connected arrangement fail with a foreign endpoint error (500); watched 2026-10-23.
+    if (captured?.kind === 'connected') {
+      const view = projectConnectedTree(captured, projectId);
+      // Proof: removing calendar refusal changed all three mounted missing-calendar
+      // cases from typed 409 to 500; prior collected edit still rolled back (2026-10-23).
+      if (view.placement.kind === 'dependency_calendar_missing')
+        return { ok: false, reason: 'dependency_calendar_missing' };
+      // Proof: removing engine refusal made the captured engine-loss case throw
+      // instead of returning engine_unavailable (2026-10-23).
+      if (view.placement.kind === 'engine_unavailable')
+        return { ok: false, reason: 'engine_unavailable' };
+      // Proof: removing unavailable refusal made the captured calendar-range case
+      // throw instead of returning calendar_range (2026-10-23).
+      if (view.placement.kind === 'unavailable')
+        return { ok: false, reason: view.placement.reason };
+      const settings = view.reads.project;
+      // Proof: bypassing readiness let pending and boundary-infeasible selected
+      // objectives arrange successfully in connected-arrange.test.ts (2026-10-23).
+      if (
+        settings.optimizationEnabled &&
+        settings.scheduleEngine === 'optimized' &&
+        view.optimization !== null &&
+        view.optimization.chosen === null
+      )
+        return { ok: false, reason: 'schedule_not_ready' };
+      rows = view.metadata.workItems;
+      const allocation = arrangeInSlots(
+        rows,
+        prepareCapturedScheduleParts(view.reads).input.rows,
+        view.placement.schedule.workItems,
+      );
+      // The allocator refuses before any position or journal write, including a collected batch.
+      if (!allocation.ok) return { ok: false, reason: 'arrangement_positions_unavailable' };
+      arrangement = allocation.arrangement;
+    } else {
+      rows = await this.opts.workItems.listByProject(projectId);
+      const stored = await this.opts.estimates.listByProject(projectId);
+      const edges = await this.opts.dependencies.listByProject(projectId);
+      const assigned = await this.opts.directory.assignmentsOf(rows.map((row) => row.id));
+      const steps = await this.opts.projects.stepsOf(projectId);
+      const slotsOf = await this.opts.capacity.slotsFor(projectId);
+      const canonical = canonicalScheduleParts(
+        project,
+        rows,
+        stored,
+        edges,
+        await this.opts.typedDependencies.listByProject(projectId),
+        assigned,
+        steps,
+        slotsOf,
+        await this.opts.demands.listByProject(projectId),
+        await this.opts.resourceCapacity.listFor(projectId),
+      );
 
-    // Over the rows the schedule was computed from: an on-hold row has no
-    // scheduled start, so it is left where it is (`add-work-item-statuses`).
-    // Proof: the full `rows` passed here made `arranges a plan holding an
-    // on-hold leaf, and leaves the held row where it was` fail on `no
-    // scheduled start for work item …`; watched 2026-09-29.
-    const arrangement = arrangeSiblingsBySchedule(input.rows, selected.schedule.workItems);
+      const shared = captured?.kind === 'shared' ? captured.chain : undefined;
+      if (shared?.kind === 'engine_unavailable') return { ok: false, reason: 'engine_unavailable' };
+      if (shared?.kind === 'unavailable') return { ok: false, reason: shared.reason };
+      const input = shared?.kind === 'scheduled' ? shared.input : canonical.input;
+      let selected;
+      try {
+        const read =
+          shared?.kind === 'scheduled'
+            ? shared.scheduled
+            : await this.opts.scheduler.read({
+                projectId: project.id,
+                input: canonical.input,
+                engine: project.scheduleEngine,
+                objective: project.scheduleObjective,
+                enabled: project.optimizationEnabled,
+                mode: this.opts.schedulerMode ?? 'live',
+              });
+        if (read.kind === 'engine_unavailable') return { ok: false, reason: 'engine_unavailable' };
+        selected = selectedSchedule(project, read.fast, read.optimization);
+      } catch (err) {
+        // Only the modeled failure, for the plan read's reason exactly: an
+        // unqualified catch would turn any future mistake in `slicesOf` into
+        // "your dependencies run in a circle", which is a lie told confidently.
+        if (!(err instanceof ScheduleCycleError)) throw err;
+        return { ok: false, reason: 'cycle' };
+      }
+      if (selected.awaitingSolve) return { ok: false, reason: 'schedule_not_ready' };
+      arrangement = arrangeSiblingsBySchedule(input.rows, selected.schedule.workItems);
+    }
     // Nothing to arrange. Not an error and not a write: the project already
     // reads in the order it is drawn in.
     if (arrangement.placements.length === 0) return { ok: true, value: null };
@@ -6209,6 +6494,16 @@ export class WorkItemService {
     } else if (days.pessimistic > MAX_ESTIMATE_DAYS)
       return { ok: false, reason: 'invalid_estimate' };
     const before = await this.storedTrio(workItem.projectId, id, stepId);
+    const estimates = await this.opts.estimates.listByProject(workItem.projectId);
+    // Proof: bypassing this call failed `connected set-estimate refuses an injected failed graph read`
+    // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
+    const structural = await this.structuralRefusal(workItem.projectId, actorId, {
+      estimates: [
+        ...estimates.filter((estimate) => estimate.workItemId !== id || estimate.stepId !== stepId),
+        { workItemId: id, stepId },
+      ],
+    });
+    if (structural !== null) return structural;
     const stamp = this.clock.stampFor(actorId);
     const written = await this.opts.estimates.set({ workItemId: id, stepId, ...days }, stamp);
     if (written === 'unknown_step') return { ok: false, reason: 'unknown_step' };
@@ -6256,6 +6551,15 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { workItem } = context.value;
     const before = await this.storedTrio(workItem.projectId, id, stepId);
+    const estimates = await this.opts.estimates.listByProject(workItem.projectId);
+    // Proof: bypassing this call failed `connected clear-estimate refuses an injected failed graph read`
+    // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
+    const structural = await this.structuralRefusal(workItem.projectId, actorId, {
+      estimates: estimates.filter(
+        (estimate) => estimate.workItemId !== id || estimate.stepId !== stepId,
+      ),
+    });
+    if (structural !== null) return structural;
     // A delete has no column to stamp, so this stamp is the journal entry's
     // alone — built here rather than beside the {@link record} call because the
     // act begins at the write, not at the recording of it.
@@ -7520,51 +7824,116 @@ export class WorkItemService {
     return { ok: true, value: null };
   }
 
-  /** Sends the whole tree, for a change that can renumber more than it touched. */
-  /** Validates a typed row against this project's current tree and combined graph. */
+  /** Checked detached facts for every old/new endpoint, before labels or mutation. */
+  private async typedEvidence(
+    context: DependencyContext,
+    projectId: string,
+    relationships: readonly StoredTypedDependency[],
+  ): Promise<
+    | {
+        ok: true;
+        endpoints: Map<string, EndpointEvidence>;
+        externalBefore: readonly ScopedRevision[];
+      }
+    | { ok: false; reason: WorkItemRefusal }
+  > {
+    const external = relationships.some(
+      (relationship) =>
+        relationship.predecessor.projectId !== projectId ||
+        relationship.successor.projectId !== projectId,
+    );
+    const endpoints = new Map<string, EndpointEvidence>();
+    for (const relationship of relationships)
+      for (const endpoint of [relationship.predecessor, relationship.successor]) {
+        const key = JSON.stringify(endpoint);
+        if (endpoints.has(key)) continue;
+        const read = await context.endpoints.readEndpoint(endpoint);
+        // Proof: external-owner-step-concealment bypass failed `mounted owner-step`'s selected assertion
+        // (actual SQLite boundary; watched 2026-10-22).
+        if (!read.ok)
+          return {
+            ok: false,
+            reason: external && read.reason === 'unknown_step' ? 'not_found' : read.reason,
+          };
+        const evidence = read.evidence;
+        if (endpoint.scope === 'node' && !evidence.isLeaf)
+          return { ok: false, reason: 'rolled_up' };
+        if (endpoint.scope === 'descendant-step' && evidence.isLeaf)
+          return { ok: false, reason: 'not_a_parent' };
+        endpoints.set(key, evidence);
+      }
+    const remote = [...endpoints.values()]
+      .filter((evidence) => evidence.endpoint.projectId !== projectId)
+      .map((evidence) => ({
+        projectId: evidence.endpoint.projectId,
+        workItemId: evidence.endpoint.workItemId,
+      }));
+    const revisions = await context.endpoints.readRevisions(remote);
+    if (!revisions.ok) return revisions;
+    return { ok: true, endpoints, externalBefore: revisions.revisions };
+  }
+
+  /** Complete proposed owner set checked against the fresh connected graph. */
   private async typedRefusal(
     projectId: string,
-    rows: readonly WorkItem[],
+    actorId: string,
     existing: readonly StoredTypedDependency[],
     proposed: StoredTypedDependency,
   ): Promise<WorkItemRefusal | null> {
-    // Proof: accepting every string in isWritableRelationshipType made `refuses an SF write
-    // at the application boundary` accept SF with `{ ok: true, value: "item-7" }`;
-    // watched 2026-09-28.
     if (!isWritableRelationshipType(proposed.type)) return 'unsupported_relationship_type';
-    const leaves = new Map(
-      rows.map((row) => [row.id, !rows.some((child) => child.parentId === row.id)]),
+    // Proof: removing only this guard changed misowned resulting-relationship redo
+    // from stale_undo/not_found to the working-plan owner throw, before storage
+    // (admitted redo test, 2026-10-22); entry guards stayed installed.
+    if (proposed.projectId !== projectId || proposed.successor.projectId !== projectId)
+      return 'not_found';
+    return withDependencyContext(
+      this.opts.dependencyContext,
+      projectId,
+      actorId,
+      async (context) => {
+        const evidence = await this.typedEvidence(context, projectId, [proposed]);
+        if (!evidence.ok) return evidence.reason;
+        // Proof: bypassing this consumer restored mounted pending-endpoint add/update
+        // HTTP500 instead of modeled HTTP409; all-table refusal snapshots pass (2026-10-22).
+        if (await this.opts.typedDependencies.hasDeletingEndpoint(proposed))
+          return 'project_deleting';
+        if (proposed.predecessor.projectId !== projectId && !this.externalDependenciesActive)
+          return 'external_dependencies_inactive';
+        if (
+          existing.some(
+            (row) =>
+              row.id !== proposed.id &&
+              formatScopedDependencyKey(row) === formatScopedDependencyKey(proposed),
+          )
+        )
+          return 'duplicate_dependency';
+        // Proof: typed-complete-connected-cycle bypass failed `connected guard accepts step interleaving`'s selected assertion
+        // (actual SQLite boundary; watched 2026-10-22).
+        // Proof: bypassing this consumer failed `connected typed-add refuses`
+        // at its real SQLite refusal assertion; zero partial effects also checked (2026-10-22).
+        // Proof: bypassing this consumer failed `connected typed-update refuses`
+        // at its real SQLite refusal assertion; zero partial effects also checked (2026-10-22).
+        // Proof: suppressing this consumer changed both synthetic mounted compound remote-cycle
+        // undo/redo details to the final cycle fallback; A/B revisions stayed unchanged (2026-10-23).
+        const cycle = await context.graph.findCycle(projectId, {
+          typed: [...existing.filter((row) => row.id !== proposed.id), proposed],
+        });
+        return cycle === null ? null : cycle.kind === 'self_node' ? 'self_node' : 'cycle';
+      },
     );
-    const steps = new Set((await this.opts.projects.stepsOf(projectId)).map((step) => step.id));
-    for (const endpoint of [proposed.predecessor, proposed.successor]) {
-      // Proof: bypassing endpoint validation made `refuses invalid typed endpoints, duplicate keys,
-      // unsupported types and absent relationships` return 500 instead of 404 for an unknown step; watched 2026-09-27.
-      const defect = findTypedEndpointDefect(endpoint, {
-        isLeaf: (id) => leaves.get(id),
-        hasStep: (id) => steps.has(id),
-      });
-      if (defect !== null)
-        return defect === 'node_on_parent'
-          ? 'rolled_up'
-          : defect === 'descendant_step_on_leaf'
-            ? 'not_a_parent'
-            : defect;
-    }
-    // Proof: bypassing key comparison made the mounted duplicate case return 500 instead of 409; watched 2026-09-27.
-    if (
-      existing.some(
-        (row) =>
-          row.id !== proposed.id &&
-          formatTypedDependencyKey(row) === formatTypedDependencyKey(proposed),
-      )
-    )
-      return 'duplicate_dependency';
-    // Proof: bypassing this check made `rejects a cycle introduced by the second typed add`
-    // return 200 instead of 409; watched 2026-09-27.
-    const cycle = await this.graph.findCycle(projectId, {
-      typed: [...existing.filter((row) => row.id !== proposed.id), proposed],
-    });
-    return cycle === null ? null : cycle.kind === 'self_node' ? 'self_node' : 'cycle';
+  }
+
+  /** Labels use only facts that have passed endpoint authority in this observation. */
+  private endpointLabel(
+    endpoint: ScopedDependencyEndpoint,
+    evidence: ReadonlyMap<string, EndpointEvidence>,
+    ownerId: string,
+  ): string {
+    const found = evidence.get(JSON.stringify(endpoint));
+    if (found === undefined) throw new Error('checked typed endpoint evidence is missing');
+    return endpoint.projectId === ownerId
+      ? found.name
+      : `${found.projectAbbreviation}.${found.workItemNumber} ${found.name}`;
   }
 
   /**
@@ -7581,87 +7950,138 @@ export class WorkItemService {
     return (
       left.id === right.id &&
       left.projectId === right.projectId &&
-      formatTypedDependencyKey(left) === formatTypedDependencyKey(right)
+      // Proof: bypassing this consumer failed `corrupt scoped stored-row delivery`
+      // at its real SQLite refusal assertion; zero partial effects also checked (2026-10-22).
+      formatScopedDependencyKey(left) === formatScopedDependencyKey(right)
     );
   }
 
-  /** Adds a typed relationship and returns the minted stable identity. */
+  /** Adds a scoped relationship; explicit endpoint projects are never overwritten. */
   async addTypedDependency(
     projectId: string,
     actorId: string,
-    input: { predecessor: DependencyEndpoint; successor: DependencyEndpoint; type: string },
+    input: {
+      predecessor: ScopedDependencyEndpoint;
+      successor: ScopedDependencyEndpoint;
+      type: string;
+    },
   ): Promise<WorkItemOutcome<string>> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
     if (!isWritableRelationshipType(input.type))
       return { ok: false, reason: 'unsupported_relationship_type' };
-    const rows = await this.opts.workItems.listByProject(projectId);
-    const existing = await this.opts.typedDependencies.listByProject(projectId);
+    // Proof: independently removing this entry guard read the protected second
+    // successor in the corresponding add/update SQLite test (2026-10-22).
+    if (input.successor.projectId !== projectId) return { ok: false, reason: 'not_found' };
     const dependency: StoredTypedDependency = {
       id: this.clock.newId(),
       projectId,
       ...input,
       type: input.type,
     };
-    const refusal = await this.typedRefusal(projectId, rows, existing, dependency);
-    if (refusal !== null) return { ok: false, reason: refusal };
-    const stamp = this.clock.stampFor(actorId);
-    await this.opts.typedDependencies.add(dependency, stamp);
-    await this.announceTree(projectId);
-    await this.record(
+    return withDependencyContext(
+      this.opts.dependencyContext,
       projectId,
-      stamp,
-      'add_typed_dependency',
-      `make ${quoteName(nameOf(rows, input.successor.workItemId))} wait for ${quoteName(nameOf(rows, input.predecessor.workItemId))}`,
-      {
-        forward: { do: 'add_typed_dependency', dependency },
-        inverse: { do: 'remove_typed_dependency', dependency },
-        touched: touchedBy({ do: 'add_typed_dependency', dependency }),
-        before: rows,
+      actorId,
+      async (context) => {
+        const evidence = await this.typedEvidence(context, projectId, [dependency]);
+        if (!evidence.ok) return evidence;
+        if (input.predecessor.projectId !== projectId && !this.externalDependenciesActive)
+          return { ok: false, reason: 'external_dependencies_inactive' };
+        const rows = await this.opts.workItems.listByProject(projectId);
+        const existing = await this.opts.typedDependencies.listByProject(projectId);
+        const refusal = await this.typedRefusal(projectId, actorId, existing, dependency);
+        if (refusal !== null) return { ok: false, reason: refusal };
+        const stamp = this.clock.stampFor(actorId);
+        context.assertUsable(projectId, actorId);
+        await this.opts.typedDependencies.add(dependency, stamp);
+        await this.announceTree(projectId);
+        await this.record(
+          projectId,
+          stamp,
+          'add_typed_dependency',
+          `make ${quoteName(this.endpointLabel(input.successor, evidence.endpoints, projectId))} wait for ${quoteName(this.endpointLabel(input.predecessor, evidence.endpoints, projectId))}`,
+          {
+            forward: { do: 'add_typed_dependency', dependency },
+            inverse: { do: 'remove_typed_dependency', dependency },
+            touched: touchedBy({ do: 'add_typed_dependency', dependency }),
+            before: rows,
+            ...(evidence.externalBefore.length === 0
+              ? {}
+              : { externalBefore: evidence.externalBefore }),
+          },
+        );
+        return { ok: true, value: dependency.id };
       },
     );
-    return { ok: true, value: dependency.id };
   }
 
-  /** Updates one typed relationship without changing its identity. */
+  /** Updates an owned relationship, rechecking old and new endpoint authority first. */
   async updateTypedDependency(
     projectId: string,
     actorId: string,
     dependencyId: string,
-    input: { predecessor: DependencyEndpoint; successor: DependencyEndpoint; type: string },
+    input: {
+      predecessor: ScopedDependencyEndpoint;
+      successor: ScopedDependencyEndpoint;
+      type: string;
+    },
   ): Promise<WorkItemOutcome<null>> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
     if (!isWritableRelationshipType(input.type))
       return { ok: false, reason: 'unsupported_relationship_type' };
-    const rows = await this.opts.workItems.listByProject(projectId);
+    // Proof: independently removing this entry guard read the protected second
+    // successor in the corresponding add/update SQLite test (2026-10-22).
+    if (input.successor.projectId !== projectId) return { ok: false, reason: 'not_found' };
     const existing = await this.opts.typedDependencies.listByProject(projectId);
     const from = existing.find((row) => row.id === dependencyId);
     if (from === undefined) return { ok: false, reason: 'unknown_dependency' };
     const to: StoredTypedDependency = { id: dependencyId, projectId, ...input, type: input.type };
-    const refusal = await this.typedRefusal(projectId, rows, existing, to);
-    if (refusal !== null) return { ok: false, reason: refusal };
-    const stamp = this.clock.stampFor(actorId);
-    await this.opts.typedDependencies.update(to, stamp);
-    await this.announceTree(projectId);
-    await this.record(
+    return withDependencyContext(
+      this.opts.dependencyContext,
       projectId,
-      stamp,
-      'update_typed_dependency',
-      `change dependency from ${quoteName(nameOf(rows, to.predecessor.workItemId))} to ${quoteName(nameOf(rows, to.successor.workItemId))}`,
-      {
-        forward: { do: 'update_typed_dependency', from, to },
-        inverse: { do: 'update_typed_dependency', from: to, to: from },
-        touched: touchedBy({ do: 'update_typed_dependency', from, to }),
-        before: rows,
+      actorId,
+      async (context) => {
+        // Proof: old-update-evidence bypass failed `update refuses an injected denial`'s selected assertion
+        // (actual SQLite boundary; watched 2026-10-22).
+        const evidence = await this.typedEvidence(context, projectId, [from, to]);
+        if (!evidence.ok) return evidence;
+        if (
+          [from, to].some((dependency) => dependency.predecessor.projectId !== projectId) &&
+          !this.externalDependenciesActive
+        )
+          return { ok: false, reason: 'external_dependencies_inactive' };
+        const rows = await this.opts.workItems.listByProject(projectId);
+        const refusal = await this.typedRefusal(projectId, actorId, existing, to);
+        if (refusal !== null) return { ok: false, reason: refusal };
+        const stamp = this.clock.stampFor(actorId);
+        context.assertUsable(projectId, actorId);
+        await this.opts.typedDependencies.update(to, stamp);
+        await this.announceTree(projectId);
+        await this.record(
+          projectId,
+          stamp,
+          'update_typed_dependency',
+          `change dependency from ${quoteName(this.endpointLabel(to.predecessor, evidence.endpoints, projectId))} to ${quoteName(this.endpointLabel(to.successor, evidence.endpoints, projectId))}`,
+          {
+            forward: { do: 'update_typed_dependency', from, to },
+            inverse: { do: 'update_typed_dependency', from: to, to: from },
+            touched: touchedBy({ do: 'update_typed_dependency', from, to }),
+            before: rows,
+            ...(evidence.externalBefore.length === 0
+              ? {}
+              : { externalBefore: evidence.externalBefore }),
+          },
+        );
+        return { ok: true, value: null };
       },
     );
-    return { ok: true, value: null };
   }
 
-  /** Removes one typed relationship by stable identity. */
+  /** Removes an owned relationship only while both original endpoints remain readable. */
   async removeTypedDependency(
     projectId: string,
     actorId: string,
@@ -7670,27 +8090,50 @@ export class WorkItemService {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
-    const rows = await this.opts.workItems.listByProject(projectId);
-    const dependency = (await this.opts.typedDependencies.listByProject(projectId)).find(
-      (row) => row.id === dependencyId,
-    );
+    const existing = await this.opts.typedDependencies.listByProject(projectId);
+    const dependency = existing.find((row) => row.id === dependencyId);
     if (dependency === undefined) return { ok: false, reason: 'unknown_dependency' };
-    const stamp = this.clock.stampFor(actorId);
-    await this.opts.typedDependencies.remove(dependencyId, stamp);
-    await this.announceTree(projectId);
-    await this.record(
+    return withDependencyContext(
+      this.opts.dependencyContext,
       projectId,
-      stamp,
-      'remove_typed_dependency',
-      `remove dependency from ${quoteName(nameOf(rows, dependency.predecessor.workItemId))} to ${quoteName(nameOf(rows, dependency.successor.workItemId))}`,
-      {
-        forward: { do: 'remove_typed_dependency', dependency },
-        inverse: { do: 'add_typed_dependency', dependency },
-        touched: touchedBy({ do: 'remove_typed_dependency', dependency }),
-        before: rows,
+      actorId,
+      async (context) => {
+        // Proof: old-remove-evidence bypass failed `remove refuses an injected denial`'s selected assertion
+        // (actual SQLite boundary; watched 2026-10-22).
+        const evidence = await this.typedEvidence(context, projectId, [dependency]);
+        if (!evidence.ok) return evidence;
+        if (dependency.predecessor.projectId !== projectId && !this.externalDependenciesActive)
+          return { ok: false, reason: 'external_dependencies_inactive' };
+        // Proof: bypassing this consumer failed `connected typed-remove refuses`
+        // at its real SQLite refusal assertion; zero partial effects also checked (2026-10-22).
+        const cycle = await context.graph.findCycle(projectId, {
+          typed: existing.filter((row) => row.id !== dependencyId),
+        });
+        if (cycle !== null)
+          return { ok: false, reason: cycle.kind === 'self_node' ? 'self_node' : 'cycle' };
+        const rows = await this.opts.workItems.listByProject(projectId);
+        const stamp = this.clock.stampFor(actorId);
+        context.assertUsable(projectId, actorId);
+        await this.opts.typedDependencies.remove(dependencyId, stamp);
+        await this.announceTree(projectId);
+        await this.record(
+          projectId,
+          stamp,
+          'remove_typed_dependency',
+          `remove dependency from ${quoteName(this.endpointLabel(dependency.predecessor, evidence.endpoints, projectId))} to ${quoteName(this.endpointLabel(dependency.successor, evidence.endpoints, projectId))}`,
+          {
+            forward: { do: 'remove_typed_dependency', dependency },
+            inverse: { do: 'add_typed_dependency', dependency },
+            touched: touchedBy({ do: 'remove_typed_dependency', dependency }),
+            before: rows,
+            ...(evidence.externalBefore.length === 0
+              ? {}
+              : { externalBefore: evidence.externalBefore }),
+          },
+        );
+        return { ok: true, value: null };
       },
     );
-    return { ok: true, value: null };
   }
 
   /**
@@ -7720,7 +8163,9 @@ export class WorkItemService {
     // Proof: omitting the proposed legacy edge from the combined graph made
     // `refuses a direct legacy write that closes a typed SS cycle` receive
     // `{ ok: true, value: null }` instead of `cycle`; watched 2026-09-28.
-    const cycle = await this.graph.findCycle(workItem.projectId, {
+    // Proof: bypassing this consumer failed `connected add-legacy refuses an injected failed graph read`
+    // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
+    const cycle = await this.findDependencyCycle(workItem.projectId, actorId, {
       legacy: [
         ...existing,
         { id: 'proposed', projectId: workItem.projectId, predecessorId, successorId: id },
@@ -7765,9 +8210,19 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { workItem, rows } = context.value;
 
-    const existed = (await this.opts.dependencies.listByProject(workItem.projectId)).some(
+    const existing = await this.opts.dependencies.listByProject(workItem.projectId);
+    const existed = existing.some(
       (edge) => edge.predecessorId === predecessorId && edge.successorId === id,
     );
+    // Proof: bypassing this consumer failed `connected remove-legacy refuses an injected failed graph read`
+    // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
+    const cycle = await this.findDependencyCycle(workItem.projectId, actorId, {
+      legacy: existing.filter(
+        (edge) => edge.predecessorId !== predecessorId || edge.successorId !== id,
+      ),
+    });
+    if (cycle !== null)
+      return { ok: false, reason: cycle.kind === 'self_node' ? 'self_node' : 'cycle' };
     const stamp = this.clock.stampFor(actorId);
     await this.opts.dependencies.remove(predecessorId, id, stamp);
     await this.announceTree(workItem.projectId);
@@ -7880,149 +8335,270 @@ export class WorkItemService {
     if (!this.opts.admission.admits(project, actorId))
       return { ok: false, reason: 'forbidden', detail: null };
 
-    // The whole stack, because applying one entry re-stamps its neighbours.
-    // It is capped at fifty rows.
-    const entries = await this.opts.journal.entriesFor(stack);
-    const entry: JournalEntry | undefined =
-      direction === 'undo'
-        ? [...entries].reverse().find((each) => !each.undone)
-        : entries.find((each) => each.undone);
-    if (entry === undefined) return { ok: false, reason: 'nothing_to_undo', detail: null };
+    return withDependencyContext(
+      this.opts.dependencyContext,
+      projectId,
+      actorId,
+      async (dependencyContext) => {
+        // The whole stack, because applying one entry re-stamps its neighbours.
+        // It is capped at fifty rows.
+        // Proof: reading the null-person stack made mixed-person connected replay return 409 instead of 200 (R13, 2026-10-26).
+        const entries = await this.opts.journal.entriesFor(stack);
+        const entry: JournalEntry | undefined =
+          direction === 'undo'
+            ? [...entries].reverse().find((each) => !each.undone)
+            : entries.find((each) => each.undone);
+        if (entry === undefined) return { ok: false, reason: 'nothing_to_undo', detail: null };
 
-    const payload = readPayload(entry.payload);
-    const command = direction === 'undo' ? readCommand(entry.inverse) : payload.forward;
-    const preconditions = readPreconditions(entry.preconditions);
-    const bindings = boundEstimateUnits(preconditions, [
-      payload.forward,
-      readCommand(entry.inverse),
-    ]);
+        const payload = readPayload(entry.payload);
+        const command = direction === 'undo' ? readCommand(entry.inverse) : payload.forward;
+        const preconditions = readPreconditions(entry.preconditions);
+        const bothDirections = [payload.forward, readCommand(entry.inverse)];
+        const external = requireExternalRevisions(preconditions, projectId, bothDirections);
+        const endpointKeys = new Set<string>();
+        // Proof: scanning both directions changed the SQLite other-direction
+        // not_found to application-time stale_undo (round1 ordering diagnostic).
+        const restoredTyped = restoredTypedAddressesOf(command, projectId);
+        let localEndpointDefect = false;
+        for (const directionCommand of bothDirections)
+          for (const endpoint of referencesOf(directionCommand).scopedEndpoints) {
+            if (endpoint.projectId !== projectId && endpointKeys.has(JSON.stringify(endpoint)))
+              continue;
+            endpointKeys.add(JSON.stringify(endpoint));
+            const checked = await dependencyContext.endpoints.readEndpoint(endpoint);
+            if (!checked.ok) {
+              // Proof: restoring the external-metadata blanket gate lost valid
+              // SQLite redo. Exempting delivered forbidden/unknown_step outcomes
+              // instead returned ok:true in their round1 refusal-fault regressions.
+              if (
+                endpoint.projectId === projectId &&
+                checked.reason === 'not_found' &&
+                restoredTyped.has(scopedRevisionKey(endpoint))
+              )
+                continue;
+              if (
+                external === null &&
+                endpoint.projectId === projectId &&
+                checked.reason !== 'forbidden'
+              ) {
+                localEndpointDefect = true;
+              } else
+                return {
+                  ok: false,
+                  reason: checked.reason === 'forbidden' ? 'forbidden' : 'not_found',
+                  detail: null,
+                };
+            }
+          }
+        if (
+          external !== null &&
+          // Proof: reading authority before this predicate threw in mounted
+          // `derived incident history does not require general external authoring`
+          // instead of replaying the derived mapping (watched 2026-10-23).
+          bothDirections.some(requiresExternalAuthoring) &&
+          !this.externalDependenciesActive
+        )
+          return { ok: false, reason: 'external_dependencies_inactive', detail: null };
+        if (external !== null) {
+          const current = await dependencyContext.endpoints.readRevisions(external.expected);
+          if (!current.ok) return { ok: false, reason: current.reason, detail: null };
+          const revisions = new Map(
+            current.revisions.map((revision) => [scopedRevisionKey(revision), revision.revision]),
+          );
+          // Proof: remote-revision-conflict bypass failed `external undo redo checks remote revisions`'s selected assertion
+          // (actual SQLite boundary; watched 2026-10-22).
+          // Proof: bypassing this comparison made mounted promote stale undo commit with 200 instead of 409 (2026-10-22).
+          // Proof: disabling only this comparison made all four mounted first-child
+          // remote-replay undo/redo predecessor/successor cases return unsafe 200
+          // instead of 409 after real remote HTTP edits (2026-10-23).
+          if (
+            external.expected.some(
+              (revision) => revisions.get(scopedRevisionKey(revision)) !== revision.revision,
+            )
+          ) {
+            await this.opts.journal.discard(entry.id);
+            return {
+              ok: false,
+              reason: 'stale_undo',
+              detail: 'an external dependency endpoint changed since this command.',
+              entryId: entry.id,
+            };
+          }
+        }
+        const bindings = boundEstimateUnits(preconditions, [
+          payload.forward,
+          readCommand(entry.inverse),
+        ]);
 
-    // Proof: removing required metadata validation accepted a deletion whose progress snapshot was removed (200 vs 500); watched 2026-10-14.
-    for (const owner of deletionParentsOf([payload.forward, readCommand(entry.inverse)])) {
-      if (
-        preconditions.moveProgress === undefined ||
-        !Object.hasOwn(preconditions.moveProgress, owner)
-      )
-        throw new Error(`journal deletion state has no complete progress snapshot for ${owner}`);
-    }
+        // Proof: removing required metadata validation accepted a deletion whose progress snapshot was removed (200 vs 500); watched 2026-10-14.
+        for (const owner of deletionParentsOf([payload.forward, readCommand(entry.inverse)])) {
+          if (
+            preconditions.moveProgress === undefined ||
+            !Object.hasOwn(preconditions.moveProgress, owner)
+          )
+            throw new Error(
+              `journal deletion state has no complete progress snapshot for ${owner}`,
+            );
+        }
 
-    const replayReferences = referencesOf(command);
-    for (const [owner, facts] of Object.entries(preconditions.moveProgress ?? {})) {
-      // Proof: omitting owners with empty snapshots admitted foreign-project metadata; watched 2026-10-14.
-      replayReferences.workItems.push(owner);
-      // Proof: omitting snapshot step references changed scoped metadata refusal from 404 to 409; watched 2026-10-14.
-      replayReferences.steps.push(...facts.map(({ stepId }) => stepId));
-    }
-    // Proof: disabling this check made `command-organization.controller.db.test.ts`
-    // answer 200 instead of 404 for `refuses an undo whose entry names another
-    // project's row`, for the nested foreign label and for the restored row of
-    // another project, and 409 `stale_undo` (discarding the entry) for a step
-    // of another project; watched 2026-09-27.
-    if (
-      access.kind === 'scoped' &&
-      (await this.namesOutside(projectId, access.scope.organizationId, replayReferences))
-    ) {
-      return { ok: false, reason: 'not_found', detail: null };
-    }
+        const replayReferences = referencesOf(command);
+        for (const endpoint of replayReferences.scopedEndpoints)
+          if (endpoint.projectId === projectId) {
+            replayReferences.workItems.push(endpoint.workItemId);
+            if (endpoint.scope !== 'whole') replayReferences.steps.push(endpoint.stepId);
+          }
+        for (const [owner, facts] of Object.entries(preconditions.moveProgress ?? {})) {
+          // Proof: omitting owners with empty snapshots admitted foreign-project metadata; watched 2026-10-14.
+          replayReferences.workItems.push(owner);
+          // Proof: omitting snapshot step references changed scoped metadata refusal from 404 to 409; watched 2026-10-14.
+          replayReferences.steps.push(...facts.map(({ stepId }) => stepId));
+        }
+        // Proof: disabling this check made `command-organization.controller.db.test.ts`
+        // answer 200 instead of 404 for `refuses an undo whose entry names another
+        // project's row`, for the nested foreign label and for the restored row of
+        // another project, and 409 `stale_undo` (discarding the entry) for a step
+        // of another project; watched 2026-09-27.
+        if (
+          access.kind === 'scoped' &&
+          (await this.namesOutside(projectId, access.scope.organizationId, replayReferences))
+        ) {
+          return { ok: false, reason: 'not_found', detail: null };
+        }
 
-    const steps = new Map(
-      (await this.opts.projects.stepsOf(projectId)).map((step) => [step.id, step]),
+        if (localEndpointDefect) {
+          await this.opts.journal.discard(entry.id);
+          return {
+            ok: false,
+            reason: 'stale_undo',
+            detail: 'a local dependency endpoint changed or was removed.',
+            entryId: entry.id,
+          };
+        }
+        const steps = new Map(
+          (await this.opts.projects.stepsOf(projectId)).map((step) => [step.id, step]),
+        );
+        for (const [stepId, unit] of Object.entries(bindings)) {
+          const current = steps.get(stepId);
+          // Proof: bypassing equality restored a day trio under minutes (200 vs 409); dropping absence returned 500 vs 409 for a removed step (mounted unit replay, 2026-10-12).
+          if (current?.estimateUnit !== unit) {
+            await this.opts.journal.discard(entry.id);
+            return {
+              ok: false,
+              reason: 'stale_undo',
+              detail: `the estimate unit of step ${stepId} changed or the step was removed.`,
+              entryId: entry.id,
+            };
+          }
+        }
+        const moved = await this.staleness(projectId, preconditions.expected);
+        if (moved !== null) {
+          await this.opts.journal.discard(entry.id);
+          return { ok: false, reason: 'stale_undo', detail: moved, entryId: entry.id };
+        }
+
+        for (const [owner, expected] of Object.entries(preconditions.moveProgress ?? {})) {
+          const current = await this.opts.progress.listByWorkItems(projectId, [owner]);
+          // Proof: bypassing this pre-batch comparison deleted changed recorded destination facts during mounted/memory redo; watched 2026-10-14.
+          // Proof: bypassing this comparison lost peer deletion-parent progress (200 vs 409); watched 2026-10-14.
+          if (!matchesProgress(current, expected)) {
+            await this.opts.journal.discard(entry.id);
+            return {
+              ok: false,
+              reason: 'stale_undo',
+              detail: 'progress on a guarded work item changed since this command.',
+              entryId: entry.id,
+            };
+          }
+        }
+        const neighbors = await this.captureReplayNeighbors(entries, entry, direction, projectId);
+        // Proof: broadening these pairs to all owner facts accepted stale mounted/memory replay; watched 2026-10-14.
+        const written = new Set(
+          progressKeysOf(command).map(({ workItemId, stepId }) => progressKey(workItemId, stepId)),
+        );
+        // The act is the application, past every refusal above it: a stale entry is
+        // discarded and never stamped. Nothing is appended to the journal here — an
+        // undo is not itself journalled — so this stamp is spent only on the rows
+        // {@link apply} rewrites.
+        const stamp = this.clock.stampFor(actorId);
+        const applied = await this.apply(projectId, command, stamp, access);
+        if (!applied.ok) {
+          await this.opts.journal.discard(entry.id);
+          return { ok: false, reason: 'stale_undo', detail: applied.detail, entryId: entry.id };
+        }
+        // The state the application left, asked before anything commits: the
+        // runner rolls this unit of work back on the refusal, so an undo or redo
+        // that would close a step-node cycle writes nothing.
+        // Proof: this check skipped made `refuses an undo that would close a
+        // step-node cycle` fail on `Expected: 409, Received: 200`; watched
+        // 2026-09-27.
+        // Proof: bypassing it with an SS relationship present made the same mounted
+        // undo test receive 200 instead of 409; watched 2026-09-28.
+        // Proof: with typedRefusal suppressed, also suppressing this consumer made both
+        // synthetic mounted compound remote-cycle walks commit HTTP 200, patch B and
+        // restore A→B; domain, revision, event and journal rows changed (2026-10-23).
+        // Proof: suppressing only this consumer made both mounted final-only graph
+        // finding replays return 200, persist the preceding patch and relationship,
+        // flip history and publish; the genuine earlier typed guard stayed active
+        // and staged reattachment was observed before injection (2026-10-23).
+        const cycle = await this.findDependencyCycle(projectId, actorId);
+        if (cycle !== null) {
+          await this.opts.journal.discard(entry.id);
+          return {
+            ok: false,
+            reason: 'stale_undo',
+            detail: 'that would now close a dependency cycle between steps.',
+            entryId: entry.id,
+          };
+        }
+
+        // The entry now describes the other direction, so it checks the revisions
+        // this application left and remembers the ones it started from. Nothing is
+        // appended: an undo that was itself journalled would be undoable, and the
+        // key would toggle one change forever instead of walking back through two.
+        const now = await this.revisionsOf(projectId, [
+          ...touchedBy(command),
+          // Proof: omitting both direction owners let the second undo ignore a changed parent revision; watched 2026-10-14.
+          ...expectedProgressOwnersOf(payload.forward),
+          ...expectedProgressOwnersOf(readCommand(entry.inverse)),
+        ]);
+        let externalNow: readonly ScopedRevision[] = [];
+        if (external !== null) {
+          const current = await dependencyContext.endpoints.readRevisions(external.expected);
+          if (!current.ok) throw new Error('replayed external revision evidence became unreadable');
+          externalNow = current.revisions;
+        }
+        dependencyContext.assertUsable(projectId, actorId);
+        await this.opts.journal.flip(stack, entry.id, direction === 'undo', {
+          ...(external === null
+            ? {}
+            : { externalRevisions: { expected: externalNow, from: external.expected } }),
+          expected: now,
+          from: preconditions.expected,
+          // Proof: dropping flip snapshots made changed known-step redo succeed; watched 2026-10-14.
+          ...(preconditions.moveProgress === undefined
+            ? {}
+            : {
+                moveProgress: await this.captureMoveProgress(
+                  projectId,
+                  Object.keys(preconditions.moveProgress),
+                ),
+              }),
+          // Proof: dropping this binding made chained minute redo refuse 409 instead of 200 (mounted unit replay, 2026-10-12).
+          estimateUnits: bindings,
+        });
+        await this.rebase(
+          neighbors,
+          entry,
+          preconditions.from,
+          now,
+          written,
+          external?.from ?? [],
+          externalNow,
+        );
+        await this.announceTree(projectId);
+        return { ok: true, value: { done: payload.label, detail: applied.detail } };
+      },
     );
-    for (const [stepId, unit] of Object.entries(bindings)) {
-      const current = steps.get(stepId);
-      // Proof: bypassing equality restored a day trio under minutes (200 vs 409); dropping absence returned 500 vs 409 for a removed step (mounted unit replay, 2026-10-12).
-      if (current?.estimateUnit !== unit) {
-        await this.opts.journal.discard(entry.id);
-        return {
-          ok: false,
-          reason: 'stale_undo',
-          detail: `the estimate unit of step ${stepId} changed or the step was removed.`,
-          entryId: entry.id,
-        };
-      }
-    }
-    const moved = await this.staleness(projectId, preconditions.expected);
-    if (moved !== null) {
-      await this.opts.journal.discard(entry.id);
-      return { ok: false, reason: 'stale_undo', detail: moved, entryId: entry.id };
-    }
-
-    for (const [owner, expected] of Object.entries(preconditions.moveProgress ?? {})) {
-      const current = await this.opts.progress.listByWorkItems(projectId, [owner]);
-      // Proof: bypassing this pre-batch comparison deleted changed recorded destination facts during mounted/memory redo; watched 2026-10-14.
-      // Proof: bypassing this comparison lost peer deletion-parent progress (200 vs 409); watched 2026-10-14.
-      if (!matchesProgress(current, expected)) {
-        await this.opts.journal.discard(entry.id);
-        return {
-          ok: false,
-          reason: 'stale_undo',
-          detail: 'progress on a guarded work item changed since this command.',
-          entryId: entry.id,
-        };
-      }
-    }
-    const neighbors = await this.captureReplayNeighbors(entries, entry, direction, projectId);
-    // Proof: broadening these pairs to all owner facts accepted stale mounted/memory replay; watched 2026-10-14.
-    const written = new Set(
-      progressKeysOf(command).map(({ workItemId, stepId }) => progressKey(workItemId, stepId)),
-    );
-    // The act is the application, past every refusal above it: a stale entry is
-    // discarded and never stamped. Nothing is appended to the journal here — an
-    // undo is not itself journalled — so this stamp is spent only on the rows
-    // {@link apply} rewrites.
-    const stamp = this.clock.stampFor(actorId);
-    const applied = await this.apply(projectId, command, stamp, access);
-    if (!applied.ok) {
-      await this.opts.journal.discard(entry.id);
-      return { ok: false, reason: 'stale_undo', detail: applied.detail, entryId: entry.id };
-    }
-    // The state the application left, asked before anything commits: the
-    // runner rolls this unit of work back on the refusal, so an undo or redo
-    // that would close a step-node cycle writes nothing.
-    // Proof: this check skipped made `refuses an undo that would close a
-    // step-node cycle` fail on `Expected: 409, Received: 200`; watched
-    // 2026-09-27.
-    // Proof: bypassing it with an SS relationship present made the same mounted
-    // undo test receive 200 instead of 409; watched 2026-09-28.
-    const cycle = await this.graph.findCycle(projectId);
-    if (cycle !== null) {
-      await this.opts.journal.discard(entry.id);
-      return {
-        ok: false,
-        reason: 'stale_undo',
-        detail: 'that would now close a dependency cycle between steps.',
-        entryId: entry.id,
-      };
-    }
-
-    // The entry now describes the other direction, so it checks the revisions
-    // this application left and remembers the ones it started from. Nothing is
-    // appended: an undo that was itself journalled would be undoable, and the
-    // key would toggle one change forever instead of walking back through two.
-    const now = await this.revisionsOf(projectId, [
-      ...touchedBy(command),
-      // Proof: omitting both direction owners let the second undo ignore a changed parent revision; watched 2026-10-14.
-      ...expectedProgressOwnersOf(payload.forward),
-      ...expectedProgressOwnersOf(readCommand(entry.inverse)),
-    ]);
-    await this.opts.journal.flip(stack, entry.id, direction === 'undo', {
-      expected: now,
-      from: preconditions.expected,
-      // Proof: dropping flip snapshots made changed known-step redo succeed; watched 2026-10-14.
-      ...(preconditions.moveProgress === undefined
-        ? {}
-        : {
-            moveProgress: await this.captureMoveProgress(
-              projectId,
-              Object.keys(preconditions.moveProgress),
-            ),
-          }),
-      // Proof: dropping this binding made chained minute redo refuse 409 instead of 200 (mounted unit replay, 2026-10-12).
-      estimateUnits: bindings,
-    });
-    await this.rebase(neighbors, entry, preconditions.from, now, written);
-    await this.announceTree(projectId);
-    return { ok: true, value: { done: payload.label, detail: applied.detail } };
   }
 
   /** Captures guarded neighbor facts before this replay can change any progress. */
@@ -8038,6 +8614,10 @@ export class WorkItemService {
       const ahead = direction === 'undo' ? entry.seq < selected.seq : entry.seq > selected.seq;
       if (!ahead) continue;
       const preconditions = readPreconditions(entry.preconditions);
+      requireExternalRevisions(preconditions, projectId, [
+        readPayload(entry.payload).forward,
+        readCommand(entry.inverse),
+      ]);
       neighbors.push({
         entry,
         preconditions,
@@ -8084,6 +8664,8 @@ export class WorkItemService {
     startedFrom: Revisions,
     now: Revisions,
     written: ReadonlySet<string>,
+    externalFrom: readonly ScopedRevision[],
+    externalNow: readonly ScopedRevision[],
   ): Promise<void> {
     for (const neighbor of neighbors) {
       const { entry: other, preconditions: their } = neighbor;
@@ -8123,9 +8705,29 @@ export class WorkItemService {
         }
         changed = true;
       }
+      let externalRevisions = their.externalRevisions;
+      if (externalRevisions !== undefined) {
+        const before = new Map(
+          externalFrom.map((revision) => [scopedRevisionKey(revision), revision.revision]),
+        );
+        const reached = new Map(
+          externalNow.map((revision) => [scopedRevisionKey(revision), revision]),
+        );
+        const revised = externalRevisions.expected.map((revision) => {
+          const key = scopedRevisionKey(revision);
+          const current = reached.get(key);
+          // Proof: conditional-remote-neighbor bypass failed `external neighbor restamping preserves a genuine intervening edit`'s selected assertion
+          // (actual SQLite boundary; watched 2026-10-22).
+          if (current === undefined || revision.revision !== before.get(key)) return revision;
+          changed = true;
+          return current;
+        });
+        externalRevisions = { ...externalRevisions, expected: revised };
+      }
       if (changed)
         await this.opts.journal.restamp(other.id, {
           ...their,
+          ...(externalRevisions === undefined ? {} : { externalRevisions }),
           expected,
           ...(moveProgress === undefined ? {} : { moveProgress }),
         });
@@ -8236,6 +8838,32 @@ export class WorkItemService {
     access?: ResourceAccess,
   ): Promise<ApplyOutcome> {
     switch (command.do) {
+      case 'transition_incident_nodes': {
+        if (command.projectId !== projectId)
+          throw new Error('incident replay structural owner mismatch');
+        return withDependencyContext(
+          this.opts.dependencyContext,
+          projectId,
+          stamp.by,
+          async (context) => {
+            const transition = await context.incidents.run(
+              projectId,
+              stamp.by,
+              {
+                kind: 'replay',
+                fromWorkItemId: command.fromWorkItemId,
+                toWorkItemId: command.toWorkItemId,
+                receipts: command.receipts,
+              },
+              stamp,
+              () => this.apply(projectId, command.structural, stamp),
+            );
+            return transition.ok || transition.reason === 'structure_refused'
+              ? transition.value
+              : { ok: false, detail: `incident transition refused: ${transition.reason}.` };
+          },
+        );
+      }
       case 'patch': {
         // A statement goes back only onto a row that is still a leaf: one that
         // has gained a child since is a parent, and the plan read refuses a
@@ -8530,6 +9158,31 @@ export class WorkItemService {
           throw new Error('claims are put back only by a replay, which names its access');
         const exhausted = await this.refuseReacquiring(projectId, command, access);
         if (exhausted !== null) return { ok: false, detail: exhausted };
+        // Only a recorded fresh progress statement recreates a governed start.
+        // Release undo and historical structural restoration have no new statement.
+        const newStarts = command.stated;
+        if (newStarts.length > 0) {
+          const observed = await this.opts.livePlans?.readExecution(projectId, access, null);
+          if (observed !== undefined && observed.kind !== 'ready')
+            return { ok: false, detail: 'execution evidence is no longer readable.' };
+          const execution =
+            observed === undefined
+              ? await this.statusReadsOf(
+                  projectId,
+                  await this.opts.workItems.listByProject(projectId),
+                )
+              : observed.reads;
+          for (const statement of newStarts) {
+            const key = sliceKey(statement.workItemId, statement.stepId);
+            const evidence = execution.evidenceByNode.get(key);
+            const eligibility = execution.eligibilityByNode.get(key);
+            if (evidence === undefined || eligibility === undefined)
+              throw new Error(`missing replay execution reading ${key}`);
+            // Proof: bypassing this predicate made mounted `local claim redo reevaluates` replay an unsafe start (task-6-3-admission-proofs/replay-filter.log).
+            if (!evidence.started && !eligibility.canStart)
+              return { ok: false, detail: 'execution prerequisites are no longer satisfied.' };
+          }
+        }
         // A redo of a claim, an undo of a release or of a delete puts bound
         // claims back, so it passes the organization's cap as a fresh claim
         // does (L9); a split's `move_claims` keeps its triples and is not here.
@@ -8717,8 +9370,7 @@ export class WorkItemService {
         // ID has been reused` receive 500 instead of 409; watched 2026-09-27.
         if (existing.some((row) => row.id === command.dependency.id))
           return { ok: false, detail: 'that relationship identity is already in use.' };
-        const rows = await this.opts.workItems.listByProject(projectId);
-        const refusal = await this.typedRefusal(projectId, rows, existing, command.dependency);
+        const refusal = await this.typedRefusal(projectId, stamp.by, existing, command.dependency);
         if (refusal !== null)
           return { ok: false, detail: `that relationship would now be refused: ${refusal}.` };
         await this.opts.typedDependencies.add(command.dependency, stamp);
@@ -8750,8 +9402,7 @@ export class WorkItemService {
           )
         )
           return { ok: false, detail: 'that relationship has changed since this command.' };
-        const rows = await this.opts.workItems.listByProject(projectId);
-        const refusal = await this.typedRefusal(projectId, rows, existing, command.to);
+        const refusal = await this.typedRefusal(projectId, stamp.by, existing, command.to);
         if (refusal !== null)
           return { ok: false, detail: `that relationship would now be refused: ${refusal}.` };
         await this.opts.typedDependencies.update(command.to, stamp);
@@ -8860,15 +9511,19 @@ export class WorkItemService {
           return { ok: false, detail: 'the destination leaf has blockage stated since this move.' };
         }
       }
-      const authored = await this.opts.typedDependencies.listByProject(projectId);
-      const invalid = findInvalidTypedShape(
-        rows.map((row) => (row.id === id ? { ...row, parentId } : row)),
-        authored,
-      );
-      // Proof: bypassing replay shape validation made mounted undo with a
-      // newer descendant-step or node relationship return 500 instead of 409.
-      if (invalid !== undefined)
-        return { ok: false, detail: `relationship ${invalid.id} no longer fits this tree.` };
+      // Proof: bypassing this consumer failed `connected replay-move refuses`
+      // at its real SQLite refusal assertion; zero partial effects also checked (2026-10-22).
+      const structural = await this.structuralRefusal(projectId, stamp.by, {
+        rows: rows.map((row) => (row.id === id ? { ...row, parentId } : row)),
+      });
+      if (structural !== null)
+        return {
+          ok: false,
+          detail:
+            'dependencyIds' in structural
+              ? `relationship ${structural.dependencyIds.join(', ')} no longer fits this tree.`
+              : 'that would now close a dependency cycle between steps.',
+        };
     }
     const placed = placeAfter(group, afterId);
     await this.opts.workItems.move(id, parentId, placed.position, placed.renumbered, stamp);
@@ -8985,6 +9640,36 @@ export class WorkItemService {
     }
     const root = rows.find((row) => row.id === command.rootId);
     if (root === undefined) throw new Error('delete root disappeared after its existence check');
+    // Proof: bypassing this replay admission made undo-create with a newly
+    // linked predecessor throw at the later graph guard rather than return
+    // stale_undo; watched against the admitted SQLite UoW, 2026-10-22.
+    const incidents = await this.deletionIncidents(projectId, stamp.by, command.remove);
+    if (!incidents.ok) {
+      if (incidents.reason === 'referenced_by_external_dependency') {
+        const dependencyIds = incidents.dependencyIds;
+        // Proof: removing this guard made `undo-create reports missing trusted
+        // incident IDs` fail its exact diagnostic assertion on a generic .join
+        // TypeError; table/announcement atomicity still passed (2026-10-25).
+        if (dependencyIds === undefined)
+          throw new Error('incident refusal is missing relationship ids');
+        return {
+          ok: false,
+          detail: `relationship ${dependencyIds.join(', ')} now references a removed predecessor.`,
+        };
+      }
+      return {
+        ok: false,
+        detail: `incident endpoint admission refused: ${incidents.reason}.`,
+      };
+    }
+    // Proof: omitting this residual-set guard let undo-create delete a newly
+    // authored incoming relationship absent from its journal; watched against
+    // real SQLite with the create entry selected and local revision aligned.
+    if (incidents.ownedIncomingIds.length > 0)
+      return {
+        ok: false,
+        detail: `relationship ${incidents.ownedIncomingIds.join(', ')} was added after this command.`,
+      };
     // Proof: removing this binding accepted persisted metadata naming a different removal parent (200 vs 500); watched 2026-10-14.
     if (command.deletionState !== undefined && command.deletionState.parentId !== root.parentId)
       throw new Error('journal deletion state names the wrong removal parent');
@@ -9002,11 +9687,29 @@ export class WorkItemService {
           removed.has(endpoint.workItemId),
         ),
     );
-    const invalid = findInvalidTypedShape(projected, authored);
-    // Proof: bypassing replay shape validation made mounted redo of a deletion
-    // with a surviving descendant-step relationship return 500 instead of 409.
-    if (invalid !== undefined)
-      return { ok: false, detail: `relationship ${invalid.id} no longer fits this tree.` };
+    const estimates = await this.opts.estimates.listByProject(projectId);
+    const legacy = await this.opts.dependencies.listByProject(projectId);
+    // Proof: bypassing this consumer failed `connected replay-delete refuses`
+    // at its real SQLite refusal assertion; zero partial effects also checked (2026-10-22).
+    const structural = await this.structuralRefusal(projectId, stamp.by, {
+      rows: projected,
+      typed: authored,
+      estimates: [
+        ...estimates.filter((estimate) => !removed.has(estimate.workItemId)),
+        ...command.setEstimates,
+      ],
+      legacy: legacy.filter(
+        (edge) => !removed.has(edge.predecessorId) && !removed.has(edge.successorId),
+      ),
+    });
+    if (structural !== null)
+      return {
+        ok: false,
+        detail:
+          'dependencyIds' in structural
+            ? `relationship ${structural.dependencyIds.join(', ')} no longer fits this tree.`
+            : 'that would now close a dependency cycle between steps.',
+      };
     const attemptsRefused = await this.attemptsRefusal(projectId, command.setAttempts ?? []);
     if (attemptsRefused !== null) return attemptsRefused;
     // Proof: omission, root-only and operation-restricted reads erased retained
@@ -9212,6 +9915,8 @@ export class WorkItemService {
    * Replays historical rows under their surviving destination after existing refusals.
    * Retained destination policy refuses as stale history; trusted sparse failures throw
    * before any restore writes so the runner preserves the original journal.
+   * Outside legacy edges are admitted against the projected tree in journal order;
+   * the graph guard and writes share that selection and report omitted edges.
    */
   private async applyRestore(
     projectId: string,
@@ -9239,14 +9944,53 @@ export class WorkItemService {
       }),
       ...command.rows,
     ];
-    const invalid = findInvalidTypedShape(
-      projectedTree,
-      await this.opts.typedDependencies.listByProject(projectId),
+    const estimates = await this.opts.estimates.listByProject(projectId);
+    const removedEstimateKeys = new Set(
+      command.removedEstimates.map((estimate) =>
+        JSON.stringify([estimate.workItemId, estimate.stepId]),
+      ),
     );
-    // Proof: disabling this projected shape check made mounted undo restore a
-    // child beneath a newer node endpoint and return 500 instead of 409.
-    if (invalid !== undefined)
-      return { ok: false, detail: `relationship ${invalid.id} no longer fits this tree.` };
+    const legacy = await this.opts.dependencies.listByProject(projectId);
+    const projectedLegacy = [...legacy, ...command.internalDependencies];
+    const externalDependencies: StoredDependency[] = [];
+    const skipped: string[] = [];
+    for (const edge of command.externalDependencies) {
+      const refusal = canDepend(
+        projectedTree,
+        projectedLegacy,
+        edge.predecessorId,
+        edge.successorId,
+      );
+      // Proof: bypassing this selection failed both missing-endpoint restores and
+      // the newly cyclic outside-edge restore (1 pass / 3 fail, 2026-10-22).
+      if (refusal !== null) {
+        skipped.push(refusal);
+        continue;
+      }
+      externalDependencies.push(edge);
+      projectedLegacy.push(edge);
+    }
+    // Proof: bypassing this consumer failed `connected replay-restore refuses`
+    // at its real SQLite refusal assertion; zero partial effects also checked (2026-10-22).
+    const structural = await this.structuralRefusal(projectId, stamp.by, {
+      rows: projectedTree,
+      estimates: [
+        ...estimates.filter(
+          (estimate) =>
+            !removedEstimateKeys.has(JSON.stringify([estimate.workItemId, estimate.stepId])),
+        ),
+        ...command.estimates,
+      ],
+      legacy: projectedLegacy,
+    });
+    if (structural !== null)
+      return {
+        ok: false,
+        detail:
+          'dependencyIds' in structural
+            ? `relationship ${structural.dependencyIds.join(', ')} no longer fits this tree.`
+            : 'that would now close a dependency cycle between steps.',
+      };
 
     // The sibling group as it will be once the reparenting has happened: the
     // rows going back under this branch leave it, and the ones the deletion
@@ -9415,19 +10159,7 @@ export class WorkItemService {
       await this.opts.attempts.raiseIssued(marks.filter((mark) => held.has(mark.stepId)));
     }
 
-    // The edges that leave the branch, one at a time and through the same
-    // guard an ordinary request goes through. This is the one part of a
-    // restore that can come back incomplete, and it says so rather than
-    // pretending otherwise.
-    const after = await this.opts.workItems.listByProject(projectId);
-    const skipped: string[] = [];
-    for (const edge of command.externalDependencies) {
-      const current = await this.opts.dependencies.listByProject(projectId);
-      const refusal = canDepend(after, current, edge.predecessorId, edge.successorId);
-      if (refusal !== null) {
-        skipped.push(refusal);
-        continue;
-      }
+    for (const edge of externalDependencies) {
       await this.opts.dependencies.add(
         {
           id: this.clock.newId(),
@@ -9547,6 +10279,19 @@ export class WorkItemService {
           ...new Set(recordings.flatMap((each) => each.recording.moveProgressOwners ?? [])),
         ],
         before: only.recording.before,
+        externalBefore: [
+          ...recordings
+            .reduce((earliest, each) => {
+              for (const revision of each.recording.externalBefore ?? []) {
+                const key = scopedRevisionKey(revision);
+                // Proof: earliest-batch-external-before bypass failed `collected history keeps an external endpoint first seen`'s selected assertion
+                // (actual SQLite boundary; watched 2026-10-22).
+                if (!earliest.has(key)) earliest.set(key, revision);
+              }
+              return earliest;
+            }, new Map<string, ScopedRevision>())
+            .values(),
+        ],
         // The first step to write each step is the one whose before-state the
         // batch started from, so later steps never overwrite it.
         stepsBefore: recordings.reduceRight<Revisions>(
@@ -9605,6 +10350,28 @@ export class WorkItemService {
     label: string,
     recording: Recording,
   ): Promise<void> {
+    const externalAddresses = externalAddressesOf(
+      [recording.forward, recording.inverse],
+      projectId,
+    );
+    let externalRevisions: ExternalRevisionPreconditions | null = null;
+    if (externalAddresses.length > 0) {
+      if (recording.externalBefore === undefined)
+        throw new Error('recording external revision before-image is missing');
+      const expected = await withDependencyContext(
+        this.opts.dependencyContext,
+        projectId,
+        stamp.by,
+        (context) => context.endpoints.readRevisions(externalAddresses),
+      );
+      if (!expected.ok)
+        throw new Error('recording external revision evidence is no longer readable');
+      externalRevisions = { expected: expected.revisions, from: recording.externalBefore };
+      requireExternalRevisions({ expected: {}, from: {}, externalRevisions }, projectId, [
+        recording.forward,
+        recording.inverse,
+      ]);
+    }
     const units = new Map(
       (await this.opts.projects.stepsOf(projectId)).map((step) => [step.id, step.estimateUnit]),
     );
@@ -9625,6 +10392,7 @@ export class WorkItemService {
         payload: { label, forward: recording.forward },
         inverse: recording.inverse,
         preconditions: {
+          ...(externalRevisions === null ? {} : { externalRevisions }),
           estimateUnits,
           ...((recording.moveProgressOwners?.length ?? 0) === 0
             ? {}
@@ -9942,18 +10710,18 @@ interface TreeReads {
   elsewhereHolders: readonly ElsewhereHolderLabel[];
 }
 
-/** Projects detached shared rows and captured schedules without reading stores or admitting work. */
-function projectSharedTree(
-  captured: Extract<LivePlanRead, { readonly kind: 'shared' }>,
+/** Projects detached singleton or shared schedules without reading stores or admitting work. */
+function projectCapturedTree(
+  captured: Extract<LivePlanRead, { readonly kind: 'shared' }> | CapturedLocalPlan,
 ): PlanTree | EngineUnavailable;
-function projectSharedTree(
-  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' | 'access_refused' }>,
+function projectCapturedTree(
+  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' | 'access_refused' | 'connected' }>,
 ): PlanTree | EngineUnavailable | null;
-function projectSharedTree(
-  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' }>,
+function projectCapturedTree(
+  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' | 'connected' }> | CapturedLocalPlan,
 ): PlanTree | EngineUnavailable | AccessRefused | null;
-function projectSharedTree(
-  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' }>,
+function projectCapturedTree(
+  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' | 'connected' }> | CapturedLocalPlan,
 ): PlanTree | EngineUnavailable | AccessRefused | null {
   if (captured.kind === 'access_refused') return captured;
   if (captured.kind === 'not_found') return null;
@@ -10000,6 +10768,135 @@ function projectSharedTree(
   // Proof: returning the tree unlabelled made `levels a demanded resource
   // (shared)` find no `resourceLabels`; watched 2026-10-20.
   return 'kind' in tree || !namesAResource(tree) ? tree : withResourceLabels(tree, reads.resources);
+}
+
+/** Present one captured connected member without local scheduling or further IO. */
+export function presentConnectedTree(projection: ConnectedTreeProjection): PlanTree {
+  // Proof: restoring the old nonscheduled refusal made the mounted calendar,
+  // optimized-refusal and postcommit edit/claim cases return 500 (2026-10-22).
+  const { reads, metadata } = projection;
+  const people = new Set(reads.assignments.map((assignment) => assignment.personId));
+  const measured = withCapturedMeasures(
+    projectTree(
+      {
+        project: metadata.project,
+        rows: [...metadata.workItems],
+        steps: [...metadata.steps],
+        seq: metadata.seq,
+        stored: reads.estimates,
+        recorded: reads.actuals,
+        stated: reads.progress,
+        measured: reads.measures,
+        edges: reads.dependencies,
+        authored: reads.typedDependencies,
+        assigned: reads.assignments,
+        assignedPeople: reads.people
+          .filter((person) => people.has(person.id))
+          .map(({ id, name }) => ({ id, name })),
+        attempts: metadata.attempts,
+        blockages: metadata.blockages,
+        slotsOf: reads.capacity,
+        demands: reads.demands,
+        resourceCapacities: reads.resourceCapacities,
+        priorityBands: [...reads.priorityBands],
+        elsewhereHolders: [],
+      },
+      projection,
+    ),
+    projection,
+  );
+  // The target member owns both demand facts and this captured catalog; no live read
+  // or component-wide concatenation may replace that observation.
+  // Proof: omitting this attachment made all four scheduled/unavailable tree/treeWithin
+  // regressions return undefined demands; live demand and directory reads are poisoned.
+  const tree = { ...measured, ...withDemands(reads.demands, reads.resources) };
+  // Proof: removing this final-availability guard made the mounted shared
+  // calendar-range case retain abandoned foreign holder labels (2026-10-22).
+  // Proof: omitting the remote root catalog from both return arms failed the unavailable
+  // hold/step and scheduled rename/clear mounted HTTP tests (2026-10-23).
+  if (tree.scheduleError !== null)
+    return {
+      ...tree,
+      connectedDependencies: [...projection.dependencies],
+      remoteBlockageLabels: [...projection.remoteBlockageLabels],
+    };
+  // Proof: disabling this transfer reproduced the mounted visible-row Gantt
+  // dangling-predecessor failure; removing only the catalog below reproduced
+  // Gantt's missing-holder-label failure (2026-10-22).
+  const slices = tree.slices.map((slice) => {
+    const holder = projection.foreignPersonHolders.get(slice.id);
+    return holder === undefined
+      ? slice
+      : {
+          ...slice,
+          boundBy: 'elsewhere' as const,
+          resourcePredecessorId: null,
+          elsewhereHolder: holder,
+        };
+  });
+  const connected = {
+    ...tree,
+    // Proof: omitting this attachment returned undefined for all four public
+    // connected producer/response/client fixture states (2026-10-22).
+    ...(projection.optimizationView === null ? {} : { optimization: projection.optimizationView }),
+    slices,
+    connectedDependencies: [...projection.dependencies],
+    remoteBlockageLabels: [...projection.remoteBlockageLabels],
+    ...(projection.foreignPersonHolders.size === 0
+      ? {}
+      : {
+          // Proof: keeping the numeric schedule's original person count
+          // failed the mounted shared-person tree's 0/1 counts (2026-10-22).
+          waitingForPerson: new Set(
+            slices.filter((slice) => slice.boundBy === 'person').map((slice) => slice.workItemId),
+          ).size,
+          waitingElsewhere: new Set(
+            slices
+              .filter((slice) => slice.boundBy === 'elsewhere')
+              .map((slice) => slice.workItemId),
+          ).size,
+          elsewhereHolders: [...projection.elsewhereHolders],
+        }),
+  };
+  return namesAResource(connected) ? withResourceLabels(connected, reads.resources) : connected;
+}
+
+/** Measures, money bases and budgets from the connected target's closed observation. */
+function withCapturedMeasures(tree: PlanTree, projection: ConnectedTreeProjection): PlanTree {
+  const { reads, metadata } = projection;
+  const definitions = definitionsOrUnowned(reads.measureDefinitions);
+  const estimates = reads.measureEstimates;
+  const facts = reads.measures;
+  const moneyKeys = moneyKeysOf(definitions);
+  const mixedFacts = mixedRateCardsOf(tree.workItems, pricedFactsOf(facts), moneyKeys);
+  const mixedEstimates = mixedRateCardsOf(tree.workItems, estimates, moneyKeys);
+  const readings = readBudgets({
+    rows: tree.workItems,
+    definitions,
+    budgets: reads.budgets,
+    facts: [...facts, ...agentMinutesOf(metadata.attempts)],
+    estimates,
+    // Proof: substituting [] failed both mounted closed-snapshot cost hold cases.
+    attempts: metadata.attempts,
+    // Proof: substituting 1 failed both mounted closed-snapshot derived-cap cases.
+    factor: metadata.project.budgetFactor,
+    mixedFacts,
+    mixedEstimates,
+  }).readings;
+  // Proof: before this attachment, both scheduled and unavailable detached
+  // connected-tree tests read no captured estimate or derived budget (2026-10-24).
+  return {
+    ...tree,
+    workItems: withBudgets(
+      withMeasureEstimates(tree.workItems, estimates, definitions, metadata.project.pertWeights),
+      readings,
+      { facts: mixedFacts, estimates: mixedEstimates },
+      {
+        facts: soleMoneyBasesOf(tree.workItems, pricedFactsOf(facts), moneyKeys),
+        estimates: soleMoneyBasesOf(tree.workItems, estimates, moneyKeys),
+      },
+    ),
+  };
 }
 
 /**
@@ -10139,8 +11036,12 @@ function withResourceLabels(tree: PlanTree, catalog: readonly Resource[]): PlanT
 
 /** Pure live projection shared by isolated reads and coherent shared observations. */
 type TreeSchedule =
-  ScheduleRead | { readonly kind: 'unavailable'; readonly reason: Exclude<ScheduleError, null> };
+  | ScheduleRead
+  | ConnectedTreeProjection
+  | { readonly kind: 'unavailable'; readonly reason: Exclude<ScheduleError, null> };
 
+function projectTree(reads: TreeReads, scheduling: ConnectedTreeProjection): PlanTree;
+function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | EngineUnavailable;
 function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | EngineUnavailable {
   const {
     project,
@@ -10206,28 +11107,41 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
   // node graph below separately refuses missing legacy endpoints as malformed
   // trusted state; its precise node projection never supplies this row status.
   const rowIds = new Set(rows.map((row) => row.id));
-  const itemStatuses = workItemStatusesOf(rows, rollUpWorkItemStatuses(rows, statedTotals), {
-    edges: edges.filter((edge) => rowIds.has(edge.predecessorId) && rowIds.has(edge.successorId)),
-    typed: authored,
-  });
+  // Proof: replacing component statuses with the target-only fold made the
+  // mounted remote-held predecessor test read ready instead of blocked_by_proxy
+  // (2026-10-22).
+  const itemStatuses =
+    scheduling.kind === 'connected'
+      ? scheduling.readiness.statuses
+      : workItemStatusesOf(rows, rollUpWorkItemStatuses(rows, statedTotals), {
+          edges: edges.filter(
+            (edge) => rowIds.has(edge.predecessorId) && rowIds.has(edge.successorId),
+          ),
+          typed: authored,
+        });
   // Canonical readings use complete topology for blockage propagation and
   // workflow/authored predecessors for waiting (ADR 0053). Row proxy remains
   // independent; it cannot turn a sibling endpoint into a node predecessor.
-  const nodeProjection = projectNodeReadings({
-    graph: resolveDependencyGraph({
-      rows,
-      steps,
-      estimates: stored,
-      legacy: edges,
-      typed: authored,
-      reach: project.depReach,
-    }),
-    holdOf: new Map(rows.map((row) => [row.id, row.hold] as const)),
-    statusOf: itemStatuses,
-    stated,
-    running,
-    blocked: blockages,
-  });
+  // Proof: recomputing these nodes from target-only topology made the mounted
+  // remote blockage test lose blocked_by_proxy and its remote root (2026-10-22).
+  const nodeProjection =
+    scheduling.kind === 'connected'
+      ? scheduling.readiness.nodes
+      : projectNodeReadings({
+          graph: resolveDependencyGraph({
+            rows,
+            steps,
+            estimates: stored,
+            legacy: edges,
+            typed: authored,
+            reach: project.depReach,
+          }),
+          holdOf: new Map(rows.map((row) => [row.id, row.hold] as const)),
+          statusOf: itemStatuses,
+          stated,
+          running,
+          blocked: blockages,
+        });
   // The write path refuses an edge that would close a cycle, but two clients
   // drawing conflicting edges at the same instant are each checked against the
   // graph as they read it. If one ever lands, every read of this project must
@@ -10293,7 +11207,25 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
   );
   let optimization: PlanOptimization | undefined;
   let timing = new Map<string, Scheduled>();
-  let scheduleError: ScheduleError = scheduling.kind === 'unavailable' ? scheduling.reason : null;
+  const placement = scheduling.kind === 'connected' ? scheduling.placement : scheduling;
+  let scheduleError: ScheduleError;
+  switch (placement.kind) {
+    case 'scheduled':
+      scheduleError = null;
+      break;
+    case 'unavailable':
+      scheduleError = placement.reason;
+      break;
+    case 'dependency_calendar_missing':
+      scheduleError = placement;
+      break;
+    case 'engine_unavailable':
+      scheduleError =
+        scheduling.kind === 'connected' && scheduling.placement.kind === 'engine_unavailable'
+          ? scheduling.placement
+          : null;
+      break;
+  }
   /**
    * How many work items are waiting for a person rather than for the plan.
    *
@@ -10314,8 +11246,25 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
    */
   let scheduledSlices: IdentifiedSlice[] = [];
   try {
-    if (scheduling.kind !== 'unavailable') {
-      const scheduleRead = scheduling;
+    if (
+      scheduling.kind !== 'unavailable' &&
+      (scheduling.kind !== 'connected' || scheduling.placement.kind === 'scheduled')
+    ) {
+      // Proof: replacing this selection with schedule(canonical.input's local
+      // arguments) made the mounted full/paged/detail test read 0→2.5 instead
+      // of 1.5→4 across distinct anchors (2026-10-22).
+      const scheduleRead =
+        scheduling.kind === 'connected'
+          ? scheduling.placement.kind === 'scheduled'
+            ? {
+                kind: 'scheduled' as const,
+                fast: scheduling.placement.schedule,
+                optimization: null,
+              }
+            : (() => {
+                throw new Error('connected scheduled placement missing');
+              })()
+          : scheduling;
       // The projection **and** the slices: a row's column shows its own span,
       // and a chart draws the slices the span is a projection of.
       // The reach comes off the project being scheduled, read beside the ladder
@@ -10424,6 +11373,7 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
     else if (err instanceof CalendarRangeError) scheduleError = 'calendar_range';
     else throw err;
   }
+  const connectedUnavailable = scheduling.kind === 'connected' && scheduleError !== null;
   const waitingFor = new Map<string, string[]>();
   for (const found of edges) {
     waitingFor.set(found.successorId, [
@@ -10518,10 +11468,16 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
       // Proof: the placeholder kept here made `lets a successor start at day
       // zero…` fail on a zero-length schedule where `null` was owed; watched
       // 2026-09-29.
-      schedule: scheduledIds.has(row.id) ? (timing.get(row.id) ?? UNSCHEDULED) : null,
-      dates: scheduledIds.has(row.id)
-        ? datesOf(project.startDate, timing.get(row.id) ?? UNSCHEDULED, scheduleError !== null)
-        : null,
+      // Proof: removing connectedUnavailable from this guard made both mounted
+      // unavailable tree cases expose a zero-offset placeholder (2026-10-22).
+      schedule:
+        !connectedUnavailable && scheduledIds.has(row.id)
+          ? (timing.get(row.id) ?? UNSCHEDULED)
+          : null,
+      dates:
+        !connectedUnavailable && scheduledIds.has(row.id)
+          ? datesOf(project.startDate, timing.get(row.id) ?? UNSCHEDULED, scheduleError !== null)
+          : null,
     }))
     // **Tree order, not the number string** (ADR 0023). The two agreed for as
     // long as a frozen work item could not move — `deriveNumbers` built
@@ -10604,9 +11560,55 @@ function deletionParentsOf(commands: readonly CompensatingCommand[]): string[] {
   return commands.flatMap((command) =>
     command.do === 'batch'
       ? deletionParentsOf(command.steps)
-      : (command.do === 'delete_subtree' || command.do === 'restore_subtree') &&
-          command.deletionState?.parentId != null
-        ? [command.deletionState.parentId]
-        : [],
+      : command.do === 'transition_incident_nodes'
+        ? deletionParentsOf([command.structural])
+        : (command.do === 'delete_subtree' || command.do === 'restore_subtree') &&
+            command.deletionState?.parentId != null
+          ? [command.deletionState.parentId]
+          : [],
   );
+}
+
+/** Select the target's existing immutable stage rather than rebuilding from final dates. */
+function captureConnectedOptimization(
+  captured: Extract<LivePlanRead, { kind: 'connected' }>,
+  projectId: string,
+):
+  | Exclude<OptimizationCapture, { readonly kind: 'scheduled' }>
+  | {
+      readonly kind: 'scheduled';
+      readonly input: Extract<OptimizationInput, { readonly kind: 'connected' }>;
+      readonly enabled: boolean;
+    } {
+  const member = captured.projection.capture.projects.find(
+    (project) => project.projectId === projectId,
+  );
+  // Invariant diagnostic: live capture already checks target membership before derivation.
+  if (member === undefined) throw new Error(`uncaptured optimization project ${projectId}`);
+  const placement = captured.projection.placement;
+  if (placement.kind === 'dependency_calendar_missing') return placement;
+  if (placement.kind === 'engine_unavailable')
+    return { kind: 'unavailable', reason: 'engine_unavailable' };
+  if (placement.kind === 'unavailable') return placement;
+  const enabled = member.reads.project.optimizationEnabled;
+  if (placement.idleProjects.includes(projectId)) return { kind: 'idle', enabled };
+  const selection = placement.stages.find((stage) => stage.stage.projectId === projectId);
+  // Invariant diagnostic: the selector partitions captured members into stages and idle projects.
+  if (selection === undefined) throw new Error(`missing optimization stage ${projectId}`);
+  // Proof: final maps failed displaced live bytes; Retry expected stale-input-hash but observed not-retryable idle.
+  return { kind: 'scheduled', input: { kind: 'connected', stage: selection.stage }, enabled };
+}
+
+/** Shared local inputs and enablement come from the same observation. */
+function captureSharedOptimization(
+  captured: Extract<LivePlanRead, { kind: 'shared' }>,
+): OptimizationCapture {
+  if (captured.chain.kind === 'engine_unavailable')
+    return { kind: 'unavailable', reason: 'engine_unavailable' };
+  if (captured.chain.kind === 'unavailable') return captured.chain;
+  return {
+    kind: 'scheduled',
+    input: { kind: 'local', input: captured.chain.input },
+    enabled: captured.project.optimizationEnabled,
+  };
 }

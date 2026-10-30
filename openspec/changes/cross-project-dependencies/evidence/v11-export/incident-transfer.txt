@@ -1,0 +1,43 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-document/connected-document.test.ts:
+74 |         display: { projectName: 'A', abbreviation: 'A', workItemName: 'a', address: 'A.010' },
+75 |       },
+76 |       successor: { kind: 'internal', scope: 'whole', workItem: 'b' },
+77 |     },
+78 |   ]);
+79 |   expect(projectConnectedDocument(captured, 'A').typedDependencies).toEqual([]);
+                                                                         ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   {
++     "id": "ab",
++     "predecessor": {
++       "kind": "internal",
++       "scope": "whole",
++       "workItem": "a",
++     },
++     "successor": {
++       "kind": "internal",
++       "scope": "whole",
++       "workItem": "b",
++     },
++     "type": "FS",
++   },
++ ]
+
+- Expected  - 1
++ Received  + 16
+
+      at <anonymous> (/tmp/puni-v11-export-impl/libs/wbs/application/core/src/module/plan-document/connected-document.test.ts:79:69)
+(fail) authored connected links belong only to the exported successor and keep stable remote identity [14.66ms]
+
+ 0 pass
+ 7 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.54s]
+
+exit=1

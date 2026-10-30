@@ -1,5 +1,6 @@
 import type { JsonSchema } from 'arktype';
 
+import { dependencyClientRefusal, requiresDependencyClient } from '../dependency-client';
 import { bodyMediaFor, type EndpointShape, queryModeFor } from './endpoint-shape';
 import { assertInlineSchema } from './schema-shape';
 
@@ -29,6 +30,11 @@ export interface DocumentOperation {
 export interface ShapeDocument {
   openapi: '3.1.0';
   info: { title: string; version: string };
+  'x-wbs-human-only-operations': {
+    method: string;
+    path: string;
+    operationId: string;
+  }[];
   paths: Record<string, Record<string, DocumentOperation | undefined> | undefined>;
 }
 
@@ -128,7 +134,10 @@ export function documentFromShapes(shapes: readonly EndpointShape[]): ShapeDocum
         ...(content === undefined ? {} : { content }),
       });
     }
-    for (const refusal of shape.refusals) {
+    const refusals = requiresDependencyClient(shape)
+      ? [...shape.refusals, dependencyClientRefusal]
+      : shape.refusals;
+    for (const refusal of refusals) {
       // Proof: skipping the contextual import arm left its OpenAPI 400 without JSON content.
       if ('kind' in refusal && refusal.kind === 'empty') continue;
       addResponse(responses, refusal.status, {
@@ -171,7 +180,20 @@ export function documentFromShapes(shapes: readonly EndpointShape[]): ShapeDocum
     };
     paths[path] = operations;
   }
-  return { openapi: '3.1.0', info: { title: 'WBS API', version: '1.0.0' }, paths };
+  return {
+    openapi: '3.1.0',
+    info: { title: 'WBS API', version: '1.0.0' },
+    // Proof: emitting no tagged entries exposed getMembers through the generated-subset
+    // artifact reader/consumer in artifact-policy.test.ts (2026-10-28).
+    'x-wbs-human-only-operations': shapes
+      .filter((shape) => shape.humanOnly === true)
+      .map((shape) => ({
+        method: shape.method.toLowerCase(),
+        path: documentPathOf(shape.path),
+        operationId: shape.operationId,
+      })),
+    paths,
+  };
 }
 
 /** A shape's `:name` path as the document's `{name}` template. */

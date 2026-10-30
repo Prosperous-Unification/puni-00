@@ -1,6 +1,7 @@
 import type { ProjectApi } from '@/lib/wbs-api';
 import { projectServicesOver } from '@/modules/project/composition';
 import type { ProjectServices } from '@/modules/project/contract';
+import { createRefusingAddressApi } from '@/testing/refusing-address-api';
 
 import { NO_SAVED_PLANS } from './no-saved-plans';
 
@@ -20,7 +21,7 @@ const composed = new WeakMap<ProjectApi, ProjectServices>();
 export function projectServicesOf(client: ProjectApi): ProjectServices {
   const known = composed.get(client);
   if (known !== undefined) return known;
-  const services = projectServicesOver(client, NO_SAVED_PLANS);
+  const services = projectServicesOver(client, NO_SAVED_PLANS, createRefusingAddressApi());
   composed.set(client, services);
   return services;
 }

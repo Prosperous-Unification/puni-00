@@ -7,8 +7,11 @@ import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { PlanEvent } from '../../ports/plan-event-values';
 import type { Scope } from '../../ports/unit-of-work';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { limitOf } from '../../service/list-query';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
+import { expectCreated } from '../../testing/expect-created';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { createPlanCommandRunner } from '../plan-commands/composition';
@@ -27,6 +30,7 @@ async function seeded() {
   const broadcast = recordingBroadcaster();
   let now = 1_000;
   const options = {
+    dependencyContext: createLocalDependencyContext(source.stores),
     admission: CREATOR_ADMISSION,
     clock: clockOf({ now: () => now, newId: () => crypto.randomUUID() }),
     broadcast,
@@ -37,7 +41,7 @@ async function seeded() {
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const created = await graph.projects.create('Claims', F);
+  const created = expectCreated(await graph.projects.create('Claims', F));
   const projectId = created.project.id;
   // The memory source keeps a project's steps apart from the step table its progress reads.
   for (const step of created.steps) {
@@ -54,6 +58,16 @@ async function seeded() {
     workItemRow({ id: '090', projectId, parentId: null, position: 2, name: 'x (lease expired)' }),
   ])
     await source.stores.workItems.insert(row, [], { at: 1, by: F });
+  // Existing in-progress nodes let history retain both workflow steps while
+  // the connected execution rules continue to govern new starts.
+  for (const workItemId of ['080.1', '090'])
+    for (const stepId of steps)
+      expect(
+        await source.stores.progress.set(
+          { workItemId, stepId, state: 'in_progress', statedAt: 1 },
+          { at: 1, by: F },
+        ),
+      ).toBe('written');
   for (const id of ['claire', 'codex-fleet']) {
     await source.stores.directory.addPerson({ id, name: `${id} name`, kind: 'agent' }, [], {
       at: 1,
@@ -64,16 +78,21 @@ async function seeded() {
   }
   const runner = createPlanCommandRunner({
     uow: source.uow,
+    commandAccess: localCommandAccess,
     announcements: broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
-      servicesOver(scope.stores, { ...options, broadcast: announcements }),
+      servicesOver(scope.stores, {
+        ...options,
+        dependencyContext: createLocalDependencyContext(scope.stores),
+        broadcast: announcements,
+      }),
   });
   /** Runs one batch at the next instant and answers the claim ids it wrote, if any. */
   const run = async (commands: Parameters<typeof runner.run>[2]): Promise<string[]> => {
     now += 1_000;
     const answer = await runner.run(projectId, F, commands);
-    if (!answer.ok) throw new Error(`the batch was refused: ${answer.reason}`);
+    if (!answer.ok) throw new Error(`the batch was refused: ${JSON.stringify(answer)}`);
     return answer.results.flatMap((each) => ('claimIds' in each ? each.claimIds : []));
   };
   /** A leased claim written through the store, as an agent's claim for itself is. */

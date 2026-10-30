@@ -1,0 +1,17 @@
+[
+  {
+    "fault": "persistence",
+    "exit": 1,
+    "assertion": ["toEqual", "NAV_NEW2", "NAV_OLD"]
+  },
+  {
+    "fault": "stable-link",
+    "exit": 1,
+    "assertion": ["Expected:", "Received:", "NAV_OLD", "expect(href).toBe"]
+  },
+  {
+    "fault": "focus",
+    "exit": 1,
+    "assertion": ["toBeFocused", "Name of 010"]
+  }
+]

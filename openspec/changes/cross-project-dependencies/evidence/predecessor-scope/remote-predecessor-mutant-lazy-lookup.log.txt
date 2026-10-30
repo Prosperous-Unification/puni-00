@@ -1,0 +1,53 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-remote-predecessor/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (96 tests | 1 failed | 95 skipped) 638ms
+   × edits persisted remote predecessor node scope on desktop 635ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted remote predecessor node scope on desktop
+AssertionError: expected "Mock" to not be called at all, but actually been called 1 times
+
+Received:
+
+  1st Mock call:
+
+    Array [
+      "remote-stable",
+      Object {
+        "limit": "25",
+        "q": "080",
+      },
+      AbortSignal {
+        Symbol(kEvents): undefined,
+        Symbol(events.maxEventTargetListeners): 0,
+        Symbol(events.maxEventTargetListenersWarned): false,
+        Symbol(kHandlers): undefined,
+        Symbol(kAborted): false,
+        Symbol(kReason): undefined,
+        Symbol(kComposite): false,
+      },
+    ]
+
+
+Number of calls: 1
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:1007:26
+    1005|       );
+    1006|       await act(async () => { await new Promise((resolve) => setTimeou…
+    1007|       expect(search).not.toHaveBeenCalled();
+       |                          ^
+    1008|       fireEvent.click(screen.getByRole('button', { name: 'Edit predece…
+    1009|       const details = within(screen.getByRole('dialog', { name: 'Captu…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 95 skipped (96)
+   Start at  05:38:17
+   Duration  7.18s (import 57%, transform 28%, tests 9%, environment 6%, setup 1%)

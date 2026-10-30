@@ -369,6 +369,12 @@ describe('resources in an organization', () => {
     h.member('org-a', 'nell', 'member');
     h.bind('nell', 'org-a');
     const ram = await declare('ada', 'h2puni ram');
+    const firstStep = h.sqlite
+      .query<{ id: string }, [string]>(
+        'SELECT id FROM step WHERE project_id = ? ORDER BY position LIMIT 1',
+      )
+      .get(own);
+    if (firstStep === null) throw new Error('resource occupancy project has no first step');
     h.sqlite.run(
       "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-b', ?, NULL, 1, 'Test')",
       [own],
@@ -398,12 +404,14 @@ describe('resources in an organization', () => {
       ]),
     ).toMatchObject({ status: 200 });
     for (const command of [
-      { kind: 'claimWorkItem', workItemId: 'w-a', personId: 'agent-a' },
+      { kind: 'claimWorkItem', workItemId: 'w-a', personId: 'agent-a', steps: [firstStep.id] },
       { kind: 'releaseWorkItem', workItemId: 'w-a', personId: 'agent-a' },
     ])
       expect(await batch('ada', [command])).toMatchObject({ status: 200 });
     expect(
-      await batch('nell', [{ kind: 'claimWorkItem', workItemId: 'w-b', personId: 'agent-n' }]),
+      await batch('nell', [
+        { kind: 'claimWorkItem', workItemId: 'w-b', personId: 'agent-n', steps: [firstStep.id] },
+      ]),
     ).toMatchObject({ status: 200 });
     const undone = await h.call('ada', 'POST', `/api/projects/${own}/undo`);
     expect(undone).toMatchObject({ status: 409, body: { error: 'stale_undo' } });

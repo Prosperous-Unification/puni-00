@@ -1,0 +1,44 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+806 |       await effects.parkLease(holder, state.phase);
+807 |     }
+808 |   } finally {
+809 |     clearInterval(heartbeat);
+810 |   }
+811 |   if (state.phase !== 'lease-released') throw new ReleaseFailedError(state, journal.path);
+                                                    ^
+ReleaseFailedError: release bbbbbbbbbbbb-4d914821ccea ended at rollback-failed
+journal: /tmp/wbs-test-1493-cxXjav/k8s-controller-release-JOyecQ/release.json
+failed step: check-replay: storage controller barrier failed: controller suspension acknowledgment is missing
+captured migration set: (not captured)
+replay forward: (not checked)
+replay rollback: (not checked)
+snapshot: (none)
+writes remain fenced and the Lease stays held
+manual command: '/tmp/wbs-test-1493-cxXjav/k8s-controller-release-JOyecQ/kubectl' '--context' 'lab' '-n' 'wbs-solver' 'get' 'cronjob/sqlite-backup' '-o' 'json' # reconcile only UID sqlite-backup-uid, template f08e28dc253be352d28c88a9122eded5a165a965373a6c982c881d300ae4c1ac, token 3ae9a7e3-a9e6-496d-85ae-85992160b501; preserve journal /tmp/wbs-test-1493-cxXjav/k8s-controller-release-JOyecQ/release.json; restore the recorded suspension only after verifying the stopped source interval
+      state: {
+  releaseId: "bbbbbbbbbbbb-4d914821ccea",
+  transactionId: "bbbbbbbbbbbb-4d914821ccea-a998d6",
+  phase: "rollback-failed",
+  rollbackFrom: null,
+  capture: null,
+  replayForward: null,
+  replayRollback: null,
+  previous: [Object ...],
+  snapshot: null,
+  controllers: [Object ...],
+  fluxSuspendedByUs: true,
+  writesReopened: false,
+  failure: [Object ...],
+},
+ journalPath: "/tmp/wbs-test-1493-cxXjav/k8s-controller-release-JOyecQ/release.json",
+
+      at executeRelease (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/execute.ts:811:47)
+      at async <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:336:27)
+(fail) mounted release checkpoints and restores exact false backup suspension [591.19ms]
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+Ran 1 test across 1 file. [635.00ms]

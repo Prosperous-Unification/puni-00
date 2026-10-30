@@ -4,8 +4,11 @@ import { describe, expect, it } from 'bun:test';
 import { servicesOver } from '../../compose';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { Scope } from '../../ports/unit-of-work';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
+import { expectCreated } from '../../testing/expect-created';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { createPlanCommandRunner } from './composition';
 
@@ -27,12 +30,15 @@ async function seeded() {
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
   };
-  const graph = servicesOver(source.stores, options);
+  const graph = servicesOver(source.stores, {
+    ...options,
+    dependencyContext: createLocalDependencyContext(source.stores),
+  });
   await source.stores.users.create(
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const created = await graph.projects.create('Calendar', F);
+  const created = expectCreated(await graph.projects.create('Calendar', F));
   const projectId = created.project.id;
   for (const step of created.steps) {
     await source.stores.steps.add(
@@ -54,11 +60,16 @@ async function seeded() {
   );
   if (!bound.ok) throw new Error('binding kat was refused');
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: options.broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
-      servicesOver(scope.stores, { ...options, broadcast: announcements }),
+      servicesOver(scope.stores, {
+        dependencyContext: createLocalDependencyContext(scope.stores),
+        ...options,
+        broadcast: announcements,
+      }),
   });
   const tree = await runner.run(projectId, F, [
     { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
@@ -122,7 +133,12 @@ describe('assignments that run the plan past the calendar', () => {
           { kind: 'setAssignee', workItemId: idOf('B'), stepId: dev, personId: 'kat' },
         ]),
       ).toMatchObject({ ok: true });
-      const claim = { kind: 'claimWorkItem' as const, workItemId: idOf('C'), personId: 'kat' };
+      const claim = {
+        kind: 'claimWorkItem' as const,
+        workItemId: idOf('C'),
+        personId: 'kat',
+        steps: [dev],
+      };
       expect(await runner.run(projectId, F, [{ ...claim, assign: true }])).toMatchObject({
         ok: false,
         at: 0,

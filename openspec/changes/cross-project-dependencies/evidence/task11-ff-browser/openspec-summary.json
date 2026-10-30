@@ -1,0 +1,24 @@
+{
+  "command": "bunx openspec validate --all --json",
+  "exit": 0,
+  "summary": {
+    "totals": {
+      "items": 277,
+      "passed": 277,
+      "failed": 0
+    },
+    "byType": {
+      "change": {
+        "items": 259,
+        "passed": 259,
+        "failed": 0
+      },
+      "spec": {
+        "items": 18,
+        "passed": 18,
+        "failed": 0
+      }
+    }
+  },
+  "fullOutputSha256": "38dd2df567ef44007f47902c8c3361101dca3b113b4f098b7237e77f802d9e8c"
+}

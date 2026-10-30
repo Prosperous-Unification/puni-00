@@ -35,6 +35,8 @@ export interface ScimRequest {
   readonly authorization: string | null;
   readonly contentType: string | null;
   readonly readBody: () => Promise<string | null>;
+  /** Runs after credential/rate admission and before any resource dispatch or body read. */
+  readonly admitResource: () => ScimReply | null;
 }
 
 /** One SCIM answer: a JSON text body, or null for 204. */
@@ -113,7 +115,8 @@ const FILTER = /^\s*(userName|externalId)\s+eq\s+"((?:[^"\\]|\\.)*)"\s*$/i;
  *
  * Order per request: authenticate (one {@link UNAUTHENTICATED} answer for
  * every failure), then per-token admission (`429` with `Retry-After`, no
- * effect), then the operation. PUT, any other method, filter, query
+ * effect), then request-level resource admission before the operation or body
+ * reading. PUT, any other method, filter, query
  * parameter or resource answers `501`. Every write is audited as
  * `scim:<token id>` and stamped by the token's issuing super-admin.
  *
@@ -139,6 +142,9 @@ export class ScimService {
         ...scimError(429, null, 'too_many_requests'),
         headers: [...headers, ['retry-after', String(admitted.retryAfterSeconds)]],
       };
+    // Proof: removing this refusal admitted enabled SCIM GET,200 instead of409; moving it before authentication turned missing-token401 into500 in scim-dependency-client.controller.db.test.ts.
+    const resourceRefusal = request.admitResource();
+    if (resourceRefusal !== null) return resourceRefusal;
     const route = /^\/scim\/v2\/Users(?:\/([^/]+))?$/.exec(request.url.pathname);
     if (route === null) return UNSUPPORTED;
     const segment = route.at(1);

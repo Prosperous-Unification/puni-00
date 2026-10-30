@@ -101,6 +101,10 @@ describe('the organization audit', () => {
       '20261023150000_key_step_measure',
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
+      '20261022213000_add_optimization_boundary_certificates',
+      '20261022212000_add_cross_project_dependency_activation',
+      '20261022211000_add_external_dependencies',
+      '20261022210000_add_project_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -155,7 +159,7 @@ describe('the organization audit', () => {
       { name },
       { at: 2, by: actorId },
       'org-a',
-      { actorId, auditId: crypto.randomUUID() },
+      { actorId, auditId: crypto.randomUUID(), role: 'super_admin' },
     );
   const state = () =>
     raw((db) => ({
@@ -222,7 +226,7 @@ describe('the organization audit', () => {
       { name: 'Taken' },
       { at: 2, by: 'sam' },
       'org-b',
-      { actorId: 'sam', auditId: 'a1' },
+      { actorId: 'sam', auditId: 'a1', role: 'super_admin' },
     );
     expect(answer).toBeNull();
   });
@@ -234,6 +238,7 @@ describe('the organization audit', () => {
         organizationId,
         actorId,
         { commands: ['patchWorkItem'] },
+        'super_admin',
       );
 
     it('records one recovery by a super-admin of a restricted project, keeping its creator', async () => {

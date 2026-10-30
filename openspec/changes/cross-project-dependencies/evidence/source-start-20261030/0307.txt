@@ -1,0 +1,1128 @@
+{
+  "scope": "Closed indexes15..19 only; prior15 audits separate",
+  "artifacts": [
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/packet.json",
+      "mode": 436,
+      "bytes": 52219,
+      "sha256": "7144cf91b8f1a183836eaf3e48767f1f316b77a81c6b7f4a054b38c9cdaaf146"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/00.source.txt",
+      "mode": 436,
+      "bytes": 120208,
+      "sha256": "780de6dd969d3992a00eaa27250f5fc34d927bc7418044dc25a3bbaacf138706"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/01.source.txt",
+      "mode": 436,
+      "bytes": 135705,
+      "sha256": "efa9e820f1f3637fe105cd42ec572cbd47a76e88361d029430ff891dbb15aeec"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/02.source.txt",
+      "mode": 436,
+      "bytes": 155061,
+      "sha256": "413941af716a86fc83ce176d9bf562bd3f8d6c64bb64ab4f422b6bb7c15faf31"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/03.source.txt",
+      "mode": 436,
+      "bytes": 10892,
+      "sha256": "7d3db6d2b271c50ec81cbb9ecc534cf56f72372b13f0c46322ad904f21fa82d0"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/04.source.txt",
+      "mode": 436,
+      "bytes": 4190,
+      "sha256": "6f1490276650da0bf04df2db084a2bf458ebd55b940cd0db12a01b273ab55315"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/05.source.txt",
+      "mode": 436,
+      "bytes": 2538,
+      "sha256": "c3f05917454d87136b72b886ef4b529e3361532b14984ca79796c43003fc6b4a"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/06.source.txt",
+      "mode": 436,
+      "bytes": 19078,
+      "sha256": "c35f1bdbd4a2bcf12ea832367d5ec7565848649a99451d5782d751493e6da62b"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/07.source.txt",
+      "mode": 436,
+      "bytes": 7419,
+      "sha256": "9e57e651780fbfed08df9d411a4d2ca2a81e1104eb0c45e10038b9440041af9e"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/08.source.txt",
+      "mode": 436,
+      "bytes": 33957,
+      "sha256": "1f96475065f6b79228c6ea0e7bd80b60f93cf0be5d3d9bb5a46db2f93a05720d"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/09.source.txt",
+      "mode": 436,
+      "bytes": 29304,
+      "sha256": "983ad5d988be0136cd0b435cf1a772d117f45abea81c1385d9415a0e7c499599"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/10.source.txt",
+      "mode": 436,
+      "bytes": 21539,
+      "sha256": "b0e880561a2632fef8dfde6866e4ebcbe3dd12fa915dfcb20bd8230f44a7abc4"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/11.source.txt",
+      "mode": 436,
+      "bytes": 15439,
+      "sha256": "c45ac129b4592348739a53f06d84250c8f47ee529c984a17e47ce07214756b3c"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/12.source.txt",
+      "mode": 436,
+      "bytes": 3057,
+      "sha256": "b0a0833c732f72c86d1f7248cb63778b4077a1c9ea76c7ea27c35fcd41c719f9"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/13.source.txt",
+      "mode": 436,
+      "bytes": 57,
+      "sha256": "943f493d310d1e26d03844c8242d00843f1e34a7619ca7c079c65f273d2c7a0d"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/driver.py",
+      "mode": 436,
+      "bytes": 6856,
+      "sha256": "bb615bfd81f7cce31648e6c0659178248170e49698dca778e812b984d2ee44e5"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/recipes.json",
+      "mode": 436,
+      "bytes": 14985,
+      "sha256": "333c585d514041344eec1611df49d7cd2bc5f4631662d5969e1ed02d7d955036"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/run.py",
+      "mode": 436,
+      "bytes": 1167,
+      "sha256": "9abc61f6170449156a67011aaad3df214418c2eb34009f17dc2ca5ba4a875b4e"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/red-original-product-addresses.json",
+      "mode": 436,
+      "bytes": 506,
+      "sha256": "fb65f451cf2fd3c27e71a0b109bd1777537743b6cffc6b19023354a413111dd1"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/red-original-product-addresses.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/red-original-product-addresses.stderr",
+      "mode": 436,
+      "bytes": 2049,
+      "sha256": "c8b69139f1aa949dc51b3e87323f0ef4fd0ecc25d04ace4ec410d760b5f75a44"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/minimum-green.json",
+      "mode": 436,
+      "bytes": 506,
+      "sha256": "2bc1c8956bbd16e25e7f2221df0b052cae92cb2de7ffe3fe2cad3bf998842047"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/minimum-green.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/minimum-green.stderr",
+      "mode": 436,
+      "bytes": 1014,
+      "sha256": "dd1049cc76a81d0b47f0f9e476deaf826d12dde7296c8cf48dbea4acc33212bd"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-dev-gateway.json",
+      "mode": 436,
+      "bytes": 597,
+      "sha256": "52956e166fc4db91658400a4087be9bf1d1306937cbf5a6502caf071ff2851d6"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-dev-gateway.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-dev-gateway.stderr",
+      "mode": 436,
+      "bytes": 1014,
+      "sha256": "7d469d124b7e2c50d3f89ad242ddeaa975dbbc4d8d9e19c33568f6da03fedeaa"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-00.json",
+      "mode": 436,
+      "bytes": 624,
+      "sha256": "e7753381a5f2ad8e1eb9334ff56db091232ed099795aeda159c6cdb8a384ee1f"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-00.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-00.stderr",
+      "mode": 436,
+      "bytes": 1084,
+      "sha256": "3314554edcfe6d7066ac0f85d848b82e02f6b0c8a977d52f2b061874ecfbbd67"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-01.json",
+      "mode": 436,
+      "bytes": 596,
+      "sha256": "8846f901c4e930da386fb3de41569a44b59f8b201c709e7976c121f32e223355"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-01.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-01.stderr",
+      "mode": 436,
+      "bytes": 845,
+      "sha256": "b000c4d4aa8b24a2746adee00219cde3dde5eb570acdfac2f064e3ffb53f4df1"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-02.json",
+      "mode": 436,
+      "bytes": 613,
+      "sha256": "3b1b4d4ddb9ebbe3de431bb9d55d4239c6b0180905cadf79347e601a49d466ac"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-02.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-02.stderr",
+      "mode": 436,
+      "bytes": 975,
+      "sha256": "85297a8a9168fca1d94f4e8316822ec1fb51e38312ceee61b7b9f2c434aee19f"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-03.json",
+      "mode": 436,
+      "bytes": 596,
+      "sha256": "a090b894e2f7d7e3ab698e703c1a1093121a0f69be863b449b173d22d98f925b"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-03.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-03.stderr",
+      "mode": 436,
+      "bytes": 927,
+      "sha256": "54a2fa860707faf4d3c4c819fbb29c7d7151d86c6816a576e1fad6c46aadca98"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-04.json",
+      "mode": 436,
+      "bytes": 607,
+      "sha256": "b9c229f99e025099f005caa4a473eb5cf46b53f4a3967e869fb32acc015429de"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-04.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-04.stderr",
+      "mode": 436,
+      "bytes": 961,
+      "sha256": "019a09c7ed3846d31b5f1b8fc2db40bbbe941497b59210286c4a39922e2fd632"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-05.json",
+      "mode": 436,
+      "bytes": 616,
+      "sha256": "346b85c2306c331351b7b6395a20b599291973aa0c1b81ecd922324a13df1974"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-05.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-05.stderr",
+      "mode": 436,
+      "bytes": 984,
+      "sha256": "5663f48354aadd2397cacc5bd9e18a09915e6971639bd40d088a48dfb5169163"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-06.json",
+      "mode": 436,
+      "bytes": 594,
+      "sha256": "3e7919b62f4a8fd055484fc07d684dd011fb9a2ced53295b6b148fd10eddad14"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-06.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-06.stderr",
+      "mode": 436,
+      "bytes": 994,
+      "sha256": "14ebc8e16a6a456821f272d7b5700afceb9176b2288bfef63e24be36e7787a14"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-07.json",
+      "mode": 436,
+      "bytes": 598,
+      "sha256": "79cf7f8e52ec2a814a30bb162c9c645467894a150410b9f84d0ee7195792ccf2"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-07.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-07.stderr",
+      "mode": 436,
+      "bytes": 1019,
+      "sha256": "3e84b31faef0dd9b3515103e70c7d0a75b60b8483271e40f508da3d63c69ca2e"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-08.json",
+      "mode": 436,
+      "bytes": 601,
+      "sha256": "f9220a7c2a6251477554d895f3d94962b42ce7b2623e9d9972ee94d7fff442e9"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-08.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-08.stderr",
+      "mode": 436,
+      "bytes": 1022,
+      "sha256": "1e86f711aef55e6fae8d9be5cd5967b16dfe295f8f7e2855182d4d5e3a760f20"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-09.json",
+      "mode": 436,
+      "bytes": 599,
+      "sha256": "2bc76fba644f2d338007d46727f48d37ddfe198e679f9665354826475afa1fbf"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-09.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-09.stderr",
+      "mode": 436,
+      "bytes": 1018,
+      "sha256": "26ff7aae09e3cd299a2f28bf16a833f600b2be65c0e9fc617faa22b081114061"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-10.json",
+      "mode": 436,
+      "bytes": 602,
+      "sha256": "b82bf7d89d55457488c2eb3868e001ee2e85576ea9c6bec4ad1119a1a4a50e4b"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-10.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-10.stderr",
+      "mode": 436,
+      "bytes": 1022,
+      "sha256": "efcab53a62f23c61963484f0d8396e85e4989ed09cf35d04bd704c8f9ee74527"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-11.json",
+      "mode": 436,
+      "bytes": 599,
+      "sha256": "02356ffc75e79f6d357226ec2af6198facafc5506117b93d9b15224a7a9e4372"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-11.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-11.stderr",
+      "mode": 436,
+      "bytes": 1024,
+      "sha256": "45e26bfa9e78959201a66054a722dab93a5d53a6340c0c795e3db188dc01ef9c"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-12.json",
+      "mode": 436,
+      "bytes": 601,
+      "sha256": "b8d5af11570417bce48697fa3b323fe4b36b30e7f8fc2c4b7c202d071a9836fc"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-12.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-12.stderr",
+      "mode": 436,
+      "bytes": 1024,
+      "sha256": "625df3080366f8c4a049b407655e74910fe0b34a64373ae3bd46342462ecd0dd"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-13.json",
+      "mode": 436,
+      "bytes": 604,
+      "sha256": "4bad2e9218104ed277dd80a80517b196e5df60fc22305abd97c424ecd7e91fb5"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-13.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-13.stderr",
+      "mode": 436,
+      "bytes": 1021,
+      "sha256": "4c70ed9bdd32e3c7a10038a946b51ba75fd4a1d6f955125ebc557be5776e38dd"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-14.json",
+      "mode": 436,
+      "bytes": 604,
+      "sha256": "7e69f1f80d60b233c093281724cda1518c7f685dcc39eaea405df2a110f0789d"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-14.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-14.stderr",
+      "mode": 436,
+      "bytes": 1021,
+      "sha256": "4e0e5e9c32f5ba00b9b32c118871eede5dfa8415e1e6e0eef12c2f94e8d3294c"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-15.json",
+      "mode": 436,
+      "bytes": 603,
+      "sha256": "addead2e4cb7cbea6d918593cc9e94db473a0b14001fc46e8f3d5ef8c56caeeb"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-15.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-15.stderr",
+      "mode": 436,
+      "bytes": 1016,
+      "sha256": "306fd265623055d3c4ac58f6e5388a55f4c8f3989a8c7f97bf37128dc80acb9a"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-16.json",
+      "mode": 436,
+      "bytes": 607,
+      "sha256": "0001e2fbdcb1e22a5dcffa31cb70d4fed6270e8ff45f36898c7f7cfdb27016d8"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-16.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-16.stderr",
+      "mode": 436,
+      "bytes": 1064,
+      "sha256": "232d50da5112d288e65ec166e76ea17073867e4f94a0aab9d23dc1897a335111"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-17.json",
+      "mode": 436,
+      "bytes": 611,
+      "sha256": "add112f6139a1350ffe56dee23c38352eec54e62d1cef1084c0c4415af4d2851"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-17.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-17.stderr",
+      "mode": 436,
+      "bytes": 974,
+      "sha256": "8c682882428137d696c8ea6248547686e2c7e5f5fe055876ea1821261cb853ea"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-18.json",
+      "mode": 436,
+      "bytes": 619,
+      "sha256": "e16a04f6cad03d5c222bf61496e25348005436f4cc696d4f0926c7b96cb67fd6"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-18.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary-18.stderr",
+      "mode": 436,
+      "bytes": 995,
+      "sha256": "a3d927698e26f81d59eae696bcc9b883f19093cc2cd09c72ec2e8e89d5c98ef2"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/refined-00.json",
+      "mode": 436,
+      "bytes": 612,
+      "sha256": "25c770292bedea8080cd5014cdb71d095e8d86e9cc5c45f1f1f6b20cd6f9b416"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/refined-00.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/refined-00.stderr",
+      "mode": 436,
+      "bytes": 1048,
+      "sha256": "64938fd8aff24a9d75ea87fb696440e813790fe1df4e2c83ab003ca0e8c5c00b"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/refined-01.json",
+      "mode": 436,
+      "bytes": 624,
+      "sha256": "8b5ac151a702689e3138c98b1d630695a5c3ef2797cc90b3ecb772234899853a"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/refined-01.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/refined-01.stderr",
+      "mode": 436,
+      "bytes": 1184,
+      "sha256": "85f1184da402bb6b94351bfbf6f6fd940eb0e835b2bdce895801c4510d46c439"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/refined-02.json",
+      "mode": 436,
+      "bytes": 617,
+      "sha256": "a9eec93c764d77e5ada49b721f848357b14438c6b7c60cc1bb51d4df49f95ce8"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/refined-02.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/refined-02.stderr",
+      "mode": 436,
+      "bytes": 1016,
+      "sha256": "bc0c6605252a5b9e7323d468d5476df86a176afe452790abdab51f96fcfdf9c1"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/listener-after-ready-ordinary.json",
+      "mode": 436,
+      "bytes": 621,
+      "sha256": "f43dd78560ea5fc564a2e98474e914ce82ec7bf4d51f4e9e2f51dd4a67b787c3"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/listener-after-ready-ordinary.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/listener-after-ready-ordinary.stderr",
+      "mode": 436,
+      "bytes": 2300,
+      "sha256": "efe2c745c00d1dc259c4b58ba7955855e8d24321cd915b2d679f4ef96f68c640"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/spy-identity-probe.json",
+      "mode": 436,
+      "bytes": 395,
+      "sha256": "a37b3692ab10b2f07f5b319e5c6348440ff8b168153822380be0aa4508d45067"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/spy-identity-probe.stdout",
+      "mode": 436,
+      "bytes": 89,
+      "sha256": "92eaacd69bc0139931b4dc26a521c0626ea435c817a656ebe077674cc276b62c"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/spy-identity-probe.stderr",
+      "mode": 436,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/single-observer-types.json",
+      "mode": 436,
+      "bytes": 455,
+      "sha256": "bcb0e562c36018dce91e5ab441a5f42a51dc3a3d8f2fd231eb983594e673c7fe"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/single-observer-types.stdout",
+      "mode": 436,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/single-observer-types.stderr",
+      "mode": 436,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/single-observer-00.json",
+      "mode": 436,
+      "bytes": 623,
+      "sha256": "e4acde107baa5704c2724553cfd6504bc882664335439dd51d9dfe70644a5511"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/single-observer-00.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/single-observer-00.stderr",
+      "mode": 436,
+      "bytes": 1230,
+      "sha256": "8c613834624e1ea4aa5d3e4fd132257057a3c9ae97183387d861a7617b8e1fab"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/single-observer-01.json",
+      "mode": 436,
+      "bytes": 619,
+      "sha256": "d547cca563d52016e1e39825e12c3e344970de98934f5e0307cf49001cff7b4b"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/single-observer-01.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/single-observer-01.stderr",
+      "mode": 436,
+      "bytes": 995,
+      "sha256": "4ce9c97dd224db58d67d0e83e6c2fdeea63196c787511a00baf8ddb54d8806d2"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/ordinary20-settled-census.json",
+      "mode": 436,
+      "bytes": 5341,
+      "sha256": "65a3b78c6d9c5735cee7d867fdb5d0151717f267780ae4946fa8c22751f96baa"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/format-equivalence.json",
+      "mode": 436,
+      "bytes": 2365,
+      "sha256": "334bc39e96b3ae64cfe065045cebdcfe5a6a222bad7348c3c44768ed954bf24e"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/single-observer.patch",
+      "mode": 436,
+      "bytes": 2576,
+      "sha256": "461f5fc2afbd823b705b8d96761acda6f6ec415ce264f973a85f88e8e2796174"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/spy-identity-probe.ts",
+      "mode": 436,
+      "bytes": 1036,
+      "sha256": "ec77211eb02e298e97a1b83a41d41c964f041405ebd3beb42165ecf04055dcfa"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/15-ready-digest-fault.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/15-ready-digest-fault.stderr",
+      "mode": 436,
+      "bytes": 2540,
+      "sha256": "d187b0e788ccddf6d75e2ae7149413c442258b3456fe19f76be8396b0e567e2b"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/15-ready-digest-fault.json",
+      "mode": 436,
+      "bytes": 612,
+      "sha256": "ff0822dbb0380c2390d94ced59cc2a9dccf98dcfd541d54f18e864d21c6ed2a5"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/15-ready-digest-fault.driver.stdout",
+      "mode": 436,
+      "bytes": 3130,
+      "sha256": "21b5e3ec93a67c740778bf16da32b5f9e52e5d8f41f1c9e3327524b74afb12bc"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/15-ready-digest-fault.driver.stderr",
+      "mode": 436,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/15-ready-digest-fault.wrapper.json",
+      "mode": 436,
+      "bytes": 266,
+      "sha256": "1d7d75a11e9a6e9730f32d347f4751991a9ea4c850018bbd5c1bde9a2c93ce0d"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/15-ready-digest-restored.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/15-ready-digest-restored.stderr",
+      "mode": 436,
+      "bytes": 1048,
+      "sha256": "f9ff59eaecb5e5727dc9dfd4d969c1bd9bffc385a4a954a392b0c82a8b9a26ef"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/15-ready-digest-restored.json",
+      "mode": 436,
+      "bytes": 612,
+      "sha256": "7772fbf08a559d13b3e4205cf61bb705b9e3d65514b5fb176f2ab8e7408254e7"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/15-ready-digest-restored.driver.stdout",
+      "mode": 436,
+      "bytes": 1638,
+      "sha256": "b42a34835e8cdde1f67b2120674279d87c1c0ebfff627289069283a802e7ed7d"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/15-ready-digest-restored.driver.stderr",
+      "mode": 436,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/15-ready-digest-restored.wrapper.json",
+      "mode": 436,
+      "bytes": 266,
+      "sha256": "42635d7dbcac1ad5768b1b97288acfb461cd6dca65b7aa7d6c99aa7d8c8c62ac"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/15-ready-digest-mutation.json",
+      "mode": 436,
+      "bytes": 491,
+      "sha256": "22ccbb41c09dba91c33f62f89f8c5656fe35c27cc9ae4f11f631bf52d3a8d8e8"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/15-ready-digest-inverse.json",
+      "mode": 436,
+      "bytes": 612,
+      "sha256": "b1638733f197cfbea60f2e9732fa95a2ce490e9d5f17fa4969c3922d29c86f30"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/15-ready-digest-accepted-local.json",
+      "mode": 436,
+      "bytes": 2302,
+      "sha256": "a3a2f9ac3c1e3f4780ce4894e8358c32cdb813dda632da7cab40d44656ac595b"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/16-ready-retention-fault.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/16-ready-retention-fault.stderr",
+      "mode": 436,
+      "bytes": 2106,
+      "sha256": "3144aa88c1e9dfce1327a20ffb272cd18a36632478ca5d6be69ce228782a784e"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/16-ready-retention-fault.json",
+      "mode": 436,
+      "bytes": 611,
+      "sha256": "c29d79e95840b990e0edd962c2d1a02ddb4bc237b05c1f08070afb7a95b32ef8"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/16-ready-retention-fault.driver.stdout",
+      "mode": 436,
+      "bytes": 2695,
+      "sha256": "3b94608ef91ddfdc145016326cdd86c56130dee0d77cba5045b49daa05c4285a"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/16-ready-retention-fault.driver.stderr",
+      "mode": 436,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/16-ready-retention-fault.wrapper.json",
+      "mode": 436,
+      "bytes": 266,
+      "sha256": "aa615544c16f7b4f0712962ea7e4c1cf33a0c37759d7df69d1307b7d4918e0d5"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/16-ready-retention-restored.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/16-ready-retention-restored.stderr",
+      "mode": 436,
+      "bytes": 974,
+      "sha256": "ce465f917ac99a8d80db065f9c8b4f92365bc90bfa68ebfc4a59ddbf0820c436"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/16-ready-retention-restored.json",
+      "mode": 436,
+      "bytes": 611,
+      "sha256": "d72d6db5cdcb99043db9fc7ab2e3659484284c97c3f142a1b499d566a06f3508"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/16-ready-retention-restored.driver.stdout",
+      "mode": 436,
+      "bytes": 1563,
+      "sha256": "20c5d27961d98cde364ef4c723b98f8ed076808cbdba7fe3ac573e0177ebe4b0"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/16-ready-retention-restored.driver.stderr",
+      "mode": 436,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/16-ready-retention-restored.wrapper.json",
+      "mode": 436,
+      "bytes": 266,
+      "sha256": "8172817ac95f0865bd1cb66e42696bea528d819c38f989d35b440d47d522a871"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/16-ready-retention-mutation.json",
+      "mode": 436,
+      "bytes": 499,
+      "sha256": "dd1e58d18b78c0bf4a7d9af9aada393374edc06536411b47317a632bde6004c3"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/16-ready-retention-inverse.json",
+      "mode": 436,
+      "bytes": 612,
+      "sha256": "29ed15d97d8fd1fe2d8065782ebaf0082db5c50395a932e54127b99420e3c4aa"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/16-ready-retention-accepted-local.json",
+      "mode": 436,
+      "bytes": 2317,
+      "sha256": "be9b84d2e5d4a472353ba8fba88eb10dc87e60c696012731595f9fceb72809c0"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/17-closing-retained-fault.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/17-closing-retained-fault.stderr",
+      "mode": 436,
+      "bytes": 2130,
+      "sha256": "238d47443422ddb56df74e82c8f9d240f9cc135ed149f2c47cb2b56b9c49d6bb"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/17-closing-retained-fault.json",
+      "mode": 436,
+      "bytes": 619,
+      "sha256": "8227756f7876dd9eb4e54b4aa066ed0a275e328e99a176b92f3f7dce760ef883"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/17-closing-retained-fault.driver.stdout",
+      "mode": 436,
+      "bytes": 2727,
+      "sha256": "e658981d9480cb4434889082bf56bb61466b473addf5cfe81be2e01ab658b505"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/17-closing-retained-fault.driver.stderr",
+      "mode": 436,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/17-closing-retained-fault.wrapper.json",
+      "mode": 436,
+      "bytes": 266,
+      "sha256": "bd615a4f21c4bd79b128bc0abddbddcdac46c627b739bec63e8e126ca5f36bf8"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/17-closing-retained-restored.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/17-closing-retained-restored.stderr",
+      "mode": 436,
+      "bytes": 995,
+      "sha256": "dd49fbd11ebc734a086ff10495cfc01e5de771f3dedec40e1acd0d82c7984bcb"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/17-closing-retained-restored.json",
+      "mode": 436,
+      "bytes": 618,
+      "sha256": "67f72711f46f75619d51cf716e8f9925938f85519ecb1499fe89fd67b5a98360"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/17-closing-retained-restored.driver.stdout",
+      "mode": 436,
+      "bytes": 1591,
+      "sha256": "499b024b37902ae4069ac8ecc817c870800f26f59d8d676b28ca04e7e460103a"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/17-closing-retained-restored.driver.stderr",
+      "mode": 436,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/17-closing-retained-restored.wrapper.json",
+      "mode": 436,
+      "bytes": 266,
+      "sha256": "cac2afc489717adc23b47f07c0c2b5e74fb88bf9a3deef4b73e9f84268897e4b"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/17-closing-retained-mutation.json",
+      "mode": 436,
+      "bytes": 542,
+      "sha256": "f4a3c12eedba44be8c69c9b9d5a7301dd9c1d711f4b48e061430494e0028aed9"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/17-closing-retained-inverse.json",
+      "mode": 436,
+      "bytes": 612,
+      "sha256": "7252b5bc803a3197fc62ce626d5ed463ea3bf1c3c00a1c713cc85d5f0327a90f"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/17-closing-retained-accepted-local.json",
+      "mode": 436,
+      "bytes": 2339,
+      "sha256": "ee4ceae2e38c4b42e0adc8b51f907a999f0e5e927c6297f75c1f3b91c3d9980a"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/18-final-source-observer-fault.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/18-final-source-observer-fault.stderr",
+      "mode": 436,
+      "bytes": 2254,
+      "sha256": "f5836b9d0f8c09d8de953625fb13626c2f1c199de0e6feab81026c115a6bef1e"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/18-final-source-observer-fault.json",
+      "mode": 436,
+      "bytes": 622,
+      "sha256": "a5254c22142b9bf83f346d048e303bee7395c9a91b081b3a26e09baf199583af"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/18-final-source-observer-fault.driver.stdout",
+      "mode": 436,
+      "bytes": 2854,
+      "sha256": "1965c5da7a35fe5478fdbbc17778562cb6dcba3abc2836ecd5c046a34497f4ab"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/18-final-source-observer-fault.driver.stderr",
+      "mode": 436,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/18-final-source-observer-fault.wrapper.json",
+      "mode": 436,
+      "bytes": 266,
+      "sha256": "1e7c8c0a9cb9c4a1978fc223eaf6375ea541600c63787fa2d8c36ea0b2fc3e7c"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/18-final-source-observer-restored.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/18-final-source-observer-restored.stderr",
+      "mode": 436,
+      "bytes": 1230,
+      "sha256": "607064e1bbc2cd794195d5d390bc770ab2c3deb26769799ace004b0c5f863027"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/18-final-source-observer-restored.json",
+      "mode": 436,
+      "bytes": 623,
+      "sha256": "43f883f31209f614d0d76738f7e64e462a08518550a8c325c5c7f7d402506230"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/18-final-source-observer-restored.driver.stdout",
+      "mode": 436,
+      "bytes": 1831,
+      "sha256": "c9522b11bfff3749c65ea8810071f83e4b17f6b58aa394dcec6199a52c0c2922"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/18-final-source-observer-restored.driver.stderr",
+      "mode": 436,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/18-final-source-observer-restored.wrapper.json",
+      "mode": 436,
+      "bytes": 266,
+      "sha256": "cb3a49f4840dfe064595cb8ca3483e819c3acc24c6bd8c06f4f472c077ddd339"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/18-final-source-observer-mutation.json",
+      "mode": 436,
+      "bytes": 627,
+      "sha256": "54ed7d4e7d88a351481d29121b41124ed29343372223c28dbf97906656dd4b24"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/18-final-source-observer-inverse.json",
+      "mode": 436,
+      "bytes": 612,
+      "sha256": "907eab2a24f95e2fb018bdf072ad0f375c2cf03fec4f055b7f0ac7e83072f4fa"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/18-final-source-observer-accepted-local.json",
+      "mode": 436,
+      "bytes": 2415,
+      "sha256": "f93eb5fbf8e407b5f7f31518d70592cd74fc165680dd7aa4641426acfa9ed606"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/19-original-source-selection-fault.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/19-original-source-selection-fault.stderr",
+      "mode": 436,
+      "bytes": 2236,
+      "sha256": "4a351049b52a5da28c66f6038fdd71f729c04b99d4236fe517a1c379ac4612ac"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/19-original-source-selection-fault.json",
+      "mode": 436,
+      "bytes": 611,
+      "sha256": "597095f4e1451725494a51ef3c0e494a6e5608e15d7ddc85526e09cd6220e80d"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/19-original-source-selection-fault.driver.stdout",
+      "mode": 436,
+      "bytes": 2825,
+      "sha256": "44dcea120a27b4e707b15c3b1316f7b9bf0ff227aa708906ab78dc1fa89230fa"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/19-original-source-selection-fault.driver.stderr",
+      "mode": 436,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/19-original-source-selection-fault.wrapper.json",
+      "mode": 436,
+      "bytes": 266,
+      "sha256": "68dd1fa77f2ad4c7b340906b67ff2c8e45c715892792aa4be32579378c9b7c53"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/19-original-source-selection-restored.stdout",
+      "mode": 436,
+      "bytes": 28,
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/19-original-source-selection-restored.stderr",
+      "mode": 436,
+      "bytes": 1044,
+      "sha256": "8019e7dd0f3d250932dbb646b9b7a27b96159aa1fcec43f79f35566434547547"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/19-original-source-selection-restored.json",
+      "mode": 436,
+      "bytes": 611,
+      "sha256": "3ceaec0fbaece1f6591a0c647fdc1e8fd50414347b60297276146dccdebbd08d"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/19-original-source-selection-restored.driver.stdout",
+      "mode": 436,
+      "bytes": 1633,
+      "sha256": "b3c73364d785070a68532747f84872410fd9e0ecb5410d15a575a29828425ffb"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/19-original-source-selection-restored.driver.stderr",
+      "mode": 436,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/19-original-source-selection-restored.wrapper.json",
+      "mode": 436,
+      "bytes": 266,
+      "sha256": "352860d1e4c660cf8ec58087425baad3341ddad7a0edfe955fc9b8b460497b7a"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/19-original-source-selection-mutation.json",
+      "mode": 436,
+      "bytes": 561,
+      "sha256": "8b83e23d28480a12676d770375ec8e027d4a64c3c34c975ade96600e02bb5ee9"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/19-original-source-selection-inverse.json",
+      "mode": 436,
+      "bytes": 612,
+      "sha256": "a2b3e5f20f1f977d006aa32fc17aa58a06770c090f50a5b1e190a61a1e80d902"
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/r5-v2/19-original-source-selection-accepted-local.json",
+      "mode": 436,
+      "bytes": 2378,
+      "sha256": "cb0d1efa548ed5ac768365d96db2aafa80df22877acefc2e3fc578334259083d"
+    }
+  ],
+  "fullActualManifestSHA256": "c017166d33804795f252b26c5d48f61eeb0f6a4b459088272471a39d0473ecf0"
+}

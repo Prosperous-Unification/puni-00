@@ -1,0 +1,26 @@
+import { spyOn } from 'bun:test';
+let depth = 0;
+let originalCalls = 0;
+let bounded = false;
+const sentinel = new Error('bounded depth');
+const target = { async observe() { originalCalls++; return true; } };
+const original = target.observe;
+const first = spyOn(target, 'observe').mockImplementation(async () => {
+  if (++depth > 3) throw sentinel;
+  return await original();
+});
+const savedDelegate = target.observe;
+const second = spyOn(target, 'observe').mockImplementation(async () => {
+  if (++depth > 3) throw sentinel;
+  return await savedDelegate();
+});
+try {
+  await target.observe();
+} catch (cause) {
+  if (cause !== sentinel) throw cause;
+  bounded = true;
+} finally { second.mockRestore(); }
+const observation = {sameSpy:first === second, savedDelegateIsSecond:savedDelegate === second, bounded, depth, originalCalls};
+console.log(JSON.stringify(observation));
+if (!observation.sameSpy || !observation.savedDelegateIsSecond || !bounded || depth !== 4 || originalCalls !== 0)
+  throw new Error('spy mechanism contradicted');

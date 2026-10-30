@@ -24,10 +24,10 @@ function cleanupFixture(hookBudget?: number, ordinaryHang = false): string[] {
   let preload = readFileSync(PRELOAD, 'utf8');
   if (hookBudget !== undefined)
     preload = preload.replace(
-      /afterAll\(removeProcessRoot(?:,\s*[\d_]+)?\);/,
+      /afterAll\(removeScratchAfterAll(?:,\s*[\d_]+)?\);/,
       hookBudget === 0
-        ? 'afterAll(removeProcessRoot);'
-        : `afterAll(removeProcessRoot, ${String(hookBudget)});`,
+        ? 'afterAll(removeScratchAfterAll);'
+        : `afterAll(removeScratchAfterAll, ${String(hookBudget)});`,
     );
   const preloadPath = join(directory, 'preload.ts');
   writeFileSync(preloadPath, preload);
@@ -57,6 +57,8 @@ async function runFixture(args: string[]) {
   const directories = [...stdout.matchAll(/^FIXTURE_DIRECTORY=(.+)$/gm)].map((match) => match[1]);
   expect(directories).toHaveLength(2);
   for (const directory of directories) expect(existsSync(directory)).toBe(false);
+  expect(stderr).toContain('scratch cleanup source=afterAll event=start');
+  expect(stderr).toMatch(/scratch cleanup source=afterAll event=return elapsedMs=\d+/);
   return { stderr, status };
 }
 
@@ -69,7 +71,7 @@ test('the actual preload allows bounded cleanup beyond the ordinary test budget'
 
 test('the cleanup allowance is scoped, finite and does not change ordinary test deadlines', async () => {
   const preload = readFileSync(PRELOAD, 'utf8');
-  expect(preload).toMatch(/afterAll\(removeProcessRoot,\s*30_?000\);/);
+  expect(preload).toMatch(/afterAll\(removeScratchAfterAll,\s*30_?000\);/);
   expect(preload).not.toMatch(/\bsetDefaultTimeout\s*\(/);
   const inherited = await runFixture(cleanupFixture(0));
   expect(inherited.status).toBe(1);

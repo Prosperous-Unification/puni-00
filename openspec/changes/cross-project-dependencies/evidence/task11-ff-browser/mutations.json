@@ -1,0 +1,22 @@
+[
+  {
+    "fault": "serialization",
+    "exit": 1,
+    "assertion": "FF serialization; \"type\": \"FF\"; \"type\": \"FS\""
+  },
+  {
+    "fault": "storage",
+    "exit": 1,
+    "assertion": "persisted FF tuple; \"type\": \"FF\"; \"type\": \"FS\""
+  },
+  {
+    "fault": "finish",
+    "exit": 1,
+    "assertion": "FF blocks finish before completion; \"canFinish\": false; \"canFinish\": true"
+  },
+  {
+    "fault": "start",
+    "exit": 1,
+    "assertion": "FF permits start before completion; \"canStart\": true; \"canStart\": false"
+  }
+]

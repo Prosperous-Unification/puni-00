@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { failureText } from '@/components/wbs/plan-refusal';
 import type { PlanRefresh, RefreshResource } from '@/lib/plan-refresh';
 import { type WbsProblem, WbsRequestError } from '@/lib/wbs-api';
 
@@ -308,4 +309,257 @@ it('rereads only a completed request before a sparse command refusal', async () 
         'That change cannot be made while the affected steps have individual parallelism overrides.',
     },
   ]);
+});
+
+it('classifies project abbreviation refusals without throwing', () => {
+  const problems = [
+    { kind: 'refusal', operation: 'postApiProjects', refusal: { error: 'invalid_abbreviation' } },
+    { kind: 'refusal', operation: 'postApiProjects', refusal: { error: 'abbreviation_taken' } },
+    { kind: 'refusal', operation: 'postApiProjects', refusal: { error: 'abbreviation_exhausted' } },
+    {
+      kind: 'refusal',
+      operation: 'patchApiProjectsById',
+      refusal: { error: 'invalid_abbreviation' },
+    },
+    {
+      kind: 'refusal',
+      operation: 'patchApiProjectsById',
+      refusal: { error: 'abbreviation_taken' },
+    },
+  ] as const;
+  for (const problem of problems) {
+    expect(failureText(new WbsRequestError(problem), 'unknown')).toBe(problem.refusal.error);
+  }
+});
+
+it('classifies a step-write cycle and code collision from the shared typed refusal', () => {
+  for (const error of ['dependency_cycle', 'code_taken'] as const) {
+    const problem = {
+      kind: 'refusal',
+      operation: 'postApiProjectsByIdSteps',
+      refusal: { error },
+    } as const;
+    expect(failureText(new WbsRequestError(problem), 'unknown')).toBe(error);
+  }
+});
+
+it.each(['postApiProjectsByIdCommands', 'postApiProjectsByIdUndo'] as const)(
+  'reports dormant external dependency admission from %s without retrying',
+  async (operation) => {
+    const recorded = recordingHost();
+    const writer = createPlanWriter(recorded.host);
+    let requests = 0;
+    const outcome = await writer.run(async (write) => {
+      await write.perform(['tree'], () => {
+        requests += 1;
+        return Promise.reject(
+          new WbsRequestError(
+            operation === 'postApiProjectsByIdCommands'
+              ? {
+                  kind: 'refusal',
+                  operation,
+                  refusal: {
+                    error: 'external_dependencies_inactive',
+                    at: 0,
+                    kind: 'addTypedDependency',
+                  },
+                }
+              : {
+                  kind: 'refusal',
+                  operation,
+                  refusal: { error: 'external_dependencies_inactive', detail: null },
+                },
+          ),
+        );
+      });
+    });
+    expect(outcome).toBe('refused');
+    expect(requests).toBe(1);
+    expect(recorded.rereads).toEqual([]);
+    expect(recorded.refusals).toEqual([
+      { sentence: 'Dependencies between projects are not enabled on this server.' },
+    ]);
+  },
+);
+
+it('reports a retained external prerequisite without retry or reread', async () => {
+  const recorded = recordingHost();
+  const writer = createPlanWriter(recorded.host);
+  let requests = 0;
+  const outcome = await writer.run(async (write) => {
+    await write.perform(['tree'], () => {
+      requests += 1;
+      return Promise.reject(
+        new WbsRequestError({
+          kind: 'refusal',
+          operation: 'postApiProjectsByIdCommands',
+          refusal: {
+            error: 'referenced_by_external_dependency',
+            at: 0,
+            kind: 'deleteWorkItem',
+            dependencyIds: ['retained-edge'],
+          },
+        }),
+      );
+    });
+  });
+  expect(outcome).toBe('refused');
+  expect(requests).toBe(1);
+  expect(recorded.rereads).toEqual([]);
+  expect(recorded.refusals).toEqual([
+    { sentence: 'That change could not be completed (referenced_by_external_dependency).' },
+  ]);
+});
+
+it('rereads only the tree after a typed terminal Retry refusal and preserves completed resources', async () => {
+  const recorded = recordingHost();
+  const writer = createPlanWriter(recorded.host);
+  const outcome = await writer.run(async (write) => {
+    await write.perform(['directory'], () => Promise.resolve());
+    await write.perform(['tree'], () =>
+      Promise.reject(
+        new WbsRequestError({
+          kind: 'refusal',
+          operation: 'postApiProjectsByIdOptimizationRetry',
+          refusal: { code: 'not-retryable', state: 'boundary-infeasible' },
+        }),
+      ),
+    );
+  });
+  expect(outcome).toBe('refused');
+  expect(recorded.rereads).toEqual([['directory', 'tree']]);
+  expect(recorded.refusals).toEqual([
+    {
+      sentence:
+        'This captured optimization question cannot fit its fixed external boundaries. The displayed valid schedule is retained.',
+    },
+  ]);
+});
+
+it('a retired writer does not publish or reread a typed terminal Retry refusal', async () => {
+  const recorded = recordingHost();
+  let owner = fakeFeedOwner();
+  const writer = createPlanWriter({ ...recorded.host, readRefreshOwner: () => owner });
+  await writer.run(async (write) => {
+    await write.perform(['tree'], () => {
+      owner = fakeFeedOwner();
+      return Promise.reject(
+        new WbsRequestError({
+          kind: 'refusal',
+          operation: 'postApiProjectsByIdOptimizationRetry',
+          refusal: { code: 'not-retryable', state: 'boundary-infeasible' },
+        }),
+      );
+    });
+  });
+  expect(recorded.refusals).toEqual([]);
+  expect(recorded.rereads).toEqual([]);
+});
+
+it('reports a deleting project without retry or reread', async () => {
+  const recorded = recordingHost();
+  const writer = createPlanWriter(recorded.host);
+  let requests = 0;
+  const outcome = await writer.run(async (write) => {
+    await write.perform(['tree'], () => {
+      requests += 1;
+      return Promise.reject(
+        new WbsRequestError({
+          kind: 'refusal',
+          operation: 'postApiProjectsByIdCommands',
+          refusal: {
+            error: 'project_deleting',
+            at: 0,
+            kind: 'addTypedDependency',
+          },
+        }),
+      );
+    });
+  });
+  expect(outcome).toBe('refused');
+  expect(requests).toBe(1);
+  expect(recorded.rereads).toEqual([]);
+  expect(recorded.refusals).toEqual([
+    { sentence: 'This project is being deleted. Nothing was changed.' },
+  ]);
+});
+
+it.each(['replacement', 'withdrawn'] as const)(
+  'a delayed terminal Retry refusal is fenced after its feed owner is %s',
+  async (retirement) => {
+    const recorded = recordingHost();
+    let owner: PlanRefresh | null = fakeFeedOwner();
+    const writer = createPlanWriter({ ...recorded.host, readRefreshOwner: () => owner });
+    let rejectRetry: () => void = () => {
+      throw new Error('No pending Retry');
+    };
+    const pending = writer.run(async (write) => {
+      await write.perform(['directory'], () => Promise.resolve());
+      await write.perform(
+        ['tree'],
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectRetry = () => {
+              reject(
+                new WbsRequestError({
+                  kind: 'refusal',
+                  operation: 'postApiProjectsByIdOptimizationRetry',
+                  refusal: { code: 'not-retryable', state: 'boundary-infeasible' },
+                }),
+              );
+            };
+          }),
+      );
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    owner = retirement === 'replacement' ? fakeFeedOwner() : null;
+    rejectRetry();
+    expect(await pending).toBe('refused');
+    expect(recorded.refusals).toEqual([]);
+    expect(recorded.rereads).toEqual([]);
+    expect(recorded.busyChanges).toEqual([true, false]);
+  },
+);
+
+it('a terminal Retry refusal waits for authoritative reconciliation before releasing busy', async () => {
+  const recorded = recordingHost();
+  let finishRead: (installed: boolean) => void = () => {
+    throw new Error('No reconciliation read');
+  };
+  const writer = createPlanWriter({
+    ...recorded.host,
+    rereadResources: (resources) => {
+      recorded.rereads.push(resources);
+      return new Promise<boolean>((resolve) => {
+        finishRead = resolve;
+      });
+    },
+  });
+  let settled = false;
+  const pending = writer
+    .run(async (write) => {
+      await write.perform(['tree'], () =>
+        Promise.reject(
+          new WbsRequestError({
+            kind: 'refusal',
+            operation: 'postApiProjectsByIdOptimizationRetry',
+            refusal: { code: 'not-retryable', state: 'boundary-infeasible' },
+          }),
+        ),
+      );
+    })
+    .then((outcome) => {
+      settled = true;
+      return outcome;
+    });
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(recorded.rereads).toEqual([['tree']]);
+  expect(settled).toBe(false);
+  expect(recorded.busyChanges).toEqual([true]);
+  finishRead(true);
+  expect(await pending).toBe('refused');
+  expect(recorded.busyChanges).toEqual([true, false]);
 });

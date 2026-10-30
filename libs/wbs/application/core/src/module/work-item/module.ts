@@ -77,8 +77,11 @@ export const workItemModule = DiBag.createBuilder()
         planEventStore,
         broadcast,
         editAdmission,
+        dependencyContext,
+        externalDependencyAuthoring,
         scheduler,
         schedulerMode,
+        admitConnectedOptimization,
         clock,
       }: {
         livePlans: LivePlanStore | undefined;
@@ -109,8 +112,11 @@ export const workItemModule = DiBag.createBuilder()
         planEventStore: Pick<PlanEventStore, 'listFor'> | undefined;
         broadcast: Broadcaster;
         editAdmission: EditAdmission;
+        dependencyContext: WorkItemServiceOptions['dependencyContext'];
+        externalDependencyAuthoring: WorkItemServiceOptions['externalDependencyAuthoring'];
         scheduler: Scheduler;
         schedulerMode: WorkItemServiceOptions['schedulerMode'];
+        admitConnectedOptimization: WorkItemServiceOptions['admitConnectedOptimization'];
         clock: Clock;
       }): WorkItemServiceOptions => ({
         ...(livePlans === undefined ? {} : { livePlans }),
@@ -145,7 +151,11 @@ export const workItemModule = DiBag.createBuilder()
         // wires` failing (4 pass, 1 fail): it received `[]`.
         broadcast,
         admission: editAdmission,
+        dependencyContext,
+        externalDependencyAuthoring,
         scheduler,
+        // Proof: omitting this callback forwarding made the cold mounted read answer 500.
+        ...(admitConnectedOptimization === undefined ? {} : { admitConnectedOptimization }),
         // Proof: omitting this option made the isolated mounted arrange
         // enter live admission and answer 500 instead of 200.
         ...(schedulerMode === undefined ? {} : { schedulerMode }),

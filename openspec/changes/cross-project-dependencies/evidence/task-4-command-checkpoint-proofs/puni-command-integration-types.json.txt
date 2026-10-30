@@ -1,0 +1,70 @@
+[
+  {
+    "name": "backend",
+    "args": [
+      "bunx",
+      "tsc",
+      "--build",
+      "--force",
+      "apps/wbs/be-01/tsconfig.json"
+    ],
+    "exitCode": 0,
+    "log": "/tmp/puni-command-integration-type-backend.log"
+  },
+  {
+    "name": "core",
+    "args": [
+      "bunx",
+      "tsc",
+      "--build",
+      "--force",
+      "libs/wbs/application/core/tsconfig.json"
+    ],
+    "exitCode": 0,
+    "log": "/tmp/puni-command-integration-type-core.log"
+  },
+  {
+    "name": "core-modules",
+    "args": [
+      "bun",
+      "tools/tool-devsync/src/typecheck-modules.ts",
+      "libs/wbs/application/core/src/module"
+    ],
+    "exitCode": 0,
+    "log": "/tmp/puni-command-integration-type-core-modules.log"
+  },
+  {
+    "name": "backend-modules",
+    "args": [
+      "bun",
+      "tools/tool-devsync/src/typecheck-modules.ts",
+      "apps/wbs/be-01/src/module"
+    ],
+    "exitCode": 0,
+    "log": "/tmp/puni-command-integration-type-backend-modules.log"
+  },
+  {
+    "name": "sqlite",
+    "args": [
+      "bunx",
+      "tsc",
+      "--build",
+      "--force",
+      "libs/wbs/adapters/store-sqlite/tsconfig.json"
+    ],
+    "exitCode": 0,
+    "log": "/tmp/puni-command-integration-type-sqlite.log"
+  },
+  {
+    "name": "memory",
+    "args": [
+      "bunx",
+      "tsc",
+      "--build",
+      "--force",
+      "libs/wbs/adapters/store-memory/tsconfig.json"
+    ],
+    "exitCode": 0,
+    "log": "/tmp/puni-command-integration-type-memory.log"
+  }
+]

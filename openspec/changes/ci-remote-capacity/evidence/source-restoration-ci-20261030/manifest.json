@@ -1,0 +1,1161 @@
+{
+  "scope": "Only this bounded CI source-restoration leaf proof epoch; flat nonexecuting carriers; previous source-runtime archives unchanged",
+  "actualAuditSHA256": "7f84fe93f0423682f00326ae1108ac2712958d1e176219dbb450b6e46123ea0f",
+  "entries": [
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/packet.json",
+      "testedSHA256": "c198858f478cefec157887aa339ee1d063b6ad7dbae2477871fb1fd15d3bedbc",
+      "originalMode": 436,
+      "bytes": 16238,
+      "carrier": "0000.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/test/ci-leaf.ts",
+      "testedSHA256": "bffe766cb816bf50872c27ccff675481682d3fbbad92751f463f4e56b3780de5",
+      "originalMode": 436,
+      "bytes": 13128,
+      "carrier": "0001.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/00.source.txt",
+      "testedSHA256": "bffe766cb816bf50872c27ccff675481682d3fbbad92751f463f4e56b3780de5",
+      "originalMode": 436,
+      "bytes": 13128,
+      "carrier": "0001.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/project.json",
+      "testedSHA256": "960d98d1ce50efb4cb153252e8efa2fc819c7556083e2909adb1e45bbafddf6a",
+      "originalMode": 436,
+      "bytes": 17739,
+      "carrier": "0002.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/01.source.txt",
+      "testedSHA256": "960d98d1ce50efb4cb153252e8efa2fc819c7556083e2909adb1e45bbafddf6a",
+      "originalMode": 436,
+      "bytes": 17739,
+      "carrier": "0002.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-git-hooks/src/hooks/ci-run-runtime.ts",
+      "testedSHA256": "072c7ca534c6648949a3e61efbbc3b9e367d36936a52b45f89721bc4beb5324a",
+      "originalMode": 436,
+      "bytes": 10735,
+      "carrier": "0003.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/02.source.txt",
+      "testedSHA256": "072c7ca534c6648949a3e61efbbc3b9e367d36936a52b45f89721bc4beb5324a",
+      "originalMode": 436,
+      "bytes": 10735,
+      "carrier": "0003.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/.github/workflows/ci.yml",
+      "testedSHA256": "591a1f14cb9ffb04b8ad070c05625754278cb5667e1a89a3d9ce65a8f06e426a",
+      "originalMode": 436,
+      "bytes": 95433,
+      "carrier": "0004.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/03.source.txt",
+      "testedSHA256": "591a1f14cb9ffb04b8ad070c05625754278cb5667e1a89a3d9ce65a8f06e426a",
+      "originalMode": 436,
+      "bytes": 95433,
+      "carrier": "0004.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts",
+      "testedSHA256": "8a8bee29d7505632ac273ad3803c85586e8af828deecc8f84bf45aba4f60ed20",
+      "originalMode": 436,
+      "bytes": 27122,
+      "carrier": "0005.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/04.source.txt",
+      "testedSHA256": "8a8bee29d7505632ac273ad3803c85586e8af828deecc8f84bf45aba4f60ed20",
+      "originalMode": 436,
+      "bytes": 27122,
+      "carrier": "0005.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-git-hooks/src/hooks/ci-plan.test.ts",
+      "testedSHA256": "6a942bb7090b4a66823a465cebdefbd3ee0fab932f0bb18a2cc853bd9b1e15bb",
+      "originalMode": 436,
+      "bytes": 17782,
+      "carrier": "0006.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/05.source.txt",
+      "testedSHA256": "6a942bb7090b4a66823a465cebdefbd3ee0fab932f0bb18a2cc853bd9b1e15bb",
+      "originalMode": 436,
+      "bytes": 17782,
+      "carrier": "0006.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts",
+      "testedSHA256": "3d2f673e9f8bc55e59c7a409867adbdbb5da7b573ab58c1b819fd7d1e79b60d1",
+      "originalMode": 436,
+      "bytes": 8289,
+      "carrier": "0007.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/06.source.txt",
+      "testedSHA256": "3d2f673e9f8bc55e59c7a409867adbdbb5da7b573ab58c1b819fd7d1e79b60d1",
+      "originalMode": 436,
+      "bytes": 8289,
+      "carrier": "0007.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-git-hooks/src/hooks/pr-merge-base.test.ts",
+      "testedSHA256": "68e9a7862957c1e2947869272664b9a7db27aff3f8bd40b712aa92c1cd206959",
+      "originalMode": 436,
+      "bytes": 15134,
+      "carrier": "0008.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/07.source.txt",
+      "testedSHA256": "68e9a7862957c1e2947869272664b9a7db27aff3f8bd40b712aa92c1cd206959",
+      "originalMode": 436,
+      "bytes": 15134,
+      "carrier": "0008.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/openspec/changes/ci-remote-capacity/proposal.md",
+      "testedSHA256": "0e85ede7b3064cf2a5a779baf2dc9750696b0c9f1340c6878db7f2ad30836d21",
+      "originalMode": 436,
+      "bytes": 2355,
+      "carrier": "0009.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/08.source.txt",
+      "testedSHA256": "0e85ede7b3064cf2a5a779baf2dc9750696b0c9f1340c6878db7f2ad30836d21",
+      "originalMode": 436,
+      "bytes": 2355,
+      "carrier": "0009.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/openspec/changes/ci-remote-capacity/design.md",
+      "testedSHA256": "92e0afdd5fd79de27941562d1cabebeb91bc5503bfe24d9aa651757ceb37d1fa",
+      "originalMode": 436,
+      "bytes": 5276,
+      "carrier": "0010.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/09.source.txt",
+      "testedSHA256": "92e0afdd5fd79de27941562d1cabebeb91bc5503bfe24d9aa651757ceb37d1fa",
+      "originalMode": 436,
+      "bytes": 5276,
+      "carrier": "0010.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/openspec/changes/ci-remote-capacity/tasks.md",
+      "testedSHA256": "ce4cf2f5ff30352a15256e26b75b6781b8385ecd1874255e318ff2acea2cab65",
+      "originalMode": 436,
+      "bytes": 4069,
+      "carrier": "0011.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/10.source.txt",
+      "testedSHA256": "ce4cf2f5ff30352a15256e26b75b6781b8385ecd1874255e318ff2acea2cab65",
+      "originalMode": 436,
+      "bytes": 4069,
+      "carrier": "0011.txt"
+    },
+    {
+      "originalPath": "/home/df/.codex/worktrees/f7f1/puni-00/openspec/changes/ci-remote-capacity/specs/ci-gate/spec.md",
+      "testedSHA256": "a310ac93b90c6f16939b71f5e93011f78da3b4cf97f12f3a56643f406537ca08",
+      "originalMode": 436,
+      "bytes": 4059,
+      "carrier": "0012.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/11.source.txt",
+      "testedSHA256": "a310ac93b90c6f16939b71f5e93011f78da3b4cf97f12f3a56643f406537ca08",
+      "originalMode": 436,
+      "bytes": 4059,
+      "carrier": "0012.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/driver.py",
+      "testedSHA256": "fdaea2a84f1520e95574e6435c35fe06e0a1f6587dd3339bdd5e2b16bd08d4f2",
+      "originalMode": 436,
+      "bytes": 4957,
+      "carrier": "0013.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/recipes.json",
+      "testedSHA256": "048d5e9608ccf61304e6f4766555caca998414f227ccd10f27b2a65c0cb4f4ec",
+      "originalMode": 436,
+      "bytes": 6124,
+      "carrier": "0014.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/run.py",
+      "testedSHA256": "5745b8335f151eea9c54207674c1fb29ce9784ca22e400092bda0b76be19536b",
+      "originalMode": 436,
+      "bytes": 1176,
+      "carrier": "0015.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-fault.json",
+      "testedSHA256": "20243cbc06a0fdbe8e170a5b11d6432b749b375ec4c36761767f4551e0973c83",
+      "originalMode": 436,
+      "bytes": 610,
+      "carrier": "0016.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-fault.stdout",
+      "testedSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-fault.stderr",
+      "testedSHA256": "8a2107e8f25afbc384d88f5d3ca2e436ab52e0561d7bc09e1f57e82e7765b7db",
+      "originalMode": 436,
+      "bytes": 1105,
+      "carrier": "0018.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-fault.driver.stdout",
+      "testedSHA256": "9e61e9794f4370e73dfa15d0bc6de437bc13ca463dfd1efc00806b9a3cdbecaa",
+      "originalMode": 436,
+      "bytes": 1697,
+      "carrier": "0019.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-fault.driver.stderr",
+      "testedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-fault.wrapper.json",
+      "testedSHA256": "bfbba487daf0f81e240f125e2375201ec1cf5fd1c8e4ec0414c6ab47bac6bad6",
+      "originalMode": 436,
+      "bytes": 266,
+      "carrier": "0021.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-restored.json",
+      "testedSHA256": "f17c136543d7309e6cfe6bdc34c2529ba4312c166ec1f8bcf0364aff977a144f",
+      "originalMode": 436,
+      "bytes": 610,
+      "carrier": "0022.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-restored.stdout",
+      "testedSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-restored.stderr",
+      "testedSHA256": "bb25e6e959f545e287d3141d44bfc4aea89a662b313f59222e639beb931eb31e",
+      "originalMode": 436,
+      "bytes": 360,
+      "carrier": "0023.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-restored.driver.stdout",
+      "testedSHA256": "116a681fe1c47feccd2fbec4732a7c5fa686fae2fbaacf5647a515d0f389b99c",
+      "originalMode": 436,
+      "bytes": 952,
+      "carrier": "0024.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-restored.driver.stderr",
+      "testedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-restored.wrapper.json",
+      "testedSHA256": "b0f9cb41d02adb9a92dae070c2ed03402b7223375a99dd9d2124ab50bf6e1921",
+      "originalMode": 436,
+      "bytes": 266,
+      "carrier": "0025.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-mutation.json",
+      "testedSHA256": "b3c11fbc4ceb5345ae8b54030ed0473b11d6c1dba54addcfd048068b99df3c82",
+      "originalMode": 436,
+      "bytes": 398,
+      "carrier": "0026.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-inverse.json",
+      "testedSHA256": "9d9b72f0443e677bc6138d7ba2461d933a8b1048fb218d9649a57325262b2f90",
+      "originalMode": 436,
+      "bytes": 203,
+      "carrier": "0027.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-local.json",
+      "testedSHA256": "077a2e290cb0b8812e02d99cd10d03f159568d4c60c693fd5c417bf0d8bf552b",
+      "originalMode": 436,
+      "bytes": 2145,
+      "carrier": "0028.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-fault.json",
+      "testedSHA256": "34372fbead019c4ba183093d7c18447a29f068989035d26588c47f03286b24b3",
+      "originalMode": 436,
+      "bytes": 590,
+      "carrier": "0029.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-fault.stdout",
+      "testedSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-fault.stderr",
+      "testedSHA256": "823ba056f644803e8fd3142a9769ff65fcfab2465e6672662629fe936a71bae7",
+      "originalMode": 436,
+      "bytes": 1120,
+      "carrier": "0030.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-fault.driver.stdout",
+      "testedSHA256": "dbd19d83d8039b0d12d45ff90c371f2e4663f54fad98e1cda19a8b2f6d3b72c2",
+      "originalMode": 436,
+      "bytes": 1692,
+      "carrier": "0031.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-fault.driver.stderr",
+      "testedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-fault.wrapper.json",
+      "testedSHA256": "4378aff497fd121692de4974d571eff268e22084ffef1b422ae9a6d2bf88cd9c",
+      "originalMode": 436,
+      "bytes": 266,
+      "carrier": "0032.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-restored.json",
+      "testedSHA256": "e573a4e1268db6687f89d1427e68377d9efc91bdab9fe6302610af970eaa19cf",
+      "originalMode": 436,
+      "bytes": 590,
+      "carrier": "0033.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-restored.stdout",
+      "testedSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-restored.stderr",
+      "testedSHA256": "d91cf4d6b69930042af6559f8c3864400fde967e058dcc9f3006187708bd743f",
+      "originalMode": 436,
+      "bytes": 344,
+      "carrier": "0034.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-restored.driver.stdout",
+      "testedSHA256": "89ecc4dbf08bbb5e609d1c7f2141ff5f86bbb50f07f1467d6426e7dc6b6445cb",
+      "originalMode": 436,
+      "bytes": 916,
+      "carrier": "0035.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-restored.driver.stderr",
+      "testedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-restored.wrapper.json",
+      "testedSHA256": "1a5c041dd401b9710ca5ccf7c12438415ca5a84838af23273ecdd7d1f3a0b805",
+      "originalMode": 436,
+      "bytes": 266,
+      "carrier": "0036.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-mutation.json",
+      "testedSHA256": "e55990dd4a0bbab6eac96ccee9bfef2071a094977ff6dd97ee36eebc32be2ac5",
+      "originalMode": 436,
+      "bytes": 443,
+      "carrier": "0037.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-inverse.json",
+      "testedSHA256": "9d9b72f0443e677bc6138d7ba2461d933a8b1048fb218d9649a57325262b2f90",
+      "originalMode": 436,
+      "bytes": 203,
+      "carrier": "0027.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-local.json",
+      "testedSHA256": "3bd7e234d81896d5914e55e3236e238a85bf141e8c9dc83fba8f39940cace6b5",
+      "originalMode": 436,
+      "bytes": 2133,
+      "carrier": "0038.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-fault.json",
+      "testedSHA256": "5446bc6988bd57b3893c7ce0a54cc5bf76e497f0fdbf52182dd1f266017b94e8",
+      "originalMode": 436,
+      "bytes": 588,
+      "carrier": "0039.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-fault.stdout",
+      "testedSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-fault.stderr",
+      "testedSHA256": "90d155c02f3b51349a1dcf3611aa730585ba4716f129b394ad70fe8db904bd86",
+      "originalMode": 436,
+      "bytes": 1000,
+      "carrier": "0040.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-fault.driver.stdout",
+      "testedSHA256": "f769c2fe13158db92bade01337aca63bb20f378033a1e361ef3ed59ab7790cf9",
+      "originalMode": 436,
+      "bytes": 1570,
+      "carrier": "0041.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-fault.driver.stderr",
+      "testedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-fault.wrapper.json",
+      "testedSHA256": "5ca30236cf2a9e4d2cb8c6c121138fc6103f857c74958b6c4ac6589cdae4a147",
+      "originalMode": 436,
+      "bytes": 266,
+      "carrier": "0042.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-restored.json",
+      "testedSHA256": "1f1dbb0d1d986a5fadd9cf557d6797d71ed33812d84fbd437f7592e03c5578cf",
+      "originalMode": 436,
+      "bytes": 588,
+      "carrier": "0043.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-restored.stdout",
+      "testedSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-restored.stderr",
+      "testedSHA256": "4cf697eb93febb5b5676d316bac6f35d508ed04109fba707f1731ad5e185f232",
+      "originalMode": 436,
+      "bytes": 344,
+      "carrier": "0044.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-restored.driver.stdout",
+      "testedSHA256": "8736df0501089058b89487a6d199ca1d69e1d21ee7a2d4348458b2877a5ee5eb",
+      "originalMode": 436,
+      "bytes": 914,
+      "carrier": "0045.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-restored.driver.stderr",
+      "testedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-restored.wrapper.json",
+      "testedSHA256": "5e596db397100dd04a931e7040ad3ef6b4d1a5786f828d6945de415bd095c62e",
+      "originalMode": 436,
+      "bytes": 266,
+      "carrier": "0046.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-mutation.json",
+      "testedSHA256": "f0ce565df7c5b03ac9e742edcbff0bbb802d40c2300f6edd64dfa7a4cc0521fd",
+      "originalMode": 436,
+      "bytes": 429,
+      "carrier": "0047.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-inverse.json",
+      "testedSHA256": "9d9b72f0443e677bc6138d7ba2461d933a8b1048fb218d9649a57325262b2f90",
+      "originalMode": 436,
+      "bytes": 203,
+      "carrier": "0027.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-local.json",
+      "testedSHA256": "35a7e21e54c22158b1157d1bfed3a96acbfb5fb2125ac7ca8098f31c40c304e0",
+      "originalMode": 436,
+      "bytes": 2103,
+      "carrier": "0048.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-fault.json",
+      "testedSHA256": "b84f6d78d10e511e3b9dd5b1177c6e07c68b166e56d5405df572ad8c0d10c2bd",
+      "originalMode": 436,
+      "bytes": 609,
+      "carrier": "0049.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-fault.stdout",
+      "testedSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-fault.stderr",
+      "testedSHA256": "97df4c531cfeb46366d8b433a533d5680bf111a6656c241b2c87761498997b7f",
+      "originalMode": 436,
+      "bytes": 1888,
+      "carrier": "0050.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-fault.driver.stdout",
+      "testedSHA256": "c9aa3dbfd4e6576d17ac458c365fa1df1dbf80948f210da403f885d45acca647",
+      "originalMode": 436,
+      "bytes": 2479,
+      "carrier": "0051.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-fault.driver.stderr",
+      "testedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-fault.wrapper.json",
+      "testedSHA256": "a89f41bd5a01e35cf779ea9743b43161de3d4b565b6777a1a9f35edd1b63fde9",
+      "originalMode": 436,
+      "bytes": 266,
+      "carrier": "0052.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-restored.json",
+      "testedSHA256": "a4d4a6ec9e430a77bc4c2718ee6b305c0c43ff74523f17b029964922a88300fd",
+      "originalMode": 436,
+      "bytes": 609,
+      "carrier": "0053.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-restored.stdout",
+      "testedSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-restored.stderr",
+      "testedSHA256": "cefb8bf1f7cd67c49d61439fd0cb9db67789c3a67ebbc9caee4161f0f132c7f3",
+      "originalMode": 436,
+      "bytes": 360,
+      "carrier": "0054.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-restored.driver.stdout",
+      "testedSHA256": "b0feede319bda01319e027eef9bb4a3b98d2ed933f208e41fcdee5790552b83d",
+      "originalMode": 436,
+      "bytes": 951,
+      "carrier": "0055.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-restored.driver.stderr",
+      "testedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-restored.wrapper.json",
+      "testedSHA256": "31c775c74a3766d2d6536a1a210d1d37014c29c4a82bfa71e01f73533e6bc356",
+      "originalMode": 436,
+      "bytes": 266,
+      "carrier": "0056.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-mutation.json",
+      "testedSHA256": "4f88da9838c184816d8d3566085aed908e38d456e4d3b1ed98b4ec1b1b75c674",
+      "originalMode": 436,
+      "bytes": 374,
+      "carrier": "0057.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-inverse.json",
+      "testedSHA256": "9d9b72f0443e677bc6138d7ba2461d933a8b1048fb218d9649a57325262b2f90",
+      "originalMode": 436,
+      "bytes": 203,
+      "carrier": "0027.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-local.json",
+      "testedSHA256": "e3be1a7bdd2224f8d11bbc02c77415cc00d286f7151bee6d075dfb87e65668a0",
+      "originalMode": 436,
+      "bytes": 2131,
+      "carrier": "0058.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-fault.json",
+      "testedSHA256": "8df8de43ffd6cda553b2e29598123967c1e0d6207dcd4992de4b8539e0c494a3",
+      "originalMode": 436,
+      "bytes": 589,
+      "carrier": "0059.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-fault.stdout",
+      "testedSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-fault.stderr",
+      "testedSHA256": "839e438d53ccb1f173902188f198e99cba7baef9b175419929e74545673c7108",
+      "originalMode": 436,
+      "bytes": 1100,
+      "carrier": "0060.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-fault.driver.stdout",
+      "testedSHA256": "a955d0e757a62dfb26ca489883a732115f5f1bcaaeb469a1274ffc806b7dff97",
+      "originalMode": 436,
+      "bytes": 1671,
+      "carrier": "0061.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-fault.driver.stderr",
+      "testedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-fault.wrapper.json",
+      "testedSHA256": "8318f768a1f23721cabc669a1f50449956e93c7dd6845901a2e6ff7f643893b4",
+      "originalMode": 436,
+      "bytes": 266,
+      "carrier": "0062.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-restored.json",
+      "testedSHA256": "cefd423c7d53bb4472c217dca426d739b5cd12c2f95f11c7b4b6af0e7d0e3b54",
+      "originalMode": 436,
+      "bytes": 588,
+      "carrier": "0063.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-restored.stdout",
+      "testedSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-restored.stderr",
+      "testedSHA256": "577b82323e1de1dd4ec7382f5195d0594da4188513f5346bf6fe09a2ef633dca",
+      "originalMode": 436,
+      "bytes": 377,
+      "carrier": "0064.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-restored.driver.stdout",
+      "testedSHA256": "c87c54e4487c85d448d4e66029ae56292ab78cdd8d7f88e59b1886ec9ee047e6",
+      "originalMode": 436,
+      "bytes": 947,
+      "carrier": "0065.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-restored.driver.stderr",
+      "testedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-restored.wrapper.json",
+      "testedSHA256": "ad9f802b60dc8e769e6bb4f8718d2e0b395b735dccddaee6b017a13b1d5028dd",
+      "originalMode": 436,
+      "bytes": 266,
+      "carrier": "0066.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-mutation.json",
+      "testedSHA256": "15d5911285fd6c0d9bd0a5a22e24367b1911ca8fd99c349dfa611f7ba50a521f",
+      "originalMode": 436,
+      "bytes": 493,
+      "carrier": "0067.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-inverse.json",
+      "testedSHA256": "466be9ac864f09062e43f5854664eb7de3b2ac621cb0a36776e49af43d41b229",
+      "originalMode": 436,
+      "bytes": 210,
+      "carrier": "0068.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-local.json",
+      "testedSHA256": "b907698babc1bef411b531e370de224ed48b14fa7f0562a8d639164861e3f68b",
+      "originalMode": 436,
+      "bytes": 2105,
+      "carrier": "0069.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-fault.json",
+      "testedSHA256": "5dd4474c9e209553a676cc667203d9c666b40efe277d2d0a3118aeae2512c134",
+      "originalMode": 436,
+      "bytes": 585,
+      "carrier": "0070.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-fault.stdout",
+      "testedSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-fault.stderr",
+      "testedSHA256": "168791ccc5af0f5b5d379d7ec198aade6960348a2a11da6c64a90e8dc1375df2",
+      "originalMode": 436,
+      "bytes": 1101,
+      "carrier": "0071.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-fault.driver.stdout",
+      "testedSHA256": "9c63e6f35db2c5a1cf16673869f74067394719e3a3f079f7c45c4fdbf60f72cc",
+      "originalMode": 436,
+      "bytes": 1668,
+      "carrier": "0072.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-fault.driver.stderr",
+      "testedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-fault.wrapper.json",
+      "testedSHA256": "19703ab1d04b3ed9b4043a175e4df97ca1ff2182adf31a42f37841c9841a55e7",
+      "originalMode": 436,
+      "bytes": 266,
+      "carrier": "0073.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-restored.json",
+      "testedSHA256": "4942d7349d7953875089ad5883172486c995cbddae48a54a3eac738837534573",
+      "originalMode": 436,
+      "bytes": 585,
+      "carrier": "0074.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-restored.stdout",
+      "testedSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-restored.stderr",
+      "testedSHA256": "12c9b8d79cb8fd47220f4605c954bf824112c807456c894c5f319cc99e8fb96a",
+      "originalMode": 436,
+      "bytes": 336,
+      "carrier": "0075.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-restored.driver.stdout",
+      "testedSHA256": "8fc8f7c65225cc3b93c1347475086dd9943805637defa7f063b4fb4d3fc3532b",
+      "originalMode": 436,
+      "bytes": 903,
+      "carrier": "0076.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-restored.driver.stderr",
+      "testedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-restored.wrapper.json",
+      "testedSHA256": "1632e0efc270fef12d8e23d940e4abb8c2218e18beb89dec5acf6965a7166b92",
+      "originalMode": 436,
+      "bytes": 266,
+      "carrier": "0077.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-mutation.json",
+      "testedSHA256": "8e9c1e4db1ff83481ea77d201452b50ca5e1095f46e5a996713151cd7c8721d1",
+      "originalMode": 436,
+      "bytes": 442,
+      "carrier": "0078.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-inverse.json",
+      "testedSHA256": "0fdc604efb588439c3147fe2d9f631bd2a31618448d1936b3b8e3003533ac87e",
+      "originalMode": 436,
+      "bytes": 186,
+      "carrier": "0079.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-local.json",
+      "testedSHA256": "b8c0c2106a01597bcb62e6858ae0604a50b3719a4f68a8e130361f1e5471d2ae",
+      "originalMode": 436,
+      "bytes": 2084,
+      "carrier": "0080.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-fault.json",
+      "testedSHA256": "f23b49d7aab52ebd6f9262c264fec0daae3be4c93b60c4845835a2b8589e4f27",
+      "originalMode": 436,
+      "bytes": 579,
+      "carrier": "0081.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-fault.stdout",
+      "testedSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-fault.stderr",
+      "testedSHA256": "5763813ecc02d84cf855bd7ef7014dcfe34f76bfb90d73ac13fa16f94a02af7e",
+      "originalMode": 436,
+      "bytes": 1126,
+      "carrier": "0082.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-fault.driver.stdout",
+      "testedSHA256": "11bd1783505f281ab3a2df726a96ab61d3264f97106304fc90fda9febef5af9c",
+      "originalMode": 436,
+      "bytes": 1687,
+      "carrier": "0083.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-fault.driver.stderr",
+      "testedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-fault.wrapper.json",
+      "testedSHA256": "7d091e4ed0ace8a07e06d50618dc862d9482468db5c9c93b26729caee201d15b",
+      "originalMode": 436,
+      "bytes": 266,
+      "carrier": "0084.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-restored.json",
+      "testedSHA256": "8c7eff64321ed7f2a5cd56f05f5957763c90bd0c9b2e2e7a969f4fff6719ba35",
+      "originalMode": 436,
+      "bytes": 578,
+      "carrier": "0085.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-restored.stdout",
+      "testedSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-restored.stderr",
+      "testedSHA256": "e909499024e9f194a1388c00e22e8e51a24608be41457231fde6bba31f78f294",
+      "originalMode": 436,
+      "bytes": 329,
+      "carrier": "0086.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-restored.driver.stdout",
+      "testedSHA256": "281f8778f90e29799cdcc662d120534b9ae4dc0d29a6d5d8387d8add8bd27e17",
+      "originalMode": 436,
+      "bytes": 889,
+      "carrier": "0087.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-restored.driver.stderr",
+      "testedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-restored.wrapper.json",
+      "testedSHA256": "4e4ce3f886241c829188e817108a4835554e694edc1c172630c18cd8a81dea30",
+      "originalMode": 436,
+      "bytes": 266,
+      "carrier": "0088.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-mutation.json",
+      "testedSHA256": "fe5d130cfdc9071fc9f03c9dff9d75230d40dd15339914632376526f2771642e",
+      "originalMode": 436,
+      "bytes": 446,
+      "carrier": "0089.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-inverse.json",
+      "testedSHA256": "0fdc604efb588439c3147fe2d9f631bd2a31618448d1936b3b8e3003533ac87e",
+      "originalMode": 436,
+      "bytes": 186,
+      "carrier": "0079.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-local.json",
+      "testedSHA256": "49540356623cf9a852e07e5cf6fe7fbe819e00496035f083ae341b5c5e5365a4",
+      "originalMode": 436,
+      "bytes": 2084,
+      "carrier": "0090.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/proof-v1/actual-manifest.json",
+      "testedSHA256": "8b7da8fc7e398c5188733196c132f887a2cc3047f1a54dcecd6c67ce558534a6",
+      "originalMode": 436,
+      "bytes": 31495,
+      "carrier": "0091.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-seven-independent-actual-audit-20261030.md",
+      "testedSHA256": "7f84fe93f0423682f00326ae1108ac2712958d1e176219dbb450b6e46123ea0f",
+      "originalMode": 436,
+      "bytes": 2944,
+      "carrier": "0092.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-seven-source-review-20261030.md",
+      "testedSHA256": "d9e2f0044d8e2e39e5846ee3d8a2561d5de056b8b6b104636f14318fe886dff5",
+      "originalMode": 436,
+      "bytes": 4567,
+      "carrier": "0093.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/annotations/manifest.json",
+      "testedSHA256": "c68c421346e4032bb9cf08ba9faca5d08a9e187945aafa02545b5dea8bc73364",
+      "originalMode": 436,
+      "bytes": 1222,
+      "carrier": "0094.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/invariants.json",
+      "testedSHA256": "1ab0b6b43e1ea53a9f10c2ada8db66c4c770b6e38683c502e9c5589e80a50033",
+      "originalMode": 436,
+      "bytes": 260,
+      "carrier": "0095.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/first-red-union.json",
+      "testedSHA256": "ef929787f3a599edd04a551cae94445bed713a8bc8876ab5aefbd174900c4db0",
+      "originalMode": 436,
+      "bytes": 587,
+      "carrier": "0096.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/first-red-union.stdout",
+      "testedSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/first-red-union.stderr",
+      "testedSHA256": "fda7d3e02bda2c6ec289781dcde7b2b606947ee6371fd323851fc1594e7fcaf1",
+      "originalMode": 436,
+      "bytes": 1463,
+      "carrier": "0097.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/first-red-workflow.json",
+      "testedSHA256": "aaf1c08ecae1be251de01406b560fb5350e04080e8e6742af3f24fbe0e2f4307",
+      "originalMode": 436,
+      "bytes": 540,
+      "carrier": "0098.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/first-red-workflow.stdout",
+      "testedSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/first-red-workflow.stderr",
+      "testedSHA256": "ae8e108ece6b25b854ef7745a9591422ece14ff572b3e8180b1dd9ea15cac02c",
+      "originalMode": 436,
+      "bytes": 2075,
+      "carrier": "0099.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/minimum-green-union.json",
+      "testedSHA256": "99b97b052b3a4321825ed83813ff87614de9ecc2e56b14a65acfec05d800f0fd",
+      "originalMode": 436,
+      "bytes": 584,
+      "carrier": "0100.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/minimum-green-union.stdout",
+      "testedSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/minimum-green-union.stderr",
+      "testedSHA256": "d9efeafa4364c399d6a1f2cbdcda6b80e4a6654a3834442021ba5b5d2fdb4370",
+      "originalMode": 436,
+      "bytes": 360,
+      "carrier": "0101.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/minimum-green-workflow.json",
+      "testedSHA256": "f3dd5cebc6180ee3ed23d4680418e4a375333656452c8ac07d9dc652f122ed4e",
+      "originalMode": 436,
+      "bytes": 541,
+      "carrier": "0102.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/minimum-green-workflow.stdout",
+      "testedSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/minimum-green-workflow.stderr",
+      "testedSHA256": "c40adf0b3b714258559e2065ba51467dc1190b6002ab824c57b5be7fedff9123",
+      "originalMode": 436,
+      "bytes": 416,
+      "carrier": "0103.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/owning-four.json",
+      "testedSHA256": "f6e2999f9c9dfb0f9fc1084efdb5e2c5c94b0663ab1901d2cfb4fad35e983f97",
+      "originalMode": 436,
+      "bytes": 643,
+      "carrier": "0104.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/owning-four.stdout",
+      "testedSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/owning-four.stderr",
+      "testedSHA256": "85b2274ce01ecd9d7fe4b712a1c5bdf0946c361218224693c25773a4ada968b3",
+      "originalMode": 436,
+      "bytes": 13533,
+      "carrier": "0105.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/zero-child-ledger-current.json",
+      "testedSHA256": "cf99a606eca9653578e5e8bcfa13c5ff7368541c053dec789e37f73fa4b067bf",
+      "originalMode": 436,
+      "bytes": 571,
+      "carrier": "0106.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/zero-child-ledger-current.stdout",
+      "testedSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "originalMode": 436,
+      "bytes": 28,
+      "carrier": "0017.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/zero-child-ledger-current.stderr",
+      "testedSHA256": "49f3580f56745929b74b05e2aea7a77471bf633991e153bb6e22aec3d7c627b0",
+      "originalMode": 436,
+      "bytes": 837,
+      "carrier": "0107.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/current-hook-types.json",
+      "testedSHA256": "74a6bf4ee35b554e6ed09c227296473fca6602b4aab6be2e2f13f789e75c933b",
+      "originalMode": 436,
+      "bytes": 453,
+      "carrier": "0108.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/current-hook-types.stdout",
+      "testedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/current-hook-types.stderr",
+      "testedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/current-remote-types.json",
+      "testedSHA256": "f6acc877fb480be9dbf1091f883f71712795db33d86d942080e91f1b21005d07",
+      "originalMode": 436,
+      "bytes": 456,
+      "carrier": "0109.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/current-remote-types.stdout",
+      "testedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/current-remote-types.stderr",
+      "testedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/current-ci-lint.json",
+      "testedSHA256": "bb7945f1de2e1f55395065a3d36532e3287450bebad6c33dde740db8d6e78f53",
+      "originalMode": 436,
+      "bytes": 696,
+      "carrier": "0110.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/current-ci-lint.stdout",
+      "testedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0020.txt"
+    },
+    {
+      "originalPath": "/tmp/puni-source-restoration-ci-20261030/current-ci-lint.stderr",
+      "testedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalMode": 436,
+      "bytes": 0,
+      "carrier": "0020.txt"
+    }
+  ]
+}

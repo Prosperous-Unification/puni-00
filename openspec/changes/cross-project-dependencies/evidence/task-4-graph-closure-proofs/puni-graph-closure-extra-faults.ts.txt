@@ -1,0 +1,21 @@
+import { createHash } from 'node:crypto';
+const root='/tmp/puni-cross-graph-closure';
+const faults=[
+ {name:'target-reach-globally',path:'libs/wbs/application/core/src/service/connected-dependency-graph.ts',before:'reach: change?.reach ?? project.depReach,',after:'reach: changes.find((candidate) => candidate.projectId === projectIds[0])?.reach ?? (await this.reads.projects.findById(projectIds[0])).depReach,',selected:'admitted remote legacy',classification:'compatibility: owner whole-item reach incorrectly applied to a remote anchor-slice project; final valid estimate write refused'},
+ {name:'project-dag-refusal',path:'libs/wbs/application/core/src/service/dependency-graph.ts',before:'const { withoutStepId, ...replacement } = change;',after:`const { withoutStepId, ...replacement } = change;`,selected:'admitted distinct tasks',classification:'compatibility: reciprocal project arcs incorrectly refuse valid distinct-task interleaving'},
+];
+faults[1].before='    this.assertOwner(projectId);\n    const proposed =';
+faults[1].after=`    this.assertOwner(projectId);
+    if (captured.external.some((left) => captured.external.some((right) => left.predecessor.projectId === right.successor.projectId && left.successor.projectId === right.predecessor.projectId))) return { kind: 'cycle', relationshipIds: captured.external.map((edge) => edge.id) };
+    const proposed =`;
+const sha=(s:string)=>createHash('sha256').update(s).digest('hex');
+const records=JSON.parse(await Bun.file('/tmp/puni-graph-closure-proofs.json').text());
+for(const fault of faults){
+ const path=root+'/'+fault.path; const original=await Bun.file(path).text();
+ if(original.split(fault.before).length!==2)throw new Error('ambiguous '+fault.name);
+ let output='';let status=-1;
+ try{await Bun.write(path,original.replace(fault.before,fault.after)); const child=Bun.spawn(['bun','test','./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts','-t',fault.selected],{cwd:root,stdout:'pipe',stderr:'pipe'}); const chunks=await Promise.all([new Response(child.stdout).text(),new Response(child.stderr).text(),child.exited]); output=chunks[0]+'\n'+chunks[1];status=chunks[2]; await Bun.write('/tmp/puni-graph-closure-fault-'+fault.name+'.log',output);}finally{await Bun.write(path,original);}
+ const restored=await Bun.file(path).text();if(sha(original)!==sha(restored))throw new Error('restore failed');
+ const selectedAssertionFailed=output.includes('(fail) '+fault.selected)&&output.includes('expect(received).toMatchObject(expected)');
+ records.push({...fault,status,selectedAssertionFailed,beforeSha256:sha(original),restoredSha256:sha(restored)});await Bun.write('/tmp/puni-graph-closure-proofs.json',JSON.stringify(records,null,2)+'\n');console.log(fault.name,status,selectedAssertionFailed);if(status===0||!selectedAssertionFailed)throw new Error('not proven');
+}

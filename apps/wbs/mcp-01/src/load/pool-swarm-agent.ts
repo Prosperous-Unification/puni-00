@@ -144,7 +144,15 @@ async function claim(projectId: string): Promise<Record<string, unknown>> {
   for (const leaf of startable.leaves) {
     const answer = await callTool('postApiProjectsByIdCommands', {
       id: projectId,
-      commands: [{ kind: 'claimWorkItem', workItemId: leaf.workItemId, personId, assign: true }],
+      commands: [
+        {
+          kind: 'claimWorkItem',
+          workItemId: leaf.workItemId,
+          personId,
+          steps: leaf.stepIds,
+          assign: true,
+        },
+      ],
     });
     if (answer.outcome === 'ok') {
       const result = (

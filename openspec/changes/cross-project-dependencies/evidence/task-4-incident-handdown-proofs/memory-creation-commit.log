@@ -1,0 +1,18 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/memory-source.test.ts:
+42 |   const capture = async (id: string): Promise<IncidentReceipt> => {
+43 |     await Promise.resolve();
+44 |     const dependency = rows.find((row) => row.id === id);
+45 |     const audit = creation.get(id);
+46 |     if (dependency === undefined || audit === undefined)
+47 |       throw new Error(`incident dependency ${id} does not exist`);
+                     ^
+error: incident dependency incident does not exist
+      at <anonymous> (/tmp/puni-incident-handdown/libs/wbs/adapters/store-memory/src/typed-dependency-fixture.ts:47:17)
+(fail) incident source restore preserves receipts across commit rollback and bumps only completed endpoint unions [7.60ms]
+
+ 0 pass
+ 26 filtered out
+ 1 fail
+Ran 1 test across 1 file. [2.34s]

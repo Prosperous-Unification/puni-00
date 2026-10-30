@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/gw-01/src/dependency-admission.integration.test.ts:
+284 |   const port = app.server?.port;
+285 |   if (port === undefined) throw new Error('gateway did not listen');
+286 |   try {
+287 |     for (const protocol of [`\xA0${DEPENDENCY_WEBSOCKET_PROTOCOL}\xA0`, `\xA0${DEPENDENCY_WEBSOCKET_PROTOCOL}`, `${DEPENDENCY_WEBSOCKET_PROTOCOL}\xA0`]) {
+288 |       const response = await rawDependencyHandshake(port,protocol);
+289 |       expect(response.startsWith('HTTP/1.1 409')).toBe(true);
+                                                        ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/dependency-admission.integration.test.ts:289:51)
+(fail) raw NBSP protocol octets refuse before presence, project access, replay or backend work [43.62ms]
+
+ 0 pass
+ 4 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.92s]

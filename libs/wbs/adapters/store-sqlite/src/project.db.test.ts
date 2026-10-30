@@ -132,6 +132,10 @@ describe('ProjectRepository', () => {
       '20261023150000_key_step_measure',
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
+      '20261022213000_add_optimization_boundary_certificates',
+      '20261022212000_add_cross_project_dependency_activation',
+      '20261022211000_add_external_dependencies',
+      '20261022210000_add_project_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -264,6 +268,7 @@ describe('ProjectRepository', () => {
     await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
     const updated = await repo.update(shed.id, { restricted: true }, wrote());
+    if (typeof updated === 'string') throw new Error(`project write refused: ${updated}`);
 
     expect(updated).toMatchObject({ name: 'Rewire the shed', restricted: true, ownerId });
   });
@@ -386,6 +391,7 @@ describe('ProjectRepository', () => {
     await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
     const updated = await repo.update(shed.id, { estimateMethod: 'pessimistic' }, wrote());
+    if (typeof updated === 'string') throw new Error(`project write refused: ${updated}`);
 
     expect(updated).toMatchObject({ estimateMethod: 'pessimistic', name: 'Rewire the shed' });
     expect(await repo.findById(shed.id)).toMatchObject({ estimateMethod: 'pessimistic' });
@@ -413,6 +419,7 @@ describe('ProjectRepository', () => {
     await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
     const updated = await repo.update(shed.id, { depReach: 'anchor-slice' }, wrote());
+    if (typeof updated === 'string') throw new Error(`project write refused: ${updated}`);
 
     expect(updated).toMatchObject({ depReach: 'anchor-slice', name: 'Rewire the shed' });
     expect(await repo.findById(shed.id)).toMatchObject({ depReach: 'anchor-slice' });
@@ -469,7 +476,9 @@ describe('ProjectRepository', () => {
       { pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 } },
       wrote(),
     );
+    if (typeof weighted === 'string') throw new Error(`project write refused: ${weighted}`);
     const rounded = await repo.update(shed.id, { estimateRounding: 'floor' }, wrote());
+    if (typeof rounded === 'string') throw new Error(`project write refused: ${rounded}`);
 
     expect(weighted).toMatchObject({
       pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
@@ -618,6 +627,7 @@ describe('what a project read publishes', () => {
    */
   it('carries the columns the Project type declares and no others', async () => {
     const made = await repo.create(project('Rewire', 10), [], wrote());
+    if (typeof made === 'string') throw new Error(`project write refused: ${made}`);
     const read = await repo.findById(made.id);
 
     expect(read).not.toBeNull();
@@ -642,6 +652,7 @@ describe('what a project read publishes', () => {
    */
   it('publishes the three project settings in the read payload', async () => {
     const made = await repo.create(project('Rewire', 10), [], wrote());
+    if (typeof made === 'string') throw new Error(`project write refused: ${made}`);
     const read = await repo.findById(made.id);
     const published = Object.keys(read ?? {});
 
@@ -685,6 +696,7 @@ describe('what a project read publishes', () => {
    */
   it('patches each project setting on its own, and each survives a reload', async () => {
     const made = await repo.create(project('Rewire', 10), [], wrote());
+    if (typeof made === 'string') throw new Error(`project write refused: ${made}`);
 
     await repo.update(made.id, { optimizationEnabled: true }, wrote());
     expect(await repo.findById(made.id)).toMatchObject({
@@ -701,6 +713,7 @@ describe('what a project read publishes', () => {
     });
 
     const settled = await repo.update(made.id, { scheduleObjective: 'time' }, wrote());
+    if (typeof settled === 'string') throw new Error(`project write refused: ${settled}`);
     expect(await repo.findById(made.id)).toMatchObject({
       optimizationEnabled: true,
       scheduleEngine: 'optimized',
@@ -722,6 +735,7 @@ describe('what a project read publishes', () => {
       [],
       wrote(),
     );
+    if (typeof made === 'string') throw new Error(`project write refused: ${made}`);
     const bystander = await repo.create(
       {
         ...project('Roof', 11),
@@ -731,6 +745,7 @@ describe('what a project read publishes', () => {
       [],
       wrote(),
     );
+    if (typeof bystander === 'string') throw new Error(`project write refused: ${bystander}`);
     const db = openDrizzle(join(dir, 'test.db'));
     for (const [projectId, contractVersion, cancelEpoch] of [
       [made.id, '7+1.0.0', 2],
@@ -830,8 +845,10 @@ describe('what a project read publishes', () => {
    */
   it('reads rather than writes when the patch names nothing, settings included', async () => {
     const made = await repo.create(project('Rewire', 10), [], wrote());
+    if (typeof made === 'string') throw new Error(`project write refused: ${made}`);
 
     const untouched = await repo.update(made.id, {}, wrote());
+    if (typeof untouched === 'string') throw new Error(`project write refused: ${untouched}`);
     expect(untouched?.revision).toBe(made.revision);
 
     const explicitlyAbsent = await repo.update(
@@ -839,14 +856,18 @@ describe('what a project read publishes', () => {
       { optimizationEnabled: undefined, scheduleEngine: undefined },
       wrote(),
     );
+    if (typeof explicitlyAbsent === 'string')
+      throw new Error(`project write refused: ${explicitlyAbsent}`);
     expect(explicitlyAbsent?.revision).toBe(made.revision);
 
     const written = await repo.update(made.id, { optimizationEnabled: true }, wrote());
+    if (typeof written === 'string') throw new Error(`project write refused: ${written}`);
     expect(written?.revision).toBe(made.revision + 1);
   });
 
   it('creates a project without settings agreeing with the columns own defaults', async () => {
     const made = await repo.create(project('Rewire', 10), [], wrote());
+    if (typeof made === 'string') throw new Error(`project write refused: ${made}`);
     const throughCreate = await repo.findById(made.id);
 
     const raw = openDatabase(join(dir, 'test.db'));
@@ -891,6 +912,7 @@ describe('what a project read publishes', () => {
     ['schedule_objective', 'priority', 'unknown project.schedule_objective in the database'],
   ])('refuses a stored %s it does not know', async (column, stored, message) => {
     const made = await repo.create(project('Rewire', 10), [], wrote());
+    if (typeof made === 'string') throw new Error(`project write refused: ${made}`);
 
     const refused = openDatabase(join(dir, 'test.db'));
     let enforced: string | null = null;
@@ -941,7 +963,7 @@ describe('organization-scoped writes', () => {
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', ?, 'member', 1)",
         [ownerId],
       );
-      const editor = { actorId: ownerId, auditId: 'audit-1' };
+      const editor = { actorId: ownerId, auditId: 'audit-1', role: 'super_admin' as const };
 
       expect(
         await repo.editInOrganization(foreign.id, { name: 'Taken' }, wrote(), 'org-a', editor),

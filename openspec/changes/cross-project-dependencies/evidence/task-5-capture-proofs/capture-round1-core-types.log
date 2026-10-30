@@ -1,0 +1,46 @@
+
+ NX   Running target typecheck for project wbs-core and 1 task it depends on:
+
+
+
+> nx run wbs-core:"typecheck:module"
+
+> bun tools/tool-devsync/src/typecheck-modules.ts libs/wbs/application/core/src/module
+
+typecheck libs/wbs/application/core/src/module/authentication
+typecheck libs/wbs/application/core/src/module/bounded-replay-sweep
+typecheck libs/wbs/application/core/src/module/calendar-marker
+typecheck libs/wbs/application/core/src/module/capacity
+typecheck libs/wbs/application/core/src/module/directory
+typecheck libs/wbs/application/core/src/module/event-log
+typecheck libs/wbs/application/core/src/module/plan-commands
+typecheck libs/wbs/application/core/src/module/plan-document
+typecheck libs/wbs/application/core/src/module/plan-event
+typecheck libs/wbs/application/core/src/module/plan-history
+typecheck libs/wbs/application/core/src/module/plan-import
+typecheck libs/wbs/application/core/src/module/priority-band
+typecheck libs/wbs/application/core/src/module/project
+typecheck libs/wbs/application/core/src/module/realtime
+typecheck libs/wbs/application/core/src/module/saved-plans
+typecheck libs/wbs/application/core/src/module/step
+typecheck libs/wbs/application/core/src/module/work-item
+
+> nx run wbs-core:typecheck
+
+> bunx tsc --build --force libs/wbs/application/core/tsconfig.json
+
+
+
+
+ NX   Successfully ran target typecheck for project wbs-core and 1 task it depends on
+
+
+  Run duration:      43.9s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     43.9s (2 tasks)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-core:typecheck:module    40.5s

@@ -1,0 +1,43 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/connected-command-parity.test.ts:
+1397 |       const direct = await fixture.http('GET', `/api/projects/${fixture.successor.projectId}/work-items`);
+1398 |       expect(direct.status).toBe(200);
+1399 |       const reading = await fixture.call('getApiProjectsByIdWork-items', { id: fixture.successor.projectId });
+1400 |       expect(reading.isError).not.toBe(true);
+1401 |       const tree: unknown = JSON.parse(reading.text);
+1402 |       expect(tree).toEqual(direct.body);
+                          ^
+error: expect(received).toEqual(expected)
+
+@@ -76,18 +76,10 @@
+      },
+    ],
+    "projectRevision": 0,
+    "redoable": false,
+    "remoteBlockageLabels": [],
+-   "scheduleError": {
+-     "engine": "optimized",
+-     "kind": "engine_unavailable",
+-     "projects": [
+-       "3c2e7abd-7fb1-4a18-b779-85549ae218dd",
+-     ],
+-     "reason": "adapter_missing",
+-   },
+    "seq": 2,
+    "slices": [],
+    "startDate": "2026-10-19",
+    "stepNodes": [
+      {
+
+- Expected  - 8
++ Received  + 0
+
+      at <anonymous> (/tmp/puni-32-mcp/apps/wbs/mcp-01/src/connected-command-parity.test.ts:1402:20)
+(fail) generated MCP preserves real connected required-engine-unavailable tree [3458.07ms]
+
+ 0 pass
+ 71 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [5.99s]

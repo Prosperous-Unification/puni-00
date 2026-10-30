@@ -1,0 +1,2 @@
+{"run":{"ok":false,"error":"insufficient_scope"},"remove":{"ok":false,"error":"insufficient_scope"},"stepPersisted":true}
+Internal error: directory mismatch for directory "/tmp/puni-cross-command-authority/tsconfig.base.json", fd 3. You don't need to do anything, but this indicates a bug.

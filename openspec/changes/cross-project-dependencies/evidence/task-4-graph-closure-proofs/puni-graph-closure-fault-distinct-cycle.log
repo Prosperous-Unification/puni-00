@@ -1,0 +1,31 @@
+bun test v1.4.2 (744846f84)
+
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+1077 |   }))).toMatchObject({ ok: true });
+1078 |   const before = effects();
+1079 |   expect(await semantic(reverse, (service) => service.addTypedDependency(a.projectId, fixture.principal.id, {
+1080 |     predecessor: { projectId: a.projectId, workItemId: c, scope: 'node', stepId: workflowStep(a.projectId, 'QA') },
+1081 |     successor: { ...a, scope: 'node', stepId: workflowStep(a.projectId, 'Dev') }, type: 'FS',
+1082 |   }))).toMatchObject({ ok: false, reason: 'cycle' });
+              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": false,
+-   "reason": "cycle",
++   "ok": true,
++   "value": "c437a17b-fa78-468a-8e16-d7c71b720b86",
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-cross-graph-closure/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1082:8)
+(fail) admitted distinct tasks interleave projects until a local edge closes the remote cycle [418.42ms]
+
+ 0 pass
+ 86 filtered out
+ 1 fail
+ 15 expect() calls
+Ran 1 test across 1 file. [2.76s]

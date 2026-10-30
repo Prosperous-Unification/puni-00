@@ -1,0 +1,14 @@
+{
+  "originalSHA256": "1f96475065f6b79228c6ea0e7bd80b60f93cf0be5d3d9bb5a46db2f93a05720d",
+  "mutantSHA256": "97198619125910efeda7fa757238613a004c07cfc0562ae278e25c6918d132dd",
+  "before": "          await inspectSourceBinding();\n          await inspectSourceRetained();\n          return {",
+  "after": "          await inspectSourceBinding();\n          return {",
+  "sourceStat": {
+    "device": 66307,
+    "inode": 22631290,
+    "mode": 436,
+    "size": 33957,
+    "mtimeNs": 1793314729954997078,
+    "ctimeNs": 1793314729954997078
+  }
+}

@@ -1,42 +1,17 @@
-/**
- * Task 8.3's comparison model: what the two pickers may ask for, and what the
- * answer means *per side*.
- *
- * Pure and rendererless on purpose. Everything below is a fact about a diff, a
- * pair of side references and a shelf — none of it needs a DOM, and keeping it
- * here is what lets the underdetermined case (see {@link resolveSideSchedules})
- * be a measured case rather than a paragraph.
- */
-
 import type {
   PlanDiffCategoryView,
   PlanDifferenceView,
   PlanDiffView,
-  SavedPlanListEntryView,
   SavedPlanSideRef,
 } from './saved-plan-api';
 
-/** Whether two picker selections name the same plan. */
+/** Whether both picker selections name the same plan. */
 export function sameSide(left: SavedPlanSideRef, right: SavedPlanSideRef): boolean {
   if (left === 'current' || right === 'current') return left === right;
   return left.saved === right.saved;
 }
 
-/**
- * Why a comparison must not be requested, or `null` when it may be.
- *
- * One reason, and it exists because of what the *wire* allows: the compare
- * route takes two side strings and validates each one alone, so
- * `left=current&right=current` is a well-formed request that be-01 answers with
- * an empty diff. An empty diff from two identical sides is indistinguishable
- * from an empty diff between two genuinely equal plans, and the surface would
- * report "no differences" about a question nobody asked.
- *
- * It is also the one case {@link resolveSideSchedules} cannot resolve: with no
- * saved side there is no shelf row to read a shared absence off, so a
- * `current`/`current` pair whose schedule is missing would render nothing about
- * a plan that has no dates. Refusing the request closes both at the source.
- */
+/** The panel asks comparisons only between distinct selections. */
 export function compareRefusal(
   left: SavedPlanSideRef,
   right: SavedPlanSideRef,
@@ -44,137 +19,7 @@ export function compareRefusal(
   return sameSide(left, right) ? 'same_side' : null;
 }
 
-/** 8.3's copy for {@link compareRefusal}, in one place so surface and case cannot drift. */
 export const COMPARE_SAME_SIDE = 'Pick two different plans to compare.';
-
-/**
- * One side's schedule, as the surface has to say it.
- *
- * `unknown` is a real third answer rather than a defensive default: a saved
- * side whose row is not on the loaded shelf — deleted by a collaborator, or a
- * comparison opened before the list resolved — is a side this client genuinely
- * cannot describe, and saying "no schedule was saved" about it would be a
- * sentence invented from a missing lookup.
- */
-export type SideScheduleView =
-  | { readonly kind: 'present' }
-  | { readonly kind: 'absent'; readonly reason: string | null }
-  | { readonly kind: 'unknown' };
-
-/** Both sides of {@link resolveSideSchedules}, in picker order. */
-export interface SideSchedules {
-  readonly left: SideScheduleView;
-  readonly right: SideScheduleView;
-}
-
-/** The `schedule.present` and `schedule.absentReason` rows, or `undefined`. */
-const rowAt = (differences: readonly PlanDifferenceView[], path: string) =>
-  differences.find((difference) => difference.path === path);
-
-/** A shelf row's own schedule state — authoritative, and the only one that is. */
-function shelfSchedule(row: SavedPlanListEntryView): SideScheduleView {
-  return row.scheduleBytes !== null
-    ? { kind: 'present' }
-    : { kind: 'absent', reason: row.scheduleAbsentReason };
-}
-
-/**
- * Each side's schedule state, from the shelf where it is recorded and from the
- * diff where it is not.
- *
- * **The diff reports difference, never state**, and that is the whole shape of
- * this function. `diffSchedule` in `libs/wbs/domain/domain` emits `schedule.present` only
- * when the two sides disagree about presence and `schedule.absentReason` only
- * when the two reasons differ, so two sides that are *both* absent for the
- * same reason produce neither row. Reading state straight off the diff would
- * therefore render "both schedules present" for a pair of plans neither of
- * which has one.
- *
- * So presence is established in this order:
- *
- * 1. A `schedule.present` row settles both sides outright — it carries one
- *    boolean per side and only exists when they differ.
- * 2. With no such row the two sides *agree*, whatever they agree on, and a
- *    saved side's shelf row says which. Either side's row will do; the left is
- *    tried first only because something has to be.
- * 3. With no row and no shelf entry for either side, the state is `unknown` on
- *    both. {@link compareRefusal} makes the `current`/`current` half of that
- *    unreachable; what is left is a shelf that has not loaded or no longer
- *    carries the plan, which is honestly unknown.
- *
- * Reasons follow the same shape one level down, and only for a side already
- * known absent: an `absentReason` row carries this side's own reason, and its
- * absence means the reasons are equal, so a saved side's shelf row supplies it.
- *
- * The `current` side never has a shelf row of its own — nothing about the live
- * plan was ever saved — so every fact about it comes from the diff or from what
- * the diff's silence implies about the saved side beside it.
- */
-export function resolveSideSchedules(
-  left: SavedPlanSideRef,
-  right: SavedPlanSideRef,
-  diff: PlanDiffView,
-  rows: readonly SavedPlanListEntryView[],
-): SideSchedules {
-  const shelfOf = (side: SavedPlanSideRef): SideScheduleView | null => {
-    if (side === 'current') return null;
-    const row = rows.find((candidate) => candidate.id === side.saved);
-    return row === undefined ? null : shelfSchedule(row);
-  };
-  const leftShelf = shelfOf(left);
-  const rightShelf = shelfOf(right);
-  const agreed = leftShelf ?? rightShelf;
-
-  const presentRow = rowAt(diff.schedule, 'schedule.present');
-  const presence = (side: 'left' | 'right'): boolean | null => {
-    const reported = presentRow?.[side];
-    if (typeof reported === 'boolean') return reported;
-    // No row: the sides agree. `agreed` is whichever saved side we could read.
-    if (agreed === null || agreed.kind === 'unknown') return null;
-    return agreed.kind === 'present';
-  };
-
-  const reasonRow = rowAt(diff.schedule, 'schedule.absentReason');
-  const reason = (side: 'left' | 'right', shelf: SideScheduleView | null): string | null => {
-    // A side that is present contributes `undefined` to the reason row, so a
-    // string there is this side's own recorded reason and nothing else's.
-    const reported = reasonRow?.[side];
-    if (typeof reported === 'string') return reported;
-    if (reasonRow !== undefined) return null;
-    // No row: the reasons are equal. This side's own shelf row first, then the
-    // other side's, because equal is equal.
-    const known = shelf ?? agreed;
-    return known !== null && known.kind === 'absent' ? known.reason : null;
-  };
-
-  const view = (side: 'left' | 'right', shelf: SideScheduleView | null): SideScheduleView => {
-    const present = presence(side);
-    if (present === null) return { kind: 'unknown' };
-    return present ? { kind: 'present' } : { kind: 'absent', reason: reason(side, shelf) };
-  };
-
-  return { left: view('left', leftShelf), right: view('right', rightShelf) };
-}
-
-/**
- * What a side says about its own missing schedule.
- *
- * **The two sentences are different facts and 8.3 names why.** A saved side with
- * no body was saved that way: "no schedule was saved" is a statement about a
- * write that happened. Nothing about `current` was ever saved, so the same words
- * on the live side would claim a save that never occurred — for a cyclic plan
- * the truth is that it *cannot be scheduled*, now, which is a property of the
- * plan rather than of anybody's checkpoint.
- *
- * The recorded reason is appended rather than translated, exactly as
- * `scheduleWords` appends it on the shelf: this build passes through reasons it
- * has never heard of instead of narrowing them away.
- */
-export function sideScheduleWords(ref: SavedPlanSideRef, view: SideScheduleView): string | null {
-  if (view.kind !== 'absent') return null;
-  const base = ref === 'current' ? 'the live plan cannot be scheduled' : 'no schedule was saved';
-  return view.reason === null ? base : `${base} (${view.reason})`;
-}
 
 /**
  * Where a category sits in the rendered list.

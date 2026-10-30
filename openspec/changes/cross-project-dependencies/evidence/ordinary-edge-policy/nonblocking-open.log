@@ -1,0 +1,26 @@
+Command: bun test tools/tool-remote-scripts/src/lib/edge-policy.test.ts --preload ./tools/test/scratch/preload.ts --test-name-pattern FIFO
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/edge-policy.test.ts:
+155 |   const child = Bun.spawn([process.execPath, '-e', program], { stdout: 'pipe', stderr: 'pipe' });
+156 |   const deadline = setTimeout(() => {
+157 |     child.kill('SIGKILL');
+158 |   }, 1000);
+159 |   try {
+160 |     expect(await child.exited).toBe(0);
+                                     ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 137
+
+      at <anonymous> (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.test.ts:160:32)
+(fail) nonblocking policy open refuses a FIFO without waiting for a writer [1004.90ms]
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1045.00ms]
+
+Exit: 1

@@ -1,0 +1,43 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+88 |   });
+89 |
+90 | test('remote unfinished FS is excluded from startable and refused by claim until completion', async () => {
+91 |   const before = await startable();
+92 |   expect(before.status).toBe(200);
+93 |   expect((before.body as { leaves: unknown[] }).leaves).toEqual([]);
+                                                             ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   {
++     "assignees": [],
++     "fits": true,
++     "name": "target-leaf",
++     "number": "010",
++     "numberIsFrozen": false,
++     "stepIds": [
++       "1c57c20b-325f-4e49-ae1f-59031c52549a",
++     ],
++     "subtreeClaim": null,
++     "teams": [],
++     "unfinishedPredecessorIds": [
++       "predecessor-leaf",
++     ],
++     "workItemId": "target-leaf",
++   },
++ ]
+
+- Expected  - 1
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-63-evidence/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:93:57)
+(fail) remote unfinished FS is excluded from startable and refused by claim until completion [451.91ms]
+
+ 0 pass
+ 36 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [4.62s]

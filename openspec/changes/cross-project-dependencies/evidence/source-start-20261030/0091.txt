@@ -1,0 +1,14 @@
+{
+  "originalSHA256": "1f96475065f6b79228c6ea0e7bd80b60f93cf0be5d3d9bb5a46db2f93a05720d",
+  "mutantSHA256": "07fdcf1d012d70dc6c45f7ac600446e69c66c71320167b40673f97ea342a2fd0",
+  "before": "  try {\n    await assertParticipantRestorationContext(context);\n    const phase = sourceContinuations.get(context);",
+  "after": "  try {\n    const phase = sourceContinuations.get(context);",
+  "sourceStat": {
+    "device": 66307,
+    "inode": 22631290,
+    "mode": 436,
+    "size": 33957,
+    "mtimeNs": 1793309208270017026,
+    "ctimeNs": 1793309208270017026
+  }
+}

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:
+100 |       const before = effects();
+101 |       release();
+102 |       await held;
+103 |       const response = await pending;
+104 |       if (response instanceof Response) {
+105 |         expect(response.status).toBe(error === 'organization_context_changed' ? 409 : error === 'not_found' ? 404 : 403);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 403
+Received: 200
+
+      at <anonymous> (/tmp/puni-cross-command-authority/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:105:33)
+(fail) current command authority on the process writer > step refuses queued revocation before any command effects [303.60ms]
+
+ 0 pass
+ 44 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [2.41s]

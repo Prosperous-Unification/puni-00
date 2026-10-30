@@ -1,0 +1,78 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/connected-step-node.test.ts:
+241 |   expect(() => resolveConnectedGraph({ projects: [a, { ...b, relationships: [forward] }], external: [] })).toThrow(/local relationship forward/);
+242 | });
+243 |
+244 | it('refuses missing local endpoint facts in a supplied project context', () => {
+245 |   const local = link('broken-local', ['a', 'missing'], ['a', 'A']);
+246 |   expect(() => resolveConnectedGraph({ projects: [{ ...a, relationships: [local] }], external: [] })).toThrow(/work item missing/);
+                                                                                                            ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /work item missing/
+
+Received function did not throw
+Received value: {
+  graph: {
+    nodes: [
+      {
+        kind: "step",
+        ref: {
+          workItemId: "A",
+          stepId: "design",
+        },
+        at: 0,
+      }, {
+        kind: "step",
+        ref: {
+          workItemId: "A",
+          stepId: "test",
+        },
+        at: 1,
+      }
+    ],
+    edges: [
+      {
+        predecessor: {
+          leafId: "A",
+          at: 0,
+        },
+        successor: {
+          leafId: "A",
+          at: 1,
+        },
+        type: "FS",
+        provenance: "workflow",
+      }
+    ],
+  },
+  projectIdByWorkItem: Map(1) {
+    "A": "a",
+  },
+  relationships: Map(1) {
+    "broken-local": {
+      id: "broken-local",
+      predecessor: {
+        projectId: "a",
+        workItemId: "missing",
+        scope: "whole",
+      },
+      successor: {
+        projectId: "a",
+        workItemId: "A",
+        scope: "whole",
+      },
+      type: "FS",
+    },
+  },
+}
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/domain/domain/src/connected-step-node.test.ts:246:103)
+(fail) refuses missing local endpoint facts in a supplied project context [0.37ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [25.00ms]

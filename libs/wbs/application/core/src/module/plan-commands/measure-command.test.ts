@@ -9,8 +9,10 @@ import {
   normalizeCommand,
   type PlanCommand,
 } from '../../service/command-normalizers';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { createPlanCommandRunner } from './composition';
 
@@ -25,6 +27,7 @@ async function seeded(legacy = true) {
   fixture.addOrganization('org-other', { legacy: false });
   const broadcast = recordingBroadcaster();
   const options = {
+    dependencyContext: createLocalDependencyContext(source.stores),
     admission: CREATOR_ADMISSION,
     clock: testClock,
     broadcast,
@@ -37,10 +40,15 @@ async function seeded(legacy = true) {
   );
   const runner = createPlanCommandRunner({
     uow: source.uow,
+    commandAccess: localCommandAccess,
     announcements: broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
-      servicesOver(scope.stores, { ...options, broadcast: announcements }),
+      servicesOver(scope.stores, {
+        ...options,
+        dependencyContext: createLocalDependencyContext(scope.stores),
+        broadcast: announcements,
+      }),
   });
   const listed = async () => {
     const answer = await graph.directory.measures.listWithin(LEGACY);

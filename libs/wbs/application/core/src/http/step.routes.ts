@@ -1,6 +1,8 @@
+import type { AuthenticatedUser } from '@wbs/contracts';
 import { addStep, removeStep, renameStep } from '@wbs/contracts';
 import { allowancePercentOf, isEstimateUnit, NO_ALLOWANCE } from '@wbs/domain';
 
+import type { AuthorityRefusal } from '../module/plan-commands/plan-commands.feature';
 import type { PlanCommandRunner } from '../module/plan-commands/plan-commands.feature';
 import { runCommandBatchAfter } from '../module/plan-commands/run-command-batch';
 import type { StepOutcome, StepService, StepUnitOutcome } from '../module/step/step.resource';
@@ -33,7 +35,9 @@ function namedReply(
 }
 
 /** {@link namedReply}, plus the refusals only a chosen code can earn. */
-function addedReply(outcome: StepOutcome): HttpReply<typeof addStep> {
+function addedReply(outcome: StepOutcome | AuthorityRefusal): HttpReply<typeof addStep> {
+  if ('refusal' in outcome) return organizationRefusal(outcome);
+  if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
   if (outcome.ok) return namedReply(outcome);
   switch (outcome.reason) {
     case 'invalid_code':
@@ -41,6 +45,7 @@ function addedReply(outcome: StepOutcome): HttpReply<typeof addStep> {
       return { ok: false, status: 422, body: { error: outcome.reason } };
     case 'invalid_estimate_unit':
       return { ok: false, status: 422, body: { error: outcome.reason } };
+    case 'dependency_cycle':
     case 'code_taken':
       return { ok: false, status: 409, body: { error: outcome.reason } };
     default:
@@ -49,13 +54,16 @@ function addedReply(outcome: StepOutcome): HttpReply<typeof addStep> {
 }
 
 /** A rename keeps the step's code, so no code refusal can reach it. */
-function renamedReply(outcome: StepUnitOutcome): HttpReply<typeof renameStep> {
+function renamedReply(outcome: StepUnitOutcome | AuthorityRefusal): HttpReply<typeof renameStep> {
+  if ('refusal' in outcome) return organizationRefusal(outcome);
+  if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
   if (outcome.ok) return namedReply(outcome);
   switch (outcome.reason) {
     case 'estimates_present':
       return { ok: false, status: 409, body: { error: 'estimates_present', count: outcome.count } };
     case 'invalid_estimate_unit':
       return { ok: false, status: 422, body: { error: 'invalid_estimate_unit' } };
+    case 'dependency_cycle':
     case 'invalid_code':
     case 'reserved_code':
     case 'code_taken':
@@ -87,26 +95,24 @@ export function stepRoutes(
   >,
   commands: Pick<PlanCommandRunner, 'runAfterWithin'>,
   organizations: OrganizationAccess,
-  recovery?: RecoveryWriteBoundary,
+  recovery: RecoveryWriteBoundary,
 ) {
   /** Runs a scoped dependent write in the transaction that records its recovery. */
   const write = <T extends { readonly ok: boolean }>(
     access: ResourceAccess,
     projectId: string,
-    actorId: string,
+    actor: AuthenticatedUser,
     detail: { readonly step: 'add' | 'rename' | 'remove' },
-    perform: (service: typeof steps) => Promise<T>,
+    perform: (service: typeof steps, access: ResourceAccess) => Promise<T>,
     refuse: (reason: 'not_found' | 'forbidden') => T,
-  ): Promise<T> => {
-    if (access.kind === 'legacy') return perform(steps);
-    if (recovery === undefined) throw new Error('scoped step write has no recovery boundary');
+  ): Promise<T | AuthorityRefusal> => {
     return runRecoveryWrite(
       recovery,
       access,
       projectId,
-      actorId,
+      actor,
       detail,
-      (services) => perform(services.steps),
+      (services, freshAccess) => perform(services.steps, freshAccess),
       refuse,
     );
   };
@@ -131,16 +137,16 @@ export function stepRoutes(
         await write(
           resolved.access,
           params.id,
-          principal.id,
+          principal,
           { step: 'add' },
-          (service) =>
+          (service, access) =>
             service.addWithin(
               params.id,
               principal.id,
               body.name,
               allowance,
               body.code,
-              resolved.access,
+              access,
               estimateUnit,
             ),
           (reason): StepOutcome => ({ ok: false, reason }),
@@ -166,10 +172,10 @@ export function stepRoutes(
           await write(
             resolved.access,
             params.id,
-            principal.id,
+            principal,
             { step: 'rename' },
-            (service) =>
-              service.renameWithin(params.id, params.stepId, principal.id, name, resolved.access),
+            (service, access) =>
+              service.renameWithin(params.id, params.stepId, principal.id, name, access),
             (reason): StepOutcome => ({ ok: false, reason }),
           ),
         );
@@ -191,7 +197,7 @@ export function stepRoutes(
               : [{ kind: 'setStepAllowance', stepId: params.stepId, allowancePercent: allowance }],
           access: resolved.access,
         },
-        async (graph) => {
+        async (graph, access) => {
           // The step is checked through the batch's own graph, inside its unit
           // of work: after activation that graph carries the grant the unit of
           // work admitted, so a super-admin's audited recovery reaches the step
@@ -205,7 +211,7 @@ export function stepRoutes(
             params.id,
             params.stepId,
             principal.id,
-            resolved.access,
+            access,
           );
           if (!found.ok) return found;
           if (estimateUnit !== undefined) {
@@ -214,7 +220,7 @@ export function stepRoutes(
               params.stepId,
               principal.id,
               estimateUnit,
-              resolved.access,
+              access,
             );
             if (!patched.ok) return patched;
           }
@@ -224,7 +230,7 @@ export function stepRoutes(
             params.stepId,
             principal.id,
             name,
-            resolved.access,
+            access,
           );
           return renamed.ok ? null : renamed;
         },
@@ -233,6 +239,8 @@ export function stepRoutes(
       // The shape's write-scope policy refused this before the handler ran.
       if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
       if ('refusal' in outcome) {
+        if (outcome.refusal !== 'not_found' && outcome.refusal !== 'forbidden')
+          return organizationRefusal(outcome);
         return outcome.refusal === 'not_found'
           ? { ok: false, status: 404, body: { error: 'not_found' } }
           : { ok: false, status: 403, body: { error: 'forbidden' } };
@@ -269,18 +277,20 @@ export function stepRoutes(
         const outcome = await write(
           resolved.access,
           params.id,
-          principal.id,
+          principal,
           { step: 'remove' },
-          (service) =>
+          (service, access) =>
             service.removeWithin(
               params.id,
               params.stepId,
               principal.id,
               query.cascade === 'true',
-              resolved.access,
+              access,
             ),
           (reason) => ({ ok: false, reason }) as const,
         );
+        if ('refusal' in outcome) return organizationRefusal(outcome);
+        if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
         if (outcome.ok) return { ok: true, status: 204, body: EMPTY };
         switch (outcome.reason) {
           case 'in_use':

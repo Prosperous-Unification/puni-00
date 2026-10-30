@@ -13,6 +13,7 @@ import type {
   StoredSavedPlan,
   TransactionalStores,
 } from '@wbs/core';
+import { captureLocalTypedDependency } from '@wbs/core';
 import type { OrganizationLimitValues } from '@wbs/domain';
 
 import { type CaptureReadSeam, inertMemoryCaptureReadSeam } from './capture-read-seam';
@@ -72,6 +73,7 @@ function coordinatedStores(
   coordinator: MemoryCoordinator,
 ): TransactionalStores {
   return {
+    externalDependencyAuthoring: stores.externalDependencyAuthoring,
     runtimeCommands: coordinatedStore(
       stores.runtimeCommands,
       ['compareAuthority', 'insertBinding', 'insertAcceptance'],
@@ -151,7 +153,14 @@ function coordinatedStores(
       coordinator,
     ),
     typedDependencies: coordinatedStore(
-      stores.typedDependencies,
+      {
+        ...stores.typedDependencies,
+        incidents: coordinatedStore(
+          stores.typedDependencies.incidents,
+          ['detach', 'restore'],
+          coordinator,
+        ),
+      },
       ['add', 'update', 'remove', 'removeAllFor'],
       coordinator,
     ),
@@ -755,6 +764,7 @@ async function capturePlanInput(
     stepBlockages,
     stepParallels,
     measures,
+    measureDefinitions,
     measureEstimates,
     budgets,
     dependencies,
@@ -782,6 +792,7 @@ async function capturePlanInput(
     // Proof: snapshot read replaced with empty; detached sparse capture failed (memory-read.txt), 2026-10-17.
     stores.stepParallels.listByProject(projectId),
     stores.measures.listByProject(projectId),
+    stores.measures.definitionsFor(projectId),
     // Proof: either read replaced with `[]` made the memory run of the
     // conformance case `savedPlanCapture.readPlanInput:complete` capture none
     // (source-conformance.test.ts: 75 pass became 8 fail, verified by the
@@ -789,7 +800,7 @@ async function capturePlanInput(
     stores.measureEstimates.listByProject(projectId),
     stores.budgets.listByProject(projectId),
     stores.dependencies.listByProject(projectId),
-    stores.typedDependencies.listByProject(projectId),
+    stores.typedDependencies.listIncident([projectId]),
     stores.directory.assignmentsInProject(projectId),
     stores.capacity.slotsFor(projectId),
     stores.demands.listByProject(projectId),
@@ -813,15 +824,11 @@ async function capturePlanInput(
     stepBlockages,
     stepParallels,
     measures,
+    measureDefinitions,
     measureEstimates,
     budgets,
     dependencies,
-    typedDependencies: typedDependencies.map(({ id, predecessor, successor, type }) => ({
-      id,
-      predecessor,
-      successor,
-      type,
-    })),
+    typedDependencies: typedDependencies.map(captureLocalTypedDependency),
     assignments: assignmentRows.assignments,
     capacity,
     // Proof: both reads replaced with `[]` made `captures demands and resource

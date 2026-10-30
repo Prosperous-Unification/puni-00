@@ -1,0 +1,26 @@
+Command: bun test /tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-host.test.ts -t malformed output kills --preload ./tools/test/scratch/preload.ts
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/solver-host.test.ts:
+151 |       process.kill(pid, 0);
+152 |     } catch (cause) {
+153 |       if (cause instanceof Error && 'code' in cause && cause.code === 'ESRCH') live = false;
+154 |       else throw cause;
+155 |     }
+156 |     expect(live).toBe(false);
+                       ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-host.test.ts:156:18)
+(fail) malformed output kills and reaps the exact command child before rejecting [2.93ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [29.00ms]
+
+Exit: 1

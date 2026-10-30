@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+131 |   h.sqlite.run('UPDATE project SET restricted=1 WHERE id=?',[selected]);
+132 |   h.sqlite.run("UPDATE organization_membership SET role='viewer' WHERE organization_id='org-a'");
+133 |   const page = await candidates(selected);
+134 |   const stepIds = h.sqlite.query<{id:string},[string]>('SELECT id FROM step WHERE project_id=?').all(selected).map(step=>step.id);
+135 |   const otherIds = h.sqlite.query<{id:string},[string]>('SELECT id FROM step WHERE project_id=?').all(other).map(step=>step.id);
+136 |   expect(page.candidates.filter(candidate=>candidate.endpoint.scope==='node').map(candidate=>candidate.endpoint.stepId).sort()).toEqual([...stepIds].sort());
+                                                                                                                                      ^
+error: expect(received).toEqual(expected)
+
+  [
++   "14e2db27-3db4-4da3-8575-6a6867ccc9dd",
+    "49b497c5-c444-4e7f-b86e-07f5f819197f",
+    "78c82b00-6f62-4b19-ac17-ea1af737ee7a",
++   "cd992488-e8e5-4edc-8988-022462ec147f",
+  ]
+
+- Expected  - 0
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:136:129)
+(fail) viewer can discover a restricted project and leaf steps belong to that project [168.00ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [2.87s]

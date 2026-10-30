@@ -117,6 +117,52 @@ describe('per-process test scratch', () => {
 });
 
 describe('the shared test preload', () => {
+  // Proof: removing the trace yielded zero markers; running cleanup during preload
+  // instead of registering afterAll left the child scratch root present (Bun 1.4.4).
+  it('traces the global cleanup once after every file without exposing scratch paths', async () => {
+    const directory = scratchSync('scratch-trace-');
+    const suites = ['first', 'second'].map((name) => {
+      const suite = join(directory, `${name}.test.ts`);
+      writeFileSync(
+        suite,
+        `
+          import { test } from 'bun:test';
+          import { scratchRoot, scratchSync } from ${JSON.stringify(HELPER)};
+          test('${name} scratch trace', () => {
+            scratchSync('private-fixture-name-');
+            console.log('SCRATCH_DIRECTORY=' + scratchRoot());
+            console.error('SCRATCH_TEST_FINISHED=${name}');
+          });
+        `,
+      );
+      return suite;
+    });
+    const child = Bun.spawn([process.execPath, 'test', '--preload', PRELOAD, ...suites], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const [stdout, stderr] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+    expect(await child.exited).toBe(0);
+    expect(existsSync(scratchDirectory(stdout))).toBe(false);
+    const traces = stderr.split('\n').filter((line) => line.startsWith('scratch cleanup '));
+    expect(traces).toHaveLength(2);
+    expect(traces[0]).toBe('scratch cleanup source=afterAll event=start');
+    expect(traces[1]).toMatch(/^scratch cleanup source=afterAll event=return elapsedMs=\d+$/);
+    expect(stderr).toContain('SCRATCH_TEST_FINISHED=first');
+    expect(stderr).toContain('SCRATCH_TEST_FINISHED=second');
+    expect(stderr.indexOf(traces[0])).toBeGreaterThan(
+      stderr.indexOf('SCRATCH_TEST_FINISHED=first'),
+    );
+    expect(stderr.indexOf(traces[0])).toBeGreaterThan(
+      stderr.indexOf('SCRATCH_TEST_FINISHED=second'),
+    );
+    expect(traces.join('\n')).not.toContain(directory);
+    expect(traces.join('\n')).not.toContain('private-fixture-name-');
+  });
+
   // No limit is given here on purpose: this case passes only while this project's `test` target
   // passes a `--timeout` above Bun's 5-second default, which is how every target states its budget
   // (docs/test-budgets.md).

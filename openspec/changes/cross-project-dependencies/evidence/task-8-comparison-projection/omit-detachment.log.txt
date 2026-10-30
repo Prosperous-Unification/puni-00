@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts:
+(pass) historical comparison side projection > retains captured context and exact stage boundaries when the diff is empty [18.92ms]
+(pass) historical comparison side projection > marks legacy input unknown while explicit input9 local stays local [3.89ms]
+(pass) historical comparison side projection > retains unavailable scope and absence without manufacturing stages [3.85ms]
+(pass) historical comparison side projection > preserves boundary and plan terminal outcomes distinctly without losing a present schedule [5.83ms]
+282 |     const original = connectedSide();
+283 |     const mutable = readInput(original);
+284 |     const side: PlanSide = { ...original, input: mutable };
+285 |     const source = { kind: 'saved', savedPlanId: 'snapshot' } as const;
+286 |     const summary = summarizeSavedComparisonSide(side, source);
+287 |     expect(Object.isFrozen(summary)).toBe(true);
+                                           ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-saved-comparison-c/libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts:287:38)
+(fail) historical comparison side projection > detaches summaries from caller changes and never needs live capabilities [4.71ms]
+(pass) historical comparison side projection > preserves pending without inferring readiness or changing selection [5.28ms]
+(pass) historical comparison side projection > preserves retrying without inferring readiness or changing selection [13.54ms]
+(pass) historical comparison side projection > preserves idle without inferring readiness or changing selection [7.89ms]
+(pass) historical comparison side projection > preserves failed without inferring readiness or changing selection [9.98ms]
+(pass) historical comparison side projection > preserves corrupt without inferring readiness or changing selection [10.33ms]
+(pass) historical comparison side projection > preserves baseline without inferring readiness or changing selection [4.95ms]
+(pass) historical comparison side projection > preserves quantisation-floor without inferring readiness or changing selection [4.88ms]
+(pass) historical comparison side projection > retains captured idle project labels without manufacturing an idle stage [7.62ms]
+(pass) historical comparison side projection > refuses missing captured project labels rather than inventing them [4.49ms]
+(pass) historical comparison side projection > refuses missing captured row labels rather than inventing them [4.56ms]
+(pass) historical comparison side projection > refuses missing captured step labels rather than inventing them [4.00ms]
+
+ 15 pass
+ 1 fail
+ 28 expect() calls
+Ran 16 tests across 1 file. [491.00ms]

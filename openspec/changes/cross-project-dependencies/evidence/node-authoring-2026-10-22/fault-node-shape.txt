@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+{"level":"error","time":1792701131975,"service":"be-01","err":{"occurrence_id":"AE_EAARXWYHQT814EVE4N550AXZ4Y","fingerprint":"fp1_a23632a045ba2b6ad65734d09a0e0f06","stack":["Error: node endpoint of 2f05b424-0b49-49f7-a141-7b4c55ae16cd names c9ba0fed-5b4e-47ff-8a26-655bdecaee63, which is not a leaf","    at resolveEndpoint (/tmp/puni-node-authoring-proofs/libs/wbs/domain/domain/src/slice-edges.ts:387:15)","    at resolveAuthoredEdges (/tmp/puni-node-authoring-proofs/libs/wbs/domain/domain/src/slice-edges.ts:302:18)","    at resolveConnectedGraph (/tmp/puni-node-authoring-proofs/libs/wbs/domain/domain/src/connected-step-node.ts:123:10)","    at findCycle (/tmp/puni-node-authoring-proofs/libs/wbs/application/core/src/service/dependency-graph.ts:215:37)","    at async <anonymous> (/tmp/puni-node-authoring-proofs/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6789:43)","    at async withDependencyContext (/tmp/puni-node-authoring-proofs/libs/wbs/application/core/src/ports/dependency-context.ts:86:27)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+3899 |       .commands(false)
+3900 |       .map((command, index) => (index === 3 ? { ...command, predecessor } : command));
+3901 |     const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+3902 |       commands,
+3903 |     });
+3904 |     expect(response.status).toBe(shape === 'wrong-project-step' ? 404 : 409);
+                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 409
+Received: 500
+
+      at <anonymous> (/tmp/puni-node-authoring-proofs/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:3904:29)
+(fail) node authoring mounted and direct parity refuses node-parent with full rollback [600.55ms]
+
+ 0 pass
+ 128 filtered out
+ 1 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [3.73s]

@@ -421,19 +421,33 @@ describe('StepNodeAttemptRepository', () => {
     const barrier = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 2);
     const state = new Int32Array(barrier);
     const starter = new Worker(new URL('./step-node-attempt-race.worker.ts', import.meta.url));
+    let workerError: ErrorEvent | undefined;
     try {
       const outcome = new Promise<string>((resolve, reject) => {
         starter.onmessage = (message: MessageEvent<string>) => {
           resolve(message.data);
         };
-        starter.onerror = reject;
+        starter.onerror = (error) => {
+          workerError = error;
+          // Preserve the original Bun onerror rejection: its ErrorEvent is the existing worker boundary.
+          // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+          reject(error);
+        };
       });
       starter.postMessage({ path, barrier, startedAt: 100 });
       const deadline = Date.now() + 5_000;
       while (Atomics.load(state, 0) < 1 && Date.now() < deadline) {
         await Bun.sleep(5);
       }
-      expect(Atomics.load(state, 0)).toBe(1);
+      const ready = Atomics.load(state, 0);
+      expect(
+        ready,
+        `worker phase=before-release; ready=${String(ready)}; original worker error=${
+          workerError === undefined
+            ? 'none observed'
+            : `${workerError.message} at ${workerError.filename}:${String(workerError.lineno)}:${String(workerError.colno)}`
+        }`,
+      ).toBe(1);
       const stater = openDatabase(path);
       try {
         stater.run('BEGIN IMMEDIATE');

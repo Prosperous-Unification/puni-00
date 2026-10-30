@@ -1,0 +1,17 @@
+
+> nx run tool-remote-scripts:lint
+
+> bunx eslint tools/tool-remote-scripts/src tools/tool-remote-scripts/caddy tools/tool-remote-scripts/test
+
+(node:3353321) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+
+ NX   Successfully ran target lint for project tool-remote-scripts
+
+
+  Run duration:      10.8s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     10.8s (1 task)
+  Recoverable time:  <1ms

@@ -1,4 +1,4 @@
-import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
+import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts/mcp-internal-auth';
 import type { JWTPayload } from 'jose';
 
 import type { DeploymentFaultReporter, McpDeploymentFault } from './deployment-fault';

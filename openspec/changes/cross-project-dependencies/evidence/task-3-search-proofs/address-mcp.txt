@@ -1,0 +1,17 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/generated-document.test.ts:
+(pass) default MCP document is generated directly from the shared declarations [40.45ms]
+(pass) generated project command tool exposes addTypedDependency with endpoints [4.80ms]
+(pass) required exclusion drift remains a failure when operational routes are absent [3.68ms]
+(pass) keeps browser organization selection out of the generated MCP tools [3.40ms]
+(pass) keeps provisioning-token administration out of the generated MCP tools [3.14ms]
+(pass) pins every generated MCP operation name independently of the registry [3.39ms]
+(pass) refuses a generated operation whose name was lost before MCP derivation [2.90ms]
+(pass) optional operational deny paths cannot become tools in external documents [3.14ms]
+(pass) keeps browser current-context discovery out of generated MCP tools [2.71ms]
+
+ 9 pass
+ 0 fail
+ 24 expect() calls
+Ran 9 tests across 1 file. [3.18s]

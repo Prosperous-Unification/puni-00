@@ -1,0 +1,30 @@
+from pathlib import Path
+import subprocess
+root=Path('/tmp/puni-cross-capture');folder=root/'libs/wbs/adapters/store-sqlite/src'
+chain=folder/'chain-snapshot.ts';fanout=folder/'fanout-capture.ts'
+def remove_after(s,start,anchor):
+ a=s.index(start);b=s.index(anchor,a);c=s.index('lifetime.assertOpen();',b)
+ return s[:c]+s[c:].replace('lifetime.assertOpen();','',1)
+checks=[
+('live-project',chain,'async function readLiveProjectIn','const project = await','live project first response.*success'),
+('live-owned',chain,'async function readLiveProjectIn','const owned = await','project owned continuation.*success'),
+('live-rank',chain,'async function readLiveProjectIn','const ranks = await','project rank continuation.*success'),
+('metadata-entry',chain,'async function readLiveMetadataIn','{','project chain continuation.*success'),
+('metadata-steps',chain,'async function readLiveMetadataIn','const steps = await','project steps continuation.*success'),
+('metadata-work-items',chain,'async function readLiveMetadataIn','const workItems = await','project work-items continuation.*success'),
+('metadata-attempts',chain,'async function readLiveMetadataIn','const attempts = await','project attempts continuation.*success'),
+('metadata-blockages',chain,'async function readLiveMetadataIn','const blockages = await','project blockages continuation.*success'),
+('export',chain,'readExport:','const captured = await','export sequence continuation.*success'),
+('aggregate-cache',chain,'function readSchedule(','{','aggregate cached schedule'),
+('authorize-project',fanout,'export function authorizeProjectFanoutIn','const project = await','fanout authorizeProjectUpdate.*success'),
+('authorize-step',fanout,'export function authorizeStepFanoutIn','const project = await','fanout authorizeStepRemoval.*success'),
+]
+for name,path,start,anchor,pattern in checks[9:]:
+ original=path.read_text()
+ try:
+  path.write_text(remove_after(original,start,anchor))
+  completed=subprocess.run(['bun','test','libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts','--test-name-pattern',pattern],cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+  Path('/tmp/capture-round1-negative-'+name+'.log').write_text(completed.stdout)
+  if completed.returncode==0 or '(fail)' not in completed.stdout or '0 fail' in completed.stdout:raise RuntimeError('no intended named test failure '+name+'\n'+completed.stdout)
+  print(name,completed.stdout[-700:])
+ finally:path.write_text(original)

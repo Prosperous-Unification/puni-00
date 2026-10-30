@@ -6,6 +6,8 @@ import { ClientConfigurationError } from './client-error';
 import { fetchTransport } from './client-fetch';
 import type { ClientTransport, TransportReply } from './client-types';
 import { defineEndpointShape } from './endpoint-shape';
+import { health } from './infrastructure-shapes';
+import { listProjects } from './project-shapes';
 import { retryProjectOptimization } from './project-shapes';
 import { requestSchema, responseSchema, type SchemaShape } from './schema-shape';
 
@@ -852,4 +854,106 @@ test('refuses JSON fetch configuration for a form-only declaration before sendin
     await rejection(client.writeProject({ params: { id: 'p' }, body: { name: 'x' } })),
   ).toBeInstanceOf(ClientConfigurationError);
   expect(sent).toBe(false);
+});
+
+// Removing the compatibility decoder must turn this exact refusal into unexpected_status.
+test('decodes exact resource dependency incompatibility without claiming support', async () => {
+  const reply = await clientFromShapes(
+    [read],
+    returning({
+      kind: 'json',
+      status: 409,
+      body: { error: 'client_dependency_incompatible', required: 'cross-project-dependencies-v1' },
+    }),
+  ).readProject(input);
+  expect(reply).toMatchObject({
+    kind: 'failure',
+    failure: {
+      code: 'dependency_incompatible',
+      required: 'cross-project-dependencies-v1',
+      status: 409,
+    },
+  });
+});
+
+test('does not misclassify malformed dependency refusals or ordinary conflicts', async () => {
+  for (const body of [
+    { error: 'client_dependency_incompatible', required: 'other' },
+    { error: 'client_dependency_incompatible' },
+    {
+      error: 'client_dependency_incompatible',
+      required: 'cross-project-dependencies-v1',
+      extra: true,
+    },
+    { error: 'dependency_cycle' },
+  ]) {
+    expect(
+      await clientFromShapes([read], returning({ kind: 'json', status: 409, body })).readProject(
+        input,
+      ),
+    ).toMatchObject({ kind: 'failure', failure: { code: 'invalid_response', status: 409 } });
+  }
+});
+
+test('keeps exempt operations and non-409 responses outside dependency admission', async () => {
+  const body = {
+    error: 'client_dependency_incompatible',
+    required: 'cross-project-dependencies-v1',
+  };
+  expect(
+    await clientFromShapes([health], returning({ kind: 'json', status: 409, body })).getHealth({}),
+  ).toMatchObject({ kind: 'failure', failure: { code: 'unexpected_status', status: 409 } });
+  expect(
+    await clientFromShapes(
+      [listProjects],
+      returning({ kind: 'json', status: 200, body }),
+    ).getApiProjects({}),
+  ).toMatchObject({ kind: 'failure', failure: { code: 'invalid_response', status: 200 } });
+  expect(
+    await clientFromShapes(
+      [listProjects],
+      returning({ kind: 'json', status: 409, body }),
+    ).getApiProjects({}),
+  ).toMatchObject({
+    kind: 'failure',
+    failure: { code: 'dependency_incompatible', required: 'cross-project-dependencies-v1' },
+  });
+});
+
+test('cancels while decoding the dependency admission envelope', async () => {
+  const controller = new AbortController();
+  const client = clientFromShapes([listProjects], () => {
+    queueMicrotask(() => {
+      queueMicrotask(() => {
+        controller.abort();
+      });
+    });
+    return Promise.resolve({
+      kind: 'json',
+      status: 409,
+      body: {
+        error: 'client_dependency_incompatible',
+        required: 'cross-project-dependencies-v1',
+      },
+    });
+  });
+  expect(await client.getApiProjects({ signal: controller.signal })).toMatchObject({
+    kind: 'failure',
+    failure: { code: 'cancelled' },
+  });
+});
+
+test('fetch transport claims implemented dependency semantics only for protected operations', async () => {
+  const claims: (string | null)[] = [];
+  const transport = fetchTransport(
+    'https://wbs.test',
+    (_url, init) => {
+      claims.push(new Headers(init.headers).get('X-WBS-Dependency-Semantics'));
+      return Promise.resolve(new Response(null, { status: 204 }));
+    },
+    'cross-project-dependencies-v1',
+  );
+  await transport(listProjects, { params: {}, query: undefined, body: undefined });
+  await transport(health, { params: {}, query: undefined, body: undefined });
+  expect(claims).toEqual(['cross-project-dependencies-v1', null]);
 });

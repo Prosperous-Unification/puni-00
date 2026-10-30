@@ -1,0 +1,25 @@
+
+tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts:
+RESTORATION_PARENT_CHILD: {"leaf":"source-restoration","executed":[]}
+652 |         console.error(
+653 |           `RESTORATION_PARENT_CHILD: ${JSON.stringify({ leaf, executed: executed(refused.stdout.toString()) })}`,
+654 |         );
+655 |       expect(refused.exitCode, fault).not.toBe(0);
+656 |       expect(executed(refused.stdout.toString())).toEqual([]);
+657 |       expect(existsSync(starts.marker), 'no test child before required-parent validation').toBe(
+                                                                                                 ^
+error: no test child before required-parent validation
+
+Expected: false
+Received: true
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts:657:92)
+(fail) restoration owner refuses invalid parent before actual child selection: missing [95.40ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=2
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [136.00ms]

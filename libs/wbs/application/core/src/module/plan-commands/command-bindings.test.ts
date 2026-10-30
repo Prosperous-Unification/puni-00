@@ -3,6 +3,7 @@ import { expect, it } from 'bun:test';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
 import {
   type AppliedFor,
+  bindTypedEndpoint,
   type CommandBindings,
   CommandContext,
   type CommandFor,
@@ -68,3 +69,27 @@ export function bindingTypeCases(
     _wrongEntityResponse,
   };
 }
+
+it('binds local aliases to the owner and preserves explicit endpoint projects', () => {
+  const context = new CommandContext(
+    'actor',
+    'owner',
+    0,
+    'addTypedDependency',
+    new Map([['named', 'minted']]),
+    LEGACY_ACCESS,
+    null,
+    null,
+  );
+  expect(bindTypedEndpoint({ scope: 'whole', workItemRef: 'named' }, context)).toEqual({
+    scope: 'whole',
+    workItemId: 'minted',
+    projectId: 'owner',
+  });
+  expect(
+    bindTypedEndpoint(
+      { scope: 'node', workItemId: 'predecessor', stepId: 'design', projectId: 'remote' },
+      context,
+    ),
+  ).toEqual({ scope: 'node', workItemId: 'predecessor', stepId: 'design', projectId: 'remote' });
+});

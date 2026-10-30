@@ -295,8 +295,8 @@ describe('capturing a project’s plan input', () => {
         {
           id: 'typed-1',
           projectId: 'p1',
-          predecessor: { scope: 'node', workItemId: 'wi-1', stepId: 'st-1' },
-          successor: { scope: 'node', workItemId: 'wi-1', stepId: 'st-2' },
+          predecessor: { projectId: 'p1', scope: 'node', workItemId: 'wi-1', stepId: 'st-1' },
+          successor: { projectId: 'p1', scope: 'node', workItemId: 'wi-1', stepId: 'st-2' },
           type: 'FS',
         },
         wrote,

@@ -1,0 +1,22 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-remote-scripts/src/lib/source-inner-program.test.ts:
+43 |   if(mode==='eof')await child.stdin.end();
+44 |   if(mode==='malformed'){await child.stdin.write('WRONG\n');await child.stdin.end();}
+45 |   const receipts=await Promise.allSettled([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);
+46 |   const [exit,stdout,stderr]=receipts;
+47 |   if(exit.status!=='fulfilled'||stdout.status!=='fulfilled'||stderr.status!=='fulfilled')throw new AggregateError(receipts,'negative original custody unproved');
+48 |   expect(child.signalCode).toBeNull();expect(exit.value).toBe(1);expect(stderr.value).toContain('source collector session refused');expect(stdout.value).not.toContain('REAPED\0');
+                                ^
+error: expect(received).toBeNull()
+
+Received: "SIGKILL"
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-program.test.ts:48:28)
+(fail) actual source launcher refuses withheld ACK and settles original custody [20005.19ms]
+
+ 0 pass
+ 3 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [20.03s]

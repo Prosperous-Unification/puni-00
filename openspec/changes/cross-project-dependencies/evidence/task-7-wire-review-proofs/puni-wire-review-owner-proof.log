@@ -1,0 +1,27 @@
+bun test v1.4.2 (744846f84)
+
+../puni-wire-review-probes/owner-proof.test.ts:
+frozen 64  wbs-solver: boundaries[0] does not name a local and its fixed foreign endpoint
+
+(pass) frozen production entrypoint rejects boundary owner mismatch [390.45ms]
+mutant 0 {"scope":{"inputHash":"input","kind":"connected-stage","projectId":"B","questionHash":"question"},"status":"boundary-infeasible","wireVersion":5}
+
+ 6 |  ['frozen','/tmp/puni-cross-solver-wire/libs/wbs/adapters/solver-py/src'],
+ 7 |  ['mutant','/tmp/puni-wire-review-python-sandbox/libs/wbs/adapters/solver-py/src'],
+ 8 | ]) test(name+' production entrypoint rejects boundary owner mismatch',()=>{
+ 9 |  const child=Bun.spawnSync([python,'-m','wbs_solver'],{env:{...process.env,PYTHONPATH:src},stdin:Buffer.from(JSON.stringify(request))});
+10 |  console.log(name,child.exitCode,child.stdout.toString(),child.stderr.toString());
+11 |  expect(child.exitCode).toBe(64);
+                             ^
+error: expect(received).toBe(expected)
+
+Expected: 64
+Received: 0
+
+      at <anonymous> (/tmp/puni-wire-review-probes/owner-proof.test.ts:11:25)
+(fail) mutant production entrypoint rejects boundary owner mismatch [427.47ms]
+
+ 1 pass
+ 1 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [825.00ms]

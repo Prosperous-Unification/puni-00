@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/backend-exclusion.test.ts:
+55 |     refusal = cause;
+56 |     refused = true;
+57 |     expect(cause).toBeInstanceOf(Error);
+58 |     if (message !== undefined) expect(String(cause)).toContain(message);
+59 |   }
+60 |   expect(refused).toBe(true);
+                       ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at refuses (/tmp/puni-solver-restoration-fix/tools/tool-remote-scripts/src/lib/backend-exclusion.test.ts:60:19)
+      at async <anonymous> (/tmp/puni-solver-restoration-fix/tools/tool-remote-scripts/src/lib/backend-exclusion.test.ts:1303:29)
+(fail) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: policy-after-start [6307.27ms]
+
+ 0 pass
+ 92 filtered out
+ 1 fail
+ 70 expect() calls
+Ran 1 test across 1 file. [6.45s]

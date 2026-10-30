@@ -17,6 +17,7 @@ import {
   SUPPORTED_INPUT_BODY_VERSIONS,
   SUPPORTED_SCHEDULE_BODY_VERSIONS,
   verifyBody,
+  verifySavedPlanBodies,
   verifyScheduleLink,
 } from './saved-plan-integrity';
 import type {
@@ -220,6 +221,23 @@ async function readOfStored(
 
   const schedule = await scheduleOfStored(digest, stored);
   if (schedule.outcome === 'corrupt') return schedule;
+
+  // Proof: omitting this call returned 200 for nine correctly hashed malformed-history
+  // cases in saved-plan.controller.db.test.ts (omit-resource-validation.log.txt).
+  const shapeRefusal = verifySavedPlanBodies(
+    header.id,
+    header.projectId,
+    { version: header.inputSchemaVersion, bytes: inputBytes },
+    schedule.schedule.present
+      ? {
+          present: true,
+          version: schedule.schedule.body.schemaVersion,
+          bytes: schedule.schedule.body.bytes,
+          algorithmId: schedule.schedule.algorithmId,
+        }
+      : { present: false, absentReason: schedule.schedule.absentReason },
+  );
+  if (shapeRefusal !== null) return { outcome: 'corrupt', refusal: shapeRefusal };
 
   return {
     outcome: 'read',

@@ -1,0 +1,50 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/connected-step-node.test.ts:
+142 |       edge.predecessor.leafId,
+143 |       edge.predecessor.at,
+144 |       edge.successor.leafId,
+145 |       edge.successor.at,
+146 |     ]),
+147 |   ).toEqual([
+          ^
+error: expect(received).toEqual(expected)
+
+  [
+    [
+      "A1",
+      1,
+      "B1",
+      0,
+    ],
+    [
+      "A1",
+      1,
+      "B2",
+      0,
+    ],
+-   [
+-     "A2",
+-     1,
+-     "B1",
+-     0,
+-   ],
+-   [
+-     "A2",
+-     1,
+-     "B2",
+-     0,
+-   ],
+  ]
+
+- Expected  - 12
++ Received  + 0
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/domain/domain/src/connected-step-node.test.ts:147:5)
+(fail) expands every remote parent pair using each endpoint tree and own step identity [0.59ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [24.00ms]

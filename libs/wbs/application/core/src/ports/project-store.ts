@@ -1,4 +1,4 @@
-import type { AllowancePercent } from '@wbs/domain';
+import type { AllowancePercent, OrganizationRole } from '@wbs/domain';
 
 import type {
   NewProject,
@@ -21,13 +21,20 @@ export type {
 } from './project-values';
 export { PROJECT_CROSS_REFERENCE_KINDS } from './project-values';
 
+/** Creation refusals roll back the entire project, ownership, steps and allocator advance. */
+export type ProjectCreationRefusal = 'abbreviation_taken' | 'abbreviation_exhausted';
+
 export interface ProjectStore {
   /**
    * Writes the project and its starting steps together. A project that existed
    * for even one request without steps would accept an estimate that had no
    * step to belong to, so the two are one transaction rather than two calls.
    */
-  create(project: NewProject, steps: readonly Step[], stamp: WriteStamp): Promise<Project>;
+  create(
+    project: NewProject,
+    steps: readonly Step[],
+    stamp: WriteStamp,
+  ): Promise<Project | ProjectCreationRefusal>;
   /**
    * {@link create} plus the project's organization mapping, in one transaction.
    * Only an activated deployment's scoped creation calls it. A `solutionRef`
@@ -41,7 +48,7 @@ export interface ProjectStore {
     steps: readonly Step[],
     stamp: WriteStamp,
     organizationId: string,
-  ): Promise<Project>;
+  ): Promise<Project | ProjectCreationRefusal>;
   findById(id: string): Promise<Project | null>;
   /** {@link findById} confined to one organization; null alike for a foreign or absent id. */
   findInOrganization(id: string, organizationId: string): Promise<Project | null>;
@@ -110,11 +117,16 @@ export interface ProjectStore {
     organizationId: string,
   ): Promise<boolean>;
   /** Returns null when the project is gone. */
-  update(id: string, patch: ProjectPatch, stamp: WriteStamp): Promise<Project | null>;
+  update(
+    id: string,
+    patch: ProjectPatch,
+    stamp: WriteStamp,
+  ): Promise<Project | null | 'abbreviation_taken'>;
   /**
    * {@link update} by `editor.actorId` in `organizationId`, authorized in the
    * write's own transaction against the project and the actor's membership as
-   * they stand then (see `classifyProjectEdit`): an ordinary edit is written;
+   * they stand then, capped by `editor.role` (see `classifyProjectEdit`): an
+   * ordinary edit is written;
    * a super-admin's recovery of someone else's restricted project is written
    * with one `organization_audit` record ({@link RecoveryAuditDetail}) in the
    * same transaction; anything else is `forbidden` and writes nothing. Null,
@@ -131,8 +143,8 @@ export interface ProjectStore {
     patch: ProjectPatch,
     stamp: WriteStamp,
     organizationId: string,
-    editor: { readonly actorId: string; readonly auditId: string },
-  ): Promise<Project | null | 'forbidden' | 'solution_taken'>;
+    editor: { readonly actorId: string; readonly auditId: string; readonly role: OrganizationRole },
+  ): Promise<Project | null | 'forbidden' | 'solution_taken' | 'abbreviation_taken'>;
   /**
    * Authorizes `actorId`'s write to `projectId` in `organizationId` from the
    * membership and project as they stand inside the caller's open unit of
@@ -142,12 +154,14 @@ export interface ProjectStore {
    * super-admin's write to someone else's restricted project, after appending
    * one `organization_audit` record with `detail` to that transaction. A
    * rollback of the unit of work takes the record back with the write.
+   * `role` is the authenticated ceiling; fresh membership may only lower it.
    */
   admitEditInOrganization(
     projectId: string,
     organizationId: string,
     actorId: string,
     detail: RecoveryAuditDetail,
+    role: OrganizationRole,
   ): Promise<'ordinary' | 'recovery' | 'forbidden' | null>;
   stepsOf(projectId: string): Promise<Step[]>;
   /**

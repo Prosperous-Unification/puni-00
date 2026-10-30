@@ -209,6 +209,7 @@ interface WorkflowStep {
 interface CiJob {
   if?: string;
   needs?: string | string[];
+  'timeout-minutes'?: number;
   steps?: WorkflowStep[];
 }
 
@@ -218,7 +219,17 @@ interface CiJob {
  * present and `no-unnecessary-condition` then rejects the `?.` a missing job needs.
  */
 interface CiWorkflow {
-  jobs?: { gate_mode?: CiJob; gate_docs?: CiJob; gate_workspace?: CiJob; gate_twilight?: CiJob };
+  jobs?: {
+    gate_mode?: CiJob;
+    gate_docs?: CiJob;
+    gate_workspace?: CiJob;
+    gate_backend?: CiJob;
+    gate_remote?: CiJob;
+    gate_remote_model?: CiJob;
+    gate_frontend?: CiJob;
+    gate_checks?: CiJob;
+    gate_twilight?: CiJob;
+  };
 }
 
 type GateJob = keyof NonNullable<CiWorkflow['jobs']>;
@@ -353,12 +364,9 @@ describe('the CI gate scope', () => {
     expect(commands).not.toContain('grep');
   });
 
-  it('runs validated PR projects and keeps the unchanged full workspace command', async () => {
-    const step = gateStep(
-      await readCiWorkflow(),
-      'gate_workspace',
-      'Gate — test, lint, typecheck, build',
-    );
+  it('runs validated PR and full workspace partitions within the Nx phase budget', async () => {
+    const workflow = await readCiWorkflow();
+    const step = gateStep(workflow, 'gate_workspace', 'Gate — test, lint, typecheck, build');
     expect(step.env).toEqual({
       GATE_MODE: '${{ needs.gate_mode.outputs.mode }}',
       GATE_BASE: '${{ needs.gate_mode.outputs.base }}',
@@ -368,12 +376,9 @@ describe('the CI gate scope', () => {
     });
     const commands = oneLine(commandsOf(step.run ?? ''));
     expect(commands).toContain(
-      'if [ "$GATE_MODE" = affected ]; then bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts workspace "$GATE_BASE" "$GITHUB_SHA" .',
+      'timeout --signal=TERM --kill-after=30s 75m \\ bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts workspace "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \\ >> nx-gate.log 2>&1',
     );
-    expect(commands).toContain(
-      'else bunx nx run-many -t test lint typecheck build --parallel=2 --output-style=stream \\ --exclude=twilight-burokrat,twilight-dash > nx-gate.log 2>&1',
-    );
-    expect(occurrences(commands, '--exclude=twilight-burokrat,twilight-dash')).toBe(1);
+    expect(workflow.jobs?.gate_workspace?.['timeout-minutes']).toBe(90);
   });
 
   it('runs the h2puni gate with the same Twilight split as CI', async () => {
@@ -492,7 +497,17 @@ describe('the CI gate scope', () => {
 
   it('checks every gate job out at full depth, which --base cannot resolve without', async () => {
     const workflow = await readCiWorkflow();
-    for (const job of ['gate_mode', 'gate_docs', 'gate_workspace', 'gate_twilight'] as const) {
+    for (const job of [
+      'gate_mode',
+      'gate_docs',
+      'gate_workspace',
+      'gate_backend',
+      'gate_remote',
+      'gate_remote_model',
+      'gate_frontend',
+      'gate_checks',
+      'gate_twilight',
+    ] as const) {
       const checkout = workflow.jobs?.[job]?.steps?.find(({ uses }) =>
         uses?.startsWith('actions/checkout@'),
       );
@@ -500,6 +515,20 @@ describe('the CI gate scope', () => {
       expect(checkout, `the ${job} job has no checkout step`).toBeDefined();
       expect(checkout?.with?.['fetch-depth']).toBe(0);
     }
+  });
+
+  it('retains frontend node dependency and both timezone suites in the whole-project test target', async () => {
+    // Proof: removing test:unit dependency failed at assertion one; replacing the
+    // Pacific/Auckland command with UTC failed at assertion four (one focused failure each).
+    const project = JSON.parse(await read('apps/wbs/fe-01/project.json')) as {
+      targets?: Record<string, { dependsOn?: string[]; options?: { command?: string } }>;
+    };
+    const testTarget = project.targets?.['test'];
+    expect(testTarget?.dependsOn).toContain('test:unit');
+    expect(project.targets?.['test:unit']?.options?.command).toContain('vitest.node.config.ts');
+    expect(testTarget?.options?.command).toContain('TZ=UTC bunx vitest run');
+    expect(testTarget?.options?.command).toContain('TZ=Pacific/Auckland bunx vitest run');
+    expect(testTarget?.options?.command).toContain('vitest.zoned.config.ts');
   });
 });
 
@@ -588,4 +617,32 @@ describe('the owner-maintained libraries', () => {
     // passed; with this assertion weakened to a type check the same edit passed the whole suite.
     expect(version).toBe(OWNER_PACKAGES['caught-object-report-json']);
   });
+});
+
+it('provisions usable bubblewrap before workspace native runtime tests', async () => {
+  const workflow = await readCiWorkflow();
+  const steps = workflow.jobs?.gate_workspace?.steps;
+  if (steps === undefined) throw new Error('workspace gate steps missing');
+  const provision = gateStep(
+    workflow,
+    'gate_workspace',
+    'Provision bubblewrap for native runtime tests',
+  );
+  expect(provision.if).toBeUndefined();
+  // Proof: removing BusyBox from workspace provisioning failed this check before native migration subprocess tests.
+  expect(provision.run).toContain(
+    'apt-get install --yes --no-install-recommends bubblewrap busybox',
+  );
+  expect(provision.run).toContain('/bin/busybox sh -c');
+  expect(provision.run).toContain('sudo apparmor_parser --replace /etc/apparmor.d/bwrap');
+  expect(provision.run).toContain(
+    'bwrap --die-with-parent --new-session --unshare-all --uid 1000 --gid 1000',
+  );
+  expect(steps.indexOf(provision)).toBeLessThan(
+    steps.findIndex(
+      (step) =>
+        step.run?.includes('ci-run-runtime.ts workspace') === true ||
+        step.run?.includes('run-many -t test') === true,
+    ),
+  );
 });

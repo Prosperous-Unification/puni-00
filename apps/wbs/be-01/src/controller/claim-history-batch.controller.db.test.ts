@@ -34,6 +34,13 @@ beforeEach(async () => {
   const results = (rows.body as { results: { id: string }[] }).results;
   expect(results).toHaveLength(2);
   [leaf, other] = results.map(({ id }) => id);
+  // This history fixture begins with running nodes, so claiming every step
+  // remains valid under workflow prerequisites.
+  h.sqlite
+    .query(
+      "INSERT INTO step_progress(work_item_id,step_id,state,stated_at) SELECT w.id,s.id,'in_progress',1 FROM work_item w JOIN step s ON s.project_id=w.project_id WHERE w.project_id=?",
+    )
+    .run(projectId);
   h.sqlite.run('INSERT INTO person (id, name, kind, account_id) VALUES (?, ?, ?, ?)', [
     'claire',
     'root-claire',

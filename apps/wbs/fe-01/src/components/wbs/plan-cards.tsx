@@ -19,6 +19,7 @@ import type {
   TypedDependencyType,
   TypedDependencyView,
 } from '@/lib/wbs-api';
+import type { DependencyLookup } from '@/modules/dependency-lookup/contract';
 
 import { ActionsMenu, type MenuAction } from './actions-menu';
 import { type AttemptActions, AttemptsSection } from './attempts-section';
@@ -34,7 +35,17 @@ import {
   pickerOptionId,
 } from './creatable-picker';
 import { DEADLINE_BEFORE_START, deadlineBeforeProjectStart } from './deadline-impossible';
-import { type PickerEntry, REFUSAL_SUFFIX } from './dep-picker';
+import { type PickerEntry } from './dep-picker';
+import { CapturedDependencyDetails, DependencyNavigation } from './dependency-navigation';
+import { DependencyOptions } from './dependency-options';
+import {
+  type DependencySelection,
+  type EndpointOption,
+  serializeDependencyEndpoint,
+  serializePersistedDependencyEndpoint,
+} from './dependency-selection';
+import type { DependencyDraftCapture } from './dependency-token-bindings';
+import { currentDependencyToken, replaceDependencyToken } from './depends-input';
 import { minuteCharge, showDuration } from './duration-words';
 import { type CellElement, cellKey } from './editable-grid';
 import { POINTS, showTrio } from './estimate-draft';
@@ -44,13 +55,19 @@ import { type CommitOutcome, didLand, flushCell } from './live-editing';
 import { composeNameCell } from './name-notes';
 import { priorityBandStyleOf } from './priority-band-style';
 import { ReferenceSetSheet } from './reference-set-field';
+import { RemoteDependencyEditor } from './remote-dependency-editor';
 import { demandSummary } from './resource-demand-words';
 import { type PrintedDay, shortIsoDate } from './short-date';
 import { statusActions } from './status-cell';
 import { StepBlockageSection } from './step-blockage';
 import { nodeReadingOf, type StepNodeReadings, StepReadingInline } from './step-reading';
 import { cardIndentFor } from './table-frame';
+import {
+  buildLocalDependencyEditor,
+  buildPersistedSuccessorEditor,
+} from './typed-dependency-editor';
 import { dependencyWords, endpointText, TypedDependencyEditor } from './typed-dependency-editor';
+import { useDependencySearch } from './use-dependency-search';
 import type { TreeRow } from './wbs-rows';
 import { rowWords } from './work-item-words';
 
@@ -118,6 +135,8 @@ export interface DependencyEntry {
 }
 
 export interface PlanCardsProps {
+  projectId: string;
+  dependencyLookup: DependencyLookup;
   /** The rows on screen, in the order and the expansion the table model gives them. */
   rows: readonly CardRow[];
   steps: readonly StepView[];
@@ -236,7 +255,11 @@ export interface PlanCardsProps {
    * would not take it — and the option is locked out until one of those
    * arrives, so a double tap cannot send the same write twice.
    */
-  addDependency: (row: TreeRow, predecessorId: string) => Promise<CommitOutcome>;
+  addDependency: (
+    row: TreeRow,
+    selection: DependencySelection,
+    draftCapture: DependencyDraftCapture,
+  ) => Promise<CommitOutcome>;
   /**
    * Takes one of those waits off again — the table's chip `✕`, in a sheet.
    *
@@ -2084,6 +2107,8 @@ function CardPriorityField({
  * once a value exists cannot set the first one.
  */
 function CardDependsField({
+  projectId,
+  dependencyLookup,
   row,
   waits,
   typedWaits,
@@ -2098,6 +2123,8 @@ function CardDependsField({
   dropDependency,
   foldsWhenEmpty,
 }: {
+  projectId: string;
+  dependencyLookup: DependencyLookup;
   row: TreeRow;
   /** Whether an empty field draws nothing, behind the card's `Add…` — see {@link fieldTriggerClass}. */
   foldsWhenEmpty: boolean;
@@ -2119,19 +2146,36 @@ function CardDependsField({
   ) => Promise<CommitOutcome>;
   removeTypedDependency?: (dependencyId: string) => Promise<CommitOutcome>;
   options: (row: TreeRow, typed: string) => readonly PickerEntry[];
-  addDependency: (row: TreeRow, predecessorId: string) => Promise<CommitOutcome>;
+  addDependency: (
+    row: TreeRow,
+    selection: DependencySelection,
+    draftCapture: DependencyDraftCapture,
+  ) => Promise<CommitOutcome>;
   dropDependency: (row: TreeRow, predecessorId: string) => Promise<CommitOutcome>;
 }) {
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<{ predecessorId: string; dependencyId?: string } | null>(
-    null,
-  );
+  const [editing, setEditing] = useState<{
+    predecessorId: string;
+    dependencyId?: string;
+    selection?: DependencySelection;
+    draftCapture?: DependencyDraftCapture;
+  } | null>(null);
+  // Proof: removing the gesture key kept a reopened identical target busy with its previous pending write (mounted round2 tests).
+  const editorSession = useRef({ editing, generation: 0 });
+  if (editorSession.current.editing !== editing)
+    editorSession.current = { editing, generation: editorSession.current.generation + 1 };
   const triggerRef = useTriggerAboveSheet(open);
   // What has been typed into the search box, cleared on every open and after
   // every pick. Not a draft of a value — nothing here is held back and sent
   // later — so unlike the date and priority sheets there is no `key` re-seed to
   // make: the list of waits is read from the row on every render, which is what
   // lets a landed edge appear under the reader's own thumb.
+  const dependencyInput = useRef<HTMLInputElement>(null);
+  const closeEditor = () => {
+    setEditing(null);
+    // Proof: omitting focus left the sheet dialog active after phone remote Back (mounted round1 test).
+    dependencyInput.current?.focus();
+  };
   const [typed, setTyped] = useState('');
   // The edges whose writes are still travelling, by predecessor id and by
   // direction. An option whose add has not settled may not be tapped again —
@@ -2143,7 +2187,16 @@ function CardDependsField({
   // re-read graph has for it.
   const [adding, setAdding] = useState<ReadonlySet<string>>(() => new Set());
   const [removing, setRemoving] = useState<ReadonlySet<string>>(() => new Set());
-  const offered = open ? options(row, typed) : [];
+  const search = useDependencySearch({
+    lookup: dependencyLookup,
+    projectId,
+    ownerId: row.id,
+    active: open,
+    typed,
+    setTyped,
+    localEntries: open ? options(row, currentDependencyToken(typed).token) : [],
+  });
+  const offered = search.options;
 
   const withId = (set: ReadonlySet<string>, id: string): ReadonlySet<string> =>
     new Set(set).add(id);
@@ -2158,12 +2211,21 @@ function CardDependsField({
    * search box cleared only when the write actually landed — a refused tap
    * keeps the box as it was, so the refused row is still there to read.
    */
-  const onAdd = (entry: PickerEntry): void => {
-    if (entry.refusal !== undefined || adding.has(entry.id)) return;
-    setAdding((current) => withId(current, entry.id));
-    void addDependency(row, entry.id).then((outcome) => {
-      setAdding((current) => withoutId(current, entry.id));
-      if (didLand(outcome)) setTyped('');
+  const onAdd = (option: EndpointOption): void => {
+    if (option.refusal !== undefined || adding.has(option.key)) return;
+    const reference =
+      option.selection.kind === 'remote' ? option.selection.candidate.reference : null;
+    const draft = reference === null ? typed : replaceDependencyToken(typed, reference);
+    setTyped(draft);
+    setAdding((current) => withId(current, option.key));
+    const draftCapture = search.captureDraft(draft);
+    void addDependency(row, option.selection, draftCapture).then((outcome) => {
+      setAdding((current) => withoutId(current, option.key));
+      if (didLand(outcome))
+        setTyped((current) => {
+          const consumed = draftCapture.consumeToken(current);
+          return consumed.kind === 'stale' ? current : consumed.typed;
+        });
     });
   };
 
@@ -2206,6 +2268,13 @@ function CardDependsField({
               {[
                 ...waits.map((each) => each.number),
                 ...typedWaits.map((dependency) => {
+                  if (dependency.predecessor.captured !== undefined)
+                    return endpointText(
+                      dependency.predecessor,
+                      dependencyRows,
+                      steps,
+                      dependencyStepNodes,
+                    );
                   const predecessor = dependencyRows.find(
                     (candidate) => candidate.id === dependency.predecessor.workItemId,
                   );
@@ -2237,7 +2306,14 @@ function CardDependsField({
         The twMerge conflict with the surface's own `overflow-y-auto` resolves
         this way because `className` is `cn`'s last argument.
       */}
-      <ModalContent side="bottom" className="min-h-[60vh] overflow-y-hidden">
+      <ModalContent
+        side="bottom"
+        className="min-h-[60vh] overflow-y-hidden"
+        onEscapeKeyDown={(event) => {
+          // Proof: without this guard phone Customize Escape dismissed the sheet and focused its trigger (mounted round1 focus test).
+          if (editing !== null) event.preventDefault();
+        }}
+      >
         <ModalHeader>
           <ModalTitle>Depends on for {rowWords(row.number, row.name)}</ModalTitle>
           <ModalDescription>
@@ -2265,7 +2341,10 @@ function CardDependsField({
                 // error instead of presenting an invented code. Watched 2026-09-28.
                 if (
                   dependencyStepNodes === undefined &&
-                  (dependency.predecessor.scope === 'node' || dependency.successor.scope === 'node')
+                  ((dependency.predecessor.scope === 'node' &&
+                    dependency.predecessor.captured === undefined) ||
+                    (dependency.successor.scope === 'node' &&
+                      dependency.successor.captured === undefined))
                 )
                   throw new Error('Missing dependency step nodes for card');
                 const words = dependencyWords(
@@ -2295,6 +2374,7 @@ function CardDependsField({
                     <span>
                       {words.chip} · {words.label}
                     </span>
+                    <DependencyNavigation dependency={dependency} />
                     <button
                       type="button"
                       className={`${TAP} border-control-edge rounded-md border px-3`}
@@ -2361,6 +2441,36 @@ function CardDependsField({
           )}
           {editing !== null &&
             (() => {
+              if (editing.selection?.kind === 'remote') {
+                return (
+                  <RemoteDependencyEditor
+                    key={editorSession.current.generation}
+                    selection={editing.selection}
+                    lookup={dependencyLookup}
+                    ownerProjectId={projectId}
+                    ownerId={row.id}
+                    successor={buildLocalDependencyEditor(projectId, row, dependencyRows, steps)}
+                    onCancel={closeEditor}
+                    onSave={(source, target, type) => {
+                      if (addTypedDependency === undefined)
+                        throw new Error('Missing typed dependency writer');
+                      return addTypedDependency(
+                        serializeDependencyEndpoint(source, projectId),
+                        serializeDependencyEndpoint(target, projectId),
+                        type,
+                      ).then((outcome) => {
+                        if (didLand(outcome))
+                          setTyped((current) => {
+                            if (editing.draftCapture === undefined) return current;
+                            const consumed = editing.draftCapture.consumeToken(current);
+                            return consumed.kind === 'stale' ? current : consumed.typed;
+                          });
+                        return outcome;
+                      });
+                    }}
+                  />
+                );
+              }
               const dependency = typedWaits.find(
                 (candidate) => candidate.id === editing.dependencyId,
               );
@@ -2382,6 +2492,50 @@ function CardDependsField({
                       Back to dependency picker
                     </Button>
                   </p>
+                );
+              // Proof: disabling this branch made the phone mounted case report a removed predecessor instead of captured details (2026-10-22).
+              if (
+                dependency?.predecessor.captured !== undefined ||
+                dependency?.successor.captured !== undefined
+              )
+                return (
+                  <CapturedDependencyDetails
+                    // Proof: retaining only the relationship id let the previous pending save close the repeated same-target gesture (mounted phone, 2026-10-23).
+                    key={`${dependency.id}:${String(editorSession.current.generation)}`}
+                    dependency={dependency}
+                    lookup={dependencyLookup}
+                    ownerProjectId={projectId}
+                    successor={
+                      dependency.successor.projectId === projectId
+                        ? buildPersistedSuccessorEditor(
+                            projectId,
+                            dependency.successor,
+                            dependencyRows,
+                            steps,
+                          )
+                        : undefined
+                    }
+                    onClose={closeEditor}
+                    onSave={
+                      // Proof: forcing this owner check true exposed Save for a foreign successor with a colliding work-item id (mounted phone, 2026-10-23).
+                      dependency.successor.projectId === projectId &&
+                      saveTypedDependency !== undefined
+                        ? (type, target, source) =>
+                            saveTypedDependency(
+                              dependency.id,
+                              // Proof: forcing the persisted source branch failed all three selected predecessor scope payloads on this surface (2026-10-23).
+                              source === undefined
+                                ? serializePersistedDependencyEndpoint(
+                                    dependency.predecessor,
+                                    projectId,
+                                  )
+                                : serializeDependencyEndpoint(source, projectId),
+                              serializeDependencyEndpoint(target, projectId),
+                              type,
+                            )
+                        : undefined
+                    }
+                  />
                 );
               const predecessor = dependencyRows.find(
                 (candidate) => candidate.id === editing.predecessorId,
@@ -2412,20 +2566,28 @@ function CardDependsField({
                 throw new Error('Missing typed dependency card commands');
               return (
                 <TypedDependencyEditor
+                  projectId={projectId}
                   // Proof: removing this key made `switches phone edit scope state when a second relationship is selected` keep Whole instead of Dev; watched 2026-09-28.
-                  key={editing.dependencyId ?? `add:${editing.predecessorId}`}
+                  key={`${editing.dependencyId ?? `add:${editing.predecessorId}`}:${String(editorSession.current.generation)}`}
                   predecessor={predecessor}
                   successor={row}
                   rows={dependencyRows}
                   steps={steps}
                   dependency={dependency}
-                  onCancel={() => {
-                    setEditing(null);
-                  }}
+                  onCancel={closeEditor}
                   onSave={(source, target, type) =>
-                    dependency === undefined
+                    (dependency === undefined
                       ? addTypedDependency(source, target, type)
                       : saveTypedDependency(dependency.id, source, target, type)
+                    ).then((outcome) => {
+                      if (didLand(outcome) && editing.draftCapture !== undefined)
+                        setTyped((current) => {
+                          if (editing.draftCapture === undefined) return current;
+                          const consumed = editing.draftCapture.consumeToken(current);
+                          return consumed.kind === 'stale' ? current : consumed.typed;
+                        });
+                      return outcome;
+                    })
                   }
                   onRemove={
                     dependency === undefined
@@ -2455,6 +2617,7 @@ function CardDependsField({
               placeholder="search by number or name"
               data-cell={cellKey(row.id, 'depends')}
               data-card-depends-input
+              ref={dependencyInput}
               className={`${TAP} border-control-edge bg-background box-border w-full rounded-md border p-2 text-base`}
               value={typed}
               onChange={(event) => {
@@ -2462,74 +2625,27 @@ function CardDependsField({
               }}
             />
           </label>
-          {offered.length === 0 ? (
+          {offered.length === 0 && search.state === 'local' ? (
             <p data-card-depends-empty className="text-muted-foreground m-0 shrink-0 text-sm">
               {typed.trim() === ''
                 ? 'There is nothing else in this plan to wait for.'
                 : `No other row matches “${typed}”.`}
             </p>
           ) : (
-            <ul
-              aria-label={`Rows ${row.number} could wait for`}
-              // The sheet's one scroll region — the comment on `ModalContent`
-              // above. `min-h-0` is what lets a flex child shrink below its
-              // content height; without it the list still outgrows the surface
-              // and the surface's hidden overflow clips the last rows with no
-              // scroll to reach them.
-              //
-              // `list-none p-0 m-0` on the list and a flex line per row: the
-              // sheet is a portal outside every reset that would have taken
-              // the user agent's disc and indent off, and two block buttons in
-              // a bare `<li>` stacked the › above its own row (F-050 of the
-              // 2026-10-13 phone review). The row is what a thumb aims at, so
-              // it takes the width; the › that customizes it sits after it.
-              //
-              // Proof: with the `<ul>` and `<li>` classes back as they were,
-              // `lays the Depends sheet's rows inline, without bullets (F-050)`
-              // in `e2e/mobile.spec.ts` failed on `a depends row wears a bullet
-              // … Received: "disc"`.
-              className="m-0 flex min-h-0 flex-1 list-none flex-col gap-1 overflow-y-auto p-0"
-            >
-              {offered.map((entry) => (
-                <li key={entry.id} className="flex min-w-0 items-center gap-2">
-                  <button
-                    type="button"
-                    data-card-depends-option={entry.number}
-                    {...(entry.refusal === undefined ? {} : { 'data-refusal': entry.refusal })}
-                    // Shown and refused rather than dropped, which is
-                    // `pickerEntries`' own decision relayed: a row that says,
-                    // before it is tapped, that it contains this one teaches
-                    // more than a row that is simply missing from the list.
-                    // Locked while its own write is in flight, so a double tap
-                    // cannot send the same edge twice — `onAdd` is the guard
-                    // and the `disabled` is the thing a finger hits.
-                    disabled={entry.refusal !== undefined || adding.has(entry.id)}
-                    className={`${TAP} border-control-edge flex min-w-0 flex-1 items-center gap-2 rounded-md border px-3 text-left disabled:opacity-50`}
-                    onClick={() => {
-                      onAdd(entry);
-                    }}
-                  >
-                    <span className="font-semibold">{entry.number}</span>
-                    <span className="min-w-0 truncate">{entry.name}</span>
-                    {entry.refusal !== undefined && (
-                      <span className="text-muted-foreground ml-auto shrink-0 text-sm">
-                        — {REFUSAL_SUFFIX[entry.refusal]}
-                      </span>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    className={`${TAP} border-control-edge min-w-11 shrink-0 rounded-md border px-3`}
-                    aria-label={`Customize ${entry.number} - ${entry.name}`}
-                    onClick={() => {
-                      setEditing({ predecessorId: entry.id });
-                    }}
-                  >
-                    ›
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <DependencyOptions
+              phone
+              search={search}
+              label={`Rows ${row.number} could wait for`}
+              onChoose={onAdd}
+              onCustomize={(option) => {
+                setEditing({
+                  predecessorId: option.selection.endpoint.workItemId,
+                  selection: option.selection,
+                  draftCapture: search.captureDraft(),
+                });
+              }}
+              isPending={(key) => adding.has(key)}
+            />
           )}
         </div>
       </ModalContent>
@@ -2742,6 +2858,8 @@ function CardTrioField({
  * had, not a fourth.
  */
 export function PlanCards({
+  projectId,
+  dependencyLookup,
   rows,
   steps,
   priorityBands,
@@ -3302,6 +3420,8 @@ export function PlanCards({
                 other three do not.
               */}
               <CardDependsField
+                projectId={projectId}
+                dependencyLookup={dependencyLookup}
                 row={row}
                 waits={waits}
                 typedWaits={typedWaits}

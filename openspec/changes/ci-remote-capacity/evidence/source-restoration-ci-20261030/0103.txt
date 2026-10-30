@@ -1,0 +1,12 @@
+
+tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts:
+(pass) isolated remote matrix is exactly four independent whole-file runners [0.07ms]
+(pass) both source matrix members provision the exact CI Node runtime [0.08ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 2 pass
+ 4 filtered out
+ 0 fail
+ 4 expect() calls
+Ran 2 tests across 1 file. [38.00ms]

@@ -1,0 +1,14 @@
+[
+  {
+    "name": "receipt-created-at",
+    "exit": 1,
+    "status": "CAUGHT",
+    "pattern": "missing-created-at"
+  },
+  {
+    "name": "receipt-direction",
+    "exit": 1,
+    "status": "CAUGHT",
+    "pattern": "missing-receipt-direction"
+  }
+]

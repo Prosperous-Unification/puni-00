@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:
+142 |     if (!Number.isSafeInteger(minimum)) throw new Error('incoming minimum is not a safe integer');
+143 |     if (BigInt(minimum) > latestFloor) latestFloor = BigInt(minimum);
+144 |   }
+145 |   for (const offset of Object.values(baselineOffsets)) {
+146 |     if (!Number.isSafeInteger(offset) || offset < 0)
+147 |       throw new Error('movement reference is not a nonnegative safe integer');
+                                                                                  ^
+error: movement reference is not a nonnegative safe integer
+      at preflightSolverRequest (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/solver-preflight.ts:147:77)
+      at buildConnectedSolverRequest (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/build-connected-solver-request.ts:199:21)
+      at buildConnectedSolverRequestPair (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/build-connected-solver-request.ts:306:10)
+      at <anonymous> (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:241:10)
+(fail) finite unrepresentable incoming, reference and outgoing evidence yields typed horizon failure [3.18ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [202.00ms]

@@ -1,0 +1,11 @@
+
+tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts:
+(pass) all leaves refuse malformed restoration target before actual children: absent [217.06ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=3
+
+ 1 pass
+ 37 filtered out
+ 0 fail
+ 15 expect() calls
+Ran 1 test across 1 file. [261.00ms]

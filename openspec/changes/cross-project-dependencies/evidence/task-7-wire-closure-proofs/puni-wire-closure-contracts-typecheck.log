@@ -1,0 +1,15 @@
+
+> nx run wbs-contracts:typecheck
+
+> bunx tsc --build --force libs/wbs/domain/contracts/tsconfig.json
+
+
+
+
+ NX   Successfully ran target typecheck for project wbs-contracts
+
+
+  Run duration:      4.2s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     4.1s (1 task)
+  Recoverable time:  <1ms

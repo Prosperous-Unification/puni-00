@@ -1,0 +1,83 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-events.controller.db.test.ts:
+264 |     expect((await move(unrelated, null)).status).toBe(200);
+265 |     expect([upstream, downstream, tail, foreign].map(({ id }) => events(id))).toEqual(unchanged);
+266 |     expect((await move(foreign.id, null)).status).toBe(404);
+267 |     expect([upstream, downstream, tail, foreign].map(({ id }) => events(id))).toEqual(unchanged);
+268 |     expect((await move(downstream.id, null)).status).toBe(200);
+269 |     expect(events(upstream.id)).toEqual([
+                                      ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "causeProjectId": "6b0bc301-e384-4855-b6ff-b6c2c8eb027b",
+-     "projectId": "88e384f7-86a9-4192-a773-f9760b71f736",
+-     "type": "elsewhere_changed",
+-   },
+- ]
++ []
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-rank-fanout/apps/wbs/be-01/src/controller/cross-project-events.controller.db.test.ts:269:33)
+(fail) rank reversal invalidates the dependency component with shared mode %s [622.24ms]
+264 |     expect((await move(unrelated, null)).status).toBe(200);
+265 |     expect([upstream, downstream, tail, foreign].map(({ id }) => events(id))).toEqual(unchanged);
+266 |     expect((await move(foreign.id, null)).status).toBe(404);
+267 |     expect([upstream, downstream, tail, foreign].map(({ id }) => events(id))).toEqual(unchanged);
+268 |     expect((await move(downstream.id, null)).status).toBe(200);
+269 |     expect(events(upstream.id)).toEqual([
+                                      ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "causeProjectId": "7271e425-d17e-40e2-9dc9-ac58bbebaedb",
+-     "projectId": "8f733b34-c9f4-4098-947d-677a3cfdd1fb",
+-     "type": "elsewhere_changed",
+-   },
+- ]
++ []
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-rank-fanout/apps/wbs/be-01/src/controller/cross-project-events.controller.db.test.ts:269:33)
+(fail) rank reversal invalidates the dependency component with shared mode %s [553.25ms]
+
+libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:
+727 |       connection.db.run(sql.raw('UPDATE project_rank SET position = position * 7'));
+728 |       const respaced = await capture();
+729 |       expect(respaced.dependency).toEqual(unrelated.dependency);
+730 |       await ranks.moveAfter('org-a', 'a2', null, { at: 2, by: 'ada' });
+731 |       const reordered = await capture();
+732 |       expect(reordered.dependency?.projects.get('a1')).not.toBe(
+                                                                 ^
+error: expect(received).not.toBe(expected)
+
+Expected: not "[\"fc858934ff3e1597b7a59f86b7d278b99f5ab2ad8e2d12e71f23c44ed9d63ee6\",\"a1\",\"PA1\",null,false,\"fast\",\"pri\",[],[],[],[],[],[[\"a1\",\"a1\",10,null]],[]]"
+
+      at <anonymous> (/tmp/puni-rank-fanout/libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:732:60)
+(fail) captures staged component-relative rank changes in isolated mode and ignores unrelated order and respacing [207.53ms]
+727 |       connection.db.run(sql.raw('UPDATE project_rank SET position = position * 7'));
+728 |       const respaced = await capture();
+729 |       expect(respaced.dependency).toEqual(unrelated.dependency);
+730 |       await ranks.moveAfter('org-a', 'a2', null, { at: 2, by: 'ada' });
+731 |       const reordered = await capture();
+732 |       expect(reordered.dependency?.projects.get('a1')).not.toBe(
+                                                                 ^
+error: expect(received).not.toBe(expected)
+
+Expected: not "[\"fc858934ff3e1597b7a59f86b7d278b99f5ab2ad8e2d12e71f23c44ed9d63ee6\",\"a1\",\"PA1\",null,false,\"fast\",\"pri\",[],[],[],[],[],[[\"a1\",\"a1\",10,null]],[]]"
+
+      at <anonymous> (/tmp/puni-rank-fanout/libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts:732:60)
+(fail) captures staged component-relative rank changes in shared mode and ignores unrelated order and respacing [159.39ms]
+
+ 0 pass
+ 21 filtered out
+ 4 fail
+ 30 expect() calls
+Ran 4 tests across 2 files. [7.26s]

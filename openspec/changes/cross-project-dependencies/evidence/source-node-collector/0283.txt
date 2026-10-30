@@ -1,0 +1,158 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-remote-scripts/src/lib/source-inner-command.test.ts:
+
+test/source-inner-command-child.test.ts:
+source Node command boundary: genuine original context and original running tree reached
+source Node command actual dispatch captured
+27 |     await observeSelectedSourceRoles(context);
+28 |     expect(dispatches.length).toBe(2);
+29 |     const first = dispatches[0];
+30 |     expect(first).toBeDefined();
+31 |     console.error('source Node command actual dispatch captured');
+32 |     expect(first.args).toEqual(['--host','unix:///var/run/docker.sock','exec','-i','--user','1000:1000','--workdir','/',fixture.source.Id,'/usr/bin/env','-i','PATH=/usr/local/bin:/usr/bin:/bin','LC_ALL=C','/usr/local/bin/node','-e',SOURCE_NODE_LAUNCHER,'--',first.nonce,'observe','1','2','3','4','5','6']);
+                            ^
+error: expect(received).toEqual(expected)
+
+@@ -2,24 +2,103 @@
+    "--host",
+    "unix:///var/run/docker.sock",
+    "exec",
+    "-i",
+    "--user",
+-   "1000:1000",
++   "0:0",
+    "--workdir",
+    "/",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+-   "/usr/bin/env",
++   "/bin/busybox",
++   "env",
+    "-i",
+-   "PATH=/usr/local/bin:/usr/bin:/bin",
++   "PATH=/bin:/usr/bin",
+    "LC_ALL=C",
+-   "/usr/local/bin/node",
+-   "-e",
+-   "",
++   "/bin/busybox",
++   "sh",
++   "-c",
++   
++ "nonce=$1
++ program=$2
++ shift 2
++ identity() {
++  local line
++  IFS= read -r line < /proc/$$/stat || return 70
++  set -- ${line##*) }
++  [ "$3" = "$$" ] && [ "$4" = "$$" ] || return 71
++  shift 19
++  printf 'SESSION\000%s\000%s\000%s\000%s\000%s\000' "$nonce" "$$" "$$" "$$" "$1"
++ }
++ identity || exit "$?"
++ # Proof: Debian-shell mutation failed the actual backend image rehearsal.
++ /bin/busybox sh -c "$program" -- "$nonce" "$@" </dev/null &
++ scanner=$!
++ # Proof: removing this deadline left the real initialized audit group live.
++ if IFS= read -r -t 15 answer; then
++  [ "$answer" = "ACK $nonce" ] || kill -KILL -"$$"
++  wait "$scanner" || exit 77
++  printf 'REAPED\000%s\000' "$nonce"
++ else
++  # Proof: omitting group kill left scanner/grandchild live in both real shipped images.
++  kill -KILL -"$$"
++ fi
++ "
++ ,
+    "--",
+    "86aea558-fd73-4313-8d19-e9c70881e87a",
+-   "observe",
++   
++ "nonce=$1
++ shift
++ emit() { printf '%s\000' "$@"; }
++ pass() {
++  emit PASS "$1"
++  shift
++  for pid in "$@"; do
++   case "$pid" in ''|*[!0-9]*) exit 70;; esac
++   [ "$pid" -gt 0 ] && [ "$pid" -le 4194304 ] || exit 70
++   root="/proc/$pid"
++   before=$(/bin/busybox cat "$root/stat") || exit 71
++   status=$(/bin/busybox cat "$root/status") || exit 72
++   argv=$(/bin/busybox base64 "$root/cmdline" | /bin/busybox tr -d '\n') || exit 73
++   cwd=$(/bin/busybox readlink "$root/cwd") || exit 74
++   executable=$(/bin/busybox readlink "$root/exe") || exit 75
++   metadata=$(/bin/busybox stat -L -c '%d:%i:%s|%y|%z' "$root/exe") || exit 76
++   size=${metadata#*:*:}; size=${size%%|*}
++   [ "$size" -gt 0 ] && [ "$size" -le 134217728 ] || exit 77
++   digest=$(/bin/busybox sha256sum "$root/exe") || exit 78
++   digest=${digest%% *}
++   pidns=$(/bin/busybox readlink "$root/ns/pid") || exit 79
++   netns=$(/bin/busybox readlink "$root/ns/net") || exit 79
++   mntns=$(/bin/busybox readlink "$root/ns/mnt") || exit 79
++   after=$(/bin/busybox cat "$root/stat") || exit 71
++   final=$(/bin/busybox stat -L -c '%d:%i:%s|%y|%z' "$root/exe") || exit 76
++   beforefields=${before##*) }; set -- $beforefields; shift 19; beforestart=$1
++   afterfields=${after##*) }; set -- $afterfields; shift 19; afterstart=$1
++   [ "$beforestart" = "$afterstart" ] && [ "$metadata" = "$final" ] || exit 80
++   emit PROC "$pid" "$before" "$status" "$argv" "$cwd" "$executable" "$metadata" "$digest" "$pidns" "$netns" "$mntns"
++   count=0
++   for descriptor in "$root"/fd/*; do
++    [ -L "$descriptor" ] || exit 81
++    link=$(/bin/busybox readlink "$descriptor") || exit 82
++    emit FD "$pid" "${descriptor##*/}" "$link"
++    count=$((count + 1)); [ "$count" -le 4096 ] || exit 83
++   done
++  done
++  tcp4=$(/bin/busybox cat /proc/1/net/tcp) || exit 84
++  tcp6=$(/bin/busybox cat /proc/1/net/tcp6) || exit 84
++  addresses=$(/bin/busybox ip -o addr show) || exit 85
++   selfpid=$(/bin/busybox readlink /proc/self/ns/pid) || exit 86
++   selfnet=$(/bin/busybox readlink /proc/self/ns/net) || exit 86
++   selfmnt=$(/bin/busybox readlink /proc/self/ns/mnt) || exit 86
++   emit SELF "$selfpid" "$selfnet" "$selfmnt"
++  emit TCP 4 "$tcp4" TCP 6 "$tcp6" ADDR "$addresses"
++ }
++ pass before "$@" || exit "$?"
++ pass after "$@" || exit "$?"
++ emit DONE "$nonce" 2
++ "
++ ,
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+
+- Expected  - 7
++ Received  + 86
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-command.model.ts:32:24)
+      at async acquireLock (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source original context dispatches the complete fixed Node command [70595.40ms]
+
+ 0 pass
+ 1 fail
+ 129 expect() calls
+Ran 1 test across 1 file. [70.65s]
+11 |   const [exit,stdout,stderr] = receipts;
+12 |   if(exit.status!=='fulfilled'||stdout.status!=='fulfilled'||stderr.status!=='fulfilled') throw new AggregateError(receipts,'source command original child custody unproved');
+13 |   settled=true;
+14 |   process.stderr.write(stderr.value);
+15 |   expect(child.signalCode).toBeNull();
+16 |   expect(exit.value).toBe(0);
+                          ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-command.test.ts:16:22)
+(fail) source Node command runs its genuine isolated context consumer [70666.11ms]
+
+ 0 pass
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [70.69s]

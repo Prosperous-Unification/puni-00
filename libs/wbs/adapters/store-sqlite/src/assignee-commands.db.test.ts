@@ -6,14 +6,18 @@ import type { Scope, Source, TransactionalStores } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
+import { expectCreated } from '@wbs/core/testing/expect-created';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const F = 'account-f';
@@ -43,7 +47,10 @@ const STORES: readonly {
       const dbPath = join(folder, 'plan.db');
       runMigrations(dbPath, MIGRATIONS);
       return {
-        source: openSqliteSource({ dbPath }),
+        source: openSqliteSource({
+          dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+          dbPath,
+        }),
         isMemory: false,
         dispose: () => {
           rmSync(folder, { recursive: true, force: true });
@@ -66,6 +73,7 @@ async function seeded(store: (typeof STORES)[number]) {
     clock: testClock,
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
+    dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
   for (const id of [F, G]) {
@@ -74,7 +82,7 @@ async function seeded(store: (typeof STORES)[number]) {
       { at: 1, by: id },
     );
   }
-  const created = await graph.projects.create('Assignees', F);
+  const created = expectCreated(await graph.projects.create('Assignees', F));
   const projectId = created.project.id;
   if (isMemory) {
     // The memory source keeps a project's steps apart from the step table its progress reads.
@@ -97,11 +105,16 @@ async function seeded(store: (typeof STORES)[number]) {
   if (!bound.ok) throw new Error(`binding claire was refused: ${bound.reason}`);
   await source.stores.directory.addTeam({ id: 'platform', name: 'Platform' }, { at: 1, by: F });
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: options.broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
-      servicesOver(scope.stores, { ...options, broadcast: announcements }),
+      servicesOver(scope.stores, {
+        ...options,
+        broadcast: announcements,
+        dependencyContext: createLocalDependencyContext(scope.stores),
+      }),
   });
   const tree = await runner.run(projectId, F, [
     { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
@@ -169,6 +182,8 @@ async function seeded(store: (typeof STORES)[number]) {
     { kind: 'setAssignee', workItemId: idOf('A'), stepId: review, personId: 'ada' },
     { kind: 'setAssignee', workItemId: idOf('D1'), stepId: review, personId: 'bob' },
     { kind: 'setAssignee', workItemId: idOf('C'), stepId: dev, personId: 'bob' },
+    // Review is already underway, so its claim continues work rather than starting out of order.
+    { kind: 'setProgress', workItemId: idOf('B'), stepId: review, state: 'in_progress' },
     {
       kind: 'claimWorkItem',
       workItemId: idOf('B'),
@@ -460,9 +475,15 @@ for (const store of STORES) {
   });
 
   describe(`claimWorkItem with assign on the ${store.name} store`, () => {
-    it('assigns the claimant to the steps it claims, and undo removes both', async () => {
-      const { runner, projectId, idOf, assignments, close } = await seeded(store);
+    it('assigns the claimant to the steps it claims, and undo restores prior assignments', async () => {
+      const { runner, projectId, review, idOf, assignments, close } = await seeded(store);
       try {
+        // Both steps can be held together when Review is already underway.
+        expect(
+          await runner.run(projectId, F, [
+            { kind: 'setProgress', workItemId: idOf('C'), stepId: review, state: 'in_progress' },
+          ]),
+        ).toMatchObject({ ok: true });
         expect(
           await runner.run(projectId, F, [
             { kind: 'claimWorkItem', workItemId: idOf('C'), personId: 'claire', assign: true },

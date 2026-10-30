@@ -13,6 +13,7 @@ import { planCommandsBody } from './plan-command-shapes';
 import { engineUnavailableRefusal } from './scheduler-shapes';
 import { requestSchema, responseSchema } from './schema-shape';
 import { stepBlockageInactiveRefusal } from './step-blockage-refusal';
+import { treeResponseSchema } from './tree-response-schema';
 import { WORK_ITEM_OUTLINE } from './work-item-fields';
 import { mixedBases, numberedWorkItem, workItemSlice, workItemTree } from './work-item-response';
 
@@ -261,6 +262,10 @@ const batchRefusals = [
           'frozen',
           // `arrangeBySchedule` while the project's selected optimized variant is
           // still solving, and on a deployment with no optimizer installed.
+          'arrangement_positions_unavailable',
+          'dependency_calendar_missing',
+          'external_dependencies_inactive',
+          'project_deleting',
           'schedule_not_ready',
           'engine_unavailable',
           'rolled_up',
@@ -335,6 +340,19 @@ const batchRefusals = [
     schema: responseSchema(
       type.or(
         type({ ...context, error: "'not_startable'", status: 'string' }),
+        type({
+          ...context,
+          // Proof: removing this arm failed the shared refusal validator and generated MCP prerequisite document tests (task-6-3-admission-proofs/refusal-shape.log).
+          error: "'prerequisites_unmet'",
+          stepIds: 'string[]',
+          blockers: type({
+            workItemId: 'string',
+            stepId: 'string | null',
+            type: "'FS' | 'SS' | 'FF'",
+            provenance: "'workflow' | 'legacy' | 'authored'",
+            relationshipId: 'string | null',
+          }).array(),
+        }),
         type({ ...context, error: "'step_done'", stepIds: 'string[]' }),
         type({ ...context, error: "'already_claimed'", holders: claimHolder.array() }),
         type({ ...context, error: "'destination_claimed'", holders: claimHolder.array() }),
@@ -435,6 +453,11 @@ const batchRefusals = [
         }),
         type({ ...context, error: "'node_on_parent'", dependencyIds: 'string[]' }),
         type({ ...context, error: "'descendant_step_on_leaf'", dependencyIds: 'string[]' }),
+        type({
+          ...context,
+          error: "'referenced_by_external_dependency'",
+          dependencyIds: 'string[]',
+        }),
       ),
     ),
   },
@@ -492,21 +515,23 @@ export const getWorkItems = defineEndpointShape({
     {
       kind: 'json',
       status: 200,
-      schema: responseSchema(
-        workItemTree.and({
-          undoable: 'boolean',
-          redoable: 'boolean',
-          'addressRevision?': 'string',
-          'stepNodes?': type({
-            id: 'string',
-            workItemId: 'string',
-            stepId: 'string',
-            reference: 'string | null',
-          }).array(),
-          // The zone a step card reads attempt instants in
-          // (`step-node-attempts` D7); optional for an older be-01 mid-swap.
-          'timezone?': 'string',
-        }),
+      schema: treeResponseSchema(
+        responseSchema(
+          workItemTree.and({
+            undoable: 'boolean',
+            redoable: 'boolean',
+            'addressRevision?': 'string',
+            'stepNodes?': type({
+              id: 'string',
+              workItemId: 'string',
+              stepId: 'string',
+              reference: 'string | null',
+            }).array(),
+            // The zone a step card reads attempt instants in
+            // (`step-node-attempts` D7); optional for an older be-01 mid-swap.
+            'timezone?': 'string',
+          }),
+        ),
       ),
     },
   ],
@@ -707,7 +732,10 @@ const undoRefusals = [
   {
     status: 409,
     schema: responseSchema(
-      type({ error: "'nothing_to_undo' | 'stale_undo'", detail: 'string | null' }),
+      type({
+        error: "'nothing_to_undo' | 'stale_undo' | 'external_dependencies_inactive'",
+        detail: 'string | null',
+      }),
     ),
   },
 ] as const;

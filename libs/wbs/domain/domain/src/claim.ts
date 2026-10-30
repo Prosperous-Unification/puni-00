@@ -1,3 +1,4 @@
+import type { ExecutionAdmission, ExecutionPrerequisite } from './execution-eligibility';
 import {
   acquiredUnitsOf,
   askedUnitsOf,
@@ -69,6 +70,8 @@ export interface ClaimTarget {
 }
 
 export interface ClaimRequest {
+  /** Required permission for each requested new leaf step; subtree claims do not inspect descendants. */
+  readonly admission: ReadonlyMap<string, ExecutionAdmission>;
   readonly target: ClaimTarget;
   readonly caller: ClaimCaller;
   readonly claimant: Claimant;
@@ -121,6 +124,11 @@ export type ClaimRefusal =
   | { readonly reason: 'item_done' }
   | { readonly reason: 'no_steps' }
   | { readonly reason: 'not_startable'; readonly status: WorkItemStatus }
+  | {
+      readonly reason: 'prerequisites_unmet';
+      readonly stepIds: readonly string[];
+      readonly blockers: readonly ExecutionPrerequisite[];
+    }
   | { readonly reason: 'step_done'; readonly stepIds: readonly string[] }
   | { readonly reason: 'already_claimed'; readonly holders: readonly ClaimHolder[] }
   | BelowDeclaredDemand
@@ -278,7 +286,11 @@ export function isHeldUnderRun(held: Pick<Claim, 'runId'>, run: ClaimRun): boole
  * Steps the same person and run already hold are skipped, and a claim whose
  * every step is so held answers `alreadyHeld` (and so assigns nothing, even
  * with `assign`). All or none otherwise: one step
- * held by anybody else refuses the whole claim.
+ * held by anybody else refuses the whole claim. After that selection, every newly
+ * acquired unstarted step must pass its required admission evidence; one blocked
+ * step refuses the entire request, including the all-unfinished-steps form.
+ * Actual started evidence preserves continuing work. Subtree claims do not
+ * inspect descendant execution prerequisites.
  *
  * `inside_subtree_claim` precedes `overlaps_subtree_claim`, so an ancestor's
  * foreign subtree claim answers the former on a non-leaf as well; the latter
@@ -381,6 +393,25 @@ export function decideClaim(request: ClaimRequest): ClaimDecision {
   }
   const free = wanted.filter((stepId) => holding(stepId) === undefined);
   if (free.length === 0) return { kind: 'alreadyHeld' };
+  if (target.isLeaf) {
+    const blocked: { stepId: string; blockers: readonly ExecutionPrerequisite[] }[] = [];
+    for (const stepId of free) {
+      if (stepId === null) throw new Error('leaf claim has no step');
+      const admission = request.admission.get(stepId);
+      if (admission === undefined) throw new Error(`missing claim execution admission ${stepId}`);
+      // Proof: bypassing this predicate made mounted `remote unfinished FS` escape its 409 refusal (task-6-3-admission-proofs/claim-filter.log).
+      // The resource-occupancy all-unfinished/earlier-staged-command negative
+      // also acquired Dev and QA on both stores (0 pass, 2 fail; 2026-10-22).
+      if (!admission.started && !admission.canStart)
+        blocked.push({ stepId, blockers: admission.blockers });
+    }
+    if (blocked.length > 0)
+      return refused({
+        reason: 'prerequisites_unmet',
+        stepIds: blocked.map((step) => step.stepId),
+        blockers: blocked.flatMap((step) => [...step.blockers]),
+      });
+  }
 
   let occupancy: readonly ResourceUnits[] = [];
   let acquired: readonly ResourceUnits[] = [];

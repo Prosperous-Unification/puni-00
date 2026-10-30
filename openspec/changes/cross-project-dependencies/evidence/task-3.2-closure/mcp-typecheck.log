@@ -1,0 +1,15 @@
+
+> nx run wbs-mcp-01:typecheck
+
+> bunx tsc --build --force apps/wbs/mcp-01/tsconfig.json
+
+
+
+
+ NX   Successfully ran target typecheck for project wbs-mcp-01
+
+
+  Run duration:      5.3s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     5.3s (1 task)
+  Recoverable time:  <1ms

@@ -1,6 +1,7 @@
 import type { CommittedFanoutDelivery } from '@wbs/core/ports/committed-fanout';
 import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
 import { recordCommittedFanout } from '@wbs/core/service/committed-fanout';
+import { readConnectedOptimizationPair } from '@wbs/store-sqlite/connected-optimization-cache';
 import type { SqliteSource } from '@wbs/store-sqlite/source';
 
 import type { OptimizationRepository } from '../module/optimization/contract';
@@ -26,10 +27,21 @@ export function createOptimizationObservationOwner(
       // refusal into an incidental property error before any generation write.
       if (capture?.resolveLifecycleOwner === undefined)
         throw new Error('optimization observation lacks borrowed ownership and capture');
+      if (key.questions !== undefined) {
+        const owner = await capture.resolveLifecycleOwner(key.projectId);
+        if (owner.kind === 'absent')
+          return { commit: true, value: { decision: { kind: 'idle' as const }, envelopes: [] } };
+      }
       // Proof: skipping captures unconditionally lost B's A-cause event in
       // `records selected-display eviction when an installed stale observation
       // advances generation`; removing this branch made the cache-hit test count 2.
-      if (reusesEnabledGeneration(db, key.projectId, key.contractVersion, key.inputHash))
+      if (
+        (key.questions !== undefined &&
+          Object.values(
+            readConnectedOptimizationPair(db, { questions: key.questions }).variants,
+          ).every((outcome) => outcome.kind !== 'miss')) ||
+        reusesEnabledGeneration(db, key.projectId, key.contractVersion, key.inputHash)
+      )
         return {
           commit: true,
           value: { decision: observeForAdmissionIn(db, key, now), envelopes: [] },
@@ -39,6 +51,7 @@ export function createOptimizationObservationOwner(
       const before = organizationId === null ? null : await capture.capture(organizationId);
       // Proof: moving observation before this source turn read uncommitted
       // generation 2 from a held writer; its rollback left generation 1.
+      // Proof: COMMIT/BEGIN after this eviction retained the replacement generation and lost selected cache when C's recipient insert failed.
       const decision = observeForAdmissionIn(db, key, now);
       if (before === null || organizationId === null)
         return { commit: true, value: { decision, envelopes: [] } };
@@ -48,7 +61,13 @@ export function createOptimizationObservationOwner(
       // missed staged H1 deletion and lost B while generation 2 committed.
       const after = await capture.capture(organizationId);
       const cause = key.projectId;
-      const addressed = before.localFacts.has(cause) || after.localFacts.has(cause);
+      // Proof: omitting dependency membership lost C←B after scoped connected generation eviction in connected-publication.test.ts.
+      // Connected members live in the dependency capture, outside ordinary shared/local facts.
+      const addressed =
+        before.localFacts.has(cause) ||
+        after.localFacts.has(cause) ||
+        before.dependency?.projects.has(cause) === true ||
+        after.dependency?.projects.has(cause) === true;
       // Proof: dropping the addressed cause left B silent when H2 evicted
       // selected H1; bypassing recording independently lost the same row.
       const envelopes = await recordCommittedFanout(

@@ -1,0 +1,32 @@
+from pathlib import Path
+import subprocess,json
+root=Path('/tmp/puni-incident-handdown');evidence=Path('/tmp/puni-incident-handdown-evidence')
+cap='libs/wbs/application/core/src/service/incident-node-transition.ts'; command='libs/wbs/application/core/src/service/compensating.ts'; memory='libs/wbs/adapters/store-memory/src/incident-dependency-fixture.ts';runner='libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts'
+lifecycle='./apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts'; history='./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts'; memtest='./libs/wbs/adapters/store-memory/src/memory-source.test.ts'
+def replace(old,new):
+ def mutate(source):
+  if old not in source:raise ValueError('missing mutation anchor')
+  return source.replace(old,new,1)
+ return mutate
+def earlyGraph(source):
+ start=source.index('      if (receipts.length > 0) {\n        const conflict = await graph.findEndpointConflict(projectId);')
+ end=source.index('      return { ok: true, value, evidence };',start)
+ block=source[start:end];without=source[:start]+source[end:]
+ insert=without.index('      for (const receipt of receipts) {\n        await stores.typedDependencies.incidents.restore')
+ return without[:insert]+block+without[insert:]
+mutations=[
+('source-work-item-owner-unmasked',memory,replace('if (row?.projectId !== endpoint.projectId)','if (false)'),memtest,'incident source restoration refuses wrong-work-item-owner'),
+('retained-owner-refresh',cap,replace('await retention.refresh([request.fromWorkItemId, request.toWorkItemId]);','void retention;'),history,'mixed incident handdown'),
+('final-graph-before-reattach',cap,earlyGraph,lifecycle,'rolls back every table and held announcement on final-graph-delivery'),
+('enum-project-ownership',cap,replace("          throw new Error('incident enumeration returned inconsistent project ownership');",'          void relationship;'),lifecycle,'incident enumeration refuses'),
+('subject-compound-recursion',command,replace("    case 'transition_incident_nodes':\n      return subjectOf(command.structural);","    case 'transition_incident_nodes':\n      return {workItemId:null,stepId:null};"),history,'actual first child'),
+('writer-current-credential',runner,replace("// Proof: using request access instead admitted both queued revoked undo and redo (HTTP current-authority matrix).\n          const resolved = await scope.resolveAccess(caller);","// Fault: replay request credential authority.\n          const resolved = caller.kind === 'human' ? {ok:true,access:caller.expectedAccess} : await scope.resolveAccess(caller);"),history,'rechecks credential'),
+]
+summary=[]
+for name,path,mutate,test,pattern in mutations:
+ target=root/path;original=target.read_text()
+ try:
+  target.write_text(mutate(original));run=subprocess.run(['bun','test',test,'-t',pattern],cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=35)
+  (evidence/(name+'.log')).write_text(run.stdout);status='CAUGHT' if run.returncode else 'SURVIVED';summary.append({'name':name,'status':status,'exit':run.returncode,'test':test,'pattern':pattern});print(name,status,flush=True)
+ finally:target.write_text(original)
+(evidence/'mutation-summary-3.json').write_text(json.dumps(summary,indent=2)+'\n')

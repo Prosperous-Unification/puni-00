@@ -1,0 +1,86 @@
+The ordered command integration checkpoint is implemented and frozen for independent Astra review. The production external-authoring barrier remains closed. This report does not mark the entire cross-project feature or contracts task 3.2 complete.
+
+Worktree: `/tmp/puni-cross-command-integration`; branch: `feat/cross-project-command-integration`; implementation base: `3363bac036b9301e8e91bc2d36b5d1388f562d59`. Root owns Git commits, WBS/OpenSpec updates, integration and the final host gate. I made no Git metadata mutations. Root staged the two new service helpers so the actual tracked-file classification check could run; its later normal commit is separate from the recorded developer-run benchmark.
+
+The exact frozen source packet is **113 paths (112 TypeScript files plus the service classification JSON)**:
+
+- `/tmp/puni-command-integration-manifest.json`, SHA256 `083d01a555649b982b6f6ff2a24c57b357a20bbc9370dbb9baf6e024ea4f9af6`.
+- `/tmp/puni-command-integration-manifest.sha256` contains each relative path and exact SHA256.
+- All 113 source hashes were rechecked unchanged after the stable benchmark; root independently verified the same manifest and bytes before its normal commit.
+
+The three provisional frontend handoff files stayed frozen throughout final verification:
+
+| Path | SHA256 |
+| --- | --- |
+| `libs/wbs/domain/contracts/src/commands/definitions.ts` | `438ebadf345ce8e9a9177baa7f410be0d2fd6ea08ffa7874974c664bc9ed603f` |
+| `libs/wbs/domain/contracts/src/http/work-item-shapes.ts` | `d1e5fbe31cc477c817df9ac4c58501fe7ae10d391cecc4a6e2be0ad70245f84f` |
+| `libs/wbs/domain/contracts/src/http/refusal.ts` | `7853e77b8d0f7a8c7dc33a06aab3cf5046a08d5c6e5f7008705cf5bb1dd9108e` |
+
+The mounted dormant response for a sole external add is HTTP 409 with exactly `{"error":"external_dependencies_inactive","at":0,"kind":"addTypedDependency"}`. A preceding successful command in the same batch rolls back on that refusal. Shared response contracts now admit that body.
+
+The implementation follows `architecture/command-admission.md` and `/tmp/puni-command-local-context-decision.md`. Wire normalization retains optional project identity, rejects explicit-project aliases and malformed project qualifiers, and binding attaches the owner only when the qualifier was omitted. Services receive required scoped endpoints and never relabel an explicit project.
+
+The required dependency context is constructed from raw admitted stores before the owner WorkingPlan. It binds the actual owner, actor and observation lifetime; its connected facade and detached endpoint evidence are shared by WorkItemService, ProjectService and StepService. Process/legacy composition explicitly opens short local-only observations, inspects incoming and outgoing incidents, refuses persisted external incidents or proposed remote endpoints, and opens no additional UoW. Directory contexts have concrete rejecting project capabilities. There is no optional production resolver, mutable owner slot, additional connection or account-store widening.
+
+Endpoint evidence checks scoped project readability before row/tree/step/label reads, validates exact ownership, retains local unknown-step behavior and conceals missing external steps on either side. Update and removal revalidate the old endpoints. A restricted same-organization predecessor is readable without granting edit authority: the SQLite test first observes its real mounted edit refusal, then successfully commits the admitted semantic link as an ordinary member.
+
+The graph facade uses the real ConnectedDependencyGraphReader with complete proposed owner facts and fresh incident closure. Typed add/update/remove, direct legacy writes, structural writes, estimates, project reach, step addition/removal and compensating structural replay consume it. Owner refresh partitions the union of old/new endpoint IDs by their actual retained owner. Local replay cycle and relationship details are preserved. Replay explicitly closes its graph before writer settlement, independently of the enclosing observation expiry.
+
+Typed history records exact remote address/revision metadata across both directions, preserves earliest before-images across a collected batch, validates complete coverage, checks current endpoint authority before stale details, compares current remote revisions, and conditionally rebases neighboring external revisions only where their expected revision matched the applied entry's before-image. Ordinary nested foreign patches remain outside typed-endpoint authority. Ordered local restoration permits a created-and-linked alias to survive valid bodyless undo/redo without granting remote restoration authority.
+
+Most changed test files are explicit required-DI fixture migrations. Nine SQLite adapter fixture consumers were found by the actual SQLite type program and migrated as well. The undo controller fixture now uses its real SQLite UoW with fresh normal/repair scope factories: the counting fixture had no journal for stale-entry repair. The mounted parser spy now expects the full authenticated principal, preserving its exact priority-absence/null and assignee-default assertions. Root explicitly authorized the sole documentation exception, `docs/code-organization/kinds.json`: all 12 helper classifications and the current facade rationale were added without weakening the inventory check.
+
+Final verification results:
+
+| Command/check | Observed outcome | Evidence |
+| --- | --- | --- |
+| `bun /tmp/puni-command-test-group.ts core` | 530 pass, 0 fail, 2641 assertions across 32 affected core/contracts files | `/tmp/puni-command-integration-test-core.log` and matching `.json` |
+| `bun /tmp/puni-command-test-group.ts http` | 252 pass, 0 fail, 1694 assertions across 10 command/current-authority/directory/step/lifecycle/replay files | `/tmp/puni-command-integration-test-http.log` and matching `.json` |
+| `bun test ./apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts ./apps/wbs/be-01/src/http/elysia/work-item.test.ts` | 77 pass, 0 fail, 873 assertions | `/tmp/puni-command-integration-connected-final2.log` |
+| Final two narrowed SQLite claim fixtures | 11 pass, 0 fail, 44 assertions | `/tmp/puni-command-integration-sqlite-claim-final.log` |
+| `bun test ./tools/tool-devsync/src/service-kinds.test.ts` after root staged the new helper paths | 17 pass, 0 fail, 19 assertions | `/tmp/puni-command-integration-service-kinds-tracked.log` |
+| Actual backend and core `bunx tsc --build --force` programs | Both exit 0 | `/tmp/puni-command-integration-types.json` |
+| Dedicated core and backend module checks via `bun tools/tool-devsync/src/typecheck-modules.ts ...` | Both exit 0; actual module directories inspected/compiled | Same type manifest, per-program logs |
+| Actual SQLite and memory `bunx tsc --build --force` programs | Both exit 0 | Same type manifest, per-program logs |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx graph --file=/tmp/puni-command-integration-nx-graph.json`, then named ESLint over all 112 changed TS paths | Generated graph; ESLint exit 0 | `/tmp/puni-command-integration-nx-graph-final.log`, `/tmp/puni-command-integration-lint-final4.log` |
+| Prettier check over all changed TS plus classification JSON; `git diff --check HEAD` | Exit 0 | `/tmp/puni-command-integration-format-check.log` |
+| Isolated `bun test ./libs/wbs/adapters/store-sqlite/src/working-plan-performance.test.ts -t 'keeps cached medians within ten percent'` | 1 pass, 0 fail, 612 assertions; HEAD/status unchanged | `/tmp/puni-command-integration-performance-stable.log` |
+
+The stable performance run is accurately labeled **developer-run / process CPU milliseconds**, on the dirty base tree. It is not frozen-clean elapsed-time certification. Homogeneous cached/uncached median ratio was `0.514532`; mixed ratio was `0.668871`. No source or Git mutations occurred during it. Root's subsequent commit does not change that provenance.
+
+R5 evidence is indexed in `/tmp/puni-command-integration-proof-index.json`: **51 watched selected assertion failures**, all faults restored. Each entry names its changed path, selected test and actual failure log. Adjacent Proof comments identify the guard/consumer and observation. The source fault manifests are:
+
+- `/tmp/puni-command-integration-proofs.json`: 14 parser/binder/evidence/dormancy/connected-cycle/refresh/history/lifetime faults.
+- `/tmp/puni-command-integration-consumer-proofs.json`: 13 individual structural/legacy/project/step consumer bypasses.
+- `/tmp/puni-command-integration-final-proofs.json`: 13 old-endpoint/restoration/ordinary-reference/metadata/context/capability faults.
+- `/tmp/puni-command-integration-shape-proofs.json`: 2 modeled endpoint-shape bypasses.
+- `/tmp/puni-command-integration-replay-consumer-proofs.json`: 3 compensating structural consumers and omitted-final-remote-revision coverage.
+- `/tmp/puni-command-integration-typed-consumer-proofs.json`: individual typed add/update/remove consumers and scoped history equality.
+- `/tmp/puni-command-integration-absent-row-proof.json`: modeled absent-row concealment.
+
+There are 46 SQLite-bound fault observations and five actual core/memory consumer observations. In particular, the refresh-partition mutation uses the real memory UoW and a rejecting raw-listByIds tripwire; separate admitted SQLite positives retain nonempty owner rows through collect/recordCollected for external add/update/remove and representation transitions. Do not describe that specific partition mutation as a SQLite mutation.
+
+Two additional actual SQLite pre-settlement replay tests were watched red before adding explicit graph.close, then green; logs are `/tmp/puni-command-integration-replay-close-red.log` and `...-green.log`. Observation closure is separately tested on success/refusal/throw, through a later UoW, and while a successful or modeled-refusal read is suspended across close.
+
+The fault evidence distinguishes refusal compatibility from persistence safety. The malformed metadata object/list/revision/duplicate faults prove named diagnostics; later guards also refuse those corrupt entries. Old-endpoint denial and scoped-row projection faults are explicitly negative-only deliveries over genuine DB/UoW/authority/journal boundaries, not claims that forbidden durable ownership changes happened. Ordinary ownership reassignment across organizations is prohibited by the immutable ownership trigger and external composite FKs; the separate proposed org-b endpoint case uses a genuine foreign organization. Proposed-graph delivery faults complete the real connected query and reject its delivery, only for the selected proposed override where needed, so an independent final graph check cannot mask a removed consumer. No permissive graph or fake public tree is used to claim a positive.
+
+Earlier failures and discarded evidence are preserved accurately:
+
+- The first broad changed-fixture test invocation exceeded its own 180-second timeout without reporting an assertion failure; it is not a passing check. It was replaced with the bounded final groups above.
+- The earlier nine-file SQLite group observed 118 pass, one intentional memory stale-undo skip, and one failed performance run because repository HEAD/status changed while edits continued. That run is not performance evidence. The stable isolated rerun passed; the two subsequently narrowed claim fixtures also received their fresh runtime rerun.
+- The existing skipped case is `assignSubtree on the memory store, beyond the batch > refuses a stale undo once another account changed one of its leaves`; that fixture has no SQLite revision behavior. No additional tests were disabled.
+- Actual SQLite types initially exposed required context fixtures, then two excess claims fields in narrow read literals; both were corrected and final actual SQLite types pass. Initial changed lint exposed dynamic test imports marking libraries lazy, strict unknown-value issues and fixture/import formatting; all were corrected with the real checks intact.
+- The three local replay detail regressions and two counting-scope journal repair failures were observed in the full HTTP group, corrected, and that group is now entirely green.
+- Initial alias fixture syntax and bodyful requests to bodyless undo were setup errors, excluded from R5 behavior proof. The valid bodyless alias regression and its watched restoration-exception failure are the retained evidence.
+- An initial replay consumer mutation stayed green because another guard still refused the scenario; it was not counted. The retained per-consumer proofs use a proposed-only failed connected read and each fails its selected assertion independently.
+- Service classification initially showed the ten real baseline omissions; after repair, the only two extra paths were the new untracked helpers. Root's normal staging made canonical tracked inventory green. No inventory predicate or expected set was loosened.
+
+Remaining boundaries and unverified scope are intentional and explicit:
+
+- Production external authoring is dormant until actual connected live reads and durable fan-out activation. Active semantic positives use the real admitted SQLite writer, current resolver, retained stores, collector and journal; they are not mounted production authoring positives and make no claim of activated live/fan-out delivery.
+- Local first-child remapping remains. A remote-owned pinned node becoming a parent is modeled refusal; external endpoint deletion fails closed pending incident lifecycle admission. Atomic incident hand-down/project-deletion mappings remain tasks 4.4/8.3, as the binding ruling requires. No temporary refusal is claimed as final feature behavior and no foreign-owned relationship is silently rewritten/deleted.
+- This packet includes the shared wire/parser/binder and refusal-contract slice. It does not complete the whole contracts task 3.2. Generated-document/OpenAPI and mounted MCP equivalent scoped-endpoint/refusal negatives still need explicit end-to-end evidence in `apps/wbs/mcp-01/src/generated-document.test.ts`, `openapi-tools.test.ts`, and the actual server/HTTP tool path; existing dynamic shared schema tests alone are not that proof. No MCP mounted suite or full OpenAPI gate is claimed here.
+- No full host gate, build or frozen-clean elapsed-time certification was run. Root owns the clean committed integration and gate. No missing required local tool was encountered.
+- Solver wire/version/index and publication source files were not changed. Root must merge the concurrently reviewed solver/backend migration fixture updates while preserving these explicit DI changes; final integration types/gates must run on the combined main revision.
+
+Source is frozen. The exact manifest includes working-tree bytes, including later edits after root's initial two-file staging; root must stage those final bytes in its normal commit. No remaining implementation edits or broad checks are planned in this worktree before independent review.

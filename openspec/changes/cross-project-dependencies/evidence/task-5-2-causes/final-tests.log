@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-causes.controller.db.test.ts:
+(pass) estimate scheduling edit invalidates dependency readers with shared mode %s [517.90ms]
+(pass) estimate scheduling edit invalidates dependency readers with shared mode %s [462.97ms]
+(pass) calendar scheduling edit invalidates dependency readers with shared mode %s [380.63ms]
+(pass) calendar scheduling edit invalidates dependency readers with shared mode %s [407.75ms]
+(pass) capacity scheduling edit invalidates dependency readers with shared mode %s [516.69ms]
+(pass) capacity scheduling edit invalidates dependency readers with shared mode %s [422.07ms]
+(pass) engine scheduling edit invalidates dependency readers with shared mode %s [419.13ms]
+(pass) engine scheduling edit invalidates dependency readers with shared mode %s [549.55ms]
+(pass) objective scheduling edit invalidates dependency readers with shared mode %s [540.46ms]
+(pass) objective scheduling edit invalidates dependency readers with shared mode %s [559.89ms]
+
+apps/wbs/be-01/src/controller/cross-project-events.controller.db.test.ts:
+(pass) rename invalidates dependency label readers without retargeting or foreign delivery [624.31ms]
+(pass) dependency fanout delivery occurs after commit and writer release [380.76ms]
+(pass) a rejected dependency command batch publishes nothing and rolls earlier mutations back [413.58ms]
+(pass) mounted completion refreshes successor-only readiness with shared mode %s [521.50ms]
+(pass) mounted completion refreshes successor-only readiness with shared mode %s [622.24ms]
+(pass) mounted shared-person bridge carries a label change across an external edge [282.58ms]
+(pass) rank reversal invalidates the dependency component with shared mode %s [313.43ms]
+(pass) rank reversal invalidates the dependency component with shared mode %s [412.30ms]
+(pass) number-only edits refresh dependency labels without retargeting or foreign events [466.37ms]
+
+ 19 pass
+ 0 fail
+ 290 expect() calls
+Ran 19 tests across 2 files. [12.17s]

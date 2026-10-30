@@ -1,4 +1,5 @@
-import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
+import { DEPENDENCY_SEMANTICS, DEPENDENCY_SEMANTICS_HEADER } from '@wbs/contracts/dependency-claim';
+import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts/mcp-internal-auth';
 import { type } from '@wbs/validation';
 
 import { McpDeploymentFault } from './deployment-fault';
@@ -86,6 +87,7 @@ const ROUTE = '/internal/mcp/machine-grants';
  * Calls be-01's machine grant route with `MCP_BE_INTERNAL_SECRET` in
  * `x-mcp-internal-auth` (M14), never `x-internal-auth`. The key or assertion
  * goes in the JSON body alone; no error this client raises carries the body.
+ * The shared V1 dependency-semantics claim accompanies every issuance request.
  */
 export function machineGrantClient(
   config: {
@@ -121,6 +123,12 @@ export function machineGrantClient(
               // secret…` (machine-token.test.ts); watched 2026-10-27.
               [MCP_INTERNAL_SECRET_HEADER]: config.MCP_BE_INTERNAL_SECRET,
               'content-type': 'application/json',
+              // Proof: without this claim, `the real client claims V1 and changing only that
+              // header refuses issuance` (machine-token.boot.test.ts) stopped on real HTTP 409
+              // client_dependency_incompatible (18 pass, 1 fail). Restoring only the header
+              // passed the same 19 tests with 123 expectations, including wire-fault controls;
+              // watched 2026-10-28.
+              [DEPENDENCY_SEMANTICS_HEADER]: DEPENDENCY_SEMANTICS,
               ...(config.WBS_BASIC_AUTH === undefined
                 ? {}
                 : {

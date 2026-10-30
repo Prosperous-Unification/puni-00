@@ -1,0 +1,25 @@
+Injected prod-dev-network; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/source-exclusion-topology.test.ts:
+61 |       ) ||
+62 |       (Object.hasOwn(networks, layout.network) &&
+63 |         typeof config['Image'] === 'string' &&
+64 |         /\/wbs-(?:be|gw)-01(?:@|:)/.test(config['Image']))
+65 |     )
+66 |       throw new Error('source dev refuses transitional dev backend/gateway topology');
+                     ^
+error: source dev refuses transitional dev backend/gateway topology
+      at findSource (/tmp/puni-source-exclusion-acceptance-fix/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:66:17)
+      at observeMember (/tmp/puni-source-exclusion-acceptance-fix/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:108:34)
+      at withSourceDevExcluded (/tmp/puni-source-exclusion-acceptance-fix/tools/tool-remote-scripts/src/lib/source-dev-exclusion.ts:171:25)
+      at async <anonymous> (/tmp/puni-source-exclusion-acceptance-fix/tools/tool-remote-scripts/test/source-exclusion-topology.test.ts:115:13)
+      at async acquire (/tmp/puni-source-exclusion-acceptance-fix/tools/tool-remote-scripts/src/lib/edge-ownership.ts:105:20)
+      at async <anonymous> (/tmp/puni-source-exclusion-acceptance-fix/tools/tool-remote-scripts/src/lib/edge-ownership.ts:91:24)
+      at async acquireLock (/tmp/puni-source-exclusion-acceptance-fix/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) rendered physical topology reaches whole-source owner recognition and complete backend audit [18.89ms]
+
+ 0 pass
+ 1 filtered out
+ 1 fail
+Ran 1 test across 1 file. [62.00ms]

@@ -1,0 +1,33 @@
+Command: bun test /tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-host.test.ts -t independent pins --preload ./tools/test/scratch/preload.ts
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/solver-host.test.ts:
+28 |   for (const variant of [
+29 |     { ...pins, unitSha256: '' },
+30 |     { ...pins, extra: true },
+31 |     { ...pins, version: 2 },
+32 |   ])
+33 |     expect(() => decodeSolverPins(variant)).toThrow();
+                                                 ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  version: 1,
+  sourceSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  bunSha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  bundleSha256: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  configSha256: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  unitSha256: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+}
+
+      at <anonymous> (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-host.test.ts:33:45)
+(fail) independent pins are closed and require every tuple member before observation [0.43ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [26.00ms]
+
+Exit: 1

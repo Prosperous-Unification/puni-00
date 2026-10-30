@@ -4,8 +4,10 @@ import { describe, expect, it } from 'bun:test';
 import { servicesOver } from '../../compose';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { WorkItem } from '../../ports/work-item-store';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
+import { expectCreated } from '../../testing/expect-created';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 
@@ -21,6 +23,7 @@ const OPS = 'team-ops';
 async function seeded() {
   const source = openMemorySource();
   const graph = servicesOver(source.stores, {
+    dependencyContext: createLocalDependencyContext(source.stores),
     admission: CREATOR_ADMISSION,
     clock: testClock,
     broadcast: recordingBroadcaster(),
@@ -30,7 +33,7 @@ async function seeded() {
     { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: OWNER },
   );
-  const created = await graph.projects.create('Startable', OWNER);
+  const created = expectCreated(await graph.projects.create('Startable', OWNER));
   const projectId = created.project.id;
   // The memory source keeps a project's steps apart from the step table its progress reads.
   for (const step of created.steps) {
@@ -101,7 +104,7 @@ describe('the startable read', () => {
 
     const forPlatform = answered(await read(PLATFORM));
     expect(forPlatform.leaves.map(({ workItemId, stepIds }) => ({ workItemId, stepIds }))).toEqual([
-      { workItemId: 'free', stepIds: [dev, qa] },
+      { workItemId: 'free', stepIds: [dev] },
     ]);
     expect(forPlatform.leaves[0]?.teams).toEqual([
       { teamId: PLATFORM, name: 'Platform', fromId: 'free' },
@@ -139,7 +142,7 @@ describe('the startable read', () => {
   });
 
   it('lists every startable step with no team, unlabelled leaves included', async () => {
-    const { dev, qa, insert, claim, read } = await seeded();
+    const { dev, insert, claim, read } = await seeded();
     await insert({ id: 'free', position: 1 }, [PLATFORM]);
     await insert({ id: 'taken', position: 2 }, [PLATFORM]);
     await insert({ id: 'unlabelled', position: 3 });
@@ -148,10 +151,9 @@ describe('the startable read', () => {
 
     const every = answered(await read(null));
     expect(every.leaves.map(({ workItemId, stepIds }) => ({ workItemId, stepIds }))).toEqual([
-      { workItemId: 'free', stepIds: [dev, qa] },
-      { workItemId: 'taken', stepIds: [qa] },
-      { workItemId: 'unlabelled', stepIds: [dev, qa] },
-      { workItemId: 'ops', stepIds: [dev, qa] },
+      { workItemId: 'free', stepIds: [dev] },
+      { workItemId: 'unlabelled', stepIds: [dev] },
+      { workItemId: 'ops', stepIds: [dev] },
     ]);
     expect(every.leaves.find(({ workItemId }) => workItemId === 'unlabelled')?.teams).toEqual([]);
     expect(every.claimed.map(({ claimId }) => claimId)).toEqual(['c-dev']);
@@ -176,7 +178,7 @@ describe('the startable read', () => {
     expect(every.leaves.map(({ workItemId }) => workItemId)).toEqual([]);
   });
 
-  it('names the unfinished predecessors of a startable leaf, and drops finished ones', async () => {
+  it('keeps already-started work visible with unfinished predecessors and drops finished predecessors', async () => {
     const { source, dev, qa, insert, link, read } = await seeded();
     await insert({ id: 'running', position: 1 });
     await insert({ id: 'finished', position: 2 });
@@ -191,6 +193,10 @@ describe('the startable read', () => {
         { at: 1, by: OWNER },
       );
     }
+    await source.stores.progress.set(
+      { workItemId: 'next', stepId: dev, state: 'in_progress', statedAt: 1 },
+      { at: 1, by: OWNER },
+    );
     await link('running', 'next');
     await link('finished', 'next');
 
@@ -200,10 +206,7 @@ describe('the startable read', () => {
       unfinishedPredecessorIds: ['running'],
     });
     // A done step is not startable; the step nobody has spoken about is.
-    expect(every.leaves.find(({ workItemId }) => workItemId === 'running')?.stepIds).toEqual([
-      dev,
-      qa,
-    ]);
+    expect(every.leaves.find(({ workItemId }) => workItemId === 'running')?.stepIds).toEqual([dev]);
   });
 
   it('leaves a done step out and keeps the other', async () => {
@@ -223,7 +226,7 @@ describe('the startable read', () => {
   });
 
   it("names the subtree holder and still lists the subtree's free steps", async () => {
-    const { dev, qa, insert, claim, read } = await seeded();
+    const { source, dev, qa, insert, claim, read } = await seeded();
     await insert({ id: '080', position: 1, frozenNumber: '080' }, [PLATFORM]);
     await insert({ id: '080.25', parentId: '080', position: 1, frozenNumber: '080.25' });
     await insert({ id: '090', position: 2 });
@@ -232,6 +235,14 @@ describe('the startable read', () => {
       'written',
     );
 
+    await source.stores.progress.set(
+      { workItemId: '080.25', stepId: dev, state: 'done', statedAt: 1 },
+      { at: 1, by: OWNER },
+    );
+    await source.stores.progress.set(
+      { workItemId: '080.25', stepId: qa, state: 'in_progress', statedAt: 1 },
+      { at: 1, by: OWNER },
+    );
     const forPlatform = answered(await read(PLATFORM));
     expect(forPlatform.leaves).toEqual([
       {
@@ -382,8 +393,12 @@ async function withRam(capacity: number | null) {
   const demand = async (workItemId: string, units: number) => {
     expect(await source.stores.demands.set(workItemId, RAM, units, stamp)).toBe('written');
   };
-  const hold = (id: string, workItemId: string, stepId: string, units: number) =>
-    source.stores.claims.add(
+  const hold = async (id: string, workItemId: string, stepId: string, units: number) => {
+    await source.stores.progress.set(
+      { workItemId, stepId: seed.qa, state: 'in_progress', statedAt: 1 },
+      stamp,
+    );
+    return source.stores.claims.add(
       [
         {
           id,
@@ -399,6 +414,7 @@ async function withRam(capacity: number | null) {
       stamp,
       [{ claimId: id, resourceId: RAM, units }],
     );
+  };
   return { ...seed, demand, hold };
 }
 
@@ -430,7 +446,7 @@ describe('resource fit in the startable read', () => {
       work.leaves.map(({ workItemId, fits, stepIds }) => ({ workItemId, fits, stepIds })),
     ).toEqual([
       { workItemId: 'busy', fits: true, stepIds: [qa] },
-      { workItemId: 'a', fits: true, stepIds: [dev, qa] },
+      { workItemId: 'a', fits: true, stepIds: [dev] },
     ]);
     expect(
       work.doesNotFit.map(({ workItemId, fits, stepIds, exhausted }) => ({
@@ -443,7 +459,7 @@ describe('resource fit in the startable read', () => {
       {
         workItemId: 'b',
         fits: false,
-        stepIds: [dev, qa],
+        stepIds: [dev],
         exhausted: {
           resourceId: RAM,
           name: 'h2puni ram',

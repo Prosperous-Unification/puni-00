@@ -1,0 +1,35 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+208 | 			session.run(sql`INSERT INTO ${sql.identifier(migrationsTable)} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${(/* @__PURE__ */ new Date()).toISOString()})`);
+209 | 		}
+210 | 		session.run(sql`COMMIT`);
+211 | 	} catch (e) {
+212 | 		session.run(sql`ROLLBACK`);
+213 | 		throw e;
+              ^
+DrizzleQueryError: Failed query: CREATE TABLE project_abbreviation (
+-- Proof: removing PK/FK independently admitted duplicate/orphan in `namespace scope insert`;
+ -- removing cascade prevented project deletion in `counter refuses malformed ordinals` (2026-10-22).
+ project_id TEXT PRIMARY KEY NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+ namespace TEXT NOT NULL,
+ -- Proof: replacing grammar with CHECK(1) admitted invalid manual codes;
+ -- removing the NUL predicate admitted A\0B in `manual uniqueness` (2026-10-22).
+ abbreviation TEXT NOT NULL CONSTRAINT project_abbreviation_grammar CHECK (
+ length(abbreviation) BETWEEN 1 AND 20
+ AND abbreviation GLOB '[A-Z]*'
+ AND abbreviation NOT GLOB '*[^A-Z0-9_-]*'
+ AND instr(abbreviation,char(0)) = 0
+ )
+);
+
+params:
+      at migrateSync (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/session.js:213:9)
+      at runMigrations (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/migrate.ts:216:5)
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:77:3)
+(fail) backfills every project and rollback preserves old project rows and complete ledger [126.48ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+Ran 1 test across 1 file. [192.00ms]

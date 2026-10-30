@@ -29,12 +29,20 @@ import {
   inspectBackendConfig,
   resolveDatabaseHost,
 } from './lib/backend-config';
+import { fenceBackends, inspectBackendFence } from './lib/backend-exclusion';
+import { assertNoBackendFence } from './lib/backend-fence';
 import {
   assertMaintenanceContainer,
   type BackendSnapshot,
   backendWorkingDirectory,
   maintenanceConfig,
 } from './lib/backend-maintenance';
+import { admitDormantDependencies } from './lib/dependency-admission';
+import {
+  inspectDependencyParticipants,
+  parseDependencyParticipantInvocation,
+} from './lib/dependency-participants';
+import { probeDependencyCapabilities } from './lib/dependency-preflight';
 import {
   assertDigestPinnedRef,
   assertOidcEnvAllowed,
@@ -87,6 +95,9 @@ import {
 } from './lib/docker';
 import { type RunDocker, runDockerBefore, runDockerCli } from './lib/docker-deadline';
 import { drain } from './lib/drain';
+import { assertNoEdgeOwner, withEdgeAdmission } from './lib/edge-admission';
+import { fenceGateways, inspectGatewayFence } from './lib/gateway-exclusion';
+import { assertNoGatewayFence } from './lib/gateway-fence';
 import { waitForHealthy } from './lib/health';
 import { withLock } from './lib/lock';
 import { assertMcpSurfaceReady, parseAcceptBreaking } from './lib/mcp-preflight';
@@ -1240,11 +1251,13 @@ export async function inspectBackendWriters(
 
 /**
  * Read-only admission proof before candidate boot or attended recovery. Both colours and every known
- * writer must be stopped. The candidate independently inventories the database;
+ * writer must be stopped. Independently observes exact candidate/previous dependency
+ * capabilities without DB access, then requires coordinator-proven DISABLED/no-edge dependency authority.
+ * The candidate independently inventories the database;
  * both candidate and previous digest must independently understand every stored vocabulary,
  * including fact kinds and journal capabilities, before maintenance or migration.
  * Null predecessor is reserved for a proven first installation: no managed backend writer,
- * a capable candidate, and pre-marker/DISABLED authority. ENABLED requires rollback.
+ * a capable candidate, and fully migrated dormant dependency authority. Dependency ENABLED always refuses.
  * This proof grants no write authority and never restarts a container.
  */
 export async function checkBackendRecovery(
@@ -1279,6 +1292,8 @@ export async function checkBackendRecovery(
     ],
     resolveMount,
   );
+  // Proof: removing this probe failed both standalone malformed-image refusals (2026-10-22).
+  await probeDependencyCapabilities(candidateImage, previousImage, runDocker);
   const writers = await inspectBackendWriters(
     runDocker,
     expectedDatabase,
@@ -1290,6 +1305,8 @@ export async function checkBackendRecovery(
   if (previousImage === null && writers.size !== 0)
     throw new Error('first backend install requires no existing backend writer');
   for (const identity of writers.values()) await assertContainerStopped(identity, runDocker);
+  // Proof: omission reached maintenance in ordinary dependency-before and passed installed source/built ENABLED recovery.
+  await admitDormantDependencies(candidateImage, databasePath, runDocker);
   const oneOff = (image: string, command: string[]): string[] => [
     'run',
     '--rm',
@@ -1448,6 +1465,11 @@ export async function execute(
   activateStepBlockage = false,
   acceptBreaking: readonly string[] = [],
 ): Promise<void> {
+  // Proof: removing this guard failed the direct executor retained-owner negative before later IO.
+  await assertNoEdgeOwner();
+  // Proof: bypassing this guard let direct fence-present executions write commit/config state; 32 refusal tests failed.
+  await assertNoGatewayFence(io.barrierStateDir ?? CURRENT_ENV.stateDir);
+  await assertNoBackendFence(io.barrierStateDir ?? CURRENT_ENV.stateDir);
   const { tier, from, to } = plan;
   // Proof: omitted the tier guard; the non-backend activation plan reached preflight instead of its named refusal.
   if (activateStepBlockage && tier !== 'be') throw new Error('activation requires only be');
@@ -1702,6 +1724,12 @@ export async function execute(
           if (from === null && writers.size !== 0)
             throw new Error('unowned backend writer exists; explicit recovery required');
           const rollback = outgoingId === null ? null : await readWriterImage(outgoingId, io.sh);
+          // Proof: bypassing this probe reached durable stop on either malformed image and failed no-stop negatives (2026-10-22).
+          await probeDependencyCapabilities(
+            image,
+            rollback === null ? null : rollback.image,
+            io.sh,
+          );
           writerIntent = {
             candidate: image,
             rollback,
@@ -1884,6 +1912,44 @@ export async function execute(
           await io.sh(['stop', maintenanceId]);
           // Proof: running/replaced maintenance stop negatives refuse app exposure and startup.
           await assertContainerStopped(maintenanceId, io.sh);
+          if (writerIntent === null) throw new Error('dependency admission lacks writer intent');
+          {
+            const canonical = await resolveDatabaseHost(
+              backendPrepared.databasePath,
+              [{ type: 'bind', source: `${ROOT}/data`, target: '/data', writable: true }],
+              io.resolveMount ?? realpath,
+            );
+            // Proof: removing equality admitted post-maintenance database-drift with an otherwise coherent replacement family.
+            if (canonical !== writerIntent.databaseHostPath)
+              throw new Error('post-maintenance database family identity changed');
+            if (writerIntent.rollback !== null) {
+              const observed = await readWriterImage(writerIntent.rollback.containerId, io.sh);
+              // Proof: removing equality admitted post-maintenance rollback-drift.
+              if (
+                observed.image !== writerIntent.rollback.image ||
+                observed.imageId !== writerIntent.rollback.imageId
+              )
+                throw new Error('post-maintenance rollback image association changed');
+            }
+            const writers = await inspectBackendWriters(
+              io.sh,
+              canonical,
+              io.resolveMount,
+              image,
+              io.namespaceProof,
+            );
+            const expected = [
+              maintenanceId,
+              ...(writerIntent.outgoingId === null ? [] : [writerIntent.outgoingId]),
+            ].sort();
+            // Proof: removing set equality admitted post-maintenance replaced-maintenance and missing-outgoing.
+            if (JSON.stringify([...writers.values()].sort()) !== JSON.stringify(expected))
+              throw new Error('post-maintenance writer inventory changed');
+            // Proof: omitting this fresh stopped proof admitted post-maintenance running-outgoing.
+            for (const identity of writers.values()) await assertContainerStopped(identity, io.sh);
+            // Proof: omission let authentic maintenance dependency-drift reach application boot/exposure.
+            await admitDormantDependencies(image, backendPrepared.databasePath, io.sh);
+          }
           maintenanceStopped = true;
           break;
         case 'record-writer-exposure':
@@ -2285,6 +2351,8 @@ export function parseTierList(raw: string): Tier[] {
 
 /** Injectable seams for `runSwaps`; production passes the real IO. */
 export interface SwapRunDeps {
+  /** Disposable state directory in tests; production uses the environment state root. */
+  barrierStateDir?: string;
   withLock: <T>(lockPath: string, fn: () => Promise<T>) => Promise<T>;
   observe: (tier: Tier) => Promise<Observed>;
   execute: (plan: SwapPlan, image: string, sha: string) => Promise<void>;
@@ -2311,6 +2379,9 @@ export async function runSwaps(
   deps: SwapRunDeps,
 ): Promise<void> {
   await deps.withLock(`${ROOT}/state/deploy.lock`, async () => {
+    // Proof: bypassing this guard let fenced tier runs observe and execute under the lock; 32 refusal tests failed.
+    await assertNoGatewayFence(deps.barrierStateDir ?? CURRENT_ENV.stateDir);
+    await assertNoBackendFence(deps.barrierStateDir ?? CURRENT_ENV.stateDir);
     for (const tier of tiers) {
       const image = images[tier];
       if (image === undefined) {
@@ -2348,7 +2419,94 @@ function imagesFor(tiers: Tier[]): { tier: Tier; image: string }[] {
   });
 }
 
+/** Dedicated lock-owned prerequisite commands cannot mix with ordinary swap modes or flags. */
+export function parseGatewayFenceInvocation(
+  args: string[],
+): { mode: 'fence'; sha: string } | { mode: 'inspect' } | null {
+  const flags = args.slice(1);
+  if (
+    !flags.some(
+      (flag) =>
+        flag.startsWith('--fence-dependency-gateways') ||
+        flag.startsWith('--inspect-dependency-gateway-fence'),
+    )
+  )
+    return null;
+  const failure =
+    'gateway fence requires only gw and exactly --fence-dependency-gateways --execute --sha=<40 hex> or --inspect-dependency-gateway-fence';
+  // Proof: removing this admission let be enter the dedicated gateway command; mounted subprocess refusal failed.
+  if (args[0] !== 'gw' || new Set(flags).size !== flags.length) throw new Error(failure);
+  if (flags.length === 1 && flags[0] === '--inspect-dependency-gateway-fence')
+    return { mode: 'inspect' };
+  const sha = flags.find((flag) => /^--sha=[a-f0-9]{40}$/.test(flag));
+  if (
+    flags.length !== 3 ||
+    !flags.includes('--fence-dependency-gateways') ||
+    !flags.includes('--execute') ||
+    sha === undefined
+  )
+    throw new Error(failure);
+  return { mode: 'fence', sha: sha.slice(6) };
+}
+
+/** Dedicated lock-owned prerequisite commands cannot mix with ordinary swap modes or flags. */
+export function parseBackendFenceInvocation(
+  args: string[],
+): { mode: 'fence'; sha: string } | { mode: 'inspect' } | null {
+  const flags = args.slice(1);
+  if (
+    !flags.some(
+      (flag) =>
+        flag.startsWith('--fence-dependency-backends') ||
+        flag.startsWith('--inspect-dependency-backend-fence'),
+    )
+  )
+    return null;
+  const failure =
+    'backend fence requires only be and exactly --fence-dependency-backends --execute --sha=<40 hex> or --inspect-dependency-backend-fence';
+  // Proof: removing this admission let be enter the dedicated backend command; mounted subprocess refusal failed.
+  if (args[0] !== 'be' || new Set(flags).size !== flags.length) throw new Error(failure);
+  if (flags.length === 1 && flags[0] === '--inspect-dependency-backend-fence')
+    return { mode: 'inspect' };
+  const sha = flags.find((flag) => /^--sha=[a-f0-9]{40}$/.test(flag));
+  if (
+    flags.length !== 3 ||
+    !flags.includes('--fence-dependency-backends') ||
+    !flags.includes('--execute') ||
+    sha === undefined
+  )
+    throw new Error(failure);
+  return { mode: 'fence', sha: sha.slice(6) };
+}
+
 async function main(): Promise<void> {
+  if (parseDependencyParticipantInvocation(process.argv.slice(2))) {
+    const observation = await inspectDependencyParticipants(CURRENT_ENV, sh);
+    console.log(JSON.stringify(observation));
+    return;
+  }
+  const backendFence = parseBackendFenceInvocation(process.argv.slice(2));
+  if (backendFence !== null) {
+    const completion =
+      backendFence.mode === 'fence'
+        ? await fenceBackends(CURRENT_ENV, backendFence.sha, sh)
+        : await inspectBackendFence(CURRENT_ENV, sh);
+    console.log(
+      `[swap-be] managed Compose backend cohort physically excluded; attempt=${completion.attempt}; retained fence; no activation`,
+    );
+    return;
+  }
+  const gatewayFence = parseGatewayFenceInvocation(process.argv.slice(2));
+  if (gatewayFence !== null) {
+    const completion =
+      gatewayFence.mode === 'fence'
+        ? await fenceGateways(CURRENT_ENV, gatewayFence.sha, sh)
+        : await inspectGatewayFence(CURRENT_ENV, sh);
+    console.log(
+      `[swap-gw] managed Compose gateway cohort physically excluded; attempt=${completion.attempt}; blue=${completion.cohort.blue?.id ?? 'absent'}; green=${completion.cohort.green?.id ?? 'absent'}; retained fence; no activation`,
+    );
+    return;
+  }
   const tiers = parseTierList(process.argv[2] ?? '');
   const activateStepBlockage = process.argv.includes('--activate-step-blockage');
   // Proof: omitted invocation admission; all five incompatible CLI combinations lost the named refusal.
@@ -2378,7 +2536,7 @@ async function main(): Promise<void> {
       await checkBackendRecovery(previous, candidate, argOf('database-path'), sh, realpath);
     });
     console.log(
-      '[swap-be] recovery vocabulary proof passed; writers remain stopped; interruption markers retained',
+      '[swap-be] recovery dormant dependency authority, capability and vocabulary observations passed; writers remain stopped; interruption markers retained',
     );
     return;
   }
@@ -2432,7 +2590,9 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.main) {
-  main().catch((e: unknown) => {
+  const mutatesHost =
+    process.argv.includes('--execute') || process.argv.includes('--check-backend-recovery');
+  (mutatesHost ? withEdgeAdmission(main) : main()).catch((e: unknown) => {
     console.error('[swap] failed:', e instanceof Error ? e.message : String(e));
     process.exit(1);
   });

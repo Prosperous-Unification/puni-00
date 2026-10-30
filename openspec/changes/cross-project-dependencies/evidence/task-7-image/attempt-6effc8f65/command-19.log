@@ -1,0 +1,11 @@
+Sending build context to Docker daemon   16.9kB
+Step 1/2 : FROM 127.0.0.1:33136/wbs-be-01@sha256:02e0ab60dc83e4e72f252b14f60530917c0ab71749fbc72a4a1a18b3764bd706
+ ---> 02e0ab60dc83
+Step 2/2 : COPY fault.ts /app/apps/wbs/be-01/src/services.ts
+ ---> d487a0bcc027
+Successfully built d487a0bcc027
+Successfully tagged 127.0.0.1:33136/wbs-be-01:source-binding-5258a758-10ff-49a5-abbd-331d4c5f8f0c
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+

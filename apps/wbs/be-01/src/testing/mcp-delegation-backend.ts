@@ -1,4 +1,6 @@
 import { JwksTokenVerifier } from '@wbs/auth';
+import type { SqliteSource } from '@wbs/store-sqlite';
+import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { exportPKCS8, exportSPKI, generateKeyPair } from 'jose';
 
 import { BOOTED_ORIGIN, BootedBrowserProcess } from './booted-browser-process';
@@ -29,6 +31,15 @@ const audience = process.env['MCP_TEST_AUDIENCE'];
 if (jwksUrl === undefined || issuer === undefined || audience === undefined)
   throw new Error('MCP_TEST_JWKS_URL, MCP_TEST_ISSUER and MCP_TEST_AUDIENCE are required');
 const trustedIssuer: string = issuer;
+let syntheticExternalCommands = false;
+let source: SqliteSource | undefined;
+let publications = 0;
+let armed = false;
+let releaseWriter: (() => void) | undefined;
+let heldWriter: Promise<void> | undefined;
+let observeQueued: (() => void) | undefined;
+let queued: Promise<void> | undefined;
+let markQueued: (() => void) | undefined;
 
 const keys = await generateKeyPair('RS256', { extractable: true });
 const backend = await BootedBrowserProcess.open(
@@ -42,7 +53,44 @@ const backend = await BootedBrowserProcess.open(
   undefined,
   undefined,
   { signingKey: await exportPKCS8(keys.privateKey), verifyKey: await exportSPKI(keys.publicKey) },
+  () => syntheticExternalCommands,
+  (opened) => {
+    source = opened;
+  },
 );
+if (source === undefined) throw new Error('boot did not expose its source');
+const gate = source.gate;
+const enter = gate.enter.bind(gate);
+gate.enter = (work) => {
+  const pending = enter(work);
+  observeQueued?.();
+  observeQueued = undefined;
+  return pending;
+};
+const resolveOrganization = backend.options.organizations.resolve.bind(
+  backend.options.organizations,
+);
+backend.options.organizations.resolve = async (principal) => {
+  const resolution = await resolveOrganization(principal);
+  // Request admission consumes delegation_use on this same writer before returning.
+  // Hold only after that real admission, or the delegation consumption itself deadlocks.
+  if (armed) {
+    armed = false;
+    const released = new Promise<void>((resolve) => {
+      releaseWriter = resolve;
+    });
+    heldWriter = enter(() => released);
+    observeQueued = markQueued;
+  }
+  return resolution;
+};
+const publish = backend.options.writes.announcements.publish.bind(
+  backend.options.writes.announcements,
+);
+backend.options.writes.announcements.publish = (projectId, event) => {
+  publications += 1;
+  return publish(projectId, event);
+};
 
 /**
  * An account signed in only through the upstream provider as `auth0|<name>`:
@@ -75,6 +123,68 @@ const server = Bun.serve({
   port: 0,
   fetch: async (request) => {
     const path = new URL(request.url).pathname;
+    if (request.method === 'POST' && path === '/__fixture/arm-consent-write') {
+      if (armed || heldWriter !== undefined) throw new Error('writer already armed');
+      armed = true;
+      queued = new Promise<void>((resolve) => {
+        markQueued = resolve;
+      });
+      return Response.json({ armed: true });
+    }
+    if (request.method === 'POST' && path === '/__fixture/wait-consent-write') {
+      // The command has completed real request admission before its enqueue is observed.
+      if (queued === undefined) throw new Error('writer not armed');
+      await queued;
+      return Response.json({ queued: true });
+    }
+    if (request.method === 'POST' && path === '/__fixture/change-consent') {
+      const { personId, fault } = (await request.json()) as { personId: string; fault: string };
+      // backend.sqlite is a separate connection, not the writer's held connection.
+      const changed =
+        fault === 'revocation'
+          ? backend.sqlite.run(
+              "UPDATE machine_credential SET revoked_at = ? WHERE person_id = ? AND source = 'mcp_consent'",
+              [Date.now(), personId],
+            )
+          : fault === 'family'
+            ? backend.sqlite.run(
+                "UPDATE machine_credential SET mcp_family_id = ? WHERE person_id = ? AND source = 'mcp_consent'",
+                [crypto.randomUUID(), personId],
+              )
+            : (() => {
+                throw new Error(`unknown consent fault: ${fault}`);
+              })();
+      return Response.json({ changed: changed.changes });
+    }
+    if (request.method === 'POST' && path === '/__fixture/release-consent-write') {
+      if (releaseWriter === undefined || heldWriter === undefined)
+        throw new Error('writer not held');
+      releaseWriter();
+      await heldWriter;
+      releaseWriter = undefined;
+      heldWriter = undefined;
+      queued = undefined;
+      observeQueued = undefined;
+      return Response.json({ released: true });
+    }
+    if (request.method === 'POST' && path === '/__fixture/cleanup-consent-write') {
+      releaseWriter?.();
+      await heldWriter;
+      armed = false;
+      releaseWriter = undefined;
+      heldWriter = undefined;
+      queued = undefined;
+      markQueued = undefined;
+      observeQueued = undefined;
+      return Response.json({ cleaned: true });
+    }
+    if (request.method === 'POST' && path === '/__fixture/publications')
+      return Response.json({ publications });
+    if (request.method === 'POST' && path === '/__fixture/active-commands') {
+      seedDependencyAuthority(backend.databasePath());
+      syntheticExternalCommands = true;
+      return Response.json({ active: true });
+    }
     if (request.method === 'POST' && path === '/__fixture/activate') {
       const run = Bun.spawnSync(
         [
@@ -102,6 +212,55 @@ const server = Bun.serve({
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-b', 'u-grace', 'member', 1)",
       );
       return new Response(run.stdout.toString(), { status: 200 });
+    }
+    if (request.method === 'POST' && path === '/__fixture/restrict-project') {
+      const { id, restricted } = (await request.json()) as { id: string; restricted: boolean };
+      backend.sqlite.run('UPDATE project SET restricted = ?, owner_id = ? WHERE id = ?', [
+        restricted ? 1 : 0,
+        restricted ? 'u-grace' : 'u-dany',
+        id,
+      ]);
+      return Response.json({ id, restricted });
+    }
+    if (request.method === 'POST' && path === '/__fixture/typed-dependencies')
+      return Response.json(
+        backend.sqlite.query('SELECT * FROM typed_dependency ORDER BY id').all(),
+      );
+    if (request.method === 'POST' && path === '/__fixture/consent-write-state')
+      return Response.json(
+        backend.sqlite
+          .query<{ name: string }, []>(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+          )
+          .all()
+          .map(({ name }) => ({
+            name,
+            rows: backend.sqlite
+              .query(`SELECT * FROM "${name.replaceAll('"', '""')}"`)
+              .all()
+              .map((row) => JSON.stringify(row))
+              .sort(),
+          })),
+      );
+    if (request.method === 'POST' && path === '/__fixture/write-state') {
+      const tables = [
+        'project',
+        'work_item',
+        'dependency',
+        'typed_dependency',
+        'external_dependency',
+        'step',
+        'calendar_marker',
+        'command_journal',
+        'saved_plan',
+        'saved_plan_body',
+        'organization_audit',
+        'event_log',
+        'event_sequencer',
+      ];
+      return Response.json(
+        tables.map((table) => backend.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all()),
+      );
     }
     if (request.method === 'POST' && path === '/__fixture/remove-member') {
       const { username } = (await request.json()) as { username: string };
@@ -158,6 +317,8 @@ const server = Bun.serve({
 console.log(JSON.stringify({ port: server.port }));
 
 async function stop(): Promise<void> {
+  releaseWriter?.();
+  await heldWriter;
   await server.stop(true);
   await backend.close();
   process.exit(0);

@@ -1,0 +1,19 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+(pass) last-child deletion refuses making a remote-owned descendant-step endpoint a leaf [1069.74ms]
+(pass) admitted subtree move closes a real remote descendant cycle and rolls back [874.64ms]
+(pass) node authoring split remote endpoint binds staged dotted alias locally and schedules FS [1415.81ms]
+(pass) node authoring encoded remote endpoint binds staged dotted alias locally and schedules FS [1116.25ms]
+(pass) node authoring later absent operation rolls back staged alias estimate relationship history and events [887.05ms]
+(pass) node authoring dormant refusal rolls back staged alias estimate relationship history and events [1000.16ms]
+(pass) node authoring mounted and direct parity refuses node-parent with full rollback [1015.98ms]
+(pass) node authoring mounted and direct parity refuses descendant-leaf with full rollback [987.79ms]
+(pass) node authoring mounted and direct parity refuses wrong-project-step with full rollback [1045.86ms]
+(pass) node authoring direct semantic service accepts the same stable remote node pair [1053.00ms]
+
+ 10 pass
+ 119 filtered out
+ 0 fail
+ 135 expect() calls
+Ran 10 tests across 1 file. [18.07s]

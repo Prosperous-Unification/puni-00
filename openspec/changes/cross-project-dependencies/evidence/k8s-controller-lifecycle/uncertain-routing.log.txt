@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+534 |     };
+535 |     await expect(
+536 |       executeRelease(fixture.request, recording, fixture.fake, () => undefined, fixture.options),
+537 |     ).rejects.toThrow('rollback-failed');
+538 |     const state = fixture.journal.read()?.state;
+539 |     expect(state?.failure?.manualCommand).toContain('sqlite-backup-uid');
+                                                ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "sqlite-backup-uid"
+Received: "kubectl --context lab create -f /state/wbs-manual-rollback-bbbbbbbbbbbb-4d914821ccea-ccc5ee.json # capture-sha256=8722db33be6d05b7c1e57367d311fe6eaa3c7f7d15ba3050339de5be7b547ab1"
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:539:43)
+(fail) mounted exact restore failure retains barrier and pinned manual inspection command [3833.43ms]
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [3.88s]

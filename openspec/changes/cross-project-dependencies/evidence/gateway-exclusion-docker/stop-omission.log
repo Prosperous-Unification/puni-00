@@ -1,0 +1,28 @@
+583 |       const final = await inspectCohort(layout, runDocker, deadline);
+584 |       assertSame(stopped, final, 'final current cohort');
+585 |       assertExcluded(final);
+586 |       return completion;
+587 |     } catch (cause) {
+588 |       throw new Error(
+                      ^
+error: gateway fence failed after publication; retain all dependency-gateway records and current Docker state; explicit attended recovery required; no restart or automatic cleanup: managed gateway is not physically excluded
+      at <anonymous> (/tmp/puni-gateway-acceptance/tools/tool-remote-scripts/src/lib/gateway-exclusion.ts:588:17)
+      at async withLock (/tmp/puni-gateway-acceptance/tools/tool-remote-scripts/src/lib/lock.ts:116:18)
+      at async fenceGateways (/tmp/puni-gateway-acceptance/tools/tool-remote-scripts/src/lib/gateway-exclusion.ts:518:16)
+      at async runAcceptance (/tmp/puni-gateway-acceptance/tools/tool-remote-scripts/test/gateway-exclusion.ts:324:30)
+
+356 |         gateway.state.pid !== 0 ||
+357 |         !['exited', 'created'].includes(gateway.state.status) ||
+358 |         gateway.restartPolicy.name !== 'no' ||
+359 |         gateway.restartPolicy.maximumRetryCount !== 0)
+360 |     )
+361 |       throw new Error('managed gateway is not physically excluded');
+                      ^
+error: managed gateway is not physically excluded
+      at assertExcluded (/tmp/puni-gateway-acceptance/tools/tool-remote-scripts/src/lib/gateway-exclusion.ts:361:17)
+      at <anonymous> (/tmp/puni-gateway-acceptance/tools/tool-remote-scripts/src/lib/gateway-exclusion.ts:564:9)
+      at async withLock (/tmp/puni-gateway-acceptance/tools/tool-remote-scripts/src/lib/lock.ts:116:18)
+      at async fenceGateways (/tmp/puni-gateway-acceptance/tools/tool-remote-scripts/src/lib/gateway-exclusion.ts:518:16)
+      at async runAcceptance (/tmp/puni-gateway-acceptance/tools/tool-remote-scripts/test/gateway-exclusion.ts:324:30)
+
+Bun v1.4.2 (Linux x64)

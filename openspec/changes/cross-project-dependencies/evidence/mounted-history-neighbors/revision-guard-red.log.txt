@@ -1,0 +1,40 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-history-neighbors.controller.db.test.ts:
+(pass) mounted newer relationship undo restamps a valid older neighbor [973.76ms]
+103 |     if (!interveningEdit) {
+104 |       expect({ status: response.status, remaining }).toEqual({ status: 200, remaining: [] });
+105 |       expect(harness.sqlite.query('SELECT undone FROM command_journal WHERE id=?').get(older.id)).toEqual({ undone: 1 });
+106 |       return;
+107 |     }
+108 |     expect({ status: response.status, body, remaining }).toEqual({
+                                                               ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "detail": "an external dependency endpoint changed since this command.",
+-     "error": "stale_undo",
++     "detail": null,
++     "done": "make “Owner row” wait for “PRE.010 Predecessor row”",
+    },
+-   "remaining": [
+-     {
+-       "id": "c452e79e-ae43-43a5-b564-4f46b5a07964",
+-     },
+-   ],
+-   "status": 409,
++   "remaining": [],
++   "status": 200,
+  }
+
+- Expected  - 8
++ Received  + 4
+
+      at <anonymous> (/tmp/puni-history-neighbors/apps/wbs/be-01/src/controller/cross-project-history-neighbors.controller.db.test.ts:108:58)
+(fail) mounted newer relationship undo preserves older remote conflict [932.05ms]
+
+ 1 pass
+ 1 fail
+ 38 expect() calls
+Ran 2 tests across 1 file. [7.19s]

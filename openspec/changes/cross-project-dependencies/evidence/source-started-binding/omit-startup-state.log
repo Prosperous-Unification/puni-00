@@ -1,0 +1,55 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/source-exclusion-native.test.ts:
+433 | };
+434 | for (const [fault, mutate] of Object.entries(startupFaults))
+435 |   test(`started source refuses ${fault} before installing a baseline`, async () => {
+436 |     const f = await fixture();
+437 |     mutate(f.created, f.source);
+438 |     expect(() => bindStartedSource(f.created, f.source, f.expected)).toThrow();
+                                                                           ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  receipt: {
+    transition: "false-to-null",
+    createdHostSha256: "31113c155ab0ab573917711a7094897efa79fe944a985508a8ecffdbe2dd4792",
+    startedHostSha256: "87387f0a49639ca4d68a31fdba9db3e09b4742c95b740112723e40c78d4c754b",
+    configSha256: "d3b0e6ee3afd075ccc9851452806950849a06fb12b58542d74a4e9499a419671",
+    mountsSha256: "399f45f619942d5beb99a98f2c021723a42bcd61b5c40ff4d621e614268b02bf",
+  },
+  validate: [Function: validate],
+}
+
+      at <anonymous> (/tmp/puni-source-started-binding/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:438:70)
+(fail) started source refuses noOp before installing a baseline [19.47ms]
+433 | };
+434 | for (const [fault, mutate] of Object.entries(startupFaults))
+435 |   test(`started source refuses ${fault} before installing a baseline`, async () => {
+436 |     const f = await fixture();
+437 |     mutate(f.created, f.source);
+438 |     expect(() => bindStartedSource(f.created, f.source, f.expected)).toThrow();
+                                                                           ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  receipt: {
+    transition: "false-to-null",
+    createdHostSha256: "31113c155ab0ab573917711a7094897efa79fe944a985508a8ecffdbe2dd4792",
+    startedHostSha256: "87387f0a49639ca4d68a31fdba9db3e09b4742c95b740112723e40c78d4c754b",
+    configSha256: "d3b0e6ee3afd075ccc9851452806950849a06fb12b58542d74a4e9499a419671",
+    mountsSha256: "b3b27f77651bcbf0298d5cd5061d00156763a1f0fc203a4a344064eb1ceb66bc",
+  },
+  validate: [Function: validate],
+}
+
+      at <anonymous> (/tmp/puni-source-started-binding/tools/tool-remote-scripts/test/source-exclusion-native.test.ts:438:70)
+(fail) started source refuses zeroPid before installing a baseline [5.89ms]
+
+ 0 pass
+ 49 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [354.00ms]

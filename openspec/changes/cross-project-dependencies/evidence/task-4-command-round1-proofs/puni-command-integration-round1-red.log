@@ -1,0 +1,44 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+1549 |   });
+1550 |   expect(added).toMatchObject({ ok: true });
+1551 |   const undone = await semantic(fixture, (service) => service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess));
+1552 |   expect(undone).toMatchObject({ ok: true });
+1553 |   const redone = await semantic(fixture, (service) => service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess));
+1554 |   expect(redone).toMatchObject({ ok: true });
+                        ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": true,
++   "detail": null,
++   "ok": false,
++   "reason": "not_found",
+  }
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1554:18)
+(fail) ordered restore lets an external create-link batch redo its local successor [406.79ms]
+1570 |   ] });
+1571 |   expect(updated.status).toBe(200);
+1572 |   const undone = await fixture.request(`${route}/undo`);
+1573 |   expect(undone.status).toBe(200);
+1574 |   const redone = await fixture.request(`${route}/redo`);
+1575 |   expect(redone.status).toBe(200);
+                               ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1575:25)
+(fail) ordered restore lets a mounted local create-update batch redo its predecessor [374.13ms]
+
+ 0 pass
+ 64 filtered out
+ 2 fail
+ 23 expect() calls
+Ran 2 tests across 1 file. [3.20s]

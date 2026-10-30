@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+1596 |     if (payload.forward.do !== 'batch') throw new Error('fixture update forward is not collected');
+1597 |     payload.forward = nestedReplay(...payload.forward.steps.map((step) => nestedReplay(nestedReplay(step))));
+1598 |     harness.sqlite.query('UPDATE command_journal SET payload=? WHERE id=?').run(JSON.stringify(payload), entry.id);
+1599 |   }
+1600 |   const redone = await fixture.request(`${route}/redo`);
+1601 |   expect(redone.status).toBe(200);
+                               ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1601:25)
+(fail) ordered restore lets a mounted local create-update batch redo its predecessor [416.63ms]
+1596 |     if (payload.forward.do !== 'batch') throw new Error('fixture update forward is not collected');
+1597 |     payload.forward = nestedReplay(...payload.forward.steps.map((step) => nestedReplay(nestedReplay(step))));
+1598 |     harness.sqlite.query('UPDATE command_journal SET payload=? WHERE id=?').run(JSON.stringify(payload), entry.id);
+1599 |   }
+1600 |   const redone = await fixture.request(`${route}/redo`);
+1601 |   expect(redone.status).toBe(200);
+                               ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1601:25)
+(fail) ordered restore lets a mounted local create-update batch redo its predecessor through nested replay [319.49ms]
+
+ 0 pass
+ 76 filtered out
+ 2 fail
+ 20 expect() calls
+Ran 2 tests across 1 file. [2.92s]

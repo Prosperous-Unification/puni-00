@@ -15,6 +15,7 @@ import {
 
 import type { RunPlanWrite } from '@/lib/local-write';
 import { cn } from '@/lib/utils';
+import type { PlanRead } from '@/lib/wbs-api';
 import type {
   MeasureDefinitionView,
   PersonView,
@@ -28,6 +29,7 @@ import type { PlanCommands } from '@/modules/plan-commands/contract';
 import { MenuControl } from './actions-menu';
 import { useClosedOnDismiss } from './close-on-dismiss';
 import { DateField } from './date-field';
+import type { GeneralPanelProps } from './general-panel';
 import { ImportWithAiHelp } from './import-with-ai-help';
 import { isMeasureShown, type MeasureToggles, unitLabelOf } from './measure-reading';
 import type { PlanTableFeatures } from './plan-columns/column';
@@ -719,6 +721,7 @@ export function PlanToolbar({
   run,
   commands,
   projectId,
+  generalSettings,
   addWorkItem,
   filtering,
   setExpanded,
@@ -788,6 +791,7 @@ export function PlanToolbar({
   run: RunPlanWrite;
   commands: PlanCommands;
   projectId: string;
+  generalSettings?: Omit<GeneralPanelProps, 'onDirtyChange' | 'onBusyChange'>;
   addWorkItem: () => void;
   filtering: boolean;
   setExpanded: React.Dispatch<React.SetStateAction<ExpandedState>>;
@@ -805,7 +809,7 @@ export function PlanToolbar({
   frameState: FrameLayoutState;
   people: PersonView[];
   /** Why the plan has no dated schedule to arrange, when it has none. */
-  scheduleError: 'calendar_range' | 'cycle' | null;
+  scheduleError: PlanRead['scheduleError'];
   /** Issues the arrangement and says it landed; built where the toast stack is. */
   arrangeBySchedule: () => void;
   chartRead: ChartRead;
@@ -1167,6 +1171,17 @@ export function PlanToolbar({
       <ProjectSettingsModal
         projectId={projectId}
         trigger={renderer === 'cards' ? 'labelled' : 'glyph'}
+        {...(generalSettings === undefined
+          ? {}
+          : {
+              general: {
+                ...generalSettings,
+                onChanged: async () => {
+                  await generalSettings.onChanged();
+                  await refreshOrMarkStale('tree');
+                },
+              },
+            })}
         teams={{
           teams: teamsOnThePlan(
             teams,

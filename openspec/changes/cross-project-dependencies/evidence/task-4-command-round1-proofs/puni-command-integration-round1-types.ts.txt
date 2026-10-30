@@ -1,0 +1,18 @@
+import { spawnSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+const checks = [
+  ['backend', ['bunx', 'tsc', '--build', '--force', 'apps/wbs/be-01/tsconfig.json']],
+  ['core', ['bunx', 'tsc', '--build', '--force', 'libs/wbs/application/core/tsconfig.json']],
+  ['work-item-module', ['bunx', 'tsc', '-p', 'libs/wbs/application/core/src/module/work-item/tsconfig.json']],
+  ['plan-commands-module', ['bunx', 'tsc', '-p', 'libs/wbs/application/core/src/module/plan-commands/tsconfig.json']],
+] as const;
+const observations = [];
+for (const [name, command] of checks) {
+  const execution = spawnSync(command[0], [...command.slice(1)], { encoding: 'utf8', timeout: 180000, maxBuffer: 8000000 });
+  const log = `/tmp/puni-command-integration-round1-type-${name}.log`;
+  writeFileSync(log, String(execution.stdout) + String(execution.stderr));
+  observations.push({ name, command, exitCode: execution.status, log });
+  writeFileSync('/tmp/puni-command-integration-round1-types.json', JSON.stringify(observations, null, 2) + '\n');
+  process.stdout.write(`${name}: ${execution.status}\n`);
+  if (execution.status !== 0) process.exit(execution.status ?? 1);
+}

@@ -1,0 +1,41 @@
+
+> nx run wbs-fe-01:e2e-cross-project
+
+> bunx playwright test --config apps/wbs/fe-01/playwright.cross-project.config.ts
+
+(node:1824345) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:1825416) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+[WebServer]   - `__dirname` (vite.config.ts:90:20). Use `import.meta.dirname` instead
+[WebServer] Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+Running 7 tests using 1 worker
+
+(node:1825513) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:66:1 › A completion refreshes admitted B and C through their own real trees and reconnect replay (18.3s)
+  ✓  2 apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:212:3 › desktop node to whole predecessor scope survives accepted HTTP save and SQLite reload (6.3s)
+  ✓  3 apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:212:3 › phone whole to node predecessor scope survives accepted HTTP save and SQLite reload (5.9s)
+  ✓  4 apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:327:3 › desktop node to whole successor scope survives accepted HTTP save and SQLite reload (5.4s)
+  ✓  5 apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:327:3 › phone whole to node successor scope survives accepted HTTP save and SQLite reload (6.2s)
+  ✓  6 apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:445:1 › successor-only dated trees install the upstream estimate revision (6.0s)
+  ✓  7 apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:571:1 › alphabetical discovery creates a qualified dependency that persists and refreshes on completion (8.7s)
+
+  7 passed (1.1m)
+
+
+
+ NX   Successfully ran target e2e-cross-project for project wbs-fe-01
+
+
+  Run duration:      1m 5s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     1m 5s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-fe-01:e2e-cross-project    1m 5s

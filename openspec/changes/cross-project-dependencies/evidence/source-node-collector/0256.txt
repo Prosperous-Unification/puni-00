@@ -1,0 +1,41 @@
+
+test/source-inner-command-child.test.ts:
+source Node command boundary: genuine original context and original running tree reached
+source Node command actual dispatch captured
+source Node complete command observed
+product original BusyBox UID0 observe and cleanup dispatch bytes preserved
+source Node private receipt consumer BEGIN source-session-nonce
+source Node private receipt consumer observed source-session-nonce
+source Node private receipt consumer BEGIN source-session-group
+source Node private receipt consumer observed source-session-group
+source Node private receipt consumer BEGIN source-completion-count
+source Node private receipt consumer observed source-completion-count
+source Node private receipt consumer BEGIN source-duplicate-done
+source Node private receipt consumer observed source-duplicate-done
+source Node private receipt consumer BEGIN source-missing-reap
+source Node private receipt consumer observed source-missing-reap
+source Node private receipt consumer BEGIN missing
+source Node private receipt consumer observed missing
+source Node private receipt consumer BEGIN source-no-session
+source Node private receipt consumer observed source-no-session
+source Node private receipt consumer BEGIN source-unknown-tag
+193 |             if (fault === 'source-member-observe')
+194 |               expect(sourceFault.collectionTokens - tokensBefore).toBe(10);
+195 |             if (fault === 'source-no-session')
+196 |               expect(sourceFault.collectionAcks - acksBefore).toBe(0);
+197 |             if (fault === 'source-unknown-tag')
+198 |               expect(sourceFault.collectionTokens - tokensBefore).toBe(7);
+                                                                        ^
+error: expect(received).toBe(expected)
+
+Expected: 7
+Received: 215
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-command.model.ts:198:67)
+      at async acquireLock (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source original context dispatches the complete fixed Node command [68238.44ms]
+
+ 0 pass
+ 1 fail
+ 137 expect() calls
+Ran 1 test across 1 file. [68.29s]

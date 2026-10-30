@@ -546,6 +546,18 @@ describe('a swarm of two fleets on one plan', () => {
         { kind: 'setResourceCapacity', resourceId: ids.resources.ram, units: RAM_CAPACITY },
         { kind: 'setResourceCapacity', resourceId: ids.resources.disk, units: 100 },
         { kind: 'setResourceCapacity', resourceId: ids.resources.staging, units: 1 },
+        // QA and review are ongoing work whose claims continue existing execution. New
+        // unfinished successors still refuse admission; the companion prerequisite test
+        // proves that boundary (`local all-step claims keep atomic meaning` in
+        // cross-project-startable.controller.db.test.ts).
+        ...[HOTFIX, ...LEAVES.map((leaf) => leaf.key)].flatMap((key) =>
+          [ids.steps.qa, ids.steps.review].map((stepId) => ({
+            kind: 'setProgress',
+            workItemId: leafOf(key),
+            stepId,
+            state: 'in_progress',
+          })),
+        ),
         ...Object.values(ids.steps).map((stepId) => ({
           kind: 'setEstimate',
           workItemId: leafOf(HOTFIX),

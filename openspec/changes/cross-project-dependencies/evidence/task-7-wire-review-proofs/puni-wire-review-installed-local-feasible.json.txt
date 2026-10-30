@@ -1,0 +1,1 @@
+{"objectiveValues":{"makespan":{"bound":0,"stageValue":0,"status":"optimal","value":0},"movement":{"bound":0,"stageValue":0,"status":"optimal","value":0},"priority":{"bound":0,"stageValue":0,"status":"optimal","value":0}},"offsets":{"milestone\u0000first":0,"milestone\u0000second":0},"scope":{"kind":"local"},"status":"feasible","wireVersion":5}

@@ -1,0 +1,49 @@
+Command: bun test tools/tool-remote-scripts/src/lib/edge-policy.test.ts --preload ./tools/test/scratch/preload.ts --test-name-pattern initialize-late
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/edge-policy.test.ts:
+272 |         try { await fs.lstat(directory + '/edge-policy.json'); throw new Error('foreign publication'); }
+273 |         catch (cause) { if (!(cause instanceof Error) || cause.code !== 'ENOENT') throw cause; }
+274 |       }
+275 |     `;
+276 |     const child = Bun.spawn([process.execPath, '-e', program], { stdout: 'pipe', stderr: 'pipe' });
+277 |     expect(await new Response(child.stderr).text()).toBe('');
+                                                          ^
+error: expect(received).toBe(expected)
+
+- ""
++ "28 |           swapSync();
++ 29 |         }
++ 30 |         return openRelative(descriptor, name, flags);
++ 31 |       }}));
++ 32 |       mock.module('node:fs/promises', () => ({ ...fs, open: async (path, ...options) => {
++ 33 |         const descriptor = await originalOpen(path, ...options);
++                                       ^
++ ENOENT: no such file or directory, open '/tmp/wbs-test-21-csyKe8/edge-policy-parent-PThxtw/state/edge-policy.json'
++     path: "/tmp/wbs-test-21-csyKe8/edge-policy-parent-PThxtw/state/edge-policy.json",
++  syscall: "open",
++    errno: -2,
++     code: "ENOENT"
++
++       at async <anonymous> (node:fs/promises:179:56)
++       at async <anonymous> (/tmp/puni-ordinary-edge-policy/[eval]:33:34)
++       at async readOrdinaryEdgePolicy (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.ts:58:28)
++       at async <anonymous> (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.ts:167:30)
++       at async acquireLock (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
++
++ Bun v1.4.2 (Linux x64)
++ "
+
+- Expected  - 1
++ Received  + 21
+
+      at <anonymous> (/tmp/puni-ordinary-edge-policy/tools/tool-remote-scripts/src/lib/edge-policy.test.ts:277:53)
+(fail) policy initialize-late refuses swapped parent even with same hardlinked policy [32.26ms]
+
+ 0 pass
+ 28 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [68.00ms]
+
+Exit: 1

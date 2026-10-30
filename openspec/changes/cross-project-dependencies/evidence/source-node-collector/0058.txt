@@ -1,0 +1,24 @@
+
+test/source-inner-program-child.test.ts:
+source Node owning namespace actual UID/GID1000:1000 observed
+source Node function BEGIN proc-bound
+750 |       const receipts = await Promise.allSettled([child.exited, new Response(child.stderr).text()]);
+751 |       const [exit, stderr] = receipts;
+752 |       if (exit.status !== 'fulfilled' || stderr.status !== 'fulfilled')
+753 |         throw new AggregateError(receipts, 'function boundary original custody unproved');
+754 |       expect(child.signalCode).toBeNull();
+755 |       expect(exit.value).toBe(1);
+                               ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-program.model.ts:755:26)
+(fail) actual source collector function boundary refuses proc-bound [29.90ms]
+
+ 0 pass
+ 48 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [50.00ms]

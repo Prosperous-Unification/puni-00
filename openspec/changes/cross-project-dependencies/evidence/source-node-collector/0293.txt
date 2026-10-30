@@ -1,0 +1,153 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-remote-scripts/src/lib/source-inner-program.test.ts:
+
+test/source-inner-program-child.test.ts:
+source Node owning namespace actual UID/GID1000:1000 observed
+actual immutable Node owned-proc receipt and original collector reap observed
+(pass) actual source Node program observes owned local proc and reaps its exact collector [365.34ms]
+actual Node eof ACK refusal and original custody observed
+(pass) actual source launcher refuses eof ACK and settles original custody [33.71ms]
+actual Node malformed ACK refusal and original custody observed
+(pass) actual source launcher refuses malformed ACK and settles original custody [43.09ms]
+actual Node withheld ACK refusal and original custody observed
+(pass) actual source launcher refuses withheld ACK and settles original custody [15068.61ms]
+actual source absent proc refusal observed
+(pass) actual source collector refuses absent requested proc without a success receipt [61.87ms]
+actual source unreadable owned executable refusal observed
+(pass) actual source collector refuses an unreadable owned executable [121.81ms]
+actual source encoder private entrypoint exact bigint projection observed
+(pass) actual source metadata encoder preserves bigint nanoseconds and negative fractions [25.91ms]
+actual blocked collector independent watchdog and reap refusal observed
+(pass) actual independent launcher deadline kills a synchronously blocked collector [15106.43ms]
+actual retained owned original-group member census observed without signaling target
+(pass) actual fresh census reports a retained owned session without signaling it [56.61ms]
+actual source cidr-null address observation refusal reached
+(pass) actual source address projection refuses cidr-null builtin observation [145.52ms]
+actual source cidr-range address observation refusal reached
+(pass) actual source address projection refuses cidr-range builtin observation [147.67ms]
+actual source family address observation refusal reached
+(pass) actual source address projection refuses family builtin observation [148.60ms]
+actual source canonical address observation refusal reached
+(pass) actual source address projection refuses canonical builtin observation [149.92ms]
+actual source canonical-v6 address observation refusal reached
+(pass) actual source address projection refuses canonical-v6 builtin observation [145.65ms]
+actual source empty address observation refusal reached
+(pass) actual source address projection refuses empty builtin observation [150.81ms]
+actual source short writer boundary observed
+(pass) actual source writer handles short byte progress at its output boundary [216.46ms]
+actual source zero writer boundary observed
+(pass) actual source writer handles zero byte progress at its output boundary [31.44ms]
+actual source census second-probe absent outcome observed
+(pass) actual source census second probe models absent explicitly [52.88ms]
+actual source census second-probe EACCES outcome observed
+(pass) actual source census second probe models EACCES explicitly [51.79ms]
+actual source census second-probe EIO outcome observed
+(pass) actual source census second probe models EIO explicitly [58.59ms]
+source Node normal proc BEGIN regular-file
+actual source normal proc regular-file boundary observed
+(pass) actual source collector normal proc boundary observes regular-file [28.63ms]
+source Node normal proc BEGIN short-read
+actual source normal proc short-read boundary observed
+(pass) actual source collector normal proc boundary observes short-read [30.95ms]
+source Node normal proc BEGIN metadata-readback
+actual source normal proc metadata-readback boundary observed
+(pass) actual source collector normal proc boundary observes metadata-readback [113.75ms]
+source Node normal proc BEGIN bigint-projection
+actual source normal proc bigint-projection boundary observed
+(pass) actual source collector normal proc boundary observes bigint-projection [211.91ms]
+source Node normal proc BEGIN timestamp-range
+actual source normal proc timestamp-range boundary observed
+(pass) actual source collector normal proc boundary observes timestamp-range [31.92ms]
+source Node normal proc BEGIN fd-count
+actual source normal proc fd-count boundary observed
+(pass) actual source collector normal proc boundary observes fd-count [115.32ms]
+source Node normal proc BEGIN pid-start
+actual source normal proc pid-start boundary observed
+(pass) actual source collector normal proc boundary observes pid-start [120.28ms]
+source Node normal proc BEGIN deleted-path
+actual source normal proc deleted-path boundary observed
+(pass) actual source collector normal proc boundary observes deleted-path [26.38ms]
+source Node normal proc BEGIN fd-identity
+actual source normal proc fd-identity boundary observed
+(pass) actual source collector normal proc boundary observes fd-identity [117.30ms]
+source Node function BEGIN proc-bound
+actual source function proc-bound refusal observed
+(pass) actual source collector function boundary refuses proc-bound [26.38ms]
+source Node function BEGIN output-total
+actual source function output-total refusal observed
+(pass) actual source collector function boundary refuses output-total [84.43ms]
+source Node function BEGIN output-token
+actual source function output-token refusal observed
+(pass) actual source collector function boundary refuses output-token [38.13ms]
+source Node function BEGIN uid
+actual source function uid refusal observed
+(pass) actual source collector function boundary refuses uid [26.09ms]
+source Node function BEGIN unknown-mode
+actual source function unknown-mode refusal observed
+(pass) actual source collector function boundary refuses unknown-mode [22.85ms]
+source Node function BEGIN pid-argument
+actual source function pid-argument refusal observed
+(pass) actual source collector function boundary refuses pid-argument [23.44ms]
+source Node function BEGIN stat-identity
+actual source function stat-identity refusal observed
+(pass) actual source collector function boundary refuses stat-identity [25.58ms]
+source Node function BEGIN link-input
+actual source function link-input refusal observed
+(pass) actual source collector function boundary refuses link-input [23.86ms]
+source Node launcher BEGIN credential
+actual source launcher credential refusal observed
+(pass) actual source launcher rejects credential before granting reap [23.99ms]
+751 |   const target=Bun.spawn([node,'-e','setInterval(()=>{},1000)'],{stdin:'ignore',stdout:'pipe',stderr:'pipe'});
+752 |   try{
+753 |    let launcher=SOURCE_NODE_LAUNCHER;
+754 |    if(fault==='credential')launcher='process.getgid=()=>0;'+launcher;
+755 |    if(fault==='identity'){
+756 |     const marker="const fs=require('node:fs');";expect(launcher.split(marker)).toHaveLength(2);
+                                                                                     ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 2
+Received length: 3
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-program.model.ts:756:80)
+(fail) actual source launcher rejects identity before granting reap [0.50ms]
+source Node launcher BEGIN exit-status
+actual source launcher exit-status refusal observed
+(pass) actual source launcher rejects exit-status before granting reap [236.41ms]
+source Node ACK bound BEGIN
+actual source open ACK bound refusal observed
+(pass) actual source launcher bounds an open ACK channel before its work deadline [33.84ms]
+source Node launcher channel BEGIN stdout
+actual source launcher stdout boundary refusal observed
+(pass) actual source launcher refuses stdout from its owned collector boundary [103.07ms]
+source Node launcher channel BEGIN stderr
+actual source launcher stderr boundary refusal observed
+(pass) actual source launcher refuses stderr from its owned collector boundary [62.67ms]
+
+1 tests failed:
+(fail) actual source launcher rejects identity before granting reap [0.50ms]
+
+ 42 pass
+ 1 fail
+ 299 expect() calls
+Ran 43 tests across 1 file. [33.75s]
+45 |         `source Node owning namespace custody unproved; retained ${directory}`,
+46 |       );
+47 |     settled = true;
+48 |     process.stderr.write(stderr.value);
+49 |     expect(child.signalCode).toBeNull();
+50 |     expect(exit.value).toBe(0);
+                            ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-program.test.ts:50:24)
+(fail) source immutable Node program runs in its owned numeric1000 namespace [33769.44ms]
+
+ 0 pass
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [33.80s]

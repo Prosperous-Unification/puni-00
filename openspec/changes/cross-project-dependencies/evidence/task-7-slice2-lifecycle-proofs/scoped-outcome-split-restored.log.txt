@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/module/optimization/connected-publication.test.ts:
+(pass) scoped connected recipient insert fault rolls back selected outcome and both event sequences [274.38ms]
+
+ 1 pass
+ 18 filtered out
+ 0 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.52s]

@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import { type Connection, openConnection } from './db';
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
@@ -30,7 +31,10 @@ describe('openSqliteSource', () => {
     const path = databasePath();
     runMigrations(path, MIGRATIONS);
     activateTestStepBlockages(path);
-    const source = openSqliteSource({ dbPath: path });
+    const source = openSqliteSource({
+      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+      dbPath: path,
+    });
     const stamp = { at: 10, by: 'owner' };
     const fact = { workItemId: 'blocked-owner', stepId: 'dev', blockedAt: 123 };
     try {
@@ -123,7 +127,10 @@ describe('openSqliteSource', () => {
   });
   it('opens without applying migrations', async () => {
     const path = databasePath();
-    const source = openSqliteSource({ dbPath: path });
+    const source = openSqliteSource({
+      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+      dbPath: path,
+    });
 
     expect(existsSync(path)).toBe(true);
     expect(await source.health()).toEqual({ ok: false, reason: 'unavailable' });
@@ -145,6 +152,7 @@ describe('openSqliteSource', () => {
     activateTestStepBlockages(path);
     let opens = 0;
     const source = openSqliteSource({
+      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
       dbPath: path,
       openConnection: (requested): Connection => {
         opens += 1;
@@ -166,7 +174,10 @@ describe('openSqliteSource', () => {
     const path = databasePath();
     runMigrations(path, MIGRATIONS);
     activateTestStepBlockages(path);
-    const source = openSqliteSource({ dbPath: path });
+    const source = openSqliteSource({
+      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+      dbPath: path,
+    });
     expect(await source.health()).toEqual({ ok: true });
     await source.close();
   });
@@ -175,6 +186,7 @@ describe('openSqliteSource', () => {
     const path = databasePath();
     const real = openConnection(path);
     const source = openSqliteSource({
+      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
       dbPath: path,
       openConnection: () => ({
         db: Object.create(real.db, {
@@ -198,6 +210,7 @@ describe('openSqliteSource', () => {
     const real = openConnection(path);
     let closes = 0;
     const source = openSqliteSource({
+      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
       dbPath: path,
       openConnection: () => ({
         db: real.db,

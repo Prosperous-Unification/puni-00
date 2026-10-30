@@ -23,6 +23,7 @@ let h: OrganizationHarness;
 let projectA: string;
 let projectB: string;
 let leaf: string;
+let firstStepId: string;
 
 beforeAll(async () => {
   const { publicKey } = await generateKeyPair('RS256');
@@ -74,6 +75,13 @@ beforeEach(async () => {
   });
   if (rows.status !== 200) throw new Error(`leaf refused: ${JSON.stringify(rows)}`);
   leaf = (rows.body as { results: { id: string }[] }).results[0]?.id ?? '';
+  const firstStep = h.sqlite
+    .query<{ id: string }, [string]>(
+      'SELECT id FROM step WHERE project_id = ? ORDER BY position,id LIMIT 1',
+    )
+    .get(projectA);
+  if (firstStep === null) throw new Error('created project has no first step');
+  firstStepId = firstStep.id;
   addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
   addAgentPerson(h.sqlite, 'codex', 'org-a', h.userId('dany'));
   addAgentPerson(h.sqlite, 'mems-agent', 'org-a', h.userId('mem'));
@@ -469,6 +477,86 @@ describe('an API key as a Bearer on /api, removed by 7.1 (M9)', () => {
   });
 });
 
+describe('machine restricted-project role ceiling', () => {
+  it.each(['commands', 'undo', 'redo', 'steps', 'calendar-markers', 'optimization/retry'])(
+    'refuses %s recovery without mutations, audit or events',
+    async (route) => {
+      const restricted = await createProject('mem', 'Restricted member project');
+      expect(
+        (await h.call('mem', 'PATCH', `/api/projects/${restricted}`, { restricted: true })).status,
+      ).toBe(200);
+      const { key } = await claireKey();
+      const tables = [
+        'project',
+        'work_item',
+        'step',
+        'calendar_marker',
+        'command_journal',
+        'organization_audit',
+        'event_log',
+        'event_sequencer',
+      ];
+      const snapshot = () =>
+        tables.map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+      const before = snapshot();
+      const body =
+        route === 'commands'
+          ? { commands: [{ kind: 'createWorkItem', parentId: null, name: 'Outside cap' }] }
+          : route === 'steps'
+            ? { name: 'Outside cap' }
+            : route === 'calendar-markers'
+              ? { name: 'Outside cap', date: '2026-10-22' }
+              : route === 'optimization/retry'
+                ? { objective: 'pri', inputHash: 'ignored' }
+                : undefined;
+      expect((await as(key, 'POST', `/api/projects/${restricted}/${route}`, body)).status).toBe(
+        403,
+      );
+      expect(snapshot()).toEqual(before);
+    },
+  );
+
+  it('refuses saved-plan recovery save, rename and delete without effects', async () => {
+    const restricted = await createProject('mem', 'Restricted saved project');
+    const saved = await h.call('mem', 'POST', `/api/projects/${restricted}/saved-plans`, {
+      name: 'Original',
+    });
+    expect(saved.status).toBe(201);
+    const savedId = (saved.body as { savedPlan: { id: string } }).savedPlan.id;
+    expect(
+      (await h.call('mem', 'PATCH', `/api/projects/${restricted}`, { restricted: true })).status,
+    ).toBe(200);
+    const { key } = await claireKey();
+    const snapshot = () =>
+      ['saved_plan', 'saved_plan_body', 'organization_audit', 'event_log', 'event_sequencer'].map(
+        (table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
+      );
+    const before = snapshot();
+    for (const [method, path, body] of [
+      ['POST', `/api/projects/${restricted}/saved-plans`, { name: 'Outside cap' }],
+      ['PATCH', `/api/saved-plans/${savedId}`, { name: 'Outside cap' }],
+      ['DELETE', `/api/saved-plans/${savedId}`, undefined],
+    ] as const) {
+      expect((await as(key, method, path, body)).status).toBe(403);
+      expect(snapshot()).toEqual(before);
+    }
+  });
+
+  it('allows an admin-bound machine to write its own restricted project', async () => {
+    expect(
+      (await h.call('dany', 'PATCH', `/api/projects/${projectA}`, { restricted: true })).status,
+    ).toBe(200);
+    const { key } = await claireKey();
+    expect(
+      (
+        await as(key, 'POST', `/api/projects/${projectA}/commands`, {
+          commands: [{ kind: 'createWorkItem', parentId: null, name: 'Within cap' }],
+        })
+      ).status,
+    ).toBe(200);
+  });
+});
+
 /** What `answer` settles to within `ms`, or `'pending'`. */
 function within(ms: number, answer: Promise<Answer>): Promise<Answer | 'pending'> {
   return Promise.race([
@@ -565,6 +653,7 @@ describe.each(TRANSPORTS)('a key pinned to one person, %s', (_, send) => {
     kind: 'claimWorkItem',
     workItemId: leaf,
     personId,
+    steps: [firstStepId],
     ...extra,
   });
   const refused = (error: string) => ({
@@ -593,12 +682,19 @@ describe.each(TRANSPORTS)('a key pinned to one person, %s', (_, send) => {
     });
     if (created.status !== 200) throw new Error(`child refused: ${JSON.stringify(created)}`);
     const under = (created.body as { results: { id: string }[] }).results[0]?.id ?? '';
-    expect((await batch([claim('claire')])).status).toBe(200);
+    expect(
+      (await batch([{ kind: 'claimWorkItem', workItemId: leaf, personId: 'claire' }])).status,
+    ).toBe(200);
     const parentClaim = h.sqlite
       .query<{ id: string }, [string]>('SELECT id FROM claim WHERE work_item_id = ?')
       .get(leaf)?.id;
     expect(parentClaim).toBeDefined();
-    const delegated = { kind: 'claimWorkItem', workItemId: under, personId: 'codex' };
+    const delegated = {
+      kind: 'claimWorkItem',
+      workItemId: under,
+      personId: 'codex',
+      steps: [firstStepId],
+    };
     expect(await batch([delegated])).toEqual(refused('credential_not_for_person'));
     expect(claimsOf('codex')).toBe(0);
     expect((await batch([{ ...delegated, parentClaim }])).status).toBe(200);
@@ -640,7 +736,12 @@ describe.each(TRANSPORTS)('a key pinned to one person, %s', (_, send) => {
 });
 
 describe('the account a key is bound to', () => {
-  const claim = (personId: string) => ({ kind: 'claimWorkItem', workItemId: leaf, personId });
+  const claim = (personId: string) => ({
+    kind: 'claimWorkItem',
+    workItemId: leaf,
+    personId,
+    steps: [firstStepId],
+  });
 
   it('leaves the bound account’s own session unpinned', async () => {
     await claireKey();

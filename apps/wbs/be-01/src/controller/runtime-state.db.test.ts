@@ -16,11 +16,16 @@ import {
 import { CREATOR_ADMISSION } from '@wbs/core/ports/edit-admission';
 import type { ResourceAccess } from '@wbs/core/ports/organization-access';
 import type { Decision, Scope, UnitOfWork } from '@wbs/core/ports/unit-of-work';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
+import { SqliteCommandAccess } from '@wbs/store-sqlite/command-access';
+import { MachineCredentialRepository } from '@wbs/store-sqlite/machine-credential';
+import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
 import { openSqliteSource } from '@wbs/store-sqlite/source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
 import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, describe, expect, it } from 'bun:test';
 
@@ -43,6 +48,7 @@ async function seeded() {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-runtime-observation-'));
   const dbPath = await openSpaceDatabase(directory);
   const sqlite = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,
     organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
   });
@@ -78,6 +84,7 @@ async function seeded() {
   await source.stores.directory.addExternalSystem({ id: 'runtime-pr', name: 'Runtime PR' }, stamp);
   const broadcast = recordingBroadcaster();
   const options = {
+    dependencyContext: createLocalDependencyContext(source.stores),
     admission: CREATOR_ADMISSION,
     clock: testClock,
     broadcast,
@@ -85,11 +92,26 @@ async function seeded() {
   };
   const graph = servicesOver(source.stores, options);
   const runner = createPlanCommandRunner({
+    commandAccess: new SqliteCommandAccess(
+      sqlite.db,
+      new SqliteOrganizationAccess(
+        sqlite.db,
+        () => Promise.resolve('org-a'),
+        () => testClock.now(),
+      ),
+      new MachineCredentialRepository(sqlite.db, sqlite.gate),
+    ),
     uow: source.uow,
     announcements: broadcast,
     publicServices: graph,
-    batchServices: (scope, announcements) =>
-      servicesOver(scope.stores, { ...options, broadcast: announcements }),
+    batchServices: (scope, announcements, admission, dependencies) =>
+      servicesOver(scope.stores, {
+        ...options,
+        broadcast: announcements,
+        admission,
+        dependencyContext: { kind: 'bound', context: dependencies },
+        schedulerMode: 'capture',
+      }),
   });
   const runtime = createRuntimeState(source.uow);
   const observe = async (): Promise<RuntimeObservation> => {

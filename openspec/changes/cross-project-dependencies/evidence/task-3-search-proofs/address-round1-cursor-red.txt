@@ -1,0 +1,142 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+354 |     }));
+355 | }
+356 |
+357 | it.each(['a', '010', ''])('rejects present JSON null discovery cursor for token "%s"', async (q) => {
+358 |   await create('ada', 'Alpha', 'ALPHA');
+359 |   expect(await h.call('ada', 'GET', `/api/project-addresses/projects?q=${q}&cursor=bnVsbA`)).toEqual({ status: 400, body: { error: 'invalid_query' } });
+                                                                                                   ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "error": "invalid_query",
++     "nextCursor": null,
++     "projects": [
++       {
++         "abbreviation": "ALPHA",
++         "name": "Alpha",
++         "projectId": "9434491b-18ca-418d-8bed-2122865db203",
++       },
++     ],
+    },
+-   "status": 400,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 9
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:359:94)
+(fail) rejects present JSON null discovery cursor for token "a" [162.26ms]
+354 |     }));
+355 | }
+356 |
+357 | it.each(['a', '010', ''])('rejects present JSON null discovery cursor for token "%s"', async (q) => {
+358 |   await create('ada', 'Alpha', 'ALPHA');
+359 |   expect(await h.call('ada', 'GET', `/api/project-addresses/projects?q=${q}&cursor=bnVsbA`)).toEqual({ status: 400, body: { error: 'invalid_query' } });
+                                                                                                   ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "error": "invalid_query",
++     "nextCursor": null,
++     "projects": [],
+    },
+-   "status": 400,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:359:94)
+(fail) rejects present JSON null discovery cursor for token "010" [89.06ms]
+354 |     }));
+355 | }
+356 |
+357 | it.each(['a', '010', ''])('rejects present JSON null discovery cursor for token "%s"', async (q) => {
+358 |   await create('ada', 'Alpha', 'ALPHA');
+359 |   expect(await h.call('ada', 'GET', `/api/project-addresses/projects?q=${q}&cursor=bnVsbA`)).toEqual({ status: 400, body: { error: 'invalid_query' } });
+                                                                                                   ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "error": "invalid_query",
++     "nextCursor": null,
++     "projects": [],
+    },
+-   "status": 400,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:359:94)
+(fail) rejects present JSON null discovery cursor for token "" [85.77ms]
+358 |   await create('ada', 'Alpha', 'ALPHA');
+359 |   expect(await h.call('ada', 'GET', `/api/project-addresses/projects?q=${q}&cursor=bnVsbA`)).toEqual({ status: 400, body: { error: 'invalid_query' } });
+360 | });
+361 | it('rejects present JSON null selected project cursor', async () => {
+362 |   const selected = await create('ada', 'Alpha', 'ALPHA');
+363 |   expect(await h.call('ada', 'GET', `/api/projects/${selected}/address-candidates?cursor=bnVsbA`)).toEqual({ status: 400, body: { error: 'invalid_query' } });
+                                                                                                         ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "error": "invalid_query",
++     "addressRevision": "qar1:465286216780bc5e054e0905f62664fb27f0654149e0f4eaded34e9d3a5c0124",
++     "candidates": [],
++     "nextCursor": null,
++     "project": {
++       "abbreviation": "ALPHA",
++       "name": "Alpha",
++       "projectId": "2f1ca81c-510f-4833-af79-bfabb8112d2a",
++     },
+    },
+-   "status": 400,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 9
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:363:100)
+(fail) rejects present JSON null selected project cursor [105.88ms]
+(pass) rejects array cursor scope before current revision checks [104.76ms]
+368 |   const page = await candidates(selected, 'limit=1');
+369 |   if (page.nextCursor === null) throw new Error('continuation missing');
+370 |   const cursor = decodeCursor(page.nextCursor) as Record<string, unknown> & { v: 1 };
+371 |   const revision = observation === 'current' ? page.addressRevision : 'old';
+372 |   const altered = encodeCursor({ ...cursor, scope: ['node'], stepId: 'anything', revision });
+373 |   expect(await h.call('ada', 'GET', `/api/projects/${selected}/address-candidates?cursor=${altered}`)).toEqual({ status: 400, body: { error: 'invalid_query' } });
+                                                                                                             ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "error": "invalid_query",
++     "addressRevision": "qar1:72e93e9379e78d1e416e81af545df1dada6bfb56addb45730e446fc48bd7f680",
++     "error": "stale_address_revision",
+    },
+-   "status": 400,
++   "status": 409,
+  }
+
+- Expected  - 2
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:373:104)
+(fail) rejects array cursor scope before stale revision checks [90.26ms]
+
+ 1 pass
+ 14 filtered out
+ 5 fail
+ 14 expect() calls
+Ran 6 tests across 1 file. [2.70s]

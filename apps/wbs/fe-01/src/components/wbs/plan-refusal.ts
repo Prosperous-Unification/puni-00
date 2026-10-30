@@ -1,4 +1,4 @@
-import { unreachable } from '@/lib/http';
+import { failureMessage, unreachable } from '@/lib/http';
 import {
   agentPersonLimitSentence,
   capacityLimitSentence,
@@ -47,6 +47,9 @@ function projectCreateCode(refusal: RefusalOf<'postApiProjects'>): string {
     case 'not_a_member':
     case 'sso_required':
     case 'reauthentication_required':
+    case 'invalid_abbreviation':
+    case 'abbreviation_taken':
+    case 'abbreviation_exhausted':
     case 'forbidden':
       return refusal.error;
     default:
@@ -108,6 +111,8 @@ function projectPatchCode(refusal: RefusalOf<'patchApiProjectsById'>): string {
     case 'bad_budget_factor':
     case 'invalid_timezone':
     case 'optimizer_unavailable':
+    case 'invalid_abbreviation':
+    case 'abbreviation_taken':
     case 'solution_taken':
     case 'dependency_cycle':
     case 'organization_context_changed':
@@ -179,6 +184,7 @@ function claimHistoryReadCode(refusal: RefusalOf<'getApiProjectsByIdClaim-histor
   }
 }
 
+// Proof: omitting external_dependencies_inactive made the real writer dormant-admission test throw (2026-10-22).
 function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
   switch (refusal.error) {
     case 'invalid_params':
@@ -190,6 +196,7 @@ function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
     case 'insufficient_scope':
     case 'forbidden':
     case 'not_found':
+    case 'external_dependencies_inactive':
     case 'nothing_to_undo':
     case 'stale_undo':
     case 'organization_context_changed':
@@ -308,6 +315,10 @@ function stepWriteCode(
     case 'code_taken':
       // fe-01 sends no code yet, so the last three cannot arrive from the step
       // header; named so a caller that does send one reads the refusal.
+      return refusal.error;
+    // Proof: omitting this arm made the typed step-write cycle refusal throw
+    // at the default instead of returning dependency_cycle in plan-writer.test.ts.
+    case 'dependency_cycle':
       return refusal.error;
     case 'calendar_range':
       // An allowance edit that would place the plan past the supported calendar.
@@ -482,6 +493,8 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'unknown_system':
     case 'cycle':
     case 'frozen':
+    case 'arrangement_positions_unavailable':
+    case 'dependency_calendar_missing':
     case 'schedule_not_ready':
     case 'engine_unavailable':
     case 'rolled_up':
@@ -499,6 +512,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'not_a_parent':
     case 'node_on_parent':
     case 'descendant_step_on_leaf':
+    case 'project_deleting':
     case 'duplicate_dependency':
     case 'unsupported_relationship_type':
     case 'too_large':
@@ -535,8 +549,15 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
       // cases throw `Unexpected response variant: object` instead of reporting
       // the refusal; watched in plan-writer.test.ts, 2026-10-14.
       return refusal.error;
+    // Proof: omitting this arm made the real writer dormant-admission test throw (2026-10-22).
+    case 'external_dependencies_inactive':
+      return refusal.error;
     // Proof: removing this case failed both sparse command writer cases (2026-10-17).
     case 'referenced_by_step_parallel':
+      return refusal.error;
+    // Proof: omitting this arm made the retained-external-prerequisite writer test
+    // throw at unreachable instead of reporting refusal (2026-10-22).
+    case 'referenced_by_external_dependency':
       return refusal.error;
     // `claimWorkItem` and `releaseWorkItem` (`wbs-team-claims`): the row menu
     // sends both for the signed-in account's person (`wbs-claim-display` 11.2).
@@ -554,6 +575,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'parent_claim_foreign':
     case 'parent_claim_not_ancestor':
     case 'item_done':
+    case 'prerequisites_unmet':
     case 'not_startable':
     case 'step_done':
     case 'already_claimed':
@@ -792,6 +814,18 @@ export const failureText = (thrown: unknown, fallback: string): string =>
       ? thrown.message
       : fallback;
 
+/** A Retry refusal reconciles the displayed question through a fresh tree, never its response state. */
+export function isOptimizationRetryRefusal(thrown: unknown): boolean {
+  if (!(thrown instanceof WbsRequestError)) return false;
+  const problem = thrown.problem;
+  return (
+    problem.kind === 'refusal' &&
+    problem.operation === 'postApiProjectsByIdOptimizationRetry' &&
+    'code' in problem.refusal &&
+    problem.refusal.code === 'not-retryable'
+  );
+}
+
 /** Whether a validated client-boundary failure leaves the write's commit outcome unknown. */
 export const isAmbiguousWriteFailure = (thrown: unknown): boolean =>
   thrown instanceof WbsRequestError && thrown.problem.kind === 'failure';
@@ -911,6 +945,9 @@ export const PLAN_REFUSALS: RefusalWords = {
     // `node_done`, reading `That change could not be completed (node_done).`;
     // watched 2026-10-12.
     step_blockage_inactive: 'Step blockage changes are not enabled on this server.',
+    // Proof: absent sentence made the dormant writer test receive the generic fallback (2026-10-22).
+    external_dependencies_inactive: 'Dependencies between projects are not enabled on this server.',
+    project_deleting: 'This project is being deleted. Nothing was changed.',
     // Proof: deleting this sentence failed all three sparse writer refusal cases (2026-10-17).
     referenced_by_step_parallel:
       'That change cannot be made while the affected steps have individual parallelism overrides.',
@@ -1068,12 +1105,29 @@ export const PLAN_REFUSALS: RefusalWords = {
  * @param thrown Whatever the request rejected with; anything that is not an
  * `Error` reads as an unknown code rather than being guessed at.
  */
-// Proof: 2026-10-22, dropping `limitSentence` here failed five cases of
-// organization-limit-words.test.ts: each read the code-only fallback.
-export const refusalSentence = (thrown: unknown): string =>
-  limitSentence(thrown) ??
-  claimRefusalSentence(thrown) ??
-  sentenceForRefusal(PLAN_REFUSALS, failureText(thrown, 'unknown'));
+export const refusalSentence = (thrown: unknown): string => {
+  if (thrown instanceof WbsRequestError) {
+    const problem = thrown.problem;
+    // Proof: bypassing this arm hid the compatible-client instruction in the mounted real HTTP plan test (2026-10-23).
+    if (problem.kind === 'failure' && problem.failure.code === 'dependency_incompatible')
+      return failureMessage(problem.failure);
+    if (
+      problem.kind === 'refusal' &&
+      problem.operation === 'postApiProjectsByIdOptimizationRetry' &&
+      'code' in problem.refusal &&
+      problem.refusal.code === 'not-retryable' &&
+      problem.refusal.state === 'boundary-infeasible'
+    ) {
+      return 'This captured optimization question cannot fit its fixed external boundaries. The displayed valid schedule is retained.';
+    }
+  }
+  // Proof: dropping the organization limit sentence made five limit-word cases read the code-only fallback.
+  return (
+    limitSentence(thrown) ??
+    claimRefusalSentence(thrown) ??
+    sentenceForRefusal(PLAN_REFUSALS, failureText(thrown, 'unknown'))
+  );
+};
 
 /**
  * The sentence for a batch refused by an organization limit, naming the

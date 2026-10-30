@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+332 |     const guardedContext = forbiddenSuccessor === undefined ? graphContext : {
+333 |       ...graphContext, endpoints: {
+334 |         ...graphContext.endpoints,
+335 |         readEndpoint: (endpoint: Parameters<DependencyContext['endpoints']['readEndpoint']>[0]) => {
+336 |           if (endpoint.projectId === forbiddenSuccessor && endpoint.workItemId !== fixture.predecessor.workItemId)
+337 |             throw new Error('second successor owner facts were read');
+                            ^
+error: second successor owner facts were read
+      at readEndpoint (/tmp/puni-command-proofs/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:337:23)
+      at typedEvidence (/tmp/puni-command-proofs/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6642:46)
+      at async <anonymous> (/tmp/puni-command-proofs/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6773:37)
+      at async withDependencyContext (/tmp/puni-command-proofs/libs/wbs/application/core/src/ports/dependency-context.ts:86:27)
+(fail) second successor owner add refuses before protected facts and rolls back earlier local work [420.56ms]
+
+ 0 pass
+ 115 filtered out
+ 1 fail
+ 9 expect() calls
+Ran 1 test across 1 file. [3.08s]

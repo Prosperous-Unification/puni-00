@@ -733,3 +733,112 @@ still rejects every touch.
 - CI on 688f7836403 (PR #625): every check green.
 - Reviews: every slice had a Fable review before merging into the plan branch (#628 slice 1 after fixes incl. A23; #631 slice 2 after fixes incl. A24; #633 slice 5 after fixes incl. A25; #634 slice 6 after fixes; #641 slice 3 MERGE with S3 follow-ups landed).
 - Not observed live: tasks 3.5 (consent as an agent on dev), 4.x (slice 4, retirement of the operator links, waits for the fleets' self-serve onboarding), 5.4 (a real GitHub Actions token on dev), 6.3 (by-eye acceptance on dev).
+
+## Writer authority integration (2026-10-22, merged base dc5f7a40c)
+
+The retained-operation contract is `409 organization_context_changed` for current credential
+absence, revocation or identity/context mismatch. Initial authentication retains its 401
+contract. `SqliteCommandAccess` now requires a read-only credential collaborator wired to the
+same SQLite database in boot and the composed integration harness. It does not acquire the
+writer, update last use, or consume delegations.
+
+TDD: the 25 new credential mismatch and HTTP queue cases failed before implementation,
+reaching capture rather than refusing; the missing-row fixture was corrected to delete its
+secret first, then both machine/consent missing-row cases failed through production capture
+(`evidence/writer-authority/red-missing.log`). After implementation, all 25 passed. A further
+14 current-principal/queued-direct-runner/trusted-storage cases passed. Consent direct-runner
+tests install already-verified consent evidence over actual persisted credentials; they do
+not claim to reexercise the delegation verifier. Existing MCP boot regressions exercise it.
+
+R5: each production predicate was bypassed independently and its corresponding mounted
+`direct runner refuses current credential …` case failed (0 pass, 1 fail). Logs are in
+`evidence/writer-authority/proof-*.log`:
+
+| Fault                  | Injected production mutation      | Observed negative                                                                 |
+| ---------------------- | --------------------------------- | --------------------------------------------------------------------------------- |
+| Missing row            | Remove null-row refusal           | `missing` throws instead of returning typed conflict                              |
+| Revoked row            | Remove revocation predicate       | `revoked` reaches forbidden capture                                               |
+| Changed person         | Remove person equality            | `person` reaches forbidden capture                                                |
+| Changed account        | Remove account equality           | `account` reaches forbidden capture                                               |
+| Unbound person         | Remove account equality           | `unbound` reaches forbidden capture                                               |
+| Missing context        | Remove absent-context refusal     | `no-context` throws instead of returning typed conflict                           |
+| Changed organization   | Remove organization equality      | `organization` reaches forbidden capture                                          |
+| Machine source         | Accept `mcp_consent` as machine   | machine `source` reaches forbidden capture                                        |
+| Consent source         | Accept non-consent source         | consent `source` reaches forbidden capture                                        |
+| Consent direct context | Accept direct branch              | `direct-consent` reaches forbidden capture                                        |
+| Consent family         | Remove family equality            | `family` reaches forbidden capture                                                |
+| Trusted read           | Bypass machine/consent read block | all four `throws on trusted credential` cases return success rather than throwing |
+
+The first direct-consent mutation removed only the direct disjunct, and the family mismatch
+still refused it. The production check was reshaped as an explicit direct-context branch;
+accepting that branch then failed the specific negative. Every fault was restored.
+
+Scoped verification:
+
+- Final `bun test apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts libs/wbs/application/core/src/compose.test.ts`: 123 pass, 0 fail, 736 assertions.
+- Final targeted Prettier check and `git diff --check`: passed.
+
+- `NX_DAEMON=false bunx nx run-many -t typecheck -p wbs-be-01,wbs-store-sqlite`: passed all three tasks (includes module typecheck), zero cache hits.
+- `bun node_modules/eslint/bin/eslint.js` on changed TypeScript files: passed. The initial direct lint before Nx graph generation skipped module boundaries; the recorded successful run followed graph generation and did not skip them.
+- `bunx openspec validate wbs-machine-credentials --json`: valid, no errors; requirement-length warnings and existing fleet-credentials archive info remain.
+- Scoped 10-file credential, current-authority, boot, command/claim and MCP regression run with localhost networking: 320 pass, 5 fail. Failures are existing eligible-step fixture assumptions: three API claim positives and two MCP consent/human claim positives. A two-case probe with unchanged merged `SqliteCommandAccess` reproduced the same API failures and showed `409 prerequisites_unmet`, unrelated to credential context (`evidence/writer-authority/baseline-claims.log`). The coordinating change adapts those claims to the first eligible step separately.
+- The initial sandbox regression run could not listen on localhost (`EPERM listen`), producing 191 pass/36 fail; it does not establish regression behavior. The network-enabled rerun above supersedes it.
+
+Verifier expiry/rotation-window freshness and restricted-project recovery ceiling remain
+open and are explicitly outside this packet. No full remote host gate, build, full product
+lint, secrets scan or full migration lint was run by this packet; the coordinator must run
+the required host gate on the integrated commit before release/completion claims.
+
+## Restricted-project recovery ceiling repair — 2026-10-22
+
+This restores the existing A23 member ceiling; it introduces no new authority.
+The repository still reads current membership inside the writer transaction and
+intersects it with the authenticated scope role. Command/replay, dependent
+step/marker recovery, project edits, saved-plan save/touch and optimizer Retry
+carry that ceiling; borrowed project/step/import fan-out also retains it.
+
+Fresh focused results on merged baseline `ba129970f` plus this repair:
+
+- `bun test apps/wbs/be-01/src/controller/machine-credential.controller.db.test.ts`:
+  32 pass, including command, undo, redo, step, marker, Retry and saved-plan
+  refusals with unchanged mutation/audit/event state, ordinary writes, restricted
+  creator writes, person pinning and the human account's unpinned session.
+- `bun test apps/wbs/mcp-01/src/organization-delegation.boot.test.ts`: 16 pass,
+  91 assertions, through real MCP OAuth and booted be-01. Consent recovery
+  refusals include saved-plan save/rename/delete and unchanged state.
+- Mounted human command/project/saved-plan organization suites plus
+  `organization-audit.db.test.ts`: 73 pass, including human super-admin
+  recovery and queued membership revocation.
+- SQLite saved-plan organization, fanout capture and optimizer repository
+  suites: 35 pass. The low-level Retry negative refuses before eligibility,
+  audit or slot writes even for a current stored super-admin.
+
+Watched R5 faults, restored afterward:
+
+- Returning the stored role from `capStoredRole` admitted a machine batch and
+  step (200), marker (201), and saved-plan touch (200); undo/redo reached replay
+  handling (409), all where admission requires 403. The complete ordered MCP
+  boot suite's consent recovery negative also failed (admitted tool call).
+- The same fault wrote the low-level capped saved plan and let capped Retry
+  reach `not-retryable` instead of `forbidden`.
+- Removing the borrowed ceilings independently from their production call
+  sites made all four restricted-project/viewer-project/viewer-step/viewer-import
+  fan-out negatives admit. Adjacent `Proof:` comments identify these faults.
+
+The broader command/core selection reports 160 pass and three prerequisite
+failures in resource-command/resource-schedule/assignee-calendar. All three
+reproduce on a fresh unchanged `ba129970f` clone. Typechecking be-01 and the
+SQLite specs remains blocked by the merged baseline's `person-load.feature.ts`
+432 and `space.resource.ts` 405 scheduling error types; no ceiling-related type
+errors remain. Full host gate, build, CI secrets checks and live acceptance were
+not run for this repair packet. Changed-file lint is recorded separately by the
+integration review; the repository's lazy-loaded core boundary rule can report
+existing static imports once an Nx project graph is present.
+
+The [independent Astra review](evidence/restricted-project-role-ceiling-review.md)
+approved this bounded repair without an introduced finding. Its fresh relevant
+runs passed 156 tests; unchanged-base probes reproduced the three prerequisite
+failures, two scheduling type errors and ten static-import lint findings. On
+the combined feature/main branch, all eight mounted machine restricted-project
+role-ceiling cases passed (28 assertions), including ordinary creator success.
+Full CI and the exact-SHA host gate remain pending.

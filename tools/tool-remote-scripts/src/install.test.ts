@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { buildInstallPlan, parseInstallArgs, parseSha256sumOutput } from './install';
+import { parseInstallArgs, parseSha256sumOutput } from './install';
 import { BUNDLE_FILES, bundleFilesFor } from './lib/deploy-contract';
 import { envLayout } from './lib/env';
 import {
@@ -39,13 +39,9 @@ describe('parseInstallArgs', () => {
 
     expect(a.layout.env).toBe('dev');
     expect(a.layout.root).toBe('/home/puni1/wbs-dev');
-    expect(
-      buildInstallPlan(a.host, bundleFilesFor(a.layout.root)).map((s) => s.description),
-    ).toEqual([
-      'scp dist/tool-remote-scripts/swap.js -> h2puni:/home/puni1/wbs-dev/bin/swap.js.tmp',
-      'install /home/puni1/wbs-dev/bin/swap.js (chmod 0755 + atomic rename)',
-      'scp dist/tool-smoke/smoke.js -> h2puni:/home/puni1/wbs-dev/bin/smoke.js.tmp',
-      'install /home/puni1/wbs-dev/bin/smoke.js (chmod 0755 + atomic rename)',
+    expect(bundleFilesFor(a.layout.root).map((file) => file.remote)).toEqual([
+      '/home/puni1/wbs-dev/bin/swap.js',
+      '/home/puni1/wbs-dev/bin/smoke.js',
     ]);
   });
 
@@ -67,28 +63,7 @@ describe('parseInstallArgs', () => {
   });
 });
 
-describe('buildInstallPlan', () => {
-  it('emits an scp-to-temp + chmod-and-rename pair per file', () => {
-    const steps = buildInstallPlan('h2puni', [
-      { local: 'dist/a.js', remote: '/home/puni1/wbs/bin/a.js' },
-    ]);
-    expect(steps).toHaveLength(2);
-    expect(steps[0].argv).toEqual(['scp', 'dist/a.js', 'h2puni:/home/puni1/wbs/bin/a.js.tmp']);
-    expect(steps[1].argv).toEqual([
-      'ssh',
-      'h2puni',
-      'chmod 0755 /home/puni1/wbs/bin/a.js.tmp && mv /home/puni1/wbs/bin/a.js.tmp /home/puni1/wbs/bin/a.js',
-    ]);
-  });
-
-  it('never leaves a step that writes directly to the final path', () => {
-    for (const step of buildInstallPlan('h2puni', prodFiles)) {
-      if (step.argv[0] === 'scp') {
-        expect(step.argv[2]).toMatch(/\.tmp$/);
-      }
-    }
-  });
-
+describe('installed bundle contract', () => {
   it('covers both the swap executor and the smoke bundle', () => {
     expect(prodFiles.map((file) => file.remote)).toEqual([
       '/home/puni1/wbs/bin/swap.js',
@@ -198,9 +173,12 @@ describe('host-wide solver supervisor contract', () => {
       `${root}deploy/solver-supervisor/wbs-solver-supervisor.service`,
     ).text();
     expect(unit).toContain(
-      `ExecStart=${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --config=${SOLVER_SUPERVISOR_CONFIG}`,
+      `ExecStart=${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --config=${SOLVER_SUPERVISOR_CONFIG} --admission=policy`,
     );
     expect(unit).toContain('Restart=always');
+    expect(unit).toContain('RestartPreventExitStatus=78');
+    expect(unit).toContain('Environment=WBS_EDGE_STATE=/home/puni1/wbs/state');
+    expect(unit).toContain('KillMode=control-group');
     expect(unit).toContain(`RuntimeDirectory=${SOLVER_SUPERVISOR_RUNTIME_DIRECTORY}`);
     // Proof: removing preservation strands bind-mounted containers on the old directory;
     // removing cleanup lets socket-only readiness accept the terminated process's inode.
@@ -210,7 +188,12 @@ describe('host-wide solver supervisor contract', () => {
     expect(unit.split('\n').filter((line) => line.startsWith('ExecStopPost='))).toEqual([
       'ExecStopPost=/bin/rm -f %t/wbs-solver/supervisor.sock',
     ]);
-    expect(unit).not.toContain('/home/puni1/wbs/');
+    expect(unit.split('\n').filter((line) => line.startsWith('Environment='))).toEqual([
+      'Environment=WBS_EDGE_STATE=/home/puni1/wbs/state',
+    ]);
+    expect(unit.replace('Environment=WBS_EDGE_STATE=/home/puni1/wbs/state\n', '')).not.toContain(
+      '/home/puni1/wbs/',
+    );
     expect(unit).not.toContain('/home/puni1/wbs-dev/');
   });
 });

@@ -1,0 +1,18 @@
+{
+  "argv": [
+    "bun",
+    "test",
+    "--preload",
+    "./tools/test/scratch/preload.ts",
+    "tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts",
+    "--test-name-pattern=restoration owner refuses invalid|all leaves refuse malformed restoration target"
+  ],
+  "pid": 3311551,
+  "exit": 0,
+  "signal": null,
+  "stdoutEOF": true,
+  "stderrEOF": true,
+  "elapsedSeconds": 1.0329579499084502,
+  "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+  "stderrSHA256": "49f3580f56745929b74b05e2aea7a77471bf633991e153bb6e22aec3d7c627b0"
+}

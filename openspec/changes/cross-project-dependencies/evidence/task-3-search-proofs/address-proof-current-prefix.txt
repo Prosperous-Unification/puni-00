@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+218 |       await h.call(
+219 |         'ada',
+220 |         'GET',
+221 |         `/api/projects/${selected}/address-references?reference=${reference}&revision=${page.addressRevision}`,
+222 |       ),
+223 |     ).toEqual({ status, body });
+            ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "error": "not_found",
++     "error": "unresolvable_reference",
++     "reason": "ambiguous_work_item",
+    },
+-   "status": 404,
++   "status": 422,
+  }
+
+- Expected  - 2
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:223:7)
+(fail) refuses duplicate numbers and missing endpoints without changing database state [160.00ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [2.45s]

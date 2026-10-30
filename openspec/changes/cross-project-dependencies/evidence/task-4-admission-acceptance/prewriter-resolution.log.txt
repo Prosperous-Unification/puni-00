@@ -1,0 +1,43 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:
+877 |       refusingObservations = true;
+878 |       release();
+879 |       await held;
+880 |       const response = await pending;
+881 |       expect(response.status).toBe(403);
+882 |       expect(await response.json()).toMatchObject({
+                                          ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "error": "not_a_member",
++   "error": "forbidden",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-command-proofs/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:882:37)
+(fail) qualified address lookup then queued external command refuses current membership [457.02ms]
+{"level":"error","time":1792693363355,"service":"be-01","err":{"occurrence_id":"AE_0CKR5HJFD7TRFJ904R3CQM27XR","fingerprint":"fp1_db3e52cb684821123f08e476a9be9295","stack":["Error: refused authority reached fan-out capture","    at onFanoutCapture (/tmp/puni-command-proofs/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:42:43)","    at <anonymous> (/tmp/puni-command-proofs/libs/wbs/adapters/store-sqlite/src/source.ts:129:37)","    at <anonymous> (/tmp/puni-command-proofs/libs/wbs/application/core/src/module/plan-commands/composition.ts:96:51)","    at async <anonymous> (/tmp/puni-command-proofs/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:442:41)","    at async <anonymous> (/tmp/puni-command-proofs/libs/wbs/application/core/src/module/plan-commands/composition.ts:141:34)","    at async <anonymous> (/tmp/puni-command-proofs/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+876 |       const pushes = observedPushes;
+877 |       refusingObservations = true;
+878 |       release();
+879 |       await held;
+880 |       const response = await pending;
+881 |       expect(response.status).toBe(403);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 403
+Received: 500
+
+      at <anonymous> (/tmp/puni-command-proofs/apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:881:31)
+(fail) qualified address lookup then queued external command refuses current revocation [330.46ms]
+
+ 0 pass
+ 103 filtered out
+ 2 fail
+ 23 expect() calls
+Ran 2 tests across 1 file. [3.73s]

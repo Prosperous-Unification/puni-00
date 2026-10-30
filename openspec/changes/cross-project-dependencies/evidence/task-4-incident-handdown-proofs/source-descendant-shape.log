@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/memory-source.test.ts:
+1089 |     const failure: unknown = await source.uow.run(async (scope)=>{
+1090 |       await scope.stores.typedDependencies.incidents.detach(receipt);
+1091 |       await scope.stores.typedDependencies.incidents.restore({...receipt,dependency:{...original,predecessor}},original,stamp);
+1092 |       return {commit:true,value:undefined};
+1093 |     }).then(()=>null,(error:unknown)=>error);
+1094 |     expect(failure).toBeInstanceOf(Error);
+                           ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: null
+
+      at <anonymous> (/tmp/puni-incident-handdown/libs/wbs/adapters/store-memory/src/memory-source.test.ts:1094:21)
+(fail) incident source restoration refuses descendant-on-leaf atomically [5.59ms]
+
+ 0 pass
+ 26 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.10s]

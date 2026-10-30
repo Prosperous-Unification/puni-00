@@ -149,6 +149,16 @@ describe('importRefusalSentence', () => {
     );
   });
 
+  it('explains dormant external dependency import without exposing the refusal code', () => {
+    expect(
+      importRefusalSentence(
+        new PlanImportRefusalError({ error: 'external_dependencies_inactive', detail: null }),
+      ),
+    ).toBe(
+      'This server does not accept dependencies between projects yet, so nothing was imported.',
+    );
+  });
+
   it('gives every server refusal a sentence that names no code', () => {
     const codes = [
       'invalid_body',
@@ -161,6 +171,8 @@ describe('importRefusalSentence', () => {
       'work_item_takes_one_type',
       'engine_unavailable',
       'source_refused',
+      'abbreviation_taken',
+      'abbreviation_exhausted',
     ] as const;
     for (const error of codes) {
       const sentence = importRefusalSentence(
@@ -226,4 +238,16 @@ describe('importRefusalSentence', () => {
       'The plan could not be imported. Try again.',
     );
   });
+});
+
+it('explains abbreviation exhaustion without treating it as a broken export', () => {
+  expect(
+    importRefusalSentence(
+      new PlanImportRefusalError({
+        error: 'abbreviation_exhausted',
+        path: 'project',
+        detail: null,
+      }),
+    ),
+  ).toContain('available abbreviation');
 });

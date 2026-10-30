@@ -1,4 +1,5 @@
 import type { CanonicalPlanInput } from './canonical-plan-input';
+import type { CanonicalPlanInputV10 } from './versioned-plan-input';
 
 /**
  * One side of a comparison: a canonical plan input, **its** schedule, and the
@@ -17,7 +18,8 @@ import type { CanonicalPlanInput } from './canonical-plan-input';
  * snapshot↔`current` are one code path.
  */
 export interface PlanSide {
-  readonly input: CanonicalPlanInput;
+  /** Legacy normalization stays v8; new records retain their explicit v9 captured context. */
+  readonly input: CanonicalPlanInput | CanonicalPlanInputV10;
   readonly schedule: PlanSideSchedule;
 }
 
@@ -237,7 +239,7 @@ export function diffPlans(left: PlanSide, right: PlanSide): PlanDiff {
   };
 }
 
-function diffInput(left: CanonicalPlanInput, right: CanonicalPlanInput): PlanDifference[] {
+function diffInput(left: PlanSide['input'], right: PlanSide['input']): PlanDifference[] {
   const out: PlanDifference[] = [];
   for (const key of unionKeys(left, right)) {
     const l = (left as unknown as Record<string, unknown>)[key];

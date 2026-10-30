@@ -1,0 +1,23 @@
+{
+  "command": "./node_modules/.bin/openspec validate --all --json",
+  "exitCode": 0,
+  "extractedSummary": {
+    "totals": {
+      "items": 268,
+      "passed": 268,
+      "failed": 0
+    },
+    "byType": {
+      "change": {
+        "items": 250,
+        "passed": 250,
+        "failed": 0
+      },
+      "spec": {
+        "items": 18,
+        "passed": 18,
+        "failed": 0
+      }
+    }
+  }
+}

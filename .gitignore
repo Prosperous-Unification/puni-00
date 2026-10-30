@@ -101,3 +101,6 @@ libs/wbs/adapters/solver-py/src/*.egg-info/
 # Nested checkouts of private companion repositories (`bun run private:checkout <repo>`). Never
 # tracked: tools/tool-git-hooks/src/hooks/private-nesting.ts refuses this file without the line.
 /private/
+
+# Generated from this checkout before MCP source startup.
+/apps/wbs/mcp-01/src/openapi.json

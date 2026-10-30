@@ -1,0 +1,103 @@
+--- a/tools/tool-deploy/src/k8s/execute.ts
++++ b/tools/tool-deploy/src/k8s/execute.ts
+@@ -4,7 +4,7 @@
+ import { join, relative } from 'node:path';
+ 
+ import { type ControllerEffects, controllerEffects } from './controller-adapter';
+-import { assertControllerProgress, type ControllerAuthority } from './controller-lifecycle';
++import { assertControllerProgress, type ControllerAuthority, type ControllerLifecycle } from './controller-lifecycle';
+ import {
+   type DependencyObservationEffects,
+   observeDependencyBinaries,
+@@ -665,7 +665,7 @@
+     state.controllers.forward !== null && state.controllers.forward.stage !== 'restored'
+       ? 'forward'
+       : 'rollback';
+-  const establishInterval = async (direction: 'forward' | 'rollback'): Promise<void> => {
++  const establishInterval = async (direction: 'forward' | 'rollback'): Promise<ControllerLifecycle> => {
+     const authority = controllerAuthority(direction);
+     const target = {
+       transactionId: state.transactionId,
+@@ -702,7 +702,9 @@
+       throw new ControllerUncertainError('controller suspension acknowledgment is missing');
+     // Proof: drain-dispatch omission admitted the mounted unlabelled readonly source consumer.
+     await effects.drainStorageController(prior, authority);
+-    await authority.checkpoint({ ...prior, stage: 'drained' });
++    const drained: ControllerLifecycle = { ...prior, stage: 'drained' };
++    await authority.checkpoint(drained);
++    return drained;
+   };
+   const restoreInterval = async (direction: 'forward' | 'rollback'): Promise<void> => {
+     const prior = state.controllers[direction];
+@@ -714,17 +716,18 @@
+         'controller restoration acknowledgment is missing before writer rollout',
+       );
+   };
+-  const controllerBarrier = async (step: StepKind): Promise<void> => {
++  const controllerBarrier = async (step: StepKind): Promise<ControllerLifecycle | null> => {
+     try {
+       if (step === 'check-replay' || step === 'capture-state' || step === 'migrate')
+-        await establishInterval('forward');
++        return await establishInterval('forward');
+       if (step === 'rollback-schema' || step === 'rollback-check-replay')
+-        await establishInterval(activeDirection());
++        return await establishInterval(activeDirection());
+       // Proof: restore-dispatch omission reached backend rollout without a durable restored interval.
+       if (step === 'rollout-backend') await restoreInterval('forward');
+       // Proof: rollback-restored-selector regression parked after durable restoration of reused forward history.
+       if (step === 'rollback-tiers')
+         await restoreInterval(state.controllers.rollback === null ? 'forward' : 'rollback');
++      return null;
+     } catch (cause) {
+       if (cause instanceof LeaseLostError || cause instanceof ControllerCheckpointError)
+         throw cause;
+@@ -733,33 +736,16 @@
+       });
+     }
+   };
+-  const observeSourceStore = async (step: StepKind): Promise<void> => {
+-    if (
+-      ![
+-        'check-replay',
+-        'capture-state',
+-        'migrate',
+-        'rollback-schema',
+-        'rollback-check-replay',
+-      ].includes(step)
+-    )
+-      return;
+-    const direction =
+-      step === 'rollback-schema' || step === 'rollback-check-replay'
+-        ? activeDirection()
+-        : 'forward';
+-    const interval = state.controllers[direction];
+-    if (interval?.stage !== 'drained')
+-      throw new ControllerUncertainError(
+-        'dependency observation requires the retained drained interval',
+-      );
++  const observeSourceStore = async (step: StepKind, interval: ControllerLifecycle | null): Promise<void> => {
++    if (interval === null) return;
++    const direction = activeDirection();
+     try {
+       // Proof: cached success admitted ENABLED at the next mounted source boundary.
+       await effects.observeDependencyStore(holder, request.release.images.backend);
+       // Retain the original authority; completed Jobs remain in the unfiltered inventory.
+       // Proof: omitting this recheck let mounted post-Job PVC drift reach source replay.
+       await effects.drainStorageController(interval, controllerAuthority(direction));
+-      assertHeartbeat(step);
++      assertHeartbeat(step);
+     } catch (cause) {
+       if (cause instanceof LeaseLostError || cause instanceof ControllerCheckpointError)
+         throw cause;
+@@ -831,9 +817,9 @@
+       }
+       try {
+         assertStepReplay(step.kind, request, state);
+-        await controllerBarrier(step.kind);
++        const interval = await controllerBarrier(step.kind);
+         // Proof: omitted dispatch failed mounted fresh-Job ordering and ENABLED refusal.
+-        await observeSourceStore(step.kind);
++        await observeSourceStore(step.kind, interval);
+         outcome = await perform(step, request, state, effects, { claim, holder });
+         if (step.kind === 'admit-images') hasImageAdmission = true;
+       } catch (e: unknown) {

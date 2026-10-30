@@ -1,0 +1,141 @@
+allocator exit 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+306 |     locker.close();
+307 |   }
+308 |   for (const writer of writers) {
+309 |     const status = await writer.exited;
+310 |     const errors = await new Response(writer.stderr).text();
+311 |     expect({ status, errors }).toEqual({ status: 0, errors: '' });
+                                     ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "errors": "",
+-   "status": 0,
++   "errors":
++ "22 |       }).immediate();
++ 23 |     } catch(error) {
++ 24 |       if (!(error instanceof Error) || !error.message.includes('UNIQUE constraint failed')) throw error;
++ 25 |       refused=true;
++ 26 |     }
++ 27 |     if(!refused) throw new Error('duplicate manual code committed');
++                                 ^
++ error: duplicate manual code committed
++       at /tmp/puni-cross-storage/[eval]:27:28
++
++ Bun v1.4.2 (Linux x64)
++ "
++ ,
++   "status": 1,
+  }
+
+- Expected  - 2
++ Received  + 15
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:311:32)
+(fail) concurrent old and new writers never collide [362.99ms]
+
+ 0 pass
+ 13 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [406.00ms]
+
+namespace exit 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+306 |     locker.close();
+307 |   }
+308 |   for (const writer of writers) {
+309 |     const status = await writer.exited;
+310 |     const errors = await new Response(writer.stderr).text();
+311 |     expect({ status, errors }).toEqual({ status: 0, errors: '' });
+                                     ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "errors": "",
+-   "status": 0,
++   "errors":
++ " 6 |   for(let ordinal=0;ordinal<30;ordinal++) {
++  7 |     sqlite.transaction(() => {
++  8 |       const id=kind+ordinal;
++  9 |       sqlite.run('INSERT INTO project(id,name,owner_id,created_at) VALUES (?,?,?,1)',[id,id,'u']);
++ 10 |       sqlite.run('INSERT INTO project_organization(resource_id,organization_id) VALUES (?,?)',[id,kind==='old'?'a':'b']);
++ 11 |       if(kind==='new') sqlite.run('UPDATE project_abbreviation SET abbreviation=? WHERE project_id=?',['NEW-'+ordinal,id]);
++                                    ^
++ SQLiteError: project abbreviation namespace differs from ownership
++       errno: 1811,
++  byteOffset: -1,
++        code: "SQLITE_CONSTRAINT_TRIGGER"
++
++       at run (bun:sqlite:323:14)
++       at <anonymous> (/tmp/puni-cross-storage/[eval]:11:31)
++       at transaction (bun:sqlite:400:27)
++       at /tmp/puni-cross-storage/[eval]:13:8
++
++ Bun v1.4.2 (Linux x64)
++ "
++ ,
++   "status": 1,
+  }
+
+- Expected  - 2
++ Received  + 22
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:311:32)
+(fail) concurrent old and new writers never collide [268.31ms]
+
+ 0 pass
+ 13 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [313.00ms]
+
+unique exit 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:
+306 |     locker.close();
+307 |   }
+308 |   for (const writer of writers) {
+309 |     const status = await writer.exited;
+310 |     const errors = await new Response(writer.stderr).text();
+311 |     expect({ status, errors }).toEqual({ status: 0, errors: '' });
+                                     ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "errors": "",
+-   "status": 0,
++   "errors":
++ "22 |       }).immediate();
++ 23 |     } catch(error) {
++ 24 |       if (!(error instanceof Error) || !error.message.includes('UNIQUE constraint failed')) throw error;
++ 25 |       refused=true;
++ 26 |     }
++ 27 |     if(!refused) throw new Error('duplicate manual code committed');
++                                 ^
++ error: duplicate manual code committed
++       at /tmp/puni-cross-storage/[eval]:27:28
++
++ Bun v1.4.2 (Linux x64)
++ "
++ ,
++   "status": 1,
+  }
+
+- Expected  - 2
++ Received  + 15
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/project-abbreviation-migration.db.test.ts:311:32)
+(fail) concurrent old and new writers never collide [368.96ms]
+
+ 0 pass
+ 13 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [409.00ms]

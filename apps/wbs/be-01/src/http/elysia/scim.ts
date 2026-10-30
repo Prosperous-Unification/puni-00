@@ -1,3 +1,4 @@
+import { DEPENDENCY_SEMANTICS_HEADER, type DependencyClientRefusal } from '@wbs/contracts';
 import {
   SCIM_ERROR_SCHEMA,
   SCIM_MEDIA,
@@ -47,12 +48,15 @@ export async function readBoundedText(request: Request, limit: number): Promise<
  * credential, none of which the shared endpoint shapes model, so it is
  * neither in the OpenAPI document nor an MCP tool. The body is read, bounded,
  * only when {@link ScimService} asks for it after authentication and
- * admission; an unexpected failure is reported once and
+ * admission, including the same fresh dependency authority admission required
+ * for the typed resource routes. Incompatibility keeps the SCIM409 error/media
+ * envelope and names the required semantics; an unexpected failure is reported once and
  * answered as a SCIM `500` that names nothing.
  */
 export function scimEndpoints(
   scim: ScimService,
   reportUnexpectedFailure: UnexpectedFailureReporter,
+  admitDependencyClient: (claim: string | null) => DependencyClientRefusal | null,
 ) {
   return new Elysia().all(
     '/scim/v2/*',
@@ -64,6 +68,23 @@ export function scimEndpoints(
           url: new URL(request.url),
           authorization: request.headers.get('authorization'),
           contentType: request.headers.get('content-type'),
+          admitResource: () => {
+            const refusal = admitDependencyClient(request.headers.get(DEPENDENCY_SEMANTICS_HEADER));
+            if (refusal === null) return null;
+            return {
+              status: 409,
+              headers: [
+                ['content-type', SCIM_MEDIA],
+                ['cache-control', 'no-store'],
+              ],
+              body: JSON.stringify({
+                schemas: [SCIM_ERROR_SCHEMA],
+                status: '409',
+                detail: refusal.error,
+                required: refusal.required,
+              }),
+            };
+          },
           // Proof: reading the body here, before authentication, made mounted
           // `reads no body before the bearer token authenticates` see the
           // unauthenticated request's body consumed; watched 2026-10-12.

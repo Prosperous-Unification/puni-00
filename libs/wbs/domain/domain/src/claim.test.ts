@@ -27,6 +27,12 @@ function claim(over: Partial<Claim> & Pick<Claim, 'id' | 'workItemId'>): Claim {
 /** Leaf `080.25` under `080` under the root, with the spec's three steps. */
 function leafRequest(over: Partial<ClaimRequest> = {}): ClaimRequest {
   return {
+    admission: new Map(
+      ['plan', 'impl', 'review'].map((stepId) => [
+        stepId,
+        { started: false, canStart: true, blockers: [] },
+      ]),
+    ),
     target: {
       workItemId: 'leaf',
       isLeaf: true,
@@ -567,6 +573,9 @@ describe('decideClaim never takes a held step', () => {
         const decide = () =>
           decideClaim(
             leafRequest({
+              admission: new Map(
+                steps.map((stepId) => [stepId, { started: false, canStart: true, blockers: [] }]),
+              ),
               target: {
                 ...leafRequest().target,
                 status: drawn.status,
@@ -600,6 +609,9 @@ describe('decideClaim never takes a held step', () => {
         if (drawn.named?.length === 0) return;
         const decided = decideClaim(
           leafRequest({
+            admission: new Map(
+              steps.map((stepId) => [stepId, { started: false, canStart: true, blockers: [] }]),
+            ),
             target: {
               ...leafRequest().target,
               status: drawn.status,
@@ -756,6 +768,73 @@ describe('decideRelease', () => {
       ),
     ).toEqual({ kind: 'release', claims: [subtree, mid, w1, w2] });
   });
+});
+
+it('refuses every requested new start atomically when its prerequisites are unmet', () => {
+  const request = leafRequest({ stepIds: ['plan', 'review'] });
+  const decided = decideClaim({
+    ...request,
+    admission: new Map([
+      [
+        'plan',
+        {
+          started: false,
+          canStart: false,
+          blockers: [
+            {
+              workItemId: 'remote',
+              stepId: 'remote-dev',
+              type: 'FS',
+              provenance: 'authored',
+              relationshipId: 'dependency',
+            },
+          ],
+        },
+      ],
+      ['review', { started: true, canStart: true, blockers: [] }],
+    ]),
+  });
+  expect(decided).toEqual({
+    kind: 'refused',
+    refusal: {
+      reason: 'prerequisites_unmet',
+      stepIds: ['plan'],
+      blockers: [
+        {
+          workItemId: 'remote',
+          stepId: 'remote-dev',
+          type: 'FS',
+          provenance: 'authored',
+          relationshipId: 'dependency',
+        },
+      ],
+    },
+  });
+});
+
+it('requires admission evidence only for newly acquired leaf steps', () => {
+  expect(() => decideClaim(leafRequest({ stepIds: ['plan'], admission: new Map() }))).toThrow(
+    'missing claim execution admission',
+  );
+  const held = claim({
+    id: 'held',
+    workItemId: 'leaf',
+    stepId: 'plan',
+    personId: 'worker',
+    runId: leafRequest().runId,
+  });
+  expect(
+    decideClaim(leafRequest({ stepIds: ['plan'], claims: [held], admission: new Map() })),
+  ).toEqual({ kind: 'alreadyHeld' });
+  expect(decideClaim(parentRequest({ admission: new Map() })).kind).toBe('claim');
+  expect(
+    decideClaim(
+      leafRequest({
+        stepIds: ['plan'],
+        admission: new Map([['plan', { started: true, canStart: false, blockers: [] }]]),
+      }),
+    ).kind,
+  ).toBe('claim');
 });
 
 /** A machine grant pinned to `worker` that opted into run `a` (`wbs-mcp-agent-surface` M15). */

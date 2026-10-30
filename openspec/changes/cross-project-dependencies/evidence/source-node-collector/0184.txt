@@ -1,0 +1,16 @@
+[
+  {
+    "path": "/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-program.model.ts",
+    "beforeSha256": "1ba23a8594bfd4b2ea450311ad5d59928dce4893b829ca21d94629c168d228af",
+    "afterSha256": "51b4748641e15d68e648b6c0090579f8cd394701dc7b945ad55fa8bc9267b303",
+    "before": "'const actualStat=fs.fstatSync.bind(fs);fs.fstatSync=(...args)=>{const observed=actualStat(...args);observed.mtimeNs=253402300800000000000n;return observed;};'",
+    "after": "\"for(const method of ['fstatSync','statSync']){const original=fs[method].bind(fs);fs[method]=(...args)=>{const observed=original(...args);if(typeof observed.mtimeNs==='bigint')observed.mtimeNs=253402300800000000000n;return observed;};}\""
+  },
+  {
+    "path": "/tmp/puni-source-node-run-case.ts",
+    "beforeSha256": "d663f4d8c05d11a7f707e845011e361d360f005db5e633b206d69479b0b80e02",
+    "afterSha256": "efcc86d1f8ef59d3df417dca9e2fa8f4f0c1577b6ce222f9ff44e4b886b68657",
+    "before": " joined=true;",
+    "after": " joined=child.signalCode===null&&(exit.value===0||exit.value===1);"
+  }
+]

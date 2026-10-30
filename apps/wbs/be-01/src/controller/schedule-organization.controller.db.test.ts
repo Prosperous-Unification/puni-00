@@ -1,6 +1,7 @@
 import { encodeOptimizedResult } from '@wbs/contracts/solver/optimized-result';
 import { readSharedPeople, scheduleInputOfCaptured } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
+import type { SavedComparisonSide } from '@wbs/core/module/saved-plans/saved-plan-comparison';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { schedule } from '@wbs/domain';
 import { type Connection, openConnection, openReadOnlyConnection } from '@wbs/store-sqlite/db';
@@ -243,6 +244,25 @@ describe('after activation', () => {
   });
 });
 
+function buildSharedComparison(savedPlanId: string, schedule: SavedComparisonSide['schedule']) {
+  return {
+    status: 200,
+    body: {
+      diff: { input: [], schedule: [] },
+      left: {
+        source: { kind: 'saved', savedPlanId },
+        schedule,
+        provenance: { kind: 'legacy-unknown' },
+      },
+      right: {
+        source: { kind: 'current' },
+        schedule,
+        provenance: { kind: 'legacy-unknown' },
+      },
+    },
+  };
+}
+
 describe('shared live projection', () => {
   it('installed saved capture and current comparison retain their own shared chain', async () => {
     const { higher, lower } = await seedSharedPlans();
@@ -274,7 +294,9 @@ describe('shared live projection', () => {
       'GET',
       `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
     );
-    expect(same).toEqual({ status: 200, body: { diff: { input: [], schedule: [] } } });
+    expect(same).toEqual(
+      buildSharedComparison(savedId, { present: true, algorithmId: 'slice-leveling-v4' }),
+    );
 
     h.sqlite.run(
       'UPDATE estimate SET optimistic = 4, realistic = 4, pessimistic = 4 WHERE work_item_id = ?',
@@ -438,12 +460,12 @@ describe('shared live projection', () => {
         'GET',
         `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
       ),
-    ).toEqual({ status: 200, body: { diff: { input: [], schedule: [] } } });
+    ).toEqual(buildSharedComparison(savedId, { present: false, absentReason: reason }));
     expect(tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all())).toEqual(before);
   });
 
   it('stores the selected ready optimized schedule without admitting live work', async () => {
-    const { higher, lower } = await seedSharedPlans(true, undefined, undefined, '0.3.0');
+    const { higher, lower } = await seedSharedPlans(true, undefined, undefined, '0.4.0');
     const capture = new SavedPlanCaptureRepository({
       openConnection: () => openConnection(h.databasePath()),
     });
@@ -472,14 +494,14 @@ describe('shared live projection', () => {
     const connection = openConnection(h.databasePath());
     try {
       const inputHash = scheduleInputHash(input);
-      const generation = allocateGeneration(connection.db, lower, '17+0.3.0', inputHash, 1);
+      const generation = allocateGeneration(connection.db, lower, '18+0.4.0', inputHash, 1);
       connection.db
         .insert(optimizedScheduleCache)
         .values({
           projectId: lower,
           inputHash,
           generation,
-          contractVersion: '17+0.3.0',
+          contractVersion: '18+0.4.0',
           budgetMs: 60000,
           objective: 'pri',
           status: 'ok',
@@ -521,7 +543,7 @@ describe('shared live projection', () => {
       }
     ).savedPlan.schedule;
     expect(stored.present).toBe(true);
-    expect(stored.algorithmId).toBe('optimized:17+0.3.0:pri:60000');
+    expect(stored.algorithmId).toBe('optimized:18+0.4.0:pri:60000');
     expect(
       (JSON.parse(stored.body.bytes) as { workItems: { 'lower-work': { earliestStart: number } } })
         .workItems['lower-work'].earliestStart,
@@ -532,14 +554,19 @@ describe('shared live projection', () => {
         'GET',
         `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
       ),
-    ).toEqual({ status: 200, body: { diff: { input: [], schedule: [] } } });
+    ).toEqual(
+      buildSharedComparison(savedId, {
+        present: true,
+        algorithmId: 'optimized:18+0.4.0:pri:60000',
+      }),
+    );
     expect(tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all())).toEqual(before);
   });
 
   it.each(['failed', 'corrupt'] as const)(
     'stores selected %s optimization as unavailable through installed capture',
     async (state) => {
-      const { higher, lower } = await seedSharedPlans(true, undefined, undefined, '0.3.0');
+      const { higher, lower } = await seedSharedPlans(true, undefined, undefined, '0.4.0');
       const capture = new SavedPlanCaptureRepository({
         openConnection: () => openConnection(h.databasePath()),
       });
@@ -555,14 +582,14 @@ describe('shared live projection', () => {
       );
       const connection = openConnection(h.databasePath());
       try {
-        const generation = allocateGeneration(connection.db, lower, '17+0.3.0', inputHash, 1);
+        const generation = allocateGeneration(connection.db, lower, '18+0.4.0', inputHash, 1);
         connection.db
           .insert(optimizedScheduleCache)
           .values({
             projectId: lower,
             inputHash,
             generation,
-            contractVersion: '17+0.3.0',
+            contractVersion: '18+0.4.0',
             budgetMs: 60000,
             objective: 'pri',
             status: state === 'failed' ? 'failed' : 'ok',
@@ -598,7 +625,7 @@ describe('shared live projection', () => {
           'GET',
           `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
         ),
-      ).toEqual({ status: 200, body: { diff: { input: [], schedule: [] } } });
+      ).toEqual(buildSharedComparison(savedId, { present: false, absentReason: 'unavailable' }));
       expect(tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all())).toEqual(before);
     },
   );
@@ -850,8 +877,8 @@ async function seedSharedPlans(
   return { higher, lower, higherStep, lowerStep };
 }
 
-function seedFailedRetry(projectId: string, inputHash: string, solverVersion = '0.3.0'): void {
-  const contractVersion = `17+${solverVersion}`;
+function seedFailedRetry(projectId: string, inputHash: string, solverVersion = '0.4.0'): void {
+  const contractVersion = `18+${solverVersion}`;
   h.sqlite.run(
     'INSERT INTO optimization_generation (project_id, contract_version, generation, input_hash, updated_at) VALUES (?, ?, 1, ?, 1)',
     [projectId, contractVersion, inputHash],
@@ -1050,7 +1077,7 @@ describe('shared displayed cache evidence', () => {
           launched.push(request);
           return new Promise<never>(() => undefined);
         },
-        '0.3.0',
+        '0.4.0',
       );
       h.sqlite.run('UPDATE project SET optimization_enabled = 1 WHERE id = ?', [lower]);
       if (reason === 'cycle')
@@ -1149,7 +1176,7 @@ describe('shared displayed cache evidence', () => {
         admittedOpenReads.push(reads.openSnapshots());
         return new Promise<never>(() => undefined);
       },
-      '0.3.0',
+      '0.4.0',
       reads.open,
     );
     const tree = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
@@ -1180,7 +1207,7 @@ describe('shared displayed cache evidence', () => {
         launched.push(request);
         return new Promise<never>(() => undefined);
       },
-      '0.3.0',
+      '0.4.0',
     );
     const oldTree = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
     const oldHash = (oldTree.body as { optimization: { inputHash: string } }).optimization
@@ -1220,6 +1247,7 @@ describe('shared displayed cache evidence', () => {
     });
     expect(accepted.status).toBe(202);
     expect(launched).toHaveLength(1);
+    if (launched[0]?.kind === 'connected') throw new Error('expected local fixture request');
     expect(launched[0]?.input.elsewhere?.get('ana')).toEqual([
       { start: 0, end: 4, projectId: higher, workItemId: 'higher-work' },
     ]);
@@ -1239,7 +1267,7 @@ describe('shared displayed cache evidence', () => {
         launched.push(request);
         return new Promise<never>(() => undefined);
       },
-      '0.3.0',
+      '0.4.0',
     );
     const before = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
     const oldHash = (before.body as { optimization: { inputHash: string } }).optimization.inputHash;
@@ -1249,11 +1277,11 @@ describe('shared displayed cache evidence', () => {
     );
     const connection = openConnection(h.databasePath());
     try {
-      const generation = allocateGeneration(connection.db, lower, '17+0.3.0', oldHash, 1);
+      const generation = allocateGeneration(connection.db, lower, '18+0.4.0', oldHash, 1);
       expect(
         enqueueSolverRequest(connection.db, {
           projectId: lower,
-          contractVersion: '17+0.3.0',
+          contractVersion: '18+0.4.0',
           generation,
           objective: 'pri',
           budgetMs: 60_000,
@@ -1272,6 +1300,7 @@ describe('shared displayed cache evidence', () => {
     await Bun.sleep(50);
 
     expect(launched).toHaveLength(2);
+    if (launched[0]?.kind === 'connected') throw new Error('expected local fixture request');
     expect(launched[0]?.key.inputHash).not.toBe(oldHash);
     expect(launched[0]?.input.elsewhere?.get('ana')).toEqual([
       { start: 0, end: 4, projectId: higher, workItemId: 'higher-work' },
@@ -1294,7 +1323,7 @@ describe('shared displayed cache evidence', () => {
         admittedOpenReads.push(reads.openSnapshots());
         return new Promise<never>(() => undefined);
       },
-      '0.3.0',
+      '0.4.0',
       reads.open,
     );
     h.sqlite.run(
@@ -1323,7 +1352,7 @@ describe('shared displayed cache evidence', () => {
         launched.push(request);
         return new Promise<never>(() => undefined);
       },
-      '0.3.0',
+      '0.4.0',
     );
     // eslint-disable-next-line @typescript-eslint/unbound-method -- injected seam calls the repository receiver.
     const original = WorkItemRepository.prototype.listByProject;
@@ -1355,6 +1384,7 @@ describe('shared displayed cache evidence', () => {
       h.triggerOptimization(lower);
       await Bun.sleep(300);
       expect(launched).toHaveLength(2);
+      if (launched[0]?.kind === 'connected') throw new Error('expected local fixture request');
       expect(launched[0]?.input.elsewhere?.get('ana')).toEqual([
         { start: 0, end: 4, projectId: higher, workItemId: 'higher-work' },
       ]);
@@ -1372,7 +1402,7 @@ describe('shared displayed cache evidence', () => {
         launched.push(request);
         return new Promise<never>(() => undefined);
       },
-      '0.3.0',
+      '0.4.0',
     );
     h.sqlite.run(
       "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
@@ -1402,7 +1432,7 @@ describe('shared displayed cache evidence', () => {
         true,
         undefined,
         undefined,
-        '0.3.0',
+        '0.4.0',
       );
       if (!shared) h.sqlite.run("UPDATE organization SET shared_people = 0 WHERE id = 'org-a'");
       h.sqlite.run(
@@ -1463,7 +1493,7 @@ describe('shared displayed cache evidence', () => {
       const connection = openConnection(h.databasePath());
       try {
         const inputHash = scheduleInputHash(input);
-        const generation = allocateGeneration(connection.db, lower, '17+0.3.0', inputHash, 1);
+        const generation = allocateGeneration(connection.db, lower, '18+0.4.0', inputHash, 1);
         for (const objective of ['pri', 'time'] as const) {
           connection.db
             .insert(optimizedScheduleCache)
@@ -1471,7 +1501,7 @@ describe('shared displayed cache evidence', () => {
               projectId: lower,
               inputHash,
               generation,
-              contractVersion: '17+0.3.0',
+              contractVersion: '18+0.4.0',
               budgetMs: 60000,
               objective,
               status: 'ok',
@@ -1559,7 +1589,7 @@ describe('shared displayed cache evidence', () => {
         launched.push(request);
         return new Promise<never>(() => undefined);
       },
-      '0.3.0',
+      '0.4.0',
     );
     h.sqlite.run(
       "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
@@ -1575,6 +1605,7 @@ describe('shared displayed cache evidence', () => {
 
     expect(launched).toHaveLength(2);
     for (const request of launched) {
+      if (request.kind === 'connected') throw new Error('expected local fixture request');
       expect(request.input.elsewhere?.get('ana')).toEqual([
         { start: 0, end: 4, projectId: higher, workItemId: 'higher-work' },
       ]);
@@ -1596,7 +1627,7 @@ describe('shared displayed cache evidence', () => {
         launched.push(request);
         return new Promise<never>(() => undefined);
       },
-      '0.3.0',
+      '0.4.0',
     );
     h.sqlite.run(
       "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
@@ -1612,6 +1643,7 @@ describe('shared displayed cache evidence', () => {
     });
     expect(launched).toHaveLength(2);
     for (const request of launched) {
+      if (request.kind === 'connected') throw new Error('expected local fixture request');
       expect(request.key.projectId).toBe(lower);
       expect(request.input.elsewhere?.get('ana')).toEqual([
         { start: 0, end: 3, projectId: higher, workItemId: 'higher-work' },
@@ -1661,14 +1693,14 @@ describe('shared displayed cache evidence', () => {
           const connection = openConnection(h.databasePath());
           try {
             const inputHash = scheduleInputHash(input);
-            const generation = allocateGeneration(connection.db, higher, '17+0.1.0', inputHash, 1);
+            const generation = allocateGeneration(connection.db, higher, '18+0.1.0', inputHash, 1);
             connection.db
               .insert(optimizedScheduleCache)
               .values({
                 projectId: higher,
                 inputHash,
                 generation,
-                contractVersion: '17+0.1.0',
+                contractVersion: '18+0.1.0',
                 budgetMs: 60000,
                 objective: 'pri',
                 status: 'ok',

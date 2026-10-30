@@ -208,7 +208,14 @@ export default defineConfig({
       // `testMatch`, which would otherwise also pick it up and fail it under
       // the wrong browser.
       // Proof: removing the activated-fixture arm failed `runs activated organization acceptance only under its dedicated browser config`; the ordinary Playwright list collected its incompatible case.
-      testIgnore: [/lifetime-bfcache\.spec\.ts/, /organization-context\.real\.spec\.ts/],
+      // Proof: without the cross-project arm, the dedicated-fixture routing test failed
+      // expected false to be true, and ordinary --list collected its incompatible localhost case.
+      testIgnore: [
+        /lifetime-bfcache\.spec\.ts/,
+        /organization-context\.real\.spec\.ts/,
+        // Proof: omitting root failed the dedicated-routing case and ordinary --list collected all three localhost-only root cases (2026-10-26).
+        /(?:^|\/)cross-project-(?:refresh|root)\.real\.spec\.ts$/,
+      ],
       use: {
         ...devices['Desktop Chrome'],
         // After the spread, not in the top-level `use`: a project's options

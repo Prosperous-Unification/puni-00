@@ -1,0 +1,54 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+806 |       await effects.parkLease(holder, state.phase);
+807 |     }
+808 |   } finally {
+809 |     clearInterval(heartbeat);
+810 |   }
+811 |   if (state.phase !== 'lease-released') throw new ReleaseFailedError(state, journal.path);
+                                                    ^
+ReleaseFailedError: release bbbbbbbbbbbb-4d914821ccea ended at rollback-failed
+journal: /tmp/wbs-test-5314-yrOyhu/k8s-controller-release-DyCCob/release.json
+failed step: check-replay: storage controller barrier failed: kubectl delete --raw /api/v1/namespaces/wbs-solver/pods/backup-pod -f - exited 1: 53 |   const options=JSON.parse(await Bun.stdin.text());
+54 |   appendFileSync("/tmp/wbs-test-5314-yrOyhu/k8s-controller-release-DyCCob/deletes.jsonl", JSON.stringify(options)+'\n');
+55 |   const resource=args[args.indexOf('--raw')+1].includes('/pods/')?'pods':'jobs';
+56 |   const name=decodeURIComponent(args[args.indexOf('--raw')+1].split('/').at(-1));
+57 |   const selected=objects[resource].items.find(p=>p.metadata.name===name);
+58 |   if (!selected || selected.metadata.uid!==options.preconditions.uid) throw new Error('Conflict UID');
+                                                                                     ^
+error: Conflict UID
+      at /tmp/wbs-test-5314-yrOyhu/k8s-controller-release-DyCCob/kubectl:58:81
+
+Bun v1.4.2 (Linux x64)
+captured migration set: (not captured)
+replay forward: (not checked)
+replay rollback: (not checked)
+snapshot: (none)
+writes remain fenced and the Lease stays held
+manual command: '/tmp/wbs-test-5314-yrOyhu/k8s-controller-release-DyCCob/kubectl' '--context' 'lab' '-n' 'wbs-solver' 'get' 'cronjob/sqlite-backup' '-o' 'json' # reconcile only UID sqlite-backup-uid, template f08e28dc253be352d28c88a9122eded5a165a965373a6c982c881d300ae4c1ac, token a7c33a9a-d0aa-4eeb-b47e-bb5b2d5c0367; preserve journal /tmp/wbs-test-5314-yrOyhu/k8s-controller-release-DyCCob/release.json; restore the recorded suspension only after verifying the stopped source interval
+      state: {
+  releaseId: "bbbbbbbbbbbb-4d914821ccea",
+  transactionId: "bbbbbbbbbbbb-4d914821ccea-3b6dbb",
+  phase: "rollback-failed",
+  rollbackFrom: null,
+  capture: null,
+  replayForward: null,
+  replayRollback: null,
+  previous: [Object ...],
+  snapshot: null,
+  controllers: [Object ...],
+  fluxSuspendedByUs: true,
+  writesReopened: false,
+  failure: [Object ...],
+},
+ journalPath: "/tmp/wbs-test-5314-yrOyhu/k8s-controller-release-DyCCob/release.json",
+
+      at executeRelease (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/execute.ts:811:47)
+      at async <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:599:25)
+(fail) mounted drain deletes actual UID descendants with UID-preconditioned orphan deletion [847.60ms]
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+Ran 1 test across 1 file. [899.00ms]

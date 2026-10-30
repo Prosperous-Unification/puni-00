@@ -65,6 +65,7 @@ import { PlanToolbarSheet } from './plan-toolbar-sheet';
 import { createPointedRows, type PointedRows } from './pointed-row-store';
 import { rememberGanttDayPx, rememberGanttLabels } from './remembered-layout';
 import { DemandPanel, type DemandWriteOutcome, demandWriteOutcome } from './resource-demand-panel';
+import { scheduleUnavailableWords } from './schedule-unavailable-words';
 import { statusOffersOf, type StatusRow } from './status-offers';
 import { blockageLabelsOf } from './step-blockage';
 import { stepNodeReadingsOf } from './step-reading';
@@ -682,6 +683,7 @@ export function WbsTable({
   planActive = true,
   viewControls,
   projectName,
+  generalSettings,
   planImport,
   toastApi: toastApiOverride,
   savedPlansShelf,
@@ -701,6 +703,7 @@ export function WbsTable({
     activeProject,
     workItems,
     treeReadProject,
+    remoteBlockageLabels,
     stepNodes,
     typedDependencies,
     chartRead,
@@ -1106,8 +1109,8 @@ export function WbsTable({
   // Proof: indexing only top-level workItems made `nested blocked leaf and its downstream node retain named causes in both layouts` reach the router Error Boundary (2026-10-14).
   // Proof: per-node indexing made `builds the shared blockage index once per input change across fifty phone rows and five steps` observe 251 builds instead of one (2026-10-14).
   const causeLabels = useMemo(
-    () => blockageLabelsOf(flat, steps, stepNodes),
-    [flat, steps, stepNodes],
+    () => blockageLabelsOf(flat, steps, stepNodes, remoteBlockageLabels),
+    [flat, steps, stepNodes, remoteBlockageLabels],
   );
 
   const attemptActions = useAttemptActions({
@@ -1374,6 +1377,9 @@ export function WbsTable({
   const { dependenciesOf, dependOn, depEntriesFor, pickDependency, moveDepHighlight } =
     usePlanDependencies({
       flat,
+      projectId,
+      lookup: project.dependencyLookup,
+      stepNodes,
       pushToast,
       busy: busyWrites,
       commands,
@@ -1841,6 +1847,7 @@ export function WbsTable({
     depLights,
     setOpenMenuRowId,
     depEntriesFor,
+    dependencyLookup: project.dependencyLookup,
     pickDependency,
     moveDepHighlight,
     commitEstimate,
@@ -2338,24 +2345,58 @@ export function WbsTable({
   }, []);
 
   /**
-   * Resolves a copied step link after its tree read, opens its ancestors, then
-   * asks the viewport to mount and focus the addressed cell. A consumed or
-   * refused link is removed from history so later refetches do not steal focus.
+   * Resolves a stable work-item or step link after its tree read, reveals it through
+   * the current filter or opens its ancestors, then asks the viewport to mount
+   * and focus the addressed cell. A consumed or refused link is removed from
+   * history so later refetches do not steal focus.
    */
   useEffect(() => {
     const url = new URL(window.location.href);
     const id = url.searchParams.get('stepNode');
-    if (id === null || !hasSuccessfulTreeRead) return;
+    const linkedWorkItem = url.searchParams.get('workItem');
+    if ((id === null && linkedWorkItem === null) || !hasSuccessfulTreeRead) return;
     // Proof: without this guard, the wrong project's table consumed
     // ?project=p2&stepNode=sn1.bad and announced it invalid (2026-09-27).
+    // Proof: bypassing it also consumed another project's workItem link in the mounted view (2026-10-22).
     if (url.searchParams.get('project') !== null && url.searchParams.get('project') !== projectId)
       return;
     const dismissLink = (message?: string) => {
       if (message !== undefined) pushToast({ kind: 'error', text: message });
       url.searchParams.delete('stepNode');
+      url.searchParams.delete('workItem');
       url.searchParams.delete('project');
       window.history.replaceState(window.history.state, '', url.href);
     };
+    // Proof: returning before this branch left the stable work-item link unfocused and unconsumed in the mounted view (2026-10-22).
+    if (id === null) {
+      const row = flat.find((candidate) => candidate.id === linkedWorkItem);
+      if (row === undefined) {
+        // Proof: suppressing this refusal removed the alert for an absent stable target in the mounted view (2026-10-22).
+        dismissLink('Work-item link does not name a work item in this plan.');
+        return;
+      }
+      if (!shownRowIds.includes(row.id)) {
+        // Proof: omitting this reveal left the nested Find destination absent in
+        // `reveals a nested stable work-item through Find on desktop` (2026-10-23).
+        if (filtering) {
+          revealRow(row.id);
+          return;
+        }
+        const ancestors = table
+          .getRow(row.id, true)
+          .getParentRows()
+          .map((parent) => parent.id);
+        setExpanded((current) =>
+          current === true
+            ? current
+            : { ...current, ...Object.fromEntries(ancestors.map((ancestor) => [ancestor, true])) },
+        );
+        return;
+      }
+      setRequestedFocus({ cell: { rowId: row.id, columnId: 'name' }, landing: 'focus' });
+      dismissLink();
+      return;
+    }
     const parsed = parseStepNodeId(id);
     if (!parsed.ok) {
       // Proof: omitting this notice made `announces an invalid or unknown
@@ -2380,6 +2421,8 @@ export function WbsTable({
       dismissLink('Step link does not name a leaf step in this plan.');
       return;
     }
+    // Proof: removing this unhide left `Dev estimate for 010.1.1` absent in
+    // `reveals a nested stable step through Find on desktop` (2026-10-23).
     if (hiddenColumnIds.includes(stepId)) {
       toggleColumn(stepId);
       return;
@@ -2389,6 +2432,12 @@ export function WbsTable({
       return;
     }
     if (!shownRowIds.includes(workItemId)) {
+      // Proof: removing this reveal left `Dev estimate for 010.1.1` absent in
+      // `reveals a nested stable step through facet on phone` (2026-10-23).
+      if (filtering) {
+        revealRow(workItemId);
+        return;
+      }
       const ancestors: string[] = [];
       let parentId = row.parentId;
       while (parentId !== null) {
@@ -2411,14 +2460,17 @@ export function WbsTable({
     dismissLink();
   }, [
     flat,
+    filtering,
     hasSuccessfulTreeRead,
     projectId,
     hiddenColumnIds,
+    revealRow,
     pushToast,
     setExpanded,
     shownRowIds,
     stepNodes,
     steps,
+    table,
     toggleColumn,
     toggleStep,
     unfoldedSteps,
@@ -2553,6 +2605,7 @@ export function WbsTable({
       run={run}
       commands={commands}
       projectId={projectId}
+      {...(generalSettings === undefined ? {} : { generalSettings })}
       scheduleError={scheduleError}
       arrangeBySchedule={arrangeBySchedule}
       addWorkItem={addWorkItem}
@@ -2677,6 +2730,8 @@ export function WbsTable({
           );
         }}
         onRetry={(objective, inputHash) => {
+          // Proof: fabricating terminal state from a Retry refusal made the held Q1 failed→Q2 failed
+          // connected reconciliation test announce “cannot fit” before its tree arrived (2026-10-22).
           void run((write) =>
             write.perform(['tree'], () => commands.retryOptimization(objective, inputHash)),
           );
@@ -2827,6 +2882,15 @@ export function WbsTable({
         are all still here — only the dates are gone — so this says which, rather
         than letting a page of zeroes speak for itself.
       */}
+      {/* Proof: removing this branch left both structured-unavailability table tests without an alert (2026-10-22). */}
+      {scheduleError !== null && typeof scheduleError === 'object' && (
+        <p
+          className="border-destructive/40 bg-destructive/10 mb-3 rounded-md border px-3 py-2 text-sm"
+          role="alert"
+        >
+          {scheduleUnavailableWords(scheduleError)} The plan remains editable.
+        </p>
+      )}
       {scheduleError === 'cycle' && (
         <p
           className="border-destructive/40 bg-destructive/10 mb-3 rounded-md border px-3 py-2 text-sm"
@@ -2886,6 +2950,8 @@ export function WbsTable({
           nothing sticky to hold, because there are no columns to pin.
         */
             <PlanCards
+              projectId={projectId}
+              dependencyLookup={project.dependencyLookup}
               rows={shownRows.map((row) => ({
                 row: row.original,
                 depth: row.depth,
@@ -2977,8 +3043,8 @@ export function WbsTable({
               // `removeDependency` are the paths the table's list and its chip `✕`
               // take, for `rowActions`' bargain, a fifth dimension over.
               dependencyOptions={(row, typed) => depEntriesFor(row, typed)}
-              addDependency={(row, predecessorId) => {
-                return pickDependency(row.id, predecessorId);
+              addDependency={(row, selection, draftCapture) => {
+                return pickDependency(row.id, selection, draftCapture);
               }}
               dropDependency={(row, predecessorId) => {
                 return run((write) =>

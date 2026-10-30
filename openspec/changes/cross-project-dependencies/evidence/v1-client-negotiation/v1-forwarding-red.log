@@ -1,0 +1,31 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/gw-01/src/service/dependency-forwarding.test.ts:
+15 |     const options = {beUrl:'http://be.test',secret:'secret',fetchImpl,timers:systemTimers,attemptMs:100,overallMs:200};
+16 |     for (const route of ['forward','resume'] as const)
+17 |       await requestBackend(options,route,{}, {clientId:'ada',connectionId:'socket',traceId:'trace',dependencySemantics}, (body) => body);
+18 |     const check = projectAccessFor(options)({kind:'cookie',forwarded:{accessCookie:'credential',organizationCookie:null},dependencySemantics});
+19 |     expect(await check('p',new AbortController().signal)).toBe('granted');
+20 |     expect(claims).toEqual([dependencySemantics ?? null, dependencySemantics ?? null, dependencySemantics ?? null]);
+                        ^
+error: expect(received).toEqual(expected)
+
+  [
+-   "cross-project-dependencies-v1",
+-   "cross-project-dependencies-v1",
+-   "cross-project-dependencies-v1",
++   null,
++   null,
++   null,
+  ]
+
+- Expected  - 3
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-v1-clients/apps/wbs/gw-01/src/service/dependency-forwarding.test.ts:20:20)
+(fail) forward, resume and browser access forward only their connection selected semantics [6.39ms]
+
+ 0 pass
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [2.88s]

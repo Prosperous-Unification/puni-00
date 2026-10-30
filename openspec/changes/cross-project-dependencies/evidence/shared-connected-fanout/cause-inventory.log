@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/committed-fanout.test.ts:
+328 |   const capture: CapturedFanout = {
+329 |     observation: { mode: 'shared', organizationId: 'org-a', projects: [] },
+330 |     dependency: { organizationId: 'org-a', projects: new Map([['A', 'connected']]), connections: [] },
+331 |     localFacts: new Map(),
+332 |   };
+333 |   await expect(recordCommittedFanout(openMemorySource().stores.eventLog, capture, capture, () => 1, ['absent'])).rejects.toThrow('direct cause absent from both captures');
+                                                                                                                               ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-connected-fanout/libs/wbs/application/core/src/service/committed-fanout.test.ts:333:122)
+(fail) refuses an explicit cause missing from the complete partitioned inventory [31.54ms]
+
+ 0 pass
+ 7 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [3.12s]

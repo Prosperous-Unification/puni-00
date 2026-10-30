@@ -10,6 +10,17 @@ import type { ImportService } from './plan-import.feature';
  * supplies. Composition binds it to the unit of work before constructing the
  * feature, which receives only mapped import resources. The factory is built
  * per admission because staged stores are fresh on every turn.
+ * `externalDependencies` is required: production resolves the admitted catalog's
+ * lifetime-bound reader inside the import transaction. DISABLED authority stays
+ * inactive; ENABLED requires immutable V1 binary support. Only
+ * isolated semantic fixtures supply explicit active capability. `commandAccess` revalidates retained principal evidence on the same
+ * admitted writer before resources or observations open. Current access, rather
+ * than expected access, supplies the callback, private resource and dependency
+ * context. Browser binding/revocation, membership/policy and persisted
+ * machine/consent bindings are reread. Selected API secret rotation, upstream
+ * verifier/delegation expiry and independently current remote MCP family state
+ * are not represented by retained evidence. Remaining transfer/rollout debt
+ * still bars production activation.
  *
  * **No K3 debt.** `ImportService.import` reaches the repository only through
  * the private `ImportedPlanResource` that `importTransaction` builds over

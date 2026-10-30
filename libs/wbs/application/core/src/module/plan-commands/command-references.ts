@@ -14,6 +14,7 @@ export type PlainReason =
       | 'deadline_before_project_start'
       | 'descendant_step_on_leaf'
       | 'node_on_parent'
+      | 'referenced_by_external_dependency'
       | 'mixed_rate_cards'
     >
   | DirectoryRefusal

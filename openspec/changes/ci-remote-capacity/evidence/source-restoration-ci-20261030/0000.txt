@@ -1,0 +1,290 @@
+{
+  "scope": "Only7newsource-restoration CI dependencies, no actual longparent/sourceports/oldsummary-runtime replay",
+  "head": "70ca6403b3eec0ecdeeda9c72500f5cf1422bc1f",
+  "controls": [
+    {
+      "path": "tools/tool-remote-scripts/test/ci-leaf.ts",
+      "absolute": false,
+      "sha256": "bffe766cb816bf50872c27ccff675481682d3fbbad92751f463f4e56b3780de5",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-restoration-ci-20261030/proof-v1/00.source.txt",
+      "absolute": true,
+      "sha256": "bffe766cb816bf50872c27ccff675481682d3fbbad92751f463f4e56b3780de5",
+      "mode": 436
+    },
+    {
+      "path": "tools/tool-remote-scripts/project.json",
+      "absolute": false,
+      "sha256": "960d98d1ce50efb4cb153252e8efa2fc819c7556083e2909adb1e45bbafddf6a",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-restoration-ci-20261030/proof-v1/01.source.txt",
+      "absolute": true,
+      "sha256": "960d98d1ce50efb4cb153252e8efa2fc819c7556083e2909adb1e45bbafddf6a",
+      "mode": 436
+    },
+    {
+      "path": "tools/tool-git-hooks/src/hooks/ci-run-runtime.ts",
+      "absolute": false,
+      "sha256": "072c7ca534c6648949a3e61efbbc3b9e367d36936a52b45f89721bc4beb5324a",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-restoration-ci-20261030/proof-v1/02.source.txt",
+      "absolute": true,
+      "sha256": "072c7ca534c6648949a3e61efbbc3b9e367d36936a52b45f89721bc4beb5324a",
+      "mode": 436
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "absolute": false,
+      "sha256": "591a1f14cb9ffb04b8ad070c05625754278cb5667e1a89a3d9ce65a8f06e426a",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-restoration-ci-20261030/proof-v1/03.source.txt",
+      "absolute": true,
+      "sha256": "591a1f14cb9ffb04b8ad070c05625754278cb5667e1a89a3d9ce65a8f06e426a",
+      "mode": 436
+    },
+    {
+      "path": "tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts",
+      "absolute": false,
+      "sha256": "8a8bee29d7505632ac273ad3803c85586e8af828deecc8f84bf45aba4f60ed20",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-restoration-ci-20261030/proof-v1/04.source.txt",
+      "absolute": true,
+      "sha256": "8a8bee29d7505632ac273ad3803c85586e8af828deecc8f84bf45aba4f60ed20",
+      "mode": 436
+    },
+    {
+      "path": "tools/tool-git-hooks/src/hooks/ci-plan.test.ts",
+      "absolute": false,
+      "sha256": "6a942bb7090b4a66823a465cebdefbd3ee0fab932f0bb18a2cc853bd9b1e15bb",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-restoration-ci-20261030/proof-v1/05.source.txt",
+      "absolute": true,
+      "sha256": "6a942bb7090b4a66823a465cebdefbd3ee0fab932f0bb18a2cc853bd9b1e15bb",
+      "mode": 436
+    },
+    {
+      "path": "tools/tool-git-hooks/src/hooks/ci-capacity-workflow.test.ts",
+      "absolute": false,
+      "sha256": "3d2f673e9f8bc55e59c7a409867adbdbb5da7b573ab58c1b819fd7d1e79b60d1",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-restoration-ci-20261030/proof-v1/06.source.txt",
+      "absolute": true,
+      "sha256": "3d2f673e9f8bc55e59c7a409867adbdbb5da7b573ab58c1b819fd7d1e79b60d1",
+      "mode": 436
+    },
+    {
+      "path": "tools/tool-git-hooks/src/hooks/pr-merge-base.test.ts",
+      "absolute": false,
+      "sha256": "68e9a7862957c1e2947869272664b9a7db27aff3f8bd40b712aa92c1cd206959",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-restoration-ci-20261030/proof-v1/07.source.txt",
+      "absolute": true,
+      "sha256": "68e9a7862957c1e2947869272664b9a7db27aff3f8bd40b712aa92c1cd206959",
+      "mode": 436
+    },
+    {
+      "path": "openspec/changes/ci-remote-capacity/proposal.md",
+      "absolute": false,
+      "sha256": "0e85ede7b3064cf2a5a779baf2dc9750696b0c9f1340c6878db7f2ad30836d21",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-restoration-ci-20261030/proof-v1/08.source.txt",
+      "absolute": true,
+      "sha256": "0e85ede7b3064cf2a5a779baf2dc9750696b0c9f1340c6878db7f2ad30836d21",
+      "mode": 436
+    },
+    {
+      "path": "openspec/changes/ci-remote-capacity/design.md",
+      "absolute": false,
+      "sha256": "92e0afdd5fd79de27941562d1cabebeb91bc5503bfe24d9aa651757ceb37d1fa",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-restoration-ci-20261030/proof-v1/09.source.txt",
+      "absolute": true,
+      "sha256": "92e0afdd5fd79de27941562d1cabebeb91bc5503bfe24d9aa651757ceb37d1fa",
+      "mode": 436
+    },
+    {
+      "path": "openspec/changes/ci-remote-capacity/tasks.md",
+      "absolute": false,
+      "sha256": "ce4cf2f5ff30352a15256e26b75b6781b8385ecd1874255e318ff2acea2cab65",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-restoration-ci-20261030/proof-v1/10.source.txt",
+      "absolute": true,
+      "sha256": "ce4cf2f5ff30352a15256e26b75b6781b8385ecd1874255e318ff2acea2cab65",
+      "mode": 436
+    },
+    {
+      "path": "openspec/changes/ci-remote-capacity/specs/ci-gate/spec.md",
+      "absolute": false,
+      "sha256": "a310ac93b90c6f16939b71f5e93011f78da3b4cf97f12f3a56643f406537ca08",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-restoration-ci-20261030/proof-v1/11.source.txt",
+      "absolute": true,
+      "sha256": "a310ac93b90c6f16939b71f5e93011f78da3b4cf97f12f3a56643f406537ca08",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-restoration-ci-20261030/proof-v1/driver.py",
+      "absolute": true,
+      "sha256": "fdaea2a84f1520e95574e6435c35fe06e0a1f6587dd3339bdd5e2b16bd08d4f2",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-restoration-ci-20261030/proof-v1/recipes.json",
+      "absolute": true,
+      "sha256": "048d5e9608ccf61304e6f4766555caca998414f227ccd10f27b2a65c0cb4f4ec",
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-source-restoration-ci-20261030/run.py",
+      "absolute": true,
+      "sha256": "5745b8335f151eea9c54207674c1fb29ce9784ca22e400092bda0b76be19536b",
+      "mode": 436
+    }
+  ],
+  "future": [
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-fault.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-fault.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-fault.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-fault.driver.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-fault.driver.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-fault.wrapper.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-restored.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-restored.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-restored.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-restored.driver.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-restored.driver.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-restored.wrapper.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-mutation.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-inverse.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/00-membership-local.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-fault.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-fault.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-fault.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-fault.driver.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-fault.driver.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-fault.wrapper.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-restored.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-restored.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-restored.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-restored.driver.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-restored.driver.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-restored.wrapper.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-mutation.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-inverse.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/01-required-parent-local.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-fault.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-fault.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-fault.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-fault.driver.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-fault.driver.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-fault.wrapper.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-restored.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-restored.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-restored.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-restored.driver.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-restored.driver.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-restored.wrapper.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-mutation.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-inverse.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/02-required-target-local.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-fault.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-fault.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-fault.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-fault.driver.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-fault.driver.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-fault.wrapper.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-restored.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-restored.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-restored.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-restored.driver.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-restored.driver.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-restored.wrapper.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-mutation.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-inverse.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/03-rest-exclusion-local.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-fault.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-fault.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-fault.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-fault.driver.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-fault.driver.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-fault.wrapper.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-restored.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-restored.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-restored.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-restored.driver.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-restored.driver.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-restored.wrapper.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-mutation.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-inverse.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/04-runtime-mapping-local.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-fault.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-fault.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-fault.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-fault.driver.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-fault.driver.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-fault.wrapper.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-restored.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-restored.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-restored.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-restored.driver.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-restored.driver.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-restored.wrapper.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-mutation.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-inverse.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/05-matrix-local.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-fault.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-fault.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-fault.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-fault.driver.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-fault.driver.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-fault.wrapper.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-restored.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-restored.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-restored.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-restored.driver.stdout",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-restored.driver.stderr",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-restored.wrapper.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-mutation.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-inverse.json",
+    "/tmp/puni-source-restoration-ci-20261030/proof-v1/06-node-condition-local.json"
+  ],
+  "driverSHA256": "fdaea2a84f1520e95574e6435c35fe06e0a1f6587dd3339bdd5e2b16bd08d4f2",
+  "recipesSHA256": "048d5e9608ccf61304e6f4766555caca998414f227ccd10f27b2a65c0cb4f4ec",
+  "runnerSHA256": "5745b8335f151eea9c54207674c1fb29ce9784ca22e400092bda0b76be19536b",
+  "limits": "Existing tiny fixture5000ms child, actualNx9000ms, owningCLI20000ms; no changedceilings. Original outer normal1fault/0restore,nullsignals,bothEOF. Stopretainunexpected; exactbyte/mode/sourceinode inverse onlyafterintendedfault; no retries/CLI selectors. Closedreceiptsnotfsync/crashdurable.",
+  "evidence": [
+    "first-red-union",
+    "first-red-workflow",
+    "minimum-green-union",
+    "minimum-green-workflow",
+    "owning-four",
+    "zero-child-ledger-current",
+    "current-hook-types",
+    "current-remote-types",
+    "current-ci-lint"
+  ]
+}

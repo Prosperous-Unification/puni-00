@@ -1,0 +1,34 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+256 |       case 'project-reach': return graph.projects.updateWithin(fixture.owner.projectId, actor, { depReach: 'anchor-slice' }, fixture.expectedAccess);
+257 |       case 'step-add': return graph.steps.addWithin(fixture.owner.projectId, actor, 'Never written', 0, undefined, fixture.expectedAccess);
+258 |       case 'step-remove': case 'step-references': return graph.steps.removeWithin(fixture.owner.projectId, step.id, actor, true, fixture.expectedAccess);
+259 |     }
+260 |   }, undefined, undefined, failedGraphRead));
+261 |   expect(failure).toBeInstanceOf(Error);
+                        ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: {
+  ok: true,
+  value: {
+    id: "38e8b267-633b-4ddd-84b0-20fc8711a11e",
+    projectId: "0c64d4cc-848b-4850-9f30-aecb32284820",
+    name: "Never written",
+    allowancePercent: 0,
+    estimateUnit: "workdays",
+    code: "never-written",
+    position: 30,
+  },
+}
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:261:19)
+(fail) connected step-add refuses an injected failed graph read without partial effects [446.80ms]
+
+ 0 pass
+ 42 filtered out
+ 1 fail
+ 12 expect() calls
+Ran 1 test across 1 file. [2.74s]

@@ -1,6 +1,10 @@
 import {
+  createPlanDocumentV10,
   type PlanDocument,
   planDocumentResponse,
+  planDocumentV12,
+  requestSchema,
+  responseSchema,
   validateSchema,
   type WorkItemTree,
 } from '@wbs/contracts';
@@ -9,10 +13,16 @@ import { expect, test } from 'bun:test';
 
 import type { CalendarMarker, DirectoryStore, Project } from '../../index';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
+import { createConnectedBlockageRead } from '../../testing/connected-blockage.fixture';
+import { projectConnectedDocument } from './connected-document';
 import { classifyPlanDocument, PlanDocumentService } from './plan-document.resource';
+
+const planDocumentV10Response = responseSchema(createPlanDocumentV10());
+const planDocumentV12Response = responseSchema(planDocumentV12);
 
 const PROJECT: Project & { timezone: string } = {
   id: 'project-1',
+  abbreviation: 'PLAN',
   name: 'Release plan',
   ownerId: 'owner-1',
   restricted: true,
@@ -427,7 +437,7 @@ test('malformed priority names workItems[3].priority', async () => {
 
 test('unknown version precedes version-specific validation', async () => {
   const future = structuredClone(await exportDocument());
-  Reflect.set(future.document, 'version', 12);
+  Reflect.set(future.document, 'version', 13);
   const row = future.workItems[0];
   future.workItems = Array.from({ length: 4 }, () => structuredClone(row));
   Reflect.set(future.workItems[3] ?? {}, 'priority', 'high');
@@ -436,6 +446,179 @@ test('unknown version precedes version-specific validation', async () => {
     code: 'unsupported_version',
     path: 'document.version',
   });
+});
+
+test('v12 classifies a stable external predecessor and refuses its v10 disguise', async () => {
+  const document = structuredClone(await exportDocument());
+  Reflect.set(document.document, 'version', 12);
+  Reflect.set(
+    document,
+    'connected',
+    projectConnectedDocument(createConnectedBlockageRead('clear'), 'C').connected,
+  );
+  Reflect.set(document, 'typedDependencies', [
+    {
+      id: 'cross',
+      type: 'FS',
+      predecessor: {
+        kind: 'external',
+        scope: 'whole',
+        projectId: 'other-project',
+        workItemId: 'stable-row',
+        display: {
+          projectName: 'Other',
+          abbreviation: 'OTHER',
+          workItemName: 'Prerequisite',
+          address: 'OTHER.1',
+        },
+      },
+      successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+    },
+  ]);
+  expect(await classifyPlanDocument(document)).toMatchObject({
+    ok: true,
+    value: {
+      typedDependencies: [
+        { predecessor: { projectId: 'other-project', workItemId: 'stable-row' } },
+      ],
+    },
+  });
+  Reflect.set(document.document, 'version', 10);
+  Reflect.deleteProperty(document, 'connected');
+  Reflect.set(document.typedDependencies[0]?.predecessor ?? {}, 'workItem', 'row-1');
+  expect(await classifyPlanDocument(document)).toMatchObject({
+    ok: false,
+    code: 'invalid_typed_dependency',
+    path: 'typedDependencies[0]',
+  });
+});
+
+test('v12 mapping binds only the declared stable source tuple', async () => {
+  const document = structuredClone(await exportDocument());
+  Reflect.set(document.document, 'version', 12);
+  Reflect.set(
+    document,
+    'connected',
+    projectConnectedDocument(createConnectedBlockageRead('clear'), 'C').connected,
+  );
+  Reflect.set(document, 'typedDependencies', [
+    {
+      id: 'cross',
+      type: 'FS',
+      predecessor: {
+        kind: 'external',
+        scope: 'whole',
+        projectId: 'other-project',
+        workItemId: 'stable-row',
+        display: {
+          projectName: 'Other',
+          abbreviation: 'OTHER',
+          workItemName: 'Prerequisite',
+          address: 'OTHER.1',
+        },
+      },
+      successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+    },
+  ]);
+  Reflect.set(document, 'externalMappings', [
+    {
+      source: { scope: 'whole', projectId: 'other-project', workItemId: 'stable-row' },
+      destination: {
+        scope: 'whole',
+        projectId: 'destination-project',
+        workItemId: 'destination-row',
+      },
+    },
+  ]);
+  expect(await classifyPlanDocument(document)).toMatchObject({
+    ok: true,
+    value: { externalMappings: [{ destination: { workItemId: 'destination-row' } }] },
+  });
+  Reflect.set(document, 'externalMappings', [
+    {
+      source: { scope: 'whole', projectId: 'other-project', workItemId: 'different-row' },
+      destination: {
+        scope: 'whole',
+        projectId: 'destination-project',
+        workItemId: 'destination-row',
+      },
+    },
+  ]);
+  expect(await classifyPlanDocument(document)).toMatchObject({
+    ok: false,
+    code: 'invalid_typed_dependency',
+    path: 'externalMappings[0].source',
+  });
+  const source = { scope: 'whole', projectId: 'other-project', workItemId: 'stable-row' };
+  const destination = {
+    scope: 'whole',
+    projectId: 'destination-project',
+    workItemId: 'destination-row',
+  };
+  Reflect.set(document, 'externalMappings', [
+    { source, destination: { ...destination, scope: 'node', stepId: 'destination-step' } },
+  ]);
+  expect(await classifyPlanDocument(document)).toMatchObject({
+    ok: false,
+    code: 'invalid_typed_dependency',
+    path: 'externalMappings[0].destination.scope',
+  });
+  Reflect.set(document, 'externalMappings', [
+    { source, destination },
+    { source, destination },
+  ]);
+  expect(await classifyPlanDocument(document)).toMatchObject({
+    ok: false,
+    code: 'invalid_typed_dependency',
+    path: 'externalMappings[1].source',
+  });
+});
+
+test('v12 internal endpoint cannot carry a contradictory external identity', async () => {
+  const document = structuredClone(await exportDocument());
+  Reflect.set(document.document, 'version', 12);
+  Reflect.set(
+    document,
+    'connected',
+    projectConnectedDocument(createConnectedBlockageRead('clear'), 'C').connected,
+  );
+  Reflect.set(document, 'typedDependencies', [
+    {
+      id: 'mixed',
+      type: 'FS',
+      predecessor: {
+        kind: 'internal',
+        scope: 'whole',
+        workItem: 'row-1',
+        projectId: 'foreign-project',
+        workItemId: 'foreign-row',
+      },
+      successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+    },
+  ]);
+  expect(await classifyPlanDocument(document)).toMatchObject({
+    ok: false,
+    code: 'invalid_typed_dependency',
+  });
+});
+
+test('v1–3 retain their historical treatment of file-local typed fields', async () => {
+  for (const version of [1, 2, 3]) {
+    const document = structuredClone(await exportDocument());
+    Reflect.set(document.document, 'version', version);
+    if (version === 1)
+      for (const step of document.steps) Reflect.deleteProperty(step, 'allowancePercent');
+    Reflect.set(document, 'typedDependencies', [
+      {
+        id: 'historical',
+        type: 'FS',
+        predecessor: { scope: 'whole', workItem: 'row-1' },
+        successor: { scope: 'whole', workItem: 'row-1' },
+      },
+    ]);
+    const classified = await classifyPlanDocument(document);
+    expect(classified).toMatchObject({ ok: true, value: { typedDependencies: [] } });
+  }
 });
 
 test('refuses a version-4 document without its typed dependency list', async () => {
@@ -1351,6 +1534,7 @@ test('v9 zero-fact export retains canonical bytes', async () => {
   // plan that states no resource facts and no measures, with those taken off
   // and its version read as 9, is the v9 golden byte for byte.
   const exported = withoutVersion11(structuredClone(await exportDocument()), 9);
+  Reflect.deleteProperty(exported['project'] as object, 'abbreviation');
   const { resources, ...directoryBefore } = exported['directory'] as PlanDocument['directory'];
   const { resourceCapacities, demands, ...rest } = exported;
   expect({ resources, resourceCapacities, demands }).toEqual({
@@ -1439,8 +1623,10 @@ test('exports only the resources its capacities and demands name (wbs-resources)
   ]);
 });
 
-test('v10 resources export retains canonical bytes', async () => {
-  const bytes = JSON.stringify(withoutVersion11(await exportWithResources(), 10));
+test('v10 resources export retains canonical published bytes', async () => {
+  const exported = await exportWithResources();
+  Reflect.deleteProperty(exported.project, 'abbreviation');
+  const bytes = JSON.stringify(withoutVersion11(exported, 10));
   expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(
     'f2308a55167653345d85178e2253675097c1ee00956f34c4df933da06163fa4a',
   );
@@ -1530,6 +1716,85 @@ test('refuses resources in a file older than version 10', async () => {
     capacities: classified.value.resourceCapacities,
     demands: classified.value.demands,
   }).toEqual({ resources: [], capacities: [], demands: [] });
+});
+
+test('versioned response admits explicit v12 links while v10 remains frozen', async () => {
+  const document = await exportDocument();
+  expect((await validateSchema(planDocumentResponse, document)).issues).toBeUndefined();
+  const external = {
+    id: 'cross',
+    type: 'FS',
+    predecessor: {
+      kind: 'external',
+      scope: 'whole',
+      projectId: 'remote',
+      workItemId: 'stable',
+      display: {
+        projectName: 'Remote',
+        abbreviation: 'REM',
+        workItemName: 'Build',
+        address: 'REM.1',
+      },
+    },
+    successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+  };
+  const next = {
+    ...document,
+    document: { ...document.document, version: 12 },
+    typedDependencies: [external],
+    connected: {
+      kind: 'connected',
+      projectId: document.project.id,
+      mode: 'isolated',
+      projects: [],
+      relationships: [],
+      placement: { kind: 'unavailable', reason: 'cycle' },
+    },
+  };
+  const incomplete = { ...next };
+  Reflect.deleteProperty(incomplete, 'connected');
+  expect((await validateSchema(planDocumentV12Response, incomplete)).issues).toBeDefined();
+  expect((await classifyPlanDocument(incomplete)).ok).toBe(true);
+  expect((await validateSchema(planDocumentV12Response, next)).issues).toBeUndefined();
+  expect((await validateSchema(planDocumentResponse, next)).issues).toBeUndefined();
+  expect((await validateSchema(planDocumentV10Response, next)).issues).toBeDefined();
+  expect(
+    (await validateSchema(planDocumentResponse, { ...next, document: document.document })).issues,
+  ).toBeDefined();
+});
+
+test('v12 step endpoint requires its descriptive step label', async () => {
+  const document = await exportDocument();
+  Reflect.set(document.document, 'version', 12);
+  Reflect.set(
+    document,
+    'connected',
+    projectConnectedDocument(createConnectedBlockageRead('clear'), 'C').connected,
+  );
+  Reflect.set(document, 'typedDependencies', [
+    {
+      id: 'cross',
+      type: 'FS',
+      predecessor: {
+        kind: 'external',
+        scope: 'node',
+        projectId: 'remote',
+        workItemId: 'stable',
+        stepId: 'remote-step',
+        display: {
+          projectName: 'Remote',
+          abbreviation: 'REM',
+          workItemName: 'Build',
+          address: 'REM.1',
+        },
+      },
+      successor: { kind: 'internal', scope: 'whole', workItem: 'row-1' },
+    },
+  ]);
+  expect(await classifyPlanDocument(document)).toMatchObject({
+    ok: false,
+    code: 'invalid_typed_dependency',
+  });
 });
 
 /** An organization's definitions: the seeded five and one it defined. */
@@ -1735,7 +2000,9 @@ test('exports version 11 with every measure the plan holds', async () => {
 });
 
 test('v11 measures export retains canonical bytes', async () => {
-  const bytes = JSON.stringify(await exportWithMeasures());
+  const exported = await exportWithMeasures();
+  Reflect.deleteProperty(exported.project, 'abbreviation');
+  const bytes = JSON.stringify(exported);
   expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(
     '62708699bd8f40d78f3f4f6e30ee80aa976adba58c24b8a84cace87747cc25e4',
   );
@@ -1782,7 +2049,9 @@ test('a plan whose measures are all legacy exports version 11 with empty lists (
 });
 
 test('a plan without measures exports canonical version-11 bytes', async () => {
-  const bytes = JSON.stringify(await exportDocument());
+  const exported = await exportDocument();
+  Reflect.deleteProperty(exported.project, 'abbreviation');
+  const bytes = JSON.stringify(exported);
   expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(
     'f8ed917417cae0509dc4fb4d1f5faacc49c246a2e108ebee04b638e045590a64',
   );
@@ -1930,4 +2199,35 @@ test('throws when a stored figure names a measure, row or step the reads do not 
     const outcome = await exportWithMeasures(FACTORED, reads).catch((caught: unknown) => caught);
     expect(outcome instanceof Error ? outcome.message : 'exported').toContain(message);
   }
+});
+
+test('v12 export requires captured evidence while import discards untrusted read-only history', async () => {
+  const captured = createConnectedBlockageRead('clear');
+  const evidence = projectConnectedDocument(captured, 'C').connected;
+  const ordinary = await exportDocument();
+  const next = {
+    ...ordinary,
+    document: { ...ordinary.document, version: 12 },
+    connected: evidence,
+  };
+  expect((await classifyPlanDocument(next)).ok).toBe(true);
+  const { connected: omitted, ...missing } = next;
+  expect(omitted).toBe(evidence);
+  expect((await validateSchema(planDocumentV12Response, missing)).issues).toBeDefined();
+  expect((await classifyPlanDocument(missing)).ok).toBe(true);
+  expect(
+    (await validateSchema(planDocumentV12Response, { ...next, connected: null })).issues,
+  ).toBeDefined();
+  expect((await classifyPlanDocument({ ...next, connected: null })).ok).toBe(true);
+  expect((await classifyPlanDocument({ ...next, document: ordinary.document })).ok).toBe(true);
+});
+
+test('frozen v10 strict consumers refuse the newer embedded project factor', async () => {
+  const document = withoutVersion11(await exportDocument(), 10);
+  const strict = requestSchema(createPlanDocumentV10());
+  expect((await validateSchema(strict, document)).issues).toBeUndefined();
+  const project: unknown = document['project'];
+  if (typeof project !== 'object' || project === null) throw new Error('fixture project missing');
+  Reflect.set(project, 'budgetFactor', 2);
+  expect((await validateSchema(strict, document)).issues).toBeDefined();
 });

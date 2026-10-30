@@ -268,6 +268,22 @@ describe('twin plan-reference', () => {
     },
   );
 
+  test.each([7, 10])(
+    'refuses v%s embedded project budgetFactor before writing',
+    async (version) => {
+      const document = JSON.parse(
+        readFileSync(
+          join(import.meta.dir, 'fixtures', `plan-export.v${String(version)}.json`),
+          'utf8',
+        ),
+      ) as PlanDocument;
+      Reflect.set(document.project, 'budgetFactor', 2);
+      const path = join(scratch.path, `factor-v${String(version)}.json`);
+      writeFileSync(path, JSON.stringify(document));
+      expectRefusal(await planReference({ '--export': path }), /plan export is malformed/);
+    },
+  );
+
   // The v10 fixture with version 11's budget factor and measure lists added
   // (`wbs-measure-budgets` D63, D71); every v10 field is byte for byte the v10 fixture's.
   // Proof: with 11 dropped from the version guard, this case exited 1 with

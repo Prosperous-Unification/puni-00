@@ -1,0 +1,24 @@
+Omitted configured source-exclusion-topology; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/caddy-target.test.ts:
+23 |   expect(project.targets['test'].options.command).toContain('test/solver-drain-transport.test.ts');
+24 |   expect(project.targets['test'].options.command).toContain('test/solver-drain-fixture.test.ts');
+25 |   expect(project.targets['test'].options.command).not.toContain('test/solver-drain.ts');
+26 |   // Proof: independently omitting either source fixture suite failed this configured-command contract.
+27 |   expect(project.targets['test'].options.command).toContain('test/source-exclusion-transport.test.ts');
+28 |   expect(project.targets['test'].options.command).toContain('test/source-exclusion-topology.test.ts');
+                                                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "test/source-exclusion-topology.test.ts"
+Received: "bun test src test/solver-drain-transport.test.ts test/solver-drain-fixture.test.ts test/source-exclusion-transport.test.ts --preload ../test/scratch/preload.ts --timeout=10000"
+
+      at <anonymous> (/tmp/puni-source-exclusion-acceptance-fix/tools/tool-remote-scripts/src/caddy-target.test.ts:28:51)
+(fail) requires real Caddy boundaries in the CI and host test target [0.49ms]
+
+ 0 pass
+ 3 filtered out
+ 1 fail
+ 9 expect() calls
+Ran 1 test across 1 file. [36.00ms]

@@ -218,3 +218,20 @@ describe('undo per acting person over HTTP', () => {
     expect(await qaAllowance()).toBe(before);
   });
 });
+
+it('two credentials pinned to the same person share one undo stack', async () => {
+  const rotated = await issueApiKey(h.sqlite, {
+    organizationId: 'org-a',
+    personId: 'codex',
+    issuedBy: h.userId('dany'),
+    name: 'Second codex credential',
+  });
+  await rename('codex', codexLeaf, 'First credential edit');
+  expect(
+    (await callForwarded(h, rotated.key, 'POST', `/api/projects/${projectId}/undo`)).status,
+  ).toBe(200);
+  expect(names()[codexLeaf]).toBe('Codex');
+  expect(await undoState('codex')).toEqual({ undoable: false, redoable: true });
+  expect((await press('codex', 'redo')).status).toBe(200);
+  expect(names()[codexLeaf]).toBe('First credential edit');
+});

@@ -1,0 +1,31 @@
+import {readFileSync,writeFileSync,mkdirSync,symlinkSync,existsSync} from 'node:fs';
+const source='/tmp/puni-cross-solver-backend';
+const sandbox='/tmp/puni-71-review-sandbox';
+const solver='/libs/wbs/domain/contracts/solver';
+mkdirSync(sandbox+solver+'/src',{recursive:true});mkdirSync('/tmp/puni-71-review-mutants',{recursive:true});
+if(!existsSync(sandbox+'/node_modules'))symlinkSync(source+'/node_modules',sandbox+'/node_modules');
+for(const name of ['validate-connected-solver-request.ts','wire-types.ts'])writeFileSync(sandbox+solver+'/src/'+name,readFileSync(source+solver+'/src/'+name));
+let test=readFileSync(source+solver+'/src/connected-boundaries.test.ts','utf8').replace("'@wbs/domain'",JSON.stringify(source+'/libs/wbs/domain/domain/src/index.ts'));
+test=test.replace(/from '\.\/([^']+)'/g,(whole,name)=>name==='validate-connected-solver-request'?whole:'from '+JSON.stringify(source+solver+'/src/'+name+'.ts'));
+writeFileSync(sandbox+solver+'/src/connected-boundaries.test.ts',test);
+const path=sandbox+solver+'/solver-wire.v5.json';const original=readFileSync(source+solver+'/solver-wire.v5.json','utf8');writeFileSync(path,original);
+const baseline=Bun.spawnSync(['bun','test',sandbox+solver+'/src/connected-boundaries.test.ts','--test-name-pattern','each connected request boundary and version member'],{cwd:source});
+writeFileSync('/tmp/puni-71-review-mutants/baseline.log',baseline.stdout.toString()+baseline.stderr.toString());if(baseline.exitCode!==0)throw Error('copied baseline failed');
+const schema=JSON.parse(original);
+const inventory:[string,string,string[]][]=[['request-connected','top-level',schema.$defs['request-connected'].required],['scope-connected','scope',schema.$defs['scope-connected'].required],['scope-connected','projects',schema.$defs['scope-connected'].properties.projects.items.required],['scope-connected','fixed',schema.$defs['scope-connected'].properties.fixed.items.required],['boundary','boundary',[...schema.$defs.boundary.required,'minimumStartUnits','maximumStartUnits']],['scope-connected','occupancy',schema.$defs['scope-connected'].properties.occupancy.items.required]];
+const summary:string[]=[];
+try{
+for(const [definition,location,members] of inventory)for(const member of members){
+ const changed=JSON.parse(original);const base=changed.$defs[definition];const target=['top-level','scope','boundary'].includes(location)?base:base.properties[location].items;
+ if(member==='minimumStartUnits')target.allOf[0].then.required=[];else if(member==='maximumStartUnits')target.allOf[0].else.required=[];else target.required=target.required.filter((entry:string)=>entry!==member);
+ writeFileSync(path,JSON.stringify(changed));
+ const child=Bun.spawnSync(['bun','test',sandbox+solver+'/src/connected-boundaries.test.ts','--test-name-pattern','each connected request boundary and version member'],{cwd:source});
+ const output=child.stdout.toString()+child.stderr.toString();const label=location+'.'+member;
+ writeFileSync('/tmp/puni-71-review-mutants/'+label+'.log',output);
+ const assertion=child.exitCode===1&&output.includes('error: expect(')&&output.includes('(fail) each connected request boundary and version member');
+ summary.push(label+': exit='+child.exitCode+' assertion='+assertion);
+ writeFileSync(path,original);
+ if(!assertion)throw Error(label+' lacked expected actual assertion');
+}
+}finally{writeFileSync(path,original);writeFileSync('/tmp/puni-71-review-mutation-summary.txt',summary.join('\n')+'\n');}
+console.log(summary.join('\n'));

@@ -1,0 +1,35 @@
+
+ NX   Running target typecheck for project wbs-fe-01 and 1 task it depends on:
+
+
+
+> nx run wbs-fe-01:"typecheck:module"
+
+wbs-fe-01: typecheck:module apps/wbs/fe-01/src/modules/calendar-markers/
+wbs-fe-01: typecheck:module apps/wbs/fe-01/src/modules/dependency-lookup/
+wbs-fe-01: typecheck:module apps/wbs/fe-01/src/modules/directory-management/
+wbs-fe-01: typecheck:module apps/wbs/fe-01/src/modules/directory/
+wbs-fe-01: typecheck:module apps/wbs/fe-01/src/modules/plan-commands/
+wbs-fe-01: typecheck:module apps/wbs/fe-01/src/modules/plan-feed/
+wbs-fe-01: typecheck:module apps/wbs/fe-01/src/modules/plan-writer/
+wbs-fe-01: typecheck:module apps/wbs/fe-01/src/modules/preferences/
+wbs-fe-01: typecheck:module apps/wbs/fe-01/src/modules/project/
+wbs-fe-01: typecheck:module apps/wbs/fe-01/src/modules/saved-plans/
+
+> nx run wbs-fe-01:typecheck
+
+
+
+
+ NX   Successfully ran target typecheck for project wbs-fe-01 and 1 task it depends on
+
+
+  Run duration:      1m 1s
+  Cache:             0/2 hit (0%)
+  Critical path:     1m 1s (2 tasks)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Drastically reduce your run duration by sharing a cache across your team and CI → https://cloud.nx.app/get-started?utm_source=nx-cli&utm_medium=cli&utm_campaign=performance-report&utm_content=remote-cache.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-fe-01:typecheck    52.0s

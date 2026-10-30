@@ -6,14 +6,32 @@ import { RetentionTimer } from '@wbs/core/module/bounded-replay-sweep/retention-
 import { ClaimLeaseSweep } from '@wbs/core/module/plan-commands/claim-lease-sweep';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
+import * as stepCodes from '@wbs/store-sqlite/step-code-backfill';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
 import { buildApp } from './app';
-import { bootBe01, type BootOptions, type RunningBe } from './boot';
+import { bootBe01 as bootBackend, type BootOptions, type RunningBe } from './boot';
 import { OptimizationCoordinator } from './module/optimization/optimization.feature';
 import { openDatabase, refuseToWaitForWriteLock, SQLiteError } from './repository/db';
+import * as migrationModule from './repository/migrate';
 import { runMigrations } from './repository/migrate';
+import { UserRepository } from './repository/user';
+import * as dependencyRuntime from './runtime/dependency-capability';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
+
+/** Binds this fixture's owned loopback socket while preserving in-process listener injection. */
+const bootBe01: typeof bootBackend = (options, dependencies) => {
+  const supplied = dependencies ?? { openSource: openSqliteSource };
+  return bootBackend(options, {
+    ...supplied,
+    startListener:
+      supplied.startListener ??
+      ((app, port, ready) => {
+        app.listen({ hostname: '127.0.0.1', port }, ready);
+      }),
+  });
+};
 
 const folder = new URL('../drizzle', import.meta.url).pathname;
 const directories: string[] = [];
@@ -54,7 +72,10 @@ function makeApp(composition: Parameters<typeof buildApp>[0]) {
 test('boot audit excludes a second connection commit between marker and history reads', async () => {
   const configured = { ...createOptions(), organizationDnsResolvers: undefined };
   runMigrations(configured.dbPath, folder);
-  const writer = openSqliteSource({ dbPath: configured.dbPath });
+  const writer = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: configured.dbPath,
+  });
   refuseToWaitForWriteLock(writer.db);
   const observation: { admission: 'unattempted' | 'committed' | 'busy' } = {
     admission: 'unattempted',
@@ -330,7 +351,7 @@ test('failure after acquiring our listener releases that socket and the source',
         };
       },
       startListener: (app, requested, ready) => {
-        app.listen(requested, ready);
+        app.listen({ hostname: '127.0.0.1', port: requested }, ready);
         port = app.server?.port;
         throw new Error('failure after owned listener acquisition');
       },
@@ -338,7 +359,7 @@ test('failure after acquiring our listener releases that socket and the source',
   );
   expect(closes).toBe(1);
   expect(port).toBeDefined();
-  const response = await fetch(`http://localhost:${String(port)}/health`).catch(
+  const response = await fetch(`http://127.0.0.1:${String(port)}/health`).catch(
     (cause: unknown) => cause,
   );
   expect(response).toBeInstanceOf(Error);
@@ -354,3 +375,89 @@ async function expectBootFailure(booting: Promise<RunningBe>): Promise<void> {
   );
   expect(failure).toBeInstanceOf(Error);
 }
+
+test('prepares schema, dependency admission and identity once before the coherent runtime ledger barrier', async () => {
+  const configured = { ...createOptions(), organizationDnsResolvers: undefined };
+  const stages: string[] = [];
+  const migrate = migrationModule.runMigrations;
+  const backfill = stepCodes.backfillStepCodes;
+  const admit = dependencyRuntime.assertDependencyRuntime;
+  // The identity spy must write through boot's own admitted repository receiver.
+  const ensure: unknown = Reflect.get(UserRepository.prototype, 'ensureLocalIdentity');
+  if (typeof ensure !== 'function') throw new Error('identity fixture method missing');
+  const migrations = spyOn(migrationModule, 'runMigrations').mockImplementation((...args) => {
+    stages.push('migration');
+    migrate(...args);
+  });
+  const backfills = spyOn(stepCodes, 'backfillStepCodes').mockImplementation((...args) => {
+    stages.push('backfill');
+    return backfill(...args);
+  });
+  const dependencies = spyOn(dependencyRuntime, 'assertDependencyRuntime').mockImplementation(
+    (...args) => {
+      stages.push('dependency admission');
+      admit(...args);
+    },
+  );
+  const identity = spyOn(UserRepository.prototype, 'ensureLocalIdentity').mockImplementation(
+    function (this: UserRepository, ...args) {
+      stages.push('identity');
+      Reflect.apply(ensure, this, args);
+    },
+  );
+  try {
+    running = await bootBe01(
+      {
+        ...configured,
+        migrateOnStartup: true,
+        migrationsFolder: folder,
+        localIdentity: { id: 'once', username: 'once', scopes: ['read', 'write'] },
+      },
+      {
+        openSource: (settings) => {
+          const source = openSqliteSource(settings);
+          const run = source.uow.run.bind(source.uow);
+          source.uow.run = (act) =>
+            run(async (scope) => {
+              const inspect = scope.stores.runtimeCommands.inspectLedger.bind(
+                scope.stores.runtimeCommands,
+              );
+              scope.stores.runtimeCommands.inspectLedger = async () => {
+                stages.push('ledger');
+                return inspect();
+              };
+              try {
+                return await act(scope);
+              } finally {
+                scope.stores.runtimeCommands.inspectLedger = inspect;
+              }
+            });
+          return source;
+        },
+        makeApp,
+        startListener: (_app, _port, ready) => {
+          stages.push('listener');
+          ready();
+        },
+      },
+    );
+    expect(stages).toEqual([
+      'migration',
+      'dependency admission',
+      'backfill',
+      'identity',
+      'ledger',
+      'listener',
+    ]);
+    expect(migrations).toHaveBeenCalledTimes(1);
+    expect(backfills).toHaveBeenCalledTimes(1);
+    expect(identity).toHaveBeenCalledTimes(1);
+  } finally {
+    await running?.stop();
+    running = undefined;
+    identity.mockRestore();
+    dependencies.mockRestore();
+    backfills.mockRestore();
+    migrations.mockRestore();
+  }
+});

@@ -6,8 +6,11 @@ import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { PlanTree } from '../../ports/plan-tree';
 import type { Scope } from '../../ports/unit-of-work';
 import type { PlanCommand } from '../../service/command-normalizers';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
+import { expectCreated } from '../../testing/expect-created';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { createPlanCommandRunner } from './composition';
 
@@ -25,6 +28,7 @@ async function seeded() {
   const source = fixture.source;
   fixture.addOrganization(ORG, { legacy: true });
   const options = {
+    dependencyContext: createLocalDependencyContext(source.stores),
     admission: CREATOR_ADMISSION,
     clock: testClock,
     broadcast: recordingBroadcaster(),
@@ -35,7 +39,7 @@ async function seeded() {
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const created = await graph.projects.create('Measures', F);
+  const created = expectCreated(await graph.projects.create('Measures', F));
   const projectId = created.project.id;
   fixture.ownProjectInOrganization(projectId, ORG);
   for (const step of created.steps) {
@@ -47,10 +51,15 @@ async function seeded() {
   const [dev] = created.steps.map(({ id }) => id);
   const runner = createPlanCommandRunner({
     uow: source.uow,
+    commandAccess: localCommandAccess,
     announcements: options.broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
-      servicesOver(scope.stores, { ...options, broadcast: announcements }),
+      servicesOver(scope.stores, {
+        ...options,
+        dependencyContext: createLocalDependencyContext(scope.stores),
+        broadcast: announcements,
+      }),
   });
   const defined = await runner.runDirectory(F, [
     {

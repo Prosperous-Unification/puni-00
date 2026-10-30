@@ -1,0 +1,17 @@
+# Source-start actual pairs six through ten
+
+PASS for closed V2 indexes05–09 only. Manifest /tmp/puni-source-start-20261029/r5-v2/second-five-manifest.json SHA a37c7a390d4f4538974da3fcd0987df43a52894d796a959d3380868507d60c97: all187 immutable artifacts independently matched regular-file/mode/byte/size pins. All five mutants reconstruct from the saved production carrier and exact approved recipe; recorded inverses restore its original1f964750 SHA,mode0664 and same device/inode. Controls are checked by the pinned driver after inverse and before/after restored execution. No active f7 source or running handle was read.
+
+Read all ten complete actual stderr logs and independently verified ten original outer plus wrapper receipts, every stdout/stderr SHA and ten typed inner custody records. Faults exit1 and restored cases exit0, all normal/nullsignal with both original EOFs. Each reaches real prior gateway completion, fails at its intended selected owning frame with success marker absent, and passes the SAME restored consumer with its success marker. Outer mutant failures are the expected inner-exit assertion. Scratch cleanup returns in every log. No timeout, setup or incidental failure earns credit.
+
+| Row | Actual changed-dependency witness | Exact restored consumer |
+| --- | --- | --- |
+|05 source-monitor|Always-cold dependency causes genuine positive refusal at model266;500 inner assertions before refusal.|READY,593 inner assertions.|
+|06 first-binding|Removing retained assignment while keeping the real observer call causes genuine positive refusal at model266;505 inner assertions.|READY,593 inner assertions.|
+|07 opener-tuple|Actual dev-gateway authority-wire marker; grouped tuple omission wrongly resolves, model228 Expected rejects/Received resolved.|Matching dev-gateway refusal,511 inner assertions.|
+|08 opener-executable|Actual dev-executable authority-wire marker; executable comparison omission wrongly resolves at model228.|Matching null-executable refusal,511 inner assertions.|
+|09 opener-environment|Actual prod-source authority-wire marker; changed environment dependency wrongly resolves at model228.|Matching source-as-prod refusal,511 inner assertions.|
+
+The first two are positive dependency witnesses, not unsafe-admission proofs. Their sanitized refusal does not reveal a hidden low-level exception; first-binding scope rests on the exact changed retention dependency and reviewed independent opener delivery, not an invented trace of the classifier's private throw. Tuple scope is grouped PID/start/UID/cgroup, not separate necessity for each field. Existing observer/profile/decoder guards are not requalified.
+
+Outer fault/restored elapsed seconds are124.808/158.582,74.845/111.693,99.216/99.626,167.379/133.981,161.414/115.914; these are receipt identities, not capacity or timing acceptance. Earlier first-five audit0c8468b7 remains separate; together only ten of the closed twenty are accepted. No later pairs, full current suite, normal cold-start convergence, native image/network topology, controller/policy/exposure release or full restoration is certified. No supplied program, test, Git mutation, active source read or runtime was performed during this review.

@@ -1,0 +1,16 @@
+
+tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts:
+(pass) restoration owner refuses invalid parent before actual child selection: missing [106.04ms]
+(pass) restoration owner refuses invalid parent before actual child selection: unreadable [114.40ms]
+(pass) restoration owner refuses invalid parent before actual child selection: alias [90.37ms]
+(pass) all leaves refuse malformed restoration target before actual children: absent [224.83ms]
+(pass) all leaves refuse malformed restoration target before actual children: inputs [229.72ms]
+(pass) all leaves refuse malformed restoration target before actual children: environment [225.65ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=7
+
+ 6 pass
+ 32 filtered out
+ 0 fail
+ 63 expect() calls
+Ran 6 tests across 1 file. [1030.00ms]

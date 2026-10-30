@@ -1,0 +1,53 @@
+Command: ['bunx', 'vitest', 'run', 'src/components/wbs/persisted-remote-dependencies.test.tsx', '--maxWorkers=1', '--no-file-parallelism', '--testTimeout=30000', '--hookTimeout=30000', '-t', 'preserves non-null captured descendant selector']
+Injected fault: if (endpoint.scope === 'descendant-step') -> if (false)
+
+ RUN  v5.0.0 /tmp/puni-remote-display-proof/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (21 tests | 2 failed | 19 skipped) 917ms
+   × preserves non-null captured descendant selector in labels and details on desktop 748ms
+   × preserves non-null captured descendant selector in labels and details on phone 163ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 19 skipped (21)
+   Start at  12:12:35
+   Duration  19.21s (import 63%, transform 21%, environment 8%, tests 5%, setup 3%)
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > preserves non-null captured descendant selector in labels and details on desktop
+Error: expect(element).toHaveAccessibleName()
+
+Expected element to have accessible name:
+  /REMOTE\.080.*Remote development.*all descendant work items/i
+Received:
+  Edit dependency: REMOTE.080 Captured remote build to 010 Local successor, Finish-to-start. Enter to edit. Delete to remove. Escape to return to dependency search.
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:260:20
+    258|     } else {
+    259|       const chip = screen.getByRole('button', { name: /^Edit dependenc…
+    260|       expect(chip).toHaveAccessibleName(words);
+       |                    ^
+    261|       expect(chip).toHaveTextContent(words);
+    262|       fireEvent.click(chip);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > preserves non-null captured descendant selector in labels and details on phone
+Error: expect(element).toHaveAccessibleName()
+
+Expected element to have accessible name:
+  /REMOTE\.080.*Remote development.*all descendant work items/i
+Received:
+  Edit REMOTE.080 Captured remote build to 010 Local successor, Finish-to-start
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:255:68
+    253|     const words = /REMOTE\.080.*Remote development.*all descendant wor…
+    254|     if (phone) {
+    255|       expect(screen.getByRole('button', { name: /^Edit REMOTE/ })).toH…
+       |                                                                    ^
+    256|       expect(screen.getAllByText(words).length).toBeGreaterThan(0);
+    257|       fireEvent.click(screen.getByRole('button', { name: /^Edit REMOTE…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯

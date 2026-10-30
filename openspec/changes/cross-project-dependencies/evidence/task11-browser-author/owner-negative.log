@@ -1,0 +1,56 @@
+
+> nx run wbs-fe-01:e2e-cross-project --grep alphabetical discovery
+
+> bunx playwright test --config apps/wbs/fe-01/playwright.cross-project.config.ts --grep "alphabetical discovery"
+
+(node:1820698) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:1821892) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+[WebServer]   - `__dirname` (vite.config.ts:90:20). Use `import.meta.dirname` instead
+[WebServer] Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+Running 1 test using 1 worker
+
+(node:1821988) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:571:1 › alphabetical discovery creates a qualified dependency that persists and refreshes on completion (4.2s)
+
+
+  1) apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:571:1 › alphabetical discovery creates a qualified dependency that persists and refreshes on completion
+
+    Error: expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      616 |     const rows = (await relationships()).filter((row) => row.successor_project_id === owner.id);
+      617 |     // Proof: reversing persisted endpoints and successor ownership left this owner's SQLite set empty.
+    > 618 |     expect(rows).toHaveLength(1);
+          |                  ^
+      619 |     expect(rows).toEqual([
+      620 |       {
+      621 |         id: expect.any(String),
+        at /tmp/puni-task11-browser/apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:618:18
+
+    Error Context: test-results/cross-project-refresh.real-06fc9-and-refreshes-on-completion/error-context.md
+
+  1 failed
+    apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:571:1 › alphabetical discovery creates a qualified dependency that persists and refreshes on completion
+Warning: command "bunx playwright test --config apps/wbs/fe-01/playwright.cross-project.config.ts --grep "alphabetical discovery"" exited with non-zero status code
+
+
+ NX   Running target e2e-cross-project for project wbs-fe-01 failed
+
+Failed tasks:
+
+- wbs-fe-01:e2e-cross-project
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      12.4s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     12.4s (1 task)
+  Recoverable time:  <1ms

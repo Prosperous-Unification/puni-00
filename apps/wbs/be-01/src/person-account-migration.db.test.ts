@@ -11,25 +11,6 @@ const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.ur
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const PERSON_ACCOUNT = '20261019130000_add_person_account';
 const IDENTITY_PERSON = '20261019130100_add_external_identity_person';
-/** Newer than both, empty here, so they reverse first on every rollback below them. */
-const RESOURCES = '20261020120000_add_resources';
-const OCCUPANCY = '20261020130000_add_claim_occupancy';
-const MACHINE_CREDENTIAL = '20261022100000_add_machine_credential';
-const AUDIT_WIDENING = '20261022110000_widen_organization_audit_machine_credentials';
-const ID_SHAPE = '20261022110100_check_machine_credential_id';
-const AUDIENCE_SCOPE = '20261022120000_scope_trusted_issuer_audience';
-/** The two compute-provider migrations newer than the organization limits, newest first. */
-const COMPUTE_PROVIDERS =
-  '20261022140100_widen_organization_audit_compute_providers, 20261022140000_add_resource_provider';
-/** The organization limits migrations, which reverse after the compute providers. */
-const ORGANIZATION_LIMITS = '20261022130000_add_organization_limits';
-const MEASURE = '20261023140000_add_measure';
-/** The measure-keyed facts, which reverse first over legacy facts alone. */
-const MEASURE_FACTS = '20261023150000_key_step_measure';
-const MEASURE_ESTIMATES = '20261023160000_add_measure_estimate';
-const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
-const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
-const CLAIM_LEASE = '20261023100000_add_claim_lease';
 const roots: string[] = [];
 
 afterEach(() => {
@@ -135,9 +116,11 @@ describe('person account and credential pin migrations', () => {
     const down = await rollBack(root, dbPath, baseline());
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(
-      `rolled back: 20261028100100_widen_organization_audit_agent_pools, 20261028100000_add_agent_pool, 20261026130000_widen_organization_audit_machine_tokens, 20261026120000_add_command_journal_person, 20261025130000_add_resource_runtime, 20261025120000_add_resource_use, ${WORK_ITEM_BUDGETS}, ${MEASURE_ESTIMATES}, ${MEASURE_FACTS}, ${MEASURE}, ${CLAIM_LEASE}, ${COMPUTE_PROVIDERS}, ${LIMITS_AUDIT}, ${ORGANIZATION_LIMITS}, 20261022121000_add_runtime_commands, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}, ${MACHINE_CREDENTIAL}, ${OCCUPANCY}, ${RESOURCES}, ${IDENTITY_PERSON}, ${PERSON_ACCOUNT}`,
-    );
+    const reversed = readdirSync(join(root, 'drizzle'))
+      .filter((name) => name >= PERSON_ACCOUNT)
+      .sort()
+      .reverse();
+    expect(down.stdout).toBe(`rolled back: ${reversed.join(', ')}\n`);
     expect(columnsOf(dbPath, 'person')).not.toContain('account_id');
     expect(columnsOf(dbPath, 'external_identity')).not.toContain('person_id');
     expect(appliedNames(dbPath).at(-1)).toBe(baseline());

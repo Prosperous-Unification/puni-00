@@ -1,6 +1,10 @@
 import { withinDrift } from '@wbs/domain/workday';
 
-import type { PlanOptimizationView, ScheduleObjectiveView } from '@/lib/wbs-api';
+import type {
+  ConnectedPlanOptimizationView,
+  PlanOptimizationView,
+  ScheduleObjectiveView,
+} from '@/lib/wbs-api';
 
 import {
   comparisonWords,
@@ -21,6 +25,8 @@ export type CueSchedule = 'fast' | ScheduleObjectiveView;
 /** One schedule, as the cue reads it. */
 export interface CueRow {
   readonly which: CueSchedule;
+  /** Captured scope and evidence, preserved even when figures are stale. */
+  readonly details: readonly string[];
   /** `Fast`, `PRI`, `Time` — what fits on a control. */
   readonly label: string;
   /** The project finish this schedule reaches, or `null` while it has none. */
@@ -62,6 +68,8 @@ export interface UnmeetableDeadline {
 }
 
 export interface CueReading {
+  /** The captured question boundary, qualified when this read may be stale. */
+  readonly scopeWords: string | null;
   /** The schedule the project is on — what the rows are placed by. */
   readonly active: CueSchedule;
   /** What the active schedule is called on the pill: `Fast`, `PRI` or `Time`. */
@@ -122,13 +130,19 @@ export interface CueReading {
 /** The finish of the schedule the project is on, which is Fast unless a variant displaced it. */
 function activeFinish(optimization: PlanOptimizationView): number {
   if (optimization.displayed === 'fast') return optimization.finishDays.fast;
-  return optimization.finishDays[optimization.displayed] ?? optimization.finishDays.fast;
+  const finish = optimization.finishDays[optimization.displayed];
+  // Proof: restoring the Fast fallback failed the displayed connected objective missing-finish case (2026-10-22).
+  if (optimization.scope !== undefined && finish === undefined) {
+    throw new Error('Displayed connected schedule has no finish');
+  }
+  return finish ?? optimization.finishDays.fast;
 }
 
 /** Fast's own row: always present, never refused, nothing to compare itself with. */
 function fastRow(optimization: PlanOptimizationView): CueRow {
   return {
     which: 'fast',
+    details: connectedDetails(optimization, null),
     label: FAST_LABEL,
     finishDays: optimization.finishDays.fast,
     comparedWithFast: null,
@@ -144,9 +158,14 @@ function variantRow(optimization: PlanOptimizationView, objective: ScheduleObjec
   const state = optimization.variants[objective];
   const finish = optimization.finishDays[objective];
   const sameOrder = optimization.sameOrderAsFast[objective];
-  const stateWords = variantStateWords(state, optimization.generation !== null);
+  const stateWords = variantStateWords(
+    state,
+    optimization.generation !== null,
+    optimization.scope !== undefined,
+  );
   return {
     which: objective,
+    details: connectedDetails(optimization, objective),
     label: OBJECTIVE_LABEL[objective],
     finishDays: finish ?? null,
     // Both halves or neither: the plan read sends a variant's finish and its
@@ -154,8 +173,13 @@ function variantRow(optimization: PlanOptimizationView, objective: ScheduleObjec
     comparedWithFast:
       finish === undefined || sameOrder === undefined
         ? null
-        : comparisonWords(finish - optimization.finishDays.fast, sameOrder),
+        : qualifyComparison(
+            optimization,
+            comparisonWords(finish - optimization.finishDays.fast, sameOrder),
+          ),
     stateWords,
+    // Proof: admitting boundary-infeasible as ready failed both producer-mounted
+    // terminal keyboard/click HTTP action cases (2026-10-22).
     refusedBecause:
       optimization.displayed === objective
         ? `${OBJECTIVE_SENTENCE[objective]} is already the active schedule`
@@ -215,14 +239,17 @@ export function cueReading(optimization: PlanOptimizationView, stale = false): C
 
   return {
     active,
+    scopeWords: scopeWords(optimization, stale),
     activeLabel: active === 'fast' ? FAST_LABEL : OBJECTIVE_LABEL[active],
     rows,
+    // Proof: adding boundary-infeasible here failed both producer-mounted
+    // terminal Retry absence/zero-HTTP cases (2026-10-22).
     retryable: OBJECTIVES.filter((objective) => {
       const state = optimization.variants[objective].state;
       return state === 'failed' || state === 'corrupt';
     }),
     stale,
-    variantContrast: contrastWords(optimization, stale),
+    variantContrast: qualifyComparison(optimization, contrastWords(optimization, stale)),
     suggestion: suggested?.objective ?? null,
     suggestionWords:
       suggested === null
@@ -310,6 +337,7 @@ function sentenceOf(
     const words = variantStateWords(
       optimization.variants[objective],
       optimization.generation !== null,
+      optimization.scope !== undefined,
     );
     if (words !== null) parts.push(`${OBJECTIVE_SENTENCE[objective]}: ${words}`);
   }
@@ -329,5 +357,88 @@ function sentenceOf(
       parts.push('This result and affected-item list may be stale');
     }
   }
+  const scope = scopeWords(optimization, stale);
+  if (scope !== null) parts.push(scope);
+  if (optimization.scope !== undefined && !stale) {
+    parts.push(
+      optimization.displayed === 'fast'
+        ? 'Fast is retained. Fast here is the retained placement at this captured stage'
+        : `The selected ${OBJECTIVE_SENTENCE[optimization.displayed]} schedule remains displayed`,
+    );
+  }
   return `${parts.join('. ')}.`;
+}
+
+/** Comparisons apply only to alternatives for the same captured fixed boundary. */
+function qualifyComparison(
+  optimization: PlanOptimizationView,
+  words: string | null,
+): string | null {
+  return words === null || optimization.scope === undefined
+    ? words
+    : `${words} · same captured stage with captured fixed positions`;
+}
+
+/** Unknown internal scope discriminators must reach the application fault boundary. */
+function scopeWords(optimization: PlanOptimizationView, stale: boolean): string | null {
+  const scope = optimization.scope;
+  if (scope === undefined) return null;
+  switch (scope.kind) {
+    // Internal render boundary: corrupted runtime discriminators must throw even though the decoded union has one scope kind.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    case 'connected-stage':
+      return stale
+        ? `Project ${scope.projectId}: This certificate and captured boundary may be stale. The displayed dates are from the last plan read`
+        : `Project ${scope.projectId}: comparisons apply to the same captured stage with captured fixed positions only`;
+    default: {
+      // Proof: returning null admitted an unknown scope in connected captured cue reading (2026-10-22).
+      const _exhaustive: never = scope.kind;
+      throw new Error(`Unknown optimization scope: ${String(_exhaustive)}`);
+    }
+  }
+}
+
+/** Captured positions retain their full precision and identities; no row numbering is invented. */
+function connectedDetails(
+  optimization: PlanOptimizationView,
+  objective: ScheduleObjectiveView | null,
+): readonly string[] {
+  const scope = optimization.scope;
+  if (scope === undefined) return [];
+  const details = [
+    `Target project ${scope.projectId}; ${objective === null ? 'Fast retained stage baseline' : OBJECTIVE_SENTENCE[objective]}; captured fixed positions`,
+    `Quantum ${String(scope.quantum)}; wire version ${String(scope.wireVersion)}; contract ${optimization.contractVersion}`,
+    ...scope.fixed.map(
+      (fixed) =>
+        `${fixed.projectName} (${fixed.projectAbbreviation}, ${fixed.projectId}) / ${fixed.workItemName} (${fixed.workItemId}) / ${fixed.stepName ?? 'whole work item'} (${fixed.stepId ?? 'whole work item'}): start ${String(fixed.start)}, finish ${String(fixed.finish)} workdays from the captured component origin`,
+    ),
+  ];
+  if (objective !== null) {
+    const variant = optimization.variants[objective];
+    if (variant.state === 'boundary-infeasible') {
+      details.push(evidenceWords(variant.certificate.evidence));
+      details.push(`Question hash ${variant.certificate.question.questionHash}`);
+    }
+  }
+  return details;
+}
+
+/** Terminal evidence describes only the captured question, never the entire real plan. */
+function evidenceWords(
+  evidence: Extract<
+    ConnectedPlanOptimizationView['variants']['pri'],
+    { state: 'boundary-infeasible' }
+  >['certificate']['evidence'],
+): string {
+  switch (evidence) {
+    case 'contradictory-bounds':
+      return 'The rounded bounds leave no feasible integer window for this captured question';
+    case 'initial-model-infeasible':
+      return 'The solver reported the initial fixed-boundary model infeasible';
+    default: {
+      // Proof: returning empty words admitted unknown terminal evidence in connected captured cue reading (2026-10-22).
+      const _exhaustive: never = evidence;
+      throw new Error(`Unknown optimization evidence: ${String(_exhaustive)}`);
+    }
+  }
 }

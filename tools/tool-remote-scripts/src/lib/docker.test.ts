@@ -921,6 +921,30 @@ describe('tierComposeFile', () => {
 });
 
 describe('tierComposeContext', () => {
+  for (const environment of ['prod', 'dev'] as const) {
+    for (const color of ['blue', 'green'] as const) {
+      for (const [tier, init] of [
+        ['be', true],
+        ['gw', true],
+        ['fe', undefined],
+      ] as const) {
+        it(`renders init ${String(init)} for the ${environment} ${tier} ${color} service`, () => {
+          const context = tierComposeContext(
+            tier,
+            color,
+            `registry.test/wbs-${tier}-01@${DIGEST}`,
+            envLayout(environment),
+          );
+          const compose = Bun.YAML.parse(renderTemplate(tierComposeTmpl, context)) as {
+            services: Record<string, { init?: boolean }>;
+          };
+          expect(Object.keys(compose.services)).toEqual([context['CONTAINER']]);
+          expect(compose.services[context['CONTAINER']].init).toBe(init);
+        });
+      }
+    }
+  }
+
   it('uses the app name (be-01), not the short tier code, so the container name and the', () => {
     // existing per-app env file (/srv/wbs/be-01.env, per deploy.sh) line up.
     const ctx = tierComposeContext(
@@ -1265,9 +1289,9 @@ describe('assertOidcEnvAllowed', () => {
  * key it demands must be one the release refuses to boot without.
  */
 /**
- * Each case below boots the release config in a fresh Bun process, one boot per
- * key or value shape, at about a second each; `AUTH_METHODS` (social-sign-in)
- * added five boots and pushed the be cases past the project's 10 s default.
+ * Fresh admitted/local-mode controls retain cold imports. The required-key and
+ * invalid-value matrix reuses one real configuration import per tier; the prior
+ * per-row imports took 79.84 seconds locally for the value-shape case alone.
  */
 const BOOT_CASES_TIMEOUT_MS = 120_000;
 
@@ -1341,6 +1365,143 @@ describe('assertTierEnvComplete against the release configuration', () => {
     return { exitCode: probe.exitCode, stderr: new TextDecoder().decode(probe.stderr) };
   }
 
+  type ReleaseTier = 'be' | 'gw';
+  type ReleaseOutcome = 'admitted' | 'refused';
+  const RELEASE_REPORT_MAX_BYTES = 16_384;
+  interface ReleaseRow {
+    index: number;
+    id: string;
+    env: Record<string, string>;
+    expected: ReleaseOutcome;
+  }
+
+  /** One real Bun child imports the tier's actual config once and calls it on fresh row environments. */
+  function releaseBatchScript(tier: ReleaseTier, reportFault = ''): string {
+    const imports =
+      tier === 'be'
+        ? `import { loadConfig } from './apps/wbs/be-01/src/config.ts';
+         import { oidcRouteOptionsFromEnv } from './apps/wbs/be-01/src/controller/oidc-options.ts';`
+        : `import { loadConfig } from './apps/wbs/gw-01/src/config.ts';`;
+    const configure =
+      tier === 'be'
+        ? `const config = loadConfig({ ...row.env });
+         if (config.AUTH_MODE === 'oidc') oidcRouteOptionsFromEnv({ ...row.env });`
+        : `loadConfig({ ...row.env });`;
+    return `${imports}
+      const manifest = JSON.parse(process.env['RELEASE_CASES']);
+      if (Object.keys(manifest).sort().join(',') !== 'rows,schemaVersion,tier' ||
+          manifest.schemaVersion !== 1 || manifest.tier !== '${tier}' ||
+          !Array.isArray(manifest.rows) || manifest.rows.length === 0 ||
+          new Set(manifest.rows.map((row) => row.id)).size !== manifest.rows.length ||
+          manifest.rows.some((row, index) =>
+            Object.keys(row).sort().join(',') !== 'env,id,index' ||
+            row.index !== index || typeof row.id !== 'string' ||
+            !/^[a-z0-9-]+$/.test(row.id) ||
+            row.env === null || typeof row.env !== 'object' || Array.isArray(row.env) ||
+            Object.values(row.env).some((value) => typeof value !== 'string'))) {
+        throw new Error('Malformed release probe manifest');
+      }
+      const rows = [];
+      for (const row of manifest.rows) {
+        let outcome = 'admitted';
+        try {
+          ${configure}
+        } catch (error) {
+          if (!(error instanceof Error)) throw error;
+          outcome = 'refused';
+        }
+        rows.push({ index: row.index, id: row.id, outcome });
+      }
+      const report = { schemaVersion: 1, tier: '${tier}', rows };
+      ${reportFault}
+      process.stdout.write(JSON.stringify(report));`;
+  }
+
+  function releaseBatchProbe(
+    tier: ReleaseTier,
+    rows: ReleaseRow[],
+    reportFault = '',
+    timeout = 100_000,
+    sourceFault?: (source: string) => string,
+  ) {
+    const manifest = {
+      schemaVersion: 1,
+      tier,
+      rows: rows.map(({ index, id, env }) => ({ index, id, env })),
+    };
+    const source = releaseBatchScript(tier, reportFault);
+    return Bun.spawnSync(
+      [process.execPath, '--no-env-file', '--eval', sourceFault?.(source) ?? source],
+      {
+        cwd: new URL('../../../../', import.meta.url).pathname,
+        env: { RELEASE_CASES: JSON.stringify(manifest) },
+        // Proof: omitting this deadline made the actual sleeping child finish
+        // with a valid report and failed `exceeds its bounded work deadline`.
+        timeout,
+        killSignal: 'SIGKILL',
+        // Proof: lifting this allowance let a 20 KB child report reach JSON
+        // parsing; `exceeds its bounded output allowance` failed.
+        maxBuffer: RELEASE_REPORT_MAX_BYTES,
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    );
+  }
+
+  /** Refuses incomplete or polluted evidence before any row is compared with its expected outcome. */
+  function readReleaseBatch(
+    tier: ReleaseTier,
+    expected: ReleaseRow[],
+    probe: ReturnType<typeof releaseBatchProbe>,
+  ): void {
+    // Proof: the child fault that exits 7 after valid JSON failed this guard.
+    if (probe.exitCode !== 0 || probe.signalCode != null)
+      throw new Error(
+        `Release probe did not complete: exit=${String(probe.exitCode)} signal=${String(probe.signalCode)}`,
+      );
+    // Proof: the child fault that writes unexpected stderr failed this guard.
+    if (probe.stderr.byteLength !== 0) throw new Error('Release probe wrote stderr');
+    // Proof: Bun can return a truncated stdout buffer with exit 0. An actual
+    // 20 KB child report reached JSON parsing when this guard was removed.
+    if (probe.stdout.byteLength >= RELEASE_REPORT_MAX_BYTES)
+      throw new Error('Release probe exceeded its bounded output allowance');
+    const output = new TextDecoder().decode(probe.stdout);
+    const report: unknown = JSON.parse(output);
+    if (typeof report !== 'object' || report === null || Array.isArray(report))
+      throw new Error('Release probe report is not an object');
+    const record = report as Record<string, unknown>;
+    // Proof: actual child faults for extra keys, wrong tier and omitted rows failed here.
+    if (
+      Object.keys(record).sort().join(',') !== 'rows,schemaVersion,tier' ||
+      record['schemaVersion'] !== 1 ||
+      record['tier'] !== tier ||
+      !Array.isArray(record['rows']) ||
+      record['rows'].length !== expected.length
+    )
+      throw new Error('Release probe report header or row count changed');
+    for (let index = 0; index < expected.length; index++) {
+      const row: unknown = record['rows'][index];
+      // Proof: actual child faults for missing/duplicate/extra/wrong-index/wrong-ID rows
+      // and unknown outcomes each failed the exact indexed-vector oracle.
+      if (typeof row !== 'object' || row === null || Array.isArray(row))
+        throw new Error(`Release probe row ${String(index)} is not an object`);
+      const received = row as Record<string, unknown>;
+      if (
+        Object.keys(received).sort().join(',') !== 'id,index,outcome' ||
+        received['index'] !== index ||
+        received['id'] !== expected[index]?.id ||
+        (received['outcome'] !== 'admitted' && received['outcome'] !== 'refused')
+      )
+        throw new Error(`Release probe row ${String(index)} changed shape or identity`);
+      // Proof: omitting BE/GW real loader calls or BE OIDC options, or refusing every row,
+      // made the expected outcome comparison fail for a named refusal or admitted control.
+      if (received['outcome'] !== expected[index]?.expected)
+        throw new Error(
+          `Release probe ${expected[index]?.id} was ${received['outcome']}, expected ${expected[index]?.expected}`,
+        );
+    }
+  }
+
   function preflightMessage(tier: 'be' | 'gw', env: Record<string, string>): string {
     const app = Object.fromEntries(
       Object.entries(env).filter(
@@ -1384,7 +1545,7 @@ describe('assertTierEnvComplete against the release configuration', () => {
     });
 
     it(
-      `demands only keys the ${tier} release refuses to boot without`,
+      `matches every required key and invalid value against the ${tier} release`,
       () => {
         const demanded = [
           ...Object.keys(APP[tier]),
@@ -1392,23 +1553,7 @@ describe('assertTierEnvComplete against the release configuration', () => {
           ...Object.keys(SHARED),
           ...Object.keys(OIDC),
         ];
-        for (const key of demanded) {
-          const env = complete(tier);
-          const { [key]: _removed, ...rest } = env;
-          expect(preflightMessage(tier, rest)).toContain(key);
-          expect({ key, exitCode: bootRelease(tier, rest).exitCode }).not.toEqual({
-            key,
-            exitCode: 0,
-          });
-        }
-      },
-      BOOT_CASES_TIMEOUT_MS,
-    );
-
-    it(
-      `refuses only value shapes the ${tier} release also refuses`,
-      () => {
-        const cases: [string, string][] = [
+        const invalidValues: [string, string][] = [
           ['PORT', '32o0'],
           ['PORT', '0100'],
           ['LOG_LEVEL', 'verbose'],
@@ -1440,19 +1585,33 @@ describe('assertTierEnvComplete against the release configuration', () => {
                 ['JWT_SIGNING_KEY_PREVIOUS', 'p'.repeat(20)],
               ] as [string, string][])),
         ];
-        for (const [key, value] of cases) {
+        const rows: ReleaseRow[] = [];
+        const addRow = (id: string, env: Record<string, string>, expected: ReleaseOutcome) => {
+          rows.push({ index: rows.length, id, env, expected });
+        };
+        addRow('valid-first', complete(tier), 'admitted');
+        for (const key of demanded) {
+          const { [key]: _removed, ...rest } = complete(tier);
+          expect(preflightMessage(tier, rest)).toContain(key);
+          addRow(`missing-${key.toLowerCase().replaceAll('_', '-')}`, rest, 'refused');
+        }
+        addRow('valid-between', complete(tier), 'admitted');
+        for (const [index, [key, value]] of invalidValues.entries()) {
           const env = { ...complete(tier), [key]: value };
           expect({ key, value, message: preflightMessage(tier, env) }).toEqual({
             key,
             value,
             message: expect.stringContaining(`${key} (`) as string,
           });
-          expect({ key, value, exitCode: bootRelease(tier, env).exitCode }).not.toEqual({
-            key,
-            value,
-            exitCode: 0,
-          });
+          addRow(
+            `invalid-${String(index)}-${key.toLowerCase().replaceAll('_', '-')}`,
+            env,
+            'refused',
+          );
         }
+        addRow('valid-final', complete(tier), 'admitted');
+        const probe = releaseBatchProbe(tier, rows);
+        readReleaseBatch(tier, rows, probe);
       },
       BOOT_CASES_TIMEOUT_MS,
     );
@@ -1464,6 +1623,298 @@ describe('assertTierEnvComplete against the release configuration', () => {
       expect(bootRelease(tier, env).stderr).toContain('AUTH_MODE=local is forbidden in production');
     });
   }
+
+  it(
+    'requires the actual child report to match the complete indexed refusal vector',
+    () => {
+      for (const tier of ['be', 'gw'] as const) {
+        const rows: ReleaseRow[] = [
+          { index: 0, id: 'valid-first', env: complete(tier), expected: 'admitted' },
+          {
+            index: 1,
+            id: 'invalid-port',
+            env: { ...complete(tier), PORT: '32o0' },
+            expected: 'refused',
+          },
+          { index: 2, id: 'valid-final', env: complete(tier), expected: 'admitted' },
+        ];
+        readReleaseBatch(tier, rows, releaseBatchProbe(tier, rows));
+        const faults: [string, RegExp | typeof SyntaxError][] = [
+          ['report.rows.pop();', /header or row count/],
+          ['report.rows[1] = report.rows[0];', /row 1 changed shape or identity/],
+          ['report.rows.push(report.rows[0]);', /header or row count/],
+          ['report.rows[1].index = 7;', /row 1 changed shape or identity/],
+          ["report.rows[1].id = 'wrong-id';", /row 1 changed shape or identity/],
+          ["report.tier = 'wrong-tier';", /header or row count/],
+          ["report.rows[1].outcome = 'unknown';", /row 1 changed shape or identity/],
+          ['report.unexpected = true;', /header or row count/],
+          ["process.stdout.write('{');", SyntaxError],
+          ["process.stderr.write('unexpected');", /wrote stderr/],
+          ["process.stdout.write('x'.repeat(20000));", /did not complete|bounded output allowance/],
+        ];
+        for (const [fault, refusal] of faults)
+          expect(() => {
+            readReleaseBatch(tier, rows, releaseBatchProbe(tier, rows, fault));
+          }, `${tier}: ${fault}`).toThrow(refusal);
+        expect(() => {
+          readReleaseBatch(
+            tier,
+            rows,
+            releaseBatchProbe(tier, rows, '', 100_000, (source) =>
+              source.replace(
+                'process.stdout.write(JSON.stringify(report));',
+                'process.stdout.write(JSON.stringify(report)); process.exit(7);',
+              ),
+            ),
+          );
+        }).toThrow(/did not complete/);
+        expect(() => {
+          readReleaseBatch(
+            tier,
+            rows,
+            releaseBatchProbe(
+              tier,
+              rows,
+              'Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000);',
+              10,
+            ),
+          );
+        }).toThrow(/did not complete/);
+        expect(() => {
+          readReleaseBatch(
+            tier,
+            rows,
+            releaseBatchProbe(tier, rows, '', 100_000, (source) =>
+              source.replace('loadConfig({ ...row.env })', "(() => { throw 'non-error'; })()"),
+            ),
+          );
+        }).toThrow(/did not complete/);
+      }
+    },
+    BOOT_CASES_TIMEOUT_MS,
+  );
+
+  const indexedRows = (tier: ReleaseTier): ReleaseRow[] => [
+    { index: 0, id: 'valid-first', env: complete(tier), expected: 'admitted' },
+    { index: 1, id: 'invalid-port', env: { ...complete(tier), PORT: '32o0' }, expected: 'refused' },
+    { index: 2, id: 'valid-final', env: complete(tier), expected: 'admitted' },
+  ];
+
+  it(
+    'refuses an actual child that exits nonzero after a valid report',
+    () => {
+      const rows = indexedRows('gw');
+      const probe = releaseBatchProbe('gw', rows, '', 100_000, (source) =>
+        source.replace(
+          'process.stdout.write(JSON.stringify(report));',
+          'process.stdout.write(JSON.stringify(report)); process.exit(7);',
+        ),
+      );
+      expect(() => {
+        readReleaseBatch('gw', rows, probe);
+      }).toThrow(/did not complete/);
+    },
+    BOOT_CASES_TIMEOUT_MS,
+  );
+
+  it(
+    'refuses an actual child that writes stderr with a valid report',
+    () => {
+      const rows = indexedRows('gw');
+      expect(() => {
+        readReleaseBatch(
+          'gw',
+          rows,
+          releaseBatchProbe('gw', rows, "process.stderr.write('unexpected');"),
+        );
+      }).toThrow(/wrote stderr/);
+    },
+    BOOT_CASES_TIMEOUT_MS,
+  );
+
+  it(
+    'refuses an actual child that changes the report tier',
+    () => {
+      const rows = indexedRows('gw');
+      expect(() => {
+        readReleaseBatch('gw', rows, releaseBatchProbe('gw', rows, "report.tier = 'wrong-tier';"));
+      }).toThrow(/header or row count/);
+    },
+    BOOT_CASES_TIMEOUT_MS,
+  );
+
+  it(
+    'refuses an actual child that changes an indexed row identity',
+    () => {
+      const rows = indexedRows('gw');
+      expect(() => {
+        readReleaseBatch(
+          'gw',
+          rows,
+          releaseBatchProbe('gw', rows, "report.rows[1].id = 'wrong-id';"),
+        );
+      }).toThrow(/row 1 changed shape or identity/);
+    },
+    BOOT_CASES_TIMEOUT_MS,
+  );
+
+  it(
+    'refuses an actual child that changes a required refusal to admission',
+    () => {
+      const rows = indexedRows('gw');
+      expect(() => {
+        readReleaseBatch(
+          'gw',
+          rows,
+          releaseBatchProbe('gw', rows, "report.rows[1].outcome = 'admitted';"),
+        );
+      }).toThrow(/invalid-port/);
+    },
+    BOOT_CASES_TIMEOUT_MS,
+  );
+
+  it(
+    'refuses an actual child that exceeds its bounded work deadline',
+    () => {
+      const rows = indexedRows('gw');
+      const probe = releaseBatchProbe(
+        'gw',
+        rows,
+        'Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000);',
+        10,
+      );
+      expect(() => {
+        readReleaseBatch('gw', rows, probe);
+      }).toThrow(/did not complete/);
+    },
+    BOOT_CASES_TIMEOUT_MS,
+  );
+
+  it(
+    'refuses an actual child that exceeds its bounded output allowance',
+    () => {
+      const rows = indexedRows('gw');
+      const probe = releaseBatchProbe('gw', rows, "process.stdout.write('x'.repeat(20000));");
+      expect(() => {
+        readReleaseBatch('gw', rows, probe);
+      }).toThrow(/did not complete|bounded output allowance/);
+    },
+    BOOT_CASES_TIMEOUT_MS,
+  );
+
+  it(
+    'keeps child imports and manifest decoding outside row refusal capture',
+    () => {
+      const rows = indexedRows('gw');
+      for (const change of [
+        (source: string) =>
+          source.replace("'./apps/wbs/gw-01/src/config.ts'", "'./absent-config.ts'"),
+        (source: string) =>
+          source.replace("JSON.parse(process.env['RELEASE_CASES'])", "JSON.parse('{')"),
+      ]) {
+        const probe = releaseBatchProbe('gw', rows, '', 100_000, change);
+        expect(() => {
+          readReleaseBatch('gw', rows, probe);
+        }).toThrow(/did not complete/);
+      }
+    },
+    BOOT_CASES_TIMEOUT_MS,
+  );
+
+  it(
+    'catches missing real BE/GW config calls, BE OIDC options and blanket refusal',
+    () => {
+      for (const tier of ['be', 'gw'] as const) {
+        const rows: ReleaseRow[] = [
+          { index: 0, id: 'valid-first', env: complete(tier), expected: 'admitted' },
+          {
+            index: 1,
+            id: 'invalid-port',
+            env: { ...complete(tier), PORT: '32o0' },
+            expected: 'refused',
+          },
+          { index: 2, id: 'valid-final', env: complete(tier), expected: 'admitted' },
+        ];
+        const withoutLoader =
+          tier === 'be'
+            ? (source: string) =>
+                source.replace(
+                  'const config = loadConfig({ ...row.env });',
+                  "const config = { AUTH_MODE: 'oidc' };",
+                )
+            : (source: string) => source.replace('loadConfig({ ...row.env });', 'void row.env;');
+        expect(() => {
+          readReleaseBatch(tier, rows, releaseBatchProbe(tier, rows, '', 100_000, withoutLoader));
+        }).toThrow(/invalid-port/);
+        const blanket = (source: string) =>
+          source.replace(
+            tier === 'be'
+              ? 'const config = loadConfig({ ...row.env });'
+              : 'loadConfig({ ...row.env });',
+            "throw new Error('forced refusal');",
+          );
+        expect(() => {
+          readReleaseBatch(tier, rows, releaseBatchProbe(tier, rows, '', 100_000, blanket));
+        }).toThrow(/valid-first/);
+      }
+      const oidcRows: ReleaseRow[] = [
+        { index: 0, id: 'valid-first', env: complete('be'), expected: 'admitted' },
+        {
+          index: 1,
+          id: 'invalid-methods',
+          env: { ...complete('be'), AUTH_METHODS: 'facebook' },
+          expected: 'refused',
+        },
+        { index: 2, id: 'valid-final', env: complete('be'), expected: 'admitted' },
+      ];
+      readReleaseBatch('be', oidcRows, releaseBatchProbe('be', oidcRows));
+      expect(() => {
+        readReleaseBatch(
+          'be',
+          oidcRows,
+          releaseBatchProbe('be', oidcRows, '', 100_000, (source) =>
+            source.replace(
+              "if (config.AUTH_MODE === 'oidc') oidcRouteOptionsFromEnv({ ...row.env });",
+              'void config;',
+            ),
+          ),
+        );
+      }).toThrow(/invalid-methods/);
+    },
+    BOOT_CASES_TIMEOUT_MS,
+  );
+
+  it(
+    'keeps the same verdicts in reversed and mixed row order with fresh valid controls',
+    () => {
+      for (const tier of ['be', 'gw'] as const) {
+        const cases = [
+          {
+            id: 'invalid-port',
+            env: { ...complete(tier), PORT: '32o0' },
+            expected: 'refused' as const,
+          },
+          { id: 'valid-between', env: complete(tier), expected: 'admitted' as const },
+          {
+            id: 'missing-secret',
+            env: Object.fromEntries(
+              Object.entries(complete(tier)).filter(([key]) => key !== 'INTERNAL_AUTH_SECRET'),
+            ),
+            expected: 'refused' as const,
+          },
+        ];
+        for (const ordered of [cases, [...cases].reverse()]) {
+          const rows: ReleaseRow[] = [
+            { index: 0, id: 'valid-first', env: complete(tier), expected: 'admitted' },
+            ...ordered.map((entry, index) => ({ ...entry, index: index + 1 })),
+            { index: 4, id: 'valid-final', env: complete(tier), expected: 'admitted' },
+          ];
+          readReleaseBatch(tier, rows, releaseBatchProbe(tier, rows));
+        }
+      }
+    },
+    BOOT_CASES_TIMEOUT_MS,
+  );
 
   it('reads NODE_ENV=production from both images, which is why local mode is refused', () => {
     const root = new URL('../../../../', import.meta.url).pathname;
@@ -1679,8 +2130,8 @@ for (const [environment, expected] of [
 }
 
 // This test renders the environment and boots the local backend configuration, so it carries its
-// own budget (docs/test-budgets.md: at least 3 times its run, 16.6-18.2 s on a loaded workstation on
-// 2026-10-23, rounded up to the 60 s step). Proof: under the target's 10 s default it timed out in CI
+// own 45 s case budget around one cold import with a bounded 30 s subprocess. Proof: under the
+// target's 10 s default it timed out in CI
 // on three unrelated branches on 2026-10-23 (10053-10075 ms), twice on PR #675's gate workspace job.
 it('boots local backend configuration from the rendered environment and keeps OIDC callback origin authoritative', () => {
   const context = tierComposeContext(
@@ -1693,38 +2144,48 @@ it('boots local backend configuration from the rendered environment and keeps OI
     services: Record<string, { environment?: Record<string, string> }>;
   };
   const service = Object.values(compose.services)[0];
+  // Keep the product import isolated from the tool test process, but share its
+  // cold initialization across both explicit env sources instead of booting twice.
   const script = `
     import { loadConfig } from './apps/wbs/be-01/src/config.ts';
-    const config = loadConfig(JSON.parse(process.env['ORIGIN_CONFIG']));
-    console.log(config.appOrigin);
+    const env = JSON.parse(process.env['ORIGIN_CONFIG']);
+    console.log(JSON.stringify({
+      local: loadConfig({ ...env, AUTH_MODE: 'local' }).appOrigin,
+      oidc: loadConfig({ ...env, AUTH_MODE: 'oidc' }).appOrigin,
+    }));
   `;
-  for (const mode of ['local', 'oidc']) {
-    const config = {
-      PORT: '3100',
-      LOG_LEVEL: 'error',
-      GW_URL: 'http://gw',
-      DB_PATH: '/data/wbs.db',
-      INTERNAL_AUTH_SECRET: 's'.repeat(32),
-      JWT_SIGNING_KEY_CURRENT: 'k'.repeat(32),
-      AUTH_MODE: mode,
-      BROWSER_SESSION_AUTHORITY: 'disabled',
-      ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS: '50',
-      ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS: '200',
-      ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE: '10000',
-      NODE_ENV: 'development',
-      ...service.environment,
-      AUTH_REDIRECT_URI: 'https://oidc.example.test/api/auth/okta/callback',
-    };
-    const probe = Bun.spawnSync([process.execPath, '--no-env-file', '--eval', script], {
-      cwd: new URL('../../../../', import.meta.url).pathname,
-      env: { ORIGIN_CONFIG: JSON.stringify(config) },
-    });
-    expect(probe.exitCode).toBe(0);
-    expect(new TextDecoder().decode(probe.stdout).trim()).toBe(
-      mode === 'local' ? 'https://dev.wbs.bulletpoints.club' : 'https://oidc.example.test',
-    );
-  }
-}, 60_000);
+  const config = {
+    PORT: '3100',
+    LOG_LEVEL: 'error',
+    GW_URL: 'http://gw',
+    DB_PATH: '/data/wbs.db',
+    INTERNAL_AUTH_SECRET: 's'.repeat(32),
+    JWT_SIGNING_KEY_CURRENT: 'k'.repeat(32),
+    BROWSER_SESSION_AUTHORITY: 'disabled',
+    ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS: '50',
+    ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS: '200',
+    ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE: '10000',
+    NODE_ENV: 'development',
+    ...service.environment,
+    AUTH_REDIRECT_URI: 'https://oidc.example.test/api/auth/okta/callback',
+  };
+  const probe = Bun.spawnSync([process.execPath, '--no-env-file', '--eval', script], {
+    cwd: new URL('../../../../', import.meta.url).pathname,
+    env: { ORIGIN_CONFIG: JSON.stringify(config) },
+    // One cold product import measured 8.24 s locally; bound it independently
+    // of the 45 s test deadline; 30 s keeps the 3x idle margin in docs/test-budgets.md.
+    // Proof: an infinite loop injected into config.ts failed this case at 30.15 s
+    // with exitCode null, before the outer 45 s deadline (2026-10-23).
+    timeout: 30_000,
+    killSignal: 'SIGKILL',
+  });
+  expect(probe.exitCode, new TextDecoder().decode(probe.stderr)).toBe(0);
+  // Proof: forcing OIDC to use APP_ORIGIN failed the oidc value below (2026-10-23).
+  expect(JSON.parse(new TextDecoder().decode(probe.stdout))).toEqual({
+    local: 'https://dev.wbs.bulletpoints.club',
+    oidc: 'https://oidc.example.test',
+  });
+}, 45_000);
 
 it('retains an explicitly configured HTTP scheme and port for a local Caddy address', () => {
   const context = tierComposeContext('be', 'green', `registry.test/wbs-be-01@${DIGEST}`, {

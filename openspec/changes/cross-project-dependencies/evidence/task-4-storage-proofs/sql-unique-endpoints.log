@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:
+198 |       "predecessor_step_id='a'", "successor_step_id='b'",
+199 |       "predecessor_scope='node'", "successor_scope='node'",
+200 |       "predecessor_project_id='b',predecessor_work_item_id='b2'",
+201 |     ]) expect(() => sqlite.run(`UPDATE external_dependency SET ${assignment}`), assignment).toThrow('CHECK constraint failed');
+202 |     expect(() => sqlite.run('UPDATE external_dependency SET id=NULL')).toThrow('NOT NULL constraint failed');
+203 |     expect(() => sqlite.run("INSERT INTO external_dependency SELECT 'duplicate',organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,successor_step_id,type,created_at,updated_at,created_by FROM external_dependency")).toThrow('UNIQUE constraint failed');
+                                                                                                                                                                                                                                                                                                                                            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "UNIQUE constraint failed"
+
+Received function did not throw
+Received value: {
+  changes: 1,
+  lastInsertRowid: 2,
+}
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:203:327)
+(fail) enforces external discriminants, step nullability, distinct projects, identity and duplicate keys [135.66ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 10 expect() calls
+Ran 1 test across 1 file. [2.12s]

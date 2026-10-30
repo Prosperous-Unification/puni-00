@@ -1,0 +1,103 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+375 |
+376 | it('fails malformed frozen placement evidence visibly during mounted candidate lookup', async () => {
+377 |   const selected = await create('ada', 'Selected', 'P');
+378 |   work(selected, 'leaf');
+379 |   h.sqlite.run("UPDATE work_item SET frozen_number='bad' WHERE id='leaf'");
+380 |   expect(await h.call('ada', 'GET', `/api/projects/${selected}/address-candidates`)).toEqual({ status: 500, body: expect.anything() });
+                                                                                           ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "body": Anything,
+-   "status": 500,
++   "body": {
++     "addressRevision": "qar1:d5e98681bd2cbee30e5237389c54066c8d85f607ed0327b00cf6d253ba378b67",
++     "candidates": [
++       {
++         "endpoint": {
++           "scope": "whole",
++           "workItemId": "leaf",
++         },
++         "name": "leaf",
++         "number": "bad",
++         "projectId": "ef1362ca-024f-4e80-82fe-65ab91799e46",
++         "reference": "P.bad",
++         "workItemId": "leaf",
++       },
++       {
++         "endpoint": {
++           "scope": "node",
++           "stepId": "f58437c6-d801-4de5-9c47-85b081544f8a",
++           "workItemId": "leaf",
++         },
++         "name": "leaf",
++         "number": "bad",
++         "projectId": "ef1362ca-024f-4e80-82fe-65ab91799e46",
++         "reference": "P.bad.s1-dev",
++         "step": {
++           "code": "dev",
++           "id": "f58437c6-d801-4de5-9c47-85b081544f8a",
++           "name": "Dev",
++           "ordinal": 1,
++           "position": 10,
++         },
++         "stepNodeId": "sn1.leaf.f58437c6-d801-4de5-9c47-85b081544f8a",
++         "workItemId": "leaf",
++       },
++       {
++         "endpoint": {
++           "scope": "node",
++           "stepId": "8d3ee4e3-7fcc-42cf-a46b-43a20712505b",
++           "workItemId": "leaf",
++         },
++         "name": "leaf",
++         "number": "bad",
++         "projectId": "ef1362ca-024f-4e80-82fe-65ab91799e46",
++         "reference": "P.bad.s2-qa",
++         "step": {
++           "code": "qa",
++           "id": "8d3ee4e3-7fcc-42cf-a46b-43a20712505b",
++           "name": "QA",
++           "ordinal": 2,
++           "position": 20,
++         },
++         "stepNodeId": "sn1.leaf.8d3ee4e3-7fcc-42cf-a46b-43a20712505b",
++         "workItemId": "leaf",
++       },
++     ],
++     "nextCursor": null,
++     "project": {
++       "abbreviation": "P",
++       "name": "Selected",
++       "projectId": "ef1362ca-024f-4e80-82fe-65ab91799e46",
++     },
++   },
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 63
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:380:86)
+(fail) fails malformed frozen placement evidence visibly during mounted candidate lookup [143.46ms]
+
+libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts:
+131 |   const writer = openDatabase(path);
+132 |   try {
+133 |     writer.run("INSERT INTO work_item(id,project_id,position,name,frozen_number) VALUES('broken','a1',10,'broken','bad')");
+134 |   } finally { writer.close(); }
+135 |   await repository().withSnapshot({ id: 'ada' }, reader => reader.capture('a1')).then(
+136 |     () => { throw new Error('capture admitted malformed placement evidence'); },
+                            ^
+error: capture admitted malformed placement evidence
+      at <anonymous> (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts:136:23)
+(fail) rejects malformed trusted placement evidence at capture before returning detached facts [84.64ms]
+
+ 0 pass
+ 23 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 2 files. [2.31s]

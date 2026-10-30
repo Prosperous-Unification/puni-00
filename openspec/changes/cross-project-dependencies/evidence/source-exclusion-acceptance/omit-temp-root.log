@@ -1,0 +1,25 @@
+Injected temp-root; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/source-exclusion-transport.test.ts:
+111 |     await work;
+112 |   } catch (cause) {
+113 |     failure = cause;
+114 |   }
+115 |   expect(failure).toBeInstanceOf(Error);
+116 |   expect(String(failure)).toContain(message);
+                                ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "fixture temp root must be canonical under /tmp"
+Received: "Error: independent local image pin required before fixture effects"
+
+      at refuses (/tmp/puni-source-exclusion-acceptance/tools/tool-remote-scripts/test/source-exclusion-transport.test.ts:116:27)
+      at async <anonymous> (/tmp/puni-source-exclusion-acceptance/tools/tool-remote-scripts/test/source-exclusion-transport.test.ts:227:15)
+(fail) source runner refuses production temporary roots before fixture effects [8.80ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [52.00ms]

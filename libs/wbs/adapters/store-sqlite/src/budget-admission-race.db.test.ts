@@ -2,12 +2,15 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { BatchOutcome, PlanCommand, Scope, StepNodeAttemptStore } from '@wbs/core';
+import type { PlanCommand, Scope, ScopedBatchOutcome, StepNodeAttemptStore } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
+import { expectCreated } from '@wbs/core/testing/expect-created';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
@@ -15,6 +18,7 @@ import fc from 'fast-check';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
@@ -38,7 +42,7 @@ type AttemptSource = 'turn' | 'stale';
 
 interface World {
   readonly source: SqliteSource;
-  readonly run: (commands: PlanCommand[]) => Promise<BatchOutcome>;
+  readonly run: (commands: PlanCommand[]) => Promise<ScopedBatchOutcome>;
   readonly parentId: string;
   readonly leafIds: readonly string[];
   readonly spenderId: string;
@@ -71,7 +75,11 @@ async function openWorld(attempts: {
   const directory = mkdtempSync(join(tmpdir(), 'budget-admission-race-'));
   const dbPath = join(directory, 'plan.db');
   runMigrations(dbPath, folder);
-  const source = openSqliteSource({ dbPath, organizationDefaultLimits: DEFAULTS });
+  const source = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath,
+    organizationDefaultLimits: DEFAULTS,
+  });
   source.db.run(sql`INSERT INTO users (id, username, created_at) VALUES ('dany', 'dany', 1)`);
   const broadcast = recordingBroadcaster();
   const options = {
@@ -79,9 +87,10 @@ async function openWorld(attempts: {
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
+    dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
-  const created = await graph.projects.create('Race', 'dany');
+  const created = expectCreated(await graph.projects.create('Race', 'dany'));
   const projectId = created.project.id;
   let stale: Awaited<ReturnType<StepNodeAttemptStore['listByProject']>> = [];
   const sourced = (store: StepNodeAttemptStore): StepNodeAttemptStore => {
@@ -93,13 +102,18 @@ async function openWorld(attempts: {
     });
   };
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
       servicesOver(
         { ...scope.stores, attempts: sourced(scope.stores.attempts) },
-        { ...options, broadcast: announcements },
+        {
+          ...options,
+          broadcast: announcements,
+          dependencyContext: createLocalDependencyContext(scope.stores),
+        },
       ),
   });
   const run = (commands: PlanCommand[]) => runner.run(projectId, 'dany', commands);

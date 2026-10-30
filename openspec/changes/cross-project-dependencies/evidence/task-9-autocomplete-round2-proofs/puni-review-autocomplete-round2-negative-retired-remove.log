@@ -1,0 +1,38 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-review-round2-isolated/apps/wbs/fe-01
+
+ ❯ src/components/wbs/scoped-dependency-editor.test.tsx (2 tests | 1 failed | 1 skipped) 107ms
+   × a retired removal completion cannot cancel a replacement editor session 105ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/scoped-dependency-editor.test.tsx > a retired removal completion cannot cancel a replacement editor session
+AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times
+
+Received:
+
+  1st vi.fn() call:
+
+    Array []
+
+
+Number of calls: 1
+
+ ❯ src/components/wbs/scoped-dependency-editor.test.tsx:104:25
+    102|     await Promise.resolve();
+    103|   });
+    104|   expect(oldCancel).not.toHaveBeenCalled();
+       |                         ^
+    105|   expect(screen.getByLabelText<HTMLSelectElement>('Relationship').valu…
+    106| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 skipped (2)
+   Start at  07:49:57
+   Duration  773ms (environment 59%, tests 16%, transform 10%, setup 9%, import 6%, worker 1%)

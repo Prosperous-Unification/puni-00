@@ -1,0 +1,61 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:
+FINAL_CONSUMER_FAULT {"direction":"undo","status":200,"body":{"done":"2 changes","detail":null},"proposedReads":1,"finalReads":1,"relationship":{"id":"f91a2d5b-6560-4e8b-be76-7d8e3bfdbb82","type":"FS","predecessor_project_id":"be70473c-7c24-4406-86b7-fc6f2559b8cd","predecessor_work_item_id":"94bde17c-33db-4274-b6fb-f339bc5d5145","predecessor_scope":"node","predecessor_step_id":"ddf0b88e-0459-4eaa-a327-78d1746993e6","successor_project_id":"d33163d0-229d-4771-bd2f-585cda6a54c5","successor_work_item_id":"64740d25-9463-452c-a101-33b5bd6c98c7","successor_scope":"node","successor_step_id":"bcf26d97-5731-465f-89df-c73d92eb5486"},"patch":{"notes":"","revision":6,"updated_at":1792722615463},"beforePatch":{"notes":"Compound replay patch","revision":4,"updated_at":1792722615436},"journal":{"id":"0e3d15c6-cb59-4fbf-86e8-1c36909746cb","undone":1},"changedTables":["command_journal","event_log","event_sequencer","external_dependency","work_item"],"pushCountBefore":14,"pushCountAfter":17}
+963 |         expect(
+964 |           harness.sqlite.query('SELECT undone FROM command_journal WHERE id=?').get(selected.id),
+965 |         ).toEqual({ undone: direction === 'undo' ? 1 : 0 });
+966 |         return;
+967 |       }
+968 |       expect({ status: response.status, body }).toEqual({
+                                                      ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "detail": "that would now close a dependency cycle between steps.",
+-     "error": "stale_undo",
++     "detail": null,
++     "done": "2 changes",
+    },
+-   "status": 409,
++   "status": 200,
+  }
+
+- Expected  - 3
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-44-final-replay/apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:968:49)
+(fail) synthetic mounted compound undo refuses a final-only graph finding after healthy reattachment [681.80ms]
+FINAL_CONSUMER_FAULT {"direction":"redo","status":200,"body":{"done":"2 changes","detail":null},"proposedReads":1,"finalReads":1,"relationship":{"id":"c48b7506-7755-4293-8494-efd2873784e6","type":"FS","predecessor_project_id":"d32a1cd6-0b66-44f3-bf56-2c3c38ed7d03","predecessor_work_item_id":"fdbb7f3d-98c7-4cea-b997-98b66643c857","predecessor_scope":"node","predecessor_step_id":"e5830ed3-23f3-44b9-b3cf-cd24f84c6661","successor_project_id":"d56edc0c-4ce4-4eaa-a86c-de04712013d1","successor_work_item_id":"e4c3c4d7-ab64-4894-bf69-543852b0ffb2","successor_scope":"node","successor_step_id":"13d57c60-2c5d-4174-a98c-12b3a55e042f"},"patch":{"notes":"Compound replay patch","revision":7,"updated_at":1792722616037},"beforePatch":{"notes":"","revision":5,"updated_at":1792722616016},"journal":{"id":"4b52f1fe-1673-4ac4-be4a-8f802a24ace9","undone":0},"changedTables":["command_journal","event_log","event_sequencer","external_dependency","work_item"],"pushCountBefore":14,"pushCountAfter":17}
+963 |         expect(
+964 |           harness.sqlite.query('SELECT undone FROM command_journal WHERE id=?').get(selected.id),
+965 |         ).toEqual({ undone: direction === 'undo' ? 1 : 0 });
+966 |         return;
+967 |       }
+968 |       expect({ status: response.status, body }).toEqual({
+                                                      ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "detail": "that would now close a dependency cycle between steps.",
+-     "error": "stale_undo",
++     "detail": null,
++     "done": "2 changes",
+    },
+-   "status": 409,
++   "status": 200,
+  }
+
+- Expected  - 3
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-44-final-replay/apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:968:49)
+(fail) synthetic mounted compound redo refuses a final-only graph finding after healthy reattachment [568.39ms]
+
+ 0 pass
+ 30 filtered out
+ 2 fail
+ 60 expect() calls
+Ran 2 tests across 1 file. [4.32s]

@@ -393,6 +393,8 @@ it('refuses a live foreign Lease before persisting state or fencing the cluster'
     Promise.resolve({
       holder: 'foreign#live',
       renewedAtMs: Date.now(),
+      uid: 'lease-uid',
+      journalRequired: false,
       durationSeconds: 20,
       parked: null,
       journal: '/foreign',
@@ -418,6 +420,8 @@ it('serializes heartbeats and reclaims its own parked interrupted transaction', 
     Promise.resolve({
       holder: `${stored.transaction}#old`,
       renewedAtMs: 0,
+      uid: 'lease-uid',
+      journalRequired: false,
       durationSeconds: 20,
       parked: 'first-start-unresolved',
       journal: f.journal.path,
@@ -454,6 +458,8 @@ it('refuses a parked Lease when its durable transaction journal is missing', asy
     Promise.resolve({
       holder: 'first-start-aaaaaaaaaaaaaaaa#old',
       renewedAtMs: 0,
+      uid: 'lease-uid',
+      journalRequired: false,
       durationSeconds: 20,
       parked: 'first-start-unresolved',
       journal: f.journal.path,

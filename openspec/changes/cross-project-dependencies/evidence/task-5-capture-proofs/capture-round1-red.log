@@ -1,0 +1,209 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:
+52 |   await source.uow.run(async () => {
+53 |     const before=queries.length;
+54 |     released.release();
+55 |     if (pending===undefined) throw new Error('missing paused read');
+56 |     expect((await pending).message).toContain('closed');
+57 |     expect(queries.slice(before)).toEqual([]);
+                                       ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'organization_activation'",
++
++ "SELECT singleton, state, activated_at, typeof(activated_at) AS activated_at_type
++         FROM organization_activation"
++ ,
++   "select "organization_id" from "project_organization" where "project_organization"."resource_id" = ?",
++   "select "project"."id", "project"."name", "project"."owner_id", "project"."restricted", "project"."solution_slug", "project"."solution_url", "project"."estimate_method", "project"."dep_reach", "project"."pert_weight_optimistic", "project"."pert_weight_realistic", "project"."pert_weight_pessimistic", "project"."estimate_rounding", "project"."start_date", "project"."revision", "project"."optimization_delete_pending_at", "project"."optimization_enabled", "project"."schedule_engine", "project"."schedule_objective", "project"."timezone", "project"."created_at", "project"."updated_at", "project"."created_by", "project_solution"."project_id", "project_solution"."organization_id", "project_solution"."slug", "project_solution"."url", "project_abbreviation"."project_id", "project_abbreviation"."namespace", "project_abbreviation"."abbreviation", "project_organization"."resource_id", "project_organization"."organization_id" from "project" left join "project_abbreviation" on "project_abbreviation"."project_id" = "project"."id" inner join "project_organization" on (("project_organization"."resource_id" = "project"."id") and ("project_organization"."organization_id" = ?)) left join "project_solution" on "project_solution"."project_id" = "project"."id" where "project"."id" = ? limit ?",
++   "select "shared_people" from "organization" where "organization"."id" = ?",
++ ]
+
+- Expected  - 1
++ Received  + 10
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:57:35)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) live project first response refuses before SQL after success [140.88ms]
+52 |   await source.uow.run(async () => {
+53 |     const before=queries.length;
+54 |     released.release();
+55 |     if (pending===undefined) throw new Error('missing paused read');
+56 |     expect((await pending).message).toContain('closed');
+57 |     expect(queries.slice(before)).toEqual([]);
+                                       ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "select "role" from "organization_membership" where (("organization_membership"."organization_id" = ?) and ("organization_membership"."user_id" = ?))",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:57:35)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) fanout authorizeProjectUpdate refuses before membership SQL after success [78.49ms]
+52 |   await source.uow.run(async () => {
+53 |     const before=queries.length;
+54 |     released.release();
+55 |     if (pending===undefined) throw new Error('missing paused read');
+56 |     expect((await pending).message).toContain('closed');
+57 |     expect(queries.slice(before)).toEqual([]);
+                                       ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "select "role" from "organization_membership" where (("organization_membership"."organization_id" = ?) and ("organization_membership"."user_id" = ?))",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:57:35)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) fanout authorizeStepRemoval refuses before membership SQL after success [77.48ms]
+52 |   await source.uow.run(async () => {
+53 |     const before=queries.length;
+54 |     released.release();
+55 |     if (pending===undefined) throw new Error('missing paused read');
+56 |     expect((await pending).message).toContain('closed');
+57 |     expect(queries.slice(before)).toEqual([]);
+                                       ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'organization_activation'",
++
++ "SELECT singleton, state, activated_at, typeof(activated_at) AS activated_at_type
++         FROM organization_activation"
++ ,
++   "select "organization_id" from "project_organization" where "project_organization"."resource_id" = ?",
++   "select "project"."id", "project"."name", "project"."owner_id", "project"."restricted", "project"."solution_slug", "project"."solution_url", "project"."estimate_method", "project"."dep_reach", "project"."pert_weight_optimistic", "project"."pert_weight_realistic", "project"."pert_weight_pessimistic", "project"."estimate_rounding", "project"."start_date", "project"."revision", "project"."optimization_delete_pending_at", "project"."optimization_enabled", "project"."schedule_engine", "project"."schedule_objective", "project"."timezone", "project"."created_at", "project"."updated_at", "project"."created_by", "project_solution"."project_id", "project_solution"."organization_id", "project_solution"."slug", "project_solution"."url", "project_abbreviation"."project_id", "project_abbreviation"."namespace", "project_abbreviation"."abbreviation", "project_organization"."resource_id", "project_organization"."organization_id" from "project" left join "project_abbreviation" on "project_abbreviation"."project_id" = "project"."id" inner join "project_organization" on (("project_organization"."resource_id" = "project"."id") and ("project_organization"."organization_id" = ?)) left join "project_solution" on "project_solution"."project_id" = "project"."id" where "project"."id" = ? limit ?",
++   "select "shared_people" from "organization" where "organization"."id" = ?",
++ ]
+
+- Expected  - 1
++ Received  + 10
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:57:35)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) live project first response refuses before SQL after refusal [77.67ms]
+52 |   await source.uow.run(async () => {
+53 |     const before=queries.length;
+54 |     released.release();
+55 |     if (pending===undefined) throw new Error('missing paused read');
+56 |     expect((await pending).message).toContain('closed');
+57 |     expect(queries.slice(before)).toEqual([]);
+                                       ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "select "role" from "organization_membership" where (("organization_membership"."organization_id" = ?) and ("organization_membership"."user_id" = ?))",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:57:35)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) fanout authorizeProjectUpdate refuses before membership SQL after refusal [77.62ms]
+52 |   await source.uow.run(async () => {
+53 |     const before=queries.length;
+54 |     released.release();
+55 |     if (pending===undefined) throw new Error('missing paused read');
+56 |     expect((await pending).message).toContain('closed');
+57 |     expect(queries.slice(before)).toEqual([]);
+                                       ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "select "role" from "organization_membership" where (("organization_membership"."organization_id" = ?) and ("organization_membership"."user_id" = ?))",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:57:35)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) fanout authorizeStepRemoval refuses before membership SQL after refusal [85.81ms]
+52 |   await source.uow.run(async () => {
+53 |     const before=queries.length;
+54 |     released.release();
+55 |     if (pending===undefined) throw new Error('missing paused read');
+56 |     expect((await pending).message).toContain('closed');
+57 |     expect(queries.slice(before)).toEqual([]);
+                                       ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'organization_activation'",
++
++ "SELECT singleton, state, activated_at, typeof(activated_at) AS activated_at_type
++         FROM organization_activation"
++ ,
++   "select "organization_id" from "project_organization" where "project_organization"."resource_id" = ?",
++   "select "project"."id", "project"."name", "project"."owner_id", "project"."restricted", "project"."solution_slug", "project"."solution_url", "project"."estimate_method", "project"."dep_reach", "project"."pert_weight_optimistic", "project"."pert_weight_realistic", "project"."pert_weight_pessimistic", "project"."estimate_rounding", "project"."start_date", "project"."revision", "project"."optimization_delete_pending_at", "project"."optimization_enabled", "project"."schedule_engine", "project"."schedule_objective", "project"."timezone", "project"."created_at", "project"."updated_at", "project"."created_by", "project_solution"."project_id", "project_solution"."organization_id", "project_solution"."slug", "project_solution"."url", "project_abbreviation"."project_id", "project_abbreviation"."namespace", "project_abbreviation"."abbreviation", "project_organization"."resource_id", "project_organization"."organization_id" from "project" left join "project_abbreviation" on "project_abbreviation"."project_id" = "project"."id" inner join "project_organization" on (("project_organization"."resource_id" = "project"."id") and ("project_organization"."organization_id" = ?)) left join "project_solution" on "project_solution"."project_id" = "project"."id" where "project"."id" = ? limit ?",
++   "select "shared_people" from "organization" where "organization"."id" = ?",
++ ]
+
+- Expected  - 1
++ Received  + 10
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:57:35)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) live project first response refuses before SQL after throw [86.97ms]
+52 |   await source.uow.run(async () => {
+53 |     const before=queries.length;
+54 |     released.release();
+55 |     if (pending===undefined) throw new Error('missing paused read');
+56 |     expect((await pending).message).toContain('closed');
+57 |     expect(queries.slice(before)).toEqual([]);
+                                       ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "select "role" from "organization_membership" where (("organization_membership"."organization_id" = ?) and ("organization_membership"."user_id" = ?))",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:57:35)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) fanout authorizeProjectUpdate refuses before membership SQL after throw [79.19ms]
+52 |   await source.uow.run(async () => {
+53 |     const before=queries.length;
+54 |     released.release();
+55 |     if (pending===undefined) throw new Error('missing paused read');
+56 |     expect((await pending).message).toContain('closed');
+57 |     expect(queries.slice(before)).toEqual([]);
+                                       ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "select "role" from "organization_membership" where (("organization_membership"."organization_id" = ?) and ("organization_membership"."user_id" = ?))",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:57:35)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) fanout authorizeStepRemoval refuses before membership SQL after throw [86.94ms]
+
+ 0 pass
+ 9 fail
+ 21 expect() calls
+Ran 9 tests across 1 file. [2.74s]

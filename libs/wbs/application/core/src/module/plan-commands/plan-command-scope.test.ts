@@ -1,8 +1,10 @@
+import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import type { Broadcaster } from '../../ports/project-event';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { AdmittedScope } from './admitted-scope.resource';
 import { createPlanCommandRunner } from './composition';
 import { type PlanCommandServices } from './plan-commands.feature';
@@ -59,7 +61,21 @@ function stagedSource() {
 
   const makeScope = (plan: PlanState): Scope => {
     const projectStoreIdentity = {};
-    const stores = { projects: projectStoreIdentity } as PlanTransactionalStores;
+    const stores = {
+      typedDependencies: inMemoryTypedDependencies(),
+      projects: projectStoreIdentity,
+      journal: {
+        discard: async (entryId: string) => {
+          if (plan === publicPlan) {
+            repairStarted = true;
+            repairReached.resolve();
+            await repairRelease.promise;
+          }
+          plan.undo = plan.undo.filter((entry) => entry.id !== entryId);
+          plan.redo = plan.redo.filter((entry) => entry.id !== entryId);
+        },
+      },
+    } as unknown as PlanTransactionalStores;
     plans.set(projectStoreIdentity, plan);
     return { stores };
   };
@@ -209,6 +225,7 @@ describe('the command runner builds services from each unit-of-work scope', () =
     };
 
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       batchServices: (scope, _broadcast) => {
         source.scopedStores.push(scope.stores);
         const plan = source.plans.get(scope.stores.projects);
@@ -263,8 +280,8 @@ describe('the command runner builds services from each unit-of-work scope', () =
     expect((await second).ok).toBe(true);
     expect(source.publicPlan.names).toEqual(['kept', 'later']);
 
-    expect(source.scopedStores).toHaveLength(7);
-    expect(new Set(source.scopedStores).size).toBe(7);
+    expect(source.scopedStores).toHaveLength(6);
+    expect(new Set(source.scopedStores).size).toBe(6);
     expect(publicAnnouncements).toBe(4);
     expect(publicReads).toBe(2);
   });

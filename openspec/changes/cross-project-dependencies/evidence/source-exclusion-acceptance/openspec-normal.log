@@ -1,0 +1,126 @@
+{
+  "items": [
+    {
+      "id": "cross-project-dependencies",
+      "type": "change",
+      "valid": true,
+      "issues": [
+        {
+          "level": "WARNING",
+          "path": "cross-project-dependencies/spec.md",
+          "message": "ADDED \"Structural writes and history preserve external graph integrity\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "cross-project-dependencies/spec.md",
+          "message": "ADDED \"Deleting an external prerequisite requires explicit relationship removal\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "cross-project-dependencies/spec.md",
+          "message": "ADDED \"Migration rollback admits the complete selection before reversal\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "cross-project-dependencies/spec.md",
+          "message": "ADDED \"Read-only dependency observations are explicit\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "cross-project-dependencies/spec.md",
+          "message": "ADDED \"Compose observes both exact backend binary capabilities before stopping\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "cross-project-dependencies/spec.md",
+          "message": "ADDED \"Compose preserves only provably dormant dependency stores\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "cross-project-dependencies/spec.md",
+          "message": "ADDED \"Kubernetes dependency observations retain execution attribution\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "cross-project-dependencies/spec.md",
+          "message": "ADDED \"Kubernetes release observes both backend binaries before protected effects\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "cross-project-dependencies/spec.md",
+          "message": "ADDED \"Kubernetes storage prerequisite readbacks are observational\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "cross-project-dependencies/spec.md",
+          "message": "ADDED \"Kubernetes prepared ownership preserves original controller history\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "cross-project-dependencies/spec.md",
+          "message": "ADDED \"Kubernetes release owns bounded backup controller intervals\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "cross-project-dependencies/spec.md",
+          "message": "ADDED \"Kubernetes source intent retains its authoritative journal\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "cross-project-dependencies/spec.md",
+          "message": "ADDED \"Solver command local inherited edge descriptor prerequisite\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "cross-project-dependencies/spec.md",
+          "message": "ADDED \"Live owner source-dev and solver audit recognition\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "plan-import/spec.md",
+          "message": "ADDED \"Connected exports preserve one detached read observation\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "saved-plans/spec.md",
+          "message": "ADDED \"Comparison responses preserve each side's historical scope\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "scheduler-optimization/spec.md",
+          "message": "ADDED \"Connected tree responses bind captured optimization evidence\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "scheduler-optimization/spec.md",
+          "message": "ADDED \"Connected manual Retry observes current scoped input before writer admission\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "scheduler-optimization/spec.md",
+          "message": "ADDED \"Connected schedule arrangement consumes the captured placement\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        }
+      ],
+      "durationMs": 35
+    }
+  ],
+  "summary": {
+    "totals": {
+      "items": 1,
+      "passed": 1,
+      "failed": 0
+    },
+    "byType": {
+      "change": {
+        "items": 1,
+        "passed": 1,
+        "failed": 0
+      }
+    }
+  },
+  "version": "1.0",
+  "root": {
+    "path": "/tmp/puni-source-exclusion-acceptance",
+    "source": "nearest"
+  }
+}

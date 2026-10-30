@@ -2,8 +2,13 @@ import type { DependencyReach } from './dependency-reach';
 import type { PlannedRow } from './derive-numbers';
 import { leafDeadlinesOf, leafFloorsOf } from './leaf-constraints';
 import { WORK_ITEM_PROJECTION_START, workdaysLateBy } from './on-time';
-import { validateRealBoundaries } from './real-boundaries';
-import { resolveStepNodeGraph, type StepNodeGraphEdge } from './slice-edges';
+import { validateResolvedRealBoundaries } from './real-boundaries';
+import {
+  type ResolvedScheduleInput,
+  resolveScheduleInput,
+  validateResolvedGraph,
+} from './resolved-schedule-input';
+import type { StepNodeGraphEdge } from './slice-edges';
 import { groupSlicesByLeaf } from './slice-groups';
 import { treeOrder } from './tree-order';
 import type { TypedDependency } from './typed-dependency';
@@ -296,7 +301,10 @@ export type ScheduleFloor =
    * booking is not named for it. Only ever produced when `schedule()` is given
    * a non-empty `elsewhere`; the slice then names the holder in
    * {@link ScheduledSlice.elsewhereHolder}. It points at no slice of this plan,
-   * so {@link resourcePredecessorOf} answers {@link NOBODY} for it.
+   * so {@link resourcePredecessorOf} answers {@link NOBODY} for it. Tree
+   * presentation may transfer a checked foreign connected person predecessor
+   * into this display representation without changing the numerical schedule
+   * or adding a ranked booking to the scheduler's input.
    */
   | 'elsewhere'
   | 'capacity'
@@ -3392,6 +3400,30 @@ export function schedule(
    */
   resourceCapacities: PoolSizes = new Map(),
 ): Schedule {
+  return scheduleResolved(
+    resolveScheduleInput({
+      rows,
+      edges,
+      slices,
+      notBefore,
+      poolSizes,
+      reach,
+      deadlines,
+      typed,
+      elsewhere,
+      resourceCapacities,
+    }),
+    pinnedStarts,
+  );
+}
+
+/** Place an already-resolved local or connected graph through the common Fast leveller and pinned materializer. */
+export function scheduleResolved(
+  input: ResolvedScheduleInput,
+  pinnedStarts?: ReadonlyMap<string, number>,
+): Schedule {
+  validateResolvedGraph(input);
+  const { rows, slices, notBefore, poolSizes, deadlines, elsewhere, resourceCapacities } = input;
   checkElsewhere(elsewhere);
   const sizes: ProfileSizes = { teams: poolSizes, resources: resourceCapacities };
 
@@ -3415,10 +3447,6 @@ export function schedule(
     if (found === undefined) throw new Error(`no slice for work item ${workItemId}`);
     return found;
   };
-
-  // Expanded here rather than stored. Storing it would be a second copy to fall
-  // out of date with the tree the moment a leaf is added under either end.
-  const leafEdges = expandToLeaves(index, edges);
 
   // Floors expanded down the tree the same way the edges are — see
   // {@link leafFloorsOf}, which holds the rule and the 2026-08-10 proof.
@@ -3497,26 +3525,9 @@ export function schedule(
     return found;
   };
 
-  // The slice graph's edges, derived once in {@link resolveStepNodeGraph} rather
-  // than built here: each leaf's own step chain, then the predecessor's
-  // **reached** slice to the successor's **first**. Both rules moved with the
-  // reach they depend on, because the solver request builder must derive the
-  // very same graph and a second copy is the copy that gets the join backwards
-  // — that module's header carries the three watched reds that fix each half.
-  //
-  // Pushed onto the two nodes rather than rebuilt into a map: the adjacency is
-  // written once per edge, and the order the edges arrive in is the order these
-  // arrays are walked in later.
-  // Proof: the typed list replaced by `[]` at this call made four of the five
-  // `schedule-typed-dependency.test.ts` cases fail — `holds a later successor
-  // step` on `Expected: 3, Received: 1` among them; watched 2026-09-27.
-  const resolvedEdges = resolveStepNodeGraph(
-    leafIds,
-    (id) => slicesOf(id).slices,
-    leafEdges,
-    reach,
-    { dependencies: typed, leavesUnder: leavesUnderOf(index) },
-  ).edges;
+  // The graph already carries each project's resolved workflow, reach and
+  // authored relationships; placement must not reinterpret them under one reach.
+  const resolvedEdges = input.graph.edges;
   const weightedEdges: WeightedEdge[] = [];
   for (const { predecessor, successor, type, provenance } of resolvedEdges) {
     const before = firstNodeOf(predecessor.leafId) + predecessor.at;
@@ -3607,6 +3618,21 @@ export function schedule(
       key: node.key,
     };
   });
+  const order = input.order;
+  const projectOrder = nodes.map((node) => {
+    if (order.kind === 'local') return { id: '', rank: 0 };
+    const id = order.projectIdByWorkItem.get(node.slice.workItemId);
+    // Proof: replacing absent ownership with project A made the singleton
+    // `connected ownership` refusal test return a schedule.
+    if (id === undefined) throw new Error('resolved order missing project ownership');
+    const rank = order.rankByProject.get(id);
+    // Proof: removing this guard admitted a missing rank; removing only its
+    // finite-number arm admitted NaN (`connected rank` / `connected nonfinite`).
+    if (rank === undefined || !Number.isFinite(rank))
+      throw new Error('resolved order missing or invalid project rank');
+    return { id, rank };
+  });
+
   /**
    * The priority rule, in full: what is closest to running out of time, then
    * what is due soonest, then what somebody said matters most, then what the
@@ -3660,6 +3686,13 @@ export function schedule(
    * `person`; watched 2026-08-11.
    */
   const goesFirst = (left: number, right: number): boolean => {
+    const firstProject = projectOrder[left];
+    const secondProject = projectOrder[right];
+    // Proof: independently deleting rank and ID comparisons made `rank
+    // precedes local priority` and `bytewise project identity` place the wrong
+    // project's slice first on the shared person.
+    if (firstProject.rank !== secondProject.rank) return firstProject.rank < secondProject.rank;
+    if (firstProject.id !== secondProject.id) return firstProject.id < secondProject.id;
     const first = priorityOf[left];
     const second = priorityOf[right];
     if (first.slack !== second.slack) return first.slack < second.slack;
@@ -3847,10 +3880,7 @@ export function schedule(
     ...(elsewhere.size === 0 ? {} : { waitingElsewhere: waitingAway.size }),
     eventsVisited: leveled.eventsVisited,
   };
-  validateRealBoundaries(
-    { rows, edges, slices, notBefore, poolSizes, reach, deadlines, typed },
-    plan,
-  );
+  validateResolvedRealBoundaries(input, plan);
   return plan;
 }
 

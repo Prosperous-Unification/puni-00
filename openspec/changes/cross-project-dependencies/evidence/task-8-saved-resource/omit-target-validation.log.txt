@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:
+661 |         id,
+662 |         JSON.stringify(captured.input),
+663 |         JSON.stringify(captured.schedule),
+664 |       );
+665 |       const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+666 |       expect(response.status).toBe(422);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 422
+Received: 200
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:666:31)
+(fail) the saved-plan routes > refuses correctly hashed malformed target membership on read and either comparison side [899.70ms]
+661 |         id,
+662 |         JSON.stringify(captured.input),
+663 |         JSON.stringify(captured.schedule),
+664 |       );
+665 |       const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+666 |       expect(response.status).toBe(422);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 422
+Received: 200
+
+      at <anonymous> (/tmp/puni-saved-resource/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:666:31)
+(fail) the saved-plan routes > refuses correctly hashed malformed target placement on read and either comparison side [765.49ms]
+
+ 0 pass
+ 56 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [7.38s]

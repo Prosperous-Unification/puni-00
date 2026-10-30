@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+270 | it('rejects each proposed ownership mismatch independently', async () => {
+271 |   const scope = observation();
+272 |   const wrongOwner = { ...link('wrong-owner', 'b', 'a'), projectId: 'b' };
+273 |   const wrongSuccessor = { ...link('wrong-successor', 'b', 'b'), projectId: 'a' };
+274 |   await expect(scope.reader.read(['a'], [{ projectId: 'a', typed: [wrongOwner] }])).rejects.toThrow(/proposed owner.*wrong-owner/);
+275 |   await expect(scope.reader.read(['a'], [{ projectId: 'a', typed: [wrongSuccessor] }])).rejects.toThrow(/proposed owner.*wrong-successor/);
+                                                                                                      ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:275:97)
+(fail) rejects each proposed ownership mismatch independently [1.86ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [131.00ms]

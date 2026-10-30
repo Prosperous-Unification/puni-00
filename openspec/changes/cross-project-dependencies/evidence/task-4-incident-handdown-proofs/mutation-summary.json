@@ -1,0 +1,139 @@
+[
+  {
+    "name": "owned-only",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts",
+    "pattern": "actual first child"
+  },
+  {
+    "name": "omit-incoming",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts",
+    "pattern": "mixed incident handdown"
+  },
+  {
+    "name": "omit-outgoing",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts",
+    "pattern": "actual first child"
+  },
+  {
+    "name": "rewrite-node-scope",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts",
+    "pattern": "mixed incident handdown"
+  },
+  {
+    "name": "reset-creation-audit",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts",
+    "pattern": "incident detach and restore"
+  },
+  {
+    "name": "detach-stale-receipt",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts",
+    "pattern": "incident detach refuses"
+  },
+  {
+    "name": "restore-identity",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts",
+    "pattern": "incident restore refuses changing identity"
+  },
+  {
+    "name": "restore-owner",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts",
+    "pattern": "incident restore refuses changing owner"
+  },
+  {
+    "name": "missing-replay-receipts",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts",
+    "pattern": "compound undo refuses missing-receipt"
+  },
+  {
+    "name": "receipt-mapping-check",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts",
+    "pattern": "compound undo refuses changed-step"
+  },
+  {
+    "name": "receipt-audit-check",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts",
+    "pattern": "compound undo refuses changed-audit"
+  },
+  {
+    "name": "stored-relationship-snapshot",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts",
+    "pattern": "compound undo refuses relationship-type"
+  },
+  {
+    "name": "stored-creation-snapshot",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts",
+    "pattern": "compound undo refuses both-receipt-audits"
+  },
+  {
+    "name": "receipt-set-count",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts",
+    "pattern": "compound undo refuses missing-relationship"
+  },
+  {
+    "name": "touched-project-partition",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts",
+    "pattern": "actual first child"
+  },
+  {
+    "name": "final-graph-consumer",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts",
+    "pattern": "rolls back every table and held announcement on final-graph-delivery"
+  },
+  {
+    "name": "required-retention",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./libs/wbs/application/core/src/service/dependency-context.test.ts",
+    "pattern": "required incident retention"
+  },
+  {
+    "name": "source-node-shape",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+    "pattern": "incident source restore preserves"
+  },
+  {
+    "name": "source-descendant-shape",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+    "pattern": "incident source restoration refuses descendant-on-leaf"
+  },
+  {
+    "name": "source-endpoint-union",
+    "status": "MISSING_ANCHOR"
+  }
+]

@@ -1,0 +1,73 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/shape-document.test.ts:
+(pass) derives the named MCP tool with all path/query/body inputs and exclusions from emitted shapes [15.89ms]
+(pass) keeps both nested command alternatives usable in the derived MCP input schema [1.40ms]
+(pass) carries production command descriptors through the generated MCP input [14.00ms]
+(pass) refuses recursive declarations before publishing MCP inputs with unresolved references [17.25ms]
+(pass) refuses structural descriptors whose nested references would lose their definition context [8.58ms]
+(pass) preserves literal $ref fields and const objects in emitted MCP inputs [5.65ms]
+
+apps/wbs/mcp-01/src/generated-document.test.ts:
+(pass) default MCP document is generated directly from the shared declarations [22.68ms]
+(pass) generated project command tool exposes addTypedDependency with endpoints [7.12ms]
+(pass) generated dependency tools publish local aliases, scoped identity rules and stable removal [5.55ms]
+(pass) required exclusion drift remains a failure when operational routes are absent [6.06ms]
+(pass) keeps browser organization selection out of the generated MCP tools [6.03ms]
+(pass) keeps provisioning-token administration out of the generated MCP tools [5.32ms]
+(pass) keeps machine credential administration out of the generated MCP tools [4.75ms]
+(pass) keeps trusted issuer administration out of the generated MCP tools [5.87ms]
+(pass) pins every generated MCP operation name independently of the registry [5.52ms]
+(pass) refuses a generated operation whose name was lost before MCP derivation [4.13ms]
+(pass) optional operational deny paths cannot become tools in external documents [4.69ms]
+(pass) keeps browser current-context discovery out of generated MCP tools [4.22ms]
+(pass) generated command and startable documents expose execution prerequisites [5.74ms]
+
+libs/wbs/domain/contracts/src/http/plan-command-shapes.test.ts:
+(pass) validates all structural wire arms without applying semantic defaults or a batch cap [60.30ms]
+(pass) preserves optional fields, nulls and unresolved references without normalization [7.80ms]
+(pass) rejects malformed structures and nested extras including derived numbering [8.77ms]
+(pass) emits inline MCP-readable command branches with real nested patch and estimate properties [0.80ms]
+(pass) retains the nullable deadline wire field without taking over date semantics [1.38ms]
+(pass) retains explicitly scoped typed endpoints on the wire [1.08ms]
+
+libs/wbs/domain/contracts/src/http/document-from-shapes.test.ts:
+(pass) documentFromShapes > emits inline object bodies with intact nested union arms and optional fields [0.46ms]
+(pass) documentFromShapes > refuses absent or duplicate operation names and duplicate method paths [0.46ms]
+(pass) documentFromShapes > reads descriptors without accessing validator internals [0.26ms]
+(pass) documentFromShapes > emits text and empty representations without inventing JSON bodies [0.22ms]
+(pass) refuses non-object query descriptors instead of silently losing their inputs [3.93ms]
+(pass) refuses a declared parameter object that omits a route segment [5.12ms]
+(pass) refuses whitespace operation names and colliding methods at a converted path [0.28ms]
+(pass) preserves response alternatives and media types without overwriting a status [11.38ms]
+(pass) refuses ambiguous repeated empty statuses [0.38ms]
+(pass) emits a typed refusal independently of where its empty alternative is declared [2.35ms]
+(pass) refuses object-level query constraints that cannot become named parameters [3.82ms]
+(pass) documents arbitrary singleton query keys as one exploded form object [3.25ms]
+(pass) refuses malformed arbitrary-singleton declarations before emitting them [9.06ms]
+(pass) refuses references in every descriptor location without reading validators [2.43ms]
+(pass) finds references only in supported schema-valued keywords [0.95ms]
+(pass) declares exactly the accepted body media while retaining one inline schema [0.32ms]
+(pass) refuses malformed erased body media declarations before emitting a document [0.38ms]
+(pass) emits an operation description only where the shape gives one [0.38ms]
+(pass) derives the three attempt commands and the timezone read from the shared shapes [9.28ms]
+
+libs/wbs/application/core/src/service/command-normalizers.test.ts:
+(pass) normalizes all step-node commands to the original pair [0.70ms]
+(pass) refuses conflicting, missing and invalid step addresses [0.48ms]
+(pass) preserves priority absence null and number [0.19ms]
+(pass) defaults missing assignee to null [0.03ms]
+(pass) refuses missing and nonboolean blockage intent before dispatch [0.06ms]
+(pass) bounds a claim’s run to 1 to 256 characters and keeps steps and parent as given [0.31ms]
+(pass) refuses an empty step list on a claim and a release [0.07ms]
+(pass) a claim’s resources (wbs-resources R4) > keeps absent absent and each entry as given [0.12ms]
+(pass) a claim’s resources (wbs-resources R4) > refuses resources naming one resource twice [0.04ms]
+(pass) a claim’s resources (wbs-resources R4) > refuses an empty list, a non-list, a malformed entry and units outside 1 to the bound [0.25ms]
+(pass) scoped typed endpoint addresses > preserves an explicit project for every endpoint spelling [0.30ms]
+(pass) scoped typed endpoint addresses > explicit identities are nonempty opaque strings without surrounding whitespace [0.25ms]
+(pass) scoped typed endpoint addresses > refuses malformed project addresses and explicitly scoped batch aliases [0.12ms]
+
+ 57 pass
+ 0 fail
+ 392 expect() calls
+Ran 57 tests across 5 files. [10.84s]

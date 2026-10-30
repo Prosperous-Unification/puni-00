@@ -1,3 +1,8 @@
+import {
+  DEPENDENCY_SEMANTICS,
+  DEPENDENCY_SEMANTICS_HEADER,
+  requiresDependencyOperation,
+} from '@wbs/contracts/dependency-claim';
 import { defineException } from 'application-exception';
 
 import type { McpConfig } from './config';
@@ -307,6 +312,9 @@ export function buildRequest(
   });
 
   const headers: Record<string, string> = {};
+  // Proof: omitting this claim failed the protected tool/typed incompatibility test.
+  if (requiresDependencyOperation(tool.name))
+    headers[DEPENDENCY_SEMANTICS_HEADER] = DEPENDENCY_SEMANTICS;
   if (callerToken !== undefined) headers['authorization'] = `Bearer ${callerToken}`;
   if (config.WBS_BASIC_AUTH !== undefined) {
     // The deployment gate, not the caller. Bearer authentication owns the

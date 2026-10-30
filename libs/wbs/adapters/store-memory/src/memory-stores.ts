@@ -1,4 +1,5 @@
 import { claimIdentityOf, type TransactionalStores } from '@wbs/core';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import type { OrganizationLimitValues } from '@wbs/domain';
 
 import { inMemoryActuals, type MemoryActualTable, memoryActualTable } from './actual-fixture';
@@ -44,6 +45,7 @@ import {
   memoryEstimateTable,
 } from './estimate-fixture';
 import { inMemoryPlanEvents } from './history-fixture';
+import { bindIncidentDependencies } from './incident-dependency-fixture';
 import { inertMemoryLateWriteSeam, type MemoryLateWriteSeam } from './late-write-seam';
 import {
   inMemoryMeasureEstimates,
@@ -178,6 +180,8 @@ function detachedStore<T extends object>(store: T): T {
   return new Proxy(store, {
     get(target, key, receiver) {
       const member: unknown = Reflect.get(target, key, receiver);
+      if (key === 'incidents' && typeof member === 'object' && member !== null)
+        return detachedStore(member);
       if (typeof member !== 'function') return structuredClone(member);
       return (...args: unknown[]): unknown => {
         const returned: unknown = Reflect.apply(member, target, args);
@@ -273,6 +277,8 @@ export class MemoryState {
     // Proof: omitting this copy left `commits all mixed-store writes together`
     // with no committed typed row; watched failing 2026-09-27.
     replaceArray(this.tables.typedDependencies.rows, next.tables.typedDependencies.rows);
+    // Proof: omission lost the creation receipt for a typed row committed through the real source UoW, 2026-10-22.
+    replaceMap(this.tables.typedDependencies.creation, next.tables.typedDependencies.creation);
     replaceMap(this.tables.workItems.byId, next.tables.workItems.byId);
     replaceMap(this.tables.workItems.teamsOf, next.tables.workItems.teamsOf);
     replaceMap(this.tables.workItems.tagsOf, next.tables.workItems.tagsOf);
@@ -570,7 +576,11 @@ export function bindStores(
   };
   workItems = inMemoryWorkItems(directory, state.tables.workItems);
   const dependencies = inMemoryDependencies([], state.tables.dependencies, workItems);
-  const typedDependencies = inMemoryTypedDependencies([], state.tables.typedDependencies);
+  const typedFixture = inMemoryTypedDependencies([], state.tables.typedDependencies);
+  const typedDependencies = {
+    ...typedFixture,
+    incidents: bindIncidentDependencies(typedFixture.incidents, state),
+  };
   // Proof: a separate parallel table let source removal erase the step; mixed rollback tests failed, 2026-10-17.
   const tableSteps = inMemorySteps([], state.tables.steps, state.tables.estimates, {
     table: state.tables.stepParallels,
@@ -720,6 +730,7 @@ export function bindStores(
     ),
     dependencies,
     typedDependencies,
+    externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
     capacity: inMemoryCapacity({}, state.tables.capacity),
     resourceCapacity: inMemoryResourceCapacity(state.tables.directory.resources, (projectId) =>
       Promise.resolve(state.tables.projects.projects.has(projectId)),

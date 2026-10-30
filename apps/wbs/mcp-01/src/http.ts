@@ -2,7 +2,10 @@ import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import type { TokenVerifier } from '@wbs/auth';
-import { canonicalMcpResourceOf, mcpAuthorizationServerOf } from '@wbs/contracts';
+import {
+  canonicalMcpResourceOf,
+  mcpAuthorizationServerOf,
+} from '@wbs/contracts/mcp-authorization-server';
 
 import { authenticateCaller } from './caller-auth';
 import { type McpConfig, offersMachineGrants } from './config';

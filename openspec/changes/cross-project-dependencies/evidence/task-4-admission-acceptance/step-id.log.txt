@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+397 |     const at = slicesOf(leafId).findIndex((slice) => slice.stepId === endpoint.stepId);
+398 |     // Proof: this refusal deleted made the unknown-step assertion of the same
+399 |     // case fail on `Received function did not throw` (the edge was drawn at
+400 |     // position -1); watched 2026-09-27.
+401 |     if (at === -1) {
+402 |       throw new Error(`no step ${endpoint.stepId} in work item ${leafId} for ${dependency.id}`);
+                      ^
+error: no step 2bc46385-c28e-49f6-b6f6-544637b750f6 in work item 51711180-1436-4e3d-b1dd-7c07afb71fb7 for 4d451206-23af-473a-a5c7-8bf898c4ba5c
+      at <anonymous> (/tmp/puni-command-proofs/libs/wbs/domain/domain/src/slice-edges.ts:402:17)
+      at map (1:11)
+      at resolveAuthoredEdges (/tmp/puni-command-proofs/libs/wbs/domain/domain/src/slice-edges.ts:302:18)
+      at resolveConnectedGraph (/tmp/puni-command-proofs/libs/wbs/domain/domain/src/connected-step-node.ts:123:10)
+      at findCycle (/tmp/puni-command-proofs/libs/wbs/application/core/src/service/dependency-graph.ts:215:37)
+      at async <anonymous> (/tmp/puni-command-proofs/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6705:43)
+      at async withDependencyContext (/tmp/puni-command-proofs/libs/wbs/application/core/src/ports/dependency-context.ts:86:27)
+(fail) admitted add refuses step-identity misdelivery before storage [351.23ms]
+
+ 0 pass
+ 115 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [3.14s]

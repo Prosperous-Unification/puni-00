@@ -7,8 +7,11 @@ import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import type { PlanCommand } from '../../service/plan-command';
 import { testClock } from '../../testing/clock-fixture';
+import { expectCreated } from '../../testing/expect-created';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { createPlanCommandRunner } from './composition';
@@ -26,6 +29,7 @@ function silentBroadcaster(): Broadcaster {
 
 const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
   servicesOver(stores, {
+    dependencyContext: createLocalDependencyContext(stores),
     admission: CREATOR_ADMISSION,
     clock: testClock,
     broadcast,
@@ -42,6 +46,7 @@ function runnerOver(
   ) => compose(scope.stores, broadcast),
 ): PlanCommandRunner {
   return createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow,
     announcements: silentBroadcaster(),
     publicServices: publicGraph,
@@ -79,7 +84,9 @@ describe('working plan batch ownership', () => {
       { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
       { at: 1, by: OWNER },
     );
-    const createdProject = await publicGraph.projects.create('Working plan ownership', OWNER);
+    const createdProject = expectCreated(
+      await publicGraph.projects.create('Working plan ownership', OWNER),
+    );
     const projectId = createdProject.project.id;
     const stepId = createdProject.steps[0].id;
     await source.stores.steps.add(
@@ -273,6 +280,7 @@ describe('working plan batch ownership', () => {
       await announceTreeNow(announcedProjectId);
     };
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       uow: source.uow,
       announcements: direct,
       publicServices: publicGraph,
@@ -316,6 +324,7 @@ describe('working plan command before-images', () => {
     const direct = silentBroadcaster();
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
       servicesOver(stores, {
+        dependencyContext: createLocalDependencyContext(stores),
         admission: CREATOR_ADMISSION,
         clock: testClock,
         broadcast,
@@ -328,8 +337,9 @@ describe('working plan command before-images', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Detached before-images', OWNER)).project
-        .id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Detached before-images', OWNER),
+      ).project.id;
       const created = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
         afterId: null,
@@ -349,6 +359,7 @@ describe('working plan command before-images', () => {
 
       const observedTagSets: string[][] = [];
       const runner = createPlanCommandRunner({
+        commandAccess: localCommandAccess,
         uow: source.uow,
         announcements: direct,
         publicServices: publicGraph,
@@ -432,7 +443,9 @@ describe('working plan directory mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = await publicGraph.projects.create('Assignment refresh', OWNER);
+      const createdProject = expectCreated(
+        await publicGraph.projects.create('Assignment refresh', OWNER),
+      );
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       const row = await publicGraph.workItems.create(projectId, OWNER, {
@@ -554,8 +567,9 @@ describe('working plan directory mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Directory cascade refresh', OWNER))
-        .project.id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Directory cascade refresh', OWNER),
+      ).project.id;
       const team = await publicGraph.directory.addTeam(OWNER, 'Removed team');
       if (team === null) throw new Error('cascade team creation refused');
       const row = await publicGraph.workItems.create(projectId, OWNER, {
@@ -611,7 +625,9 @@ describe('working plan dependency mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = await publicGraph.projects.create('Typed working plan', OWNER);
+      const createdProject = expectCreated(
+        await publicGraph.projects.create('Typed working plan', OWNER),
+      );
       const projectId = createdProject.project.id;
       const predecessor = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
@@ -624,9 +640,10 @@ describe('working plan dependency mutations through runner commands', () => {
         name: 'Successor',
       });
       if (!predecessor.ok || !successor.ok) throw new Error('typed fixture creation refused');
-      const first = { scope: 'whole' as const, workItemId: predecessor.value.id };
-      const second = { scope: 'whole' as const, workItemId: successor.value.id };
+      const first = { projectId, scope: 'whole' as const, workItemId: predecessor.value.id };
+      const second = { projectId, scope: 'whole' as const, workItemId: successor.value.id };
       const firstNode = {
+        projectId,
         scope: 'node' as const,
         workItemId: predecessor.value.id,
         stepId: createdProject.steps[0].id,
@@ -649,20 +666,26 @@ describe('working plan dependency mutations through runner commands', () => {
             return rows;
           },
         };
-        const typedDependencies = {
-          ...scope.stores.typedDependencies,
-          listByProject: async (requestedProjectId: string) => {
-            const rows = await scope.stores.typedDependencies.listByProject(requestedProjectId);
-            if (updates === 1) observedAfterEdit.push(...rows);
-            return rows;
+        // Retained incidents intentionally throws when read; observing two methods
+        // must preserve the getter without evaluating it during fixture composition.
+        const typedDependencies = new Proxy(scope.stores.typedDependencies, {
+          get(dependencies, property) {
+            if (property === 'listByProject')
+              return async (requestedProjectId: string) => {
+                const rows = await dependencies.listByProject(requestedProjectId);
+                if (updates === 1) observedAfterEdit.push(...rows);
+                return rows;
+              };
+            if (property === 'update')
+              return async (
+                ...parameters: Parameters<PlanTransactionalStores['typedDependencies']['update']>
+              ) => {
+                await dependencies.update(...parameters);
+                updates += 1;
+              };
+            return Reflect.get(dependencies, property, dependencies) as unknown;
           },
-          update: async (
-            ...parameters: Parameters<PlanTransactionalStores['typedDependencies']['update']>
-          ) => {
-            await scope.stores.typedDependencies.update(...parameters);
-            updates += 1;
-          },
-        };
+        });
         return compose({ ...scope.stores, workItems, typedDependencies }, broadcast);
       });
       const committed = await runner.run(projectId, OWNER, [
@@ -750,8 +773,9 @@ describe('working plan dependency mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Retained dependency cycle', OWNER))
-        .project.id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Retained dependency cycle', OWNER),
+      ).project.id;
 
       const refused = await runnerOver(source, publicGraph).run(projectId, OWNER, [
         {
@@ -798,8 +822,9 @@ describe('working plan subtree mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await setup.projects.create('Retained duplicated subtree', OWNER)).project
-        .id;
+      const projectId = expectCreated(
+        await setup.projects.create('Retained duplicated subtree', OWNER),
+      ).project.id;
       for (const row of [
         workItemRow({ id: 'root', projectId, position: 10, name: 'Root' }),
         workItemRow({
@@ -823,6 +848,7 @@ describe('working plan subtree mutations through runner commands', () => {
       });
       const composeBatch = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
         servicesOver(stores, {
+          dependencyContext: createLocalDependencyContext(stores),
           admission: CREATOR_ADMISSION,
           clock,
           broadcast,
@@ -830,6 +856,7 @@ describe('working plan subtree mutations through runner commands', () => {
         });
       const publicGraph = composeBatch(source.stores, direct);
       const runner = createPlanCommandRunner({
+        commandAccess: localCommandAccess,
         uow: source.uow,
         announcements: direct,
         publicServices: publicGraph,
@@ -906,7 +933,9 @@ describe('working plan value mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = await publicGraph.projects.create('Mixed-case value ordering', OWNER);
+      const createdProject = expectCreated(
+        await publicGraph.projects.create('Mixed-case value ordering', OWNER),
+      );
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
@@ -993,7 +1022,9 @@ describe('working plan value mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = await publicGraph.projects.create('Value group ordering', OWNER);
+      const createdProject = expectCreated(
+        await publicGraph.projects.create('Value group ordering', OWNER),
+      );
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
@@ -1098,7 +1129,9 @@ describe('working plan value mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = await publicGraph.projects.create('Value hand-down refresh', OWNER);
+      const createdProject = expectCreated(
+        await publicGraph.projects.create('Value hand-down refresh', OWNER),
+      );
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
@@ -1183,7 +1216,9 @@ describe('working plan value mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = await publicGraph.projects.create('Value move refresh', OWNER);
+      const createdProject = expectCreated(
+        await publicGraph.projects.create('Value move refresh', OWNER),
+      );
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
@@ -1223,6 +1258,7 @@ describe('working plan value mutations through runner commands', () => {
       });
       const orderedCompose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
         servicesOver(stores, {
+          dependencyContext: createLocalDependencyContext(stores),
           admission: CREATOR_ADMISSION,
           clock: orderedClock,
           broadcast,
@@ -1230,6 +1266,7 @@ describe('working plan value mutations through runner commands', () => {
         });
       const admitted = captureAdmittedStores(source.uow);
       const runner = createPlanCommandRunner({
+        commandAccess: localCommandAccess,
         uow: admitted.uow,
         announcements: direct,
         publicServices: publicGraph,
@@ -1314,7 +1351,9 @@ describe('working plan value mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = await publicGraph.projects.create('Value hand-up refresh', OWNER);
+      const createdProject = expectCreated(
+        await publicGraph.projects.create('Value hand-up refresh', OWNER),
+      );
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
@@ -1390,7 +1429,9 @@ describe('working plan value mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = await publicGraph.projects.create('Value remove refresh', OWNER);
+      const createdProject = expectCreated(
+        await publicGraph.projects.create('Value remove refresh', OWNER),
+      );
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
@@ -1478,8 +1519,9 @@ describe('working plan row mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Inserted row refresh', OWNER)).project
-        .id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Inserted row refresh', OWNER),
+      ).project.id;
       await source.stores.workItems.insert(
         workItemRow({ id: 'parent', projectId, position: 10, name: 'Parent' }),
         [],
@@ -1540,7 +1582,8 @@ describe('working plan row mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Moved row refresh', OWNER)).project.id;
+      const projectId = expectCreated(await publicGraph.projects.create('Moved row refresh', OWNER))
+        .project.id;
       for (const row of [
         workItemRow({ id: 'old-parent', projectId, position: 10, name: 'Old parent' }),
         workItemRow({ id: 'new-parent', projectId, position: 20, name: 'New parent' }),
@@ -1601,7 +1644,9 @@ describe('working plan row mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = await publicGraph.projects.create('Arranged row refresh', OWNER);
+      const createdProject = expectCreated(
+        await publicGraph.projects.create('Arranged row refresh', OWNER),
+      );
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
@@ -1661,7 +1706,9 @@ describe('working plan row mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Frozen row refresh', OWNER)).project.id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Frozen row refresh', OWNER),
+      ).project.id;
       for (const [id, position] of [
         ['a', 10],
         ['b', 20],
@@ -1706,8 +1753,9 @@ describe('working plan row mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Promoted row refresh', OWNER)).project
-        .id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Promoted row refresh', OWNER),
+      ).project.id;
       for (const row of [
         workItemRow({ id: 'sibling', projectId, position: 10, name: 'Sibling' }),
         workItemRow({ id: 'removed', projectId, position: 20, name: 'Removed' }),
@@ -1757,8 +1805,9 @@ describe('working plan row mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Refused patch refresh', OWNER)).project
-        .id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Refused patch refresh', OWNER),
+      ).project.id;
       const created = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
         afterId: null,
@@ -1841,8 +1890,9 @@ async function expectSubtreePlacementFaultRollsBack(
       { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
       { at: 1, by: OWNER },
     );
-    const projectId = (await setup.projects.create('Subtree placement validation', OWNER)).project
-      .id;
+    const projectId = expectCreated(
+      await setup.projects.create('Subtree placement validation', OWNER),
+    ).project.id;
     for (const row of [
       workItemRow({ id: 'root', projectId, position: 10, name: 'Root' }),
       workItemRow({ id: 'child', projectId, parentId: 'root', position: 10, name: 'Child' }),
@@ -1881,6 +1931,7 @@ async function expectSubtreePlacementFaultRollsBack(
     });
     const composeBatch = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
       servicesOver(stores, {
+        dependencyContext: createLocalDependencyContext(stores),
         admission: CREATOR_ADMISSION,
         clock,
         broadcast,
@@ -1925,7 +1976,9 @@ async function expectPlacementFaultRollsBack(
       { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
       { at: 1, by: OWNER },
     );
-    const projectId = (await publicGraph.projects.create('Placement validation', OWNER)).project.id;
+    const projectId = expectCreated(
+      await publicGraph.projects.create('Placement validation', OWNER),
+    ).project.id;
     await source.stores.workItems.insert(
       workItemRow({ id: 'anchor', projectId, position: 10, name: 'Anchor' }),
       [],
@@ -2059,8 +2112,9 @@ describe('working plan placement validation rolls back its production unit of wo
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Unauthorized refresh row', OWNER))
-        .project.id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Unauthorized refresh row', OWNER),
+      ).project.id;
       await source.stores.workItems.insert(
         workItemRow({ id: 'old-parent', projectId, position: 10, name: 'Hidden old parent' }),
         [],
@@ -2133,7 +2187,9 @@ describe('working plan value placement validation rolls back its production unit
           { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
           { at: 1, by: OWNER },
         );
-        const createdProject = await publicGraph.projects.create('Value placement fault', OWNER);
+        const createdProject = expectCreated(
+          await publicGraph.projects.create('Value placement fault', OWNER),
+        );
         const projectId = createdProject.project.id;
         const stepId = createdProject.steps[0].id;
         await source.stores.steps.add(
@@ -2304,7 +2360,7 @@ describe('transactional memory move blockage closure', () => {
       { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
       { at: 1, by: OWNER },
     );
-    const created = await graph.projects.create('Move closure', OWNER);
+    const created = expectCreated(await graph.projects.create('Move closure', OWNER));
     const projectId = created.project.id;
     const step = created.steps[0];
     await source.stores.steps.add(

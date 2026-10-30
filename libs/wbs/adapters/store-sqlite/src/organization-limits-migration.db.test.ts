@@ -13,18 +13,27 @@ const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url)
 const MIGRATION = '20261022130000_add_organization_limits';
 /** The newer audit widening, which reverses first in its own transaction. */
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
-const CLAIM_LEASE = '20261023100000_add_claim_lease';
-/** The newer measure definitions, which reverse first over seeded rows alone. */
-const MEASURE = '20261023140000_add_measure';
-/** The measure-keyed facts, which reverse first over legacy facts alone. */
-const MEASURE_FACTS = '20261023150000_key_step_measure';
-/** The measure estimates, which reverse first over single-point token trios alone. */
-const MEASURE_ESTIMATES = '20261023160000_add_measure_estimate';
-const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
+const NEWER = [
+  '20261028100100_widen_organization_audit_agent_pools',
+  '20261028100000_add_agent_pool',
+  '20261026130000_widen_organization_audit_machine_tokens',
+  '20261026120000_add_command_journal_person',
+  '20261025130000_add_resource_runtime',
+  '20261025120000_add_resource_use',
+  '20261023170000_add_work_item_budget',
+  '20261023160000_add_measure_estimate',
+  '20261023150000_key_step_measure',
+  '20261023140000_add_measure',
+  '20261023100000_add_claim_lease',
+  '20261022213000_add_optimization_boundary_certificates',
+  '20261022212000_add_cross_project_dependency_activation',
+  '20261022211000_add_external_dependencies',
+  '20261022210000_add_project_abbreviations',
+  '20261022140100_widen_organization_audit_compute_providers',
+  '20261022140000_add_resource_provider',
+  LIMITS_AUDIT,
+];
 const BASELINE = '20261022120000_scope_trusted_issuer_audience';
-/** The newer compute-provider migrations, which reverse before the limits ones. */
-const RESOURCE_PROVIDER = '20261022140000_add_resource_provider';
-const PROVIDER_AUDIT = '20261022140100_widen_organization_audit_compute_providers';
 
 let dir: string;
 let path: string;
@@ -110,45 +119,12 @@ describe(MIGRATION, () => {
     expect(count()).toBe(1);
     expect(
       db.query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY id').all(),
-    ).toEqual(
-      before.filter(
-        ({ name }) =>
-          ![
-            LIMITS_AUDIT,
-            RESOURCE_PROVIDER,
-            PROVIDER_AUDIT,
-            CLAIM_LEASE,
-            MEASURE,
-            MEASURE_FACTS,
-            MEASURE_ESTIMATES,
-            WORK_ITEM_BUDGETS,
-            '20261025120000_add_resource_use',
-            '20261025130000_add_resource_runtime',
-            '20261026120000_add_command_journal_person',
-            '20261026130000_widen_organization_audit_machine_tokens',
-            '20261028100000_add_agent_pool',
-            '20261028100100_widen_organization_audit_agent_pools',
-          ].includes(name),
-      ),
-    );
+    ).toEqual(before.filter(({ name }) => !NEWER.includes(name)));
   });
 
   it('rolls back when empty and comes forward again', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
-      '20261028100100_widen_organization_audit_agent_pools',
-      '20261028100000_add_agent_pool',
-      '20261026130000_widen_organization_audit_machine_tokens',
-      '20261026120000_add_command_journal_person',
-      '20261025130000_add_resource_runtime',
-      '20261025120000_add_resource_use',
-      WORK_ITEM_BUDGETS,
-      MEASURE_ESTIMATES,
-      MEASURE_FACTS,
-      MEASURE,
-      CLAIM_LEASE,
-      PROVIDER_AUDIT,
-      RESOURCE_PROVIDER,
-      LIMITS_AUDIT,
+      ...NEWER,
       MIGRATION,
       '20261022121000_add_runtime_commands',
     ]);

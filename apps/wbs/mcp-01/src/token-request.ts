@@ -1,4 +1,4 @@
-import { parseMachineKey } from '@wbs/core';
+import { parseMachineKey } from '@wbs/core/service/machine-key';
 import { decodeProtectedHeader } from 'jose';
 
 /** The OAuth client credentials grant (RFC 6749 §4.4), with a `wbs_mk_` key as the secret. */

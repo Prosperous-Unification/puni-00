@@ -5,8 +5,11 @@ import { servicesOver } from '../../compose';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { Scope } from '../../ports/unit-of-work';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
+import { expectCreated } from '../../testing/expect-created';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { createPlanCommandRunner } from './composition';
@@ -23,6 +26,7 @@ async function planOfOneLeaf(extraLeaf = false) {
   const { source } = openMemorySourceFixture();
   const broadcast = recordingBroadcaster();
   const options = {
+    dependencyContext: createLocalDependencyContext(source.stores),
     admission: CREATOR_ADMISSION,
     clock: testClock,
     broadcast,
@@ -33,7 +37,7 @@ async function planOfOneLeaf(extraLeaf = false) {
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const created = await graph.projects.create('L', F);
+  const created = expectCreated(await graph.projects.create('L', F));
   const projectId = created.project.id;
   for (const step of created.steps)
     await source.stores.steps.add(
@@ -53,10 +57,15 @@ async function planOfOneLeaf(extraLeaf = false) {
     );
   const runner = createPlanCommandRunner({
     uow: source.uow,
+    commandAccess: localCommandAccess,
     announcements: broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
-      servicesOver(scope.stores, { ...options, broadcast: announcements }),
+      servicesOver(scope.stores, {
+        ...options,
+        dependencyContext: createLocalDependencyContext(scope.stores),
+        broadcast: announcements,
+      }),
   });
   return { source, graph, runner, projectId, steps: created.steps };
 }

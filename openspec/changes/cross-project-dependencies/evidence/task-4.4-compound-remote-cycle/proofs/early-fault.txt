@@ -1,0 +1,55 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:
+846 |           notes: direction === 'undo' ? '' : 'Compound replay patch',
+847 |         });
+848 |         expect(harness.sqlite.query('SELECT undone FROM command_journal WHERE id=?').get(selected.id)).toEqual({ undone: direction === 'undo' ? 1 : 0 });
+849 |         return;
+850 |       }
+851 |       expect({ status: response.status, body }).toEqual({
+                                                      ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "detail": "that relationship would now be refused: cycle.",
++     "detail": "that would now close a dependency cycle between steps.",
+      "error": "stale_undo",
+    },
+    "status": 409,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-compound-replay/apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:851:49)
+(fail) synthetic mounted compound undo refuses a remote-only cycle atomically and prunes exactly its selected journal [688.42ms]
+846 |           notes: direction === 'undo' ? '' : 'Compound replay patch',
+847 |         });
+848 |         expect(harness.sqlite.query('SELECT undone FROM command_journal WHERE id=?').get(selected.id)).toEqual({ undone: direction === 'undo' ? 1 : 0 });
+849 |         return;
+850 |       }
+851 |       expect({ status: response.status, body }).toEqual({
+                                                      ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "detail": "that relationship would now be refused: cycle.",
++     "detail": "that would now close a dependency cycle between steps.",
+      "error": "stale_undo",
+    },
+    "status": 409,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-compound-replay/apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:851:49)
+(fail) synthetic mounted compound redo refuses a remote-only cycle atomically and prunes exactly its selected journal [640.72ms]
+
+ 0 pass
+ 28 filtered out
+ 2 fail
+ 46 expect() calls
+Ran 2 tests across 1 file. [4.42s]

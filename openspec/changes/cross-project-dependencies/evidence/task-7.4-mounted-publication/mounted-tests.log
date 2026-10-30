@@ -1,0 +1,12 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/services-connected-publication.db.test.ts:
+(pass) mounted child publishes improved durable ready candidate and replays exact target and foreign dates [1302.96ms]
+(pass) mounted current-hash Retry alone recovers failed objective without retrying healthy sibling [1310.62ms]
+(pass) mounted persisted candidate tamper is corrupt and never admits on read [847.49ms]
+(pass) mounted persisted comparison tamper is corrupt and never admits on read [802.15ms]
+
+ 4 pass
+ 0 fail
+ 74 expect() calls
+Ran 4 tests across 1 file. [8.14s]

@@ -1,8 +1,8 @@
 import { wsPresence } from '@wbs/contracts';
 
-export interface PresenceSocket {
-  send(s: string): void;
-}
+import type { DeliveryOutcome, DeliverySocket } from './delivery';
+
+export type PresenceSocket = DeliverySocket;
 
 /** What a connection that has named no project is shown, and put in. */
 const NOBODY: string[] = [];
@@ -164,26 +164,32 @@ export class Presence {
   }
 
   /** Sends one connected socket its current roster, including initial/reset empty state. */
-  sendRoster(connectionId: string): void {
+  async sendRoster(connectionId: string): Promise<DeliveryOutcome | undefined> {
     const connected = this.byConnection.get(connectionId);
     if (connected !== undefined)
-      this.send(connected.socket, wsPresence(this.rosterFor(connectionId)));
+      return connected.socket.send(wsPresence(this.rosterFor(connectionId)));
+    return undefined;
   }
 
   /**
    * Sends each affected project's roster only to its current members. Empty
    * projects have no recipients; unprojected sockets receive explicit initial
    * or reset state through {@link sendRoster}. Each project is serialized once.
+   * Returns retirement outcomes; unexpected recipient rejections propagate after
+   * all recipients have been dispatched.
    */
-  broadcast(projectIds: readonly string[]): void {
+  broadcast(projectIds: readonly string[]): Promise<DeliveryOutcome[]> {
+    const deliveries: Promise<DeliveryOutcome>[] = [];
     // Proof: restoring the global loop sends 1000 unrelated frames in the large
     // newcomer case; real-socket unrelated counts become [1,1,1,1] instead of zeros.
     for (const projectId of new Set(projectIds)) {
       const payload = wsPresence(this.list(projectId));
       for (const connectionId of this.byProject.get(projectId) ?? []) {
-        this.send(this.connectionIn(projectId, connectionId).socket, payload);
+        deliveries.push(this.connectionIn(projectId, connectionId).socket.send(payload));
       }
     }
+    // Proof: removing this return detaches the rejected recipient in delivery.integration.test.ts.
+    return Promise.all(deliveries);
   }
 
   /** A missing member is index drift, never an absent optional connection. */
@@ -195,14 +201,5 @@ export class Presence {
       throw new Error(`presence: ${connectionId} is in ${projectId} but is not connected`);
     }
     return connected;
-  }
-
-  /** A closed socket cannot stop remaining members from receiving their roster. */
-  private send(socket: PresenceSocket, payload: string): void {
-    try {
-      socket.send(payload);
-    } catch {
-      // Dropped connection; leave arrives through the close handler.
-    }
   }
 }

@@ -523,7 +523,13 @@ describe('the chart under a plan being edited', () => {
     return refusingApi({
       listProjects: () => Promise.resolve([projectListEntry({ name: 'P' })]),
       createProject: (name: string) =>
-        Promise.resolve({ id: 'p1', name, restricted: false, lastOpenedAt: null }),
+        Promise.resolve({
+          id: 'p1',
+          name,
+          restricted: false,
+          abbreviation: 'PLAN',
+          lastOpenedAt: null,
+        }),
       openProject: () => Promise.resolve(),
       setEstimateMethod: () => Promise.resolve(),
       setStartDate: () => Promise.resolve(),
@@ -542,6 +548,7 @@ describe('the chart under a plan being edited', () => {
       addPerson: () => Promise.reject(new Error('not_in_these_tests')),
       assignPerson: () => Promise.resolve(),
       renameProject: () => Promise.resolve(),
+      setAbbreviation: (_id, abbreviation) => Promise.resolve(abbreviation.toUpperCase()),
       duplicateWorkItem: () => Promise.reject(new Error('not_in_these_tests')),
       steps: () => Promise.resolve([DEV]),
       addStep: () => Promise.reject(new Error('not_in_these_tests')),

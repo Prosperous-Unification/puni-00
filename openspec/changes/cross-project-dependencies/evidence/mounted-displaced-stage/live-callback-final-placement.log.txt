@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/services-connected.db.test.ts:
+758 |   for (const asked of f.launched) {
+759 |     if (asked.kind !== 'connected') throw Error('connected B request missing');
+760 |     const question = captureConnectedQuestion(f.bStage, asked.objective, installed);
+761 |     const { stageBytes, ...identity } = question;
+762 |     const expected = buildConnectedSolverRequest(f.bStage, identity, installed, asked.objective);
+763 |     expect(canonicalConnectedStageInput(asked.stage)).toBe(stageBytes);
+                                                            ^
+error: expect(received).toBe(expected)
+
+Expected: "{"kind":"connected-stage","projectId":"a1","mode":"isolated","originOrdinal":14810,"projects":[{"pr... (2141 bytes truncated) ...rceCapacities":[],"elsewhere":[],"starts":[["a1\u0000a1-s",1],["a2\u0000a2-s",0],["c-long\u0000c-s",6],["c-short\u0000c-s",8]],"finishes":[["a1\u0000a1-s",6],["a2\u0000a2-s",1],["c-long\u0000c-s",8],["c-short\u0000c-s",9]]}"
+Received: "{"kind":"connected-stage","projectId":"a1","mode":"isolated","originOrdinal":14810,"projects":[{"pr... (2141 bytes truncated) ...rceCapacities":[],"elsewhere":[],"starts":[["a1\u0000a1-s",1],["a2\u0000a2-s",0],["c-long\u0000c-s",7],["c-short\u0000c-s",6]],"finishes":[["a1\u0000a1-s",6],["a2\u0000a2-s",1],["c-long\u0000c-s",9],["c-short\u0000c-s",7]]}"
+
+      at <anonymous> (/tmp/puni-displaced-proof/apps/wbs/be-01/src/services-connected.db.test.ts:763:55)
+(fail) displaced mounted live admission retains B pre-selection question after C Pri selection [1951.66ms]
+(pass) displaced mounted Retry accepts retained B hash and refuses final composite hash [1434.74ms]
+
+ 1 pass
+ 18 filtered out
+ 1 fail
+ 42 expect() calls
+Ran 2 tests across 1 file. [6.78s]
+
+Watched exit: 1

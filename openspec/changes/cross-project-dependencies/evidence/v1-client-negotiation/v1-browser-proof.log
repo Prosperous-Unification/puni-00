@@ -1,0 +1,46 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-v1-clients/apps/wbs/fe-01
+
+ ❯ src/lib/project-stream.test.ts (37 tests | 1 failed) 16ms
+   × browser adapter offers V1 before explicit legacy on every fresh socket 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/project-stream.test.ts > browser adapter offers V1 before explicit legacy on every fresh socket
+AssertionError: expected [ undefined, undefined ] to deeply equal [ [ …(2) ], [ …(2) ] ]
+
+- Expected
++ Received
+
+  [
+-   [
+-     "wbs.cross-project-dependencies.v1",
+-     "wbs.legacy",
+-   ],
+-   [
+-     "wbs.cross-project-dependencies.v1",
+-     "wbs.legacy",
+-   ],
++   undefined,
++   undefined,
+  ]
+
+ ❯ src/lib/project-stream.test.ts:855:20
+    853|     const second = subscribeToProject({ projectId: PROJECT, sinceSeq: …
+    854|     second.unsubscribe();
+    855|     expect(offers).toEqual([
+       |                    ^
+    856|       ['wbs.cross-project-dependencies.v1', 'wbs.legacy'],
+    857|       ['wbs.cross-project-dependencies.v1', 'wbs.legacy'],
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 36 passed (37)
+   Start at  19:10:25
+   Duration  7.15s (import 64%, transform 19%, environment 15%, setup 2%)
+

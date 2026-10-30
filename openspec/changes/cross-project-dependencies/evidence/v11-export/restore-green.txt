@@ -1,0 +1,56 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-export.controller.db.test.ts:
+(pass) mounted JSON exports v11 required evidence and stable incoming UUIDs without durable admission [541.27ms]
+(pass) mounted JSON preserves explicit unavailable outcomes and null dates [382.44ms]
+{"level":"error","time":1792684293703,"service":"be-01","err":{"occurrence_id":"AE_FPYY4KTS07T7TQTZXD92RVJM18","fingerprint":"fp1_60fd449a0b6921f23a060c85421b16b2","stack":["Error: Endpoint getApiProjectsByIdExport returned an undeclared success representation","    at renderReply (/tmp/puni-v11-export-impl/apps/wbs/be-01/src/http/elysia/mount.ts:491:13)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792684293720,"service":"be-01","err":{"occurrence_id":"AE_12GH5PCT5PFAY1PH8CMC6MFDGS","fingerprint":"fp1_60fd449a0b6921f23a060c85421b16b2","stack":["Error: Endpoint getApiProjectsByIdExport returned an undeclared success representation","    at renderReply (/tmp/puni-v11-export-impl/apps/wbs/be-01/src/http/elysia/mount.ts:491:13)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) mounted response rejects absent and malformed required v11 history independently [360.85ms]
+(pass) mounted export serializes captured labels settings and markers after observation closure [349.85ms]
+
+libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:
+(pass) actual isolated live route captures remote readiness without a calendar [184.05ms]
+(pass) connected export captures required detached document evidence without a calendar [155.64ms]
+(pass) remote hold changes the connected proxy reading in the next observation [180.21ms]
+(pass) shared aggregate reuses one detached connected read with explicit member identity [169.86ms]
+(pass) a shared person peer selects the same external component from either target [201.67ms]
+(pass) alternating person and external bridges select one component from every rank [223.71ms]
+(pass) remote SS attempt evidence crosses actual SQLite live capture [142.67ms]
+(pass) unconnected isolated routing query count is independent of local edges [250.02ms]
+(pass) execution observation captures FS prerequisites without invoking any scheduler [167.33ms]
+(pass) execution observation rechecks membership and activation before materializing foreign evidence [158.71ms]
+(pass) execution observation refuses foreign and absent targets alike [109.63ms]
+(pass) borrowed service claim sees staged remote completion and collects its normal announcement [259.44ms]
+(pass) foreign holder labels remain captured after closure and subsequent live renames [169.40ms]
+(pass) shared aggregate schedules disconnected external components once each [207.50ms]
+(pass) shared aggregate captures calendars links and metadata in one observation [221.95ms]
+(pass) borrowed shared aggregate sees staged relationships and expires without owning the transaction [232.22ms]
+(pass) shared aggregate unavailable calendar allocates no durable solver or execution work [193.03ms]
+(pass) shared aggregate unavailable optimized allocates no durable solver or execution work [166.63ms]
+(pass) isolated private connected capture returns detached stage without admission [280.24ms]
+(pass) shared private connected capture returns detached stage without admission [304.64ms]
+(pass) owned isolated real selection excludes a rival publication until next observation [173.32ms]
+(pass) borrowed isolated real selection excludes a rival publication until next observation [205.93ms]
+(pass) owned shared real selection excludes a rival publication until next observation [193.29ms]
+(pass) borrowed shared real selection excludes a rival publication until next observation [190.23ms]
+(pass) connected export holds labels settings marker and sparse facts in one SQLite observation [147.00ms]
+
+libs/wbs/domain/contracts/src/http/plan-document-connected-shapes.test.ts:
+(pass) connected response requires each provenance and placement field independently [2.62ms]
+(pass) connected response refuses missing positions and nonfinite offsets [0.90ms]
+
+libs/wbs/application/core/src/module/plan-document/connected-document.test.ts:
+(pass) authored connected links belong only to the exported successor and keep stable remote identity [22.32ms]
+(pass) scheduled evidence keeps exact component placement and retained stage boundaries [1.54ms]
+(pass) remote uncoded steps retain own UUID and row address with step label [3.00ms]
+(pass) unavailable evidence preserves exact calendar and engine refusals [0.76ms]
+(pass) export rejects a stored relationship whose owner differs from its successor [0.86ms]
+(pass) positions require complete matching baseline and selected ownership [1.19ms]
+(pass) optimized evidence preserves selected movement, earlier boundary and a baseline decision [3.34ms]
+(pass) terminal boundary certificate stays distinct from authored plan infeasibility [1.48ms]
+(pass) producer refuses missing and nonfinite captured provenance [3.01ms]
+
+ 40 pass
+ 0 fail
+ 242 expect() calls
+Ran 40 tests across 4 files. [9.79s]

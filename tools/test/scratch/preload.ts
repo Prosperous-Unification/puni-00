@@ -1,3 +1,5 @@
+import { writeSync } from 'node:fs';
+
 import { afterAll } from 'bun:test';
 
 import { removeProcessRoot } from '.';
@@ -10,11 +12,27 @@ import { removeProcessRoot } from '.';
 // Proof: tool-git-hooks:typecheck caught a deliberate string assigned to number
 // here (TS2322); removing ../test/scratch/**/*.ts from its spec include hid the
 // same error. The temporary assignment was removed after both runs.
-// Cleanup alone may outlast an ordinary target's 10-second test budget. A
-// synchronous overrun is reported after return; this cannot interrupt a blocked syscall.
 // Proof: omitting this allowance failed cleanup-budget.test.ts with an unnamed
 // hook timeout under injected rmSync latency; ordinary hangs still timed out at 20ms.
-afterAll(removeProcessRoot, 30_000);
+afterAll(removeScratchAfterAll, 30_000);
+
+/**
+ * Trace the global cleanup synchronously so an event-loop stall still has an entry marker.
+ * Emits only its hook source and elapsed milliseconds; `return` means the existing
+ * cleanup returned, not that its best-effort removal succeeded. Its explicit 30-second
+ * allowance covers the observed 10.4-second hosted cleanup without changing ordinary
+ * command-line test budgets or the existing cleanup error policy. A synchronous
+ * overrun is reported after return; this allowance cannot interrupt a blocked syscall.
+ */
+function removeScratchAfterAll(): void {
+  const started = performance.now();
+  writeSync(2, 'scratch cleanup source=afterAll event=start\n');
+  removeProcessRoot();
+  writeSync(
+    2,
+    `scratch cleanup source=afterAll event=return elapsedMs=${String(Math.round(performance.now() - started))}\n`,
+  );
+}
 
 // No `setDefaultTimeout` here. Bun 1.4.2 applies a preload's default to the first test file only
 // and overrides the target's `--timeout=<ms>` there, so the 30-second default this file used to set

@@ -22,11 +22,16 @@
           "{workspaceRoot}/libs/wbs/domain/domain/src/schedule.ts",
           "{workspaceRoot}/openspec/changes/dual-optimized-scheduler/design.md",
           "{workspaceRoot}/tools/tool-remote-scripts/src/fixtures/solver-supervisor-orphan-host.ts",
+          "{workspaceRoot}/apps/wbs/gw-01/src/**/*",
+          "{workspaceRoot}/apps/wbs/fe-01/src/**/*",
+          "{workspaceRoot}/apps/wbs/fe-01/tsconfig.app.json",
+          "{workspaceRoot}/apps/wbs/fe-01/tsconfig.json",
           "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/runs/**/*",
           "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/bridge/**/*",
           "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/agents/**/*",
           "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/clock.ts",
-          "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/cli/src/contracts/**/*"
+          "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/cli/src/contracts/**/*",
+          "mcpAgentRuntime"
         ],
         "options": {
           "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",
@@ -34,7 +39,8 @@
         },
         "outputs": ["{projectRoot}/coverage"],
         "configurations": {},
-        "parallelism": true
+        "parallelism": true,
+        "dependsOn": ["prepare-mcp-document"]
       }
     },
     {

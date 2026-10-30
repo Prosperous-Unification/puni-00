@@ -18,6 +18,7 @@ import {
   SqliteOrganizationAccess,
   userBoundOrganizationOf,
 } from '@wbs/store-sqlite';
+import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { expect, test } from 'bun:test';
 
 import { buildApp } from './app';
@@ -48,6 +49,7 @@ function createBarrier() {
 
 type IntegrationVariant =
   | 'normal'
+  | 'dependency-enabled'
   | 'dual-failure'
   | 'held-readiness'
   | 'held-disposal'
@@ -118,8 +120,10 @@ async function runIntegration(
     harness.sqlite.run(
       "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('person', 'org-a', 'Person')",
     );
+    // Proof: position 100 produced a real FS workflow prerequisite refusal;
+    // placing Plan before default Dev/QA restored the same conditional integration.
     harness.sqlite.run(
-      "INSERT INTO step (id, project_id, name, position, code) VALUES ('step', ?, 'Plan', 100, 'plan')",
+      "INSERT INTO step (id, project_id, name, position, code) VALUES ('step', ?, 'Plan', 0, 'plan')",
       [project.id],
     );
     harness.sqlite.run(
@@ -130,6 +134,7 @@ async function runIntegration(
     const actorId = harness.userId('ada');
     const dbPath = await awaitPhase(harness.stopForRecovery(), 'seed shutdown');
     stopped = true;
+    if (variant === 'dependency-enabled') seedDependencyAuthority(dbPath);
     const trace = (stage: HeldTrace['stage']) => {
       if (tracePath === undefined) throw new Error('held integration trace path missing');
       writeFileSync(
@@ -225,6 +230,43 @@ async function runIntegration(
       };
       throw new Error('injected receiver original failure');
     }
+    if (variant === 'dependency-enabled') {
+      assert(source !== undefined);
+      const receiver = source;
+      const readTables = () =>
+        receiver.db
+          .all<{ name: string }>("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+          .map(({ name }) => ({
+            name,
+            rows: receiver.db.all('SELECT * FROM "' + name.replaceAll('"', '""') + '"'),
+          }));
+      const retained = readTables();
+      for (const claim of [undefined, 'cross-project-dependencies-v2']) {
+        const headers = new Headers({
+          authorization: 'Bearer ' + credential,
+          origin: 'http://localhost',
+          'X-WBS-Expected-Organization': 'org-a',
+        });
+        if (claim !== undefined) headers.set('X-WBS-Dependency-Semantics', claim);
+        const refused = await awaitPhase(
+          fetch(
+            'http://127.0.0.1:' +
+              String(running.port) +
+              '/api/projects/' +
+              encodeURIComponent(project.id) +
+              '/runtime-state?personId=person',
+            { headers },
+          ),
+          'dependency refusal',
+        );
+        expect(refused.status).toBe(409);
+        expect(await refused.json()).toEqual({
+          error: 'client_dependency_incompatible',
+          required: 'cross-project-dependencies-v1',
+        });
+        expect(readTables()).toEqual(retained);
+      }
+    }
     const configPath = join(directory, 'worker.json');
     writeFileSync(
       configPath,
@@ -294,8 +336,11 @@ async function runIntegration(
     expect(conditionalPosts).toBe(1);
     expect(source.db.all('SELECT * FROM runtime_claim_binding')).toHaveLength(0);
     release.resolve(undefined);
-    await receivePhase('lost');
-    expect(source.db.all('SELECT * FROM runtime_command_receipt')).toHaveLength(2);
+    const lost = await receivePhase('lost');
+    expect(
+      source.db.all('SELECT * FROM runtime_command_receipt'),
+      JSON.stringify(lost),
+    ).toHaveLength(2);
     expect(source.db.all('SELECT * FROM runtime_claim_binding')).toHaveLength(1);
     child.send('reconcile');
     const claimed = await receivePhase('claimed');
@@ -491,6 +536,7 @@ async function runHeldReceiver(role: HeldRole, tracePath: string): Promise<void>
 
 type ContainedRole =
   | 'integration'
+  | 'integration-enabled'
   | 'integration-ready-delayed'
   | 'integration-invalid-hold'
   | 'integration-readiness'
@@ -516,6 +562,7 @@ function readContainedConfig(path: string): ContainedConfig {
       typeof configured === 'object' &&
       'role' in configured &&
       (configured.role === 'integration' ||
+        configured.role === 'integration-enabled' ||
         configured.role === 'integration-ready-delayed' ||
         configured.role === 'integration-invalid-hold' ||
         configured.role === 'integration-readiness' ||
@@ -657,7 +704,10 @@ async function runContainedReceiver(
     role === 'integration-readiness' ||
     role === 'integration-disposal' ||
     role === 'integration-disposal-delayed';
-  const completeIntegration = role === 'integration' || role === 'integration-ready-delayed';
+  const completeIntegration =
+    role === 'integration' ||
+    role === 'integration-enabled' ||
+    role === 'integration-ready-delayed';
   const simpleHeldReceiver =
     role === 'readiness' ||
     role === 'disposal' ||
@@ -856,6 +906,12 @@ if (childConfigPath === undefined) {
     assert.match(observed.output, /1 pass/, 'contained integration did not run');
     assert.equal(observed.rootRemoved, true);
   }, 50000);
+  test('real Dash worker opts into V1 against enabled authority while missing and wrong claims leave storage unchanged', async () => {
+    const observed = await runContainedReceiver('integration-enabled');
+    assert.equal(observed.exitCode, 0, observed.output);
+    assert.match(observed.output, /1 pass/, 'contained enabled integration did not run');
+    assert.equal(observed.rootRemoved, true);
+  }, 50000);
   test('real Dash worker ready after delayed preparation still completes one observed turn', async () => {
     const observed = await runContainedReceiver('integration-ready-delayed');
     assert.equal(observed.exitCode, 0, observed.output);
@@ -1034,6 +1090,8 @@ if (childConfigPath === undefined) {
   const role = configured.role;
   if (role === 'integration') {
     test('contained integration', () => runIntegration(), 45000);
+  } else if (role === 'integration-enabled') {
+    test('contained integration-enabled', () => runIntegration('dependency-enabled'), 45000);
   } else if (role === 'integration-ready-delayed') {
     test('contained integration-ready-delayed', () => runIntegration('delayed-ready'), 45000);
   } else if (role === 'integration-invalid-hold') {

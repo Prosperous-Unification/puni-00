@@ -1,0 +1,336 @@
+[
+  {
+    "id": "admission-order",
+    "consumer": "source restoration refuses absent and copied phases before genuine continuation",
+    "before": "  try {\n    await assertParticipantRestorationContext(context);\n    const phase = sourceContinuations.get(context);",
+    "after": "  try {\n    const phase = sourceContinuations.get(context);",
+    "scope": "Entry-order/availability: repaired original phase continuation fails after premature terminal reservation",
+    "index": 0,
+    "site": 266,
+    "required": [
+      "SOURCE_RESTORATION_REACHED:",
+      "SOURCE_RESTORATION_ADMISSION_REPAIRED:"
+    ],
+    "observed": "SOURCE_RESTORATION_READY:",
+    "witnesses": [
+      "error: source participant restoration refused"
+    ]
+  },
+  {
+    "id": "gateway-phase",
+    "consumer": "source restoration retains original gateway authority through ready",
+    "before": "if (phase?.state !== 'gateway-ready')",
+    "after": "if (phase?.state !== 'source-attempted')",
+    "scope": "Actual retained gateway phase dependency, no missing-phase guard independence claim",
+    "index": 1,
+    "site": 266,
+    "required": [
+      "SOURCE_RESTORATION_REACHED:"
+    ],
+    "observed": "SOURCE_RESTORATION_READY:",
+    "witnesses": [
+      "error: source participant restoration refused"
+    ]
+  },
+  {
+    "id": "terminal-reservation",
+    "consumer": "source restoration refuses missing gateway record and terminal repair",
+    "before": "    sourceContinuations.set(context, { state: 'source-attempted' });",
+    "after": "    // Injected: terminal source reservation omitted.",
+    "scope": "Exact record repair must not permit second attempt",
+    "index": 2,
+    "site": 194,
+    "required": [
+      "SOURCE_RESTORATION_REACHED:"
+    ],
+    "observed": "SOURCE_RESTORATION_REFUSED:",
+    "witnesses": [
+      "await expect(restoration.restoreSourceAfterGateway(context)).rejects.toThrow("
+    ]
+  },
+  {
+    "id": "selected-source",
+    "consumer": "source restoration refuses wrong selected source before intent and start",
+    "before": "          assertSame(\n            context.participants.selected.source.id,\n            originalSource.id,\n            'source original selected participant',\n          );",
+    "after": "          // Injected: selected original source equality omitted.",
+    "scope": "Before-intent/start ordering; later refusal is not sufficient",
+    "index": 3,
+    "site": 138,
+    "required": [
+      "SOURCE_RESTORATION_REACHED:"
+    ],
+    "observed": "SOURCE_RESTORATION_SELECTED_REFUSED:",
+    "witnesses": [
+      "expect(audit.events).toEqual("
+    ]
+  },
+  {
+    "id": "source-intent",
+    "consumer": "source restoration retains original gateway authority through ready",
+    "before": "              role: 'source',\n              id: originalSource.id,",
+    "after": "              role: 'source',\n              id: context.originals.backend.id,",
+    "scope": "Durable owner-bound exact-source start intent dependency",
+    "index": 4,
+    "site": 266,
+    "required": [
+      "SOURCE_RESTORATION_REACHED:"
+    ],
+    "observed": "SOURCE_RESTORATION_READY:",
+    "witnesses": [
+      "error: source participant restoration refused"
+    ]
+  },
+  {
+    "id": "source-monitor",
+    "consumer": "source restoration retains original gateway authority through ready",
+    "before": "      if (sourceStarted === null) await context.source.inspectCold();\n      else await context.source.inspectRunning();",
+    "after": "      await context.source.inspectCold();",
+    "scope": "Cold-to-running actual source tree monitor dependency",
+    "index": 5,
+    "site": 266,
+    "required": [
+      "SOURCE_RESTORATION_REACHED:"
+    ],
+    "observed": "SOURCE_RESTORATION_READY:",
+    "witnesses": [
+      "error: source participant restoration refused"
+    ]
+  },
+  {
+    "id": "first-binding",
+    "consumer": "source restoration retains original gateway authority through ready",
+    "before": "          sourceBinding = await observeSelectedSourceRoles(context);\n          assertParticipantTransition(sourceStarted, sourceBinding.runtime.native, 'stable');",
+    "after": "          await observeSelectedSourceRoles(context);",
+    "scope": "Real observer executes; independently delivered dev BE opener reaches production unbound classifier; no fixture gate",
+    "index": 6,
+    "site": 266,
+    "required": [
+      "SOURCE_RESTORATION_REACHED:"
+    ],
+    "observed": "SOURCE_RESTORATION_READY:",
+    "witnesses": [
+      "error: source participant restoration refused"
+    ]
+  },
+  {
+    "id": "opener-tuple",
+    "consumer": "source restoration refuses dev gateway database opener",
+    "before": "          if (\n            expected === undefined ||\n            opener.pid !== expected.pid ||\n            opener.startTime !== expected.startTime ||\n            opener.uid !== expected.uid ||\n            opener.cgroup !== expected.cgroup\n          )\n            throw new Error('backend authority has an unbound database opener');",
+    "after": "          if (expected === undefined) throw new Error('backend authority has an unbound database opener');",
+    "scope": "Grouped PID/start/UID/cgroup; known defined BE expected and same executable gateway fault",
+    "index": 7,
+    "site": 228,
+    "required": [
+      "SOURCE_RESTORATION_REACHED:",
+      "SOURCE_RESTORATION_AUTHORITY_WIRE: dev-gateway"
+    ],
+    "observed": "SOURCE_RESTORATION_REFUSED:",
+    "witnesses": [
+      "await expect(restoration.restoreSourceAfterGateway(context)).rejects.toThrow("
+    ]
+  },
+  {
+    "id": "opener-executable",
+    "consumer": "source restoration refuses null dev backend executable",
+    "before": "          assertSame(expected.executable, opener.executable, 'backend database opener executable');",
+    "after": "          // Injected: source-phase executable equality omitted.",
+    "scope": "Actual dev BE tuple with null executable",
+    "index": 8,
+    "site": 228,
+    "required": [
+      "SOURCE_RESTORATION_REACHED:",
+      "SOURCE_RESTORATION_AUTHORITY_WIRE: dev-executable"
+    ],
+    "observed": "SOURCE_RESTORATION_REFUSED:",
+    "witnesses": [
+      "await expect(restoration.restoreSourceAfterGateway(context)).rejects.toThrow("
+    ]
+  },
+  {
+    "id": "opener-environment",
+    "consumer": "source restoration refuses source backend as prod opener",
+    "before": "            opener.environment === 'prod' ? backend : sourceBinding?.roles.backend.process;",
+    "after": "            opener.environment === 'prod' && opener.pid === backend.pid ? backend : sourceBinding?.roles.backend.process;",
+    "scope": "Original prod BE remains accepted; source BE falsely attributed to prod",
+    "index": 9,
+    "site": 228,
+    "required": [
+      "SOURCE_RESTORATION_REACHED:",
+      "SOURCE_RESTORATION_AUTHORITY_WIRE: prod-source"
+    ],
+    "observed": "SOURCE_RESTORATION_REFUSED:",
+    "witnesses": [
+      "await expect(restoration.restoreSourceAfterGateway(context)).rejects.toThrow("
+    ]
+  },
+  {
+    "id": "retained-backend",
+    "consumer": "source restoration refuses backend drift during source HTTP",
+    "before": "        async function inspectSourceRetained(): Promise<void> {\n          await inspectGatewayRetained();\n          assertSame(\n            retainedGateway.observation,\n            await observeSelectedProductRole(context, 'gateway'),\n            'source retained gateway inner process',\n          );\n          await inspectRetained();\n        }",
+    "after": "        async function inspectSourceRetained(): Promise<void> {\n          // Injected: grouped source retained product/solver monitoring omitted.\n        }",
+    "scope": "One grouped closure with distinct backend HTTP drift witness; no per-predicate claim",
+    "index": 10,
+    "site": 228,
+    "required": [
+      "SOURCE_RESTORATION_REACHED:",
+      "SOURCE_RESTORATION_HTTP_FAULT: backend-drift"
+    ],
+    "observed": "SOURCE_RESTORATION_REFUSED:",
+    "witnesses": [
+      "await expect(restoration.restoreSourceAfterGateway(context)).rejects.toThrow("
+    ]
+  },
+  {
+    "id": "retained-gateway",
+    "consumer": "source restoration refuses gateway drift during source HTTP",
+    "before": "        async function inspectSourceRetained(): Promise<void> {\n          await inspectGatewayRetained();\n          assertSame(\n            retainedGateway.observation,\n            await observeSelectedProductRole(context, 'gateway'),\n            'source retained gateway inner process',\n          );\n          await inspectRetained();\n        }",
+    "after": "        async function inspectSourceRetained(): Promise<void> {\n          // Injected: grouped source retained product/solver monitoring omitted.\n        }",
+    "scope": "One grouped closure with distinct gateway HTTP drift witness; no per-predicate claim",
+    "index": 11,
+    "site": 228,
+    "required": [
+      "SOURCE_RESTORATION_REACHED:",
+      "SOURCE_RESTORATION_HTTP_FAULT: gateway-drift"
+    ],
+    "observed": "SOURCE_RESTORATION_REFUSED:",
+    "witnesses": [
+      "await expect(restoration.restoreSourceAfterGateway(context)).rejects.toThrow("
+    ]
+  },
+  {
+    "id": "retained-solver",
+    "consumer": "source restoration refuses solver drift during source HTTP",
+    "before": "        async function inspectSourceRetained(): Promise<void> {\n          await inspectGatewayRetained();\n          assertSame(\n            retainedGateway.observation,\n            await observeSelectedProductRole(context, 'gateway'),\n            'source retained gateway inner process',\n          );\n          await inspectRetained();\n        }",
+    "after": "        async function inspectSourceRetained(): Promise<void> {\n          // Injected: grouped source retained product/solver monitoring omitted.\n        }",
+    "scope": "One grouped closure with distinct solver HTTP drift witness; no per-predicate claim",
+    "index": 12,
+    "site": 228,
+    "required": [
+      "SOURCE_RESTORATION_REACHED:",
+      "SOURCE_RESTORATION_HTTP_FAULT: solver-drift"
+    ],
+    "observed": "SOURCE_RESTORATION_REFUSED:",
+    "witnesses": [
+      "await expect(restoration.restoreSourceAfterGateway(context)).rejects.toThrow("
+    ]
+  },
+  {
+    "id": "composer",
+    "consumer": "source restoration retains original gateway authority through ready",
+    "before": "          const sourceReadiness = await observeSourceReadiness(context);",
+    "after": "          const sourceReadiness = await observeSourceReadiness({ ...context });",
+    "scope": "Actual original-context composer dependency; no old six-decoder replay",
+    "index": 13,
+    "site": 266,
+    "required": [
+      "SOURCE_RESTORATION_REACHED:"
+    ],
+    "observed": "SOURCE_RESTORATION_READY:",
+    "witnesses": [
+      "error: source participant restoration refused"
+    ]
+  },
+  {
+    "id": "ready-reference",
+    "consumer": "source restoration retains original gateway authority through ready",
+    "before": "              restoration: createReference(restoration),\n              role: 'source',\n              id: sourceStarted.id,",
+    "after": "              restoration: createReference(gatewayReady),\n              role: 'source',\n              id: sourceStarted.id,",
+    "scope": "Actual source-ready original restoration reference equality",
+    "index": 14,
+    "site": 317,
+    "required": [
+      "SOURCE_RESTORATION_REACHED:"
+    ],
+    "observed": "SOURCE_RESTORATION_READY:",
+    "witnesses": [
+      "expect(record).toEqual({"
+    ]
+  },
+  {
+    "id": "ready-digest",
+    "consumer": "source restoration retains original gateway authority through ready",
+    "before": "              readinessSha256: sourceReadiness.sha256,",
+    "after": "              readinessSha256: gatewayReadiness.sha256,",
+    "scope": "Actual six-response source digest binding",
+    "index": 15,
+    "site": 317,
+    "required": [
+      "SOURCE_RESTORATION_REACHED:"
+    ],
+    "observed": "SOURCE_RESTORATION_READY:",
+    "witnesses": [
+      "expect(record).toEqual({"
+    ]
+  },
+  {
+    "id": "ready-retention",
+    "consumer": "source restoration refuses missing actual source ready publication",
+    "before": "          retained.push(structuredClone(sourceReady));",
+    "after": "          // Injected: source-ready snapshot retention omitted.",
+    "scope": "Actual source ready file removed after genuine publication",
+    "index": 16,
+    "site": 228,
+    "required": [
+      "SOURCE_RESTORATION_REACHED:"
+    ],
+    "observed": "SOURCE_RESTORATION_REFUSED:",
+    "witnesses": [
+      "await expect(restoration.restoreSourceAfterGateway(context)).rejects.toThrow("
+    ]
+  },
+  {
+    "id": "closing-retained",
+    "consumer": "source restoration refuses late fence drift after final source observation",
+    "before": "          await inspectSourceBinding();\n          await inspectSourceRetained();\n          return {",
+    "after": "          await inspectSourceBinding();\n          return {",
+    "scope": "Physical fence mutation after actual final whole observer returns",
+    "index": 17,
+    "site": 228,
+    "required": [
+      "SOURCE_RESTORATION_REACHED:"
+    ],
+    "observed": "SOURCE_RESTORATION_REFUSED:",
+    "witnesses": [
+      "await expect(restoration.restoreSourceAfterGateway(context)).rejects.toThrow("
+    ]
+  },
+  {
+    "id": "final-source-observer",
+    "consumer": "source restoration refuses listener replacement after actual ready publication",
+    "before": "          await inspectSourceRetained();\n          await inspectSourceBinding();\n          await inspectSourceRetained();\n          return {",
+    "after": "          await inspectSourceRetained();\n          await inspectSourceRetained();\n          return {",
+    "scope": "Final post-publication whole-source dispatch necessity only; both earlier source bindings and inherited observer predicates unchanged",
+    "index": 18,
+    "site": 228,
+    "required": [
+      "SOURCE_RESTORATION_REACHED:",
+      "SOURCE_RESTORATION_LISTENER_PUBLISHED:"
+    ],
+    "observed": "SOURCE_RESTORATION_REFUSED:",
+    "witnesses": [
+      "await expect(restoration.restoreSourceAfterGateway(context)).rejects.toThrow("
+    ],
+    "restoredRequired": [
+      "SOURCE_RESTORATION_LISTENER_DELIVERY:"
+    ],
+    "faultAbsent": [
+      "SOURCE_RESTORATION_LISTENER_DELIVERY:"
+    ]
+  },
+  {
+    "id": "original-source-selection",
+    "consumer": "source restoration retains original gateway authority through ready",
+    "before": "          const originalSource = readSelectedSnapshot(context.parkedInventory, 'source');",
+    "after": "          const originalSource = readSelectedSnapshot(context.parkedInventory, 'backend');",
+    "scope": "Original-source role-selection/comparison dependency group; redundant parked-ID equality is not independently necessary",
+    "index": 19,
+    "site": 266,
+    "required": [
+      "SOURCE_RESTORATION_REACHED:"
+    ],
+    "observed": "SOURCE_RESTORATION_READY:",
+    "witnesses": [
+      "error: source participant restoration refused"
+    ]
+  }
+]

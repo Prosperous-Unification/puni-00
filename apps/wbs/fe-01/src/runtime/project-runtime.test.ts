@@ -8,13 +8,18 @@ import type {
 } from '@/modules/project/contract';
 import { fakeProjectApi } from '@/testing/fake-project-api';
 import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
+import { createRefusingAddressApi } from '@/testing/refusing-address-api';
 
 import { createProjectOwner, installProjectRuntime } from './project-runtime';
 
 /** A source over a fresh fake client, and what its feed and its stream went through. */
 function recordedSource(options: { unsubscribe?: () => void } = {}) {
   const seen = { installs: 0, feedCloses: 0, opened: 0, closed: 0 };
-  const composed = projectServicesOver(fakeProjectApi(), NO_SAVED_PLANS);
+  const composed = projectServicesOver(
+    fakeProjectApi(),
+    NO_SAVED_PLANS,
+    createRefusingAddressApi(),
+  );
   const services: ProjectServices = {
     ...composed,
     planFeedFor: (reader) => {
@@ -59,6 +64,7 @@ describe('the project runtime', () => {
       'busy',
       'commands',
       'commandsIssued',
+      'dependencyLookup',
       'isCurrent',
       'markers',
       'plan',
@@ -252,4 +258,30 @@ describe('the project runtime', () => {
     expect(owner.snapshot()).toBe(stuck);
     expect(next.seen.installs).toBe(0);
   });
+});
+
+it('owns and closes its dependency lookup once with the project runtime', async () => {
+  const { source } = recordedSource();
+  const closes = vi.fn();
+  const runtime = installProjectRuntime({
+    projectId: 'p1',
+    isCurrent: () => true,
+    ...source,
+    services: {
+      ...source.services,
+      dependencyLookupFor: (reader) => {
+        const opened = source.services.dependencyLookupFor(reader);
+        return {
+          ...opened,
+          close: () => {
+            closes();
+            opened.close();
+          },
+        };
+      },
+    },
+  });
+  expect(closes).not.toHaveBeenCalled();
+  await runtime.close({ timeoutMs: 1_000 });
+  expect(closes).toHaveBeenCalledTimes(1);
 });

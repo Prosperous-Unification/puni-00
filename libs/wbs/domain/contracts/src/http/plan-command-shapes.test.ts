@@ -254,7 +254,31 @@ test('retains the nullable deadline wire field without taking over date semantic
   }
 });
 
-// Proof: restoring the standalone declaration made this real import compile twice instead of once.
+test('retains explicitly scoped typed endpoints on the wire', async () => {
+  const command = {
+    kind: 'addTypedDependency',
+    predecessor: { projectId: 'predecessor-project', scope: 'whole', workItemId: 'a' },
+    successor: { projectId: 'owner', scope: 'node', stepNodeId: 'sn1.b.s' },
+    type: 'FS',
+  } as const;
+  expect(await validateSchema(planCommandsBody, { commands: [command] })).toEqual({
+    value: { commands: [command] },
+  });
+  expect(
+    (
+      await validateSchema(planCommandsBody, {
+        commands: [
+          {
+            ...command,
+            predecessor: { ...command.predecessor, projectId: 7 },
+          },
+        ],
+      })
+    ).issues,
+  ).toBeDefined();
+});
+
+// Proof: the original standalone declaration made this real import compile twice instead of once.
 test('compiles only the production command batch when the module is loaded', async () => {
   const module = new URL('./plan-command-shapes.ts', import.meta.url).pathname;
   const script = `

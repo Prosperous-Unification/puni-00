@@ -1,0 +1,31 @@
+bun test tools/tool-remote-scripts/src/lib/solver-runtime-admission.test.ts tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts --preload ./tools/test/scratch/preload.ts --timeout=10000 -t runtime owner checks retained publication before
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/solver-runtime-admission.proc.test.ts:
+
+tools/tool-remote-scripts/src/lib/solver-runtime-admission.test.ts:
+118 |             entered = true;
+119 |             await writeFile(`${directory}/edge-owner.pending`, 'changed');
+120 |           }),
+121 |           'publication changed',
+122 |         );
+123 |         expect(entered).toBe(boundary === 'after');
+                              ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/puni-solver-runtime-admission/tools/tool-remote-scripts/src/lib/solver-runtime-admission.test.ts:123:25)
+      at async acquire (/tmp/puni-solver-runtime-admission/tools/tool-remote-scripts/src/lib/edge-ownership.ts:102:20)
+      at async <anonymous> (/tmp/puni-solver-runtime-admission/tools/tool-remote-scripts/src/lib/edge-ownership.ts:88:24)
+      at async acquireLock (/tmp/puni-solver-runtime-admission/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) runtime owner checks retained publication before protected callback [5.38ms]
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 2 files. [48.00ms]
+
+exit 1

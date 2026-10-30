@@ -10,6 +10,7 @@ import type { SavedPlanRoutes } from '@/modules/saved-plans/contract';
 import { createProjectOwner, type ProjectOwner } from '@/runtime/project-runtime';
 import type { SessionProjects } from '@/runtime/session-runtime';
 import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
+import { createRefusingAddressApi } from '@/testing/refusing-address-api';
 
 /** The account every page suite is signed in as; bind a person to it to claim. */
 export const VIEWER_ACCOUNT_ID = 'account-viewer';
@@ -30,7 +31,7 @@ export function pageWiring(
   streamDeps?: ProjectStreamDeps,
   savedPlanRoutes: SavedPlanRoutes = NO_SAVED_PLANS,
 ): { catalog: ProjectCatalog; projects: SessionProjects; viewerAccountId: string } {
-  const source = projectSourceOver(api, streamDeps, savedPlanRoutes);
+  const source = projectSourceOver(api, createRefusingAddressApi(), streamDeps, savedPlanRoutes);
   return {
     viewerAccountId: VIEWER_ACCOUNT_ID,
     catalog: createProjectCatalog({ routes: api, isCurrent: () => true }),

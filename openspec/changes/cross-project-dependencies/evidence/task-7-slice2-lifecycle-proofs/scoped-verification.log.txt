@@ -1,0 +1,32 @@
+Focused lifecycle
+(pass) scoped connected recipient insert fault rolls back generation eviction and recipient events [290.74ms]
+
+ 100 pass
+ 0 fail
+ 564 expect() calls
+Ran 100 tests across 4 files. [21.66s]
+
+Installed service source-owner suite
+(pass) installed project drain sparse policy rollback > last-release restores sparse policy, graph, journal and events after event-insert [165.77ms]
+
+ 138 pass
+ 0 fail
+ 962 expect() calls
+Ran 138 tests across 1 file. [49.80s]
+
+Fresh configured backend typecheck/module/lint
+
+
+
+ NX   Successfully ran targets typecheck, lint for project wbs-be-01 and 1 task it depends on
+
+
+  Run duration:      50.6s
+  Cache:             0/3 hit (0%)
+  Critical path:     50.6s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Drastically reduce your run duration by sharing a cache across your team and CI → https://cloud.nx.app/get-started?utm_source=nx-cli&utm_medium=cli&utm_campaign=performance-report&utm_content=remote-cache.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-be-01:lint    50.6s

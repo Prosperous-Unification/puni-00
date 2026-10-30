@@ -47,7 +47,7 @@ function must<T>(value: T | undefined, what: string): T {
 
 const repoRoot = new URL('../../../../../../', import.meta.url);
 const schema = JSON.parse(
-  readFileSync(new URL('libs/wbs/domain/contracts/solver/solver-wire.v4.json', repoRoot), 'utf8'),
+  readFileSync(new URL('libs/wbs/domain/contracts/solver/solver-wire.v5.json', repoRoot), 'utf8'),
 ) as unknown;
 
 /**
@@ -63,7 +63,7 @@ const SUPERSEDED_SLICE_SENTENCE =
   '`personId`, set-valued `poolIds`, a resolved `priorityWeight`, and a resolved `notBeforeUnits`.';
 
 describe('the wire vocabularies come from the schema, not from prose', () => {
-  it('parses the four wire sets out of solver-wire.v4.json', () => {
+  it('parses the four wire sets out of solver-wire.v5.json', () => {
     const wire = wireVocabularies(schema);
     expect([...must(wire.get('slice'), 'the slice vocabulary').members].sort()).toEqual([
       'deadlineUnits',
@@ -97,6 +97,7 @@ describe('the wire vocabularies come from the schema, not from prose', () => {
     expect([...must(wire.get('response'), 'the response vocabulary').members].sort()).toEqual([
       'objectiveValues',
       'offsets',
+      'scope',
       'status',
       'wireVersion',
     ]);
@@ -104,9 +105,11 @@ describe('the wire vocabularies come from the schema, not from prose', () => {
 
   it('throws when a prohibited response member is not also a required one', () => {
     const forked = JSON.parse(JSON.stringify(schema)) as {
-      $defs: { response: { allOf: { else: { not: { anyOf: { required: string[] }[] } } }[] } };
+      $defs: {
+        'response-local': { allOf: { else: { not: { anyOf: { required: string[] }[] } } }[] };
+      };
     };
-    forked.$defs.response.allOf[0].else.not.anyOf[0] = {
+    forked.$defs['response-local'].allOf[0].else.not.anyOf[0] = {
       required: ['neverRequiredAnywhere'],
     };
     expect(() => wireVocabularies(forked)).toThrow(/neverRequiredAnywhere/);
@@ -132,7 +135,7 @@ describe('the wire vocabularies come from the schema, not from prose', () => {
       'fencing',
       'objective-term-name',
     ]);
-    expect(allVocabularies(schema).size).toBe(15);
+    expect(allVocabularies(schema).size).toBe(17);
   });
 });
 

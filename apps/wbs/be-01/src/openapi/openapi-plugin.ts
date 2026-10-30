@@ -6,6 +6,8 @@ export const OPENAPI_SPEC_PATH = '/api/openapi.json';
 
 /**
  * Publishes only the shared descriptors mounted in this app configuration.
+ * This immutable schema observation is explicitly exempt from dependency-client
+ * admission; it exposes no persisted application resources.
  * Operational routes join this document only when they acquire real shared bindings.
  */
 // Proof: changing this route path made the actual-app publication test fail on /api/openapi.json answered 404.

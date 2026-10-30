@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/connected-step-node.test.ts:
+(pass) refuses each foreign local endpoint project independently even when work-item lookup would succeed [0.36ms]
+
+ 1 pass
+ 12 filtered out
+ 0 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [24.00ms]

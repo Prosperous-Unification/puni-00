@@ -1,0 +1,31 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/gw-01/src/retirement.integration.test.ts:
+{"level":"error","time":1792737577986,"service":"gw-01","reason":"incompatible","err":{"occurrence_id":"AE_150CCYZMQ41T21XGS5C0GVEDKQ","fingerprint":"fp1_b21151a2d9c5fd4cba58161e87aefe9e","instanceof_error":false,"typeof":"undefined","as_string":"undefined","as_json":null,"as_string_format":"derived","v":"corj/v0.15"},"connectionId":"34c8a808-42dd-4400-8d92-842efb4ae621","msg":"socket delivery retired"}
+63 |     expect(presence?.list(PROJECT.slice('project:'.length))).toEqual(['ada']);
+64 |     expect([...app.decorator.subs.socketsFor(PROJECT)]).toHaveLength(1);
+65 |     enabled = true;
+66 |     await websocket.message(socket, { type: 'ping' });
+67 |     expect(closes).toBe(1);
+68 |     expect(beforeClose).toEqual({ canceled: true, subscriptions: [], presence: 0 });
+                             ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "canceled": true,
++   "canceled": false,
+    "presence": 0,
+    "subscriptions": [],
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-egress-1031/apps/wbs/gw-01/src/retirement.integration.test.ts:68:25)
+(fail) mounted retirement removes presence and subscriptions and aborts before physical close [19.47ms]
+
+ 0 pass
+ 1 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [2.84s]

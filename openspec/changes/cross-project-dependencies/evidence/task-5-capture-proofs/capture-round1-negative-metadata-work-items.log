@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:
+58 |   await source.uow.run(async () => {
+59 |     const before=queries.length;
+60 |     released.release();
+61 |     if (pending===undefined) throw new Error('missing paused read');
+62 |     expect((await pending).message).toContain('closed');
+63 |     expect(queries.slice(before)).toEqual([]);
+                                       ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "select "step_node_attempt"."work_item_id", "step_node_attempt"."step_id", "step_node_attempt"."attempt_number", "step_node_attempt"."started_at", "step_node_attempt"."ended_at", "step_node_attempt"."outcome", "step_node_attempt"."executor_person_id", "step_node_attempt"."reference", "step_node_attempt"."note" from "step_node_attempt" inner join "step" on "step_node_attempt"."step_id" = "step"."id" inner join "work_item" on "step_node_attempt"."work_item_id" = "work_item"."id" where "work_item"."project_id" = ? order by "step_node_attempt"."work_item_id", "step"."position", "step_node_attempt"."step_id", "step_node_attempt"."attempt_number"",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:63:35)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) project work-items continuation performs zero expired SQL after success [125.46ms]
+
+ 0 pass
+ 81 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.12s]

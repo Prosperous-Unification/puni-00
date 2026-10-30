@@ -1,0 +1,62 @@
+Independent command correction re-review, 2026-10-22
+
+**Verdict: approve this correction and the bounded dormant command integration packet.** Both P2 findings from the original review are resolved on the frozen correction. No new blocking finding was identified. This does not complete the cross-project feature, all of tasks 3.2/4.4, incident lifecycle or runtime activation, and does not replace the final combined-main host gate.
+
+Reviewed checkout: `/tmp/puni-cross-command-integration`, branch `feat/cross-project-command-integration`, clean HEAD `02c8fdc6558ec02920dfdcc1dea9646e34e5a497`, correction base `db2d38ec903a9f87e51f1d6e20c9328ccbdbda4d`. Exactly four paths differ. The correction manifest SHA256 is `1d14a8ef68ae2b1fe697ba95938114b7c91905b0ca96a36952297c4693f3404f`, and the author correction report SHA256 is `271b32008d803cb2eee946d0c0fc202d6e6ac63ea92693dc75469d8411d3a606`. All four new source hashes and all 109 unchanged paths from the original manifest matched independently. Original report, corrected original probe, and original failing probe log matched their recorded hashes; no original evidence was overwritten.
+
+F1 is resolved at `libs/wbs/application/core/src/service/compensating.ts:515`: the selected-direction traversal now includes typed UPDATE endpoint references as well as ADD. Recursive batches are visited in application order. Only restored rows belonging to the owner contribute candidate IDs, and only exact owner-local endpoint identities become restoration candidates. The unchanged original mounted create/replacement-update probe now observes redo HTTP200, after successful initial batch, update batch and undo. The new repository tests also cover nested replay and stable relationship/row identities.
+
+F2 is resolved at `libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6815`: the precise owner-local `not_found` restoration exception is evaluated before the existing local-versus-external refusal classification. External metadata no longer disables that exception for the whole journal. The unchanged original admitted create/external-link probe now redoes successfully. Forbidden and unknown-step evidence is not exempted, nor are remote addresses. Current remote evidence, exact metadata coverage/revisions, ordinary restored-row authorization, application-time endpoint checks, relationship equality and final connected graph validation remain in place.
+
+The scanner is an availability prediction, not an authorization grant or an alternative command interpreter. Only the selected replay direction supplies restoration candidates. The checked preflight still reads endpoint evidence; deferral applies only to exact missing owner-local addresses identified by the ordered scanner. Restored rows and actual typed operations remain checked when applied, and a later refusal rolls back the transaction. The correction does not grant authority over a foreign restore or an unrelated ordinary reference and does not enable external authoring in production.
+
+I added two independent `/tmp` probes beyond rerunning the original failures. The first creates a local successor and **updates an existing external relationship** to it in one collected SQLite transaction, then undoes/redoes it, checking that the restored local ID and relationship ID remain exact. This combines the two repaired dimensions rather than testing each separately. The second performs the same operation and undo, increments the real remote row revision, then attempts redo: it returns `stale_undo`, the local row remains absent, and every captured table remains unchanged. Both use the real current authority resolver, admitted SQLite UoW, retained WorkingPlan, connected context, collector and journal; no permissive graph or public tree is substituted. Files: `/tmp/puni-command-round1-review-extra.test.ts` and `/tmp/puni-command-round1-review-extra.log`.
+
+Fresh reviewer checks are recorded below. Original review results are not recounted as new coverage.
+
+| Fresh check | Observed outcome | Reviewer evidence |
+| --- | --- | --- |
+| Unchanged original two reproducer tests | 2 pass, 0 fail, 23 assertions | `/tmp/puni-command-round1-review-original-probes.log` |
+| Independent combined external UPDATE/restore and remote-revision negative | 2 pass, 0 fail, 36 assertions | `/tmp/puni-command-round1-review-extra.log` |
+| `bun test` over compensating, connected-command-admission, typed-dependency-commands/copy/graph/lifecycle, undo and command-organization test files | 212 pass, 0 fail, 1804 assertions across eight files | `/tmp/puni-command-round1-review-focused.log` |
+| Actual backend and core `bunx tsc --build --force` programs | Both exit0 | `/tmp/puni-command-round1-review-types.json` with exact commands and logs |
+| Actual work-item and plan-commands `bunx tsc -p` module programs | Both exit0 | Same type manifest; actual module configs include implementation files |
+| `bunx prettier --check` over four correction paths | Exit0 | `/tmp/puni-command-round1-review-format.log` and static summary |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx eslint --no-cache` over four correction paths | Exit0 | `/tmp/puni-command-round1-review-lint.log` and `/tmp/puni-command-round1-review-static.log` |
+| Frozen identity/source hashes, clean status and `git diff --check HEAD` | Match/clean; exit0 | `/tmp/puni-command-round1-review-identity.txt` |
+
+No tests were skipped in the focused eight-file run. Probe name filters are explicit below. No required tool was unavailable.
+
+The unchanged original reproducer command was:
+
+```sh
+bun test --tsconfig-override=/tmp/puni-cross-command-integration/tsconfig.base.json /tmp/puni-command-review-probe.test.ts -t REVIEW
+```
+
+The additional probes use the same command form with `/tmp/puni-command-round1-review-extra.test.ts -t ROUND1`. Both invocations retain Bun's known tsconfig directory-mismatch diagnostic and then execute their selected tests successfully; these are passing runtime assertions, not a claim of pristine diagnostic output. The filtered test is the copied original dormant test, excluded by the explicit name filter, not a disabled regression.
+
+All nine new watched-fault records and actual selected failure logs were independently inspected. `/tmp/puni-command-round1-review-fault-audit.txt` contains the extracted observations. I did not mutate the frozen source to reapply these faults. The seven SQLite observations and two pure observations support the author's classifications:
+
+| Fault | Observed mutation result | Evidentiary limit |
+| --- | --- | --- |
+| omit-update | Valid mounted redo becomes409 | Compatibility regression; not unsafe acceptance. |
+| external-blanket-gate | Valid semantic redo becomes `not_found` | Compatibility regression; not unsafe acceptance. |
+| forbidden-exemption | Delivered forbidden is bypassed and redo returns `ok:true` | Acceptance fault across real SQLite with an explicitly named negative-only reader delivery. |
+| unknown-step-exemption | Delivered unknown-step is bypassed and redo returns `ok:true` | Same delivery-fault distinction; not fabricated durable step state. |
+| exact-restored-address | Early `not_found` becomes application-time `stale_undo` | Ordering/refusal diagnostic; still refuses. |
+| selected-direction | Wrong-direction restoration defers evidence; application returns `stale_undo` | Ordering/refusal diagnostic; still refuses. |
+| restore-project | Pure scanner wrongly classifies foreign restored row as local | Pure oracle; independent SQLite restored-row authorization remains. |
+| endpoint-project | Pure scanner includes a remote address | Pure oracle; no accepted database mutation asserted. |
+| application-order | Precollecting later restores changes `not_found` to application-time `stale_undo` | Ordering/refusal diagnostic; still refuses. |
+
+The repository's added current-code negatives cover later and other-direction restoration, different addresses, ordinary references, foreign/mixed restore rows, missing steps, invalid endpoint shape, delivered forbidden/unknown-step and an actually deleted remote endpoint. They compare captured effects to prove rollback. The remote-deletion setup is possible after undo has removed the relationship FK; it is distinct from the impossible ownership-transfer state discussed in the original review. The original 51-fault audit retains its original memory/SQLite, diagnostic/acceptance and runtime limitations. Nothing here upgrades a pure or ordering proof into unsafe database acceptance.
+
+Approval applies to the combined original command packet plus these four corrected paths under the binding admission/context architecture. The final implementation retains the real raw observation before owner retention, owner-local refresh, connected structural/replay guards, scoped history equality and remote revision metadata, current principal admission, separate graph/observation closure and the mounted dormant409 barrier assessed in the original review. Approval of this checkpoint means the two replay blockers are closed; it does not certify incomplete dependent work.
+
+Full task3.2 generated OpenAPI/MCP and mounted MCP endpoint/refusal equivalence remain open. Full4.4 incident hand-down, predecessor/project-deletion and successor-lifecycle mappings, transfer/copy/import/saved/history-publication consumers remain subject to their existing scope boundaries. Connected runtime tree/readiness, durable fan-out, production mounted external success and activation/deploy protocol remain unapproved and external authoring remains dormant. Tool Wiki remains inactive/uncertified. Separate solver/backend/migration integration is still required where applicable; absent old-base parallel changes were not classified as authored regressions.
+
+No performance benchmark, full host gate, build, full Nx gate, MCP mounted suite, full OpenAPI gate or host/deployment check was run for this correction. Prior developer-run CPU benchmark evidence is not frozen-clean elapsed-time certification. The broad original core530/http252/connected77/classification17 and six-program checks remain historical evidence from the original review, not fresh correction results. No h1 tests/builds were run. Root owns integration, WBS/Git and the canonical clean combined-main gate.
+
+No source, Git metadata or WBS mutations were made. Only `/tmp` probes/logs/report were written; compiler checks may update ignored outputs.
+
+Final reviewer identity check: HEAD `02c8fdc6558ec02920dfdcc1dea9646e34e5a497`, clean status, all four correction hashes and 109 unchanged original path hashes match; `git diff --check HEAD` exits0. No reviewed source bytes changed during re-review.

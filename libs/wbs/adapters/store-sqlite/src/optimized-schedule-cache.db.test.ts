@@ -357,6 +357,10 @@ describe('the optimizer migration', () => {
         '20261023150000_key_step_measure',
         '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
+        '20261022213000_add_optimization_boundary_certificates',
+        '20261022212000_add_cross_project_dependency_activation',
+        '20261022211000_add_external_dependencies',
+        '20261022210000_add_project_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -418,12 +422,18 @@ describe('the optimizer migration', () => {
       expect(indexes(db.path)).not.toContain(ADDED_INDEX);
       expect(projectColumns(db.path)).not.toContain(ADDED_PROJECT_COLUMN);
 
-      // Everything else is untouched: the rollback took exactly the four tables
-      // this migration adds, plus the three the migrations above the target
-      // add, and nothing that was there before any of them.
+      // Everything else is untouched: the rollback took the tables this
+      // migration and later migrations add, and none of the earlier tables.
       expect(rolledBack).toEqual(
         migrated.filter(
           (name) =>
+            name !== 'optimization_boundary_certificate' &&
+            name !== 'optimization_boundary_certificate' &&
+            name !== 'cross_project_dependency_activation' &&
+            name !== 'cross_project_dependency_activation_receipt' &&
+            name !== 'external_dependency' &&
+            name !== 'project_abbreviation' &&
+            name !== 'project_abbreviation_counter' &&
             name !== 'browser_auth_association' &&
             name !== 'browser_auth_lifecycle' &&
             name !== 'shared_people_audit' &&

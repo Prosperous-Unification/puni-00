@@ -1,0 +1,113 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:
+187 |       const attempts = readAttempts();
+188 |       expect(
+189 |         (await readPermission(true, false)).leaves.find(
+190 |           (leaf) => leaf.workItemId === 'target-leaf',
+191 |         ),
+192 |       ).toMatchObject({ stepIds: [targetStep] });
+              ^
+error: expect(received).toMatchObject(expected)
+
+Matcher error: received value must be a non-null object
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:192:9)
+(fail) isolated local attempt-only continuation survives unmet prerequisites and claim replay [398.99ms]
+223 |       expect(readAttempts()).toEqual([]);
+224 |       expect(
+225 |         (await readPermission(true, false)).leaves.find(
+226 |           (leaf) => leaf.workItemId === 'target-leaf',
+227 |         ),
+228 |       ).toMatchObject({ stepIds: [targetStep] });
+              ^
+error: expect(received).toMatchObject(expected)
+
+Matcher error: received value must be a non-null object
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:228:9)
+(fail) isolated local statement-only continuation remains distinct from prerequisite permission [274.31ms]
+187 |       const attempts = readAttempts();
+188 |       expect(
+189 |         (await readPermission(true, false)).leaves.find(
+190 |           (leaf) => leaf.workItemId === 'target-leaf',
+191 |         ),
+192 |       ).toMatchObject({ stepIds: [targetStep] });
+              ^
+error: expect(received).toMatchObject(expected)
+
+Matcher error: received value must be a non-null object
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:192:9)
+(fail) isolated remote attempt-only continuation survives unmet prerequisites and claim replay [354.39ms]
+223 |       expect(readAttempts()).toEqual([]);
+224 |       expect(
+225 |         (await readPermission(true, false)).leaves.find(
+226 |           (leaf) => leaf.workItemId === 'target-leaf',
+227 |         ),
+228 |       ).toMatchObject({ stepIds: [targetStep] });
+              ^
+error: expect(received).toMatchObject(expected)
+
+Matcher error: received value must be a non-null object
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:228:9)
+(fail) isolated remote statement-only continuation remains distinct from prerequisite permission [283.50ms]
+187 |       const attempts = readAttempts();
+188 |       expect(
+189 |         (await readPermission(true, false)).leaves.find(
+190 |           (leaf) => leaf.workItemId === 'target-leaf',
+191 |         ),
+192 |       ).toMatchObject({ stepIds: [targetStep] });
+              ^
+error: expect(received).toMatchObject(expected)
+
+Matcher error: received value must be a non-null object
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:192:9)
+(fail) shared local attempt-only continuation survives unmet prerequisites and claim replay [308.02ms]
+223 |       expect(readAttempts()).toEqual([]);
+224 |       expect(
+225 |         (await readPermission(true, false)).leaves.find(
+226 |           (leaf) => leaf.workItemId === 'target-leaf',
+227 |         ),
+228 |       ).toMatchObject({ stepIds: [targetStep] });
+              ^
+error: expect(received).toMatchObject(expected)
+
+Matcher error: received value must be a non-null object
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:228:9)
+(fail) shared local statement-only continuation remains distinct from prerequisite permission [309.05ms]
+187 |       const attempts = readAttempts();
+188 |       expect(
+189 |         (await readPermission(true, false)).leaves.find(
+190 |           (leaf) => leaf.workItemId === 'target-leaf',
+191 |         ),
+192 |       ).toMatchObject({ stepIds: [targetStep] });
+              ^
+error: expect(received).toMatchObject(expected)
+
+Matcher error: received value must be a non-null object
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:192:9)
+(fail) shared remote attempt-only continuation survives unmet prerequisites and claim replay [328.97ms]
+223 |       expect(readAttempts()).toEqual([]);
+224 |       expect(
+225 |         (await readPermission(true, false)).leaves.find(
+226 |           (leaf) => leaf.workItemId === 'target-leaf',
+227 |         ),
+228 |       ).toMatchObject({ stepIds: [targetStep] });
+              ^
+error: expect(received).toMatchObject(expected)
+
+Matcher error: received value must be a non-null object
+
+      at <anonymous> (/tmp/puni-task63-history/apps/wbs/be-01/src/controller/cross-project-execution-observations.controller.db.test.ts:228:9)
+(fail) shared remote statement-only continuation remains distinct from prerequisite permission [323.54ms]
+
+ 0 pass
+ 16 filtered out
+ 8 fail
+ 92 expect() calls
+Ran 8 tests across 1 file. [5.54s]

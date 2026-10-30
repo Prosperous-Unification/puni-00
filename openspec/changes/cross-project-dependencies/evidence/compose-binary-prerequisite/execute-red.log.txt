@@ -1,0 +1,61 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/swap-writer-barrier.test.ts:
+[swap-be] preflight-green
+[swap-be] record-writer-stop
+[swap-be] stop-blue
+[swap-be] verify-blue-stopped
+[swap-be] stored-vocabularies-before-start
+[swap-be] start-maintenance
+[swap-be] backup-db
+[swap-be] backed up to /data/backups/wbs-pre-capability-20261022T141448351Z.db (host: /home/puni1/wbs/data/backups)
+[swap-be] migrate
+[swap-be] stop-maintenance
+[swap-be] record-writer-exposure
+[swap-be] start-green
+413 |   try {
+414 |     await operation;
+415 |   } catch (cause) {
+416 |     failure = cause instanceof Error ? cause.message : String(cause);
+417 |   }
+418 |   expect(failure).not.toBe('');
+                            ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at refuses (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/swap-writer-barrier.test.ts:418:23)
+      at async <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/swap-writer-barrier.test.ts:1984:11)
+(fail) dependency capability refusal for registry/wbs-be-01@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc precedes durable writer stop [20.57ms]
+[swap-be] preflight-green
+[swap-be] record-writer-stop
+[swap-be] stop-blue
+[swap-be] verify-blue-stopped
+[swap-be] stored-vocabularies-before-start
+[swap-be] start-maintenance
+[swap-be] backup-db
+[swap-be] backed up to /data/backups/wbs-pre-capability-20261022T141448362Z.db (host: /home/puni1/wbs/data/backups)
+[swap-be] migrate
+[swap-be] stop-maintenance
+[swap-be] record-writer-exposure
+[swap-be] start-green
+413 |   try {
+414 |     await operation;
+415 |   } catch (cause) {
+416 |     failure = cause instanceof Error ? cause.message : String(cause);
+417 |   }
+418 |   expect(failure).not.toBe('');
+                            ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at refuses (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/swap-writer-barrier.test.ts:418:23)
+      at async <anonymous> (/tmp/puni-compose-preflight/tools/tool-remote-scripts/src/swap-writer-barrier.test.ts:1984:11)
+(fail) dependency capability refusal for registry/wbs-be-01@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee precedes durable writer stop [9.62ms]
+
+ 0 pass
+ 153 filtered out
+ 2 fail
+ 106 expect() calls
+Ran 2 tests across 1 file. [85.00ms]

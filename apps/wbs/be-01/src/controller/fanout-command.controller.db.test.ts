@@ -223,10 +223,16 @@ it('records a cold shared command fan-out without a preceding tree GET', async (
       .all(`project:${downstream.projectId}`, '%elsewhere_changed%'),
   ).toHaveLength(3);
   expect(
-    await harness.removeBareStep(upstream.projectId, upstream.stepId, harness.userId('ada'), true, {
-      kind: 'scoped',
-      scope: { organizationId: 'org-a', userId: harness.userId('ada'), role: 'member' },
-    }),
+    await harness.removeBareStep(
+      upstream.projectId,
+      upstream.stepId,
+      { id: harness.userId('ada'), username: 'ada', scopes: ['write'] },
+      true,
+      {
+        kind: 'scoped',
+        scope: { organizationId: 'org-a', userId: harness.userId('ada'), role: 'member' },
+      },
+    ),
   ).toEqual({ ok: true });
   expect(harness.sqlite.query('SELECT * FROM organization_audit').all()).toEqual([]);
   expect(

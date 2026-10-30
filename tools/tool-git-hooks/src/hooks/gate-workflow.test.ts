@@ -20,7 +20,7 @@ interface Workflow {
   jobs?: Record<string, WorkflowJob>;
 }
 
-type JobResult = 'success' | 'failure' | 'cancelled' | 'skipped';
+type JobResult = 'success' | 'failure' | 'cancelled' | 'skipped' | 'unknown';
 
 interface GateNeeds {
   modeResult: JobResult | '';
@@ -28,6 +28,14 @@ interface GateNeeds {
   docsResult: JobResult | '';
   twilight: string;
   workspaceResult: JobResult | '';
+  checksResult: JobResult | '';
+  backend: string;
+  remote: string;
+  frontend: string;
+  backendResult: JobResult | '';
+  remoteResult: JobResult | '';
+  remoteModelResult: JobResult | '';
+  frontendResult: JobResult | '';
   twilightResult: JobResult | '';
 }
 
@@ -67,6 +75,14 @@ const reduceGate = (needs: GateNeeds): number => {
       DOCS_RESULT: needs.docsResult,
       TWILIGHT: needs.twilight,
       WORKSPACE_RESULT: needs.workspaceResult,
+      CHECKS_RESULT: needs.checksResult,
+      BACKEND: needs.backend,
+      REMOTE: needs.remote,
+      FRONTEND: needs.frontend,
+      BACKEND_RESULT: needs.backendResult,
+      REMOTE_RESULT: needs.remoteResult,
+      REMOTE_MODEL_RESULT: needs.remoteModelResult,
+      FRONTEND_RESULT: needs.frontendResult,
       TWILIGHT_RESULT: needs.twilightResult,
     },
     stderr: 'pipe',
@@ -80,6 +96,14 @@ const green: GateNeeds = {
   docsResult: 'skipped',
   twilight: 'run',
   workspaceResult: 'success',
+  checksResult: 'success',
+  backend: 'run',
+  remote: 'run',
+  frontend: 'run',
+  backendResult: 'success',
+  remoteResult: 'success',
+  remoteModelResult: 'success',
+  frontendResult: 'success',
   twilightResult: 'success',
 };
 
@@ -93,7 +117,17 @@ describe('the CI gate check', () => {
   test('waits on every shard even when one fails', () => {
     const gate = readWorkflow().jobs?.['gate'];
 
-    expect(gate?.needs).toEqual(['gate_mode', 'gate_docs', 'gate_workspace', 'gate_twilight']);
+    expect(gate?.needs).toEqual([
+      'gate_mode',
+      'gate_docs',
+      'gate_workspace',
+      'gate_backend',
+      'gate_remote',
+      'gate_remote_model',
+      'gate_frontend',
+      'gate_checks',
+      'gate_twilight',
+    ]);
     expect(gate?.if).toBe('${{ always() }}');
     expect(requireStep().env).toEqual({
       MODE_RESULT: '${{ needs.gate_mode.result }}',
@@ -101,6 +135,14 @@ describe('the CI gate check', () => {
       DOCS_RESULT: '${{ needs.gate_docs.result }}',
       TWILIGHT: '${{ needs.gate_mode.outputs.twilight }}',
       WORKSPACE_RESULT: '${{ needs.gate_workspace.result }}',
+      CHECKS_RESULT: '${{ needs.gate_checks.result }}',
+      BACKEND: '${{ needs.gate_mode.outputs.backend }}',
+      REMOTE: '${{ needs.gate_mode.outputs.remote }}',
+      FRONTEND: '${{ needs.gate_mode.outputs.frontend }}',
+      BACKEND_RESULT: '${{ needs.gate_backend.result }}',
+      REMOTE_RESULT: '${{ needs.gate_remote.result }}',
+      REMOTE_MODEL_RESULT: '${{ needs.gate_remote_model.result }}',
+      FRONTEND_RESULT: '${{ needs.gate_frontend.result }}',
       TWILIGHT_RESULT: '${{ needs.gate_twilight.result }}',
     });
   });
@@ -115,6 +157,14 @@ describe('the CI gate check', () => {
         docsResult: 'success',
         twilight: 'skip',
         workspaceResult: 'skipped',
+        checksResult: 'skipped',
+        backend: 'skip',
+        remote: 'skip',
+        frontend: 'skip',
+        backendResult: 'skipped',
+        remoteResult: 'skipped',
+        remoteModelResult: 'skipped',
+        frontendResult: 'skipped',
         twilightResult: 'skipped',
       }),
     ).toBe(0);
@@ -135,11 +185,27 @@ describe('the CI gate check', () => {
       docsResult: 'success',
       twilight: 'skip',
       workspaceResult: 'skipped',
+      checksResult: 'skipped',
+      backend: 'skip',
+      remote: 'skip',
+      frontend: 'skip',
+      backendResult: 'skipped',
+      remoteResult: 'skipped',
+      remoteModelResult: 'skipped',
+      frontendResult: 'skipped',
       twilightResult: 'skipped',
     };
     for (const docsResult of notSuccess)
       expect(reduceGate({ ...docs, docsResult }), docsResult).not.toBe(0);
-    for (const field of ['workspaceResult', 'twilightResult'] as const) {
+    for (const field of [
+      'workspaceResult',
+      'checksResult',
+      'backendResult',
+      'remoteResult',
+      'remoteModelResult',
+      'frontendResult',
+      'twilightResult',
+    ] as const) {
       for (const outcome of ['success', 'failure', 'cancelled', ''] as const) {
         expect(reduceGate({ ...docs, [field]: outcome }), `${field}/${outcome}`).not.toBe(0);
       }
@@ -153,6 +219,36 @@ describe('the CI gate check', () => {
     // failed on its first case, `failure`, exiting 0 — 4 passed / 1 failed.
     for (const workspaceResult of notSuccess) {
       expect(reduceGate({ ...green, workspaceResult }), workspaceResult).not.toBe(0);
+    }
+  });
+
+  test('requires each selected dedicated runner and checks job, and proves every skip', () => {
+    for (const field of [
+      'backendResult',
+      'remoteResult',
+      'remoteModelResult',
+      'frontendResult',
+      'checksResult',
+    ] as const)
+      for (const outcome of notSuccess)
+        expect(reduceGate({ ...green, [field]: outcome }), `${field}/${outcome}`).not.toBe(0);
+    for (const [selected, outcome] of [
+      ['backend', 'backendResult'],
+      ['remote', 'remoteResult'],
+      ['frontend', 'frontendResult'],
+    ] as const) {
+      expect(
+        reduceGate({
+          ...green,
+          [selected]: 'skip',
+          [outcome]: 'skipped',
+          ...(selected === 'remote' ? { remoteModelResult: 'skipped' as const } : {}),
+        }),
+      ).toBe(0);
+      expect(reduceGate({ ...green, [selected]: 'skip', [outcome]: 'success' })).not.toBe(0);
+      expect(reduceGate({ ...green, [selected]: 'run', [outcome]: 'skipped' })).not.toBe(0);
+      expect(reduceGate({ ...green, [selected]: '' })).not.toBe(0);
+      expect(reduceGate({ ...green, mode: 'full', [selected]: 'skip' })).not.toBe(0);
     }
   });
 
@@ -187,10 +283,10 @@ describe('the CI gate check', () => {
  */
 describe('the CI private-nesting step', () => {
   const privateNestingStep = (): WorkflowStep => {
-    const step = readWorkflow().jobs?.['gate_workspace']?.steps?.find(
+    const step = readWorkflow().jobs?.['gate_checks']?.steps?.find(
       ({ name }) => name === 'Private nesting',
     );
-    expect(step, 'job `gate_workspace` has no `Private nesting` step').toBeDefined();
+    expect(step, 'job `gate_checks` has no `Private nesting` step').toBeDefined();
     return step ?? {};
   };
 
@@ -241,6 +337,7 @@ const affectedPlan = {
   twilight: 'run',
   projects: ['twilight-burokrat', 'wbs-be-01'],
   workspaceProjects: ['wbs-be-01'],
+  partitions: { backend: ['wbs-be-01'], remote: [], frontend: [], workspace: [] },
   twilightProjects: ['twilight-burokrat'],
   reasons: ['runtime input'],
 };
@@ -298,6 +395,7 @@ describe('the validated CI selection step', () => {
         twilight: 'skip',
         projects: [],
         workspaceProjects: [],
+        partitions: { backend: [], remote: [], frontend: [], workspace: [] },
         twilightProjects: [],
         reasons: ['lint-only module requires independent workspace lint'],
       },
@@ -307,6 +405,7 @@ describe('the validated CI selection step', () => {
         twilight: 'skip',
         projects: [],
         workspaceProjects: [],
+        partitions: { backend: [], remote: [], frontend: [], workspace: [] },
         twilightProjects: [],
       },
     ]) {
@@ -344,6 +443,12 @@ describe('the validated CI selection step', () => {
       { ...affectedPlan, mode: 'full' },
       { ...affectedPlan, twilight: 'unknown' },
       { ...affectedPlan, projects: [1] },
+      {
+        ...affectedPlan,
+        projects: ['--skip-nx-cache', 'twilight-burokrat'],
+        workspaceProjects: ['--skip-nx-cache'],
+        partitions: { backend: [], remote: [], frontend: [], workspace: ['--skip-nx-cache'] },
+      },
       { ...affectedPlan, workspaceProjects: [1] },
       { ...affectedPlan, twilightProjects: [1] },
       { ...affectedPlan, reasons: [1] },
@@ -351,6 +456,9 @@ describe('the validated CI selection step', () => {
       { ...affectedPlan, projects: [] },
       { ...affectedPlan, twilight: 'skip' },
       { ...affectedPlan, workspaceProjects: [] },
+      { ...affectedPlan, partitions: { ...affectedPlan.partitions, backend: [] } },
+      { ...affectedPlan, partitions: { ...affectedPlan.partitions, workspace: ['wbs-be-01'] } },
+      { ...affectedPlan, partitions: { ...affectedPlan.partitions, remote: ['unknown'] } },
       {
         ...affectedPlan,
         projects: ['twilight-burokrat', 'wbs-be-01', 'wbs-be-01'],
@@ -371,7 +479,14 @@ describe('the validated CI selection step', () => {
       { ...affectedPlan, twilightProjects: ['wbs-be-01'] },
       { ...affectedPlan, projects: ['twilight-burokrat', 'twilight-burokrat', 'wbs-be-01'] },
       { ...affectedPlan, mode: 'docs' },
-      { ...affectedPlan, mode: 'docs', projects: [], workspaceProjects: [], twilightProjects: [] },
+      {
+        ...affectedPlan,
+        mode: 'docs',
+        projects: [],
+        workspaceProjects: [],
+        twilightProjects: [],
+        partitions: { backend: [], remote: [], frontend: [], workspace: [] },
+      },
     ]) {
       const selection = selectGate(plan);
       expect(selection.execution.exitCode, JSON.stringify(plan)).not.toBe(0);
@@ -383,7 +498,9 @@ describe('the validated CI selection step', () => {
     for (const event of ['push', 'merge_group', 'workflow_dispatch']) {
       const selection = selectGate({}, event, { RESOLVER_STATUS: '9', PLANNER_STATUS: '9' });
       expect(selection.execution.exitCode).toBe(0);
-      expect(selection.output).toBe('mode=full\ntwilight=run\n');
+      expect(selection.output).toBe(
+        'mode=full\ntwilight=run\nbackend=run\nremote=run\nfrontend=run\n',
+      );
     }
     expect(selectGate(affectedPlan, 'unknown').execution.exitCode).not.toBe(0);
   });
@@ -401,11 +518,25 @@ describe('the validated CI selection step', () => {
     expect(commands).toContain('bunx nx format:check --all');
     expect(commands).toContain('bunx nx run tool-devsync:check:docs --skip-nx-cache');
     for (const name of ['Secrets scan', 'Private nesting', 'Doc caps', 'OpenSpec']) {
-      const original = workflow.jobs?.['gate_workspace']?.steps?.find((step) => step.name === name);
+      const original = workflow.jobs?.['gate_checks']?.steps?.find((step) => step.name === name);
       expect(docs?.steps?.find((step) => step.name === name)?.run, name).toBe(original?.run);
     }
     expect(commands).not.toMatch(
       /nx (?:affected|run-many)|e2e|test:package|integration|tool-wiki-lint/,
     );
   });
+});
+
+test('remote aggregate refuses each failed, cancelled, missing, unknown or omitted execution leaf', () => {
+  for (const field of ['remoteResult', 'remoteModelResult'] as const) {
+    for (const outcome of ['failure', 'cancelled', 'skipped', '', 'unknown'] as const) {
+      expect(reduceGate({ ...green, [field]: outcome }), `${field}/${outcome}`).not.toBe(0);
+      expect(reduceGate({ ...green, mode: 'full', [field]: outcome })).not.toBe(0);
+    }
+  }
+  expect(
+    reduceGate({ ...green, remote: 'skip', remoteResult: 'skipped', remoteModelResult: 'skipped' }),
+  ).toBe(0);
+  expect(reduceGate({ ...green, remote: 'skip', remoteResult: 'skipped' })).not.toBe(0);
+  expect(reduceGate({ ...green, remote: 'skip', remoteModelResult: 'skipped' })).not.toBe(0);
 });

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+148 |   const malformed = ['scoped-alias', 'malformed-project', 'blank-project'].includes(defect);
+149 |   const endpoint = foreign === null ? defect === 'malformed-project' ? { ...fixture.input.predecessor, projectId: 7 } : defect === 'blank-project' ? { ...fixture.input.predecessor, projectId: '' } : defect === 'wrong-row-project' ? { ...fixture.input.predecessor, projectId: fixture.owner.projectId } : defect === 'scoped-alias' ? { projectId: fixture.predecessor.projectId, scope: 'whole', workItemRef: 'new' } : defect === 'foreign-project' ? { ...fixture.input.predecessor, projectId: 'absent' } : defect === 'foreign-step' ? { ...fixture.input.predecessor, scope: 'node', stepId: 'absent' } : fixture.input.predecessor : { ...foreign, scope: 'whole' };
+150 |   const successor = defect === 'owner-step' ? { ...fixture.input.successor, scope: 'node', stepId: remoteStep.id } : defect === 'foreign-successor' ? { ...fixture.input.successor, projectId: fixture.predecessor.projectId } : fixture.input.successor;
+151 |   const before = effects();
+152 |   const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, { commands: [{ kind: 'patchWorkItem', workItemId: fixture.owner.workItemId, patch: { name: 'Must roll back' } }, { kind: 'addTypedDependency', predecessor: endpoint, successor, type: 'FS' }] });
+153 |   expect(response.status).toBe(malformed ? 400 : 404);
+                                ^
+error: expect(received).toBe(expected)
+
+Expected: 404
+Received: 409
+
+      at <anonymous> (/tmp/puni-cross-command-integration/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:153:27)
+(fail) mounted foreign-organization refuses before writes and conceals endpoint facts [544.80ms]
+
+ 0 pass
+ 29 filtered out
+ 1 fail
+ 9 expect() calls
+Ran 1 test across 1 file. [2.77s]

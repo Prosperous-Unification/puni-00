@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:
+{"level":"error","time":1792702640026,"service":"be-01","err":{"occurrence_id":"AE_SYTF9CKY1Y7J0N3JE3KVH6VBTJ","fingerprint":"fp1_735694b4a141129cb0d10cc9a653f42c","stack":["Error: journal external revision coverage is not exact","    at requireExternalRevisions (/tmp/puni-promote-lifecycle/libs/wbs/application/core/src/service/compensating.ts:657:17)","    at record (/tmp/puni-promote-lifecycle/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:8973:7)","    at async recordCollected (/tmp/puni-promote-lifecycle/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:8888:18)","    at async <anonymous> (/tmp/puni-promote-lifecycle/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:525:39)","    at async <anonymous> (/tmp/puni-promote-lifecycle/libs/wbs/application/core/src/module/plan-commands/composition.ts:144:34)","    at async <anonymous> (/tmp/puni-promote-lifecycle/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+1270 |           commands: [
+1271 |             { kind: 'deleteWorkItem', workItemId: fixture.owner.workItemId, strategy: 'promote' },
+1272 |           ],
+1273 |         })
+1274 |       ).status,
+1275 |     ).toBe(200);
+             ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at <anonymous> (/tmp/puni-promote-lifecycle/apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts:1275:7)
+(fail) synthetic mounted promote replay preserves surviving child incidents [828.94ms]
+
+ 0 pass
+ 23 filtered out
+ 1 fail
+ 17 expect() calls
+Ran 1 test across 1 file. [3.58s]

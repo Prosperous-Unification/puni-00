@@ -1,7 +1,8 @@
 import { type } from 'arktype';
 
+import type { DependencyRuntimeCapability } from '../dependency-runtime';
 import { defineEndpointShape } from './endpoint-shape';
-import { responseSchema } from './schema-shape';
+import { responseSchema, type SchemaShape } from './schema-shape';
 
 // Proof: dropping the version parameter made the mounted endpoint test expect
 // "text/plain; version=0.0.4" and receive "text/plain".
@@ -69,4 +70,37 @@ export const metrics = defineEndpointShape({
   ],
   refusals: [inputRefusal],
   document: { summary: 'Expose backend Prometheus metrics.' },
+});
+
+const backendDependencyCapability: SchemaShape<
+  DependencyRuntimeCapability & { readonly role: 'backend' }
+> = responseSchema(
+  type({
+    protocol: "'wbs-dependency-runtime'",
+    version: '1',
+    role: "'backend'",
+    semantics: "'cross-project-dependencies-v1'[]",
+  }),
+);
+
+/** Immutable backend binary support; empty semantics explicitly mean incapable, never activation authority. */
+export const dependencyCapability = defineEndpointShape({
+  method: 'GET',
+  path: '/api/runtime/dependency-capability',
+  operationId: 'getDependencyCapability',
+  policies: [{ kind: 'organization-control' }],
+  responses: [
+    {
+      kind: 'json',
+      status: 200,
+      schema: backendDependencyCapability,
+    },
+  ],
+  // Proof: narrowing this 400 to invalid_body made app.routes.test.ts's production
+  // boundary audit report getDependencyCapability invalid_query; restoring it passed.
+  refusals: [inputRefusal],
+  document: {
+    summary:
+      'Report immutable backend dependency semantic support, independently of store activation.',
+  },
 });

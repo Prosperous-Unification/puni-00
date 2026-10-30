@@ -1,0 +1,33 @@
+$ bun test apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts -t remote unfinished FS
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:
+43 |   expect(refused).toMatchObject({ status: 409 });
+44 |   expect(refused.body).toMatchObject({ error: 'prerequisites_unmet', at: 0, kind: 'claimWorkItem', stepIds: [targetStep] });
+45 |   expect(harness.sqlite.query('SELECT id FROM claim').all()).toEqual([]);
+46 |   harness.sqlite.run("INSERT INTO step_progress (work_item_id,step_id,state,stated_at) VALUES ('predecessor-leaf',?,'done',1)", [predecessorStep]);
+47 |   const after = await startable();
+48 |   expect((after.body as { leaves: { stepIds: string[] }[] }).leaves).toMatchObject([{ stepIds: [targetStep] }]);
+                                                                          ^
+error: expect(received).toMatchObject(expected)
+
+- [
+-   {
+-     "stepIds": [
+-       "420c05fb-2d42-4661-b6b5-d08f65ded437",
+-     ],
+-   },
+- ]
++ []
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-start-admission/apps/wbs/be-01/src/controller/cross-project-startable.controller.db.test.ts:48:70)
+(fail) remote unfinished FS is excluded from startable and refused by claim until completion [396.90ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 8 expect() calls
+Ran 1 test across 1 file. [2.57s]

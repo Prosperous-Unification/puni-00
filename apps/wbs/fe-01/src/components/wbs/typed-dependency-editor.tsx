@@ -1,5 +1,6 @@
 import { Button, SELECT_CLASS } from '@ui/saas-01';
-import { useEffect, useRef, useState } from 'react';
+import type { ScopedDependencyEndpoint } from '@wbs/domain/typed-dependency';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import type {
   PlanRead,
@@ -9,6 +10,7 @@ import type {
   TypedDependencyView,
 } from '@/lib/wbs-api';
 
+import { encodeDependencyEndpoint, serializeDependencyEndpoint } from './dependency-selection';
 import type { CommitOutcome } from './live-editing';
 import { didLand } from './live-editing';
 import type { TreeRow } from './wbs-rows';
@@ -56,13 +58,22 @@ function rowOf(rows: readonly TreeRow[], workItemId: string): TreeRow {
   return row;
 }
 
-/** One endpoint's compact spelling, preserving the parent selector's expansion. */
+/** One endpoint's compact spelling; captured descendant addresses name the parent, so step/scope words remain explicit. */
 export function endpointText(
   endpoint: ReadEndpoint,
   rows: readonly TreeRow[],
   steps: readonly StepView[],
   nodes?: StepNodes,
 ): string {
+  // Proof: bypassing captured endpoint words made the mounted null-reference case throw Unknown dependency work item remote-row (2026-10-22).
+  if (endpoint.captured !== undefined) {
+    const captured = endpoint.captured;
+    // Proof: bypassing this branch failed `preserves non-null captured descendant selector` on desktop and phone (2026-10-22).
+    if (endpoint.scope === 'descendant-step')
+      return `${captured.qualifiedReference ?? `${captured.projectAbbreviation}.${captured.workItemNumber}`}${captured.step === null ? '' : ` · ${captured.step.name} step`} · all descendant work items`;
+    // Proof: returning only a non-null reference failed `keeps captured node step name beside non-null address` on desktop and phone (2026-10-22).
+    return `${captured.qualifiedReference ?? `${captured.projectAbbreviation}.${captured.workItemNumber}`}${captured.step === null ? '' : ` · ${captured.step.name} step`}`;
+  }
   const row = rowOf(rows, endpoint.workItemId);
   if (endpoint.scope === 'whole') return row.number;
   const step = stepOf(steps, endpoint.stepId);
@@ -78,6 +89,21 @@ export function dependencyWords(
   steps: readonly StepView[],
   nodes?: StepNodes,
 ) {
+  if (
+    dependency.predecessor.captured !== undefined ||
+    dependency.successor.captured !== undefined
+  ) {
+    const words = (endpoint: ReadEndpoint) => {
+      const captured = endpoint.captured;
+      return captured === undefined
+        ? `${endpointText(endpoint, rows, steps, nodes)} ${rowOf(rows, endpoint.workItemId).name}`
+        : `${endpointText(endpoint, rows, steps, nodes)} ${captured.name}`;
+    };
+    return {
+      chip: `${endpointText(dependency.predecessor, rows, steps, nodes)} ${dependency.type} → ${endpointText(dependency.successor, rows, steps, nodes)}`,
+      label: `${words(dependency.predecessor)} to ${words(dependency.successor)}, ${relationshipName(dependency.type)}`,
+    };
+  }
   const predecessor = rowOf(rows, dependency.predecessor.workItemId);
   const successor = rowOf(rows, dependency.successor.workItemId);
   const source = endpointText(dependency.predecessor, rows, steps, nodes);
@@ -166,7 +192,104 @@ export function endpointChoices(
   ];
 }
 
+export interface DependencyEndpointChoice {
+  key: string;
+  endpoint: ScopedDependencyEndpoint;
+  label: string;
+  description: string;
+  step: { id: string; name: string; code?: string | null } | null;
+}
+export interface DependencyEndpointEditor {
+  heading: string;
+  preferredKey: string | null;
+  choices: readonly DependencyEndpointChoice[];
+  unavailable: string;
+}
+
+/** Builds local scope choices from the actual hierarchy and this project's own step identities. */
+export function buildLocalDependencyEditor(
+  projectId: string,
+  row: TreeRow,
+  rows: readonly TreeRow[],
+  steps: readonly StepView[],
+  preferredKey = 'whole',
+  availableStepIds?: readonly string[],
+): DependencyEndpointEditor {
+  const parent = rows.some((candidate) => candidate.parentId === row.id);
+  return {
+    heading: `${row.number} · ${row.name}`,
+    preferredKey,
+    unavailable: `${steps.find((step) => step.id === preferredKey)?.name ?? preferredKey} step unavailable for ${row.number}`,
+    choices: endpointChoices(row, rows, steps, availableStepIds).map((choice) => {
+      const step = choice.key === 'whole' ? null : stepOf(steps, choice.key);
+      const scope = parent ? `every leaf under ${row.number}` : row.number;
+      const endpoint: ScopedDependencyEndpoint =
+        step === null
+          ? { projectId, scope: 'whole', workItemId: row.id }
+          : {
+              projectId,
+              scope: parent ? 'descendant-step' : 'node',
+              workItemId: row.id,
+              stepId: step.id,
+            };
+      return {
+        key: choice.key,
+        endpoint,
+        label: choice.label,
+        description:
+          step === null
+            ? scope
+            : parent
+              ? `the ${step.name} step of ${scope}`
+              : `${scope}.${step.name} step`,
+        step,
+      };
+    }),
+  };
+}
+
+/** Retains the persisted coordinate exactly, including scope across hierarchy refreshes. */
+export function buildPersistedSuccessorEditor(
+  projectId: string,
+  endpoint: ReadEndpoint,
+  rows: readonly TreeRow[],
+  steps: readonly StepView[],
+): DependencyEndpointEditor {
+  const coordinate = endpoint.captured?.endpoint ?? endpoint;
+  const row = rows.find((candidate) => candidate.id === coordinate.workItemId);
+  let persisted: ScopedDependencyEndpoint;
+  if (coordinate.scope === 'whole') {
+    persisted = { projectId, scope: 'whole', workItemId: coordinate.workItemId };
+  } else {
+    // Proof: bypassing this guard failed the missing persisted local successor identity test (2026-10-23).
+    if (coordinate.stepId === undefined)
+      throw new Error('Missing persisted dependency step identity');
+    persisted = {
+      projectId,
+      scope: coordinate.scope,
+      workItemId: coordinate.workItemId,
+      stepId: coordinate.stepId,
+    };
+  }
+  const editor =
+    row === undefined ? undefined : buildLocalDependencyEditor(projectId, row, rows, steps);
+  return {
+    heading: editor?.heading ?? coordinate.workItemId,
+    // Proof: forcing Whole failed mounted exact node and descendant-step initialization on both surfaces (2026-10-23).
+    preferredKey: encodeDependencyEndpoint(persisted),
+    unavailable: 'Persisted successor scope unavailable. Choose a current scope.',
+    choices:
+      editor?.choices.map((choice) => ({
+        ...choice,
+        // Proof: step-only keys silently rebound stale node drafts to descendant-step; both mounted hierarchy-refresh cases failed (2026-10-23).
+        key: encodeDependencyEndpoint(choice.endpoint),
+      })) ?? [],
+  };
+}
+
+/** Compatibility entry for existing local edit targets; the editor itself consumes independent models. */
 export function TypedDependencyEditor({
+  projectId,
   predecessor,
   successor,
   rows,
@@ -178,6 +301,7 @@ export function TypedDependencyEditor({
   onSave,
   onRemove,
 }: {
+  projectId: string;
   predecessor: TreeRow;
   successor: TreeRow;
   rows: readonly TreeRow[];
@@ -195,19 +319,75 @@ export function TypedDependencyEditor({
 }) {
   const initialKey = (endpoint: ReadEndpoint | undefined) =>
     endpoint?.scope === 'whole' ? 'whole' : endpoint?.stepId;
-  // Proof: replacing the preferred step id with its name made `proposes the same step id on both sides` fail with `Unknown dependency step QA`; watched 2026-09-27.
-  const [predecessorKey, setPredecessorKey] = useState(
-    initialKey(dependency?.predecessor) ?? preferredStepId ?? 'whole',
+  return (
+    <ScopedDependencyEditor
+      predecessor={buildLocalDependencyEditor(
+        projectId,
+        predecessor,
+        rows,
+        steps,
+        initialKey(dependency?.predecessor) ?? preferredStepId ?? 'whole',
+        availablePredecessorStepIds,
+      )}
+      successor={buildLocalDependencyEditor(
+        projectId,
+        successor,
+        rows,
+        steps,
+        initialKey(dependency?.successor) ?? preferredStepId ?? 'whole',
+      )}
+      isEditing={dependency !== undefined}
+      initialType={dependency?.type ?? 'FS'}
+      onCancel={onCancel}
+      onSave={(source, target, type) =>
+        onSave(
+          serializeDependencyEndpoint(source, projectId),
+          serializeDependencyEndpoint(target, projectId),
+          type,
+        )
+      }
+      onRemove={onRemove}
+    />
   );
-  const [successorKey, setSuccessorKey] = useState(
-    initialKey(dependency?.successor) ?? preferredStepId ?? 'whole',
-  );
+}
+
+/** Each endpoint owns its identity, choices and unavailable reading; no cross-project row/step lookup occurs. */
+export function ScopedDependencyEditor({
+  predecessor,
+  successor,
+  isEditing = false,
+  initialType = 'FS',
+  onCancel,
+  onSave,
+  onRemove,
+}: {
+  predecessor: DependencyEndpointEditor;
+  successor: DependencyEndpointEditor;
+  isEditing?: boolean;
+  initialType?: string;
+  onCancel: () => void;
+  onSave: (
+    source: ScopedDependencyEndpoint,
+    target: ScopedDependencyEndpoint,
+    type: TypedDependencyType,
+  ) => Promise<CommitOutcome>;
+  onRemove?: () => Promise<CommitOutcome>;
+}) {
+  const [manualPredecessorKey, setManualPredecessorKey] = useState<string | null>(null);
+  const [manualSuccessorKey, setManualSuccessorKey] = useState<string | null>(null);
   const [relationshipType, setRelationshipType] = useState<TypedDependencyType>(() => {
-    if (dependency === undefined) return 'FS';
-    return dependencyTypeOf(dependency.type);
+    return dependencyTypeOf(initialType);
   });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  // Layout cleanup retires this gesture before a pending completion can affect its replacement.
+  const retired = useRef(false);
+  useLayoutEffect(() => {
+    retired.current = false;
+    return () => {
+      retired.current = true;
+    };
+  }, []);
   const backButton = useRef<HTMLButtonElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
   useEffect(() => backButton.current?.focus(), []);
@@ -234,20 +414,12 @@ export function TypedDependencyEditor({
       element.removeEventListener('keydown', returnToList);
     };
   }, [onCancel]);
-  const predecessors = endpointChoices(predecessor, rows, steps, availablePredecessorStepIds);
-  const successors = endpointChoices(successor, rows, steps);
-  // Proof: substituting the available Dev choice for a missing QA node made `marks a missing predecessor step unavailable` fail: the selector no longer held QA; watched 2026-09-27.
+  const predecessors = predecessor.choices;
+  const successors = successor.choices;
+  const predecessorKey = manualPredecessorKey ?? predecessor.preferredKey;
+  const successorKey = manualSuccessorKey ?? successor.preferredKey;
   const chosenPredecessor = predecessors.find((choice) => choice.key === predecessorKey);
   const chosenSuccessor = successors.find((choice) => choice.key === successorKey);
-  const selectedEndpointWords = (row: TreeRow, key: string): string => {
-    const parent = rows.some((candidate) => candidate.parentId === row.id);
-    const scope = parent ? `every leaf under ${row.number}` : row.number;
-    return key === 'whole'
-      ? scope
-      : parent
-        ? `the ${stepOf(steps, key).name} step of ${scope}`
-        : `${scope}.${stepOf(steps, key).name} step`;
-  };
   const save = async () => {
     if (chosenPredecessor === undefined || chosenSuccessor === undefined) return;
     setBusy(true);
@@ -256,6 +428,8 @@ export function TypedDependencyEditor({
       chosenSuccessor.endpoint,
       relationshipType,
     );
+    // Proof: removing this retired-session fence closed the newer desktop/phone editor and lost its SS choice (mounted round2 tests).
+    if (retired.current) return;
     setBusy(false);
     if (didLand(outcome)) onCancel();
     else setMessage('Dependency refused. Review the selected scopes and try again.');
@@ -278,15 +452,15 @@ export function TypedDependencyEditor({
         ← Dependencies
       </Button>
       <p>
-        {predecessor.number} · {predecessor.name} → {successor.number} · {successor.name}
+        {predecessor.heading} → {successor.heading}
       </p>
       <label>
         Predecessor
         <select
           className={`${SELECT_CLASS} w-full`}
-          value={predecessorKey}
+          value={predecessorKey ?? ''}
           onChange={(event) => {
-            setPredecessorKey(event.target.value);
+            setManualPredecessorKey(event.target.value);
           }}
         >
           {predecessors.map((choice) => (
@@ -295,9 +469,8 @@ export function TypedDependencyEditor({
             </option>
           ))}
           {chosenPredecessor === undefined && (
-            <option value={predecessorKey} disabled>
-              {steps.find((step) => step.id === predecessorKey)?.name ?? predecessorKey} step
-              unavailable for {predecessor.number}
+            <option value={predecessorKey ?? ''} disabled>
+              {predecessor.unavailable}
             </option>
           )}
         </select>
@@ -306,9 +479,9 @@ export function TypedDependencyEditor({
         This work item
         <select
           className={`${SELECT_CLASS} w-full`}
-          value={successorKey}
+          value={successorKey ?? ''}
           onChange={(event) => {
-            setSuccessorKey(event.target.value);
+            setManualSuccessorKey(event.target.value);
           }}
         >
           {successors.map((choice) => (
@@ -333,14 +506,15 @@ export function TypedDependencyEditor({
         </select>
       </label>
       <p>
-        {relationshipName(relationshipType)}: {selectedEndpointWords(successor, successorKey)}{' '}
+        {relationshipName(relationshipType)}:{' '}
+        {chosenSuccessor?.description ?? successor.unavailable}{' '}
         {relationshipType === 'FF' ? 'finishes' : 'starts'} no earlier than{' '}
-        {selectedEndpointWords(predecessor, predecessorKey)}{' '}
+        {chosenPredecessor?.description ?? predecessor.unavailable}{' '}
         {relationshipType === 'SS' ? 'starts' : 'finishes'}.
       </p>
       {message !== '' && <p role="alert">{message}</p>}
       <div className="typed-dependency-actions">
-        {dependency !== undefined && onRemove !== undefined && (
+        {isEditing && onRemove !== undefined && (
           <Button
             variant="outline"
             size="sm"
@@ -350,6 +524,8 @@ export function TypedDependencyEditor({
               void (async () => {
                 setBusy(true);
                 const outcome = await onRemove();
+                // Proof: bypassing this fence invoked the old cancellation callback after the removal editor was replaced (scoped editor round2 negative).
+                if (retired.current) return;
                 setBusy(false);
                 if (didLand(outcome)) onCancel();
                 else setMessage('Dependency removal refused.');
@@ -368,7 +544,7 @@ export function TypedDependencyEditor({
           disabled={busy || chosenPredecessor === undefined || chosenSuccessor === undefined}
           onClick={() => void save()}
         >
-          {dependency === undefined ? 'Add' : 'Save'}
+          {!isEditing ? 'Add' : 'Save'}
         </Button>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
@@ -31,7 +31,15 @@ function history(path: string, content?: string) {
     'nx.json',
     JSON.stringify({ plugins: [], namedInputs: { default: ['{projectRoot}/**/*'] } }),
   );
-  for (const project of ['core', 'twilight-burokrat', 'twilight-dash', 'website-contracts']) {
+  for (const project of [
+    'core',
+    'twilight-burokrat',
+    'twilight-dash',
+    'website-contracts',
+    'wbs-be-01',
+    'tool-remote-scripts',
+    'wbs-fe-01',
+  ]) {
     const targets = Object.fromEntries(
       ['test', 'typecheck', 'build', 'lint', 'lint:source'].map((target) => [
         target,
@@ -88,20 +96,41 @@ function invokePlan(candidate: ReturnType<typeof history>) {
   );
 }
 
-function invokeRuntime(candidate: ReturnType<typeof history>, part: string, fault = '0') {
+function invokeRuntime(
+  candidate: ReturnType<typeof history>,
+  part: string,
+  fault = '0',
+  mode = 'affected',
+  projects = [
+    'core',
+    'twilight-burokrat',
+    'twilight-dash',
+    'website-contracts',
+    'wbs-be-01',
+    'tool-remote-scripts',
+    'wbs-fe-01',
+    'new-runtime',
+  ],
+) {
   const harness = scratchSync('ci-nx-execution-');
   const calls = join(harness, 'calls');
   writeFileSync(
     join(harness, 'bunx'),
-    '#!/bin/sh\nprintf "%s\n" "$*" >> "$NX_CALLS"\nexit "$NX_FAULT"\n',
+    '#!/bin/sh\nprintf "%s\n" "$*" >> "$NX_CALLS"\nif [ "$*" = "nx show projects --json" ]; then printf "%s\n" "$NX_PROJECTS"; exit "$NX_FAULT"; fi\nexit "$NX_FAULT"\n',
     { mode: 0o755 },
   );
   const path = process.env['PATH'];
   if (path === undefined) throw new Error('Test requires PATH');
   const invocation = Bun.spawnSync(
-    [process.execPath, runtimeCli, part, candidate.base, candidate.head, candidate.root],
+    [process.execPath, runtimeCli, part, candidate.base, candidate.head, candidate.root, mode],
     {
-      env: { ...process.env, PATH: `${harness}:${path}`, NX_CALLS: calls, NX_FAULT: fault },
+      env: {
+        ...process.env,
+        PATH: `${harness}:${path}`,
+        NX_CALLS: calls,
+        NX_FAULT: fault,
+        NX_PROJECTS: JSON.stringify(projects),
+      },
       stdout: 'pipe',
       stderr: 'pipe',
       timeout: 20000,
@@ -195,6 +224,28 @@ describe('production CI plan and execution', () => {
     });
   }, 20000);
 
+  test.each([
+    ['wbs-be-01', 'backend'],
+    ['tool-remote-scripts', 'remote'],
+    ['wbs-fe-01', 'frontend'],
+  ])(
+    'plans %s only in its dedicated %s partition',
+    (project, partition) => {
+      const candidate = history(`modules/${project}/source.ts`);
+      const planned = invokePlan(candidate);
+      expect(planned.exitCode, planned.stderr.toString()).toBe(0);
+      const plan = JSON.parse(planned.stdout.toString()) as {
+        partitions: Record<string, string[]>;
+      };
+      expect(plan.partitions[partition]).toEqual([project]);
+      expect(Object.values(plan.partitions).flat()).toEqual([project]);
+      const execution = invokeRuntime(candidate, partition);
+      expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(0);
+      expect(readFileSync(execution.calls, 'utf8')).toContain(`-p ${project}`);
+    },
+    20000,
+  );
+
   test('executes selected runtime targets and retains independent workspace lint', () => {
     const { invocation, calls } = invokeRuntime(history('modules/core/source.ts'), 'workspace');
     expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
@@ -270,5 +321,110 @@ describe('production CI plan and execution', () => {
     const candidate = history('modules/core/source.ts');
     expect(invokeRuntime(candidate, 'twilight').invocation.exitCode).not.toBe(0);
     expect(invokeRuntime(candidate, 'anything').invocation.exitCode).not.toBe(0);
+    expect(invokeRuntime(candidate, 'workspace', '0', 'unknown').invocation.exitCode).not.toBe(0);
+  }, 20000);
+
+  test('full partitions cover every non-Twilight project with canonical targets', () => {
+    const candidate = history('modules/core/source.ts');
+    const commands = ['backend', 'remote', 'frontend', 'workspace'].map((part) => {
+      const { invocation, calls } = invokeRuntime(candidate, part, '0', 'full');
+      expect(invocation.exitCode, `${part}: ${invocation.stderr.toString()}`).toBe(0);
+      expect(invocation.stdout.toString()).toContain('elapsedMs');
+      return readFileSync(calls, 'utf8').trim().split('\n');
+    });
+    expect(commands[0][1]).toContain(
+      'run-many -t test lint typecheck build -p wbs-be-01 --parallel=2',
+    );
+    expect(commands[1][1]).toContain(
+      'run-many -t test lint typecheck build -p tool-remote-scripts --parallel=2',
+    );
+    expect(commands[2][1]).toContain(
+      'run-many -t test lint typecheck build -p wbs-fe-01 --parallel=2',
+    );
+    expect(commands[3][1]).toContain(
+      'run-many -t test lint typecheck build -p core,website-contracts,new-runtime --parallel=2',
+    );
+  }, 20000);
+
+  test('fixed remote leaves retain one logical owner and explicit static/dependency execution', () => {
+    const candidate = history('modules/tool-remote-scripts/source.ts');
+    for (const mode of ['affected', 'full']) {
+      for (const part of [
+        'remote-rest',
+        'remote-model',
+        'remote-model-continuation',
+        'remote-source',
+        'remote-source-restoration',
+      ]) {
+        const { invocation, calls } = invokeRuntime(candidate, part, '0', mode);
+        expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+        const commands = readFileSync(calls, 'utf8');
+        expect(
+          commands
+            .trim()
+            .split('\n')
+            .filter((line) => line.includes(':test:ci:')),
+        ).toHaveLength(1);
+        expect(commands).toContain(
+          `run tool-remote-scripts:test:ci:${part === 'remote-rest' ? 'rest' : part === 'remote-model' ? 'model' : part === 'remote-source' ? 'source' : part === 'remote-source-restoration' ? 'source-restoration' : 'model-continuation'} --head=${candidate.head} --skip-nx-cache --parallel=2`,
+        );
+        expect(commands).not.toContain('-t test ');
+        if (part === 'remote-rest')
+          expect(commands).toContain(
+            `run-many -t ${mode === 'full' ? 'lint ' : ''}typecheck build -p tool-remote-scripts --parallel=2`,
+          );
+        else expect(commands).not.toContain('run-many');
+      }
+    }
+  }, 20000);
+
+  test('each fixed remote leaf rejects wrong head, unknown mode and an excluded plan', () => {
+    const candidate = history('modules/tool-remote-scripts/source.ts');
+    for (const part of [
+      'remote-rest',
+      'remote-model',
+      'remote-model-continuation',
+      'remote-source',
+      'remote-source-restoration',
+    ]) {
+      expect(
+        invokeRuntime({ ...candidate, head: candidate.base }, part, '0', 'full').invocation
+          .exitCode,
+      ).not.toBe(0);
+      expect(invokeRuntime(candidate, part, '0', 'unknown').invocation.exitCode).not.toBe(0);
+      expect(invokeRuntime(history('modules/core/source.ts'), part).invocation.exitCode).not.toBe(
+        0,
+      );
+    }
+  }, 20000);
+
+  test('full residual stays explicit when all configured projects are dedicated or Twilight', () => {
+    const candidate = history('modules/core/source.ts');
+    const selected = ['wbs-be-01', 'tool-remote-scripts', 'wbs-fe-01', 'twilight-burokrat'];
+    const { invocation, calls } = invokeRuntime(candidate, 'workspace', '0', 'full', selected);
+    expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+    expect(readFileSync(calls, 'utf8').trim()).toBe('nx show projects --json');
+    expect(invocation.stdout.toString()).toContain('Full inventory has no residual projects');
+  }, 20000);
+
+  test('full runner refuses stale head, missing owner and failed Nx inventory', () => {
+    const candidate = history('modules/core/source.ts');
+    const stale = invokeRuntime({ ...candidate, head: candidate.base }, 'backend', '0', 'full');
+    expect(stale.invocation.exitCode).not.toBe(0);
+    expect(existsSync(stale.calls)).toBe(false);
+    const missing = invokeRuntime(candidate, 'backend', '0', 'full', ['core']);
+    expect(missing.invocation.exitCode).not.toBe(0);
+    expect(readFileSync(missing.calls, 'utf8')).not.toContain('run-many');
+    const fault = invokeRuntime(candidate, 'backend', '23', 'full');
+    expect(fault.invocation.exitCode).not.toBe(0);
+    expect(readFileSync(fault.calls, 'utf8')).not.toContain('run-many');
+    for (const names of [
+      ['wbs-be-01', 'tool-remote-scripts', 'wbs-fe-01', '--skip-nx-cache'],
+      ['wbs-be-01', 'tool-remote-scripts', 'wbs-fe-01', 'wbs-be-01'],
+    ]) {
+      const malformed = invokeRuntime(candidate, 'backend', '0', 'full', names);
+      expect(malformed.invocation.exitCode).not.toBe(0);
+      expect(readFileSync(malformed.calls, 'utf8')).not.toContain('run-many');
+    }
   }, 20000);
 });

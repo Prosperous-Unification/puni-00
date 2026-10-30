@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts:
+43 |       // account has its own negative; bypassing the read failed all four
+44 |       // `throws on trusted credential` cases (absent/unreadable table, malformed source/time).
+45 |       if (false || context === undefined)
+46 |         return { ok: false, refusal: 'organization_context_changed' };
+47 |       if (
+48 |         credential.revokedAt !== null ||
+             ^
+TypeError: null is not an object (evaluating 'credential.revokedAt')
+      at resolve (/tmp/puni-machine-writer/libs/wbs/adapters/store-sqlite/src/command-access.ts:48:9)
+      at async <anonymous> (/tmp/puni-machine-writer/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts:434:40)
+      at async <anonymous> (/tmp/puni-machine-writer/libs/wbs/application/core/src/module/plan-commands/composition.ts:137:34)
+      at async <anonymous> (/tmp/puni-machine-writer/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) machine direct runner refuses current credential missing before capture [644.82ms]
+
+ 0 pass
+ 102 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [4.73s]

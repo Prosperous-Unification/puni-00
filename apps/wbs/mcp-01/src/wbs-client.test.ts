@@ -253,6 +253,7 @@ describe('buildRequest', () => {
       'x-mcp-internal-auth': 'secret',
     });
     expect(request.headers).toEqual({
+      'X-WBS-Dependency-Semantics': 'cross-project-dependencies-v1',
       authorization: 'Bearer grant',
       'x-mcp-internal-auth': 'secret',
     });
@@ -450,4 +451,21 @@ describe('callTool', () => {
     );
     expect(be01.calls).toHaveLength(0);
   });
+});
+
+it('claims V1 for protected tools and preserves typed backend incompatibility', async () => {
+  const refused = stub(
+    json(409, {
+      error: 'client_dependency_incompatible',
+      required: 'cross-project-dependencies-v1',
+    }),
+  );
+  const reply = await callTool(READ, { id: 'p' }, CONFIG, refused.fetch);
+  expect(refused.calls[0]?.headers['X-WBS-Dependency-Semantics']).toBe(
+    'cross-project-dependencies-v1',
+  );
+  expect(reply.isError).toBe(true);
+  expect(textOf(reply)).toContain('client_dependency_incompatible');
+  const exempt = buildRequest({ ...READ, name: 'getApiAuthMe' }, { id: 'p' }, CONFIG);
+  expect(exempt.headers['X-WBS-Dependency-Semantics']).toBeUndefined();
 });

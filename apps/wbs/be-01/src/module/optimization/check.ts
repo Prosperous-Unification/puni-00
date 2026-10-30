@@ -45,6 +45,10 @@ export function installOptimization(requirements: OptimizationRequirements): Opt
       captureOf: DiBag.createProvider(() => requirements.captureOf, {
         factoryReturnKind: 'sync-value',
       }),
+      // Proof: a provider returning undefined made mounted upstream edits log connected optimizer lacks installed digest.
+      hashConnectedBytes: DiBag.createProvider(() => requirements.hashConnectedBytes, {
+        factoryReturnKind: 'sync-value',
+      }),
       hashInput: DiBag.createProvider(() => requirements.hashInput, {
         factoryReturnKind: 'sync-value',
       }),

@@ -1,5 +1,7 @@
 import { canWriteInOrganization, type OrganizationScope } from '@wbs/domain';
 
+import type { CommandAccess } from '../../ports/command-access';
+import type { CommandGraphAuthority, DependencyContext } from '../../ports/dependency-context';
 import type { EditAdmission } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectCrossReferenceKind, RecoveryAuditDetail } from '../../ports/project-values';
@@ -16,6 +18,7 @@ export type AdmittedGraphFactory<G> = (
   scope: Scope,
   broadcast: Broadcaster,
   admission: EditAdmission,
+  dependencies: DependencyContext,
 ) => G;
 
 /**
@@ -77,6 +80,7 @@ export class AdmittedScope {
       organization.organizationId,
       actorId,
       detail,
+      organization.role,
     );
     if (admitted === null) return 'not_found';
     // Proof: skipping this refusal made `refuses a viewer every batch, undo
@@ -106,6 +110,9 @@ export interface OpenCommandGraph {
 
 /** Feature-owned command and receiver operations; the raw borrowed scope stays private. */
 export interface CommandAdmission {
+  /** Coordinator expiry without caller admission. */
+  releaseExpiredLeases(projectId: string, broadcast: Broadcaster): Promise<number>;
+  resolveAccess: CommandAccess['resolve'];
   /** Pure current runtime authorization over this same borrowed command transaction. */
   authorizeRuntime(
     identity: RuntimeAdmissionIdentity,
@@ -115,13 +122,13 @@ export interface CommandAdmission {
   openCommandGraph(
     projectId: string | null,
     broadcast: Broadcaster,
-    admission: EditAdmission,
+    authority: CommandGraphAuthority,
   ): OpenCommandGraph;
 }
 
 /** The sole repair operation a failed replay needs over surviving state. */
 export interface CommandRepair {
-  discardEntry(entryId: string, broadcast: Broadcaster): Promise<void>;
+  discardEntry(entryId: string): Promise<void>;
 }
 
 export type CommandDecision<T> =

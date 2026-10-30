@@ -36,7 +36,7 @@ import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { eventLog, optimizedScheduleCache, solverQueue, solverSlot } from '../repository/schema';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
-const CONTRACT = '7+0.3.0';
+const CONTRACT = '18+0.4.0';
 const BUDGET = 60_000;
 
 const INPUT: ScheduleInput = {
@@ -59,7 +59,8 @@ const INPUT: ScheduleInput = {
   deadlines: new Map(),
 };
 const FEASIBLE_RESPONSE = `${JSON.stringify({
-  wireVersion: 4,
+  wireVersion: 5,
+  scope: { kind: 'local' },
   status: 'feasible',
   offsets: { 'w-1\u0000step-dev': 0 },
   objectiveValues: {
@@ -182,7 +183,7 @@ function coordinator(
     repository: repositoryOf?.(reservation) ?? reservation,
     hashInput: scheduleInputHash,
     contractVersion: CONTRACT,
-    solverVersion: '0.3.0',
+    solverVersion: '0.4.0',
     budgetMs: BUDGET,
     ownerId,
     now,
@@ -649,7 +650,7 @@ describe('OptimizationCoordinator read', () => {
       },
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.3.0',
+      solverVersion: '0.4.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -723,7 +724,7 @@ describe('OptimizationCoordinator read', () => {
       },
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.3.0',
+      solverVersion: '0.4.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -927,7 +928,7 @@ describe('OptimizationCoordinator read', () => {
       repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.3.0',
+      solverVersion: '0.4.0',
       budgetMs: BUDGET,
       ownerId: 'restarted',
       now: () => 600,
@@ -977,7 +978,7 @@ describe('OptimizationCoordinator read', () => {
       repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.3.0',
+      solverVersion: '0.4.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -1098,6 +1099,8 @@ describe('OptimizationCoordinator read', () => {
     expect(calls.map(({ objective }) => objective)).toEqual(['pri', 'time']);
     expect(calls.every(({ key }) => key.inputHash === scheduleInputHash(INPUT))).toBe(true);
     expect(calls.map(({ request }) => request.objective)).toEqual(['pri', 'time']);
+    if (calls[0].kind === 'connected' || calls[1].kind === 'connected')
+      throw new Error('expected local fixture requests');
     expect(calls[0].request.baselineOffsets).toBe(calls[1].request.baselineOffsets);
     expect(
       db
@@ -1388,7 +1391,7 @@ describe('OptimizationCoordinator read', () => {
       repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.3.0',
+      solverVersion: '0.4.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -1461,7 +1464,7 @@ describe('OptimizationCoordinator read', () => {
       },
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.3.0',
+      solverVersion: '0.4.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -1521,7 +1524,7 @@ describe('OptimizationCoordinator read', () => {
       repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.3.0',
+      solverVersion: '0.4.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -2647,7 +2650,7 @@ describe('OptimizationCoordinator Retry admission', () => {
       repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.3.0',
+      solverVersion: '0.4.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -2747,7 +2750,7 @@ describe('OptimizationCoordinator Retry admission', () => {
       repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.3.0',
+      solverVersion: '0.4.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -2968,7 +2971,7 @@ describe('wire 3 preflight admission cleanup', () => {
       },
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.3.0',
+      solverVersion: '0.4.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -3095,13 +3098,13 @@ describe('wire 3 preflight admission cleanup', () => {
     { name: 'compatibility', version: '0.1.4', reason: 'internal-error', input: INPUT },
     {
       name: 'arithmetic',
-      version: '0.3.0',
+      version: '0.4.0',
       reason: 'horizon-overflow',
       input: { ...INPUT, slices: INPUT.slices.map((slice) => ({ ...slice, days: 2 ** 52 })) },
     },
     {
       name: 'booking arithmetic',
-      version: '0.3.0',
+      version: '0.4.0',
       reason: 'horizon-overflow',
       input: {
         ...INPUT,

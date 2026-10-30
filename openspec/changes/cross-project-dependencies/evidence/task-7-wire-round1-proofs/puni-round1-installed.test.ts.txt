@@ -1,0 +1,56 @@
+import { expect, test } from 'bun:test';
+
+const executable = '/tmp/puni-cross-solver-wire/.venv-solver/bin/wbs-solver';
+const fixture = JSON.parse(await Bun.file('/tmp/puni-wire-installed-connected-request.json').text());
+const run = (request: unknown) => Bun.spawnSync([executable], { stdin: Buffer.from(JSON.stringify(request)) });
+
+test('installed 0.4.0 classifies valid terminal and invalid witness', () => {
+  const terminal = run(fixture);
+  expect(terminal.exitCode).toBe(0);
+  expect(JSON.parse(terminal.stdout.toString()).status).toBe('boundary-infeasible');
+  const invalid = structuredClone(fixture);
+  invalid.scope.boundaries.pop();
+  invalid.feasibleBaselineOffsets = { b: 0 };
+  const badWitness = run(invalid);
+  expect(badWitness.exitCode).toBe(64);
+  expect(badWitness.stdout.toString()).toBe('');
+});
+
+test('installed 0.4.0 refuses nonfinite fixed and occupancy evidence', () => {
+  const raw = JSON.stringify(fixture);
+  for (const token of ['NaN', 'Infinity', '-Infinity', '1e309']) {
+    for (const field of ['fixed', 'occupancy']) {
+      const invalid = structuredClone(fixture);
+      if (field === 'occupancy') invalid.scope.occupancy = [{
+        personId: 'ana', projectId: 'A', key: 'a', start: 0, finish: 0.2,
+      }];
+      const encoded = JSON.stringify(invalid);
+      const marker = '"finish":0.2';
+      const at = field === 'fixed' ? encoded.indexOf(marker) : encoded.lastIndexOf(marker);
+      expect(at).toBeGreaterThanOrEqual(0);
+      const bytes = encoded.slice(0, at) + `"finish":${token}` + encoded.slice(at + marker.length);
+      const child = Bun.spawnSync([executable], { stdin: Buffer.from(bytes) });
+      expect(child.exitCode).toBe(64);
+      expect(child.stdout.toString()).toBe('');
+    }
+  }
+  expect(raw.length).toBeGreaterThan(0);
+});
+
+test('installed 0.4.0 refuses finite quantization overflow', () => {
+  const invalid = structuredClone(fixture);
+  invalid.scope.fixed[0].finish = 1e308;
+  invalid.scope.occupancy = [{
+    personId: 'ana', projectId: 'A', key: 'a', start: 0, finish: 1e308,
+  }];
+  const child = run(invalid);
+  expect(child.exitCode).toBe(64);
+  expect(child.stdout.toString()).toBe('');
+  expect(child.stderr.toString()).toContain('quantization');
+  const giant = JSON.stringify(invalid).replaceAll('1e+308', `1${'0'.repeat(400)}`);
+  expect(giant).toContain(`1${'0'.repeat(400)}`);
+  const giantChild = Bun.spawnSync([executable], { stdin: Buffer.from(giant) });
+  expect(giantChild.exitCode).toBe(64);
+  expect(giantChild.stdout.toString()).toBe('');
+  expect(giantChild.stderr.toString()).toContain('quantization');
+});

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+(pass) walks incoming and outgoing incidents once, without an owned-empty shortcut [1.89ms]
+(pass) reads each project with its own reach, steps, estimate presence and unreduced holds [1.21ms]
+(pass) replaces complete successor-owned sets and seeds both old and new components [0.24ms]
+(pass) observes staged changes freshly on every evaluation and applies precise local overrides [0.73ms]
+(pass) finds incoming step references with project identity and preserves local links [0.49ms]
+(pass) refuses expired borrowed capabilities before reads and if expiry happens during a read [0.57ms]
+(pass) requires reached-project authority before any project or tree read [0.19ms]
+(pass) throws for missing required projects, unreadable facts and foreign work-item rows [0.28ms]
+(pass) rejects malformed owner, unrelated incident rows and conflicting stored identities [0.23ms]
+(pass) rejects duplicate overrides and a proposed set owned by another project [0.11ms]
+(pass) keeps held work in the authored cycle decision [0.21ms]
+(pass) rejects each proposed ownership mismatch independently [0.11ms]
+(pass) rejects conflicting stored identities even if an override removes their owner [0.07ms]
+(pass) rejects conflicts between effective proposed sets and retained owners [0.07ms]
+(pass) rejects a required project read returning another project identity [0.08ms]
+
+ 15 pass
+ 0 fail
+ 62 expect() calls
+Ran 15 tests across 1 file. [139.00ms]

@@ -1,0 +1,27 @@
+
+ NX   Running target typecheck for project wbs-be-01 and 1 task it depends on:
+
+
+
+> nx run wbs-be-01:"typecheck:module"
+
+> bun tools/tool-devsync/src/typecheck-modules.ts apps/wbs/be-01/src/module
+
+typecheck apps/wbs/be-01/src/module/optimization
+typecheck apps/wbs/be-01/src/module/solver-launcher
+typecheck apps/wbs/be-01/src/module/solver-supervisor
+
+> nx run wbs-be-01:typecheck
+
+> bunx tsc --build --force apps/wbs/be-01/tsconfig.json
+
+
+
+
+ NX   Successfully ran target typecheck for project wbs-be-01 and 1 task it depends on
+
+
+  Run duration:      13.9s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     13.9s (2 tasks)
+  Recoverable time:  <1ms

@@ -1,6 +1,7 @@
 import { type } from 'arktype';
 
-import { project } from './project-response';
+import { documentConnected } from './plan-document-connected-shapes';
+import { documentProject } from './project-response';
 import { requestSchema, responseSchema } from './schema-shape';
 import { moneyBasis, numberedWorkItem, workItemTree } from './work-item-response';
 
@@ -19,6 +20,8 @@ import { moneyBasis, numberedWorkItem, workItemTree } from './work-item-response
  * classifier converts earlier versions explicitly; only the import reads them.
  */
 export const PLAN_DOCUMENT_VERSION = 11;
+/** Connected exports retain dependency history in addition to the published measures contract. */
+export const PLAN_DOCUMENT_EXTERNAL_VERSION = 12;
 
 const planHeader = type({
   format: "'wbs-plan'",
@@ -164,6 +167,63 @@ export const documentTypedDependency = type({
 });
 export const documentTypedDependencyRequest = requestSchema(documentTypedDependency);
 export type DocumentTypedDependency = (typeof documentTypedDependency)['infer'];
+export const documentV10TypedDependencyRequest = documentTypedDependencyRequest;
+
+const internalEndpoint = type({ kind: "'internal'", scope: "'whole'", workItem: 'string' })
+  .or({ kind: "'internal'", scope: "'node'", workItem: 'string', step: 'string' })
+  .or({ kind: "'internal'", scope: "'descendant-step'", workItem: 'string', step: 'string' });
+
+const externalDisplay = type({
+  projectName: 'string',
+  abbreviation: 'string',
+  workItemName: 'string',
+  address: 'string',
+  'stepName?': 'string',
+});
+
+const externalEndpoint = type({
+  kind: "'external'",
+  scope: "'whole'",
+  projectId: 'string',
+  workItemId: 'string',
+  display: externalDisplay,
+}).or({
+  kind: "'external'",
+  scope: "'node' | 'descendant-step'",
+  projectId: 'string',
+  workItemId: 'string',
+  stepId: 'string',
+  // Proof: making stepName optional admitted the missing-label classifier test
+  // in plan-document.resource.test.ts (2026-10-22).
+  display: externalDisplay.and({ stepName: 'string' }),
+});
+
+/** Authored v11 links belong to the imported successor; labels never bind identity. */
+export const documentV12TypedDependency = type({
+  id: 'string',
+  predecessor: internalEndpoint.or(externalEndpoint),
+  successor: internalEndpoint,
+  type: "'FS' | 'SS' | 'FF'",
+});
+export const documentV12TypedDependencyRequest = requestSchema(documentV12TypedDependency);
+export type DocumentV12TypedDependency = (typeof documentV12TypedDependency)['infer'];
+
+export const documentExternalIdentity = type({
+  scope: "'whole'",
+  projectId: 'string',
+  workItemId: 'string',
+}).or({
+  scope: "'node' | 'descendant-step'",
+  projectId: 'string',
+  workItemId: 'string',
+  stepId: 'string',
+});
+export const documentExternalMapping = type({
+  source: documentExternalIdentity,
+  destination: documentExternalIdentity,
+});
+export const documentExternalMappingRequest = requestSchema(documentExternalMapping);
+export type DocumentExternalMapping = (typeof documentExternalMapping)['infer'];
 
 /** Version 4's converter accepts only the relationship type that release wrote. */
 export const documentV4TypedDependencyRequest = requestSchema(
@@ -222,7 +282,7 @@ const documentWorkItem = numberedWorkItem
   )
   .and({ 'attempts?': type({ '[string]': documentAttempt.array() }) });
 
-export const planDocument = workItemTree
+export const planDocumentV11 = workItemTree
   .omit('typedDependencies', 'workItems', 'demands', 'demandedResources')
   .and({
     workItems: documentWorkItem.array(),
@@ -239,7 +299,7 @@ export const planDocument = workItemTree
       stepId: 'string',
       reference: 'string',
     }).array(),
-    project,
+    project: documentProject,
     document: planHeader,
     settings: planSettings,
     capacity: type({ teamId: 'string', size: 'number' }).array(),
@@ -254,9 +314,54 @@ export const planDocument = workItemTree
     budgets: documentBudget.array(),
   });
 
-export type PlanDocument = (typeof planDocument)['infer'];
+export type PlanDocumentV11 = (typeof planDocumentV11)['infer'];
 
-/** Additive responses remain readable by clients written for this version. */
+/**
+ * Frozen local resource document, before measures and budget factors existed.
+ * Historical-only consumers construct it explicitly; process boot needs only
+ * ordinary11 and connected12 and must not compile an unused third document.
+ */
+export function createPlanDocumentV10() {
+  return planDocumentV11
+    .omit(
+      'project',
+      'document',
+      'settings',
+      'measureDefinitions',
+      'measureFacts',
+      'measureEstimates',
+      'budgets',
+    )
+    .and({
+      // Proof: without this historical project shape, the strict v10 consumer
+      // accepted the embedded budgetFactor added in v11 (2026-10-24).
+      project: documentProject.omit('budgetFactor'),
+      document: planHeader.omit('version').and({ version: '10' }),
+      settings: planSettings.omit('budgetFactor'),
+    });
+}
+export type PlanDocumentV10 = ReturnType<typeof createPlanDocumentV10>['infer'];
+
+/** Explicit external predecessor identities; import mappings are never exported. */
+export const planDocumentV12 = planDocumentV11.omit('document', 'typedDependencies').and({
+  // Proof: replacing the connected version with the ordinary version failed the versioned-response test (2026-10-22).
+  document: planHeader.omit('version').and({ version: '12' }),
+  typedDependencies: documentV12TypedDependency.array(),
+  // Proof: optional-evidence.txt: making this optional made mounted absent-history return 200 instead of 500.
+  connected: documentConnected,
+});
+export type PlanDocumentV12 = (typeof planDocumentV12)['infer'];
+
+/** Version discrimination keeps ordinary local endpoints separate from connected v12 endpoints. */
+export const planDocument = planDocumentV11.or(planDocumentV12);
+export type PlanDocument = PlanDocumentV11 | PlanDocumentV12;
+
+/**
+ * One compiled current response union. Standalone versioned validators belong
+ * to their consumers: compiling the three unused ones here measured563MB at
+ * process load; moving test-only constructions measured490MB under the500MB
+ * contracts-boot-memory.test.ts bound (2026-10-24).
+ */
 export const planDocumentResponse = responseSchema(planDocument);
 
 /** The classifier reads only the format/version header before version-specific content. */
@@ -349,6 +454,8 @@ const writablePlanDocument = type({
     'code?': 'unknown',
   }).array(),
   'typedDependencies?': 'unknown',
+  /** Import-only instructions; never part of an authored export. */
+  'externalMappings?': 'unknown',
   'stepBlockages?': 'unknown',
 });
 
@@ -375,6 +482,7 @@ export type PlanDocumentImport = Omit<
   | 'directory'
   | 'resourceCapacities'
   | 'demands'
+  | 'externalMappings'
   | 'measureDefinitions'
   | 'measureFacts'
   | 'measureEstimates'
@@ -399,7 +507,8 @@ export type PlanDocumentImport = Omit<
     timezone: string;
     budgetFactor: number;
   };
-  typedDependencies: DocumentTypedDependency[];
+  typedDependencies: (DocumentTypedDependency | DocumentV12TypedDependency)[];
+  externalMappings: DocumentExternalMapping[];
   stepBlockages: { workItemId: string; stepId: string; blockedAt: number }[];
   /**
    * Readiness and hold as the file states them from version 6, null before;

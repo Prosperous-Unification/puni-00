@@ -647,6 +647,9 @@ function browserOrigin(siteAddress: string): string {
  * makes the rendered `env_file` paths (`/srv/wbs/be-01.env`, ...) line up
  * with the per-app env file naming deploy.sh already uses.
  *
+ * Backend and gateway services request Compose's init process. This is rendered
+ * configuration only; it does not attest the state of existing containers.
+ *
  * `image` is passed straight through from `release.json` rather than
  * assembled here — see `assertDigestPinnedRef`.
  *
@@ -672,7 +675,8 @@ export function tierComposeContext(
     CONTAINER: containerName(tier, color, layout),
     NETWORK: layout.network,
     IMAGE: assertDigestPinnedRef(image, tier),
-    INIT: tier === 'be' ? '    init: true\n' : '',
+    // Proof: removing the gateway branch failed rendered init tests in both colours/environments.
+    INIT: tier === 'be' || tier === 'gw' ? '    init: true\n' : '',
     ENV_FILES: envFilesBlock(tier, layout),
     // Proof: omitting the template carrier made the rendered-environment backend
     // startup probe exit1 instead of0 (docker.test.ts).

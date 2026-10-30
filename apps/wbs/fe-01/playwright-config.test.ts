@@ -5,7 +5,7 @@
 // DOM to test. Kept beside that file rather than under `src/` because both are
 // about a config at the root of this app rather than about the app.
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -87,6 +87,16 @@ const matches = (pattern: RegExp | RegExp[] | undefined, value: string): boolean
   const patterns = Array.isArray(pattern) ? pattern : [pattern];
   return patterns.some((one) => one.test(value));
 };
+
+function runOriginProbe(script: string, timeout: number, env: NodeJS.ProcessEnv): string {
+  return execFileSync('bun', ['--no-env-file', '--eval', script], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout,
+    killSignal: 'SIGKILL',
+    env: { PATH: process.env['PATH'], ...env },
+  });
+}
 
 describe('the browser gate’s port shift', () => {
   beforeEach(() => {
@@ -233,11 +243,40 @@ describe('the browser gate’s port shift', () => {
    * timed out healthy cases at 5 s (docs/test-budgets.md). This case still
    * states its own budget, because it has to stay above the probe's.
    */
-  // Budget measured 2026-09-27 (docs/test-budgets.md): the probe took 2.3 s
-  // idle and overran its 10 s bound twice under load, so it gets twice that
-  // bound, and the case stays above it for the reason just given.
-  const PROBE_TIMEOUT_MS = 20_000;
-  const PROBE_CASE_TIMEOUT_MS = 30_000;
+  // The 2026-10-24 hosted run exhausted the probe's own 20 s bound. Its 4.8 s
+  // focused idle case and that overrun require max(3 × 4.8, 2 × 20) = 40 s;
+  // 45 s is the next policy step. The 60 s case stays above the child guard.
+  const PROBE_TIMEOUT_MS = 45_000;
+  const PROBE_CASE_TIMEOUT_MS = 60_000;
+
+  it('terminates and joins an origin probe child before its late success', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'origin-probe-timeout-'));
+    const pidFile = join(directory, 'pid');
+    try {
+      const script = `
+          import { writeFileSync } from 'node:fs';
+          writeFileSync(process.env['ORIGIN_PROBE_PID_FILE'], String(process.pid));
+          process.on('SIGTERM', () => {});
+          setTimeout(() => { console.log('401'); process.exit(0); }, 4000);
+        `;
+      let probeError: unknown;
+      try {
+        runOriginProbe(script, 1000, { ORIGIN_PROBE_PID_FILE: pidFile });
+      } catch (error) {
+        probeError = error;
+      }
+      // Proof: removing the wrapper deadline failed the ETIMEDOUT assertion
+      // after the child reached its late output; removing SIGKILL made the intercepted
+      // SIGTERM settle with a null signal; printing 401 before the deadline
+      // failed the empty-stdout assertion (2026-10-24).
+      expect(probeError).toMatchObject({ code: 'ETIMEDOUT', signal: 'SIGKILL' });
+      const pid = Number(readFileSync(pidFile, 'utf8'));
+      expect(() => process.kill(pid, 0)).toThrow(/ESRCH/);
+      expect(probeError).toMatchObject({ stdout: '' });
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }, 6000);
 
   it(
     'lets a shifted browser login reach authentication through the configured backend origin',
@@ -266,11 +305,8 @@ describe('the browser gate’s port shift', () => {
       }));
       console.log(response.status);
     `;
-      const status = execFileSync('bun', ['--no-env-file', '--eval', script], {
-        cwd: repoRoot,
-        encoding: 'utf8',
-        timeout: PROBE_TIMEOUT_MS,
-        env: { PATH: process.env['PATH'], ORIGIN_PROBE_CONFIG: JSON.stringify(env) },
+      const status = runOriginProbe(script, PROBE_TIMEOUT_MS, {
+        ORIGIN_PROBE_CONFIG: JSON.stringify(env),
       });
       expect(status.trim()).toBe('401');
     },
@@ -344,6 +380,23 @@ it('runs activated organization acceptance only under its dedicated browser conf
     const [defaultProject] = projectsOf(ordinary);
     expect(matches(defaultProject.testIgnore, spec)).toBe(true);
     expect(organization.testMatch).toBe('organization-context.real.spec.ts');
+  } finally {
+    vi.restoreAllMocks();
+  }
+});
+
+it('runs cross-project refresh and normal-root acceptance only under their dedicated browser config', async () => {
+  vi.spyOn(process, 'cwd').mockReturnValue(repoRoot);
+  try {
+    const ordinary = await loadConfig();
+    const { default: connected } = await import('./playwright.cross-project.config');
+    const [defaultProject] = projectsOf(ordinary);
+    for (const spec of ['cross-project-refresh.real.spec.ts', 'cross-project-root.real.spec.ts'])
+      expect(matches(defaultProject.testIgnore, `e2e/${spec}`)).toBe(true);
+    expect(connected.testMatch).toEqual([
+      'cross-project-refresh.real.spec.ts',
+      'cross-project-root.real.spec.ts',
+    ]);
   } finally {
     vi.restoreAllMocks();
   }

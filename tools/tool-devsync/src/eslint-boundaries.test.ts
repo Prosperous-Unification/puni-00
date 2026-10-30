@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'bun:test';
 import { ESLint } from 'eslint';
+import tseslint from 'typescript-eslint';
 
 import { createPolicyWorkspace, runLint, writeProject } from './testing/lint-workspace';
 
@@ -1351,4 +1352,354 @@ describe('product lint policy discovery', () => {
     expect(unresolved.output, unresolved.output).toContain('cannot load product lint policy');
     expect(unresolved.output, unresolved.output).toContain('apps/probe/eslint.product.mjs');
   }, 90_000);
+});
+
+const ACTIVATION_IMPORTS = [
+  [
+    'lib/dependency-activation-storage.ts',
+    [
+      '@wbs/contracts/dependency-runtime',
+      '@wbs/store-sqlite/db',
+      '@wbs/store-sqlite/backup',
+      '@wbs/store-sqlite/migration-set',
+      '@wbs/store-sqlite/cross-project-dependency-activation',
+    ],
+  ],
+  ['lib/complete-dependency-exclusion.ts', ['@wbs/contracts/dependency-runtime']],
+  ['lib/dependency-activation-failure.ts', ['@wbs/contracts/dependency-runtime']],
+  ['lib/dependency-activation-records.ts', ['@wbs/contracts/dependency-runtime']],
+  [
+    'lib/complete-dependency-exclusion.test.ts',
+    ['@wbs/store-sqlite/db', '@wbs/store-sqlite/cross-project-dependency-activation'],
+  ],
+  ['fixtures/dependency-complete-activation.ts', ['@wbs/store-sqlite/migrate']],
+] as const;
+
+describe('source-bundled activation leaves', () => {
+  it('keeps every peer boundary option and only the exact needed activation edges', async () => {
+    const peer = boundaryOf(
+      await lint.calculateConfigForFile('tools/tool-remote-scripts/src/lib/docker.ts'),
+    )[1];
+    if (!isRecord(peer)) throw new Error('tools peer boundary options malformed');
+    for (const [file, aliases] of ACTIVATION_IMPORTS) {
+      const path = `tools/tool-remote-scripts/src/${file}`;
+      const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
+      if (!isRecord(options)) throw new Error('activation boundary options malformed');
+      expect(options['allow'], file).toEqual([
+        ...PENDING_INFRA_TO_PRODUCT_ALIASES,
+        ...aliases.map((alias) => `^${alias}$`),
+      ]);
+      const retainedOptions: Readonly<Record<string, unknown>> = {
+        ...options,
+        allow: [...PENDING_INFRA_TO_PRODUCT_ALIASES],
+      };
+      expect(retainedOptions, file).toEqual(peer);
+      const source = await readFile(join(workspace, path), 'utf8');
+      for (const alias of aliases) {
+        expect(importsAlias(source, alias), `${file} actually imports ${alias}`).toBe(true);
+        expect(
+          await ruleIds(path, `import type * as Leaf from '${alias}'; type Evidence = Leaf;`),
+          `${file}:${alias}`,
+        ).not.toContain('@nx/enforce-module-boundaries');
+        expect(await ruleIds(path, `await import('${alias}');`), `${file}:${alias}`).not.toContain(
+          '@nx/enforce-module-boundaries',
+        );
+      }
+    }
+  }, 30000);
+
+  it('refuses barrels, siblings, foreign suffixes, relative paths and forward SQL outside the fixture', async () => {
+    const forbidden = [
+      '@wbs/store-sqlite',
+      '@wbs/store-sqlite/source',
+      '@wbs/store-sqlite/db/foreign',
+      '@wbs/store-sqlite/db-extra',
+      '@wbs/contracts',
+      '@wbs/contracts/ws-frames',
+      '@website/store-sqlite',
+      '../../../../libs/wbs/adapters/store-sqlite/src/db',
+    ];
+    for (const [file, aliases] of ACTIVATION_IMPORTS) {
+      const path = `tools/tool-remote-scripts/src/${file}`;
+      for (const alias of forbidden)
+        expect(await ruleIds(path, `await import('${alias}');`), `${file}:${alias}`).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+      if (!aliases.some((alias) => alias === '@wbs/store-sqlite/migrate'))
+        expect(await ruleIds(path, "await import('@wbs/store-sqlite/migrate');"), file).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+      if (
+        file.includes('records') ||
+        file.includes('failure') ||
+        file === 'lib/complete-dependency-exclusion.ts'
+      )
+        expect(await ruleIds(path, "await import('@wbs/store-sqlite/db');"), file).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+    }
+  }, 30000);
+
+  it('does not grant any activation alias to another importer', async () => {
+    const aliases = [...new Set(ACTIVATION_IMPORTS.flatMap(([, aliases]) => [...aliases]))];
+    for (const path of [
+      'tools/tool-remote-scripts/src/lib/docker.ts',
+      'tools/tool-remote-scripts/src/lib/dependency-complete-activation.ts',
+      'tools/tool-remote-scripts/src/fixtures/source-dev.ts',
+      'tools/tool-remote-scripts/src/lib/dependency-capability.test.ts',
+      'tools/tool-smoke/src/color.ts',
+      'libs/shared/adapters/ui-core-01/src/index.ts',
+      'libs/wbs/domain/domain/src/index.ts',
+    ]) {
+      for (const alias of aliases)
+        expect(await ruleIds(path, `await import('${alias}');`), `${path}:${alias}`).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+    }
+  }, 30000);
+
+  it('keeps activation record imports type-only', async () => {
+    const path = 'tools/tool-remote-scripts/src/lib/dependency-activation-records.ts';
+    expect(
+      await ruleIds(
+        path,
+        "import type { DependencyActivationReceipt } from '@wbs/contracts/dependency-runtime';\n\nexport type Receipt = DependencyActivationReceipt;\n",
+      ),
+    ).toEqual([]);
+    expect(
+      await ruleIds(
+        path,
+        "import { parseDependencyReceipt } from '@wbs/contracts/dependency-runtime'; void parseDependencyReceipt;",
+      ),
+    ).toContain('@typescript-eslint/no-restricted-imports');
+    expect(await ruleIds(path, "await import('@wbs/contracts/dependency-runtime');")).toContain(
+      'no-restricted-syntax',
+    );
+    const annotation = await ruleIds(
+      path,
+      "type Receipt = import('@wbs/contracts/dependency-runtime').DependencyActivationReceipt;",
+    );
+    expect(annotation).not.toContain('no-restricted-syntax');
+    expect(annotation).not.toContain('@nx/enforce-module-boundaries');
+  }, 30000);
+});
+
+const MIGRATION_WORKER = 'tools/tool-remote-scripts/rehearsals/source-stageb-migration-worker.ts';
+const MIGRATION_PARENT = 'tools/tool-remote-scripts/rehearsals/source-stageb-fixture.ts';
+
+// Only this virtual pathname lacks a TS project; its syntax-only parser retains the real Nx rule.
+const VIRTUAL_WORKER =
+  'tools/tool-remote-scripts/rehearsals/source-stageb-migration-worker-extra.ts';
+const workerLint = new ESLint({
+  cwd: workspace,
+  overrideConfig: {
+    files: [VIRTUAL_WORKER],
+    ...tseslint.configs.disableTypeChecked,
+  },
+});
+const MIGRATION_IMPORTS = [
+  ['@wbs/store-sqlite/migrate', 'runMigrations'],
+  ['@wbs/store-sqlite/migration-set', 'captureAppliedMigrationSet'],
+] as const;
+
+/** Refuses setup failures before interpreting the actual boundary diagnostics. */
+async function workerBoundaryMessages(path: string, source: string) {
+  const boundary = boundaryOf(await lint.calculateConfigForFile(path));
+  expect(boundary[0], path).toBe(2);
+  expect(await lint.isPathIgnored(path), path).toBe(false);
+  const consumer = path === VIRTUAL_WORKER ? workerLint : lint;
+  const reports = await consumer.lintText(source, { filePath: path });
+  expect(reports, path).toHaveLength(1);
+  const report = reports[0];
+  expect(report.fatalErrorCount, JSON.stringify(report.messages)).toBe(0);
+  expect(
+    report.messages.filter((message) => message.ruleId === null),
+    JSON.stringify(report.messages),
+  ).toEqual([]);
+  return report.messages.filter((message) => message.ruleId === '@nx/enforce-module-boundaries');
+}
+
+function runtimeImport(alias: string, symbol = 'ImportedLeaf') {
+  return `import { ${symbol} } from '${alias}';\nconsole.log(${symbol});`;
+}
+
+describe('fixed source migration worker boundary', () => {
+  // Proof: disabling only worker buildable enforcement failed full peer-option equality.
+  it('retains the complete production options and exactly four live aliases', async () => {
+    const peerBoundary = boundaryOf(
+      await lint.calculateConfigForFile('tools/tool-remote-scripts/src/lib/docker.ts'),
+    );
+    const workerBoundary = boundaryOf(await lint.calculateConfigForFile(MIGRATION_WORKER));
+    const peerOptions = peerBoundary[1];
+    const workerOptions = workerBoundary[1];
+    if (!isRecord(peerOptions) || !isRecord(workerOptions))
+      throw new Error('migration worker boundary options are malformed');
+    expect(workerBoundary[0]).toBe(2);
+    expect(workerBoundary[0]).toBe(peerBoundary[0]);
+    expect(workerOptions['allow']).toEqual([
+      ...PENDING_INFRA_TO_PRODUCT_ALIASES,
+      '^@wbs/store-sqlite/migrate$',
+      '^@wbs/store-sqlite/migration-set$',
+    ]);
+    const retainedOptions: Readonly<Record<string, unknown>> = {
+      ...workerOptions,
+      allow: [...PENDING_INFRA_TO_PRODUCT_ALIASES],
+    };
+    expect(retainedOptions).toEqual(peerOptions);
+    const source = await readFile(join(workspace, MIGRATION_WORKER), 'utf8');
+    for (const [alias, symbol] of MIGRATION_IMPORTS)
+      expect(source.split('\n')).toContain(`import { ${symbol} } from '${alias}';`);
+  }, 30_000);
+
+  // Proof: omitting the override or either leaf produced the actual Nx non-buildable diagnostic.
+  for (const [alias, symbol] of MIGRATION_IMPORTS)
+    it(`admits the actual runtime ${alias} import at the fixed worker`, async () => {
+      expect(await workerBoundaryMessages(MIGRATION_WORKER, runtimeImport(alias, symbol))).toEqual(
+        [],
+      );
+    }, 30_000);
+
+  // Proof: separate leading/trailing-anchor faults for both leaves admitted their prefix/suffix
+  // probes. Adding the barrel also failed; removing only the infra fence still hit buildable
+  // enforcement, while removing both admitted the barrel and failed this real consumer.
+  it('refuses exact forbidden specifiers at the worker', async () => {
+    const forbidden = [
+      '@wbs/store-sqlite',
+      '@wbs/store-sqlite/db',
+      '@wbs/store-sqlite/backup',
+      '@wbs/store-sqlite/source',
+      '@wbs/store-sqlite/cross-project-dependency-activation',
+      ...MIGRATION_IMPORTS.flatMap(([alias]) => [
+        `${alias}/foreign`,
+        `${alias}-extra`,
+        `@wbs/store-sqlite/foreign${alias}`,
+      ]),
+      '../../../libs/wbs/adapters/store-sqlite/src/migrate',
+      '../../../libs/wbs/adapters/store-sqlite/src/migration-set',
+    ];
+    for (const alias of forbidden)
+      for (const source of [runtimeImport(alias), `await import('${alias}');`]) {
+        const messages = await workerBoundaryMessages(MIGRATION_WORKER, source);
+        expect(messages, alias).not.toHaveLength(0);
+        expect(
+          messages.every((message) => message.line === 1),
+          alias,
+        ).toBe(true);
+      }
+  }, 30_000);
+
+  // Proof: broadening only the worker importer to rehearsals/*.ts admitted the real builder.
+  it('refuses both leaves for every neighboring importer', async () => {
+    for (const path of [
+      'tools/tool-remote-scripts/rehearsals/source-stageb-builder.ts',
+      'tools/tool-remote-scripts/rehearsals/source-stageb-fixture.ts',
+      'tools/tool-remote-scripts/rehearsals/source-stageb-fixture.test.ts',
+      'tools/tool-remote-scripts/rehearsals/source-stageb-fixture-bootstrap.ts',
+      'tools/tool-remote-scripts/rehearsals/source-stageb-migration-worker-extra.ts',
+      'tools/tool-remote-scripts/src/lib/docker.ts',
+      'tools/tool-smoke/src/color.ts',
+      'libs/wbs/domain/domain/src/index.ts',
+      'libs/shared/adapters/ui-core-01/src/index.ts',
+    ])
+      for (const [alias, symbol] of MIGRATION_IMPORTS) {
+        if (path === MIGRATION_PARENT && alias === '@wbs/store-sqlite/migration-set') continue;
+        expect(
+          await workerBoundaryMessages(path, runtimeImport(alias, symbol)),
+          `${path}:${alias}`,
+        ).not.toHaveLength(0);
+      }
+  }, 30_000);
+
+  // Proof: adding migrate to the existing storage allowance admitted its runtime import.
+  it('keeps production activation sources outside forward SQL', async () => {
+    for (const path of [
+      'tools/tool-remote-scripts/src/lib/dependency-activation-storage.ts',
+      'tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.ts',
+      'tools/tool-remote-scripts/src/lib/dependency-activation-failure.ts',
+      'tools/tool-remote-scripts/src/lib/dependency-activation-records.ts',
+    ])
+      for (const source of [
+        runtimeImport('@wbs/store-sqlite/migrate', 'runMigrations'),
+        "await import('@wbs/store-sqlite/migrate');",
+      ])
+        expect(await workerBoundaryMessages(path, source), path).not.toHaveLength(0);
+  }, 30_000);
+});
+
+describe('fixed source parent ledger boundary', () => {
+  it('retains complete production options and only the live capture alias', async () => {
+    const peer = boundaryOf(
+      await lint.calculateConfigForFile('tools/tool-remote-scripts/src/lib/docker.ts'),
+    );
+    const parent = boundaryOf(await lint.calculateConfigForFile(MIGRATION_PARENT));
+    const options = parent[1];
+    const peerOptions = peer[1];
+    if (!isRecord(options) || !isRecord(peerOptions))
+      throw new Error('parent ledger boundary options are malformed');
+    expect(parent[0]).toBe(2);
+    expect(options['allow']).toEqual([
+      ...PENDING_INFRA_TO_PRODUCT_ALIASES,
+      '^@wbs/store-sqlite/migration-set$',
+    ]);
+    const retainedOptions: Readonly<Record<string, unknown>> = {
+      ...options,
+      allow: [...PENDING_INFRA_TO_PRODUCT_ALIASES],
+    };
+    expect(retainedOptions).toEqual(peerOptions);
+    const source = await readFile(join(workspace, MIGRATION_PARENT), 'utf8');
+    expect(source.split('\n')).toContain(
+      "import { captureAppliedMigrationSet } from '@wbs/store-sqlite/migration-set';",
+    );
+    expect(source).toMatch(/^\s*(?:const|let)\s+\w+\s*=\s*captureAppliedMigrationSet\(/m);
+  }, 30_000);
+
+  // Proof: removing only the parent allowance produced the actual Nx non-buildable diagnostic.
+  it('admits the actual runtime capture import at the fixed parent', async () => {
+    expect(
+      await workerBoundaryMessages(
+        MIGRATION_PARENT,
+        runtimeImport('@wbs/store-sqlite/migration-set', 'captureAppliedMigrationSet'),
+      ),
+    ).toEqual([]);
+  }, 30_000);
+
+  // Proof: separate leading/trailing-anchor faults admitted graph-resolved prefix/suffix
+  // probes; adding parent migrate admitted forward SQL. Each fault failed this consumer.
+  it('refuses parent forward SQL and other forbidden specifiers', async () => {
+    for (const alias of [
+      '@wbs/store-sqlite/migrate',
+      '@wbs/store-sqlite',
+      '@wbs/store-sqlite/db',
+      '@wbs/store-sqlite/backup',
+      '@wbs/store-sqlite/source',
+      '@wbs/store-sqlite/cross-project-dependency-activation',
+      '@wbs/store-sqlite/migration-set/foreign',
+      '@wbs/store-sqlite/migration-set-extra',
+      '@wbs/store-sqlite/foreign@wbs/store-sqlite/migration-set',
+      '../../../libs/wbs/adapters/store-sqlite/src/migrate',
+      '../../../libs/wbs/adapters/store-sqlite/src/migration-set',
+    ])
+      for (const source of [runtimeImport(alias), `await import('${alias}');`])
+        expect(await workerBoundaryMessages(MIGRATION_PARENT, source), alias).not.toHaveLength(0);
+  }, 30_000);
+
+  // Proof: widening only the parent importer to rehearsals/*.ts admitted the real builder.
+  it('refuses capture in every unauthorized parent neighbor', async () => {
+    for (const path of [
+      'tools/tool-remote-scripts/rehearsals/source-stageb-builder.ts',
+      'tools/tool-remote-scripts/rehearsals/source-stageb-fixture-bootstrap.ts',
+      'tools/tool-remote-scripts/rehearsals/source-stageb-fixture.test.ts',
+      'tools/tool-remote-scripts/rehearsals/source-stageb-fixture-bootstrap.test.ts',
+      'tools/tool-remote-scripts/src/lib/docker.ts',
+      'tools/tool-smoke/src/color.ts',
+      'libs/wbs/domain/domain/src/index.ts',
+    ])
+      expect(
+        await workerBoundaryMessages(
+          path,
+          runtimeImport('@wbs/store-sqlite/migration-set', 'captureAppliedMigrationSet'),
+        ),
+        path,
+      ).not.toHaveLength(0);
+  }, 30_000);
 });

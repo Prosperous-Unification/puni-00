@@ -9,10 +9,14 @@
 FROM oven/bun:1.4.4-alpine AS build
 WORKDIR /app
 COPY package.json bun.lock ./
+COPY patches ./patches
 RUN bun install --frozen-lockfile
 COPY tsconfig.base.json nx.json ./
 COPY libs ./libs
 COPY apps/wbs/fe-01 ./apps/wbs/fe-01
+# Nx must resolve these affected-routing edges even though this image builds only the frontend.
+COPY apps/wbs/be-01/project.json ./apps/wbs/be-01/project.json
+COPY apps/wbs/gw-01/project.json ./apps/wbs/gw-01/project.json
 ARG VITE_BE_URL
 ARG VITE_GW_URL
 ARG VITE_WS_URL
@@ -33,7 +37,8 @@ ENV VITE_WS_URL=$VITE_WS_URL
 # behavior-neutral (it only affects Bun's own execution, not the emitted
 # assets) and keeps the build reproducible across native and emulated hosts.
 ENV BUN_JSC_useJIT=0
-RUN bunx nx run wbs-fe-01:build
+# The slim image has no backend/gateway source trees for their build targets.
+RUN bunx nx run wbs-fe-01:build --excludeTaskDependencies
 
 FROM caddy:2-alpine AS runtime
 COPY --from=build /app/dist/apps/wbs/fe-01 /srv/www

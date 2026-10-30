@@ -1,0 +1,27 @@
+import { createHash } from 'node:crypto';
+const root = '/tmp/puni-graph-closure-review-tree';
+const proofs = await Bun.file('/tmp/puni-graph-closure-proofs.json').json();
+const observations = [];
+for (const proof of proofs) {
+  const path = `${root}/${proof.path}`;
+  const original = await Bun.file(path).text();
+  const hash = createHash('sha256').update(original).digest('hex');
+  if (hash !== proof.beforeSha256) throw new Error(`hash mismatch ${proof.name}`);
+  if (original.split(proof.before).length !== 2) throw new Error(`ambiguous mutation ${proof.name}`);
+  const selected = proof.selected ?? 'admitted batch rolls back';
+  const after = proof.after ?? "'COMMIT'";
+  try {
+    await Bun.write(path, original.replace(proof.before, after));
+    const execution = Bun.spawnSync(['bun', 'test', './apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts', '--test-name-pattern', selected], { cwd: root });
+    const output = execution.stdout.toString() + execution.stderr.toString();
+    await Bun.write(`/tmp/puni-graph-closure-review-fault-${proof.name}.log`, output);
+    observations.push({ name: proof.name, exitCode: execution.exitCode, assertion: output.includes('expect(received)'), failure: output.split('\n').filter((line) => line.startsWith('(fail)') || line.includes(' pass') || line.includes(' fail')) });
+    if (execution.exitCode !== 1 || !output.includes('expect(received)')) throw new Error(`unexpected mutation outcome ${proof.name}`);
+  } finally {
+    await Bun.write(path, original);
+    const restored = createHash('sha256').update(new Uint8Array(await Bun.file(path).arrayBuffer())).digest('hex');
+    if (restored !== hash) throw new Error(`restore mismatch ${proof.name}`);
+  }
+}
+await Bun.write('/tmp/puni-graph-closure-review-mutations.json', JSON.stringify(observations, null, 2) + '\n');
+console.log(JSON.stringify(observations, null, 2));

@@ -24,6 +24,7 @@ import {
   refusingRestoreApprovals,
 } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
+import { refusingProjectAddressSearch } from './testing/project-address-search-fixture';
 import { testProjectService } from './testing/project-fixture';
 import { refusingProjectRanks } from './testing/project-rank-fixture';
 import { testReplay } from './testing/replay-fixture';
@@ -37,6 +38,7 @@ describe('migrate lifecycle', () => {
   it('exposes 503 before migrations complete then 200 after', async () => {
     const state = { migrationsApplied: false };
     const app = buildApp({
+      projectAddressSearch: refusingProjectAddressSearch,
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -64,6 +66,7 @@ describe('migrate lifecycle', () => {
       savedPlans: testSavedPlanService(),
       steps: testStepService(),
       replay: testReplay().replay,
+      admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
       writes: testWrites(),

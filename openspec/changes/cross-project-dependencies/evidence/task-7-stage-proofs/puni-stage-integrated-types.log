@@ -1,0 +1,15 @@
+
+> nx run wbs-domain:typecheck
+
+> bunx tsc --build --force libs/wbs/domain/domain/tsconfig.json
+
+
+
+
+ NX   Successfully ran target typecheck for project wbs-domain
+
+
+  Run duration:      332ms
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     323ms (1 task)
+  Recoverable time:  <1ms

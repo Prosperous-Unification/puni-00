@@ -1,0 +1,315 @@
+top-level.wireVersion
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+top-level.contractVersion
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+top-level.solverVersion
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+top-level.objective
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+top-level.budgetMs
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+top-level.stageBudgetSplit
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+top-level.quantum
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "connected elsewhere intervals differ from foreign occupancy"
+
+top-level.horizonUnits
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+top-level.slices
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "undefined is not an object (evaluating 'request.slices.map')"
+
+top-level.edges
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "undefined is not an object (evaluating 'edge of request.edges')"
+
+top-level.pools
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+top-level.elsewhere
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "undefined is not an object (evaluating 'Object.keys(request.elsewhere)')"
+
+top-level.resources
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+top-level.scope
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "undefined is not an object (evaluating 'request.scope.projects')"
+
+top-level.movementReferenceOffsets
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "undefined is not an object (evaluating 'Object.keys(offsets)')"
+
+top-level.feasibleBaselineOffsets
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "undefined is not an object (evaluating 'Object.keys(offsets)')"
+
+top-level.seedOffsets
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "undefined is not an object (evaluating 'Object.keys(offsets)')"
+
+scope.kind
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+scope.projectId
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "connected solver projects are inconsistent"
+
+scope.inputHash
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+scope.questionHash
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+scope.originOrdinal
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+scope.projects
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "undefined is not an object (evaluating 'request.scope.projects.map')"
+
+scope.fixed
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "undefined is not an object (evaluating 'request.scope.fixed.map')"
+
+scope.boundaries
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "undefined is not an object (evaluating 'boundary of request.scope.boundaries')"
+
+scope.occupancy
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "undefined is not an object (evaluating 'holder of request.scope.occupancy')"
+
+projects.projectId
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "connected fixed slice has invalid ownership"
+
+projects.rank
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+projects.anchorOrdinal
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+fixed.projectId
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "connected fixed slice has invalid ownership"
+
+fixed.key
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "connected boundary has invalid endpoints or owner"
+
+fixed.start
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "connected occupancy does not match fixed foreign slice"
+
+fixed.finish
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "connected occupancy does not match fixed foreign slice"
+
+boundary.localKey
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "connected boundary has invalid endpoints or owner"
+
+boundary.foreignProjectId
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "connected boundary has invalid endpoints or owner"
+
+boundary.foreignKey
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "connected boundary has invalid endpoints or owner"
+
+boundary.relationshipId
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+boundary.type
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+boundary.direction
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+boundary.minimumStartUnits
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+boundary.maximumStartUnits
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+
+Received function did not throw
+Received value: undefined
+
+occupancy.personId
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "connected elsewhere person set differs from foreign occupancy"
+
+occupancy.projectId
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "connected occupancy does not match fixed foreign slice"
+
+occupancy.key
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "connected occupancy does not match fixed foreign slice"
+
+occupancy.start
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "connected occupancy does not match fixed foreign slice"
+
+occupancy.finish
+error: expect(received).toThrow(expected)
+
+Expected pattern: /wire 5/
+Received message: "connected occupancy does not match fixed foreign slice"

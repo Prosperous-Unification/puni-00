@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:
+860 |     movementReferenceOffsets: { [b]: 9 },
+861 |     seedOffsets: { [b]: 9 },
+862 |   });
+863 |   expect(() => {
+864 |     validateConnectedSolverRequest(bookingBeyondHorizon);
+865 |   }).toThrow(/booking/);
+           ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /booking/
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:865:6)
+(fail) connected request names the exact foreign person holder and booking [6.56ms]
+
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [184.00ms]

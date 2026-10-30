@@ -1,0 +1,70 @@
+# Source Node collector: actual finite37 proof audit
+
+Decision: PASS for the actual thirty-seven approved functional consumer groups, at the exact V2 proof source. No rerun is requested. This permits truthful adjacent proof documentation and final source/static preparation under Root's existing lane authorization; it is not final-source checkpoint approval or native/source-image acceptance.
+
+## Bound evidence
+
+Packet `/tmp/puni-source-node-proofs-8fgbwgoa/packet.json` SHA256 `232b23010a8dc6c244f65a9a6e4cc39f67cec09e7d2f391b44b31c551f70f034`; source GO `e0ad1da7f33f9831bdc37f6742083298a04dca26f4bcc31bbbe7b3bb65ad41a0`.
+Actual freeze JSON `2cd1b0f5f69cd5e78acdae9bc823808f71c3c6973be72712274001a24100b3e8`; SHA256 list `35a1f78276908d8030fe8b8991f9f8eaa82fb0361aa0672ee949ffdeb866751f`. All279 listed bodies and all280 hash-list entries independently matched. Exact approved driver hash63ab9bc3, runner efcc86d1 and unchanged recipes05c3ee8f remain pinned. Original owner session1416 joined exit0 is recorded; no original handle transfer remains in the handoff.
+
+Independently checked all146 current pins, all37 saved baseline bodies and all5 current control/executable pins. Every pin matched. This includes109 historical observer archive bodies; they are preserved, not requalified by this run. Reviewed immutable source/recipes/runner and complete actual raw outcomes, not only driver markers.
+
+## Actual results and custody
+
+All37 omissions ran once and each reached its selected real assertion after the required BEGIN marker and before its selected success marker. All37 same-case restored runs report exact selected PASS, zero failures and the observed marker. Program cases report actual numeric UID/GID1000 namespace and48 other registrations filtered; context cases execute the one real original-context model. Every one of74 custody objects agrees with its observation record and full original stdout/stderr byte lengths and hashes. The original model exit was1 omitted or0 restored, with null signal and both original EOF readers settled; runner exit0 means this protocol observation succeeded, not that an omitted product check passed.
+
+The independent-watchdog and input-settlement omissions deliberately reached their model-owned20s nested launcher guard. Their raw failures are the expected nested SIGKILL/no-signal assertions, while their original outer namespace model processes exited normally with both streams joined. They are not unknown top-level timeouts. ACK-bound omission instead reached the later15s work deadline and failed the exact earlier ACK-bound diagnostic expectation; this proves the bounded-input dependency, not a new timing performance claim.
+
+Context resource/tag/mode controls are precise early-consumption witnesses: expected token2/received6, token7/received215, MEMBER token10/received217; missingSESSION produced1 ACK where0 was required. These correctly retain later rejection guards and do not falsely claim unsafe final acceptance. Fixed-command mutation showed actual recorded UID1000 changed to0 at the command assertion; no target UID0 container execution is claimed. Remaining receipt/session/join/reap/failure/census controls produced the selected missing-rejection assertion. The cleanup MEMBER witness reaches the full observer; its restored run also continues through the existing terminal no-dispatch assertions.
+
+The separate frozen census0e083449 maps exactly to all74 actual original model PIDs and records ESRCH for each. This supports those named PID observations only. It is not universal descendant/group/filesystem cleanup or a native-host census. No additional PID probe or target runtime ran in this review.
+
+## Accepted group scope
+
+The table identifies the raw omitted consumer line in frozen source-inner-program.model.ts or source-inner-command.model.ts. The full recipes retain the exact injected mutations. A grouped argument/parser/bounds/identity/final-acceptance check has its selected witness; this is not isolated breakability evidence for every subclause.
+
+| Group | Selected consumer | Raw line |
+| --- | --- | --- |
+| collector-credentials | actual source collector function boundary refuses uid | 755 |
+| collector-arguments | actual source collector function boundary refuses pid-argument | 755 |
+| bounded-proc-read | actual source collector function boundary refuses proc-bound | 755 |
+| proc-stat-grammar | actual source collector function boundary refuses stat-identity | 755 |
+| link-projection | actual source collector function boundary refuses link-input | 755 |
+| fatal-byte-decoder | actual source collector function boundary refuses link-utf8 | 755 |
+| timestamp-projection | actual source collector normal proc boundary observes timestamp-range | 651 |
+| receipt-output-bounds | actual source collector function boundary refuses output-total | 755 |
+| write-progress | actual source writer handles excess byte progress at its output boundary | 519 |
+| address-projection | actual source address projection refuses canonical-v6 builtin observation | 452 |
+| executable-capture | actual source collector normal proc boundary observes short-read | 651 |
+| process-readback | actual source collector normal proc boundary observes pid-start | 651 |
+| descriptor-roster | actual source collector normal proc boundary observes fd-identity | 651 |
+| census-provenance | actual source fresh census refuses arguments at its identity boundary | 945 |
+| census-bound | actual source fresh census refuses count at its identity boundary | 945 |
+| census-probe | actual source census second probe models EACCES explicitly | 559 |
+| launcher-input | actual source launcher rejects credential before granting reap | 803 |
+| owned-child-identity | actual source launcher rejects identity before granting reap | 803 |
+| independent-watchdog | actual independent launcher deadline kills a synchronously blocked collector | 335 |
+| input-settlement | actual source launcher refuses withheld ACK and settles original custody | 158 |
+| ack-validation | actual source launcher refuses malformed ACK and settles original custody | 159 |
+| ack-bound | actual source launcher bounds an open ACK channel before its work deadline | 866 |
+| launcher-stdout | actual source launcher refuses stdout from its owned collector boundary | 898 |
+| launcher-stderr | actual source launcher refuses stderr from its owned collector boundary | 898 |
+| original-reap | actual source launcher rejects exit-status before granting reap | 803 |
+| fixed-source-command | source original context dispatches the complete fixed Node command | 54 |
+| source-receipt-bound | source original context dispatches the complete fixed Node command | 200 |
+| source-tag-boundary | source original context dispatches the complete fixed Node command | 198 |
+| source-session-tuple | source original context dispatches the complete fixed Node command | 192 |
+| source-session-before-ack | source original context dispatches the complete fixed Node command | 196 |
+| source-done | source original context dispatches the complete fixed Node command | 192 |
+| source-before-ack-join | source original context dispatches the complete fixed Node command | 192 |
+| source-reap-frame | source original context dispatches the complete fixed Node command | 192 |
+| source-mode-frame | source original context dispatches the complete fixed Node command | 194 |
+| source-complete-reap | source original context dispatches the complete fixed Node command | 192 |
+| source-transport-failure | source original context dispatches the complete fixed Node command | 192 |
+| source-empty-census | source original context dispatches the complete fixed Node command | 210 |
+
+## Remaining boundary
+
+Local immutable Node24.20 execution, actual numeric-credential namespace and owned process/FD/socket fixtures are distinct from the genuine source-context raw transport model. Neither establishes the installed source image's pinned Node24.18.1 availability/behavior, native permissions/topology, optional supported process forms, full source HTTP readiness, startup permission, controller/policy/exposure restoration or deployment. No original product BusyBox guard campaign was replayed. Product command preservation is the scoped actual modeled command observation already present in this consumer.
+
+No final comments, formatting/type changes or new source epoch are silently covered by these proofs. Preserve this frozen pre-edit packet and exact inverses for any post-proof mechanical/comment changes; final source/static review is still required before Root's normal checkpoint. No new qualification campaign or repetitions are required by this actual audit. MAIN/adoption/deployment remain held.

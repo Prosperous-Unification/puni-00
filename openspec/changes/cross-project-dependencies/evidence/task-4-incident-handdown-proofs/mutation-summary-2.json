@@ -1,0 +1,100 @@
+[
+  {
+    "name": "source-endpoint-union",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+    "pattern": "incident source restore preserves"
+  },
+  {
+    "name": "source-work-item-owner",
+    "exit": 0,
+    "status": "SURVIVED",
+    "test": "./libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+    "pattern": "incident source restoration refuses wrong-work-item-owner"
+  },
+  {
+    "name": "source-step-owner",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+    "pattern": "incident source restoration refuses wrong-step-owner"
+  },
+  {
+    "name": "source-organization",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+    "pattern": "incident source restoration refuses missing-organization"
+  },
+  {
+    "name": "post-refresh-lifetime",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts",
+    "pattern": "genuine retained refresh"
+  },
+  {
+    "name": "required-persistence",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./libs/wbs/application/core/src/service/dependency-context.test.ts",
+    "pattern": "admitted incident persistence"
+  },
+  {
+    "name": "restored-compound-recursion",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts",
+    "pattern": "actual first child"
+  },
+  {
+    "name": "estimate-compound-recursion",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts",
+    "pattern": "local statement"
+  },
+  {
+    "name": "references-compound-receipts",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts",
+    "pattern": "mixed incident handdown"
+  },
+  {
+    "name": "remote-before-coverage",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts",
+    "pattern": "mixed incident handdown"
+  },
+  {
+    "name": "remote-revision-comparison",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts",
+    "pattern": "compound undo refuses remote-revision"
+  },
+  {
+    "name": "writer-current-access",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts",
+    "pattern": "mounted compound"
+  },
+  {
+    "name": "structural-before-shape",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts",
+    "pattern": "arbitrary node retarget"
+  },
+  {
+    "name": "structural-after-shape",
+    "exit": 1,
+    "status": "CAUGHT",
+    "test": "./apps/wbs/be-01/src/controller/cross-project-dependency-lifecycle.controller.db.test.ts",
+    "pattern": "bound structural capability refuses detached-child"
+  }
+]

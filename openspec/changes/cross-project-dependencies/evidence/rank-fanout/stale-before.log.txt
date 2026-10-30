@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-events.controller.db.test.ts:
+248 |   }
+249 |   const move = (id: string, afterProjectId: string | null) => harness.call('ada', 'POST', `/api/organization/projects/${id}/rank`, { afterProjectId });
+250 |   const before = new Map([upstream, downstream, tail, foreign].map(({ id }) => [id, events(id).length]));
+251 |   expect((await move(downstream.id, null)).status).toBe(200);
+252 |   for (const project of [upstream, downstream, tail])
+253 |     expect(events(project.id).length).toBeGreaterThan(before.get(project.id) ?? 0);
+                                            ^
+error: expect(received).toBeGreaterThan(expected)
+
+Expected: > 0
+Received: 0
+
+      at <anonymous> (/tmp/puni-rank-fanout/apps/wbs/be-01/src/controller/cross-project-events.controller.db.test.ts:253:39)
+(fail) rank reversal invalidates the dependency component with shared mode %s [616.27ms]
+248 |   }
+249 |   const move = (id: string, afterProjectId: string | null) => harness.call('ada', 'POST', `/api/organization/projects/${id}/rank`, { afterProjectId });
+250 |   const before = new Map([upstream, downstream, tail, foreign].map(({ id }) => [id, events(id).length]));
+251 |   expect((await move(downstream.id, null)).status).toBe(200);
+252 |   for (const project of [upstream, downstream, tail])
+253 |     expect(events(project.id).length).toBeGreaterThan(before.get(project.id) ?? 0);
+                                            ^
+error: expect(received).toBeGreaterThan(expected)
+
+Expected: > 0
+Received: 0
+
+      at <anonymous> (/tmp/puni-rank-fanout/apps/wbs/be-01/src/controller/cross-project-events.controller.db.test.ts:253:39)
+(fail) rank reversal invalidates the dependency component with shared mode %s [381.86ms]
+
+ 0 pass
+ 6 filtered out
+ 2 fail
+ 14 expect() calls
+Ran 2 tests across 1 file. [4.58s]

@@ -1,0 +1,125 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/connected-command-parity.test.ts:
+877 |             id: successor.projectId,
+878 |           });
+879 |           expect(reading.isError).not.toBe(true);
+880 |           const tree = JSON.parse(reading.text) as { workItems: { id: string }[] };
+881 |           // Remote's selected second node is 1→4; successor is one day.
+882 |           expect(tree.workItems.find(({ id }) => id === staged.id)).toMatchObject({
+                                                                          ^
+error: expect(received).toMatchObject(expected)
+
+  {
++   "actuals": {},
++   "assignees": {},
++   "blockageCauses": {
++     "95a463fd-b362-4ee6-89e9-86c67979eaf4": [],
++     "c8c4d2f4-2a5b-447f-844e-e2ca8b6beb91": [],
++   },
++   "blockages": {},
++   "charged": {
++     "c8c4d2f4-2a5b-447f-844e-e2ca8b6beb91": {
++       "days": 1,
++       "unit": "workdays",
++     },
++   },
++   "dates": {
++     "endsOn": "2026-10-23",
++     "startsOn": "2026-10-23",
++   },
++   "deadline": null,
++   "dependsOn": [],
++   "doesEveryStep": null,
++   "estimates": {
++     "c8c4d2f4-2a5b-447f-844e-e2ca8b6beb91": {
++       "optimistic": 1,
++       "pessimistic": 1,
++       "realistic": 1,
++     },
++   },
++   "externalRefs": [],
++   "factEnd": null,
++   "factStart": null,
++   "finalDays": {
++     "c8c4d2f4-2a5b-447f-844e-e2ca8b6beb91": 1,
++   },
++   "finalTotal": 1,
++   "frozenNumber": null,
++   "hold": null,
++   "id": "2f58b300-f1cb-4882-a5f0-85a2f5ee7ee1",
++   "maxParallel": 1,
++   "measures": {},
++   "name": "Staged successor",
++   "nodeReadings": {
++     "95a463fd-b362-4ee6-89e9-86c67979eaf4": "unknown",
++     "c8c4d2f4-2a5b-447f-844e-e2ca8b6beb91": "unknown",
++   },
++   "nodeResources": {
++     "95a463fd-b362-4ee6-89e9-86c67979eaf4": {
++       "assignment": {
++         "kind": "unassigned",
++       },
++       "maxParallel": 1,
++       "nodeId": "sn1.2f58b300-f1cb-4882-a5f0-85a2f5ee7ee1.95a463fd-b362-4ee6-89e9-86c67979eaf4",
++       "teams": {
++         "kind": "unstated",
++       },
++       "width": 1,
++     },
++     "c8c4d2f4-2a5b-447f-844e-e2ca8b6beb91": {
++       "assignment": {
++         "kind": "unassigned",
++       },
++       "maxParallel": 1,
++       "nodeId": "sn1.2f58b300-f1cb-4882-a5f0-85a2f5ee7ee1.c8c4d2f4-2a5b-447f-844e-e2ca8b6beb91",
++       "teams": {
++         "kind": "unstated",
++       },
++       "width": 1,
++     },
++   },
++   "notes": "",
++   "number": "010",
++   "parentId": null,
++   "position": 5,
++   "priority": 50,
++   "progress": {},
++   "projectId": "06254ba5-2fc2-41a1-8b83-42092c49458c",
++   "readiness": "ready",
+    "revision": 3,
++   "rolledUp": false,
+    "schedule": {
+-     "earliestFinish": 4,
+-     "earliestStart": 3,
++     "critical": true,
++     "duration": 1,
++     "earliestFinish": 5,
++     "earliestStart": 4,
++     "estimated": true,
++     "float": 0,
++     "latestFinish": 5,
++     "latestStart": 4,
+    },
++   "serviceId": null,
++   "serviceIds": [],
++   "serviceTeamId": null,
++   "startNoEarlierThan": null,
++   "startNoEarlierThanReason": null,
++   "status": "ready",
++   "tagIds": [],
++   "teamIds": [],
++   "typeIds": [],
+  }
+
+- Expected  - 2
++ Received  + 94
+
+      at <anonymous> (/tmp/puni-mcp-ss-ff/apps/wbs/mcp-01/src/connected-command-parity.test.ts:882:69)
+(fail) MCP node split FF preserves type and distinct connected placement [3514.73ms]
+
+ 0 pass
+ 47 filtered out
+ 1 fail
+ 14 expect() calls
+Ran 1 test across 1 file. [6.03s]

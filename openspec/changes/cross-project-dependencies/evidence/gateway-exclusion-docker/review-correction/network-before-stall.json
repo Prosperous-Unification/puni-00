@@ -1,0 +1,80 @@
+{
+  "project": "gateway-proof-6853d4c2-14e3-4f1c-8a5c-cbecdc5781a8",
+  "root": "/tmp/gateway-proof-6853d4c2-14e3-4f1c-8a5c-cbecdc5781a8-xFaHsE",
+  "network": "gateway-proof-6853d4c2-14e3-4f1c-8a5c-cbecdc5781a8-net",
+  "image": "docker.io/wbs-gw-01@sha256:d897ba9eb3835a79853211f3bee69a287327c704571bcbee0f667008a47c01f4",
+  "sha": "5e34d3b0dc610fc98d2b720f0b8f6cf874553ecd",
+  "sourceProvenance": {
+    "head": "5e34d3b0dc610fc98d2b720f0b8f6cf874553ecd",
+    "verified": true,
+    "changes": ""
+  },
+  "createdIds": [],
+  "pendingNetwork": true,
+  "pendingContainers": [],
+  "observations": [
+    {
+      "label": "creation-pending",
+      "proof": {
+        "kind": "network",
+        "name": "gateway-proof-6853d4c2-14e3-4f1c-8a5c-cbecdc5781a8-net"
+      }
+    },
+    {
+      "label": "failure",
+      "proof": "Error: Docker operation deadline exceeded: network"
+    },
+    {
+      "label": "creation-reconciliation",
+      "proof": {
+        "containers": [],
+        "networks": []
+      }
+    },
+    {
+      "label": "creation-reconciliation",
+      "proof": {
+        "containers": [],
+        "networks": []
+      }
+    },
+    {
+      "label": "creation-reconciliation",
+      "proof": {
+        "containers": [],
+        "networks": []
+      }
+    },
+    {
+      "label": "creation-reconciliation",
+      "proof": {
+        "containers": [],
+        "networks": []
+      }
+    },
+    {
+      "label": "creation-reconciliation",
+      "proof": {
+        "containers": [],
+        "networks": []
+      }
+    },
+    {
+      "label": "cleanup-inventory",
+      "proof": {
+        "remainingContainers": [],
+        "remainingNetworks": []
+      }
+    },
+    {
+      "label": "cleanup",
+      "proof": {
+        "ids": [],
+        "complete": false
+      }
+    }
+  ],
+  "cleanupFailures": [
+    "creation reconciliation: Error: unresolved disposable creation; cleanup cannot claim completeness"
+  ]
+}

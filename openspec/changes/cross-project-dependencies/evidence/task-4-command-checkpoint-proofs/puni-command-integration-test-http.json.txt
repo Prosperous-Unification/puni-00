@@ -1,0 +1,19 @@
+{
+  "group": "http",
+  "selected": [
+    "apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts",
+    "apps/wbs/be-01/src/controller/command-organization.controller.db.test.ts",
+    "apps/wbs/be-01/src/controller/directory-command-organization.controller.db.test.ts",
+    "apps/wbs/be-01/src/controller/step-allowance-edit.controller.db.test.ts",
+    "apps/wbs/be-01/src/controller/step.controller.db.test.ts",
+    "apps/wbs/be-01/src/controller/typed-dependency-commands.controller.db.test.ts",
+    "apps/wbs/be-01/src/controller/typed-dependency-copy.controller.db.test.ts",
+    "apps/wbs/be-01/src/controller/typed-dependency-graph.controller.db.test.ts",
+    "apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts",
+    "apps/wbs/be-01/src/controller/undo.controller.db.test.ts"
+  ],
+  "extra": [],
+  "status": 0,
+  "signal": null,
+  "log": "/tmp/puni-command-integration-test-http.log"
+}

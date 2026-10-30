@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { mcpAuthorizationServerOf } from '@wbs/contracts';
 
-import { HUMAN_ONLY_OPERATIONS } from '../openapi-tools';
+import { humanOnlyOperationsOf, readDocument } from '../openapi-tools';
 
 /**
  * The agent-pool swarm rehearsal (`wbs-mcp-agent-surface` task 8.1, before its dev run): a pool
@@ -630,7 +630,7 @@ try {
   const team = stored.agents.map((each) => startAgent(each.personId, each.run, each.mcpConfig));
 
   // 2. Tools: the agent surface, none of the human-only operations.
-  const humanOnly = new Set(HUMAN_ONLY_OPERATIONS.map((each) => each.operationId));
+  const humanOnly = new Set(humanOnlyOperationsOf(readDocument()).map((each) => each.operationId));
   for (const id of [
     'getApiOrganizationAgent-pools',
     'postApiOrganizationAgent-pools',

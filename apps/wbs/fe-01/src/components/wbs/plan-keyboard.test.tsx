@@ -2222,7 +2222,9 @@ describe('the command chords', () => {
     fireEvent.change(box, { target: { value: '010' } });
     await screen.findByRole('listbox', { name: 'Work items 020 can depend on' });
     const highlighted = box.getAttribute('aria-activedescendant');
-    expect(highlighted).toBe('dep-option-w1');
+    // The highlight must name the visible 010 endpoint; its DOM id includes
+    // the full endpoint identity because different projects can reuse row ids.
+    expect(highlighted).toBe(screen.getByRole('option', { name: /^010 / }).id);
 
     const event = chordInto(box, 'Enter', { meta: true });
     await letTheLoopRun();

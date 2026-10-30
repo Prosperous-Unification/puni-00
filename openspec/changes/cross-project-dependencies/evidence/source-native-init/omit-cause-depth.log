@@ -1,0 +1,24 @@
+Injected cause-depth; exit=1
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/fixture-failure.test.ts:
+80 |     true,
+81 |   );
+82 |   let deep: Error = new Error('last');
+83 |   for (let index = 0; index < 20; index++) deep = new Error('depth', { cause: deep });
+84 |   const depth = summarizeFixtureFailure(deep);
+85 |   expect(depth.chain.length).toBeLessThanOrEqual(9);
+                                  ^
+error: expect(received).toBeLessThanOrEqual(expected)
+
+Expected: <= 9
+Received: 21
+
+      at <anonymous> (/tmp/puni-source-native-init/tools/tool-remote-scripts/test/fixture-failure.test.ts:85:30)
+(fail) cause cycle depth and oversized errors terminate with explicit bounded markers [0.83ms]
+
+ 0 pass
+ 13 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [44.00ms]

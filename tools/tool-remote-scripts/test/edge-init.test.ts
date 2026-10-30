@@ -1,0 +1,1161 @@
+import { createHash } from 'node:crypto';
+import { lstat, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { expect, test } from 'bun:test';
+
+import { fingerprint, InitRefusal, parseNativeContainer } from '../src/lib/edge-init';
+import {
+  EngineTransport,
+  readInitDiagnostic,
+  runInitAdoption,
+} from '../src/lib/edge-init-operation';
+import {
+  createFixtureVolume,
+  describeFixtureFailure,
+  pinFixtureNetworkInspect,
+  publishFixtureFailure,
+  publishFixtureFault,
+  removeFixtureContainer,
+  removeFixtureResource,
+  requireFixtureOomRoster,
+  requireUnusedFixtureNamespace,
+  verifyFixtureFault,
+  verifyFixtureOom,
+  verifyFixtureOwnership,
+  verifyFixtureStopDeadline,
+} from './edge-init';
+import { syntheticContainer } from './edge-init-fixture';
+
+test('native CLI network pin requires the checked raw single-array counter path', () => {
+  const id = 'c'.repeat(64);
+  const native = {
+    Id: id,
+    Name: 'wbs-init-synthetic-net-0',
+    Scope: 'local',
+    Driver: 'bridge',
+    ConfigOnly: false,
+    IPAM: { Driver: 'default', Config: [{ Subnet: '172.24.0.0/16' }] },
+    Labels: { 'club.bulletpoints.edge-init-fixture': 'synthetic' },
+    Containers: {},
+    Status: { IPAM: { Subnets: { '172.24.0.0/16': { IPsInUse: 3, DynamicIPsAvailable: 65533 } } } },
+  };
+  const raw = JSON.stringify([native]);
+  expect(pinFixtureNetworkInspect(raw, id, native.Name, 'synthetic').sha256).toBe(
+    fingerprint({
+      Id: id,
+      Name: native.Name,
+      Scope: 'local',
+      Driver: 'bridge',
+      ConfigOnly: false,
+      IPAM: native.IPAM,
+      Labels: native.Labels,
+    }),
+  );
+  expect(() =>
+    pinFixtureNetworkInspect(
+      raw.replace('"IPsInUse":3', '"IPsInUse":9007199254740991.1'),
+      id,
+      native.Name,
+      'synthetic',
+    ),
+  ).toThrow();
+});
+
+test('native fixture ownership rejects foreign names and invocation labels before any effect', () => {
+  const raw = syntheticContainer();
+  raw.Name = '/wbs-init-synthetic-registry-fixture';
+  Object.assign(raw.Config.Labels, { 'club.bulletpoints.edge-init-fixture': 'synthetic' });
+  expect(verifyFixtureOwnership(parseNativeContainer(raw), 'synthetic')).toBe(raw.Id);
+  raw.Name = '/wbs-registry-1';
+  expect(() => verifyFixtureOwnership(parseNativeContainer(raw), 'synthetic')).toThrow();
+  raw.Name = '/wbs-init-synthetic-registry-fixture';
+  Object.assign(raw.Config.Labels, { 'club.bulletpoints.edge-init-fixture': 'foreign' });
+  expect(() => verifyFixtureOwnership(parseNativeContainer(raw), 'synthetic')).toThrow();
+});
+
+test('native failure diagnostic retains a fixed stage and controlled reason without private error text', () => {
+  const known = describeFixtureFailure(
+    'original-inspection',
+    new InitRefusal('unsupported-native-shape'),
+  );
+  expect(known).toMatchObject({ stage: 'original-inspection', reason: 'unsupported-native-shape' });
+  expect(known.diagnosticSha256).toMatch(/^[a-f0-9]{64}$/);
+  const unknown = describeFixtureFailure(
+    'adoption',
+    new InitRefusal('native-fixture-private-secret'),
+  );
+  const cause = describeFixtureFailure('cleanup', new Error('PRIVATE_FAILURE_SENTINEL'));
+  expect(unknown.reason).toBe('unrecognized-refusal');
+  expect(cause.reason).toBe('unexpected-failure');
+  expect(JSON.stringify([unknown, cause])).not.toContain('native-fixture-private-secret');
+  expect(JSON.stringify([unknown, cause])).not.toContain('PRIVATE_FAILURE_SENTINEL');
+  expect(cause.diagnosticSha256).not.toBe(unknown.diagnosticSha256);
+});
+
+test('private native records preserve proof failure and cleanup failure in separate exclusive files', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'edge-init-failure-'));
+  try {
+    const missing = await publishFixtureFailure(root, 'synthetic', null, null).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    expect(missing).toBeInstanceOf(InitRefusal);
+    const proof = describeFixtureFailure(
+      'original-inspection',
+      new InitRefusal('unsupported-native-shape'),
+    );
+    const cleanup = describeFixtureFailure('cleanup', new Error('PRIVATE_CLEANUP_SENTINEL'));
+    const first = await publishFixtureFailure(root, 'synthetic', proof, null);
+    const before = await readFile(join(root, 'failure.json'));
+    const initial: unknown = JSON.parse(before.toString('utf8'));
+    expect(initial).toMatchObject({ proof, cleanup: null });
+    const second = await publishFixtureFailure(root, 'synthetic', proof, cleanup);
+    const after = await readFile(join(root, 'cleanup-failure.json'));
+    expect(await readFile(join(root, 'failure.json'))).toEqual(before);
+    const retained: unknown = JSON.parse(after.toString('utf8'));
+    expect(retained).toMatchObject({ proof, cleanup });
+    expect(first).toBe(createHash('sha256').update(before).digest('hex'));
+    expect(second).toBe(createHash('sha256').update(after).digest('hex'));
+    expect(after.toString('utf8')).not.toContain('PRIVATE_CLEANUP_SENTINEL');
+    expect((await lstat(join(root, 'failure.json'))).mode & 0o777).toBe(0o600);
+    expect((await lstat(join(root, 'cleanup-failure.json'))).mode & 0o777).toBe(0o600);
+    const collision = await publishFixtureFailure(root, 'synthetic', proof, null).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    expect(collision).toBeInstanceOf(Error);
+    expect(await readFile(join(root, 'failure.json'))).toEqual(before);
+  } finally {
+    await rm(root, { recursive: true });
+  }
+});
+
+test.each(['collision', 'foreign-owner', 'wrong-create-name', 'wrong-readback-name', 'none'])(
+  'volume seeding refuses %s before any seed write',
+  async (fault) => {
+    const commands: string[][] = [];
+    const name = 'wbs-init-synthetic-registry';
+    const run = (arguments_: readonly string[]) => {
+      commands.push([...arguments_]);
+      if (arguments_[0] === 'volume' && arguments_[1] === 'ls')
+        return Promise.resolve(fault === 'collision' ? name : '');
+      if (arguments_[0] === 'volume' && arguments_[1] === 'create')
+        return Promise.resolve(fault === 'wrong-create-name' ? `${name}-foreign` : name);
+      if (arguments_[0] === 'volume' && arguments_[1] === 'inspect')
+        return Promise.resolve(
+          JSON.stringify([
+            {
+              Name: fault === 'wrong-readback-name' ? 'wbs-init-synthetic-caddy-data' : name,
+              Labels: {
+                'club.bulletpoints.edge-init-fixture':
+                  fault === 'foreign-owner' ? 'foreign' : 'synthetic',
+              },
+            },
+          ]),
+        );
+      return Promise.resolve('');
+    };
+    const failure = await createFixtureVolume(
+      name,
+      'synthetic',
+      `sha256:${'b'.repeat(64)}`,
+      run,
+    ).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    if (fault === 'none') {
+      expect(failure).toBeNull();
+      expect(commands.map((command) => command[0])).toEqual(['volume', 'volume', 'volume', 'run']);
+    } else {
+      expect(failure).toBeInstanceOf(InitRefusal);
+    }
+    if (fault !== 'none') expect(commands.some((command) => command[0] === 'run')).toBe(false);
+    if (fault === 'collision') expect(commands).toEqual([['volume', 'ls', '--quiet']]);
+  },
+);
+
+test.each(['foreign-volume', 'unpinned-image'])(
+  'seeding rejects %s input before any Docker request',
+  async (fault) => {
+    const calls: string[][] = [];
+    const name = fault === 'foreign-volume' ? 'unrelated-volume' : 'wbs-init-synthetic-registry';
+    const image = fault === 'unpinned-image' ? 'caddy:latest' : `sha256:${'b'.repeat(64)}`;
+    const failure = await createFixtureVolume(name, 'synthetic', image, (arguments_) => {
+      calls.push([...arguments_]);
+      return Promise.resolve('');
+    }).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    expect(failure).toBeInstanceOf(InitRefusal);
+    expect(calls).toEqual([]);
+  },
+);
+
+test.each(['volume', 'retained-label', 'none'])(
+  'fixture namespace refuses %s collision before setup or teardown authority',
+  async (fault) => {
+    const calls: string[][] = [];
+    const failure = await requireUnusedFixtureNamespace('synthetic', (arguments_) => {
+      calls.push([...arguments_]);
+      return Promise.resolve(
+        fault === 'volume' && calls.length === 1
+          ? 'wbs-init-synthetic-registry'
+          : fault === 'retained-label' && calls.length === 2
+            ? 'a'.repeat(64)
+            : '',
+      );
+    }).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    if (fault === 'none') {
+      expect(failure).toBeNull();
+      expect(calls).toHaveLength(4);
+    } else {
+      expect(failure).toBeInstanceOf(InitRefusal);
+      expect(calls.some((arguments_) => ['create', 'rm', 'run'].includes(arguments_[1]))).toBe(
+        false,
+      );
+    }
+  },
+);
+
+test.each(['none', 'foreign-name', 'foreign-owner', 'short-id', 'array-like', 'multiple-records'])(
+  'network cleanup binds %s full identity and nonce name before delete',
+  async (fault) => {
+    const commands: string[][] = [];
+    const full = 'c'.repeat(64);
+    const run = (arguments_: readonly string[]) => {
+      commands.push([...arguments_]);
+      const observed = {
+        Id: fault === 'short-id' ? full.slice(0, 12) : full,
+        Name: fault === 'foreign-name' ? 'unrelated-network' : 'wbs-init-synthetic-net-0',
+        Labels: {
+          'club.bulletpoints.edge-init-fixture':
+            fault === 'foreign-owner' ? 'foreign' : 'synthetic',
+        },
+      };
+      return Promise.resolve(
+        JSON.stringify(
+          fault === 'array-like'
+            ? { 0: observed, length: 1 }
+            : fault === 'multiple-records'
+              ? [observed, observed]
+              : [observed],
+        ),
+      );
+    };
+    const failure = await removeFixtureResource(
+      'network',
+      full.slice(0, 12),
+      'synthetic',
+      run,
+    ).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    if (fault === 'none') {
+      expect(failure).toBeNull();
+      expect(commands).toEqual([
+        ['network', 'inspect', full.slice(0, 12)],
+        ['network', 'rm', full],
+      ]);
+    } else {
+      expect(failure).toBeInstanceOf(Error);
+      expect(commands.some((command) => command[1] === 'rm')).toBe(false);
+    }
+  },
+);
+
+test.each([
+  'none',
+  'status',
+  'transport',
+  'early-deadline',
+  'late-deadline',
+  'recycled-pid',
+  'changed-pid',
+  'changed-started-at',
+  'foreign-id',
+  'zero-pid',
+])(
+  'TERM proof refuses %s without a bounded actual deadline and unchanged kernel identity',
+  async (fault) => {
+    const raw = syntheticContainer();
+    raw.Name = '/wbs-init-synthetic-term';
+    Object.assign(raw.Config.Labels, { 'club.bulletpoints.edge-init-fixture': 'synthetic' });
+    if (fault === 'zero-pid') raw.State.Pid = 0;
+    const before = parseNativeContainer(raw);
+    let time = 0;
+    let reads = 0;
+    const verify = verifyFixtureStopDeadline(
+      {
+        stop: (_id: string, timeout: number) => {
+          expect(timeout).toBe(250);
+          time = fault === 'early-deadline' ? 1 : fault === 'late-deadline' ? 1500 : 250;
+          return Promise.reject(
+            new InitRefusal(
+              fault === 'status'
+                ? 'engine-status-refused'
+                : fault === 'transport'
+                  ? 'engine-transport-uncertain'
+                  : 'engine-deadline-uncertain',
+            ),
+          );
+        },
+        inspect: () => {
+          const current = structuredClone(raw);
+          if (fault === 'changed-pid') current.State.Pid++;
+          if (fault === 'changed-started-at') current.State.StartedAt = '2026-01-02T00:00:00Z';
+          if (fault === 'foreign-id') current.Id = 'e'.repeat(64);
+          return Promise.resolve(parseNativeContainer(current));
+        },
+      },
+      before,
+      'synthetic',
+      {
+        now: () => time,
+        observeProcess: (pid) =>
+          Promise.resolve({
+            pid,
+            startTime: fault === 'recycled-pid' && ++reads === 2 ? '2' : '1',
+            cgroup: '/fixture',
+          }),
+      },
+    );
+    const failure = await verify.then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    if (fault === 'none') expect(failure).toBeNull();
+    else expect(failure).toBeInstanceOf(InitRefusal);
+  },
+);
+
+test.each(['stall', 'status'])(
+  'TERM oracle observes the real Unix-socket %s and exact t=-1 request',
+  async (fault) => {
+    const root = await mkdtemp(join(tmpdir(), 'edge-init-deadline-'));
+    const socket = join(root, 'engine.sock');
+    const raw = syntheticContainer();
+    raw.Name = '/wbs-init-synthetic-term';
+    Object.assign(raw.Config.Labels, { 'club.bulletpoints.edge-init-fixture': 'synthetic' });
+    const transcript: string[] = [];
+    const server = createServer((request, response) => {
+      transcript.push(`${String(request.method)} ${String(request.url)}`);
+      if (request.method === 'POST') {
+        if (fault === 'status') {
+          response.writeHead(500);
+          response.end('PRIVATE_STATUS_SENTINEL');
+        }
+        return;
+      }
+      response.end(JSON.stringify(raw));
+    });
+    await new Promise<void>((resolve) => server.listen(socket, resolve));
+    try {
+      const engine = new EngineTransport(socket, [raw.Id], 'synthetic', 'owned-fixture');
+      const failure = await verifyFixtureStopDeadline(
+        engine,
+        parseNativeContainer(raw),
+        'synthetic',
+        {
+          now: () => performance.now(),
+          observeProcess: (pid) => Promise.resolve({ pid, startTime: '1', cgroup: '/fixture' }),
+        },
+      ).then(
+        () => null,
+        (cause: unknown) => cause,
+      );
+      if (fault === 'stall') {
+        expect(failure).toBeNull();
+        expect(transcript).toEqual([
+          `POST /v1.52/containers/${raw.Id}/stop?t=-1`,
+          `GET /v1.52/containers/${raw.Id}/json`,
+        ]);
+      } else {
+        expect(failure).toBeInstanceOf(InitRefusal);
+        expect(String(failure)).not.toContain('PRIVATE_STATUS_SENTINEL');
+        expect(transcript).toEqual([`POST /v1.52/containers/${raw.Id}/stop?t=-1`]);
+      }
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) =>
+        server.close(() => {
+          resolve();
+        }),
+      );
+      await rm(root, { recursive: true });
+    }
+  },
+);
+
+test.each([
+  'none',
+  'injection-omitted',
+  'unrelated-caddy-refusal',
+  'extra-mutation',
+  'wrong-state',
+  'wrong-phase',
+  'wrong-status',
+  'wrong-name',
+])('native fault oracle rejects %s instead of accepting an arbitrary refusal', (fault) => {
+  const original = syntheticContainer();
+  original.Name = '/wbs-init-synthetic-registry-fixture';
+  Object.assign(original.State, { Status: 'exited', Running: false, Pid: 0 });
+  const candidate = syntheticContainer();
+  candidate.Id = 'b'.repeat(64);
+  candidate.Name = '/wbs-init-synthetic-registry';
+  Object.assign(candidate.State, {
+    Status: 'created',
+    Running: false,
+    Pid: 0,
+    StartedAt: '0001-01-01T00:00:00Z',
+  });
+  if (fault === 'wrong-state') original.State.Running = true;
+  if (fault === 'wrong-status') original.State.Status = 'running';
+  if (fault === 'wrong-name') original.Name = '/wbs-init-synthetic-registry-original';
+  const effects = [`create:registry`, `stop:${original.Id}`];
+  if (fault === 'extra-mutation' || fault === 'unrelated-caddy-refusal')
+    effects.push(
+      `rename:${original.Id}:wbs-init-synthetic-registry-original`,
+      `rename:${candidate.Id}:wbs-init-synthetic-registry-fixture`,
+      `start:${candidate.Id}`,
+      'create:caddy',
+    );
+  const assertion = () => {
+    verifyFixtureFault('stop-ack-lost', {
+      injected: fault !== 'injection-omitted',
+      failure: new InitRefusal(
+        fault === 'unrelated-caddy-refusal' || fault === 'wrong-phase'
+          ? 'before-create'
+          : 'stop-uncertain',
+      ),
+      effects,
+      original: parseNativeContainer(original),
+      candidate: parseNativeContainer(candidate),
+      originalId: original.Id,
+      candidateId: candidate.Id,
+      nonce: 'synthetic',
+      network: 'wbs-init-synthetic-net-0',
+    });
+  };
+  if (fault === 'none') expect(assertion).not.toThrow();
+  else expect(assertion).toThrow();
+});
+
+const originalId = 'a'.repeat(64);
+const candidateId = 'b'.repeat(64);
+const network = 'wbs-init-synthetic-net-0';
+const create = 'create:registry';
+const stop = `stop:${originalId}`;
+const renameOriginal = `rename:${originalId}:wbs-init-synthetic-registry-original`;
+const renameCandidate = `rename:${candidateId}:wbs-init-synthetic-registry-fixture`;
+const start = `start:${candidateId}`;
+for (const fixture of [
+  {
+    fault: 'alias-drift',
+    phase: 'candidate-inert',
+    stopped: false,
+    renamed: false,
+    started: false,
+    effects: [create],
+  },
+  {
+    fault: 'create-ack-lost',
+    phase: 'before-create',
+    stopped: false,
+    renamed: false,
+    started: false,
+    effects: [create],
+  },
+  {
+    fault: 'stop-ack-lost',
+    phase: 'stop-uncertain',
+    stopped: true,
+    renamed: false,
+    started: false,
+    effects: [create, stop],
+  },
+  {
+    fault: 'rename-ack-lost',
+    phase: 'rename-uncertain',
+    stopped: true,
+    renamed: true,
+    started: false,
+    effects: [create, stop, renameOriginal],
+  },
+  {
+    fault: 'start-ack-lost',
+    phase: 'start-uncertain',
+    stopped: true,
+    renamed: true,
+    started: true,
+    effects: [create, stop, renameOriginal, renameCandidate, start],
+  },
+  {
+    fault: 'route-loss',
+    phase: 'candidate-running-unhealthy',
+    stopped: true,
+    renamed: true,
+    started: true,
+    effects: [
+      create,
+      stop,
+      renameOriginal,
+      renameCandidate,
+      start,
+      `disconnect:${network}:${candidateId}`,
+    ],
+  },
+  {
+    fault: 'public-probe-failed',
+    phase: 'candidate-running-unhealthy',
+    stopped: true,
+    renamed: true,
+    started: true,
+    effects: [create, stop, renameOriginal, renameCandidate, start, `pause:${candidateId}`],
+  },
+  {
+    fault: 'restart-after-health',
+    phase: 'candidate-running-unhealthy',
+    stopped: true,
+    renamed: true,
+    started: true,
+    effects: [create, stop, renameOriginal, renameCandidate, start, `restart:${candidateId}`],
+  },
+] as const) {
+  test(`native fault oracle admits only the exact ${fixture.fault} stage and state`, () => {
+    const original = syntheticContainer();
+    original.Name = `/wbs-init-synthetic-${fixture.renamed ? 'registry-original' : 'registry-fixture'}`;
+    Object.assign(original.State, {
+      Status: fixture.stopped ? 'exited' : 'running',
+      Running: !fixture.stopped,
+      Pid: fixture.stopped ? 0 : 123,
+    });
+    const candidate = syntheticContainer();
+    candidate.Id = candidateId;
+    candidate.Name = `/wbs-init-synthetic-${fixture.started ? 'registry-fixture' : 'registry'}`;
+    Object.assign(candidate.State, {
+      Status: !fixture.started
+        ? 'created'
+        : fixture.fault === 'public-probe-failed'
+          ? 'paused'
+          : 'running',
+      Running: fixture.started,
+      Pid: fixture.started ? 456 : 0,
+      Paused: fixture.fault === 'public-probe-failed',
+    });
+    const endpoint = candidate.NetworkSettings.Networks.edge;
+    Reflect.deleteProperty(candidate.NetworkSettings.Networks, 'edge');
+    Object.assign(candidate.NetworkSettings.Networks, { [network]: endpoint });
+    if (fixture.fault === 'alias-drift') endpoint.Aliases = ['unexpected-fixture-alias'];
+    if (fixture.fault === 'route-loss')
+      Reflect.deleteProperty(candidate.NetworkSettings.Networks, network);
+    const evidence = {
+      injected: true,
+      failure: new InitRefusal(fixture.phase),
+      effects: fixture.effects,
+      original: parseNativeContainer(original),
+      candidate: parseNativeContainer(candidate),
+      originalId,
+      candidateId,
+      nonce: 'synthetic',
+      network,
+      beforeRestart: 'before-restart',
+    };
+    expect(() => {
+      verifyFixtureFault(fixture.fault, evidence);
+    }).not.toThrow();
+    if (fixture.fault === 'alias-drift') {
+      endpoint.Aliases = ['registry'];
+      evidence.candidate = parseNativeContainer(candidate);
+      expect(() => {
+        verifyFixtureFault(fixture.fault, evidence);
+      }).toThrow();
+    }
+    if (fixture.fault === 'route-loss') {
+      Object.assign(candidate.NetworkSettings.Networks, { [network]: endpoint });
+      evidence.candidate = parseNativeContainer(candidate);
+      expect(() => {
+        verifyFixtureFault(fixture.fault, evidence);
+      }).toThrow();
+    }
+    if (fixture.fault === 'restart-after-health') {
+      Reflect.deleteProperty(evidence, 'beforeRestart');
+      expect(() => {
+        verifyFixtureFault(fixture.fault, evidence);
+      }).toThrow();
+      evidence.beforeRestart = fingerprint({
+        pid: evidence.candidate.state['Pid'],
+        startedAt: evidence.candidate.state['StartedAt'],
+      });
+      expect(() => {
+        verifyFixtureFault(fixture.fault, evidence);
+      }).toThrow();
+    }
+  });
+}
+
+test('omitted stop acknowledgement fault cannot borrow an unrelated Caddy refusal as native proof', async () => {
+  const original = syntheticContainer();
+  original.Name = '/wbs-init-synthetic-registry-fixture';
+  Object.assign(original.Config.Labels, { 'club.bulletpoints.edge-init-fixture': 'synthetic' });
+  const caddy = structuredClone(original);
+  caddy.Id = 'e'.repeat(64);
+  caddy.Name = '/wbs-init-synthetic-caddy-fixture';
+  const containers = new Map([original, caddy].map((container) => [container.Id, container]));
+  const effects: string[] = [];
+  const candidates: string[] = [];
+  let time = 0;
+  const read = (id: string) => {
+    const container = containers.get(id);
+    if (container === undefined) throw new Error('absent');
+    return container;
+  };
+  const observe = () => Promise.resolve();
+  const failure: unknown = await runInitAdoption(
+    {
+      nonce: 'synthetic',
+      namespace: 'owned-fixture',
+      targets: [
+        { kind: 'registry', original: parseNativeContainer(original) },
+        { kind: 'caddy', original: parseNativeContainer(caddy) },
+      ],
+    },
+    {
+      network: () => Promise.reject(new Error('unexpected network read')),
+      networkByName: () => Promise.reject(new Error('unexpected network name read')),
+      inspect: (id) => Promise.resolve(parseNativeContainer(read(id))),
+      create: (kind) => {
+        effects.push(`create:${kind}`);
+        if (kind !== 'registry')
+          return Promise.reject(new InitRefusal('native-fixture-fault-expanded-targets'));
+        const replacement = structuredClone(original);
+        replacement.Id = candidateId;
+        replacement.Name = '/wbs-init-synthetic-registry';
+        replacement.Config.Image = replacement.Image;
+        replacement.HostConfig.Init = true;
+        Object.assign(replacement.State, {
+          Status: 'created',
+          Running: false,
+          Pid: 0,
+          StartedAt: '0001-01-01T00:00:00Z',
+        });
+        containers.set(candidateId, replacement);
+        candidates.push(candidateId);
+        return Promise.resolve(candidateId);
+      },
+      stop: (id) => {
+        effects.push(`stop:${id}`);
+        Object.assign(read(id).State, { Status: 'exited', Running: false, Pid: 0 });
+        return Promise.resolve();
+      },
+      rename: (id, name) => {
+        effects.push(`rename:${id}:${name}`);
+        read(id).Name = `/${name}`;
+        return Promise.resolve();
+      },
+      start: (id) => {
+        effects.push(`start:${id}`);
+        Object.assign(read(id).State, {
+          Status: 'running',
+          Running: true,
+          Pid: 567,
+          StartedAt: '2026-01-02T00:00:00Z',
+        });
+        return Promise.resolve();
+      },
+      remove: (id) => {
+        effects.push(`remove:${id}`);
+        containers.delete(id);
+        return Promise.resolve();
+      },
+    },
+    {
+      admit: observe,
+      original: observe,
+      inert: observe,
+      stopped: observe,
+      running: observe,
+      health: observe,
+      combined: observe,
+      absent: observe,
+    },
+    { publish: () => Promise.resolve('0'.repeat(64)) },
+    {
+      now: () => time,
+      sleep: (milliseconds) => {
+        time += milliseconds;
+        return Promise.resolve();
+      },
+    },
+  ).then(
+    () => null,
+    (cause: unknown) => cause,
+  );
+  expect(failure).toBeInstanceOf(InitRefusal);
+  expect(failure).toMatchObject({ reason: 'before-create' });
+  expect(candidates).toEqual([candidateId]);
+  expect(effects).toEqual([create, stop, renameOriginal, renameCandidate, start, 'create:caddy']);
+  expect(containers.has(originalId)).toBe(true);
+  expect(() => {
+    verifyFixtureFault('stop-ack-lost', {
+      injected: false,
+      failure,
+      effects,
+      original: parseNativeContainer(read(originalId)),
+      candidate: parseNativeContainer(read(candidateId)),
+      originalId,
+      candidateId,
+      nonce: 'synthetic',
+      network,
+    });
+  }).toThrow();
+  expect(() => {
+    verifyFixtureFault('stop-ack-lost', {
+      injected: true,
+      failure,
+      effects,
+      original: parseNativeContainer(read(originalId)),
+      candidate: parseNativeContainer(read(candidateId)),
+      originalId,
+      candidateId,
+      nonce: 'synthetic',
+      network,
+    });
+  }).toThrow();
+});
+
+for (const phase of ['created', 'running'] as const) {
+  test('native OOM acceptance binds raw ' + phase + ' representation and lifecycle', () => {
+    const raw = syntheticContainer();
+    if (phase === 'created')
+      Object.assign(raw.State, {
+        Status: 'created',
+        Running: false,
+        Pid: 0,
+        StartedAt: '0001-01-01T00:00:00Z',
+      });
+    Object.assign(raw.HostConfig, { OomKillDisable: phase === 'created' ? false : null });
+    expect(() => {
+      verifyFixtureOom(parseNativeContainer(raw), phase);
+    }).not.toThrow();
+    for (const value of [true, phase === 'created' ? null : false]) {
+      const drift = structuredClone(raw);
+      Object.assign(drift.HostConfig, { OomKillDisable: value });
+      expect(() => {
+        verifyFixtureOom(parseNativeContainer(drift), phase);
+      }).toThrow();
+    }
+    const absent = structuredClone(raw);
+    Reflect.deleteProperty(absent.HostConfig, 'OomKillDisable');
+    expect(() => {
+      verifyFixtureOom(parseNativeContainer(absent), phase);
+    }).toThrow();
+    Object.assign(raw.State, { Status: 'exited', Running: false, Pid: 0 });
+    expect(() => {
+      verifyFixtureOom(parseNativeContainer(raw), phase);
+    }).toThrow();
+  });
+}
+
+test('native OOM report requires both targets and both observed phases', () => {
+  const full = new Set(['registry', 'caddy'] as const);
+  expect(() => {
+    requireFixtureOomRoster(full, full);
+  }).not.toThrow();
+  for (const kind of ['registry', 'caddy'] as const) {
+    const missing = new Set(full);
+    missing.delete(kind);
+    expect(() => {
+      requireFixtureOomRoster(missing, full);
+    }).toThrow();
+    expect(() => {
+      requireFixtureOomRoster(full, missing);
+    }).toThrow();
+  }
+});
+
+for (const fault of ['none', 'id', 'label', 'name', 'inspection'] as const)
+  test(`owned created blank-network cleanup binds ${fault}`, async () => {
+    const raw = syntheticContainer();
+    raw.Name = '/wbs-init-synthetic-registry';
+    Object.assign(raw.Config.Labels, { 'club.bulletpoints.edge-init-fixture': 'synthetic' });
+    raw.NetworkSettings.Networks.edge.NetworkID = '';
+    Object.assign(raw.State, {
+      Status: 'created',
+      Running: false,
+      Pid: 0,
+      StartedAt: '0001-01-01T00:00:00Z',
+    });
+    const listed = raw.Id;
+    if (fault === 'id') raw.Id = 'f'.repeat(64);
+    if (fault === 'label')
+      Reflect.deleteProperty(raw.Config.Labels, 'club.bulletpoints.edge-init-fixture');
+    if (fault === 'name') raw.Name = '/foreign';
+    const calls: string[][] = [];
+    const operation = removeFixtureContainer(listed, 'synthetic', (argv) => {
+      calls.push([...argv]);
+      return Promise.resolve(
+        argv[0] === 'inspect' ? JSON.stringify(fault === 'inspection' ? [] : [raw]) : '',
+      );
+    });
+    if (fault === 'none') {
+      await operation;
+      expect(calls).toEqual([
+        ['inspect', listed],
+        ['rm', '--force', '--volumes', listed],
+      ]);
+    } else {
+      const failure = await operation.then(
+        () => null,
+        (cause: unknown) => cause,
+      );
+      expect(failure).toBeInstanceOf(InitRefusal);
+      expect(calls).toEqual([['inspect', listed]]);
+    }
+  });
+
+function preInjectionFailure(failure: unknown = new InitRefusal('candidate-inert')) {
+  const original = syntheticContainer();
+  original.Name = '/wbs-init-synthetic-registry-fixture';
+  Object.assign(original.Config.Labels, { 'club.bulletpoints.edge-init-fixture': 'synthetic' });
+  original.Config.Env.push('PRIVATE_ENV_SENTINEL=owned');
+  const candidate = structuredClone(original);
+  candidate.Id = 'd'.repeat(64);
+  candidate.Name = '/wbs-init-synthetic-registry';
+  Object.assign(candidate.State, {
+    Status: 'created',
+    Running: false,
+    Pid: 0,
+    StartedAt: '0001-01-01T00:00:00Z',
+  });
+  return {
+    outcome: 'refused' as const,
+    injected: false,
+    failure,
+    effects: ['create:registry'],
+    original: parseNativeContainer(original),
+    candidate: parseNativeContainer(candidate),
+    originalId: original.Id,
+    candidateId: candidate.Id,
+    nonce: 'synthetic',
+    network: 'wbs-init-synthetic-net-0',
+  };
+}
+
+test('native pre-oracle record survives a pre-injection refusal without granting a fault proof', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'edge-init-native-pre-oracle-'));
+  try {
+    const { evidence, receipts } = await caughtPreInjectionFailure();
+    expect(readInitDiagnostic(evidence.failure)?.reason).toBe('network-mode-differs');
+    expect(describeFixtureFailure('fault-route-loss', evidence.failure).reason).toBe(
+      'candidate-inert',
+    );
+    expect(receipts.join('\n')).not.toContain('PRIVATE_ENV_SENTINEL');
+    await publishFixtureFault(root, 'route-loss', evidence);
+    let failure: unknown;
+    try {
+      verifyFixtureFault('route-loss', evidence);
+    } catch (cause) {
+      failure = cause;
+    }
+    expect(failure).toMatchObject({ reason: 'native-fixture-fault-not-injected' });
+    expect(() => {
+      verifyFixtureFault('route-loss', { ...evidence, injected: true });
+    }).toThrow('native-fixture-fault-stage-unproved');
+    const path = join(root, 'fault-route-loss.json');
+    const bytes = await readFile(path);
+    expect(JSON.parse(bytes.toString('utf8'))).toMatchObject({
+      format: 'edge-init-native-fault-observation',
+      version: 1,
+      nonce: 'synthetic',
+      stage: 'before-fault-oracle',
+      fault: 'route-loss',
+      outcome: 'refused',
+      injected: false,
+      failure: { stage: 'fault-route-loss', ...readInitDiagnostic(evidence.failure) },
+      effects: ['create:registry'],
+      effectCount: 1,
+      lastEffect: 'create:registry',
+      effectsSha256: fingerprint(evidence.effects),
+    });
+    expect((await lstat(path)).mode & 0o777).toBe(0o600);
+    expect(bytes.length).toBeLessThan(16384);
+    expect(bytes.toString('utf8')).not.toContain('PRIVATE_ENV_SENTINEL');
+    const collision = await publishFixtureFault(
+      root,
+      'route-loss',
+      preInjectionFailure(new Error('PRIVATE_FAILURE_SENTINEL')),
+    ).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    expect(collision).toMatchObject({ reason: 'native-fixture-fault-record-publication-failed' });
+    expect(await readFile(path)).toEqual(bytes);
+    await publishFixtureFailure(
+      root,
+      'synthetic',
+      describeFixtureFailure('fault-route-loss', failure),
+      describeFixtureFailure('cleanup', new Error('PRIVATE_CLEANUP_SENTINEL')),
+    );
+    expect(await readFile(path)).toEqual(bytes);
+  } finally {
+    await rm(root, { recursive: true });
+  }
+});
+
+test('native fault records hash unknown errors and effect strings while retaining exact finite transcript', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'edge-init-native-redaction-'));
+  try {
+    const evidence = preInjectionFailure(new Error('PRIVATE_FAILURE_SENTINEL'));
+    const old = `wbs-init-synthetic-registry-original`,
+      next = `wbs-init-synthetic-registry-fixture`;
+    evidence.effects = [
+      'create:registry',
+      `stop:${evidence.originalId}`,
+      `rename:${evidence.originalId}:${old}`,
+      `rename:${evidence.candidateId}:${next}`,
+      `start:${evidence.candidateId}`,
+      `disconnect:${evidence.network}:${evidence.candidateId}`,
+      `pause:${evidence.candidateId}`,
+      `restart:${evidence.candidateId}`,
+      'create:caddy',
+      'PRIVATE_ARGV_SENTINEL',
+    ];
+    await publishFixtureFault(root, 'route-loss', evidence);
+    const bytes = await readFile(join(root, 'fault-route-loss.json'), 'utf8');
+    const record = JSON.parse(bytes) as {
+      effects: unknown[];
+      failure: { reason: string; diagnosticSha256: string };
+    };
+    expect(record.effects.slice(0, -1)).toEqual(evidence.effects.slice(0, -1));
+    expect(record.effects.at(-1)).toEqual({
+      unrecognizedSha256: createHash('sha256').update('PRIVATE_ARGV_SENTINEL').digest('hex'),
+    });
+    expect(record.failure.reason).toBe('unexpected-failure');
+    expect(record.failure.diagnosticSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(bytes).not.toContain('PRIVATE_FAILURE_SENTINEL');
+    expect(bytes).not.toContain('PRIVATE_ARGV_SENTINEL');
+    expect(bytes).not.toContain('PRIVATE_ENV_SENTINEL');
+    expect(() => {
+      verifyFixtureFault('route-loss', evidence);
+    }).toThrow('native-fixture-fault-not-injected');
+  } finally {
+    await rm(root, { recursive: true });
+  }
+});
+
+for (const reason of [
+  'invariant-context-invalid',
+  'invariant-phase-differs',
+  'network-roster-invalid',
+  'network-roster-differs',
+  'network-mode-differs',
+  'network-identity-differs',
+  'network-pins-missing',
+  'network-pin-differs',
+  'network-observation-unstable',
+  'candidate-network-active',
+  'candidate-not-inert',
+])
+  test(`native diagnostics retain controlled ${reason}`, () => {
+    expect(describeFixtureFailure('fault-route-loss', new InitRefusal(reason))).toMatchObject({
+      stage: 'fault-route-loss',
+      reason,
+    });
+  });
+
+test('native diagnostics do not extend controlled network reasons to arbitrary prefixes', () => {
+  const described = describeFixtureFailure(
+    'fault-route-loss',
+    new InitRefusal('network-PRIVATE_REFUSAL_SENTINEL'),
+  );
+  expect(described.reason).toBe('unrecognized-refusal');
+  expect(JSON.stringify(described)).not.toContain('PRIVATE_REFUSAL_SENTINEL');
+});
+
+for (const fault of [
+  'fault',
+  'nonce',
+  'bound',
+  'injected',
+  'outcome',
+  'effects',
+  'sequence',
+] as const)
+  test(`native fault record refuses invalid ${fault} before publication`, async () => {
+    const root = await mkdtemp(join(tmpdir(), 'edge-init-native-invalid-record-'));
+    try {
+      const evidence = preInjectionFailure();
+      if (fault === 'nonce') evidence.nonce = 'PRIVATE_UNSAFE_NONCE';
+      if (fault === 'bound') evidence.effects = Array.from({ length: 65 }, () => 'create:registry');
+      if (fault === 'injected') Object.assign(evidence, { injected: 'PRIVATE_VALUE' });
+      if (fault === 'outcome') Object.assign(evidence, { outcome: 'PRIVATE_VALUE' });
+      if (fault === 'effects') Object.assign(evidence, { effects: [{ private: 'PRIVATE_VALUE' }] });
+      if (fault === 'sequence') Object.assign(evidence, { effects: {} });
+      const failure = await publishFixtureFault(
+        root,
+        fault === 'fault' ? ('unknown' as never) : 'route-loss',
+        evidence,
+      ).then(
+        () => null,
+        (cause: unknown) => cause,
+      );
+      expect(failure).toMatchObject({ reason: 'native-fixture-fault-record-invalid' });
+      const absent = await readFile(
+        join(root, fault === 'fault' ? 'fault-unknown.json' : 'fault-route-loss.json'),
+      ).then(
+        () => null,
+        (cause: unknown) => cause,
+      );
+      expect(absent).toMatchObject({ code: 'ENOENT' });
+    } finally {
+      await rm(root, { recursive: true });
+    }
+  });
+
+test('native fault record distinguishes an unexpected returned operation and an empty transcript', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'edge-init-native-returned-'));
+  try {
+    const evidence = {
+      ...preInjectionFailure(),
+      outcome: 'returned' as const,
+      failure: undefined,
+      effects: [],
+    };
+    await publishFixtureFault(root, 'route-loss', evidence);
+    expect(JSON.parse(await readFile(join(root, 'fault-route-loss.json'), 'utf8'))).toMatchObject({
+      outcome: 'returned',
+      failure: null,
+      effects: [],
+      effectCount: 0,
+      lastEffect: null,
+    });
+    expect(() => {
+      verifyFixtureFault('route-loss', { ...evidence, injected: true });
+    }).toThrow('native-fixture-fault-stage-unproved');
+  } finally {
+    await rm(root, { recursive: true });
+  }
+});
+
+async function caughtPreInjectionFailure(caught?: { cause: unknown }) {
+  const evidence = preInjectionFailure();
+  evidence.candidate.config = { ...evidence.candidate.config, Image: evidence.candidate.image };
+  evidence.candidate.host = {
+    ...evidence.candidate.host,
+    Init: true,
+    NetworkMode: caught === undefined ? 'foreign' : 'edge',
+  };
+  const caddy = {
+    ...evidence.original,
+    id: 'e'.repeat(64),
+    name: '/wbs-init-synthetic-caddy-fixture',
+  };
+  const verify = () => Promise.resolve();
+  const receipts: string[] = [],
+    effects: string[] = [];
+  const failure = await runInitAdoption(
+    {
+      nonce: 'synthetic',
+      namespace: 'owned-fixture',
+      targets: [
+        { kind: 'registry', original: evidence.original },
+        { kind: 'caddy', original: caddy },
+      ],
+    },
+    {
+      inspect: (id) =>
+        Promise.resolve(
+          id === evidence.originalId
+            ? evidence.original
+            : id === caddy.id
+              ? caddy
+              : evidence.candidate,
+        ),
+      create: () => {
+        effects.push('create:registry');
+        return Promise.resolve(evidence.candidateId);
+      },
+      network: verify,
+      networkByName: verify,
+      stop: (id) => {
+        effects.push(`stop:${id}`);
+        return verify();
+      },
+      rename: (id, name) => {
+        effects.push(`rename:${id}:${name}`);
+        return verify();
+      },
+      start: (id) => {
+        effects.push(`start:${id}`);
+        return verify();
+      },
+      remove: (id) => {
+        effects.push(`remove:${id}`);
+        return verify();
+      },
+    },
+    {
+      admit: verify,
+      original: verify,
+      inert: () => (caught === undefined ? verify() : Promise.reject(caught.cause as Error)),
+      stopped: verify,
+      running: verify,
+      health: verify,
+      combined: verify,
+      absent: verify,
+    },
+    {
+      publish: (receipt) => {
+        receipts.push(JSON.stringify(receipt));
+        return Promise.resolve('0'.repeat(64));
+      },
+    },
+  ).then(
+    () => null,
+    (cause: unknown) => cause,
+  );
+  expect(failure).toMatchObject({ reason: 'candidate-inert' });
+  evidence.failure = failure;
+  expect(effects).toEqual(['create:registry']);
+  evidence.effects = effects;
+  return { evidence, receipts };
+}
+
+test('native private records retain core hashes without disclosing raw arbitrary causes or changing public summaries', async () => {
+  for (const cause of [
+    new Error('PRIVATE_INNER_SENTINEL'),
+    new InitRefusal('network-PRIVATE_INNER_SENTINEL'),
+  ]) {
+    const root = await mkdtemp(join(tmpdir(), 'edge-init-native-inner-'));
+    try {
+      const { evidence } = await caughtPreInjectionFailure({ cause });
+      expect(evidence.failure).toMatchObject({ reason: 'candidate-inert' });
+      const inner = readInitDiagnostic(evidence.failure);
+      expect(inner?.reason).toBe(
+        cause instanceof InitRefusal ? 'unrecognized-refusal' : 'unexpected-failure',
+      );
+      await publishFixtureFault(root, 'route-loss', evidence);
+      const bytes = await readFile(join(root, 'fault-route-loss.json'), 'utf8');
+      expect(JSON.parse(bytes)).toMatchObject({ failure: { stage: 'fault-route-loss', ...inner } });
+      expect(bytes).not.toContain('PRIVATE_INNER_SENTINEL');
+      expect(bytes).not.toContain('PRIVATE_ENV_SENTINEL');
+      const publicSummary = describeFixtureFailure('fault-route-loss', evidence.failure);
+      expect(publicSummary.reason).toBe('candidate-inert');
+      expect(publicSummary.diagnosticSha256).not.toBe(inner?.diagnosticSha256);
+      expect(() => {
+        verifyFixtureFault('route-loss', evidence);
+      }).toThrow('native-fixture-fault-not-injected');
+    } finally {
+      await rm(root, { recursive: true });
+    }
+  }
+});

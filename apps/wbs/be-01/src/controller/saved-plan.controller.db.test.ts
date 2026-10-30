@@ -4,6 +4,11 @@ import { join } from 'node:path';
 
 import { AnnouncementCollector } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
+import {
+  type SavedComparisonSide,
+  summarizeSavedComparisonSide,
+} from '@wbs/core/module/saved-plans/saved-plan-comparison';
+import { bodySha256 } from '@wbs/core/module/saved-plans/saved-plan-integrity';
 import { UnknownSavedPlanBodyVersionError } from '@wbs/core/module/saved-plans/saved-plan-integrity';
 import { type AuthenticatedUser, AuthService } from '@wbs/core/service/auth.service';
 import { defaultSavedPlanName } from '@wbs/domain';
@@ -20,14 +25,14 @@ import type { SavedPlanWrite } from '../repository/saved-plan';
 import { StepRepository } from '../repository/step';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
-import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
+import { bunPasswordHasher, joseTokenCodec, nodeDigest } from '../runtime/bun-runtime';
 import { testApp } from '../testing/app-fixture';
 import { TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import {
   refusingEmailVerification,
@@ -46,15 +51,23 @@ import {
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
+import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
 import { projectRow, testProjectService } from '../testing/project-fixture';
 import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
+import { savedConnectedHistoryFixture } from '../testing/saved-connected-history-fixture';
 import { savedPlanServiceOn, testSavedPlanService } from '../testing/saved-plan-fixture';
 import { refusingSpaces } from '../testing/space-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
 import { savedPlanRoutes } from './saved-plan.routes';
+
+const comparisonSide = {
+  source: { kind: 'current' as const },
+  schedule: { present: false as const, absentReason: 'unavailable' },
+  provenance: { kind: 'legacy-unknown' as const },
+};
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -90,6 +103,22 @@ describe('the saved-plan routes', () => {
    * request.
    */
   let writes: ReturnType<typeof testWrites>;
+  let plans: ReturnType<typeof savedPlanServiceOn>;
+
+  /** Seeds access policy through the real store; project-command behavior has its own suites. */
+  const restrictProject = async () => {
+    const policy = openConnection(path);
+    try {
+      const restricted = await new ProjectRepository(policy.db, OPEN).update(
+        projectId,
+        { restricted: true },
+        { at: 1, by: 'fixture' },
+      );
+      expect(restricted).toMatchObject({ restricted: true });
+    } finally {
+      policy.close();
+    }
+  };
 
   /**
    * One authenticated request. `headers` is set rather than merged: every
@@ -115,7 +144,7 @@ describe('the saved-plan routes', () => {
     const connection = openConnection(path);
     const projects = new ProjectRepository(connection.db, OPEN);
     const projectService = new ProjectService({
-      dependencyGraph: sqliteDependencyGraph(connection.db, projects),
+      dependencyContext: sqliteDependencyContext(connection.db, projects),
       clock: testClock,
       projects,
       broadcast,
@@ -124,7 +153,9 @@ describe('the saved-plan routes', () => {
     // the batch graph, and a double there has never seen these projects.
     writes = testWrites(broadcast, { projects: projectService });
 
+    plans = savedPlanServiceOn(path);
     app = buildApp({
+      projectAddressSearch: refusingProjectAddressSearch,
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -152,7 +183,7 @@ describe('the saved-plan routes', () => {
       // would compile and would quietly put this app's project events somewhere
       // nothing in the file can read.
       projects: projectService,
-      savedPlans: savedPlanServiceOn(path),
+      savedPlans: plans,
       steps: testStepService(),
       workItems: testWorkItemService(),
       directory: testDirectoryService(),
@@ -162,6 +193,7 @@ describe('the saved-plan routes', () => {
       stepParallels: testStepParallels(),
       calendarMarkers: testCalendarMarkerService(),
       replay: testReplay().replay,
+      admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
       writes,
@@ -261,8 +293,8 @@ describe('the saved-plan routes', () => {
       const relationship = {
         id: 'captured-ff',
         projectId,
-        predecessor: { scope: 'node' as const, workItemId: 'A', stepId: firstStep.id },
-        successor: { scope: 'node' as const, workItemId: 'B', stepId: laterStep.id },
+        predecessor: { projectId, scope: 'node' as const, workItemId: 'A', stepId: firstStep.id },
+        successor: { projectId, scope: 'node' as const, workItemId: 'B', stepId: laterStep.id },
         type: 'FF' as const,
       };
       await typed.add(relationship, stamp);
@@ -279,8 +311,8 @@ describe('the saved-plan routes', () => {
         typedDependencies: [
           {
             id: relationship.id,
-            predecessor: relationship.predecessor,
-            successor: relationship.successor,
+            predecessor: { scope: 'node', workItemId: 'A', stepId: firstStep.id },
+            successor: { scope: 'node', workItemId: 'B', stepId: laterStep.id },
             type: 'FF',
           },
         ],
@@ -308,8 +340,8 @@ describe('the saved-plan routes', () => {
       expect(body.typedDependencies).toEqual([
         {
           id: relationship.id,
-          predecessor: relationship.predecessor,
-          successor: relationship.successor,
+          predecessor: { scope: 'node', workItemId: 'A', stepId: firstStep.id },
+          successor: { scope: 'node', workItemId: 'B', stepId: laterStep.id },
           type: 'FF',
         },
       ]);
@@ -516,6 +548,749 @@ describe('the saved-plan routes', () => {
     expect(Array.isArray(diff.schedule)).toBe(true);
   });
 
+  /** Injects intact dependency-aware v10/v2 bytes through SQL for historical corruption proofs. */
+  const replaceSavedBodies = async (
+    id: string,
+    inputBytes: string,
+    scheduleBytes: string | null,
+    absentReason = 'unavailable',
+  ) => {
+    const inputHash = await bodySha256(nodeDigest, inputBytes);
+    const scheduleHash =
+      scheduleBytes === null ? null : await bodySha256(nodeDigest, scheduleBytes);
+    const quote = (text: string | null) =>
+      text === null ? 'NULL' : `'${text.replaceAll("'", "''")}'`;
+    const historical = openConnection(path);
+    try {
+      historical.db.run(`UPDATE saved_plan SET input_schema_version = 10,
+        input_sha256 = ${quote(inputHash)}, input_bytes = ${String(new TextEncoder().encode(inputBytes).length)},
+        schedule_schema_version = ${scheduleBytes === null ? 'NULL' : '2'},
+        schedule_sha256 = ${quote(scheduleHash)}, schedule_input_sha256 = ${quote(scheduleBytes === null ? null : inputHash)},
+        schedule_bytes = ${scheduleBytes === null ? 'NULL' : String(new TextEncoder().encode(scheduleBytes).length)},
+        scheduler_algorithm_id = ${quote(scheduleBytes === null ? null : 'connected-selection-v1:retired')},
+        schedule_absent_reason = ${quote(scheduleBytes === null ? absentReason : null)} WHERE id = ${quote(id)}`);
+      historical.db.run(
+        `UPDATE saved_plan_body SET bytes = ${quote(inputBytes)} WHERE saved_plan_id = ${quote(id)} AND kind = 'input'`,
+      );
+      if (scheduleBytes === null)
+        historical.db.run(
+          `DELETE FROM saved_plan_body WHERE saved_plan_id = ${quote(id)} AND kind = 'schedule'`,
+        );
+      else
+        historical.db.run(
+          `UPDATE saved_plan_body SET bytes = ${quote(scheduleBytes)} WHERE saved_plan_id = ${quote(id)} AND kind = 'schedule'`,
+        );
+    } finally {
+      historical.close();
+    }
+  };
+
+  it('reads complete connected history as exact stored bytes and compares it without live foreign projects', async () => {
+    const id = await savedIdOf(await save('ada'));
+    const captured = savedConnectedHistoryFixture(projectId);
+    expect(captured.input.workItems.map((row) => row.id)).toEqual(['a', 'root']);
+    expect(captured.input.steps.map((step) => step.id)).toEqual(['design', 'test']);
+    const inputBytes = JSON.stringify(captured.input);
+    const scheduleBytes = JSON.stringify(captured.schedule);
+    await replaceSavedBodies(id, inputBytes, scheduleBytes);
+    const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      savedPlan: {
+        input: { bytes: inputBytes },
+        schedule: { body: { bytes: scheduleBytes } },
+      },
+    });
+    const compared = await as(
+      tokens['ada'],
+      `/api/projects/${projectId}/saved-plans/compare?left=${id}&right=${id}`,
+    );
+    expect(compared.status).toBe(200);
+    const comparison = (await compared.json()) as {
+      left: SavedComparisonSide;
+      right: SavedComparisonSide;
+    };
+    expect(comparison).toMatchObject({
+      diff: { input: [], schedule: [] },
+      left: {
+        source: { kind: 'saved', savedPlanId: id },
+        schedule: { present: true, algorithmId: 'connected-selection-v1:retired' },
+        provenance: {
+          kind: 'connected',
+          targetProjectId: projectId,
+          placementState: { kind: 'scheduled' },
+        },
+      },
+    });
+    expect(comparison.right).toEqual(comparison.left);
+    if (comparison.left.provenance.kind !== 'connected')
+      throw new Error('connected summary required');
+    expect(comparison.left.provenance.stages[0]?.boundary.fixed).toEqual([
+      {
+        projectId: 'B',
+        workItemId: 'b',
+        stepId: 'build',
+        projectName: 'Beta',
+        projectAbbreviation: 'B',
+        workItemName: 'b',
+        stepName: 'Build',
+        start: 1,
+        finish: 3,
+      },
+    ]);
+
+    const renamedId = await savedIdOf(await save('ada'));
+    const renamed = savedConnectedHistoryFixture(projectId);
+    if (renamed.input.dependencyHistory.kind !== 'connected')
+      throw new Error('fixture requires connected context');
+    const foreign = renamed.input.dependencyHistory.projects.find(
+      (project) => project.projectId !== projectId,
+    );
+    if (foreign === undefined) throw new Error('foreign fixture required');
+    Reflect.set(foreign, 'name', 'Beta at a later capture');
+    await replaceSavedBodies(renamedId, JSON.stringify(renamed.input), scheduleBytes);
+    const changed = await as(
+      tokens['ada'],
+      `/api/projects/${projectId}/saved-plans/compare?left=${id}&right=${renamedId}`,
+    );
+    expect(changed.status).toBe(200);
+    expect(await changed.json()).toMatchObject({
+      diff: { input: [{ path: 'dependencyHistory.projects' }], schedule: [] },
+    });
+  });
+
+  it('returns the pre-selection boundary after a later stage moves its foreign member', async () => {
+    const id = await savedIdOf(await save('ada'));
+    const captured = savedConnectedHistoryFixture(projectId);
+    const connection = captured.schedule.connection;
+    const first = connection.stages[0];
+    const second = connection.stages[1];
+    const ready = first.variants?.time;
+    if (ready?.state !== 'ready' || captured.input.dependencyHistory.kind !== 'connected')
+      throw new Error('ready connected fixture required');
+    const baseline = structuredClone(connection.composite);
+    const later = structuredClone(connection.composite);
+    for (const span of [later.workItems['b'], later.slices['b\u0000build']]) {
+      Reflect.set(span, 'earliestStart', span.earliestStart + 2);
+      Reflect.set(span, 'earliestFinish', span.earliestFinish + 2);
+      Reflect.set(span, 'latestStart', span.latestStart + 2);
+      Reflect.set(span, 'latestFinish', span.latestFinish + 2);
+    }
+    Reflect.set(connection, 'composite', later);
+    Reflect.set(connection, 'stages', [
+      first,
+      {
+        ...second,
+        engine: 'optimized',
+        selected: 'pri',
+        observation: first.observation,
+        variants: {
+          pri: {
+            ...ready,
+            candidate: {
+              question: {
+                ...ready.candidate.question,
+                projectId: 'B',
+                objective: 'pri',
+                stageBytes: second.stageBytes,
+              },
+              starts: [['b\u0000build', 3]],
+            },
+            decision: {
+              ...ready.decision,
+              scope: { kind: 'connected-stage', projectId: 'B' },
+              baseline,
+              schedule: later,
+            },
+          },
+          time: { state: 'idle' },
+        },
+      },
+    ]);
+    const foreign = captured.input.dependencyHistory.projects.find(
+      (member) => member.projectId === 'B',
+    );
+    if (foreign === undefined) throw new Error('foreign fixture required');
+    Reflect.set(foreign, 'engine', 'optimized');
+    Reflect.set(foreign, 'enabled', true);
+    await replaceSavedBodies(id, JSON.stringify(captured.input), JSON.stringify(captured.schedule));
+    const compared = await compareOf('ada', id, id);
+    expect(compared.status).toBe(200);
+    expect(compared.body).toMatchObject({
+      diff: { input: [], schedule: [] },
+      left: {
+        provenance: {
+          stages: [
+            { boundary: { fixed: [{ workItemId: 'b', start: 1, finish: 3 }] } },
+            {
+              boundary: {
+                fixed: [
+                  { workItemId: 'a', stepId: 'design', start: 1, finish: 2 },
+                  { workItemId: 'a', stepId: 'test', start: 4, finish: 5 },
+                ],
+              },
+            },
+          ],
+        },
+      },
+    });
+  });
+
+  it('keeps a boundary-infeasible objective scoped while the captured schedule remains present', async () => {
+    const id = await savedIdOf(await save('ada'));
+    const captured = savedConnectedHistoryFixture(projectId);
+    const stage = captured.schedule.connection.stages[0];
+    const ready = stage.variants?.time;
+    if (ready?.state !== 'ready' || stage.variants === null)
+      throw new Error('ready fixture required');
+    Reflect.set(stage.variants, 'pri', {
+      state: 'boundary-infeasible',
+      certificate: {
+        kind: 'boundary-infeasible',
+        evidence: 'contradictory-bounds',
+        question: { ...ready.candidate.question, objective: 'pri' },
+      },
+    });
+    await replaceSavedBodies(id, JSON.stringify(captured.input), JSON.stringify(captured.schedule));
+    const compared = await compareOf('ada', id, id);
+    expect(compared.status).toBe(200);
+    expect(compared.body).toMatchObject({
+      diff: { input: [], schedule: [] },
+      left: {
+        schedule: { present: true },
+        provenance: {
+          stages: [
+            {
+              selected: 'time',
+              variants: {
+                pri: {
+                  state: 'boundary-infeasible',
+                  questionHash: 'question',
+                  evidence: 'contradictory-bounds',
+                },
+                time: { state: 'ready' },
+              },
+            },
+            {},
+          ],
+        },
+      },
+    });
+  });
+
+  it('compares unavailable and legacy records using frozen evidence with live readers poisoned', async () => {
+    const legacy = await savedIdOf(await save('ada'));
+    const id = await savedIdOf(await save('ada'));
+    const captured = savedConnectedHistoryFixture(projectId);
+    if (captured.input.dependencyHistory.kind !== 'connected')
+      throw new Error('connected fixture required');
+    Reflect.set(captured.input.dependencyHistory, 'placementState', {
+      kind: 'unavailable',
+      reason: 'cycle',
+    });
+    await replaceSavedBodies(id, JSON.stringify(captured.input), null, 'infeasible');
+    const capture = spyOn(plans, 'projectCurrentPlan').mockImplementation(() => {
+      throw new Error('live capture poisoned');
+    });
+    try {
+      const equal = await compareOf('ada', id, id);
+      expect(equal.status).toBe(200);
+      expect(equal.body).toMatchObject({
+        diff: { input: [], schedule: [] },
+        left: {
+          source: { kind: 'saved', savedPlanId: id },
+          schedule: { present: false, absentReason: 'infeasible' },
+          provenance: {
+            kind: 'connected',
+            placementState: { kind: 'unavailable', reason: 'cycle' },
+            stages: [],
+            idleProjects: [],
+          },
+        },
+      });
+      const mixed = await compareOf('ada', legacy, id);
+      expect(mixed.status).toBe(200);
+      expect(mixed.body).toMatchObject({
+        left: { provenance: { kind: 'legacy-unknown' } },
+        right: { provenance: { kind: 'connected' } },
+      });
+      const reversed = await compareOf('ada', id, legacy);
+      expect(reversed.status).toBe(200);
+      expect(reversed.body).toMatchObject({
+        left: { provenance: { kind: 'connected' } },
+        right: { provenance: { kind: 'legacy-unknown' } },
+      });
+    } finally {
+      capture.mockRestore();
+    }
+  });
+
+  it('captures current/current once and returns identical current summaries', async () => {
+    const capture = spyOn(plans, 'projectCurrentPlan');
+    try {
+      const compared = await compareOf('ada', 'current', 'current');
+      expect(compared.status).toBe(200);
+      expect(capture).toHaveBeenCalledTimes(1);
+      expect(compared.body).toMatchObject({
+        diff: { input: [], schedule: [] },
+        left: { source: { kind: 'current' }, provenance: { kind: 'legacy-unknown' } },
+      });
+      const summaries = compared.body as { left: unknown; right: unknown };
+      expect(summaries.right).toEqual(summaries.left);
+    } finally {
+      capture.mockRestore();
+    }
+  });
+
+  it.each([
+    ['numeric step code', 'input', 'shape', '$.dependencyHistory'],
+    ['missing step code', 'input', 'shape', '$.dependencyHistory'],
+    ['target project metadata', 'input', 'target_metadata', '$.project'],
+    ['target row metadata', 'input', 'target_metadata', '$.workItems'],
+    ['target step metadata', 'input', 'target_metadata', '$.steps'],
+    ['target project date', 'input', 'target_metadata', '$.project'],
+    ['target project timezone', 'input', 'target_metadata', '$.project'],
+    ['target row hold', 'input', 'target_metadata', '$.workItems'],
+    ['target step code', 'input', 'target_metadata', '$.steps'],
+    ['target step position', 'input', 'target_metadata', '$.steps'],
+    ['observation identity', 'schedule', 'observation_identity', '$.stages.variants'],
+    ['observation contractVersion', 'schedule', 'observation_identity', '$.stages.variants'],
+    ['observation budgetMs', 'schedule', 'observation_identity', '$.stages.variants'],
+    ['observation quantum', 'schedule', 'observation_identity', '$.stages.variants'],
+    ['observation wireVersion', 'schedule', 'observation_identity', '$.stages.variants'],
+    ['observation absence', 'schedule', 'observation_presence', '$.stages.observation'],
+    ['header algorithm', 'schedule', 'algorithm_identity', '$.algorithmId'],
+    ['missing calendar reason', 'schedule', 'absence_reason', '$.placementState'],
+    ['absence reason', 'schedule', 'absence_reason', '$.placementState'],
+  ] as const)(
+    'refuses codec fit fault %s on read and both compare sides',
+    async (fault, body, code, path) => {
+      const id = await savedIdOf(await save('ada'));
+      const healthyId = await savedIdOf(await save('ada'));
+      const captured = savedConnectedHistoryFixture(projectId);
+      const history = captured.input.dependencyHistory;
+      if (history.kind !== 'connected') throw new Error('connected fixture required');
+      const stage = captured.schedule.connection.stages[0];
+      if (fault === 'numeric step code' || fault === 'missing step code') {
+        const foreign = history.projects.find((project) => project.projectId !== projectId);
+        if (foreign === undefined) throw new Error('foreign fixture required');
+        const corruptCode = (step: object) =>
+          fault === 'numeric step code'
+            ? Reflect.set(step, 'code', 20)
+            : Reflect.deleteProperty(step, 'code');
+        corruptCode(foreign.steps[0]);
+        for (const relationship of history.relationships)
+          for (const end of [relationship.predecessor, relationship.successor])
+            if (end.projectId === foreign.projectId && end.step !== null) corruptCode(end.step);
+      }
+      if (fault === 'target project metadata')
+        Reflect.set(captured.input.project, 'name', 'contradiction');
+      if (fault === 'target row metadata')
+        Reflect.set(captured.input.workItems[0], 'name', 'contradiction');
+      if (fault === 'target step metadata')
+        Reflect.set(captured.input.steps[0], 'name', 'contradiction');
+      if (fault === 'target project date')
+        Reflect.set(captured.input.project, 'startDate', '2026-10-02');
+      if (fault === 'target project timezone')
+        Reflect.set(captured.input.project, 'timezone', 'Europe/Kyiv');
+      if (fault === 'target row hold') Reflect.set(captured.input.workItems[0], 'hold', 'blocked');
+      if (fault === 'target step code')
+        Reflect.set(captured.input.steps[0], 'code', 'contradiction');
+      if (fault === 'target step position') Reflect.set(captured.input.steps[0], 'position', 10);
+
+      if (fault === 'observation identity')
+        Reflect.set(stage, 'observation', {
+          inputHash: 'wrong',
+          contractVersion: '1',
+          budgetMs: 100,
+          quantum: 1,
+          wireVersion: 1,
+        });
+      for (const field of ['contractVersion', 'budgetMs', 'quantum', 'wireVersion'] as const) {
+        if (fault === `observation ${field}`) {
+          if (stage.observation === null) throw new Error('observation required');
+          Reflect.set(stage.observation, field, field === 'contractVersion' ? 'retired-other' : 2);
+        }
+      }
+      if (fault === 'observation absence')
+        Reflect.set(captured.schedule.connection.stages[1], 'observation', stage.observation);
+      if (fault === 'header algorithm')
+        captured.schedule.algorithmId = 'different-retired-algorithm';
+      if (fault === 'absence reason')
+        Reflect.set(history, 'placementState', { kind: 'unavailable', reason: 'cycle' });
+      if (fault === 'missing calendar reason')
+        Reflect.set(history, 'placementState', {
+          kind: 'dependency_calendar_missing',
+          projects: [{ projectId: 'B', abbreviation: 'B', name: 'Beta' }],
+        });
+      await replaceSavedBodies(
+        id,
+        JSON.stringify(captured.input),
+        fault === 'absence reason' || fault === 'missing calendar reason'
+          ? null
+          : JSON.stringify(captured.schedule),
+        fault === 'missing calendar reason' ? 'infeasible' : 'unavailable',
+      );
+      const refusal = { reason: 'body_invalid', savedPlanId: id, body, code, path };
+      const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+      expect(response.status).toBe(422);
+      expect(await response.json()).toEqual({ error: 'corrupt', refusal });
+      for (const [left, right] of [
+        [id, healthyId],
+        [healthyId, id],
+      ]) {
+        const compared = await compareOf('ada', left, right);
+        expect(compared.status).toBe(422);
+        expect(compared.body).toEqual({ error: 'corrupt', savedPlanId: id, refusal });
+      }
+    },
+  );
+
+  it.each([
+    [
+      'target input unrelated local namespace',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(
+          captured.input,
+          'workItems',
+          captured.input.workItems.map((row, index) => ({
+            ...row,
+            id: `w${String(index + 1)}`,
+            parentId: row.parentId === null ? null : 'w2',
+          })),
+        );
+        Reflect.set(
+          captured.input,
+          'steps',
+          captured.input.steps.map((step, index) => ({
+            ...step,
+            id: `s${String(index + 1)}`,
+          })),
+        );
+      },
+    ],
+    [
+      'target input work identity',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input.workItems[0], 'id', 'unrelated-row');
+      },
+    ],
+    [
+      'target input step identity',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input.steps[0], 'id', 'foreign-step');
+      },
+    ],
+    [
+      'target input parent',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input.workItems[0], 'parentId', 'foreign-parent');
+      },
+    ],
+    [
+      'target input missing work member',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'workItems', captured.input.workItems.slice(1));
+      },
+    ],
+    [
+      'target input extra work member',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'workItems', [
+          ...captured.input.workItems,
+          { ...captured.input.workItems[0], id: 'foreign-row' },
+        ]);
+      },
+    ],
+    [
+      'target input missing step member',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'steps', captured.input.steps.slice(1));
+      },
+    ],
+    [
+      'target input extra step member',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'steps', [
+          ...captured.input.steps,
+          { ...captured.input.steps[0], id: 'foreign-step' },
+        ]);
+      },
+    ],
+    [
+      'target input duplicate work member',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'workItems', [
+          ...captured.input.workItems,
+          captured.input.workItems[0],
+        ]);
+      },
+    ],
+    [
+      'target input duplicate step member',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'steps', [...captured.input.steps, captured.input.steps[0]]);
+      },
+    ],
+    [
+      'target input fact step owner',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'stepValues', [
+          {
+            workItemId: 'a',
+            stepId: 'build',
+            optimistic: null,
+            realistic: null,
+            pessimistic: null,
+            derived: null,
+            actual: null,
+            progress: null,
+          },
+        ]);
+      },
+    ],
+    [
+      'target input fact work owner',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'stepValues', [
+          {
+            workItemId: 'b',
+            stepId: 'design',
+            optimistic: null,
+            realistic: null,
+            pessimistic: null,
+            derived: null,
+            actual: null,
+            progress: null,
+          },
+        ]);
+      },
+    ],
+    [
+      'target input relationship owner',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'typedDependencies', [
+          {
+            id: 'wrong-owner',
+            type: 'FS',
+            predecessor: { scope: 'node', workItemId: 'a', stepId: 'build' },
+            successor: { scope: 'whole', workItemId: 'a' },
+          },
+        ]);
+      },
+    ],
+    [
+      'target input team owner',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'workItemTeams', [{ workItemId: 'b', teamId: 'team-1' }]);
+      },
+    ],
+    [
+      'target input legacy relationship owner',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'dependencies', [{ predecessorId: 'b', successorId: 'a' }]);
+      },
+    ],
+    [
+      'target input service owner',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'workItemServices', [{ workItemId: 'b', serviceId: 'svc-1' }]);
+      },
+    ],
+    [
+      'target input assignment owner',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'assignments', [
+          { workItemId: 'b', stepId: 'design', personId: 'p-1' },
+        ]);
+      },
+    ],
+    [
+      'target input measure owner',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'measures', [
+          { workItemId: 'a', stepId: 'build', metric: 'cost', value: null },
+        ]);
+      },
+    ],
+    [
+      'input context',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.deleteProperty(captured.input, 'dependencyHistory');
+      },
+    ],
+    [
+      'external project label',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        if (captured.input.dependencyHistory.kind !== 'connected')
+          throw new Error('fixture requires connected context');
+        Reflect.deleteProperty(captured.input.dependencyHistory.projects[1], 'name');
+      },
+    ],
+    [
+      'graph ownership',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        if (captured.input.dependencyHistory.kind !== 'connected')
+          throw new Error('fixture requires connected context');
+        Reflect.set(captured.input.dependencyHistory, 'ownership', []);
+      },
+    ],
+    [
+      'stage packet',
+      'schedule',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.deleteProperty(captured.schedule.connection.stages[0], 'stageBytes');
+      },
+    ],
+    [
+      'candidate question',
+      'schedule',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        const variants = captured.schedule.connection.stages[0].variants;
+        if (variants?.time.state !== 'ready')
+          throw new Error('fixture requires ready time candidate');
+        Reflect.set(variants.time.candidate.question, 'stageBytes', '{}');
+      },
+    ],
+    [
+      'target membership',
+      'schedule',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.deleteProperty(captured.schedule.slices, 'a\u0000design');
+      },
+    ],
+    [
+      'target placement',
+      'schedule',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        captured.schedule.workItems.a.earliestStart = 1000;
+      },
+    ],
+    [
+      'body version',
+      'schedule',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        captured.schedule.version = 1;
+      },
+    ],
+    [
+      'local input with connected schedule',
+      'schedule',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'dependencyHistory', { kind: 'local' });
+      },
+    ],
+  ] as const)(
+    'refuses correctly hashed malformed %s on read and either comparison side',
+    async (fault, body, inject) => {
+      const id = await savedIdOf(await save('ada'));
+      const healthyId = await savedIdOf(await save('ada'));
+      const captured = savedConnectedHistoryFixture(projectId);
+      inject(captured);
+      await replaceSavedBodies(
+        id,
+        JSON.stringify(captured.input),
+        JSON.stringify(captured.schedule),
+      );
+      const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+      expect(response.status).toBe(422);
+      const refused = (await response.json()) as { refusal: { code: string; path: string } };
+      expect(refused).toMatchObject({
+        error: 'corrupt',
+        refusal: {
+          reason: 'body_invalid',
+          savedPlanId: id,
+          body,
+          code: refused.refusal.code,
+          path: refused.refusal.path,
+        },
+      });
+      expect(refused.refusal.code.length).toBeGreaterThan(0);
+      expect(refused.refusal.path.startsWith('$')).toBe(true);
+      if (fault === 'target input legacy relationship owner')
+        expect(refused.refusal.path).toBe('$.dependencies');
+      for (const [left, right] of [
+        [id, healthyId],
+        [healthyId, id],
+      ]) {
+        const compared = await as(
+          tokens['ada'],
+          `/api/projects/${projectId}/saved-plans/compare?left=${left}&right=${right}`,
+        );
+        expect(compared.status).toBe(422);
+        expect(await compared.json()).toEqual({
+          error: 'corrupt',
+          savedPlanId: id,
+          refusal: refused.refusal,
+        });
+      }
+    },
+  );
+
+  it.each(['input', 'schedule'] as const)(
+    'refuses correctly hashed invalid %s JSON before returning bytes',
+    async (body) => {
+      const id = await savedIdOf(await save('ada'));
+      const captured = savedConnectedHistoryFixture(projectId);
+      await replaceSavedBodies(
+        id,
+        body === 'input' ? '{' : JSON.stringify(captured.input),
+        body === 'schedule' ? '{' : JSON.stringify(captured.schedule),
+      );
+      const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+      expect(response.status).toBe(422);
+      expect(await response.json()).toEqual({
+        error: 'corrupt',
+        refusal: { reason: 'body_invalid', savedPlanId: id, body, path: '$', code: 'json' },
+      });
+    },
+  );
+
+  it('requires selected evidence but reads an explicitly unavailable connected capture without dates', async () => {
+    const id = await savedIdOf(await save('ada'));
+    const captured = savedConnectedHistoryFixture(projectId);
+    await replaceSavedBodies(id, JSON.stringify(captured.input), null);
+    const missing = await as(tokens['ada'], `/api/saved-plans/${id}`);
+    expect(missing.status).toBe(422);
+    expect(await missing.json()).toMatchObject({
+      error: 'corrupt',
+      refusal: { reason: 'body_invalid', body: 'schedule', code: 'placement_state' },
+    });
+    if (captured.input.dependencyHistory.kind !== 'connected')
+      throw new Error('fixture requires connected context');
+    Reflect.set(captured.input.dependencyHistory, 'placementState', {
+      kind: 'unavailable',
+      reason: 'cycle',
+    });
+    await replaceSavedBodies(id, JSON.stringify(captured.input), null, 'infeasible');
+    const unavailable = await as(tokens['ada'], `/api/saved-plans/${id}`);
+    expect(unavailable.status).toBe(200);
+    expect(await unavailable.json()).toMatchObject({
+      savedPlan: { schedule: { present: false, absentReason: 'infeasible' } },
+    });
+  });
+
   /**
    * The cross-project refusal, and the reason the compare route may carry a
    * project id at all.
@@ -658,7 +1433,7 @@ describe('the saved-plan routes', () => {
       // Named rather than matched loosely: the answer has to say what this
       // build *does* know, or an operator cannot tell how far behind it is.
       // Proof: omitting schema8 in the production501 payload failed this exact reply (2026-10-17).
-      supported: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+      supported: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
     });
 
     const read = await as(tokens['ada'], `/api/saved-plans/${id}`);
@@ -791,11 +1566,7 @@ describe('the saved-plan routes', () => {
           const toDelete = await savedIdOf(await save('ada', 'the delete target'));
 
           if (column === 'restricted') {
-            const restricted = await as(tokens['owner'], `/api/projects/${projectId}`, {
-              method: 'PATCH',
-              body: JSON.stringify({ restricted: true }),
-            });
-            expect(restricted.status).toBe(200);
+            await restrictProject();
           }
 
           // Collected into one object and compared whole, so a wrong rule
@@ -877,11 +1648,7 @@ describe('the saved-plan routes', () => {
      * 403 has changed no list.
      */
     it('says nothing when the save is refused', async () => {
-      const restricted = await as(tokens['owner'], `/api/projects/${projectId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ restricted: true }),
-      });
-      expect(restricted.status).toBe(200);
+      await restrictProject();
       broadcast.published.length = 0;
 
       expect((await save('mallory')).status).toBe(403);
@@ -1020,6 +1787,8 @@ function fixture() {
   const compare = spyOn(plans, 'compare').mockResolvedValue({
     outcome: 'compared',
     diff: { input: [], schedule: [] },
+    left: comparisonSide,
+    right: comparisonSide,
   });
   const rename = spyOn(plans, 'rename').mockResolvedValue({ outcome: 'touched', projectId: 'p' });
   const remove = spyOn(plans, 'delete').mockResolvedValue({ outcome: 'touched', projectId: 'p' });
@@ -1133,12 +1902,17 @@ test('mounted compare preserves last query values, opaque differences, and corru
     input: [{ category: 'other' as const, path: 'old.x', left: { old: [1, 'x'] }, right: null }],
     schedule: [],
   };
-  f.compare.mockResolvedValueOnce({ outcome: 'compared', diff });
+  f.compare.mockResolvedValueOnce({
+    outcome: 'compared',
+    diff,
+    left: comparisonSide,
+    right: comparisonSide,
+  });
   const response = await f.call(
     '/api/projects/p/saved-plans/compare?left=missing&left=current&right=s',
   );
   expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({ diff });
+  expect(await response.json()).toEqual({ diff, left: comparisonSide, right: comparisonSide });
   expect(f.compare).toHaveBeenCalledWith(
     'p',
     { kind: 'current' },
@@ -1234,10 +2008,38 @@ test('mounted stored-response validation requires creator and schedule fields bu
   expect(await response.json()).toEqual({ savedPlan: enriched });
 });
 
+test('mounted malformed-history refusal requires its path and code on read and compare', async () => {
+  const refusal = {
+    reason: 'body_invalid',
+    savedPlanId: 's',
+    body: 'input',
+    path: '$.dependencyHistory',
+    code: 'shape',
+  } as const;
+  const f = fixture();
+  for (const field of ['path', 'code']) {
+    const incomplete = { ...refusal };
+    Reflect.deleteProperty(incomplete, field);
+    f.read.mockResolvedValueOnce({ outcome: 'corrupt', refusal: incomplete });
+    expect((await f.call('/api/saved-plans/s')).status).toBe(500);
+    f.compare.mockResolvedValueOnce({ outcome: 'corrupt', savedPlanId: 's', refusal: incomplete });
+    expect((await f.call('/api/projects/p/saved-plans/compare?left=s&right=current')).status).toBe(
+      500,
+    );
+  }
+});
+
 test('mounted integrity variants retain their distinct operational details', async () => {
   const f = fixture();
   const refusals = [
     { reason: 'body_missing', savedPlanId: 's', body: 'input' },
+    {
+      reason: 'body_invalid',
+      savedPlanId: 's',
+      body: 'schedule',
+      path: '$.stages',
+      code: 'stage_identity',
+    },
     {
       reason: 'body_hash_mismatch',
       savedPlanId: 's',
@@ -1337,4 +2139,39 @@ it('classifies saved-plan service versions on each of the six operations', async
     });
   }
   expect(f.announcements.published).toEqual([]);
+});
+
+test('mounted comparison rejects missing required summaries and nested boundary fields', async () => {
+  const f = fixture();
+  const valid = {
+    outcome: 'compared',
+    diff: { input: [], schedule: [] },
+    left: comparisonSide,
+    right: comparisonSide,
+  };
+  for (const key of ['left', 'right']) {
+    const incomplete = structuredClone(valid);
+    Reflect.deleteProperty(incomplete, key);
+    f.compare.mockResolvedValueOnce(incomplete as never);
+    expect((await f.call('/api/projects/p/saved-plans/compare?left=s&right=s')).status).toBe(500);
+  }
+  const captured = savedConnectedHistoryFixture('p');
+  const side = summarizeSavedComparisonSide(
+    {
+      input: captured.input,
+      schedule: {
+        present: true,
+        algorithmId: captured.schedule.algorithmId,
+        body: captured.schedule,
+      },
+    },
+    { kind: 'saved', savedPlanId: 's' },
+  );
+  for (const key of ['fixed', 'canonical', 'originOrdinal']) {
+    const incomplete = structuredClone(side);
+    if (incomplete.provenance.kind !== 'connected') throw new Error('connected summary required');
+    Reflect.deleteProperty(incomplete.provenance.stages[0].boundary, key);
+    f.compare.mockResolvedValueOnce({ ...valid, left: incomplete } as never);
+    expect((await f.call('/api/projects/p/saved-plans/compare?left=s&right=s')).status).toBe(500);
+  }
 });

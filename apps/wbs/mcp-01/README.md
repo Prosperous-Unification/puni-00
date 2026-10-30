@@ -21,9 +21,10 @@ created by its ref. The directory has no project, so its edits alone have
 `postApiDirectoryCommands`. Step edits may address a node with `stepNodeId` from
 a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 
-76 tools in all:
+79 tools in all:
 
 - the reads (the timezone list among them), the work-item page and single work-item reads;
+- bounded project discovery, project-qualified dependency endpoint lookup and address resolution;
 - the saved-reference delivery read, which observes public GitHub delivery without changing planning progress;
 - the startable read (`getApiProjectsByIdStartable`: which steps a team may claim, and which are
   claimed);
@@ -103,6 +104,40 @@ command creates one. One call drafts a plan:
 
 A refused command refuses the whole batch with `{ "error", "at", "kind" }` and
 nothing is applied; fix that command and resend.
+
+Typed dependencies use the same command tool. An omitted endpoint `projectId`
+keeps owner-local IDs and exact batch aliases, including `PUNI.080.39`. An explicit
+`projectId` requires stable IDs without surrounding whitespace (or the existing
+`sn1` node ID), and forbids `workItemRef` even for the owner project. The route's
+project owns the successor:
+
+```json
+{
+  "id": "<successor-project-id>",
+  "commands": [
+    {
+      "kind": "addTypedDependency",
+      "predecessor": {
+        "projectId": "<predecessor-project-id>",
+        "scope": "whole",
+        "workItemId": "<predecessor-id>"
+      },
+      "successor": { "scope": "whole", "workItemId": "<successor-id>" },
+      "type": "FS"
+    }
+  ]
+}
+```
+
+MCP advertises V1 dependency semantics and forwards that exact claim to the
+backend. External authoring also requires durable ENABLED storage authority;
+a DISABLED store returns HTTP 409 `external_dependencies_inactive`, carried in
+MCP's tool error with its indexed body. Only the deployment owner's complete
+participant-exclusion and activation workflow can enable that authority; MCP
+does not activate it. Existing local `addDependency`/`removeDependency` and typed
+add/update/remove commands continue through the same admission path.
+`updateTypedDependency` and `removeTypedDependency` address the stable
+`dependencyId`; changing endpoints keeps that identity.
 
 Connecting an AI client and importing a project through it: [docs/import-with-ai.md](../../../docs/import-with-ai.md).
 
@@ -343,8 +378,11 @@ MCP_AUTH_MODE=standalone \
 WBS_API_URL=https://dev.wbs.bulletpoints.club \
 AUTH_ISSUER_DISCOVERY_URL=https://idp.example/oauth2/default \
 AUTH_AUDIENCE=api://wbs AUTH_CLIENT_ID=wbs AUTH_CLIENT_SECRET=… \
-bun apps/wbs/mcp-01/src/main.ts
+bunx nx run wbs-mcp-01:serve
 ```
 
-The build bundles the shared HTTP descriptors; no separate OpenAPI file is needed. The server
-refuses to boot when the generated document cannot produce an unambiguous tool table.
+`prepare` emits `src/openapi.json` from the same checkout's shared HTTP descriptors before
+source serve and tests; build emits `dist/apps/wbs/mcp-01/openapi.json` beside the bundle.
+Both MCP Dockerfiles generate and copy that artifact beside the source entrypoint. No
+snapshot is committed. Startup reads the required sibling artifact without importing the
+HTTP validators, and refuses missing, unreadable, malformed or ambiguous documents.

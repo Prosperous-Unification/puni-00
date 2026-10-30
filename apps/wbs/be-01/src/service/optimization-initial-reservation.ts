@@ -10,7 +10,7 @@ import { solverSlot } from '@wbs/store-sqlite/schema';
 import type { SqliteSource } from '@wbs/store-sqlite/source';
 
 import type { OptimizationRepository } from '../module/optimization/contract';
-import { reservationOf } from '../repository/optimization';
+import { connectedReservationIsTerminal, reservationOf } from '../repository/optimization';
 
 /** Owns initial admission's global reclaim, victim comparison and event rows in one writer turn. */
 export function createInitialReservationOwner(
@@ -25,6 +25,9 @@ export function createInitialReservationOwner(
       // refusal into an incidental property error before any victim write.
       if (capture?.resolveLifecycleOwner === undefined)
         throw new Error('initial reservation lacks borrowed ownership and capture');
+
+      if (connectedReservationIsTerminal(db, request))
+        return { commit: true, value: { decision: { kind: 'closed' as const }, envelopes: [] } };
 
       const ownership = new Map<string, string>();
       for (const { projectId } of db

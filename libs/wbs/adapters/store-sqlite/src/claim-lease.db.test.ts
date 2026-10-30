@@ -2,12 +2,15 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { AuthenticatedUser } from '@wbs/contracts';
 import type { CredentialPin, PlanCommand, ResourceAccess, Scope } from '@wbs/core';
 import { clockOf, CREATOR_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { ClaimLeaseSweep } from '@wbs/core/module/plan-commands/claim-lease-sweep';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { CLAIM_LEASE_MS } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
@@ -17,6 +20,7 @@ import { ConsentCredentialRepository } from './consent-credential';
 import { MachineCredentialAdministrationRepository } from './machine-credential-administration';
 import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
@@ -34,6 +38,27 @@ const admin: ResourceAccess = {
 };
 const pinned = (personId: string): CredentialPin => ({ personId });
 
+/** Verified-principal fixture; these store tests exercise lease state, not HTTP verification. */
+function principalOf(pin: CredentialPin | null): AuthenticatedUser {
+  return {
+    id: 'dany',
+    username: 'dany',
+    scopes: ['write'],
+    ...(pin === null
+      ? {}
+      : {
+          authentication:
+            'personId' in pin
+              ? {
+                  kind: 'machine' as const,
+                  credentialId: 'fixture-credential',
+                  personId: pin.personId,
+                }
+              : { kind: 'upstream' as const, issuer: pin.issuer, subject: pin.subject },
+        }),
+  };
+}
+
 let directory: string;
 let source: SqliteSource;
 let now = T;
@@ -42,7 +67,11 @@ beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'claim-lease-'));
   const dbPath = join(directory, 'plan.db');
   runMigrations(dbPath, folder);
-  source = openSqliteSource({ dbPath, organizationDefaultLimits: DEFAULTS });
+  source = openSqliteSource({
+    dbPath,
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    organizationDefaultLimits: DEFAULTS,
+  });
   now = T;
 });
 
@@ -86,30 +115,36 @@ async function seeded(cap = 40) {
   );
   const clock = clockOf({ now: () => now, newId: () => crypto.randomUUID() });
   const broadcast = recordingBroadcaster();
-  const options = { admission: CREATOR_ADMISSION, clock, broadcast, scheduler: fastScheduler };
+  const options = {
+    admission: CREATOR_ADMISSION,
+    clock,
+    broadcast,
+    scheduler: fastScheduler,
+    dependencyContext: createLocalDependencyContext(source.stores),
+  };
   const graph = servicesOver(source.stores, options);
   const created = await graph.projects.create('Leases', 'dany');
+  if (typeof created === 'string') throw new Error(`lease fixture project refused: ${created}`);
   const projectId = created.project.id;
   source.db.run(
     sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, 'org-a')`,
   );
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: broadcast,
     publicServices: graph,
-    batchServices: (scope: Scope, announcements) =>
-      servicesOver(scope.stores, { ...options, broadcast: announcements }),
+    batchServices: (scope: Scope, announcements, admission, context) =>
+      servicesOver(scope.stores, {
+        ...options,
+        broadcast: announcements,
+        admission,
+        dependencyContext: { kind: 'bound', context },
+      }),
   });
   /** One batch by Dany's account, under an agent's credential or a session (null). */
   const run = (commands: PlanCommand[], credential: CredentialPin | null) =>
-    runner.runWithin(
-      projectId,
-      'dany',
-      commands,
-      admin,
-      credential,
-      credential !== null && 'personId' in credential ? credential.personId : null,
-    );
+    runner.runWithin(projectId, principalOf(credential), commands, admin);
   const plan = await run(
     [
       { kind: 'createWorkItem', ref: 'parent', name: 'Parent', parentId: null, afterId: null },
@@ -379,21 +414,21 @@ describe('release by the coordinator', () => {
     // Undo and redo by the agent that wrote the claim put it back with a lease
     // from the redo's instant (L11).
     now = T + MINUTE;
-    expect(
-      await runner.undoWithin({ projectId, userId: 'dany', personId: 'codex' }, admin),
-    ).toMatchObject({ ok: true });
+    expect(await runner.undoWithin(projectId, principalOf(pinned('codex')), admin)).toMatchObject({
+      ok: true,
+    });
     now = T + 5 * MINUTE;
-    expect(
-      await runner.redoWithin({ projectId, userId: 'dany', personId: 'codex' }, admin),
-    ).toMatchObject({ ok: true });
+    expect(await runner.redoWithin(projectId, principalOf(pinned('codex')), admin)).toMatchObject({
+      ok: true,
+    });
     expect(leases()).toEqual([
       { person_id: 'codex', work_item_id: items.one, lease: T + 5 * MINUTE + CLAIM_LEASE_MS },
     ]);
     now = T + 5 * MINUTE + CLAIM_LEASE_MS;
     expect(await runner.releaseExpiredLeases(projectId)).toBe(1);
-    expect(
-      await runner.undoWithin({ projectId, userId: 'dany', personId: 'codex' }, admin),
-    ).toMatchObject({ ok: false });
+    expect(await runner.undoWithin(projectId, principalOf(pinned('codex')), admin)).toMatchObject({
+      ok: false,
+    });
     expect(claims()).toBe(0);
   });
 });

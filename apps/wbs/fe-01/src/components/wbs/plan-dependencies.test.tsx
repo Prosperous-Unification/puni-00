@@ -2,7 +2,7 @@ import { act, createEvent, fireEvent, screen, waitFor, within } from '@testing-l
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ProjectApi, WorkItemView } from '@/lib/wbs-api';
+import type { PlanRead, ProjectApi, WorkItemView } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW, WbsRequestError } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi as fakeApi, QA } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
@@ -531,7 +531,9 @@ describe('dependencies in the table', () => {
       fireEvent.focus(input);
       const customize = await screen.findByRole('button', { name: 'Customize 010 - Strip' });
       fireEvent.keyDown(input, { key: 'ArrowDown' });
-      expect(input.getAttribute('aria-activedescendant')).toBe('dep-option-w1');
+      expect(input.getAttribute('aria-activedescendant')).toBe(
+        'dep-option-["p1","w1","whole",null]',
+      );
       fireEvent.keyDown(input, { key });
       const editor = screen.getByRole('dialog', { name: 'Customize dependency' });
       expect(customize).toBeDefined();
@@ -1749,7 +1751,9 @@ describe('picking dependencies from a list', () => {
     fireEvent.focus(input);
     fireEvent.keyDown(input, { key: 'ArrowDown' });
     fireEvent.keyDown(input, { key: 'ArrowDown' });
-    expect(input.getAttribute('aria-activedescendant')).toBe(`dep-option-${paint.id}`);
+    expect(input.getAttribute('aria-activedescendant')).toBe(
+      `dep-option-${JSON.stringify(['p1', paint.id, 'whole', null])}`,
+    );
 
     // A peer inserts a row between Strip and Sand. By index the highlight
     // would now sit on the newcomer; it must stay on Paint.
@@ -1758,7 +1762,9 @@ describe('picking dependencies from a list', () => {
     await waitFor(() => {
       expect(optionTexts()).toHaveLength(3);
     });
-    expect(input.getAttribute('aria-activedescendant')).toBe(`dep-option-${paint.id}`);
+    expect(input.getAttribute('aria-activedescendant')).toBe(
+      `dep-option-${JSON.stringify(['p1', paint.id, 'whole', null])}`,
+    );
 
     fireEvent.keyDown(input, { key: 'Enter' });
     // After the insert the rows renumbered: Sand is 030 and Paint 040. The
@@ -1906,11 +1912,15 @@ describe('the picker marks what be-01 would refuse', () => {
     // One press. Down from nothing enters at the top of the list, and the top
     // of this list is refused, so the first thing it may land on is `020`.
     fireEvent.keyDown(input, { key: 'ArrowDown' });
-    expect(input.getAttribute('aria-activedescendant')).toBe(`dep-option-${paint}`);
+    expect(input.getAttribute('aria-activedescendant')).toBe(
+      `dep-option-${JSON.stringify(['p1', paint, 'whole', null])}`,
+    );
 
     // And back up again: still nothing above `020` to reach.
     fireEvent.keyDown(input, { key: 'ArrowUp' });
-    expect(input.getAttribute('aria-activedescendant')).toBe(`dep-option-${paint}`);
+    expect(input.getAttribute('aria-activedescendant')).toBe(
+      `dep-option-${JSON.stringify(['p1', paint, 'whole', null])}`,
+    );
   });
 
   itDom('drops a highlight that a peer’s edit has just made a loop', async () => {
@@ -1920,7 +1930,9 @@ describe('the picker marks what be-01 would refuse', () => {
     const { api, sand, paint, notify } = await nested();
     const input = openPicker('010.1');
     fireEvent.keyDown(input, { key: 'ArrowDown' });
-    expect(input.getAttribute('aria-activedescendant')).toBe(`dep-option-${paint}`);
+    expect(input.getAttribute('aria-activedescendant')).toBe(
+      `dep-option-${JSON.stringify(['p1', paint, 'whole', null])}`,
+    );
 
     await api.addDependency(paint, sand);
     notify();
@@ -1961,13 +1973,14 @@ describe('dependencies in the table — cross-review findings', () => {
    * renders what be-01 sent, which is the only part of this the table owns.
    */
   const apiReturning = (
-    scheduleError: 'cycle' | null,
+    scheduleError: PlanRead['scheduleError'],
     schedule: Partial<WorkItemView['schedule']> = {},
   ): ProjectApi =>
     refusingApi({
       listProjects: () =>
         Promise.resolve([projectListEntry({ name: 'P', createdAt: 1_780_000_000_000 })]),
-      createProject: (name: string) => Promise.resolve({ id: 'p1', name, restricted: false }),
+      createProject: (name: string) =>
+        Promise.resolve({ id: 'p1', name, restricted: false, abbreviation: 'PLAN' }),
       openProject: () => Promise.resolve(),
       setEstimateMethod: () => Promise.resolve(),
       setStartDate: () => Promise.resolve(),
@@ -1988,6 +2001,7 @@ describe('dependencies in the table — cross-review findings', () => {
       addPerson: () => Promise.reject(new Error('not_in_these_tests')),
       assignPerson: () => Promise.resolve(),
       renameProject: () => Promise.resolve(),
+      setAbbreviation: (_id, abbreviation) => Promise.resolve(abbreviation.toUpperCase()),
       duplicateWorkItem: () => Promise.reject(new Error('not_in_these_tests')),
       steps: () => Promise.resolve([DEV]),
       addStep: () => Promise.reject(new Error('not_in_these_tests')),
@@ -2158,6 +2172,39 @@ describe('dependencies in the table — cross-review findings', () => {
       'On the critical path: any delay here moves the whole plan’s finish.',
     );
   });
+
+  for (const refusal of [
+    {
+      error: {
+        kind: 'dependency_calendar_missing' as const,
+        projects: [{ projectId: 'remote', abbreviation: 'PUNI', name: 'Remote plan' }],
+      },
+      words: 'PUNI · Remote plan',
+    },
+    {
+      error: {
+        kind: 'engine_unavailable' as const,
+        engine: 'optimized' as const,
+        projects: ['remote'],
+        reason: 'connected_optimization_not_supported' as const,
+      },
+      words: 'Connected optimization is unavailable',
+    },
+  ]) {
+    itDom(`explains ${refusal.error.kind} without hiding the table`, async () => {
+      render(
+        <WbsTableOverClient
+          projectId="p1"
+          projectServices={projectServicesOf(apiReturning(refusal.error))}
+        />,
+      );
+      expect(await cells()).toEqual({ start: '—', finish: '—', float: '—' });
+      expect(screen.getByRole('alert')).toHaveTextContent(refusal.words);
+      expect(screen.getByRole('alert')).toHaveTextContent('The plan remains editable.');
+      expect(screen.getByRole('alert')).not.toHaveTextContent('readiness remain inspectable');
+      expect(screen.getByLabelText('Add a dependency to 010')).toBeInTheDocument();
+    });
+  }
 
   itDom('shows dashes rather than zeroes when there is no schedule', async () => {
     // agy, medium. A cycle sends every row the same zeroed schedule, and

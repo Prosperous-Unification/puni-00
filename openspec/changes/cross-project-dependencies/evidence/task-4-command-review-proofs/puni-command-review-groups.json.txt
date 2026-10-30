@@ -1,0 +1,66 @@
+[
+  {
+    "name": "core",
+    "exitCode": 0,
+    "files": [
+      "libs/wbs/application/core/src/compose.test.ts",
+      "libs/wbs/application/core/src/http/solution.routes.test.ts",
+      "libs/wbs/application/core/src/http/step.routes.test.ts",
+      "libs/wbs/application/core/src/module/plan-commands/assignee-calendar.test.ts",
+      "libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+      "libs/wbs/application/core/src/module/plan-commands/command-bindings.test.ts",
+      "libs/wbs/application/core/src/module/plan-commands/module.test.ts",
+      "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+      "libs/wbs/application/core/src/module/plan-commands/resource-command.test.ts",
+      "libs/wbs/application/core/src/module/plan-commands/resource-schedule.test.ts",
+      "libs/wbs/application/core/src/module/plan-commands/step-blockage.test.ts",
+      "libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts",
+      "libs/wbs/application/core/src/module/plan-document/module.test.ts",
+      "libs/wbs/application/core/src/module/plan-history/module.test.ts",
+      "libs/wbs/application/core/src/module/plan-import/module.test.ts",
+      "libs/wbs/application/core/src/module/project/module.test.ts",
+      "libs/wbs/application/core/src/module/saved-plans/module.test.ts",
+      "libs/wbs/application/core/src/module/step/module.test.ts",
+      "libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+      "libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts",
+      "libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts",
+      "libs/wbs/application/core/src/module/work-item/module.test.ts",
+      "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+      "libs/wbs/application/core/src/module/work-item/startable.test.ts",
+      "libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+      "libs/wbs/application/core/src/service/command-normalizers.test.ts",
+      "libs/wbs/application/core/src/service/compensating.test.ts",
+      "libs/wbs/application/core/src/service/connected-dependency-graph.test.ts",
+      "libs/wbs/application/core/src/service/dependency-context.test.ts",
+      "libs/wbs/application/core/src/service/dependency-endpoint-evidence.test.ts",
+      "libs/wbs/application/core/src/service/schedule-parts.test.ts",
+      "libs/wbs/domain/contracts/src/http/plan-command-shapes.test.ts"
+    ],
+    "log": "/tmp/puni-command-review-core.log"
+  },
+  {
+    "name": "http",
+    "exitCode": 0,
+    "files": [
+      "apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/command-organization.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/directory-command-organization.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/step-allowance-edit.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/step.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/typed-dependency-commands.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/typed-dependency-copy.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/typed-dependency-graph.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/undo.controller.db.test.ts"
+    ],
+    "log": "/tmp/puni-command-review-http.log"
+  },
+  {
+    "name": "classification",
+    "exitCode": 0,
+    "files": [
+      "tools/tool-devsync/src/service-kinds.test.ts"
+    ],
+    "log": "/tmp/puni-command-review-classification.log"
+  }
+]

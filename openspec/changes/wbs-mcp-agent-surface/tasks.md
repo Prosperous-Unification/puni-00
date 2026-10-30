@@ -288,6 +288,9 @@
       Negatives: untag a route; leave a tagged shape with no operation. (Slice 7; agent pools'
       routes are tagged when task 6.2 adds them.)
 - [x] 5.2 One tool list for a consented human, a consented agent and a machine token. (Slice 7.)
+- [x] 5.3 Reconcile artifact-only startup with same-document human-only metadata:
+      owning emitter/consumer RED→GREEN, missing/malformed/unmatched negatives,
+      cold startup and watched consumer omissions before final integration checks.
 
 ## 6. Pools and account-keyed state (waits for `fix/wbs-undo-per-person`)
 

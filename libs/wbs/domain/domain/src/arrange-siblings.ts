@@ -115,3 +115,91 @@ export function arrangeBySchedule(
   }
   return arrangement;
 }
+
+/** The adjacent IEEE-754 value; infinities remain visible for the final allocation refusal. */
+function advancePosition(position: number, isHigher: boolean): number {
+  if (position === 0) return isHigher ? Number.MIN_VALUE : -Number.MIN_VALUE;
+  const bytes = new DataView(new ArrayBuffer(8));
+  bytes.setFloat64(0, position);
+  const bits = bytes.getBigUint64(0);
+  bytes.setBigUint64(0, bits + (position > 0 === isHigher ? 1n : -1n));
+  return bytes.getFloat64(0);
+}
+
+/** Check the actual reader ordering, including ADR 0016's valid position ties. */
+function preservesSlots(wanted: readonly TreePlacement[]): boolean {
+  const sorted = [...siblingGroupsOf(wanted).values()].flat();
+  // Proof: removing finiteness admitted infinite placements beside both extreme
+  // held anchors in arrange-siblings-in-slots.test.ts (2026-10-23).
+  return wanted.every((row, at) => Number.isFinite(row.position) && sorted[at]?.id === row.id);
+}
+
+/**
+ * Arrange eligible siblings within their slots in the complete tree. Ineligible
+ * rows keep both their position and their ordinal place. Unique original positions
+ * are reused exactly. Valid duplicate positions first reuse slots, then allocate
+ * movable runs at the closest representable keys around immutable anchors, using
+ * the reader's (position, id) ordering. Finite keys cannot represent every desired
+ * permutation between equal anchors, so refusal is an expected, unwritten outcome.
+ *
+ * The ordinary {@link arrangeBySchedule} retains its legacy respacing semantics.
+ * @throws for the same malformed eligible tree or absent starts as that function.
+ */
+export function arrangeInSlots(
+  rows: readonly TreePlacement[],
+  eligible: readonly TreePlacement[],
+  starts: ScheduleStarts,
+): { readonly ok: true; readonly arrangement: Arrangement } | { readonly ok: false } {
+  const arrangement = arrangeBySchedule(eligible, starts);
+  const eligibleIds = new Set(eligible.map((row) => row.id));
+  const placements: TreePlacement[] = [];
+  for (const [parentId, group] of siblingGroupsOf(rows)) {
+    const desired = arrangement.placements.filter((row) => row.parentId === parentId);
+    if (desired.length === 0) continue;
+    const slots = group.filter((row) => eligibleIds.has(row.id));
+    let ordinal = 0;
+    const wanted = group.map((row) => {
+      if (!eligibleIds.has(row.id)) return { ...row };
+      const at = ordinal++;
+      // Proof: retaining legacy respaced positions failed all three mounted
+      // sparse/fractional/ID-tie slot cases (2026-10-23).
+      return { ...desired[at], position: slots[at].position };
+    });
+    if (!preservesSlots(wanted)) {
+      let start = 0;
+      while (start < wanted.length) {
+        if (!eligibleIds.has(wanted[start].id)) {
+          start++;
+          continue;
+        }
+        let end = start;
+        while (end < wanted.length && eligibleIds.has(wanted[end].id)) end++;
+        if (start > 0) {
+          for (let at = start; at < end; at++) {
+            const previous = wanted[at - 1];
+            wanted[at].position =
+              wanted[at].id > previous.id
+                ? previous.position
+                : advancePosition(previous.position, true);
+          }
+        } else if (end < wanted.length) {
+          for (let at = end - 1; at >= start; at--) {
+            const following = wanted[at + 1];
+            wanted[at].position =
+              wanted[at].id < following.id
+                ? following.position
+                : advancePosition(following.position, false);
+          }
+        } else {
+          for (let at = start; at < end; at++) wanted[at].position = at + 1;
+        }
+        start = end;
+      }
+    }
+    // Proof: removing this validation made the mounted equal-held-anchor case
+    // return 200 instead of typed 409 and write an incorrect order (2026-10-23).
+    if (!preservesSlots(wanted)) return { ok: false };
+    placements.push(...wanted.filter((row) => eligibleIds.has(row.id)));
+  }
+  return { ok: true, arrangement: { placements, moved: arrangement.moved } };
+}

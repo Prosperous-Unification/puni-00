@@ -1,0 +1,37 @@
+{"argv": ["bun", "test", "--preload", "./tools/test/scratch/preload.ts", "tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts", "--test-name-pattern=fresh\\ fixed\\ leaves\\ preserve\\ real\\ canonical\\ Bun\\ discovery\\ including\\ future\\ and\\ collision\\ files$"], "pid": 3318725, "exit": 1, "signal": null, "stdoutEOF": true, "stderrEOF": true, "elapsedSeconds": 0.3407686969731003, "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47", "stderrSHA256": "97df4c531cfeb46366d8b433a533d5680bf111a6656c241b2c87761498997b7f"}
+bun test v1.4.4 (38afee6c8)
+
+
+tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts:
+162 |   expect(complement).toContain('elsewhere/src-shadow/new.test.ts');
+163 |   expect(complement).toContain(`elsewhere/${MODEL}`);
+164 |   expect(complement).toContain('src/lib/dependency-product-process-model-extra.test.ts');
+165 |   expect(complement).not.toContain(MODEL);
+166 |   expect(complement).not.toContain(CONTINUATION);
+167 |   expect(complement).not.toContain(RESTORATION);
+                               ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "src/lib/dependency-source-restoration.test.ts"
+Received: [
+  "elsewhere/src-shadow/new.test.ts", "elsewhere/src/lib/dependency-participant-continuation-model.test.ts",
+  "elsewhere/src/lib/dependency-product-process-model.test.ts", "elsewhere/src/lib/dependency-source-restoration.test.ts",
+  "elsewhere/src/lib/source-role-process.test.ts", "src/lib/dependency-participant-continuation-model-extra.test.ts",
+  "src/lib/dependency-product-process-model-extra.test.ts", "src/lib/dependency-source-restoration-extra.test.ts",
+  "src/lib/dependency-source-restoration.test.ts", "src/lib/source-role-process-extra.test.ts",
+  "src/new.test.ts", "test/edge-init.test.ts", "test/fixture-failure.test.ts", "test/solver-drain-fixture.test.ts",
+  "test/solver-drain-transport.test.ts", "test/source-exclusion-native.test.ts", "test/source-exclusion-topology.test.ts",
+  "test/source-exclusion-transport.test.ts"
+]
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts:167:26)
+(fail) fresh fixed leaves preserve real canonical Bun discovery including future and collision files [302.50ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=2
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+ 19 expect() calls
+Ran 1 test across 1 file. [337.00ms]
+

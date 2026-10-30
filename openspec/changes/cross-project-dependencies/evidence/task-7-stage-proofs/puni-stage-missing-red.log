@@ -1,0 +1,116 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:
+(pass) retains exact local and foreign placements without rounding [1.50ms]
+(pass) identifies changed stage owner [0.45ms]
+(pass) identifies changed mode [0.26ms]
+(pass) identifies changed origin [0.19ms]
+(pass) identifies changed rank [0.20ms]
+(pass) identifies changed anchor [0.22ms]
+(pass) identifies changed row position [0.22ms]
+(pass) identifies changed row priority [0.28ms]
+(pass) identifies changed row parent [0.40ms]
+(pass) identifies changed effort [0.15ms]
+(pass) identifies changed null effort [0.11ms]
+(pass) identifies changed width [0.09ms]
+(pass) identifies changed person [0.10ms]
+(pass) identifies changed team [0.11ms]
+(pass) identifies changed resource units [0.12ms]
+(pass) identifies changed resource identity [0.10ms]
+(pass) identifies changed pool capacity [0.12ms]
+(pass) identifies changed resource capacity [0.16ms]
+(pass) identifies changed floor [0.15ms]
+(pass) identifies changed deadline [0.09ms]
+(pass) identifies changed elsewhere start [0.10ms]
+(pass) identifies changed elsewhere finish [0.10ms]
+(pass) identifies changed elsewhere holder project [0.09ms]
+(pass) identifies changed elsewhere holder work [0.09ms]
+(pass) identifies changed elsewhere person [0.11ms]
+(pass) identifies changed graph provenance [0.11ms]
+(pass) identifies changed relationship type [0.13ms]
+(pass) identifies changed relationship identity [0.11ms]
+(pass) identifies changed graph predecessor position [0.09ms]
+(pass) identifies changed original selector identity [0.08ms]
+(pass) identifies changed original selector scope [0.10ms]
+(pass) identifies changed original selector step [0.10ms]
+(pass) identifies changed local start [0.09ms]
+(pass) identifies changed local finish [0.08ms]
+(pass) identifies changed foreign start [0.09ms]
+(pass) identifies changed foreign finish [0.10ms]
+(pass) identifies changed ownership [0.14ms]
+(pass) identifies changed step order [0.17ms]
+(pass) canonicalizes set and map permutations without mutating the capture [0.22ms]
+(pass) ignores descriptive labels and frozen numbers [0.18ms]
+(pass) refuses unknown stage owner [0.12ms]
+(pass) refuses local input [0.05ms]
+(pass) refuses duplicate project [0.36ms]
+(pass) refuses missing rank [0.07ms]
+(pass) refuses inconsistent rank [0.05ms]
+(pass) refuses extra rank [0.04ms]
+(pass) refuses nonfinite rank [0.05ms]
+(pass) refuses nonfinite origin [0.04ms]
+(pass) refuses missing anchor [0.06ms]
+(pass) refuses nonfinite anchor [0.04ms]
+(pass) refuses missing ownership [0.04ms]
+(pass) refuses unknown ownership [0.03ms]
+(pass) refuses duplicate row [0.03ms]
+(pass) refuses duplicate slice [0.04ms]
+(pass) refuses missing start [0.04ms]
+(pass) refuses extra finish [0.04ms]
+(pass) refuses nonfinite start [0.04ms]
+(pass) refuses nonfinite finish [0.04ms]
+(pass) refuses reversed interval [0.04ms]
+(pass) refuses nonfinite effort [0.04ms]
+(pass) refuses nonfinite position [0.04ms]
+(pass) refuses nonfinite priority [0.03ms]
+(pass) refuses nonfinite floor [0.04ms]
+(pass) refuses nonfinite deadline [0.05ms]
+(pass) refuses nonfinite pool [0.04ms]
+(pass) refuses nonfinite resource [0.04ms]
+(pass) refuses missing graph node [0.03ms]
+(pass) refuses foreign graph endpoint [0.14ms]
+(pass) refuses duplicate relationship [0.06ms]
+(pass) refuses missing relationship evidence [0.05ms]
+(pass) refuses relationship type mismatch [0.04ms]
+(pass) refuses relationship owner mismatch [0.05ms]
+(pass) refuses unknown selector project [0.04ms]
+(pass) refuses stage discriminator and capacity mode outside their vocabularies [0.08ms]
+(pass) refuses unsupported selectors, relationship types and graph provenance [0.15ms]
+(pass) refuses foreign workflow endpoints through the shared graph validator [0.07ms]
+(pass) permits null anchor only on projects without active reduced nodes [0.14ms]
+(pass) refuses extra reduced ownership facts [0.06ms]
+(pass) identifies reparenting without changes to the retained row set [0.20ms]
+(pass) identifies a resource demand changing within unchanged capacities [0.13ms]
+(pass) identifies ownership independently of authored selectors [0.12ms]
+(pass) identifies each graph endpoint independently [0.42ms]
+(pass) identifies unused authored identity, type and successor selector independently [0.28ms]
+(pass) identifies graph relationship attribution between equivalent authored constraints [0.38ms]
+(pass) refuses malformed elsewhere evidence through the existing boundary [0.17ms]
+(pass) refuses missing and unknown ownership on retained parents independently of active slices [0.15ms]
+(pass) refuses selector ownership independently of graph relationship evidence [0.07ms]
+(pass) refuses graph ownership independently of unreduced selector identities [0.06ms]
+(pass) canonicalizes all independent map and relationship permutations [0.20ms]
+849 |   expect(canonicalConnectedStageInput(after)).toBe(canonicalConnectedStageInput(before));
+850 | });
+851 |
+852 | test('refuses missing required person, selector identity and pool collection facts',()=>{
+853 |  const person=mutableStage();Reflect.deleteProperty(person.input.slices[0],'personId');
+854 |  expect(()=>canonicalConnectedStageInput(person)).toThrow('defined canonical fact');
+                                                        ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "defined canonical fact"
+
+Received function did not throw
+Received value: "{\"kind\":\"connected-stage\",\"projectId\":\"A\",\"mode\":\"shared\",\"originOrdinal\":20000,\"projects\":[{\"projectId\":\"A\",\"rank\":0,\"anchorOrdinal\":20000},{\"projectId\":\"B\",\"rank\":1,\"anchorOrdinal\":20001}],\"rows\":[{\"id\":\"a\",\"parentId\":null,\"position\":1,\"priority\":2},{\"id\":\"b\",\"parentId\":null,\"position\":2,\"priority\":3}],\"ownership\":[[\"a\",\"A\"],[\"b\",\"B\"]],\"ranks\":[[\"A\",0],[\"B\",1]],\"slices\":[{\"workItemId\":\"a\",\"steps\":[{\"stepId\":\"design\",\"days\":0.2,\"width\":1,\"poolIds\":[\"team-a\",\"team-z\"],\"demands\":[{\"resourceId\":\"resource\",\"units\":1}]},{\"stepId\":\"build\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"b\",\"steps\":[{\"stepId\":null,\"days\":1,\"width\":1,\"personId\":\"person\",\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"boundary\",\"workItemId\":\"b\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"build\",\"at\":1},{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"design\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"a\",\"at\":0},\"successor\":{\"leafId\":\"a\",\"at\":1},\"type\":\"FS\",\"provenance\":\"workflow\"},{\"predecessor\":{\"leafId\":\"a\",\"at\":1},\"successor\":{\"leafId\":\"b\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"relationship\"}],\"relationships\":[{\"id\":\"relationship\",\"type\":\"FS\",\"predecessor\":[\"A\",\"whole\",\"a\"],\"successor\":[\"B\",\"whole\",\"b\"]}],\"notBefore\":[[\"a\",0.1]],\"deadlines\":[[\"b\",7]],\"poolSizes\":[[\"team-a\",2],[\"team-z\",3]],\"resourceCapacities\":[[\"resource\",2]],\"elsewhere\":[{\"personId\":\"person\",\"bookings\":[{\"start\":4,\"end\":5,\"projectId\":\"outside\",\"workItemId\":\"outside-work\"}]}],\"starts\":[[\"a\\u0000build\",0.3],[\"a\\u0000design\",0.1],[\"b\\u0000\",1.3]],\"finishes\":[[\"a\\u0000build\",1.3],[\"a\\u0000design\",0.3],[\"b\\u0000\",2.3]]}"
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:854:51)
+(fail) refuses missing required person, selector identity and pool collection facts [0.38ms]
+
+1 tests failed:
+(fail) refuses missing required person, selector identity and pool collection facts [0.38ms]
+
+ 89 pass
+ 1 fail
+ 101 expect() calls
+Ran 90 tests across 1 file. [37.00ms]

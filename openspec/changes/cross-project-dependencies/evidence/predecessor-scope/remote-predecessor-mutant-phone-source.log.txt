@@ -1,0 +1,540 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-remote-predecessor/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (96 tests | 3 failed | 93 skipped) 4179ms
+   × edits persisted remote predecessor whole scope on phone 1531ms
+   × edits persisted remote predecessor node scope on phone 1331ms
+   × edits persisted remote predecessor descendant-step scope on phone 1314ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted remote predecessor whole scope on phone
+AssertionError: expected "vi.fn()" to be called with arguments: [ 'p1', 'external', { …(3) }, …(2) ]
+
+Received:
+
+  1st vi.fn() call:
+
+@@ -1,11 +1,12 @@
+  [
+    "p1",
+    "external",
+    {
+      "projectId": "remote-stable",
+-     "scope": "whole",
++     "scope": "node",
++     "stepId": "remote-dev",
+      "workItemId": "remote-row",
+    },
+    {
+      "scope": "whole",
+      "workItemId": "w1",
+
+
+Number of calls: 1
+
+
+Ignored nodes: comments, script, style
+<html>
+  <head />
+  <body
+    data-scroll-locked="1"
+    style="pointer-events: none;"
+  >
+    <span
+      aria-hidden="true"
+      data-aria-hidden="true"
+      data-radix-focus-guard=""
+      style="outline: none; opacity: 0; position: fixed; pointer-events: none;"
+      tabindex="0"
+    />
+    <div
+      aria-hidden="true"
+      data-aria-hidden="true"
+    >
+      <section
+        class="flex min-h-0 flex-1 flex-col"
+        data-project-id="p1"
+        data-slice-count="1"
+      >
+        <div
+          class="mb-1.5 flex shrink-0 items-center gap-2"
+          data-toolbar-sheet="true"
+        >
+          <button
+            aria-expanded="false"
+            aria-haspopup="dialog"
+            class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 px-4 py-2 min-h-11"
+            data-state="closed"
+            type="button"
+          >
+            Plan actions
+          </button>
+        </div>
+        <div
+          class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-2"
+          data-grid="true"
+          data-plan-cards="true"
+        >
+          <article
+            aria-label="Work item 010"
+            class="border-border bg-card flex min-w-0 flex-col gap-2 rounded-lg border p-3"
+            data-card="w1"
+            data-frozen="false"
+            style="margin-left: 0px;"
+          >
+            <header
+              class="flex items-center gap-2"
+            >
+              <span
+                class="font-semibold"
+                data-number="true"
+              >
+                010
+              </span>
+              <button
+                aria-expanded="false"
+                aria-haspopup="dialog"
+                aria-label="Priority for 010"
+                class="min-h-11 inline-flex shrink-0 items-center"
+                data-card-priority-field="true"
+                data-hint="How important this work is: 1 upward, smaller first. Nobody has said yet."
+                data-state="closed"
+                type="button"
+              >
+                <span
+                  class="text-muted-foreground rounded-full px-2 py-0.5 text-xs opacity-70"
+                >
+                  priority…
+                </span>
+              </button>
+              <span
+                class="text-muted-foreground ml-auto text-sm"
+                data-final-total="true"
+              >
+                0
+                 d
+              </span>
+              <span
+                style="position: relative; display: inline-block;"
+              >
+                <button
+                  aria-expanded="false"
+                  aria-haspopup="menu"
+                  aria-label="Actions for 010"
+                  data-hint="Row actions"
+                  style="font: inherit; padding: 0px 4px; min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center;"
+                  type="button"
+                >
+                  ⋯
+                </button>
+              </span>
+            </header>
+            <span
+              style="position: relative; display: block; min-width: 0px;"
+            >
+              <textarea
+                aria-label="Name of 010"
+                class="min-h-11 box-border w-full rounded-md border p-2 text-base"
+                data-cell="w1::name"
+                data-rendered-at-rest=""
+                rows="2"
+                style="height: 0px; max-height: 11.2em; overflow-y: auto;"
+              >
+                Local successor
+              </textarea>
+              <span
+                aria-hidden="true"
+                class="min-h-11 box-border w-full rounded-md border p-2 text-base"
+                data-cell-rendered="w1::name"
+              >
+                Local successor
+              </span>
+            </span>
+            <div
+              class="relative flex min-w-0 items-center gap-2"
+              data-step="step-dev"
+            >
+              <span
+                class="text-muted-foreground w-20 shrink-0 truncate text-sm"
+              >
+                Dev
+              </span>
+              <input
+                aria-autocomplete="list"
+                aria-expanded="false"
+                aria-invalid="false"
+                aria-label="Dev estimate for 010"
+                class="min-h-11 box-border w-28 shrink-0 rounded-md border px-2 text-base font-semibold "
+                data-cell="w1::step-dev-final"
+                inputmode="decimal"
+                placeholder=...
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:1032:24
+    1030|       fireEvent.click(details.getByRole('button', { name: 'Save' }));
+    1031|       await waitFor(() => {
+    1032|         expect(update).toHaveBeenCalledWith(
+       |                        ^
+    1033|           'p1',
+    1034|           'external',
+ ❯ runWithExpensiveErrorDiagnosticsDisabled ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted remote predecessor node scope on phone
+AssertionError: expected "vi.fn()" to be called with arguments: [ 'p1', 'external', { …(4) }, …(2) ]
+
+Received:
+
+  1st vi.fn() call:
+
+@@ -2,11 +2,11 @@
+    "p1",
+    "external",
+    {
+      "projectId": "remote-stable",
+      "scope": "node",
+-     "stepId": "remote-test",
++     "stepId": "remote-dev",
+      "workItemId": "remote-row",
+    },
+    {
+      "scope": "whole",
+      "workItemId": "w1",
+
+
+Number of calls: 1
+
+
+Ignored nodes: comments, script, style
+<html>
+  <head />
+  <body
+    data-scroll-locked="1"
+    style="pointer-events: none;"
+  >
+    <span
+      aria-hidden="true"
+      data-aria-hidden="true"
+      data-radix-focus-guard=""
+      style="outline: none; opacity: 0; position: fixed; pointer-events: none;"
+      tabindex="0"
+    />
+    <div
+      aria-hidden="true"
+      data-aria-hidden="true"
+    >
+      <section
+        class="flex min-h-0 flex-1 flex-col"
+        data-project-id="p1"
+        data-slice-count="1"
+      >
+        <div
+          class="mb-1.5 flex shrink-0 items-center gap-2"
+          data-toolbar-sheet="true"
+        >
+          <button
+            aria-expanded="false"
+            aria-haspopup="dialog"
+            class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 px-4 py-2 min-h-11"
+            data-state="closed"
+            type="button"
+          >
+            Plan actions
+          </button>
+        </div>
+        <div
+          class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-2"
+          data-grid="true"
+          data-plan-cards="true"
+        >
+          <article
+            aria-label="Work item 010"
+            class="border-border bg-card flex min-w-0 flex-col gap-2 rounded-lg border p-3"
+            data-card="w1"
+            data-frozen="false"
+            style="margin-left: 0px;"
+          >
+            <header
+              class="flex items-center gap-2"
+            >
+              <span
+                class="font-semibold"
+                data-number="true"
+              >
+                010
+              </span>
+              <button
+                aria-expanded="false"
+                aria-haspopup="dialog"
+                aria-label="Priority for 010"
+                class="min-h-11 inline-flex shrink-0 items-center"
+                data-card-priority-field="true"
+                data-hint="How important this work is: 1 upward, smaller first. Nobody has said yet."
+                data-state="closed"
+                type="button"
+              >
+                <span
+                  class="text-muted-foreground rounded-full px-2 py-0.5 text-xs opacity-70"
+                >
+                  priority…
+                </span>
+              </button>
+              <span
+                class="text-muted-foreground ml-auto text-sm"
+                data-final-total="true"
+              >
+                0
+                 d
+              </span>
+              <span
+                style="position: relative; display: inline-block;"
+              >
+                <button
+                  aria-expanded="false"
+                  aria-haspopup="menu"
+                  aria-label="Actions for 010"
+                  data-hint="Row actions"
+                  style="font: inherit; padding: 0px 4px; min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center;"
+                  type="button"
+                >
+                  ⋯
+                </button>
+              </span>
+            </header>
+            <span
+              style="position: relative; display: block; min-width: 0px;"
+            >
+              <textarea
+                aria-label="Name of 010"
+                class="min-h-11 box-border w-full rounded-md border p-2 text-base"
+                data-cell="w1::name"
+                data-rendered-at-rest=""
+                rows="2"
+                style="height: 0px; max-height: 11.2em; overflow-y: auto;"
+              >
+                Local successor
+              </textarea>
+              <span
+                aria-hidden="true"
+                class="min-h-11 box-border w-full rounded-md border p-2 text-base"
+                data-cell-rendered="w1::name"
+              >
+                Local successor
+              </span>
+            </span>
+            <div
+              class="relative flex min-w-0 items-center gap-2"
+              data-step="step-dev"
+            >
+              <span
+                class="text-muted-foreground w-20 shrink-0 truncate text-sm"
+              >
+                Dev
+              </span>
+              <input
+                aria-autocomplete="list"
+                aria-expanded="false"
+                aria-invalid="false"
+                aria-label="Dev estimate for 010"
+                class="min-h-11 box-border w-28 shrink-0 rounded-md border px-2 text-base font-semibold "
+                data-cell="w1::step-dev-final"
+                inputmode="decimal"
+                placeholder=...
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:1032:24
+    1030|       fireEvent.click(details.getByRole('button', { name: 'Save' }));
+    1031|       await waitFor(() => {
+    1032|         expect(update).toHaveBeenCalledWith(
+       |                        ^
+    1033|           'p1',
+    1034|           'external',
+ ❯ runWithExpensiveErrorDiagnosticsDisabled ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > edits persisted remote predecessor descendant-step scope on phone
+AssertionError: expected "vi.fn()" to be called with arguments: [ 'p1', 'external', { …(4) }, …(2) ]
+
+Received:
+
+  1st vi.fn() call:
+
+@@ -1,12 +1,12 @@
+  [
+    "p1",
+    "external",
+    {
+      "projectId": "remote-stable",
+-     "scope": "descendant-step",
+-     "stepId": "remote-test",
++     "scope": "node",
++     "stepId": "remote-dev",
+      "workItemId": "remote-row",
+    },
+    {
+      "scope": "whole",
+      "workItemId": "w1",
+
+
+Number of calls: 1
+
+
+Ignored nodes: comments, script, style
+<html>
+  <head />
+  <body
+    data-scroll-locked="1"
+    style="pointer-events: none;"
+  >
+    <span
+      aria-hidden="true"
+      data-aria-hidden="true"
+      data-radix-focus-guard=""
+      style="outline: none; opacity: 0; position: fixed; pointer-events: none;"
+      tabindex="0"
+    />
+    <div
+      aria-hidden="true"
+      data-aria-hidden="true"
+    >
+      <section
+        class="flex min-h-0 flex-1 flex-col"
+        data-project-id="p1"
+        data-slice-count="1"
+      >
+        <div
+          class="mb-1.5 flex shrink-0 items-center gap-2"
+          data-toolbar-sheet="true"
+        >
+          <button
+            aria-expanded="false"
+            aria-haspopup="dialog"
+            class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 px-4 py-2 min-h-11"
+            data-state="closed"
+            type="button"
+          >
+            Plan actions
+          </button>
+        </div>
+        <div
+          class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-2"
+          data-grid="true"
+          data-plan-cards="true"
+        >
+          <article
+            aria-label="Work item 010"
+            class="border-border bg-card flex min-w-0 flex-col gap-2 rounded-lg border p-3"
+            data-card="w1"
+            data-frozen="false"
+            style="margin-left: 0px;"
+          >
+            <header
+              class="flex items-center gap-2"
+            >
+              <span
+                class="font-semibold"
+                data-number="true"
+              >
+                010
+              </span>
+              <button
+                aria-expanded="false"
+                aria-haspopup="dialog"
+                aria-label="Priority for 010"
+                class="min-h-11 inline-flex shrink-0 items-center"
+                data-card-priority-field="true"
+                data-hint="How important this work is: 1 upward, smaller first. Nobody has said yet."
+                data-state="closed"
+                type="button"
+              >
+                <span
+                  class="text-muted-foreground rounded-full px-2 py-0.5 text-xs opacity-70"
+                >
+                  priority…
+                </span>
+              </button>
+              <span
+                class="text-muted-foreground ml-auto text-sm"
+                data-final-total="true"
+              >
+                0
+                 d
+              </span>
+              <span
+                style="position: relative; display: inline-block;"
+              >
+                <button
+                  aria-expanded="false"
+                  aria-haspopup="menu"
+                  aria-label="Actions for 010"
+                  data-hint="Row actions"
+                  style="font: inherit; padding: 0px 4px; min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center;"
+                  type="button"
+                >
+                  ⋯
+                </button>
+              </span>
+            </header>
+            <span
+              style="position: relative; display: block; min-width: 0px;"
+            >
+              <textarea
+                aria-label="Name of 010"
+                class="min-h-11 box-border w-full rounded-md border p-2 text-base"
+                data-cell="w1::name"
+                data-rendered-at-rest=""
+                rows="2"
+                style="height: 0px; max-height: 11.2em; overflow-y: auto;"
+              >
+                Local successor
+              </textarea>
+              <span
+                aria-hidden="true"
+                class="min-h-11 box-border w-full rounded-md border p-2 text-base"
+                data-cell-rendered="w1::name"
+              >
+                Local successor
+              </span>
+            </span>
+            <div
+              class="relative flex min-w-0 items-center gap-2"
+              data-step="step-dev"
+            >
+              <span
+                class="text-muted-foreground w-20 shrink-0 truncate text-sm"
+              >
+                Dev
+              </span>
+              <input
+                aria-autocomplete="list"
+                aria-expanded="false"
+                aria-invalid="false"
+                aria-label="Dev estimate for 010"
+                class="min-h-11 box-border w-28 shrink-0 rounded-md border px-2 text-base font-semibold "
+                data-cell="w1::step-dev-final"
+                inputmode="decimal"
+                placeholder=...
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:1032:24
+    1030|       fireEvent.click(details.getByRole('button', { name: 'Save' }));
+    1031|       await waitFor(() => {
+    1032|         expect(update).toHaveBeenCalledWith(
+       |                        ^
+    1033|           'p1',
+    1034|           'external',
+ ❯ runWithExpensiveErrorDiagnosticsDisabled ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback ../../../../../home/df/wd/puni/puni-00/node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 93 skipped (96)
+   Start at  05:33:03
+   Duration  10.22s (tests 41%, import 39%, transform 15%, environment 4%, setup 1%)

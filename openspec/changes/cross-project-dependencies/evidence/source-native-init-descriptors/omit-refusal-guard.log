@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/test/fixture-failure.test.ts:
+161 |     get() {
+162 |       reads++;
+163 |       return 'managed cohort source dev mutable image tag resolution changed or was not excluded';
+164 |     },
+165 |   });
+166 |   await rejects(
+              ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: [Function],
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/puni-source-native-init-descriptors/tools/tool-remote-scripts/test/fixture-failure.test.ts:166:9
+(fail) expected refusal cannot execute a getter that impersonates a known assertion [8.05ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+Ran 1 test across 1 file. [48.00ms]

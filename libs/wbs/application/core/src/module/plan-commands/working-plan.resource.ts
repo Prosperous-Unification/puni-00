@@ -19,6 +19,8 @@ import { createWorkingPlanValues } from './working-plan-values.resource';
 /** One project's lazily retained reads, owned by one admitted command batch. */
 export interface WorkingPlan {
   readonly stores: PlanTransactionalStores;
+  /** Strictly reloads local identities after raw incident staging; never accepts remote rows. */
+  readonly refreshRows: (ids: readonly string[]) => Promise<void>;
   close(): void;
 }
 
@@ -345,7 +347,38 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
    * the batch and refuses cross-project and closed access` resolve; each
    * watched failing on 2026-09-27.
    */
+  // Proof: without the project partition, the external-write refresh test hit
+  // its raw-store tripwire: retained owner refresh requested a remote identity.
+  // Proof: owner-refresh-partition bypass failed `refreshes only retained owner rows`'s selected assertion
+  // (service consumer; watched 2026-10-22).
+  const refreshTypedEndpoints = (
+    rows: readonly {
+      predecessor: { projectId: string; workItemId: string };
+      successor: { projectId: string; workItemId: string };
+    }[],
+  ) =>
+    refreshRows([
+      ...new Set(
+        rows
+          .flatMap((row) => [row.predecessor, row.successor])
+          .filter((endpoint) => endpoint.projectId === projectId)
+          .map((endpoint) => endpoint.workItemId),
+      ),
+    ]);
   const typedDependencies: TypedDependencyStore = {
+    hasDeletingEndpoint: (row) => {
+      assertProject(row.projectId);
+      return scope.stores.typedDependencies.hasDeletingEndpoint(row);
+    },
+    get incidents(): TypedDependencyStore['incidents'] {
+      throw new Error('incident staging requires raw admitted stores');
+    },
+    // Proof: removing the open check or requested-project checks separately made `passes typed links through the batch and refuses cross-project and closed access` resolve forbidden/closed incident calls (2026-10-22).
+    listIncident: (requestedProjectIds) => {
+      assertOpen();
+      for (const requestedProjectId of requestedProjectIds) assertProject(requestedProjectId);
+      return scope.stores.typedDependencies.listIncident(requestedProjectIds);
+    },
     listByProject: (requestedProjectId) => {
       assertProject(requestedProjectId);
       // Proof: returning the pre-edit empty set made `sees the first typed relationship
@@ -360,7 +393,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     add: async (row, stamp) => {
       assertProject(row.projectId);
       await scope.stores.typedDependencies.add(row, stamp);
-      await refreshRows([row.predecessor.workItemId, row.successor.workItemId]);
+      await refreshTypedEndpoints([row]);
     },
     update: async (row, stamp) => {
       assertProject(row.projectId);
@@ -372,12 +405,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       await scope.stores.typedDependencies.update(row, stamp);
       // Proof: skipping this refresh made `undoes and redoes a typed update with
       // its exact ID and endpoints` receive 409 instead of 200; watched 2026-09-27.
-      await refreshRows([
-        previous.predecessor.workItemId,
-        previous.successor.workItemId,
-        row.predecessor.workItemId,
-        row.successor.workItemId,
-      ]);
+      await refreshTypedEndpoints([previous, row]);
     },
     remove: async (id, stamp) => {
       assertOpen();
@@ -387,7 +415,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         throw new Error(`typed dependency ${id} is outside project ${projectId}`);
       }
       await scope.stores.typedDependencies.remove(id, stamp);
-      await refreshRows([previous.predecessor.workItemId, previous.successor.workItemId]);
+      await refreshTypedEndpoints([previous]);
     },
     removeAllFor: async (workItemIds, stamp) => {
       assertOpen();
@@ -396,9 +424,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         throw new Error(`typed dependency removal has a work item outside project ${projectId}`);
       }
       const removed = await scope.stores.typedDependencies.removeAllFor(workItemIds, stamp);
-      await refreshRows(
-        removed.flatMap((row) => [row.predecessor.workItemId, row.successor.workItemId]),
-      );
+      await refreshTypedEndpoints(removed);
       return removed;
     },
   };
@@ -528,6 +554,10 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
   );
 
   const stores: PlanTransactionalStores = {
+    get externalDependencyAuthoring() {
+      assertOpen();
+      return scope.stores.externalDependencyAuthoring;
+    },
     get runtimeCommands() {
       // Proof: P49 omitted the lifetime check; the closed runtime-catalog getter returned its borrowed store.
       assertOpen();
@@ -728,6 +758,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
 
   return {
     stores,
+    refreshRows,
     close: () => {
       isClosed = true;
     },

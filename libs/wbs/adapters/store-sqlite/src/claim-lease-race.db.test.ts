@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { AuthenticatedUser } from '@wbs/contracts';
 import type {
   ClaimStore,
   CredentialPin,
@@ -13,7 +14,9 @@ import type {
 import { clockOf, CREATOR_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { CLAIM_LEASE_MS, LEASE_RENEWAL_RESOLUTION_MS } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
@@ -23,6 +26,7 @@ import fc from 'fast-check';
 import { MachineCredentialAdministrationRepository } from './machine-credential-administration';
 import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
@@ -40,6 +44,27 @@ const admin: ResourceAccess = {
   kind: 'scoped',
   scope: { organizationId: 'org-a', userId: 'dany', role: 'admin' },
 };
+
+/** Verified-principal fixture; credential pinning remains part of each modeled act. */
+function principalOf(pin: CredentialPin | null): AuthenticatedUser {
+  return {
+    id: 'dany',
+    username: 'dany',
+    scopes: ['write'],
+    ...(pin === null
+      ? {}
+      : {
+          authentication:
+            'personId' in pin
+              ? {
+                  kind: 'machine' as const,
+                  credentialId: 'fixture-credential',
+                  personId: pin.personId,
+                }
+              : { kind: 'upstream' as const, issuer: pin.issuer, subject: pin.subject },
+        }),
+  };
+}
 
 /**
  * Where the sweep reads which leases have run out. `turn` is production:
@@ -59,7 +84,11 @@ beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'claim-lease-race-'));
   const dbPath = join(directory, 'plan.db');
   runMigrations(dbPath, folder);
-  source = openSqliteSource({ dbPath, organizationDefaultLimits: DEFAULTS });
+  source = openSqliteSource({
+    dbPath,
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    organizationDefaultLimits: DEFAULTS,
+  });
   now = T;
 });
 
@@ -92,9 +121,16 @@ async function seeded(expiry: { read: ExpiryRead; snapshot: ExpiredLease[] }) {
   );
   const clock = clockOf({ now: () => now, newId: () => crypto.randomUUID() });
   const broadcast = recordingBroadcaster();
-  const options = { admission: CREATOR_ADMISSION, clock, broadcast, scheduler: fastScheduler };
+  const options = {
+    admission: CREATOR_ADMISSION,
+    clock,
+    broadcast,
+    scheduler: fastScheduler,
+    dependencyContext: createLocalDependencyContext(source.stores),
+  };
   const graph = servicesOver(source.stores, options);
   const created = await graph.projects.create('Race', 'dany');
+  if (typeof created === 'string') throw new Error(`lease fixture project refused: ${created}`);
   const projectId = created.project.id;
   source.db.run(
     sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, 'org-a')`,
@@ -105,23 +141,29 @@ async function seeded(expiry: { read: ExpiryRead; snapshot: ExpiredLease[] }) {
       expiry.read === 'turn' ? claims.expiredLeasesOf(id, at) : Promise.resolve(expiry.snapshot),
   });
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: broadcast,
     publicServices: graph,
-    batchServices: (scope: Scope, announcements) =>
+    batchServices: (scope: Scope, announcements, admission, context) =>
       servicesOver(
         { ...scope.stores, claims: sabotaged(scope.stores.claims) },
-        { ...options, broadcast: announcements },
+        {
+          ...options,
+          broadcast: announcements,
+          admission,
+          dependencyContext: { kind: 'bound', context },
+        },
       ),
   });
   const run = (commands: PlanCommand[], credential: CredentialPin | null) =>
     runner.runWithin(
       projectId,
-      'dany',
-      commands,
+      principalOf(credential),
+      commands.map((command) =>
+        command.kind === 'claimWorkItem' ? { ...command, steps: [created.steps[0].id] } : command,
+      ),
       admin,
-      credential,
-      credential !== null && 'personId' in credential ? credential.personId : null,
     );
   const plan = await run(
     [
@@ -290,7 +332,7 @@ describe('a sweep queued behind a release of the same expired claim', () => {
     ).toMatchObject({ ok: true });
     now = T + CLAIM_LEASE_MS;
     expiry.snapshot = await source.stores.claims.expiredLeasesOf(world.projectId, now);
-    expect(expiry.snapshot).toHaveLength(2);
+    expect(expiry.snapshot).toHaveLength(1);
     expiry.read = RACE_EXPIRY_READ;
     let open: () => void = () => undefined;
     let holding: () => void = () => undefined;
@@ -350,7 +392,11 @@ describe('claim leases as a model', () => {
         directory = mkdtempSync(join(tmpdir(), 'claim-lease-model-'));
         const dbPath = join(directory, 'plan.db');
         runMigrations(dbPath, folder);
-        source = openSqliteSource({ dbPath, organizationDefaultLimits: DEFAULTS });
+        source = openSqliteSource({
+          dbPath,
+          dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+          organizationDefaultLimits: DEFAULTS,
+        });
         now = T;
         const expiry = { read: 'turn' as ExpiryRead, snapshot: [] as ExpiredLease[] };
         const world = await seeded(expiry);

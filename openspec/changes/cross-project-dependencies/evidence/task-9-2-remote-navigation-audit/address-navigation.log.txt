@@ -1,0 +1,63 @@
+Fault: src/components/wbs/dependency-navigation.tsx
+Replace: project: captured.endpoint.projectId,
+With: project: captured.projectAbbreviation,
+Command: ['bunx', 'vitest', 'run', 'src/components/wbs/persisted-remote-dependencies.test.tsx', '--maxWorkers=1', '--no-file-parallelism', '--testTimeout=30000', '--hookTimeout=30000', '-t', 'renders captured remote endpoint and stable navigation|renames the captured label']
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /home/df/.codex/worktrees/1d51/puni-00/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (35 tests | 3 failed | 32 skipped) 699ms
+   × renders captured remote endpoint and stable navigation without a local arrow on desktop 451ms
+   × renders captured remote endpoint and stable navigation without a local arrow on phone 118ms
+   × renames the captured label while retaining its stable target 127ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > renders captured remote endpoint and stable navigation without a local arrow on desktop
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > renders captured remote endpoint and stable navigation without a local arrow on phone
+AssertionError: expected '/?project=REMOTE&workItem=remote-row&…' to be '/?project=remote-stable&workItem=remo…' // Object.is equality
+
+Expected: "/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev"
+Received: "/?project=REMOTE&workItem=remote-row&stepNode=sn1.remote-row.remote-dev"
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:115:39
+    113|       fireEvent.mouseEnter(screen.getByLabelText('Add a dependency to …
+    114|     const link = await screen.findByRole('link', { name: /Open REMOTE.…
+    115|     expect(link.getAttribute('href')).toBe(
+       |                                       ^
+    116|       '/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote…
+    117|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > renames the captured label while retaining its stable target
+Error: expect(element).toHaveAttribute("href", "/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev") // element.getAttribute("href") === "/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev"
+
+Expected the element to have attribute:
+  href="/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev"
+Received:
+  href="/?project=RENAMED&workItem=remote-row&stepNode=sn1.remote-row.remote-dev"
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:156:16
+    154|   });
+    155|   const link = await screen.findByRole('link', { name: /Open RENAMED.0…
+    156|   expect(link).toHaveAttribute(
+       |                ^
+    157|     'href',
+    158|     '/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote-r…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 32 skipped (35)
+   Start at  00:17:45
+   Duration  8.99s (import 59%, transform 26%, tests 8%, environment 6%, setup 1%)
+
+  Transform  transforming modules took 2.31s · 26% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns
+
+
+AUDIT_EXIT=1

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
+import { DEPENDENCY_SEMANTICS, DEPENDENCY_SEMANTICS_HEADER } from '@wbs/contracts/dependency-claim';
 import { newMachineKey } from '@wbs/core';
 import { describe, expect, it } from 'bun:test';
 import { decodeJwt, SignJWT } from 'jose';
@@ -160,6 +161,7 @@ describe('asking be-01', () => {
     const [sent] = be.sent;
     expect(sent.url).toBe(`${BE}/internal/mcp/machine-grants`);
     expect(sent.headers.get(MCP_INTERNAL_SECRET_HEADER)).toBe(SECRET);
+    expect(sent.headers.get(DEPENDENCY_SEMANTICS_HEADER)).toBe(DEPENDENCY_SEMANTICS);
     expect(sent.headers.get('x-internal-auth')).toBeNull();
     expect(sent.body).toEqual({
       issuer: OAUTH,

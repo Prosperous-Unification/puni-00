@@ -1,4 +1,9 @@
-import { PROMETHEUS_CONTENT_TYPE, wsError } from '@wbs/contracts';
+import {
+  DEPENDENCY_SEMANTICS,
+  DEPENDENCY_WEBSOCKET_PROTOCOL,
+  PROMETHEUS_CONTENT_TYPE,
+  wsError,
+} from '@wbs/contracts';
 import { createLogger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { systemTimers, type Timers } from '@wbs/runtime-portable';
 import { Elysia } from 'elysia';
@@ -6,11 +11,18 @@ import { Elysia } from 'elysia';
 import { internalController, type SocketLike } from './controller/internal.controller';
 import { createUnexpectedBackendFailureReporter } from './controller/unexpected-backend-failure';
 import { handleWsMessage, projectIdOf } from './controller/ws.controller';
+import { GATEWAY_DEPENDENCY_CAPABILITY } from './runtime/dependency-support';
 import {
   type ForwardedBrowserCredential,
   forwardedCookieHeader,
 } from './service/browser-access-client';
 import { ConnectionAccess } from './service/connection-access';
+import { SocketDelivery } from './service/delivery';
+import {
+  admitDependencyUpgrade,
+  DependencyProtocolRefused,
+  selectDependencyProtocol,
+} from './service/dependency-admission';
 import { type FetchLike, ForwardClient } from './service/forward-client';
 import { GatewayMetrics } from './service/gateway-metrics';
 import { JwtVerifier, type TokenVerifier } from './service/jwt-auth';
@@ -38,8 +50,16 @@ interface WsAuthCarrier {
  * can prove that principal to be-01. Never a name the client chose.
  */
 export type SocketCredential =
-  | { readonly kind: 'cookie'; readonly forwarded: ForwardedBrowserCredential }
-  | { readonly kind: 'local'; readonly identity: string };
+  | {
+      readonly kind: 'cookie';
+      readonly forwarded: ForwardedBrowserCredential;
+      readonly dependencySemantics?: typeof DEPENDENCY_SEMANTICS;
+    }
+  | {
+      readonly kind: 'local';
+      readonly identity: string;
+      readonly dependencySemantics?: typeof DEPENDENCY_SEMANTICS;
+    };
 
 /** A cookie's value exactly as sent, still percent-encoded, or null when absent. */
 function rawCookieValue(raw: string | null, name: string): string | null {
@@ -74,10 +94,14 @@ function cookieValue(raw: string | null, name: string): string | null {
  * the ws context type does not know about fields the route adds to it.
  */
 interface WsConnection {
+  dependencySemantics?: typeof DEPENDENCY_SEMANTICS;
+  request: Request;
   connectionId: string;
   /** Aborted synchronously on close, before waiting for authentication/presence. */
   cancellation: AbortController;
   socket: SocketLike;
+  /** Projects removed synchronously by retirement, broadcast by physical close. */
+  retiredProjects?: readonly string[];
   /**
    * The rest of `open` — verify the token, join presence — as something the
    * later handlers can wait for.
@@ -91,7 +115,7 @@ interface WsConnection {
    * subscribed, in no roster, for as long as it stayed open. It was gw-01's
    * flaky test, at 2 runs in 40: `no roster arrived for ada; ada has []`.
    *
-   * Never rejects: a token that fails here is already handled inside it.
+   * Authentication failure is modeled inside it; delivery infrastructure errors propagate.
    */
   joined: Promise<void>;
   /** This socket's project authorization, created before `open`'s first await. */
@@ -163,16 +187,59 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
     fetchImpl,
     ...(opts.requests ?? { timers: systemTimers, attemptMs: 5000, overallMs: 15000 }),
   };
+  // Elysia invokes beforeHandle twice for one successful upgrade; memoize only that Request.
+  // Proof: caching across Requests admitted an ENABLED reconnect in dependency-admission.integration.test.ts.
+  const selectedProtocols = new WeakMap<Request, string | null>();
+  const upgradeAdmissions = new WeakMap<Request, ReturnType<typeof admitDependencyUpgrade>>();
+  const checkUpgrade = async (
+    request: Request,
+    set: { status?: number | string; headers: Record<string, string | number | string[]> },
+  ) => {
+    set.headers['cache-control'] = 'no-store';
+    let selected: string | null;
+    try {
+      selected = selectDependencyProtocol(
+        GATEWAY_DEPENDENCY_CAPABILITY,
+        request.headers.get('sec-websocket-protocol'),
+      );
+    } catch (caught) {
+      if (!(caught instanceof DependencyProtocolRefused)) throw caught;
+      set.status = 409;
+      return { error: 'client_dependency_incompatible', required: DEPENDENCY_SEMANTICS };
+    }
+    selectedProtocols.set(request, selected);
+    // Proof: omitting this header negotiated wbs.legacy for the legacy-first dual offer in dependency-admission.integration.test.ts.
+    if (selected !== null) set.headers['sec-websocket-protocol'] = selected;
+    try {
+      let admission = upgradeAdmissions.get(request);
+      if (admission === undefined) {
+        admission = admitDependencyUpgrade(requestOptions, selected, GATEWAY_DEPENDENCY_CAPABILITY);
+        upgradeAdmissions.set(request, admission);
+      }
+      const refusal = await admission;
+      // Proof: bypassing this refusal opened the ENABLED socket in dependency-admission.integration.test.ts.
+      if (refusal !== null) {
+        set.status = 409;
+        return refusal;
+      }
+      return undefined;
+    } catch (caught) {
+      logger.error({ err: caught }, 'dependency upgrade admission unavailable');
+      // Proof: returning undefined here opened the first transport-failure case in dependency-admission.integration.test.ts.
+      set.status = 503;
+      return { error: 'dependency_admission_unavailable' };
+    }
+  };
   const forwarder = new ForwardClient(requestOptions);
   /** Takes a connection out of a project roster after it left or lost that subscription. */
-  const leaveProject = (connectionId: string, subscription: string): void => {
+  const leaveProject = async (connectionId: string, subscription: string): Promise<void> => {
     const projectId = projectIdOf(subscription);
     if (projectId === null) return;
     const affected = presence.leaveProject(connectionId, projectId);
-    presence.broadcast(affected);
+    await presence.broadcast(affected);
     // Proof: omitting reset leaves no empty frame after real-socket unsubscribe;
     // removing the condition instead sends a frame during the stale-unsubscribe no-op.
-    if (affected.length > 0) presence.sendRoster(connectionId);
+    if (affected.length > 0) await presence.sendRoster(connectionId);
   };
   const resumer = new ResumeClient(requestOptions);
 
@@ -236,7 +303,7 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
             // browser gate closes /ws as `missing token` and both peer-edit
             // cases fail after their PATCH returns 200. Watched 2026-08-24.
             auth[LOCAL_IDENTITY] = opts.localIdentity;
-            return undefined;
+            return checkUpgrade(request, set);
           }
           // There is deliberately no compatibility fallback to `query.token`.
           // URLs are copied into browser history, logs and pasted links; a
@@ -273,11 +340,18 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
             accessCookie,
             organizationCookie: rawCookieValue(cookies, '__Host-wbs_organization'),
           };
-          return undefined;
+          return checkUpgrade(request, set);
         },
         async open(ws) {
           metrics.connectionOpened();
           const conn = ws.data as unknown as WsConnection;
+          // Proof: forcing null here retired the V1 socket before its initial presence roster in dependency-admission.integration.test.ts.
+          const selected = selectedProtocols.get(conn.request);
+          if (selected === undefined)
+            throw new Error('socket dependency protocol was not admitted');
+          // Proof: omitting this binding failed real-socket access/forward/resume assertions in dependency-admission.integration.test.ts.
+          conn.dependencySemantics =
+            selected === DEPENDENCY_WEBSOCKET_PROTOCOL ? DEPENDENCY_SEMANTICS : undefined;
           conn.connectionId = crypto.randomUUID();
           conn.cancellation = new AbortController();
           // One wrapper per connection, kept for its whole life. It used to be
@@ -290,7 +364,35 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
           // through are this one. See {@link socketWriter} — twelve call sites
           // wrote to a socket and none of them read what Bun answered.
           const writer = socketWriter(ws, metrics);
-          conn.socket = { send: (payload) => void writer.send(payload) };
+          conn.socket = new SocketDelivery({
+            admit: async (signal) =>
+              (await admitDependencyUpgrade(
+                requestOptions,
+                selected,
+                GATEWAY_DEPENDENCY_CAPABILITY,
+                signal,
+              )) === null
+                ? 'admitted'
+                : 'incompatible',
+            write: (payload) => writer.send(payload),
+            signal: conn.cancellation.signal,
+            timers: systemTimers,
+            capacity: 64,
+            deadlineMs: 5_000,
+            onRetired: (reason, caught) => {
+              // Proof: independently omitting abort, subscription removal or presence
+              // removal fails mounted retirement removes presence and subscriptions
+              // and aborts before physical close, with physical close withheld.
+              conn.cancellation.abort(new Error(`delivery ${reason}`));
+              subs.removeAll(conn.socket);
+              conn.retiredProjects = presence.leave(conn.connectionId);
+              logger.error(
+                { reason, err: caught, connectionId: conn.connectionId },
+                'socket delivery retired',
+              );
+              ws.close(1013, 'delivery unavailable');
+            },
+          });
           const localIdentity = conn.query?.[LOCAL_IDENTITY];
           const accessToken = conn.query?.[VERIFIED_TOKEN];
           const forwarded = conn.query?.[FORWARDED_CREDENTIAL];
@@ -300,9 +402,17 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
           conn.access = new ConnectionAccess({
             check:
               localIdentity !== undefined
-                ? opts.projectAccess({ kind: 'local', identity: localIdentity })
+                ? opts.projectAccess({
+                    kind: 'local',
+                    identity: localIdentity,
+                    dependencySemantics: conn.dependencySemantics,
+                  })
                 : forwarded !== undefined
-                  ? opts.projectAccess({ kind: 'cookie', forwarded })
+                  ? opts.projectAccess({
+                      kind: 'cookie',
+                      forwarded,
+                      dependencySemantics: conn.dependencySemantics,
+                    })
                   : // No credential: `open` closes this socket below, before any
                     // frame is served, so nothing can reach this check.
                     () => Promise.resolve('unauthenticated'),
@@ -311,10 +421,10 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
             ...(opts.lease === undefined
               ? {}
               : { leaseRenewMs: opts.lease.renewMs, checkDeadlineMs: opts.lease.checkDeadlineMs }),
-            onRevoked: (subscription) => {
+            onRevoked: async (subscription) => {
               subs.unsubscribe(subscription, conn.socket);
-              leaveProject(conn.connectionId, subscription);
-              conn.socket.send(wsError('subscription_revoked', { subscription }));
+              await leaveProject(conn.connectionId, subscription);
+              await conn.socket.send(wsError('subscription_revoked', { subscription }));
             },
             onUnauthenticated: () => {
               ws.close(1008, 'unauthenticated');
@@ -336,24 +446,29 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
           // point at which `message` and `close` can start. See {@link
           // WsConnection.joined} for what happened when they did not wait.
           conn.joined = (async () => {
-            try {
-              let joining = localIdentity;
-              if (joining === undefined) {
-                if (accessToken === undefined) return;
+            let joining = localIdentity;
+            if (joining === undefined) {
+              if (accessToken === undefined) return;
+              try {
                 const claims = await verifier.verify(accessToken);
                 joining = typeof claims['username'] === 'string' ? claims['username'] : claims.sub;
+              } catch {
+                // Modeled authentication failure: no presence membership is created.
+                return;
               }
-              username = joining;
-              // Only an id being replaced can affect an existing project.
-              // The newcomer has named no project and needs its own empty roster.
-              presence.broadcast(presence.join(conn.connectionId, joining, conn.socket));
-              // Proof: omitting this leaves the real-socket newcomer with no initial frame.
-              presence.sendRoster(conn.connectionId);
-            } catch {
-              // beforeHandle already rejected invalid tokens; nothing to add.
             }
+            // Proof: removing this guard restores a retired identity in mounted
+            // late identity verification cannot join presence after retirement.
+            if (conn.cancellation.signal.aborted) return;
+            username = joining;
+            await presence.broadcast(presence.join(conn.connectionId, joining, conn.socket));
+            // Proof: omitting this leaves the real-socket newcomer with no initial frame.
+            await presence.sendRoster(conn.connectionId);
           })();
           await conn.joined;
+          // Proof: removing this guard adds an unauthenticated close after 1013
+          // in mounted late identity verification cannot join presence after retirement.
+          if (conn.cancellation.signal.aborted) return;
           // An upgrade that was accepted and then could not say who is behind
           // it is closed, not served. Without this the socket stayed open and
           // `message` below fell back to `'anon'`, which subscribes to any
@@ -393,6 +508,7 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
                 m,
                 {
                   clientId,
+                  dependencySemantics: conn.dependencySemantics,
                   connectionId: conn.connectionId,
                   traceId: crypto.randomUUID(),
                 },
@@ -403,6 +519,7 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
                 points,
                 {
                   clientId,
+                  dependencySemantics: conn.dependencySemantics,
                   connectionId: conn.connectionId,
                   traceId: crypto.randomUUID(),
                   // be-01 rechecks every replayed project for this principal.
@@ -425,13 +542,13 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
             // A `project:` subscription is what puts this connection in a
             // roster, and the broadcast is what tells the people already in it.
             // `presence` names no project, so it moves nobody.
-            onSubscribed: (subscription) => {
+            onSubscribed: async (subscription) => {
               const projectId = projectIdOf(subscription);
               if (projectId === null) return;
-              presence.broadcast(presence.enterProject(conn.connectionId, projectId));
+              await presence.broadcast(presence.enterProject(conn.connectionId, projectId));
             },
-            onUnsubscribed: (subscription) => {
-              leaveProject(conn.connectionId, subscription);
+            onUnsubscribed: async (subscription) => {
+              await leaveProject(conn.connectionId, subscription);
             },
             roster: () => presence.rosterFor(conn.connectionId),
           });
@@ -442,16 +559,15 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
           // Proof: omitting close abort made four real socket tests time out waiting
           // for cancellation within250ms, before the independent1000ms attempt expiry.
           conn.cancellation.abort(new Error('connection closed'));
-          // A close that overtook the join deleted nothing and let the join
-          // that followed it re-add the connection — a socket nobody holds,
-          // left in whatever roster the `subscribe` behind it had put it in.
-          await conn.joined;
           // Subscriptions first: a socket left in the map is pushed to forever,
           // counted in `delivered_to_sockets`, and joined again by the same
           // browser on its next reconnect.
           subs.removeAll(conn.socket);
           // The returned project was looked up before the connection was removed.
-          presence.broadcast(presence.leave(conn.connectionId));
+          await presence.broadcast([
+            ...(conn.retiredProjects ?? []),
+            ...presence.leave(conn.connectionId),
+          ]);
         },
       })
   );

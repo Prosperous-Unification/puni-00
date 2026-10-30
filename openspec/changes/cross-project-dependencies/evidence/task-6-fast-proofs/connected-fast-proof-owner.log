@@ -1,0 +1,480 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-plan.test.ts:
+(pass) connected detached Fast placement > uses one real placement for A.design B.build A.test [4.16ms]
+(pass) connected detached Fast placement > retains own Wednesday floor and projects back to each own anchor [0.37ms]
+(pass) connected detached Fast placement > retains graph and capture when a required calendar is missing [0.13ms]
+(pass) connected detached Fast placement > inspects the nontarget required optimized member before calendar refusal [0.16ms]
+(pass) connected detached Fast placement > ignores stored optimized preference when disabled and allows real Fast comparison [0.45ms]
+(pass) connected detached Fast placement > retains authored held endpoints but schedules no held work and needs no empty anchor [0.18ms]
+(pass) connected detached Fast placement > selects either target without placement or calendar changes and refuses absent target [0.33ms]
+(pass) connected detached Fast placement > allows a lower ranked remote prerequisite before a high priority successor [0.27ms]
+(pass) connected detached Fast placement > shares people only in shared mode and restores actual person identity and own waiting counts [0.61ms]
+(pass) connected detached Fast placement > uses own rounding, units, allowance, team capacity and width before injective namespacing [0.67ms]
+(pass) connected detached Fast placement > keeps identical resource catalog IDs project local and restores binding identities [0.66ms]
+(pass) connected detached Fast placement > retains fractional effort and translates a weekend manual floor and deadline under own anchor [0.51ms]
+(pass) connected detached Fast placement > uses the earliest anchor independent of project rank and capture order [0.49ms]
+(pass) connected detached Fast placement > reduces partial held parent selectors without losing authored pairs [0.36ms]
+(pass) connected detached Fast placement > keeps unknown, zero and stepless nodes as real zero duration boundaries [0.53ms]
+(pass) connected detached Fast placement > requires an active shared-person peer anchor even without its external endpoint [0.09ms]
+396 |   });
+397 |   it('refuses wrong relationship ownership and mismatched local captured evidence', () => {
+398 |     const held = capture();
+399 |     expect(() =>
+400 |       derive({ ...held, relationships: [{ ...held.relationships[0], projectId: 'A' }] }),
+401 |     ).toThrow('owner');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "owner"
+
+Received function did not throw
+Received value: {
+  kind: "connected",
+  capture: {
+    kind: "connected",
+    organizationId: "org",
+    mode: "isolated",
+    projects: [
+      {
+        projectId: "A",
+        abbreviation: "A",
+        rank: 0,
+        reads: {
+          project: {
+            id: "A",
+            name: "A",
+            ownerId: "u",
+            restricted: false,
+            estimateMethod: "realistic",
+            depReach: "whole-item",
+            pertWeights: {
+              optimistic: 1,
+              realistic: 4,
+              pessimistic: 1,
+            },
+            estimateRounding: "exact",
+            startDate: "2026-10-05",
+            scheduleEngine: "fast",
+            scheduleObjective: "pri",
+            optimizationEnabled: false,
+            solutionRef: null,
+            timezone: "UTC",
+          },
+          steps: [
+            {
+              id: "build",
+              name: "Build",
+              code: null,
+              position: 0,
+              allowancePercent: 0,
+              estimateUnit: "workdays",
+            }
+          ],
+          workItems: [
+            {
+              id: "a",
+              projectId: "A",
+              parentId: null,
+              position: 0,
+              name: "a",
+              notes: "",
+              frozenNumber: null,
+              startNoEarlierThan: null,
+              startNoEarlierThanReason: null,
+              deadline: null,
+              readiness: null,
+              hold: null,
+              priority: null,
+              serviceTeamId: null,
+              serviceId: null,
+              maxParallel: 1,
+              revision: 1,
+              teamIds: [],
+              tagIds: [],
+              serviceIds: [],
+              typeIds: [],
+              externalRefs: [],
+            }
+          ],
+          estimates: [
+            {
+              workItemId: "a",
+              stepId: "build",
+              optimistic: 1,
+              realistic: 1,
+              pessimistic: 1,
+            }
+          ],
+          actuals: [],
+          progress: [],
+          stepBlockages: [],
+          stepParallels: [],
+          measures: [],
+          dependencies: [],
+          typedDependencies: [],
+          assignments: [],
+          capacity: Map {},
+          demands: [],
+          resourceCapacities: [],
+          resources: [],
+          priorityBands: [],
+          people: [],
+          teams: [],
+          services: [],
+          tags: [],
+          workItemTypes: [],
+          externalSystems: [],
+        },
+      }, {
+        projectId: "B",
+        abbreviation: "B",
+        rank: 1,
+        reads: {
+          project: {
+            id: "B",
+            name: "B",
+            ownerId: "u",
+            restricted: false,
+            estimateMethod: "realistic",
+            depReach: "whole-item",
+            pertWeights: {
+              optimistic: 1,
+              realistic: 4,
+              pessimistic: 1,
+            },
+            estimateRounding: "exact",
+            startDate: "2026-10-05",
+            scheduleEngine: "fast",
+            scheduleObjective: "pri",
+            optimizationEnabled: false,
+            solutionRef: null,
+            timezone: "UTC",
+          },
+          steps: [
+            {
+              id: "build",
+              name: "Build",
+              code: null,
+              position: 0,
+              allowancePercent: 0,
+              estimateUnit: "workdays",
+            }
+          ],
+          workItems: [
+            {
+              id: "b",
+              projectId: "B",
+              parentId: null,
+              position: 0,
+              name: "b",
+              notes: "",
+              frozenNumber: null,
+              startNoEarlierThan: null,
+              startNoEarlierThanReason: null,
+              deadline: null,
+              readiness: null,
+              hold: null,
+              priority: null,
+              serviceTeamId: null,
+              serviceId: null,
+              maxParallel: 1,
+              revision: 1,
+              teamIds: [],
+              tagIds: [],
+              serviceIds: [],
+              typeIds: [],
+              externalRefs: [],
+            }
+          ],
+          estimates: [
+            {
+              workItemId: "b",
+              stepId: "build",
+              optimistic: 1,
+              realistic: 1,
+              pessimistic: 1,
+            }
+          ],
+          actuals: [],
+          progress: [],
+          stepBlockages: [],
+          stepParallels: [],
+          measures: [],
+          dependencies: [],
+          typedDependencies: [],
+          assignments: [],
+          capacity: Map {},
+          demands: [],
+          resourceCapacities: [],
+          resources: [],
+          priorityBands: [],
+          people: [],
+          teams: [],
+          services: [],
+          tags: [],
+          workItemTypes: [],
+          externalSystems: [],
+        },
+      }
+    ],
+    relationships: [
+      {
+        id: "ab",
+        projectId: "A",
+        predecessor: {
+          projectId: "A",
+          scope: "whole",
+          workItemId: "a",
+        },
+        successor: {
+          projectId: "B",
+          scope: "whole",
+          workItemId: "b",
+        },
+        type: "FS",
+      }
+    ],
+  },
+  authored: {
+    graph: {
+      nodes: [
+        {
+          kind: "step",
+          ref: {
+            workItemId: "a",
+            stepId: "build",
+          },
+          at: 0,
+        }, {
+          kind: "step",
+          ref: {
+            workItemId: "b",
+            stepId: "build",
+          },
+          at: 0,
+        }
+      ],
+      edges: [
+        {
+          predecessor: {
+            leafId: "a",
+            at: 0,
+          },
+          successor: {
+            leafId: "b",
+            at: 0,
+          },
+          type: "FS",
+          provenance: "authored",
+          relationshipId: "ab",
+        }
+      ],
+    },
+    projectIdByWorkItem: Map(2) {
+      "a": "A",
+      "b": "B",
+    },
+    relationships: Map(1) {
+      "ab": {
+        id: "ab",
+        projectId: "A",
+        predecessor: {
+          projectId: "A",
+          scope: "whole",
+          workItemId: "a",
+        },
+        successor: {
+          projectId: "B",
+          scope: "whole",
+          workItemId: "b",
+        },
+        type: "FS",
+      },
+    },
+  },
+  placement: {
+    kind: "scheduled",
+    engine: "fast",
+    originOrdinal: 14810,
+    combined: {
+      slices: Map(2) {
+        "a\u0000build": {
+          workItemId: "a",
+          stepId: "build",
+          duration: 1,
+          effort: 1,
+          width: 1,
+          estimated: true,
+          earliestStart: 0,
+          earliestFinish: 1,
+          latestStart: 0,
+          latestFinish: 1,
+          float: 0,
+          critical: true,
+          personId: null,
+          boundBy: "projectStart",
+          resourcePredecessorId: null,
+          capacityPredecessorIds: [],
+          capacityTeamId: null,
+          lateBy: null,
+        },
+        "b\u0000build": {
+          workItemId: "b",
+          stepId: "build",
+          duration: 1,
+          effort: 1,
+          width: 1,
+          estimated: true,
+          earliestStart: 1,
+          earliestFinish: 2,
+          latestStart: 1,
+          latestFinish: 2,
+          float: 0,
+          critical: true,
+          personId: null,
+          boundBy: "predecessor",
+          resourcePredecessorId: null,
+          capacityPredecessorIds: [],
+          capacityTeamId: null,
+          lateBy: null,
+        },
+      },
+      workItems: Map(2) {
+        "a": {
+          duration: 1,
+          estimated: true,
+          earliestStart: 0,
+          earliestFinish: 1,
+          latestStart: 0,
+          latestFinish: 1,
+          float: 0,
+          critical: true,
+        },
+        "b": {
+          duration: 1,
+          estimated: true,
+          earliestStart: 1,
+          earliestFinish: 2,
+          latestStart: 1,
+          latestFinish: 2,
+          float: 0,
+          critical: true,
+        },
+      },
+      waitingForPerson: 0,
+      waitingForCapacity: 0,
+      eventsVisited: 0,
+    },
+    identities: {
+      personByKey: Map {},
+      teamByKey: Map {},
+      resourceByKey: Map {},
+      projectIdByWorkItem: Map(2) {
+        "a": "A",
+        "b": "B",
+      },
+    },
+    byProject: Map(2) {
+      "A": {
+        slices: Map(1) {
+          "a\u0000build": {
+            workItemId: "a",
+            stepId: "build",
+            duration: 1,
+            effort: 1,
+            width: 1,
+            estimated: true,
+            earliestStart: 0,
+            earliestFinish: 1,
+            latestStart: 0,
+            latestFinish: 1,
+            float: 0,
+            critical: true,
+            personId: null,
+            boundBy: "projectStart",
+            resourcePredecessorId: null,
+            capacityPredecessorIds: [],
+            capacityTeamId: null,
+            lateBy: null,
+          },
+        },
+        workItems: Map(1) {
+          "a": {
+            duration: 1,
+            estimated: true,
+            earliestStart: 0,
+            earliestFinish: 1,
+            latestStart: 0,
+            latestFinish: 1,
+            float: 0,
+            critical: true,
+          },
+        },
+        waitingForPerson: 0,
+        waitingForCapacity: 0,
+        eventsVisited: 0,
+      },
+      "B": {
+        slices: Map(1) {
+          "b\u0000build": {
+            workItemId: "b",
+            stepId: "build",
+            duration: 1,
+            effort: 1,
+            width: 1,
+            estimated: true,
+            earliestStart: 1,
+            earliestFinish: 2,
+            latestStart: 1,
+            latestFinish: 2,
+            float: 0,
+            critical: true,
+            personId: null,
+            boundBy: "predecessor",
+            resourcePredecessorId: null,
+            capacityPredecessorIds: [],
+            capacityTeamId: null,
+            lateBy: null,
+          },
+        },
+        workItems: Map(1) {
+          "b": {
+            duration: 1,
+            estimated: true,
+            earliestStart: 1,
+            earliestFinish: 2,
+            latestStart: 1,
+            latestFinish: 2,
+            float: 0,
+            critical: true,
+          },
+        },
+        waitingForPerson: 0,
+        waitingForCapacity: 0,
+        eventsVisited: 0,
+      },
+    },
+  },
+}
+
+      at <anonymous> (/tmp/puni-cross-fast-calendar/libs/wbs/application/core/src/service/connected-plan.test.ts:401:7)
+(fail) connected detached Fast placement > refuses wrong relationship ownership and mismatched local captured evidence [0.61ms]
+(pass) connected detached Fast placement > refuses foreign project rows, absent endpoint project and cross owned endpoint identity [0.70ms]
+(pass) connected detached Fast placement > applies each project minute conversion, estimate method and allowance exactly once [0.31ms]
+(pass) connected detached Fast placement > preserves signed fractional numeric calendar constraints without date round trips [0.08ms]
+(pass) connected detached Fast placement > refuses corrupted project identity and nonfinite rank, and throws unknown scheduling failures [0.21ms]
+(pass) connected detached Fast placement > models real node cycles without hiding graph evidence [0.24ms]
+(pass) connected detached Fast placement > expands partly held parent relationships to surviving leaves only [0.27ms]
+(pass) connected detached Fast placement > keeps own steps and local reach before resolving remote FS SS FF selectors [1.95ms]
+(pass) connected detached Fast placement > validates rank before an engine refusal and target membership before any unavailable return [0.15ms]
+(pass) connected detached Fast placement > resolves every project local dependency under its own reach and step order [0.46ms]
+(pass) connected detached Fast placement > refuses absent prepared calendars and broken reverse identities on real placements [0.39ms]
+
+1 tests failed:
+(fail) connected detached Fast placement > refuses wrong relationship ownership and mismatched local captured evidence [0.61ms]
+
+ 26 pass
+ 1 fail
+ 77 expect() calls
+Ran 27 tests across 1 file. [136.00ms]

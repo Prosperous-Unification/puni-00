@@ -30,17 +30,45 @@ if [ "$#" -ne 0 ]; then
 fi
 
 attempt_token="$(cat /proc/sys/kernel/random/uuid)"
+cleanup_receipt_token="${WBS_SOLVER_SMOKE_CLEANUP_TOKEN-$attempt_token}"
+if [[ ! "$cleanup_receipt_token" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+  echo '[solver-image-smoke] cleanup receipt token must be a UUID' >&2
+  exit 1
+fi
 attempt_tokens=("$attempt_token")
 # Every tag is unique to this attempt so cleanup removes only what this attempt created.
 image="wbs-be-01:solver-smoke-$attempt_token"
 request="$repo_root/libs/wbs/domain/contracts/solver/fixtures/request/valid-quantised-baseline.json"
-registry_name="wbs-solver-smoke-registry-$$"
-caller_name="wbs-solver-smoke-caller-$$"
-if [ -n "$supplied_image" ]; then caller_name="wbs-solver-smoke-caller-$attempt_token"; fi
+registry_name="wbs-solver-smoke-registry-$attempt_token"
+caller_name="wbs-solver-smoke-caller-$attempt_token"
+baseline_name="wbs-solver-smoke-baseline-$attempt_token"
 socket_directory=''
 socket_path=''
 supervisor_pid=''
+composed_inventory=''
+composed_fixture_directory=''
 created_images=()
+retained_inventory="${WBS_SOLVER_SMOKE_INVENTORY:-}"
+# The outer proof owns this fresh directory; files are never placed in the removable socket tree.
+record_owned_resource() {
+  if [ -n "$retained_inventory" ]; then
+    printf '%s\t%s\n' "$1" "$2" >> "$retained_inventory/resources"
+  fi
+}
+if [ -n "$retained_inventory" ]; then
+  if [[ "$retained_inventory" != /* ]] || [ ! -d "$retained_inventory" ] || [ -e "$retained_inventory/resources" ] || [ -e "$retained_inventory/attempts" ]; then
+    echo '[solver-image-smoke] retained inventory requires a fresh absolute directory' >&2
+    exit 1
+  fi
+  (set -o noclobber; printf 'invocation\t%s\nattempt\t%s\n' "$cleanup_receipt_token" "$attempt_token" > "$retained_inventory/resources")
+  (set -o noclobber; : > "$retained_inventory/attempts")
+  record_owned_resource container "$caller_name"
+  record_owned_resource container "wbs-solver-$attempt_token"
+  if [ -z "$supplied_image" ]; then
+    record_owned_resource container "$registry_name"
+    record_owned_resource container "$baseline_name"
+  fi
+fi
 
 # Returns 0 when image $1 exists, 1 when Docker reports it absent and 2 when Docker cannot
 # answer, so a broken daemon cannot pass for a removed image.
@@ -129,62 +157,134 @@ remove_created_images() {
   return "$removal_failed"
 }
 
+# Collect only UUID tokens recorded before the composed client's real host requests.
+# Partial failures still release every recorded child; a successful run requires both objectives.
+collect_composed_attempts() {
+  local status="$1" token inventory_bytes count=0 invalid=0
+  local seen=' '
+  # Proof: removing read-failure refusal lost the missing/unreadable diagnoses in four negatives.
+  if ! inventory_bytes="$(cat "$composed_inventory")"; then
+    echo '[solver-image-smoke] composed attempt inventory is unreadable' >&2
+    return 1
+  fi
+  if [ -n "$inventory_bytes" ]; then
+    while IFS= read -r token || [ -n "$token" ]; do
+      # Proof: bypassing UUID/uniqueness validation failed four malformed/duplicate negatives.
+      if [[ ! "$token" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || [[ "$seen" == *" $token "* ]]; then
+        echo '[solver-image-smoke] composed attempt inventory is malformed or duplicated' >&2
+        invalid=1
+        continue
+      fi
+      seen+="$token "
+      attempt_tokens+=("$token")
+      count=$((count + 1))
+    done <<< "$inventory_bytes"
+  fi
+  # Proof: removing the count guard let incomplete/overflow inventories pass in both modes.
+  if [ "$count" -gt 2 ] || { [ "$status" -eq 0 ] && [ "$count" -ne 2 ]; }; then
+    echo '[solver-image-smoke] composed attempt inventory must contain Pri and Time exactly once' >&2
+    invalid=1
+  fi
+  return "$invalid"
+}
+
+# Only this invocation creates this directory. Fixture bytes are external CI inputs,
+# not immutable production-image bytes; no product source path is mounted over.
+cleanup_composed_fixtures() {
+  if [ -z "$composed_fixture_directory" ]; then return 0; fi
+  # Proof: omitting status admission accepted fixture-delete-fails-after-remove in both image modes.
+  if ! rm -rf -- "$composed_fixture_directory"; then
+    echo '[solver-image-smoke] could not remove external composed fixtures' >&2
+    return 1
+  fi
+  # Proof: omitting readback accepted fixture-rm-ignored and falsely issued cleanup-complete.
+  if [ -e "$composed_fixture_directory" ] || [ -L "$composed_fixture_directory" ]; then
+    echo '[solver-image-smoke] external composed fixtures outlived cleanup' >&2
+    return 1
+  fi
+}
+
 # Runs every cleanup step even when one fails, and turns a passing smoke into a failure when
 # any step failed, so a leaked container or image never hides behind the original status.
 cleanup() {
   local status=$?
   local cleanup_failed=0
-  local token
-  if [ -n "$supervisor_pid" ]; then
-    if [ -n "$supplied_image" ]; then
-      if kill -0 "$supervisor_pid" 2>/dev/null && ! kill "$supervisor_pid"; then
-        echo '[solver-image-smoke] could not stop temporary supervisor' >&2
-        cleanup_failed=1
-      fi
-      # Proof: ignoring wait failure made supervisor-stop-fails exit 0.
-      if ! wait "$supervisor_pid"; then
-        echo '[solver-image-smoke] temporary supervisor failed during cleanup' >&2
-        cleanup_failed=1
-      fi
-    else
-      kill "$supervisor_pid" 2>/dev/null || true
-      wait "$supervisor_pid" 2>/dev/null || true
-    fi
-  fi
-  if [ -n "$supplied_image" ]; then
-    # Proof: adding removal of an unrelated container failed the owned-resource inventory test.
-    if ! remove_owned_container "$caller_name"; then cleanup_failed=1; fi
-    for token in "${attempt_tokens[@]}"; do
-      if ! remove_owned_container "wbs-solver-$token"; then cleanup_failed=1; fi
-    done
-    # Proof: ignoring rmdir refusal made socket-rmdir-fails exit 0.
-    if ! rmdir "$socket_directory"; then cleanup_failed=1; fi
-    # Proof: dropping cleanup status propagation made the container refusal tests exit 0.
-    # Proof: adding supplied-image removal here failed the artifact preservation test.
-    if [ "$status" -eq 0 ] && [ "$cleanup_failed" -ne 0 ]; then status=1; fi
-    exit "$status"
-  fi
-  docker stop "$registry_name" >/dev/null 2>&1 || true
-  # Proof: with this removal failing under `set -e`, solver-image-smoke.test.ts observed the
-  # trap exit before any image removal and all three tags left in the fake Docker store.
-  for token in "${attempt_tokens[@]}"; do
-    if docker container inspect "wbs-solver-$token" >/dev/null 2>&1 &&
-      ! docker rm --force "wbs-solver-$token" >/dev/null; then
-      echo "[solver-image-smoke] could not remove container wbs-solver-$token" >&2
+  local token termination_failed=0 supervisor_status
+  local caller_stopped=0
+  # Proof: premature collect/unlink failed the late-admission hardlink test.
+  # The caller can append before connecting: quiesce it before reading or unlinking the inventory.
+  if remove_owned_container "$caller_name"; then
+    caller_stopped=1
+    if ! collect_composed_attempts "$status"; then cleanup_failed=1; fi
+    # Proof: ignoring removal failure lost the required diagnosis in both inventory-rm-fails cases.
+    if ! rm "$composed_inventory"; then
+      echo '[solver-image-smoke] could not remove composed attempt inventory' >&2
       cleanup_failed=1
     fi
+  else
+    # Proof: unlinking on stop failure failed retained-pathname negative.
+    echo '[solver-image-smoke] caller stop failed; retained composed admission pathname' >&2
+    cleanup_failed=1
+  fi
+  if [ -n "$supervisor_pid" ]; then
+    # Proof: built and supplied supervisor-stop-fails inject a failed supervisor exit;
+    # ignoring wait made built mode exit 0; independently removing kill failure propagation
+    # made supervisor-kill-fails exit 0 while subsequent cleanup still ran.
+    if kill -0 "$supervisor_pid" 2>/dev/null && ! kill "$supervisor_pid"; then
+      echo '[solver-image-smoke] could not stop temporary supervisor' >&2
+      cleanup_failed=1
+      termination_failed=1
+    fi
+    # A refused signal can leave a live child: do not block the rest of cleanup on its wait.
+    if [ "$termination_failed" -eq 0 ]; then
+      if wait "$supervisor_pid"; then
+        supervisor_status=0
+      else
+        supervisor_status=$?
+        echo "[solver-image-smoke] temporary supervisor failed during cleanup (exit $supervisor_status)" >&2
+        cleanup_failed=1
+      fi
+    fi
+  fi
+  for token in "${attempt_tokens[@]}"; do
+    if ! remove_owned_container "wbs-solver-$token"; then cleanup_failed=1; fi
   done
-  rmdir "$socket_directory" 2>/dev/null || true
+  if [ -z "$supplied_image" ]; then
+    # Proof: registry rm refusal, ignored removal and permission failure each exited 0
+    # before this owned inspect/remove/readback path; all other images still get cleaned.
+    if ! remove_owned_container "$registry_name"; then cleanup_failed=1; fi
+    # Proof: partial baseline failure and SIGTERM left the direct child without an owner;
+    # the invocation UUID name now survives in cleanup's inventory before docker run.
+    if ! remove_owned_container "$baseline_name"; then cleanup_failed=1; fi
+  fi
+  if [ "$caller_stopped" -eq 1 ] && ! cleanup_composed_fixtures; then cleanup_failed=1; fi
+  # Proof: ignoring rmdir refusal made socket-rmdir-fails exit 0.
+  if [ "$caller_stopped" -eq 1 ] && ! rmdir "$socket_directory"; then cleanup_failed=1; fi
   # Proof: with this call removed, or run only after a passing smoke, solver-image-smoke.test.ts
   # observed the build and registry tags left in the fake Docker store.
-  if ! remove_created_images; then
+  # Proof: adding supplied-image removal here failed the artifact preservation test.
+  if [ -z "$supplied_image" ] && ! remove_created_images; then
     cleanup_failed=1
   fi
   if [ "$status" -eq 0 ] && [ "$cleanup_failed" -ne 0 ]; then
     status=1
   fi
+  # A failing client can still prove clean release; a cleanup error can never issue this receipt.
+  # Proof: unconditional receipt emission failed both cleanup-denial receipt negatives.
+  if [ "$cleanup_failed" -eq 0 ]; then
+    # Proof: omitting this receipt failed both failing-client receipt positives.
+    printf '[solver-image-smoke] cleanup-complete %s\n' "$cleanup_receipt_token"
+  fi
   exit "$status"
 }
+# Stage and verify the exact external test closure before ANY Docker invocation.
+# The temporary EXIT trap also owns early image-inspection/socket-setup refusals;
+# the complete cleanup below takes that ownership once it is installed.
+composed_fixture_directory="$(mktemp -d "${TMPDIR:-/tmp}/wbs-composed-fixtures.XXXXXX")"
+trap 'status=$?; if ! cleanup_composed_fixtures; then exit 1; fi; exit "$status"' EXIT
+bun "$script_dir/composed-image-fixtures.ts" "$repo_root" "$composed_fixture_directory/files" \
+  > "$composed_fixture_directory/provenance.json"
+
 # Proof: skipping this probe let the missing-digest negative reach the clients; treating a
 # daemon refusal as absence lost the distinct inspect-failure diagnosis.
 if [ -n "$supplied_image" ]; then
@@ -196,18 +296,40 @@ if [ -n "$supplied_image" ]; then
     2) exit 1 ;;
   esac
 fi
-socket_directory="$(mktemp -d "/run/user/$(id -u)/wbs-solver-smoke.XXXXXX")"
+if [ -n "$retained_inventory" ]; then
+  socket_directory="/run/user/$(id -u)/wbs-solver-smoke.$cleanup_receipt_token"
+  if [ -e "$socket_directory" ] || [ -L "$socket_directory" ]; then
+    echo '[solver-image-smoke] invocation socket directory already exists' >&2
+    exit 1
+  fi
+  record_owned_resource directory "$socket_directory"
+  mkdir --mode=700 "$socket_directory"
+else
+  socket_directory="$(mktemp -d "/run/user/$(id -u)/wbs-solver-smoke.XXXXXX")"
+fi
 socket_path="$socket_directory/supervisor.sock"
+composed_inventory="$socket_directory/composed-attempts"
+if [ -n "$retained_inventory" ]; then
+  # Hard link preserves every pre-admission token even if inner cleanup removes its pathname.
+  ln "$retained_inventory/attempts" "$composed_inventory"
+else
+  : > "$composed_inventory"
+fi
 trap cleanup EXIT
+# Proof: independently removing INT/TERM traps made the corresponding direct-baseline
+# interrupt negative lose controlled 130/143 (INT exited 0; TERM skipped EXIT cleanup).
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 if [ -n "$supplied_image" ]; then
   # Proof: substituting a different digest failed the exact-digest host/client assertions.
   solver_image="$supplied_image"
 else
   created_images+=("$image")
+  record_owned_resource image "$image"
   docker build --file "$repo_root/apps/wbs/be-01/Dockerfile" --tag "$image" "$repo_root"
 
-  docker run --rm --interactive --entrypoint wbs-solver "$image" <"$request" >/dev/null
+  docker run --rm --interactive --name "$baseline_name" --entrypoint wbs-solver "$image" <"$request" >/dev/null
 
   docker run --detach --rm --publish 127.0.0.1::5000 --name "$registry_name" registry:2 >/dev/null
   registry_port="$(
@@ -222,6 +344,7 @@ else
   curl --fail --silent --show-error --max-time 2 "http://$registry/v2/" >/dev/null
   registry_tag="$registry/wbs-be-01:solver-smoke-$attempt_token"
   created_images+=("$registry_tag")
+  record_owned_resource image "$registry_tag"
   docker tag "$image" "$registry_tag"
   docker push "$registry_tag" >/dev/null
   mapfile -t matching_digests < <(
@@ -242,9 +365,22 @@ else
   esac
 fi
 
+record_owned_resource supervisor-starting "$cleanup_receipt_token"
 bun "$repo_root/tools/tool-remote-scripts/src/fixtures/solver-supervisor-image-host.ts" \
   "$solver_image" "$socket_path" "$caller_name" &
 supervisor_pid=$!
+if [ -n "$retained_inventory" ]; then
+  supervisor_stat="$(cat "/proc/$supervisor_pid/stat")"
+  supervisor_stat_tail="${supervisor_stat##*) }"
+  read -r -a supervisor_fields <<< "$supervisor_stat_tail"
+  supervisor_start="${supervisor_fields[19]}"
+  if [[ ! "$supervisor_start" =~ ^[0-9]+$ ]]; then
+    echo '[solver-image-smoke] supervisor start identity is malformed' >&2
+    exit 1
+  fi
+  # Proof: omitting this entry failed retained inventory supervision evidence.
+  record_owned_resource supervisor "$supervisor_pid:$supervisor_start"
+fi
 for _attempt in 1 2 3 4 5 6 7 8 9 10; do
   [ -S "$socket_path" ] && break
   kill -0 "$supervisor_pid"
@@ -267,6 +403,7 @@ docker run --rm "${client_pull[@]}" --name "$caller_name" \
 # shared-client-failure case); the real digest image published a feasible shared-person answer.
 shared_attempt_token="$(cat /proc/sys/kernel/random/uuid)"
 attempt_tokens+=("$shared_attempt_token")
+record_owned_resource container "wbs-solver-$shared_attempt_token"
 docker run --rm "${client_pull[@]}" --name "$caller_name" \
   --volume "$socket_directory:/run/wbs-solver:ro" \
   --entrypoint bun "$solver_image" \
@@ -275,12 +412,53 @@ docker run --rm "${client_pull[@]}" --name "$caller_name" \
   shared-person \
   "$shared_attempt_token"
 
+# Proof: removing this bind fails the client inventory and connected-feasible-run fault tests
+# in both built and supplied image modes; each authenticated child owns a fresh token.
+connected_feasible_token="$(cat /proc/sys/kernel/random/uuid)"
+attempt_tokens+=("$connected_feasible_token")
+record_owned_resource container "wbs-solver-$connected_feasible_token"
+docker run --rm "${client_pull[@]}" --name "$caller_name" \
+  --volume "$socket_directory:/run/wbs-solver:ro" \
+  --entrypoint bun "$solver_image" \
+  /app/apps/wbs/be-01/scripts/solver-supervisor-image-client.ts \
+  /run/wbs-solver/supervisor.sock \
+  connected-feasible \
+  "$connected_feasible_token"
+
+# Proof: removing this bind fails the client inventory and connected-fractional-run fault tests
+# in both built and supplied image modes; each authenticated child owns a fresh token.
+connected_fractional_token="$(cat /proc/sys/kernel/random/uuid)"
+attempt_tokens+=("$connected_fractional_token")
+record_owned_resource container "wbs-solver-$connected_fractional_token"
+docker run --rm "${client_pull[@]}" --name "$caller_name" \
+  --volume "$socket_directory:/run/wbs-solver:ro" \
+  --entrypoint bun "$solver_image" \
+  /app/apps/wbs/be-01/scripts/solver-supervisor-image-client.ts \
+  /run/wbs-solver/supervisor.sock \
+  connected-fractional \
+  "$connected_fractional_token"
+
+# Proof: omitting only this fixture mount failed the built/supplied client-argv regressions;
+# the actual Bun consumer also refuses empty delivery and a missing transitive clock fixture.
+# This fifth external test driver joins the unchanged in-image scenario to its
+# exact read-only fixtures. The original four clients receive no fixture mount.
+# Proof: omitting this invocation fails both image inventories and composed-client fault tests.
+docker run --rm "${client_pull[@]}" --name "$caller_name" \
+  --volume "$socket_directory:/run/wbs-solver" \
+  --volume "$composed_fixture_directory/files:/app/apps/wbs/be-01/src/testing:ro" \
+  --entrypoint bun "$solver_image" \
+  /app/apps/wbs/be-01/src/testing/solver-composed-image-client.ts \
+  /run/wbs-solver/supervisor.sock \
+  connected-composed \
+  /run/wbs-solver/composed-attempts
+
 # CI runs the portable launcher half above. The canonical h2puni gate sets this
 # flag because its puni1 user session owns the persistent systemd timer used by
 # the real supervisor-restart proof.
 if [ "${WBS_RUN_SOLVER_ORPHAN_PROC:-0}" = '1' ]; then
   orphan_registry_tag="$registry/wbs-be-01:solver-orphan-$attempt_token"
   created_images+=("$orphan_registry_tag")
+  record_owned_resource image "$orphan_registry_tag"
   docker build \
     --file "$repo_root/apps/wbs/be-01/scripts/solver-orphan-fixture.Dockerfile" \
     --build-arg "SOLVER_BASE_IMAGE=$solver_image" \

@@ -7,17 +7,20 @@ import {
   testStepService,
   testWorkItemService,
 } from '@wbs/store-memory/testing/service-fixtures';
+import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 
 import type { CalendarMarkerService } from '../module/calendar-marker/calendar-marker.resource';
 import type { PlanCommandServices } from '../module/plan-commands/plan-commands.feature';
 import type { ImportService } from '../module/plan-import/plan-import.feature';
 import type { ProjectService } from '../module/project/project.resource';
 import type { StepService } from '../module/step/step.resource';
+import type { CommandAccess } from '../ports/command-access';
 import type { Broadcaster } from '../ports/project-event';
 import type { TransactionalStores } from '../ports/stores';
 import type { Scope, UnitOfWork } from '../ports/unit-of-work';
 import type { CommittedFanoutDelivery } from '../service/committed-fanout';
 import type { InMemoryPlan } from './harness';
+import { localCommandAccess } from './organization-access-fixture';
 
 export interface WritingServices extends PlanCommandServices {
   projects: ProjectService;
@@ -34,7 +37,8 @@ export interface WritingServices extends PlanCommandServices {
  * fixtures can still assert is that the route opened one unit of work and which
  * way it settled.
  *
- * Its scope carries no stores, and reaching for one throws by name rather than
+ * Its scope carries the typed-dependency incident capability required when a
+ * command graph opens. Reaching for any other store throws by name rather than
  * answering an empty double. A batch that writes through `scope.stores` — which
  * is where D24's per-batch graph is going — must not silently write into a
  * store nothing in the test reads; on this fixture it should say so.
@@ -43,16 +47,20 @@ export function countingUnitOfWork(): UnitOfWork & {
   readonly calls: ('begin' | 'commit' | 'rollback')[];
 } {
   const calls: ('begin' | 'commit' | 'rollback')[] = [];
+  const typedDependencies = inMemoryTypedDependencies();
+  // The proxy supplies typed dependencies and throws on every omitted catalog member.
   const stores = new Proxy(
-    {},
+    { typedDependencies },
     {
       get(_target, port: string | symbol) {
+        if (port === 'typedDependencies') return typedDependencies;
+        // Proof: replacing this throw with undefined failed the unexpected-store rollback test (2026-10-23).
         throw new Error(
           `the counting unit of work has no stores; something asked it for ${String(port)}`,
         );
       },
     },
-  ) as TransactionalStores;
+  ) as unknown as TransactionalStores;
   return {
     calls,
     async run(act) {
@@ -92,6 +100,7 @@ export function testWrites(
    */
   given: Partial<WritingServices> = {},
 ): {
+  commandAccess: CommandAccess;
   imports: Pick<ImportService, 'import'>;
   uow: ReturnType<typeof countingUnitOfWork>;
   batch: (scope: Scope, broadcast: Broadcaster) => WritingServices;
@@ -108,6 +117,7 @@ export function testWrites(
     calendarMarkers: given.calendarMarkers ?? testCalendarMarkerService(),
   };
   return {
+    commandAccess: localCommandAccess,
     imports: {
       import: () =>
         Promise.resolve({

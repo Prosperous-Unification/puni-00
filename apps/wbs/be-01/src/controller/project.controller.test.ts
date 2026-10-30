@@ -2,8 +2,9 @@ import { clockOf } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { AuthService } from '@wbs/core/service/auth.service';
-import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it, spyOn } from 'bun:test';
 
@@ -37,6 +38,7 @@ import {
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
+import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
 import { inMemoryProjects, memoryProjectTables, projectRow } from '../testing/project-fixture';
 import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
@@ -86,7 +88,7 @@ function buildHarness(
   const broadcast = recordingBroadcaster();
   const plan = buildWorkItemPlan(projectStore);
   const projects = new ProjectService({
-    dependencyGraph: new DependencyGraphGuard(plan.stores),
+    dependencyContext: createLocalDependencyContext(plan.stores),
     projects: projectStore,
     broadcast,
     // Available unless a case says otherwise, because most of this suite is
@@ -104,6 +106,8 @@ function buildHarness(
     }),
   });
   const workItems = new WorkItemService({
+    dependencyContext: createLocalDependencyContext(plan.stores),
+    externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
     admission: CREATOR_ADMISSION,
     clock: testClock,
     ...plan.stores,
@@ -123,6 +127,7 @@ function buildHarness(
     steps: testStepService(projectStore),
   };
   const app = buildApp({
+    projectAddressSearch: refusingProjectAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -143,6 +148,7 @@ function buildHarness(
     ...writing,
     savedPlans: testSavedPlanService(),
     replay: testReplay().replay,
+    admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
     writes: testWrites(undefined, writing),

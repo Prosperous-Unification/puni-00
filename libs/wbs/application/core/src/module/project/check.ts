@@ -27,7 +27,7 @@ export function installProject(requirements: ProjectRequirements): ProjectExport
       optimizerAvailable: DiBag.createProvider(() => requirements.optimizerAvailable, {
         factoryReturnKind: 'sync-value',
       }),
-      dependencyGraph: DiBag.createProvider(() => requirements.dependencyGraph, {
+      dependencyContext: DiBag.createProvider(() => requirements.dependencyContext, {
         factoryReturnKind: 'sync-value',
       }),
       beforeUpdate: DiBag.createProvider(() => requirements.beforeUpdate, {

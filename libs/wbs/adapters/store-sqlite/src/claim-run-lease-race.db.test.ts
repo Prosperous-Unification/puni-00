@@ -2,11 +2,14 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { AuthenticatedUser } from '@wbs/contracts';
 import type { CredentialPin, PlanCommand, ResourceAccess } from '@wbs/core';
 import { clockOf, CREATOR_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { CLAIM_LEASE_MS, LEASE_RENEWAL_RESOLUTION_MS } from '@wbs/domain';
 import { afterEach, describe, expect, it } from 'bun:test';
@@ -15,6 +18,7 @@ import fc from 'fast-check';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
@@ -34,6 +38,28 @@ const admin: ResourceAccess = {
   scope: { organizationId: 'org-a', userId: 'dany', role: 'admin' },
 };
 
+/** Verified-principal fixture: preserve the same person's optional run in command admission. */
+function principalOf(pin: CredentialPin | null): AuthenticatedUser {
+  return {
+    id: 'dany',
+    username: 'dany',
+    scopes: ['write'],
+    ...(pin === null
+      ? {}
+      : {
+          authentication:
+            'personId' in pin
+              ? {
+                  kind: 'machine' as const,
+                  credentialId: 'fixture-credential',
+                  personId: pin.personId,
+                  ...(pin.runId === undefined ? {} : { runId: pin.runId }),
+                }
+              : { kind: 'upstream' as const, issuer: pin.issuer, subject: pin.subject },
+        }),
+  };
+}
+
 let directory: string | null = null;
 let source: SqliteSource | null = null;
 
@@ -51,7 +77,11 @@ async function openWorld(clock: { now: number }) {
   directory = mkdtempSync(join(tmpdir(), 'claim-run-lease-'));
   const dbPath = join(directory, 'plan.db');
   runMigrations(dbPath, folder);
-  const opened = openSqliteSource({ dbPath, organizationDefaultLimits: DEFAULTS });
+  const opened = openSqliteSource({
+    dbPath,
+    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    organizationDefaultLimits: DEFAULTS,
+  });
   source = opened;
   opened.db.run(sql`INSERT INTO users (id, username, created_at) VALUES ('dany', 'dany', 1)`);
   opened.db.run(sql`INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)`);
@@ -69,24 +99,43 @@ async function openWorld(clock: { now: number }) {
     clock: clockOf({ now: () => clock.now, newId: () => crypto.randomUUID() }),
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
+    dependencyContext: createLocalDependencyContext(opened.stores),
   };
   const graph = servicesOver(opened.stores, options);
-  const projectId = (await graph.projects.create('Runs', 'dany')).project.id;
+  const created = await graph.projects.create('Runs', 'dany');
+  if (typeof created === 'string') throw new Error(`run fixture project refused: ${created}`);
+  const projectId = created.project.id;
+  const firstStep = created.steps.at(0);
+  if (firstStep === undefined) throw new Error('run fixture first step missing');
   opened.db.run(
     sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, 'org-a')`,
   );
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: opened.uow,
     announcements: options.broadcast,
     publicServices: graph,
-    batchServices: (scope, announcements) =>
-      servicesOver(scope.stores, { ...options, broadcast: announcements }),
+    batchServices: (scope, announcements, admission, context) =>
+      servicesOver(scope.stores, {
+        ...options,
+        broadcast: announcements,
+        admission,
+        dependencyContext: { kind: 'bound', context },
+      }),
   });
   /** The pin a grant of `codex` carries: its run when the process opted in. */
   const pinOf = (run: Run): CredentialPin =>
     run === null ? { personId: AGENT } : { personId: AGENT, runId: run };
   const run = (commands: PlanCommand[], pin: CredentialPin | null) =>
-    runner.runWithin(projectId, 'dany', commands, admin, pin, pin === null ? null : AGENT);
+    runner.runWithin(
+      projectId,
+      principalOf(pin),
+      // Model claims use the first runnable step; later steps retain their workflow prerequisites.
+      commands.map((command) =>
+        command.kind === 'claimWorkItem' ? { ...command, steps: [firstStep.id] } : command,
+      ),
+      admin,
+    );
   const plan = await run(
     Array.from({ length: LEAVES }, (_, n): PlanCommand => ({
       kind: 'createWorkItem',

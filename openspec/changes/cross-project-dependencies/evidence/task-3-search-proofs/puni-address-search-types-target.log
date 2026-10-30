@@ -1,0 +1,15 @@
+
+> nx run wbs-store-sqlite:typecheck
+
+> bunx tsc --build --force libs/wbs/adapters/store-sqlite/tsconfig.json
+
+
+
+
+ NX   Successfully ran target typecheck for project wbs-store-sqlite
+
+
+  Run duration:      4.7s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     4.7s (1 task)
+  Recoverable time:  <1ms

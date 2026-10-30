@@ -1,3 +1,8 @@
+import {
+  discoverAddressCandidates,
+  discoverAddressProjects,
+  resolveAddressReference,
+} from '@wbs/contracts';
 // The one exception to this file's "declare, do not import" rule, and it earns
 // it: a band's three fields are not the interesting part — `priorityBandRankOf`
 // and `priorityLadderProblem` are, they live beside the type in `libs/wbs/domain/domain`,
@@ -728,6 +733,8 @@ export interface SpanView {
 }
 
 export interface StepView {
+  /** Absent from older observations; null explicitly states that this step has no code. */
+  code?: string | null;
   estimateUnit: EstimateUnit;
   id: string;
   name: string;
@@ -736,22 +743,38 @@ export interface StepView {
 
 export type TypedDependencyType = 'FS' | 'SS' | 'FF';
 
-/** A scope chosen for one end of an authored relationship. */
+/** A scope chosen for one end of a relationship; explicit project coordinates retain stable remote IDs. */
 export type TypedDependencyEndpoint =
-  | { scope: 'whole'; workItemId: string }
-  | { scope: 'node'; stepNodeId: string }
-  | { scope: 'descendant-step'; workItemId: string; stepId: string };
+  | { scope: 'whole'; workItemId: string; projectId?: string; stepId?: never; stepNodeId?: never }
+  | { scope: 'node'; stepNodeId: string; projectId?: string; workItemId?: never; stepId?: never }
+  | { scope: 'node'; workItemId: string; stepId: string; projectId?: string; stepNodeId?: never }
+  | {
+      scope: 'descendant-step';
+      workItemId: string;
+      stepId: string;
+      projectId?: string;
+      stepNodeId?: never;
+    };
+
+/** Authorized endpoint words and navigation coordinates from the same connected read. */
+export type ConnectedDependencyEndpoint = NonNullable<
+  PlanReadWire['connectedDependencies']
+>[number]['predecessor'];
 
 /** The explicit relationship returned by a project tree read. */
 export interface TypedDependencyView {
   id: string;
   predecessor: {
+    captured?: ConnectedDependencyEndpoint;
+    projectId?: string;
     scope: 'whole' | 'node' | 'descendant-step';
     workItemId: string;
     stepId?: string;
     stepNodeId?: string;
   };
   successor: {
+    captured?: ConnectedDependencyEndpoint;
+    projectId?: string;
     scope: 'whole' | 'node' | 'descendant-step';
     workItemId: string;
     stepId?: string;
@@ -773,12 +796,15 @@ export interface TypedDependencyView {
  * at 0%` failed (2026-09-27).
  */
 export function stepViewOf(step: {
+  code?: string | null;
   id: string;
   name: string;
   allowancePercent?: number;
   estimateUnit?: EstimateUnit;
 }): StepView {
   return {
+    // Proof: dropping code failed the string/null/absent step-view observation test (2026-10-22).
+    ...(step.code === undefined ? {} : { code: step.code }),
     // Proof: forcing workdays failed step-view.test.ts minute preservation.
     estimateUnit: step.estimateUnit ?? 'workdays',
     id: step.id,
@@ -1404,6 +1430,7 @@ export type UndoResult =
  * `lastOpenedAt` the create route has never sent.
  */
 export interface ProjectListEntry {
+  abbreviation: string;
   id: string;
   name: string;
   restricted: boolean;
@@ -1438,6 +1465,7 @@ export interface ProjectListEntry {
  * fuller entry comes from.
  */
 export interface CreatedProject {
+  abbreviation: string;
   id: string;
   name: string;
   restricted: boolean;
@@ -1482,7 +1510,8 @@ export type OptimizationVariantView =
   | { readonly state: 'idle' };
 
 /** The selected schedule and both same-input optimizer states from one plan read. */
-export interface PlanOptimizationView {
+export interface LocalPlanOptimizationView {
+  readonly scope?: never;
   readonly enabled: boolean;
   readonly engine: ScheduleEngineView;
   readonly objective: ScheduleObjectiveView;
@@ -1516,6 +1545,15 @@ export interface PlanOptimizationView {
   readonly sameOrderAsFast: Readonly<Partial<Record<ScheduleObjectiveView, boolean>>>;
 }
 
+/** The captured connected wire view, preserved without reconstructing its question. */
+export type ConnectedPlanOptimizationView = Extract<
+  NonNullable<PlanReadWire['optimization']>,
+  { scope: { kind: 'connected-stage' } }
+>;
+
+/** The selected schedule and captured local or connected optimizer states. */
+export type PlanOptimizationView = LocalPlanOptimizationView | ConnectedPlanOptimizationView;
+
 /**
  * The project's work items, and the event sequence they were read at.
  *
@@ -1523,8 +1561,8 @@ export interface PlanOptimizationView {
  * produced the rows: taken separately it would describe a different moment
  * than the tree on screen.
  *
- * The shared response owns every top-level field. Only rows and steps are
- * adapted here because the UI keeps mutable label lists and a smaller step view.
+ * The shared response owns every top-level field. Rows, steps and explicit
+ * relationships are adapted for UI presentation; captured evidence stays intact.
  */
 type PlanReadWire = Extract<ClientReply<typeof getWorkItems>, { kind: 'success' }>['body'];
 
@@ -1626,8 +1664,15 @@ export async function planDocumentRequestFromJson(json: string): Promise<PlanDoc
 }
 export interface PlanRead extends Omit<
   PlanReadWire,
-  'workItems' | 'slices' | 'steps' | 'waitingForPerson' | 'waitingForCapacity' | 'waitingElsewhere'
+  | 'workItems'
+  | 'slices'
+  | 'steps'
+  | 'waitingForPerson'
+  | 'waitingForCapacity'
+  | 'waitingElsewhere'
+  | 'optimization'
 > {
+  optimization?: PlanOptimizationView;
   workItems: WorkItemView[];
   typedDependencies?: TypedDependencyView[];
   slices: SliceView[];
@@ -1641,6 +1686,32 @@ export interface PlanRead extends Omit<
    * dialog edit.
    */
   steps: StepView[];
+}
+
+/** Combines legacy local relationships with captured incident relationships by stable relationship ID. */
+export function dependencyViewsOf(
+  plan: Pick<PlanRead, 'typedDependencies' | 'connectedDependencies'>,
+  projectId: string,
+): TypedDependencyView[] {
+  const relationships = new Map(
+    (plan.typedDependencies ?? []).map((relationship) => [relationship.id, relationship]),
+  );
+  for (const relationship of plan.connectedDependencies ?? []) {
+    const viewEndpoint = (
+      captured: ConnectedDependencyEndpoint,
+    ): TypedDependencyView['predecessor'] => ({
+      ...captured.endpoint,
+      // Proof: classifying every endpoint as local made both mounted remote-label cases throw on remote-row (2026-10-22).
+      ...(captured.endpoint.projectId === projectId ? {} : { captured }),
+    });
+    relationships.set(relationship.id, {
+      id: relationship.id,
+      type: relationship.type,
+      predecessor: viewEndpoint(relationship.predecessor),
+      successor: viewEndpoint(relationship.successor),
+    });
+  }
+  return [...relationships.values()];
 }
 
 /**
@@ -1796,6 +1867,8 @@ export interface ProjectApi {
   openProject(id: string): Promise<void>;
   /** Renames the project. be-01 answers `forbidden` on a restricted one. */
   renameProject(id: string, name: string): Promise<void>;
+  /** Changes the project address prefix and returns its stored canonical spelling. */
+  setAbbreviation(id: string, abbreviation: string): Promise<string>;
   /** One read of the plan — see {@link PlanRead}, which be-01 answers whole. */
   tree(projectId: string): Promise<PlanRead>;
   /** Downloads the complete versioned archival document, independently of table visibility. */
@@ -2370,6 +2443,8 @@ const auth = (token: string): HeadersInit => ({ 'x-wbs-token': token });
 
 export function wbsFailureCode(failure: ClientFailure): string {
   switch (failure.code) {
+    case 'dependency_incompatible':
+      return 'dependency_incompatible';
     case 'cancelled':
     case 'invalid_request':
     case 'invalid_response':
@@ -3040,6 +3115,19 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
         }),
       );
     },
+    async setAbbreviation(id, abbreviation) {
+      // Proof: returning the requested uppercase string without reading the response
+      // failed `rejects a successful response missing its trusted abbreviation`:
+      // the promise resolved instead of rejecting. Watched 2026-10-22.
+      return jsonBody(
+        patchProjectShape,
+        await client.patchApiProjectsById({
+          params: { id },
+          body: { abbreviation },
+          headers: auth(token),
+        }),
+      ).project.abbreviation;
+    },
     async tree(projectId) {
       const tree = jsonBody(
         getWorkItems,
@@ -3048,9 +3136,18 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
           headers: auth(token),
         }),
       );
+      const { optimization, ...read } = tree;
+      // Proof: bypassing URL binding resolves foreign-project connected packets;
+      // the producer-to-HTTP project mismatch cases fail (2026-10-22).
+      if (optimization?.scope !== undefined && optimization.scope.projectId !== projectId)
+        throw new Error('connected_optimization_project_mismatch');
       const plan: PlanRead = {
-        ...tree,
-        typedDependencies: tree.typedDependencies ?? [],
+        ...read,
+        // Proof: dropping scope after decode rendered both editable rows and Time
+        // through the plain HTTP adapter, then failed the mounted table/card
+        // accessible retention assertion (b3-scope-plain-fault-final, 2026-10-22).
+        ...(optimization === undefined ? {} : { optimization }),
+        typedDependencies: dependencyViewsOf(tree, projectId),
         steps: tree.steps.map(stepViewOf),
         workItems: tree.workItems.map((row) => ({
           ...row,
@@ -3512,4 +3609,48 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
 
 export function depthOf(workItem: WorkItemView): number {
   return workItem.number.split('.').length - 1;
+}
+
+/** Read observations with typed refusals and cancellation; stable-ID writers reauthorize selections. */
+export interface ProjectAddressApi {
+  projects: (
+    query: { q?: string; limit?: string; cursor?: string },
+    signal?: AbortSignal,
+  ) => Promise<ClientReply<typeof discoverAddressProjects>>;
+  candidates: (
+    projectId: string,
+    query: { q?: string; limit?: string; cursor?: string },
+    signal?: AbortSignal,
+  ) => Promise<ClientReply<typeof discoverAddressCandidates>>;
+  resolve: (
+    projectId: string,
+    reference: string,
+    revision: string,
+    signal?: AbortSignal,
+  ) => Promise<ClientReply<typeof resolveAddressReference>>;
+}
+/** Uses the shared shape client, including its refusal schemas and AbortSignal contract. */
+export function httpProjectAddressApi(token: string, scope?: ResourceScope): ProjectAddressApi {
+  const client = browserClient(
+    [discoverAddressProjects, discoverAddressCandidates, resolveAddressReference] as const,
+    scope,
+  );
+  return {
+    projects: (query, signal) =>
+      client.getApiProjectAddressesProjects({ query, signal, headers: auth(token) }),
+    candidates: (projectId, query, signal) =>
+      client.getApiProjectsByIdAddressCandidates({
+        params: { id: projectId },
+        query,
+        signal,
+        headers: auth(token),
+      }),
+    resolve: (projectId, reference, revision, signal) =>
+      client.getApiProjectsByIdAddressReferences({
+        params: { id: projectId },
+        query: { reference, revision },
+        signal,
+        headers: auth(token),
+      }),
+  };
 }

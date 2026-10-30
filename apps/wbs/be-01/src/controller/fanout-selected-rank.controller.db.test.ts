@@ -2,6 +2,7 @@ import { encodeOptimizedResult } from '@wbs/contracts/solver/optimized-result';
 import { readSharedPeople } from '@wbs/core';
 import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import { displaySchedule } from '@wbs/core/service/shared-people';
+import { scheduleResolved } from '@wbs/domain';
 import { contractVersionOf, schedule, sliceKey } from '@wbs/domain';
 import { createScheduler } from '@wbs/runtime-portable';
 import { openConnection } from '@wbs/store-sqlite/db';
@@ -91,6 +92,7 @@ it('uses a selected ready upstream booking for a mounted rank move without optim
   const fast = createScheduler(
     (rows, edges, slices, floors, pools, reach, deadlines, typed, elsewhere) =>
       schedule(rows, edges, slices, floors, pools, reach, deadlines, typed, undefined, elsewhere),
+    scheduleResolved,
   );
   const chain = readSharedPeople([higher], upstream.id, fast);
   if (chain.kind !== 'scheduled' || chain.scheduled.kind !== 'scheduled')

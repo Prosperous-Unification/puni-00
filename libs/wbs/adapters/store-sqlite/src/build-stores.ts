@@ -44,6 +44,10 @@ export function buildStores(
 ) {
   return {
     ...(livePlans === undefined ? {} : { livePlans }),
+    // Proof: returning inactive admitted the public-catalog negative in writer-authority-binding.db.test.ts.
+    externalDependencyAuthoring: () => {
+      throw new Error('external dependency authority requires an admitted writer');
+    },
     projects: new ProjectRepository(db, gate),
     projectRanks: new ProjectRankRepository(db, gate),
     users: new UserRepository(db, gate),

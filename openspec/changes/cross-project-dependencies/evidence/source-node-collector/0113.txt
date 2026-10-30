@@ -1,0 +1,38 @@
+
+test/source-inner-command-child.test.ts:
+source Node command boundary: genuine original context and original running tree reached
+source Node command actual dispatch captured
+49 |           const observation = await observeSelectedSourceRoles(context);
+50 |           expect(dispatches.length).toBe(2);
+51 |           const first = dispatches[0];
+52 |           expect(first).toBeDefined();
+53 |           console.error('source Node command actual dispatch captured');
+54 |           expect(first.args).toEqual([
+                                  ^
+error: expect(received).toEqual(expected)
+
+@@ -2,11 +2,11 @@
+    "--host",
+    "unix:///var/run/docker.sock",
+    "exec",
+    "-i",
+    "--user",
+-   "1000:1000",
++   "0:0",
+    "--workdir",
+    "/",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "/usr/bin/env",
+    "-i",
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-command.model.ts:54:30)
+      at async acquireLock (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source original context dispatches the complete fixed Node command [88357.95ms]
+
+ 0 pass
+ 1 fail
+ 129 expect() calls
+Ran 1 test across 1 file. [88.43s]

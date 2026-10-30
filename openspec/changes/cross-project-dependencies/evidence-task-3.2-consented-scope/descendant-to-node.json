@@ -1,0 +1,7 @@
+{
+  "fault": "descendant-to-node",
+  "path": "libs/wbs/application/core/src/service/command-fields.ts",
+  "before": "const scope: unknown = Reflect.get(raw, 'scope');",
+  "after": "const scope: unknown = Reflect.get(raw, 'scope') === 'descendant-step' ? 'node' : Reflect.get(raw, 'scope');",
+  "exitCode": 1
+}

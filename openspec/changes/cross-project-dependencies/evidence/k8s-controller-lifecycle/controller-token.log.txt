@@ -1,0 +1,36 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+811 |           fixture.options,
+812 |         ),
+813 |       ).rejects.toThrow('rollback-failed');
+814 |       fixture.load();
+815 |       expect(fixture.objects['cronjob/sqlite-backup'].spec.suspend).toBe(false);
+816 |       expect(fixture.fake.calls).not.toContain('capture');
+                                           ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "capture"
+Received: [
+  "observeCluster", "readLease", "createLease", "renewLease", "renewLease", "admitBackendImages",
+  "renewLease", "renewLease", "closeWrites", "renewLease", "drainGateway", "renewLease", "stopWriter",
+  "renewLease", "renewLease", "renewLease", "renewLease", "requireJournal", "renewLease", "renewLease",
+  "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease",
+  "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease",
+  "renewLease", "observeReplayInventory", "observeReplayCapabilities", "observeReplayCapabilities",
+  "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease",
+  "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease",
+  "capture", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease",
+  "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease",
+  "renewLease", "migrate", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease",
+  "renewLease", "renewLease", "parkLease"
+]
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:816:38)
+(fail) mounted atomic token guard refuses a patch race before changing suspension [3622.53ms]
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [3.67s]

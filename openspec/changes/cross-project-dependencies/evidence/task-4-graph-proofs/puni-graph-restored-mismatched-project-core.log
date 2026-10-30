@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+(pass) rejects a required project read returning another project identity [1.51ms]
+
+ 1 pass
+ 14 filtered out
+ 0 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [132.00ms]

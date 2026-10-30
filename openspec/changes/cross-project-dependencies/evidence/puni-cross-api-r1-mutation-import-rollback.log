@@ -1,0 +1,321 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address.controller.db.test.ts:
+210 |   expect(snapshot()).toEqual(before);
+211 |   expect(await h.call('ada', 'POST', '/api/projects/import', newDirectoryImport('Counter exhausted'))).toMatchObject({
+212 |     status: 409,
+213 |     body: { error: 'abbreviation_exhausted' },
+214 |   });
+215 |   expect(snapshot()).toEqual(before);
+                           ^
+error: expect(received).toEqual(expected)
+
+@@ -154,20 +154,23 @@
+      "rows": [],
+    },
+    {
+      "name": "external_system",
+      "rows": [
++       "{"id":"ee11fd17-eb41-412d-8d8a-6133a9cde0c3","name":"ee11fd17-eb41-412d-8d8a-6133a9cde0c3","created_at":1792622164243,"updated_at":1792622164243,"created_by":"eddba970-a240-419a-a4ee-de066792fa19"}",
+        "{"id":"sys-confluence-page","name":"confluence-page","created_at":null,"updated_at":null,"created_by":null}",
+        "{"id":"sys-github-issue","name":"github-issue","created_at":null,"updated_at":null,"created_by":null}",
+        "{"id":"sys-github-pr","name":"github-pr","created_at":null,"updated_at":null,"created_by":null}",
+        "{"id":"sys-jira-issue","name":"jira-issue","created_at":null,"updated_at":null,"created_by":null}",
+        "{"id":"sys-slack-message","name":"slack-message","created_at":null,"updated_at":null,"created_by":null}",
+      ],
+    },
+    {
+      "name": "external_system_organization",
+-     "rows": [],
++     "rows": [
++       "{"resource_id":"ee11fd17-eb41-412d-8d8a-6133a9cde0c3","organization_id":"org-a","name":"New Exhaustion System"}",
++     ],
+    },
+    {
+      "name": "optimization_generation",
+      "rows": [],
+    },
+@@ -228,19 +231,25 @@
+      "name": "organization_sso_connection",
+      "rows": [],
+    },
+    {
+      "name": "person",
+-     "rows": [],
++     "rows": [
++       "{"id":"848e2d50-dcf0-46d3-bff0-f58beb18ee64","name":"848e2d50-dcf0-46d3-bff0-f58beb18ee64","kind":"agent","created_at":1792622164240,"updated_at":1792622164240,"created_by":"eddba970-a240-419a-a4ee-de066792fa19","account_id":null}",
++     ],
+    },
+    {
+      "name": "person_organization",
+-     "rows": [],
++     "rows": [
++       "{"resource_id":"848e2d50-dcf0-46d3-bff0-f58beb18ee64","organization_id":"org-a","name":"New Exhaustion Person"}",
++     ],
+    },
+    {
+      "name": "person_team",
+-     "rows": [],
++     "rows": [
++       "{"person_id":"848e2d50-dcf0-46d3-bff0-f58beb18ee64","service_team_id":"005edde3-91f4-4a1f-aed2-9324fc87b18f","created_at":1792622164240,"updated_at":1792622164240,"created_by":"eddba970-a240-419a-a4ee-de066792fa19"}",
++     ],
+    },
+    {
+      "name": "plan_event",
+      "rows": [],
+    },
+@@ -306,23 +315,31 @@
+      "name": "saved_plan_organization",
+      "rows": [],
+    },
+    {
+      "name": "service",
+-     "rows": [],
++     "rows": [
++       "{"id":"866cd858-622c-41a1-80bb-46d93b8c648c","name":"866cd858-622c-41a1-80bb-46d93b8c648c","created_at":1792622164236,"updated_at":1792622164236,"created_by":"eddba970-a240-419a-a4ee-de066792fa19"}",
++     ],
+    },
+    {
+      "name": "service_organization",
+-     "rows": [],
++     "rows": [
++       "{"resource_id":"866cd858-622c-41a1-80bb-46d93b8c648c","organization_id":"org-a","name":"New Exhaustion Service"}",
++     ],
+    },
+    {
+      "name": "service_team",
+-     "rows": [],
++     "rows": [
++       "{"id":"005edde3-91f4-4a1f-aed2-9324fc87b18f","name":"005edde3-91f4-4a1f-aed2-9324fc87b18f","size":null,"created_at":1792622164237,"updated_at":1792622164237,"created_by":"eddba970-a240-419a-a4ee-de066792fa19"}",
++     ],
+    },
+    {
+      "name": "service_team_organization",
+-     "rows": [],
++     "rows": [
++       "{"resource_id":"005edde3-91f4-4a1f-aed2-9324fc87b18f","organization_id":"org-a","name":"New Exhaustion Team"}",
++     ],
+    },
+    {
+      "name": "shared_people_audit",
+      "rows": [],
+    },
+@@ -400,19 +417,25 @@
+      "name": "step_progress",
+      "rows": [],
+    },
+    {
+      "name": "tag",
+-     "rows": [],
++     "rows": [
++       "{"id":"43447ce2-6e85-419c-82e5-d004bf45398f","name":"43447ce2-6e85-419c-82e5-d004bf45398f","created_at":1792622164242,"updated_at":1792622164242,"created_by":"eddba970-a240-419a-a4ee-de066792fa19"}",
++     ],
+    },
+    {
+      "name": "tag_organization",
+-     "rows": [],
++     "rows": [
++       "{"resource_id":"43447ce2-6e85-419c-82e5-d004bf45398f","organization_id":"org-a","name":"New Exhaustion Tag"}",
++     ],
+    },
+    {
+      "name": "team_service",
+-     "rows": [],
++     "rows": [
++       "{"team_id":"005edde3-91f4-4a1f-aed2-9324fc87b18f","service_id":"866cd858-622c-41a1-80bb-46d93b8c648c","created_at":1792622164239,"updated_at":1792622164239,"created_by":"eddba970-a240-419a-a4ee-de066792fa19"}",
++     ],
+    },
+    {
+      "name": "typed_dependency",
+      "rows": [],
+    },
+@@ -448,15 +471,19 @@
+      "name": "work_item_team",
+      "rows": [],
+    },
+    {
+      "name": "work_item_type",
+-     "rows": [],
++     "rows": [
++       "{"id":"d78174c5-97dc-446f-a1e2-c468b92d0ca1","name":"d78174c5-97dc-446f-a1e2-c468b92d0ca1","created_at":1792622164243,"updated_at":1792622164243,"created_by":"eddba970-a240-419a-a4ee-de066792fa19"}",
++     ],
+    },
+    {
+      "name": "work_item_type_organization",
+-     "rows": [],
++     "rows": [
++       "{"resource_id":"d78174c5-97dc-446f-a1e2-c468b92d0ca1","organization_id":"org-a","name":"New Exhaustion Type"}",
++     ],
+    },
+    {
+      "name": "work_item_work_item_type",
+      "rows": [],
+    },
+
+- Expected  - 13
++ Received  + 40
+
+      at <anonymous> (/tmp/puni-cross-api/apps/wbs/be-01/src/controller/project-address.controller.db.test.ts:215:22)
+(fail) counter exhaustion rolls back creation and import [493.57ms]
+264 |   });
+265 |   expect(snapshot()).toEqual(before);
+266 |   expect(
+267 |     await h.call('ada', 'POST', '/api/projects/import', newDirectoryImport('Puni core')),
+268 |   ).toMatchObject({ status: 409, body: { error: 'abbreviation_exhausted' } });
+269 |   expect(snapshot()).toEqual(before);
+                           ^
+error: expect(received).toEqual(expected)
+
+@@ -154,20 +154,23 @@
+      "rows": [],
+    },
+    {
+      "name": "external_system",
+      "rows": [
++       "{"id":"6d9fd1a2-f928-4926-a70b-1512840c684a","name":"6d9fd1a2-f928-4926-a70b-1512840c684a","created_at":1792622165701,"updated_at":1792622165701,"created_by":"1d3c49c9-5a6e-419f-b126-6a9c12eef396"}",
+        "{"id":"sys-confluence-page","name":"confluence-page","created_at":null,"updated_at":null,"created_by":null}",
+        "{"id":"sys-github-issue","name":"github-issue","created_at":null,"updated_at":null,"created_by":null}",
+        "{"id":"sys-github-pr","name":"github-pr","created_at":null,"updated_at":null,"created_by":null}",
+        "{"id":"sys-jira-issue","name":"jira-issue","created_at":null,"updated_at":null,"created_by":null}",
+        "{"id":"sys-slack-message","name":"slack-message","created_at":null,"updated_at":null,"created_by":null}",
+      ],
+    },
+    {
+      "name": "external_system_organization",
+-     "rows": [],
++     "rows": [
++       "{"resource_id":"6d9fd1a2-f928-4926-a70b-1512840c684a","organization_id":"org-a","name":"New Exhaustion System"}",
++     ],
+    },
+    {
+      "name": "optimization_generation",
+      "rows": [],
+    },
+@@ -228,19 +231,25 @@
+      "name": "organization_sso_connection",
+      "rows": [],
+    },
+    {
+      "name": "person",
+-     "rows": [],
++     "rows": [
++       "{"id":"d5c30566-b061-4eb9-8698-995b126e054d","name":"d5c30566-b061-4eb9-8698-995b126e054d","kind":"agent","created_at":1792622165700,"updated_at":1792622165700,"created_by":"1d3c49c9-5a6e-419f-b126-6a9c12eef396","account_id":null}",
++     ],
+    },
+    {
+      "name": "person_organization",
+-     "rows": [],
++     "rows": [
++       "{"resource_id":"d5c30566-b061-4eb9-8698-995b126e054d","organization_id":"org-a","name":"New Exhaustion Person"}",
++     ],
+    },
+    {
+      "name": "person_team",
+-     "rows": [],
++     "rows": [
++       "{"person_id":"d5c30566-b061-4eb9-8698-995b126e054d","service_team_id":"0c6da39b-5a9b-49cc-8457-b795ff616372","created_at":1792622165700,"updated_at":1792622165700,"created_by":"1d3c49c9-5a6e-419f-b126-6a9c12eef396"}",
++     ],
+    },
+    {
+      "name": "plan_event",
+      "rows": [],
+    },
+@@ -2346,23 +2355,31 @@
+      "name": "saved_plan_organization",
+      "rows": [],
+    },
+    {
+      "name": "service",
+-     "rows": [],
++     "rows": [
++       "{"id":"c8b17833-1c59-4512-abe9-fcb3243414bc","name":"c8b17833-1c59-4512-abe9-fcb3243414bc","created_at":1792622165698,"updated_at":1792622165698,"created_by":"1d3c49c9-5a6e-419f-b126-6a9c12eef396"}",
++     ],
+    },
+    {
+      "name": "service_organization",
+-     "rows": [],
++     "rows": [
++       "{"resource_id":"c8b17833-1c59-4512-abe9-fcb3243414bc","organization_id":"org-a","name":"New Exhaustion Service"}",
++     ],
+    },
+    {
+      "name": "service_team",
+-     "rows": [],
++     "rows": [
++       "{"id":"0c6da39b-5a9b-49cc-8457-b795ff616372","name":"0c6da39b-5a9b-49cc-8457-b795ff616372","size":null,"created_at":1792622165698,"updated_at":1792622165698,"created_by":"1d3c49c9-5a6e-419f-b126-6a9c12eef396"}",
++     ],
+    },
+    {
+      "name": "service_team_organization",
+-     "rows": [],
++     "rows": [
++       "{"resource_id":"0c6da39b-5a9b-49cc-8457-b795ff616372","organization_id":"org-a","name":"New Exhaustion Team"}",
++     ],
+    },
+    {
+      "name": "shared_people_audit",
+      "rows": [],
+    },
+@@ -2443,19 +2460,25 @@
+      "name": "step_progress",
+      "rows": [],
+    },
+    {
+      "name": "tag",
+-     "rows": [],
++     "rows": [
++       "{"id":"487becc8-f4dd-4060-8ab1-682c2499c667","name":"487becc8-f4dd-4060-8ab1-682c2499c667","created_at":1792622165701,"updated_at":1792622165701,"created_by":"1d3c49c9-5a6e-419f-b126-6a9c12eef396"}",
++     ],
+    },
+    {
+      "name": "tag_organization",
+-     "rows": [],
++     "rows": [
++       "{"resource_id":"487becc8-f4dd-4060-8ab1-682c2499c667","organization_id":"org-a","name":"New Exhaustion Tag"}",
++     ],
+    },
+    {
+      "name": "team_service",
+-     "rows": [],
++     "rows": [
++       "{"team_id":"0c6da39b-5a9b-49cc-8457-b795ff616372","service_id":"c8b17833-1c59-4512-abe9-fcb3243414bc","created_at":1792622165699,"updated_at":1792622165699,"created_by":"1d3c49c9-5a6e-419f-b126-6a9c12eef396"}",
++     ],
+    },
+    {
+      "name": "typed_dependency",
+      "rows": [],
+    },
+@@ -2491,15 +2514,19 @@
+      "name": "work_item_team",
+      "rows": [],
+    },
+    {
+      "name": "work_item_type",
+-     "rows": [],
++     "rows": [
++       "{"id":"ad32e5e4-0cb7-4e2c-b301-9b9bf0503b74","name":"ad32e5e4-0cb7-4e2c-b301-9b9bf0503b74","created_at":1792622165701,"updated_at":1792622165701,"created_by":"1d3c49c9-5a6e-419f-b126-6a9c12eef396"}",
++     ],
+    },
+    {
+      "name": "work_item_type_organization",
+-     "rows": [],
++     "rows": [
++       "{"resource_id":"ad32e5e4-0cb7-4e2c-b301-9b9bf0503b74","organization_id":"org-a","name":"New Exhaustion Type"}",
++     ],
+    },
+    {
+      "name": "work_item_work_item_type",
+      "rows": [],
+    },
+
+- Expected  - 13
++ Received  + 40
+
+      at <anonymous> (/tmp/puni-cross-api/apps/wbs/be-01/src/controller/project-address.controller.db.test.ts:269:22)
+(fail) bounded name family exhaustion rolls back all project and import writes [1461.77ms]
+
+ 0 pass
+ 13 filtered out
+ 2 fail
+ 9 expect() calls
+Ran 2 tests across 1 file. [4.05s]

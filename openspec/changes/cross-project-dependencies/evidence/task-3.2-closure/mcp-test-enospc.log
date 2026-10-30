@@ -1,0 +1,434 @@
+
+> nx run wbs-mcp-01:test
+
+> bun test --coverage --coverage-reporter=lcov --timeout=10000
+
+bun test v1.4.2 (744846f84)
+
+src/caller-auth.test.ts:
+✓ authenticateCaller > verifies standalone Bearer tokens and exposes their WBS scopes [0.58ms]
+✓ authenticateCaller > uses a verifier-provided downstream token without exposing it in the local JWT [0.13ms]
+✓ authenticateCaller > decodes a trusted gateway token without signature verification [86.36ms]
+✓ authenticateCaller > refuses a missing or malformed Bearer credential [0.54ms]
+
+src/unexpected-tool-failure.test.ts:
+✓ returns one public disclosure and logs its registered diagnostic occurrence [7.40ms]
+✓ returns one fixed correlated disclosure and log record when reporting is lost [0.66ms]
+
+src/shape-document.test.ts:
+✓ derives the named MCP tool with all path/query/body inputs and exclusions from emitted shapes [2.09ms]
+✓ keeps both nested command alternatives usable in the derived MCP input schema [0.55ms]
+✓ carries production command descriptors through the generated MCP input [5.53ms]
+✓ refuses recursive declarations before publishing MCP inputs with unresolved references [5.06ms]
+✓ refuses structural descriptors whose nested references would lose their definition context [2.41ms]
+✓ preserves literal $ref fields and const objects in emitted MCP inputs [1.90ms]
+
+src/oauth-timing-safe.test.ts:
+✓ isolated Bun process observes MCP state comparisons at the crypto primitive [3268.73ms]
+
+src/organization-authority.test.ts:
+✓ organization authority client > sends the service secret and the upstream token, and the binding in the body [0.57ms]
+✓ organization authority client > reads each modeled delegation refusal and throws on the rest [1.25ms]
+✓ organization authority client > lists consent organizations and reads a refused upstream token [0.56ms]
+✓ organization authority client > mints a consent credential, reading each modeled refusal and throwing on the rest [0.48ms]
+✓ organization authority client > reports an ended consent family without a user credential [0.65ms]
+✓ organization authority client > reads family authority, unavailable on an outage and defective otherwise [0.72ms]
+
+src/http.test.ts:
+✓ healthResponse > exposes liveness, readiness, and ALB readiness separately [0.17ms]
+✓ oauthMetadataResponse > publishes RFC 9728 protected-resource metadata at the MCP discovery path [0.16ms]
+✓ oauthMetadataResponse > publishes RFC 8414 metadata for a PKCE authorization-code server [0.10ms]
+✓ oauthMetadataResponse > serves every public discovery URL through the mounted handler with consistent URLs [0.54ms]
+✓ oauthMetadataResponse > does not answer metadata on a lookalike path [0.03ms]
+✓ mcpHttpResponse > challenges an unauthenticated MCP caller with the RFC 9728 metadata URL [0.28ms]
+✓ mcpHttpResponse > labels a presented invalid MCP token in the challenge [0.15ms]
+✓ mcpHttpResponse > dispatches fronting authorization-server requests before MCP auth [0.09ms]
+✓ mcpFetchHandler > answers a second request after initialize on a stateless endpoint [15.50ms]
+✓ mcpFetchHandler > refuses a tool call one byte over the 4 MiB request-body cap with 413 [33.49ms]
+✓ mcpFetchHandler > ends a local session after be-01 rejects its upstream token [3.12ms]
+✓ mcpFetchHandler > keeps the local session after the deployment Basic gate rejects a call [1.43ms]
+
+src/dependency-capabilities-cli.test.ts:
+✓ observes frozen mcp empty support independently of configuration and startup (DB_PATH=%s) [16.85ms]
+✓ observes frozen mcp empty support independently of configuration and startup (DB_PATH=/unavailable/store.sqlite) [14.53ms]
+✓ refuses capability arguments before emitting an observation [16.16ms]
+
+src/config.test.ts:
+✓ loadConfig > returns the public MCP resource URL when present [0.33ms]
+✓ loadConfig > leaves WBS_BASIC_AUTH undefined when unset [0.04ms]
+✓ loadConfig > refuses to boot without WBS_API_URL, and names it [0.41ms]
+✓ loadConfig > refuses gateway mode unless the trusted gateway is explicit [0.08ms]
+✓ loadConfig > refuses to boot without the canonical public MCP resource URL [0.11ms]
+✓ loadConfig > rejects a WBS_API_URL that is not a URL [0.08ms]
+✓ loadConfig > rejects a WBS_BASIC_AUTH with no colon [0.07ms]
+✓ loadConfig > refuses an unknown MCP authentication mode [0.03ms]
+✓ loadConfig > never puts a secret in the message it throws [0.09ms]
+
+src/pending-authorizations.test.ts:
+✓ PendingAuthorizations > samples one clock instant while saving both records [0.64ms]
+✓ PendingAuthorizations > enforces global and per-client capacity without eviction, then frees both at expiry [0.25ms]
+✓ PendingAuthorizations > refuses a duplicate live binding without replacing its authorization [0.38ms]
+✓ PendingAuthorizations > throws when consumed proof has no matching authorization context [0.14ms]
+
+src/credential-epoch.test.ts:
+✓ credential epoch advance > revokes every pre-activation family and session [87.14ms]
+✓ credential epoch advance > reports a consent family retired by the epoch advance, or by another writer [68.28ms]
+✓ credential epoch advance > refuses while this process has the store open, and changes nothing [41.16ms]
+✓ credential epoch advance > refuses a store that is not in WAL mode [36.03ms]
+✓ credential epoch advance > refuses a store this release has not migrated [12.80ms]
+✓ credential epoch advance > refuses an epoch it does not know [49.17ms]
+✓ credential-epoch-cli.ts > dry-runs, applies once, then reports the activated epoch as a no-op [126.35ms]
+✓ credential-epoch-cli.ts > refuses while an mcp-01 process has the store open [122.22ms]
+✓ credential-epoch-cli.ts > refuses an absent store without creating it [22.63ms]
+✓ credential-epoch-cli.ts > refuses without MCP_STORE_PATH or with unknown arguments [80.28ms]
+✓ pre-activation access, refresh and code refusal > refuses access and refresh after the epoch advance, and an old code after a reopen [57.87ms]
+✓ pre-activation access, refresh and code refusal > forgets a code issued before a store reopen at the same epoch [22.59ms]
+✓ pre-activation access, refresh and code refusal > refuses an older-epoch session at every use [23.38ms]
+✓ pre-activation access, refresh and code refusal > refuses an older-epoch refresh before any provider work [29.67ms]
+✓ pre-activation access, refresh and code refusal > refuses a refresh whose epoch advanced during the provider refresh [30.96ms]
+✓ pre-activation access, refresh and code refusal > refuses a code issued before the epoch advanced [28.62ms]
+✓ pre-activation access, refresh and code refusal > refuses an unbound consent between the epoch advance and activation [28.86ms]
+✓ pre-activation access, refresh and code refusal > refuses consent without organization authority once another writer advanced the epoch [15.26ms]
+✓ pre-activation access, refresh and code refusal > refuses to start at the activated epoch without organization authority [21.62ms]
+
+src/calendar-marker-shapes.test.ts:
+✓ derives all marker tools with project id and markerId in separate locations [1.27ms]
+
+src/main.test.ts:
+✓ reports one unexpected production tool failure under its shared occurrence [6.77ms]
+✓ starts without a Basic secret and writes OAuth and startup facts through the logger [0.53ms]
+✓ reports a failed refresh session lookup once through the production reporter [2.70ms]
+✓ reports a failed session end once through the production reporter [1.90ms]
+✓ sweeps once at startup [0.42ms]
+✓ schedules the consent end report and reports its failure [0.95ms]
+
+src/store-migrations.test.ts:
+✓ MCP store migrations > creates an absent store at epoch 0 with every migration recorded once [22.89ms]
+✓ MCP store migrations > adopts an exact legacy store and keeps its sessions and refresh tokens usable [61.53ms]
+✓ MCP store migrations > adopts the dev store schema read from its sqlite_master on 2026-09-27 [34.71ms]
+✓ MCP store migrations > refuses a ledgered store whose schema drifted: a missing table [22.22ms]
+✓ MCP store migrations > refuses a ledgered store whose schema drifted: an unconstrained epoch table [22.13ms]
+✓ MCP store migrations > refuses a partial pre-ledger store [16.93ms]
+✓ MCP store migrations > refuses a pre-ledger store with an extra object [25.82ms]
+✓ MCP store migrations > refuses an existing zero-byte file instead of initializing it [2.35ms]
+✓ MCP store migrations > refuses an existing empty-schema file instead of initializing it [9.11ms]
+✓ MCP store migrations > refuses an unreadable store [18.35ms]
+✓ MCP store migrations > applies nothing and records nothing when a migration fails midway [20.00ms]
+✓ MCP store migrations > refuses edited SQL and unknown history [25.36ms]
+✓ MCP store migrations > applies each migration once when two processes start on one absent store [58.45ms]
+✓ switchToWal > waits out a rival that holds the write lock, which busy_timeout does not [9.09ms]
+✓ switchToWal > gives up with the lock error after 100 refused attempts [1.35ms]
+✓ switchToWal > bounds an exclusive rival and restores the caller busy timeout [1.15ms]
+✓ switchToWal > refuses a closed connection before any WAL attempt [0.16ms]
+✓ switchToWal > does not retry SQLITE_READONLY and restores the caller busy timeout [7.82ms]
+✓ switchToWal > refuses an absent busy-timeout reading before changing the connection [0.20ms]
+✓ MCP credential bindings > stores a complete binding and copies it to every session of the family [17.11ms]
+✓ MCP credential bindings > rejects a partial family binding [19.98ms]
+✓ MCP credential bindings > rejects a empty family binding [15.55ms]
+✓ MCP credential bindings > rejects a family without organization [9.31ms]
+✓ MCP credential bindings > rejects a session unlike its family [10.99ms]
+✓ MCP credential bindings > rejects a unbound session of a bound family [9.67ms]
+✓ MCP credential bindings > rejects a family at a future epoch [11.58ms]
+✓ MCP credential bindings > rejects a changed family binding [9.73ms]
+✓ MCP credential bindings > rejects a changed session binding [7.45ms]
+✓ MCP credential bindings > rejects a deleted epoch [6.38ms]
+✓ MCP credential bindings > rejects a decreased epoch [7.87ms]
+✓ MCP credential bindings > rejects a replaced epoch [8.19ms]
+✓ MCP credential bindings > refuses to refresh a family issued before the epoch advanced [7.84ms]
+✓ MCP credential bindings > refuses unbound issuance once the epoch has advanced [6.68ms]
+✓ MCP credential epoch at startup > refuses startup on a missing table without reseeding [13.29ms]
+✓ MCP credential epoch at startup > refuses startup on a missing row without reseeding [11.90ms]
+✓ MCP credential epoch at startup > refuses startup on a malformed value without reseeding [15.93ms]
+✓ MCP credential epoch at startup > refuses startup on a unsupported epoch without reseeding [14.59ms]
+✓ readCredentialEpoch > refuses an unreadable epoch table instead of defaulting it [0.31ms]
+✓ MCP store rollback > refuses while a bound family without sessions can still refresh [18.75ms]
+✓ MCP store rollback > refuses while a bound session is live [12.67ms]
+✓ MCP store rollback > refuses at an advanced epoch [13.68ms]
+✓ MCP store rollback > purges dead bound credentials, preserves legacy ones and reaches the baseline [19.92ms]
+✓ MCP family-person migration > stores the person on the family and copies it to every session [9.29ms]
+✓ MCP family-person migration > refuses to exchange a consent code whose pending consent was already reported ended [2.31ms]
+✓ MCP family-person migration > refuses a family that names a person without its credential [9.69ms]
+✓ MCP family-person migration > refuses a person on an unbound family [9.10ms]
+✓ MCP family-person migration > refuses a session unlike its family's person [9.76ms]
+✓ MCP family-person migration > refuses a session of a person's family acting as its human [10.52ms]
+✓ MCP family-person migration > refuses a changed family person [8.61ms]
+✓ MCP family-person migration > refuses a changed session person [9.94ms]
+✓ MCP family-person migration > refuses a reported end of a family acting as nobody [9.38ms]
+✓ MCP family-person migration > refuses to roll back while a family names a person [28.00ms]
+✓ MCP family-person migration > lists ended consents earliest end first, within the limit [2.38ms]
+✓ MCP family-person migration > refuses to roll back while a consent is pending [7.91ms]
+✓ MCP registered-client migration > rolls back to the binding migration, dropping clients, and forward again [18.82ms]
+✓ MCP registered-client migration > keeps a registered client across a reopen until it expires [12.35ms]
+✓ MCP registered-client migration > never shortens a lifetime when an extension follows a promotion [2.40ms]
+✓ MCP registered-client migration > refuses a stored client with unparseable redirect_uris instead of reading it as absent [7.68ms]
+✓ MCP registered-client migration > refuses a stored client with an empty redirect list instead of reading it as absent [8.61ms]
+✓ MCP registered-client migration > refuses a stored client with a non-string redirect instead of reading it as absent [8.27ms]
+✓ MCP registered-client migration > refuses a stored client with proven outside 0 and 1 instead of reading it as absent [7.57ms]
+✓ MCP registered-client migration > refuses a stored client with a text expiry instead of reading it as absent [7.76ms]
+
+src/connected-command-parity.test.ts:
+✓ HTTP commits whole FS and rereads connected placement through generated MCP [3979.59ms]
+✓ MCP commits whole FS and rereads connected placement through generated MCP [4038.57ms]
+✓ ordinary MCP composition refuses dormant external commands without durable effects or pushes [4056.04ms]
+✓ HTTP rolls back external add when a later command fails at its index [3922.64ms]
+✓ MCP rolls back external add when a later command fails at its index [3885.54ms]
+✓ read-only MCP grant refuses the otherwise admitted external command [3930.80ms]
+✓ setup document failure closes acquired transports and reaps the already ready backend [3938.98ms]
+✓ client and server close failures still disconnect transports and reap backend [3950.88ms]
+✓ a backend that misses graceful exit is force killed reaped and reported [5001.59ms]
+✓ HTTP node split binds dotted successor alias and derives FS placement [4137.83ms]
+✓ HTTP node encoded binds dotted successor alias and derives FS placement [4123.46ms]
+✓ HTTP node remote-step refuses atomically with all staged effects rolled back [3931.69ms]
+✓ HTTP node descendant-leaf refuses atomically with all staged effects rolled back [4196.26ms]
+✓ HTTP node explicit-remote-alias refuses atomically with all staged effects rolled back [4333.32ms]
+✓ HTTP node explicit-owner-alias refuses atomically with all staged effects rolled back [4201.71ms]
+✓ HTTP node later-command refuses atomically with all staged effects rolled back [4506.23ms]
+✓ HTTP node dormant refuses atomically with all staged effects rolled back [4199.91ms]
+✓ MCP node split binds dotted successor alias and derives FS placement [4462.44ms]
+✓ MCP node encoded binds dotted successor alias and derives FS placement [4312.56ms]
+✓ MCP node remote-step refuses atomically with all staged effects rolled back [4539.91ms]
+✓ MCP node descendant-leaf refuses atomically with all staged effects rolled back [4699.15ms]
+✓ MCP node explicit-remote-alias refuses atomically with all staged effects rolled back [4659.10ms]
+✓ MCP node explicit-owner-alias refuses atomically with all staged effects rolled back [4816.35ms]
+✓ MCP node later-command refuses atomically with all staged effects rolled back [6340.13ms]
+✓ MCP node dormant refuses atomically with all staged effects rolled back [4714.17ms]
+✓ readiness deadline failure reaps the child before returning [2.21ms]
+✓ HTTP node split SS preserves type and distinct connected placement [4719.00ms]
+✓ HTTP node split FF preserves type and distinct connected placement [5012.28ms]
+✓ HTTP node split FS preserves type and distinct connected placement [4347.56ms]
+✓ HTTP node encoded SS preserves type and distinct connected placement [6567.58ms]
+✓ HTTP node encoded FF preserves type and distinct connected placement [6937.09ms]
+✓ HTTP node encoded FS preserves type and distinct connected placement [6479.35ms]
+✓ HTTP node without external edge keeps the staged successor at 0→1 [7409.86ms]
+✓ HTTP node SS later-command preserves the prepared database and pushes [6410.56ms]
+✓ HTTP node SS dormant preserves the prepared database and pushes [5641.08ms]
+✓ HTTP node FF later-command preserves the prepared database and pushes [4614.60ms]
+✓ HTTP node FF dormant preserves the prepared database and pushes [4548.34ms]
+✓ MCP node split SS preserves type and distinct connected placement [4800.46ms]
+✓ MCP node split FF preserves type and distinct connected placement [4855.19ms]
+✓ MCP node split FS preserves type and distinct connected placement [4686.38ms]
+✓ MCP node encoded SS preserves type and distinct connected placement [4877.35ms]
+✓ MCP node encoded FF preserves type and distinct connected placement [4914.54ms]
+✓ MCP node encoded FS preserves type and distinct connected placement [4669.99ms]
+✓ MCP node without external edge keeps the staged successor at 0→1 [4560.25ms]
+✓ MCP node SS later-command preserves the prepared database and pushes [4488.34ms]
+✓ MCP node SS dormant preserves the prepared database and pushes [4132.62ms]
+✓ MCP node FF later-command preserves the prepared database and pushes [4088.97ms]
+✓ MCP node FF dormant preserves the prepared database and pushes [4109.00ms]
+✓ HTTP descendant-step remote parent constrains local node with slow leaf last [4257.34ms]
+✓ HTTP descendant-step remote parent constrains local node with slow leaf first [4258.89ms]
+✓ HTTP descendant-step local successor parent alias resolves within its batch [4127.29ms]
+✓ HTTP descendant-step wrong-project-step refuses with complete rollback [4145.39ms]
+✓ HTTP descendant-step leaf-selector refuses with complete rollback [4163.48ms]
+✓ HTTP descendant-step later-command refuses with complete rollback [4237.76ms]
+✓ HTTP descendant-step dormant refuses with complete rollback [4957.00ms]
+✓ MCP descendant-step remote parent constrains local node with slow leaf last [5645.61ms]
+✓ MCP descendant-step remote parent constrains local node with slow leaf first [5143.85ms]
+✓ MCP descendant-step local successor parent alias resolves within its batch [5085.63ms]
+✓ MCP descendant-step wrong-project-step refuses with complete rollback [4690.51ms]
+✓ MCP descendant-step leaf-selector refuses with complete rollback [4637.32ms]
+✓ MCP descendant-step later-command refuses with complete rollback [4877.74ms]
+✓ MCP descendant-step dormant refuses with complete rollback [4769.74ms]
+✓ HTTP authored external edge propagates real calendar unavailability through generated MCP [4175.01ms]
+✓ HTTP authored external edge retains Fast placement when real optimizer admission refuses [3712.58ms]
+✓ MCP authored external edge propagates real calendar unavailability through generated MCP [3745.51ms]
+✓ MCP authored external edge retains Fast placement when real optimizer admission refuses [5077.43ms]
+✓ generated MCP preserves real connected terminal optimization tree [4887.11ms]
+✓ generated MCP preserves real connected required-engine-unavailable tree [4792.09ms]
+✓ HTTP rejects unsupported addTypedDependency at the shared shape boundary [3644.53ms]
+✓ MCP rejects unsupported addTypedDependency at the shared shape boundary [3705.04ms]
+✓ HTTP rejects unsupported updateTypedDependency at the shared shape boundary [3766.06ms]
+✓ MCP rejects unsupported updateTypedDependency at the shared shape boundary [3691.48ms]
+✓ generated MCP authors and updates a restricted readable node predecessor without edit authority [4165.92ms]
+✓ generated MCP queued external update revalidates revoke-credential atomically [3948.03ms]
+✓ generated MCP queued external update revalidates restrict-successor atomically [3800.00ms]
+✓ generated MCP local FS startable permission governs corrected claim identity [3832.23ms]
+✓ generated MCP local SS startable permission governs corrected claim identity [4015.05ms]
+✓ generated MCP local FF startable permission governs corrected claim identity [3748.86ms]
+✓ generated MCP remote FS startable permission governs corrected claim identity [3724.97ms]
+✓ generated MCP remote SS startable permission governs corrected claim identity [4168.29ms]
+✓ generated MCP remote FF startable permission governs corrected claim identity [4048.53ms]
+
+src/generated-document.test.ts:
+✓ default MCP document is generated directly from the shared declarations [22.68ms]
+✓ generated project command tool exposes addTypedDependency with endpoints [9.04ms]
+✓ generated dependency tools publish local aliases, scoped identity rules and stable removal [8.63ms]
+✓ required exclusion drift remains a failure when operational routes are absent [6.60ms]
+✓ keeps browser organization selection out of the generated MCP tools [4.73ms]
+✓ keeps provisioning-token administration out of the generated MCP tools [5.15ms]
+✓ keeps machine credential administration out of the generated MCP tools [4.56ms]
+✓ keeps trusted issuer administration out of the generated MCP tools [4.29ms]
+✓ keeps compute provider administration and capacity reports out of the generated MCP tools [4.14ms]
+✓ pins every generated MCP operation name independently of the registry [4.64ms]
+✓ refuses a generated operation whose name was lost before MCP derivation [4.31ms]
+✓ keeps runtime dependency capability in the document and out of generated MCP tools [4.28ms]
+✓ optional operational deny paths cannot become tools in external documents [5.23ms]
+✓ keeps browser current-context discovery out of generated MCP tools [4.70ms]
+✓ generated command and startable documents expose execution prerequisites [9.70ms]
+
+src/server.test.ts:
+✓ the round trip over MCP > lists the derived tools, with their schemas, over the protocol [4.26ms]
+✓ the round trip over MCP > calls a read tool: the stub sees GET, the substituted path and the token [1.17ms]
+✓ the round trip over MCP > refreshes once and retries one be-01 401 before ending the session [1.07ms]
+✓ the round trip over MCP > forwards a refused batch whole: the code, and the index and kind beside it (D7) [0.93ms]
+✓ the round trip over MCP > calls a write tool: the stub sees PATCH and the body properties, and not the path one [0.79ms]
+✓ the round trip over MCP > reports the server name and version it was built with [0.63ms]
+✓ the MCP grant scope > refuses a write tool to a grant without wbs:write before be-01 is called [0.84ms]
+✓ the MCP grant scope > refuses a write tool when no authenticated caller reached the server [0.73ms]
+✓ the MCP grant scope > still reads with a read-only grant [0.98ms]
+✓ the MCP grant scope > refuses a read tool to a caller without wbs:read [0.71ms]
+✓ the MCP grant scope > marks every non-GET tool of the real document as needing be-01 write scope [5.00ms]
+✓ a name that is not a tool > is a protocol error naming what to call instead, not an empty result [1.49ms]
+✓ a name that is not a tool > does not call be-01 at all [1.01ms]
+✓ a call that cannot be built > comes back as tool content the caller can correct, not a dropped connection [2.35ms]
+✓ a call that cannot be built > passes be-01’s own refusal code through as tool content [0.93ms]
+✓ a call that cannot be built > keeps an upstream credential refusal modeled and does not report it [0.95ms]
+✓ a call that cannot be built > keeps a deployment edge-gate refusal modeled and does not report it [0.92ms]
+✓ an unexpected tool failure > reports one fetch rejection and returns only the correlated generic envelope [0.95ms]
+✓ an unexpected tool failure > reports a transport failure on the retry after a refresh, and keeps the session [0.92ms]
+✓ an unexpected tool failure > reports a refresh whose session lookup throws, and keeps the session [0.98ms]
+✓ an unexpected tool failure > keeps a refused refresh modeled: the session ends and nothing is reported [0.83ms]
+✓ an unexpected tool failure > reports a session end that rejects instead of failing the protocol call [0.93ms]
+✓ an unexpected tool failure > reports a secret-bearing 500 instead of returning its body [0.79ms]
+✓ an unexpected tool failure > reports a malformed successful body instead of returning its text [0.94ms]
+✓ an unexpected tool failure > reports a redirect instead of returning its body as a declared refusal [0.77ms]
+✓ an unexpected tool failure > reports the exact body-read rejection and returns none of its text [0.97ms]
+✓ an unexpected tool failure > returns one correlated tool result when reporting itself is lost [0.91ms]
+✓ describeTool > leaves a read tool’s description exactly as the document wrote it [0.02ms]
+✓ describeTool > adds D9’s re-read warning to a write the document says nothing about [0.04ms]
+✓ describeTool > does not add it twice where be-01 already says it [0.03ms]
+✓ the tools derived from the real document > every write tool tells the caller the result is not the new state [0.15ms]
+✓ the tools derived from the real document > serves every one of them, and answers tools/list with the whole set [2.19ms]
+
+src/wbs-client.test.ts:
+✓ buildRequest > substitutes path parameters and puts the rest in the query string [0.06ms]
+✓ buildRequest > splits path from body for a write, and sends only what was given [0.05ms]
+✓ buildRequest > forwards the caller token as Bearer authentication [0.02ms]
+✓ buildRequest > adds a basic-auth header only when WBS_BASIC_AUTH is set [0.17ms]
+✓ buildRequest > escapes a path parameter rather than letting it change the path [0.02ms]
+✓ buildRequest > treats an explicit undefined as an omitted input, but sends null [0.02ms]
+✓ buildRequest > models an undeclared input with only its correction details and makes no request [0.32ms]
+✓ buildRequest > models a missing path input with only its correction details and makes no request [0.14ms]
+✓ buildRequest > models a non-scalar URL input with only its correction details and makes no request [0.11ms]
+✓ buildRequest > does not send a body for an operation that declares none [0.03ms]
+✓ callTool > returns be-01’s JSON body unedited on success [0.15ms]
+✓ callTool > reports a 204 as no content rather than as a parse failure [0.06ms]
+✓ callTool > carries be-01’s refusal code verbatim, with the status [0.06ms]
+✓ callTool > keeps the rest of a refusal body, not only the code [0.10ms]
+✓ callTool > types a 401 from be-01 as an upstream credential rejection [0.13ms]
+✓ callTool > separates the deployment gate’s 401 even when its credential is missing [0.10ms]
+✓ callTool > treats a Bearer challenge as an upstream rejection [0.07ms]
+✓ callTool > throws an unexpected response failure for a secret-bearing 500 body [0.10ms]
+✓ callTool > throws when a secret-bearing 2xx body is not JSON rather than returning agent content [0.10ms]
+✓ callTool > does not call be-01 at all when the request cannot be built [0.17ms]
+
+src/refresh-authority.test.ts:
+✓ refuses an authority whose consent credential differs from the family [4.49ms]
+
+src/session-store.test.ts:
+✓ McpSessionStore > persists only digests and authenticated ciphertext in the main file and WAL [8.57ms]
+✓ McpSessionStore > fails startup for a corrupt store and names MCP_STORE_PATH [0.39ms]
+✓ McpSessionStore > survives a process-style close and reopen [20.87ms]
+✓ McpSessionStore > revokes every family session when a consumed refresh token is reused [9.31ms]
+✓ McpSessionStore > checks client binding before replay revocation [8.56ms]
+✓ McpSessionStore > commits revocation when consume finds tampered ciphertext [8.97ms]
+✓ McpSessionStore > lets exactly one of two connections acquire an upstream refresh lease [10.84ms]
+✓ McpSessionStore > revokes a family when ciphertext is tampered or has an unknown version [10.13ms]
+
+src/organization-delegation.test.ts:
+✓ MCP organization binding > keeps a consent before activation unbound and forwards the upstream token [118.38ms]
+✓ MCP organization binding > binds the consent's organization through code, family and session [41.41ms]
+✓ MCP organization binding > lets a member of several organizations choose one, and binds that one [86.16ms]
+✓ MCP organization binding > refuses a selection posted without its browser cookie [46.46ms]
+✓ MCP organization binding > refuses a forged organization in the selection [23.14ms]
+✓ MCP organization binding > refuses consent for a user with no current membership [104.39ms]
+✓ MCP organization binding > ends a removed member's session [58.25ms]
+✓ MCP organization binding > keeps a refusing organization rule a tool error without ending the session [180.78ms]
+✓ MCP organization binding > offers the agents of a single organization [65.70ms]
+✓ MCP organization binding > authorizes as yourself from the agent page, minting nothing [52.07ms]
+✓ MCP organization binding > acts as the chosen agent: mints before the code, carries person and credential [30.41ms]
+✓ MCP organization binding > refuses consent as another account's agent and creates no family [31.93ms]
+✓ MCP organization binding > refuses a forged agent choice [290.49ms]
+✓ MCP organization binding > reports a consent whose code was never exchanged, once it expires [45.46ms]
+✓ MCP organization binding > refuses a consent code whose pending consent was already reported ended [45.27ms]
+✓ MCP organization binding > reports a consent family mcp-01 ended, keeping it until be-01 acknowledges [54.60ms]
+✓ MCP organization binding > ends a consent family whose credential be-01 revoked [33.29ms]
+✓ MCP organization binding > refuses to forward for a bound family when no organization authority is installed [39.52ms]
+
+src/openapi-tools.test.ts:
+✓ toolsFromDocument, on a fixture document > names each tool after its operationId and keeps its method and path [0.47ms]
+✓ toolsFromDocument, on a fixture document > throws on an operation with no operationId rather than synthesising one [0.12ms]
+✓ toolsFromDocument, on a fixture document > emits no tool for any of D1’s three exclusion classes [0.09ms]
+✓ toolsFromDocument, on a fixture document > throws when an exclusion entry matches nothing in the document [0.06ms]
+✓ toolsFromDocument, on a fixture document > excludes a whole prefix, not just the path that was named [0.09ms]
+✓ toolsFromDocument, on a fixture document > emits a route the document gained rather than filtering it silently [0.06ms]
+✓ toolsFromDocument, on a fixture document > merges body properties with path parameters and keeps both sides required [0.09ms]
+✓ toolsFromDocument, on a fixture document > leaves an optional query parameter optional [0.05ms]
+✓ toolsFromDocument, on a fixture document > refuses a parameter it cannot send instead of dropping it [0.08ms]
+✓ toolsFromDocument, on a fixture document > refuses a name claimed by both a parameter and a body property [0.15ms]
+✓ toolsFromDocument, on a fixture document > passes a request body’s own description through unedited (D8) [0.05ms]
+✓ toolsFromDocument, on a fixture document > says so when the document carries no prose, rather than inventing any [0.04ms]
+✓ toolsFromDocument, on a fixture document > refuses a document with no paths [0.03ms]
+✓ toolsFromDocument, on the generated document > derives exactly one tool per non-excluded operation in the document [0.37ms]
+✓ toolsFromDocument, on the generated document > exposes the import document tool [0.16ms]
+✓ toolsFromDocument, on the generated document > never offers the sign-in method list as a tool [0.06ms]
+✓ toolsFromDocument, on the generated document > offers batches, not single writes (plan-commands) [0.13ms]
+✓ toolsFromDocument, on the generated document > describes every command kind in the commands tool, so a model needs no other document [0.45ms]
+✓ toolsFromDocument, on the generated document > tells a model a work item takes one type, and declares the refusal it gets otherwise [0.32ms]
+✓ toolsFromDocument, on the generated document > derives the timezone list read and the attempt commands by step node ID [0.10ms]
+✓ toolsFromDocument, on the generated document > derives a path-parameter-only read the way the document declares it [0.03ms]
+✓ toolsFromDocument, on the generated document > keeps the whole-tree read callable with its id alone, full=true optional [0.03ms]
+✓ toolsFromDocument, on the generated document > carries node resource constraints through generated read descriptors for MCP [0.77ms]
+✓ toolsFromDocument, on the generated document > derives the work-item page with every filter optional [0.05ms]
+✓ toolsFromDocument, on the generated document > exposes revision-bound step resolution as a read tool [0.02ms]
+✓ toolsFromDocument, on the generated document > derives a write with path parameters and a body from both sides [0.06ms]
+✓ toolsFromDocument, on the generated document > keeps the history filters optional and in the query string [0.02ms]
+✓ toolsFromDocument, on the generated document > gives every tool a name the MCP protocol accepts and a description [0.07ms]
+✓ the README names the tools that exist > names no tool the document does not derive [0.27ms]
+✓ the README names the tools that exist > counts them the same way the document does [0.05ms]
+✓ the README names the tools that exist > spells the example batch in the fields the commands tool declares [0.23ms]
+✓ readDocument > names the path it could not read [0.12ms]
+
+src/organization-delegation.boot.test.ts:
+57 |     dns?: { readonly resolvers?: readonly string[]; readonly transport?: DnsTransport },
+58 |     emailDelivery?: EmailDeliveryConfig,
+59 |     delegationKeys?: DelegationKeys,
+60 |     syntheticExternalCommands?: () => boolean,
+61 |   ): Promise<BootedBrowserProcess> {
+62 |     const dir = mkdtempSync(join(tmpdir(), 'wbs-booted-browser-'));
+                     ^
+ENOSPC: no space left on device, mkdtemp '/tmp/wbs-booted-browser-LTPBYt'
+    path: "/tmp/wbs-booted-browser-LTPBYt",
+ syscall: "mkdtemp",
+   errno: -28,
+    code: "ENOSPC"
+
+      at open (/tmp/puni-evidence-32-closure/apps/wbs/be-01/src/testing/booted-browser-process.ts:62:17)
+      at /tmp/puni-evidence-32-closure/apps/wbs/be-01/src/testing/mcp-delegation-backend.ts:34:44
+
+Bun v1.4.2 (Linux x64)
+80 |ode:events:505
+    throw er; // Unhandled 'error' event
+    ^
+
+Error: ENOSPC: no space left on device, write
+    at writeSync (node:fs:978:3)
+    at SyncWriteStream._write (node:internal/fs/sync_write_stream:27:5)
+    at writeOrBuffer (node:internal/streams/writable:574:12)
+    at _write (node:internal/streams/writable:503:10)
+    at Writable.write (node:internal/streams/writable:512:10)
+    at CLIOutput.writeTaskOutputChunk (/home/df/wd/puni/puni-00/node_modules/nx/dist/src/utils/output.js:198:16)
+    at streamChunk (/home/df/wd/puni/puni-00/node_modules/nx/dist/src/executors/run-commands/running-tasks.js:30:25)
+    at RunningNodeProcess.stream (/home/df/wd/puni/puni-00/node_modules/nx/dist/src/executors/run-commands/running-tasks.js:272:9)
+    at Socket.<anonymous> (/home/df/wd/puni/puni-00/node_modules/nx/dist/src/executors/run-commands/running-tasks.js:413:18)
+    at Socket.emit (node:events:514:28)
+Emitted 'error' event on SyncWriteStream instance at:
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  errno: -28,
+  syscall: 'write',
+  code: 'ENOSPC'
+}
+
+Node.js v24.20.0

@@ -1,0 +1,32 @@
+{"name":"baseline","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"cwd-bunfig","exit":0,"stdout":"{\"fault\":\"PRELOAD\",\"env\":null}","stderr":"PRELOAD_EXECUTED"}
+{"name":"explicit-null-config","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"home-bunfig","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"home-explicit-null-config","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"xdg-bunfig","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_CONFIG","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_CONFIG_PATH","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"BUN_OPTIONS","exit":0,"stdout":"{\"fault\":\"PRELOAD\",\"env\":null}","stderr":"PRELOAD_EXECUTED"}
+{"name":"NODE_OPTIONS","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+{"name":"NODE_OPTIONS-positive-fault","exit":0,"stdout":"{\"fault\":null,\"env\":null}","stderr":""}
+48 |   for (const variable of ['BUN_CONFIG', 'BUN_CONFIG_PATH', 'BUN_OPTIONS', 'NODE_OPTIONS']) {
+49 |     probe(variable, [], { [variable]: variable.endsWith('OPTIONS') ? `--require=${preload}` : custom });
+50 |   }
+51 |   const injected = { NODE_OPTIONS: `--require=${preload}`, BUN_OPTIONS: `--require=${preload}`, BUN_CONFIG: custom, BUN_CONFIG_PATH: custom };
+52 |   const fault = probe('NODE_OPTIONS-positive-fault', [], { NODE_OPTIONS: `--require=${preload}` });
+53 |   assert.match(fault.stderr, /PRELOAD_EXECUTED/);
+              ^
+AssertionError: The input did not match the regular expression /PRELOAD_EXECUTED/. Input:
+
+''
+
+ generatedMessage: true,
+     actual: "",
+   expected: /PRELOAD_EXECUTED/,
+   operator: "match",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /tmp/puni-supervisor-ambient-packet/openspec/changes/effective-supervisor-identity/evidence/ambient-spike.ts:53:10
+
+Bun v1.4.2 (Linux x64)

@@ -1,0 +1,39 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+331 |     { extra: 'forged' },
+332 |   ]) {
+333 |     const altered = encodeCursor({ ...cursor, ...change });
+334 |     expect(
+335 |       await h.call('ada', 'GET', `/api/projects/${selected}/address-candidates?cursor=${altered}`),
+336 |     ).toEqual({ status: 400, body: { error: 'invalid_query' } });
+            ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "error": "invalid_query",
++     "addressRevision": "qar1:e56988f2c4375dc6d0d3912c6147b9b232fd281ac628a8884df0f3a235f9dd17",
++     "candidates": [],
++     "nextCursor": null,
++     "project": {
++       "abbreviation": "P",
++       "name": "Selected",
++       "projectId": "b716b936-0b17-4c88-844f-a34cf0422a50",
++     },
+    },
+-   "status": 400,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 9
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:336:7)
+(fail) rejects impossible and malformed endpoint continuation coordinates [169.10ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [2.40s]

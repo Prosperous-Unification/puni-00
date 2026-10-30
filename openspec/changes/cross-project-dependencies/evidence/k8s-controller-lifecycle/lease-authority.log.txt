@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+738 |         () => undefined,
+739 |         fixture.options,
+740 |       ),
+741 |     ).rejects.toThrow('Lease lost');
+742 |     fixture.load();
+743 |     expect(fixture.objects['pods'].items).toHaveLength(1);
+                                                ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 1
+Received length: 3
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:743:43)
+(fail) mounted Lease loss during inventory stops before descendant deletion or source work [1992.91ms]
+
+ 0 pass
+ 37 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.04s]

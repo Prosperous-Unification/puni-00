@@ -172,6 +172,7 @@ for (const viewport of [
 
     const frames: { section: string; top: number; titleTop: number }[] = [];
     for (const section of [
+      'General',
       'Teams',
       'Priorities',
       'Steps',
@@ -231,10 +232,10 @@ test('the section tabs fit a phone, whole and apart, at 44px', async ({ page }) 
       };
     });
   });
-  // Seven sections since compute providers slice 5 added Resources (2026-10-23).
-  expect(tabs).toHaveLength(7);
-  // Proof: on main at b0072a456 this failed on `Teams is cut short`: six tabs in
-  // one unwrapped row at 375. Watched 2026-10-14.
+  // Proof: removing General from the rendered sections made this count fail
+  // (seven instead of eight). The existing wrap check failed on main at
+  // b0072a456 when an unwrapped Teams tab was cut short at 375px.
+  expect(tabs).toHaveLength(8);
   for (const tab of tabs) {
     expect(tab.cut, `${tab.name} is cut short`).toBe(false);
     expect(tab.pastEdge, `${tab.name} runs past the modal's edge`).toBe(false);

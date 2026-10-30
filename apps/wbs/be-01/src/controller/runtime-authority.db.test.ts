@@ -17,6 +17,7 @@ import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
 import { rollbackTo } from '@wbs/store-sqlite/migrate-down';
 import { openSqliteSource } from '@wbs/store-sqlite/source';
+import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
 import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, describe, expect, it } from 'bun:test';
 
@@ -40,6 +41,7 @@ async function seeded() {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-runtime-authority-'));
   const dbPath = await openSpaceDatabase(directory);
   const sqlite = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,
     organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
   });
@@ -914,11 +916,15 @@ describe('accepted runtime lifecycle', () => {
       receipts: sqlite.db.all('SELECT * FROM runtime_command_receipt ORDER BY rowid'),
     });
     const installed = readInstallation();
-    expect(installed.migrations.slice(-15)).toMatchObject([
+    expect(installed.migrations.slice(-19)).toMatchObject([
       { name: '20261022130000_add_organization_limits' },
       { name: '20261022130100_widen_organization_audit_organization_limits' },
       { name: '20261022140000_add_resource_provider' },
       { name: '20261022140100_widen_organization_audit_compute_providers' },
+      { name: '20261022210000_add_project_abbreviations' },
+      { name: '20261022211000_add_external_dependencies' },
+      { name: '20261022212000_add_cross_project_dependency_activation' },
+      { name: '20261022213000_add_optimization_boundary_certificates' },
       { name: '20261023100000_add_claim_lease' },
       { name: '20261023140000_add_measure' },
       { name: '20261023150000_key_step_measure' },
@@ -943,13 +949,17 @@ describe('accepted runtime lifecycle', () => {
       '20261023150000_key_step_measure',
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
+      '20261022213000_add_optimization_boundary_certificates',
+      '20261022212000_add_cross_project_dependency_activation',
+      '20261022211000_add_external_dependencies',
+      '20261022210000_add_project_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
       '20261022130000_add_organization_limits',
     ]);
     const before = readInstallation();
-    expect(before.migrations).toEqual(installed.migrations.slice(0, -15));
+    expect(before.migrations).toEqual(installed.migrations.slice(0, -19));
     expect(() => rollbackTo(dbPath, migrations, '20261020130000_add_claim_occupancy')).toThrow(
       'runtime history',
     );

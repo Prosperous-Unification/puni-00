@@ -1,0 +1,51 @@
+
+> nx run wbs-fe-01:e2e-cross-project --grep abbreviation edit
+
+> bunx playwright test --config apps/wbs/fe-01/playwright.cross-project.config.ts --grep "abbreviation edit"
+
+(node:1900434) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:1901340) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+[WebServer]   - `__dirname` (vite.config.ts:90:20). Use `import.meta.dirname` instead
+[WebServer] Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+Running 1 test using 1 worker
+
+(node:1901477) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:691:1 › abbreviation edit preserves a captured predecessor link and focuses its stable destination (30ms)
+
+
+  1) apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:691:1 › abbreviation edit preserves a captured predecessor link and focuses its stable destination
+
+    Error: missing rename fixture
+
+      701 |   const source = fixture.projects['RenameSource'];
+      702 |   const target = fixture.projects['RenameTarget'];
+    > 703 |   if (source === undefined || target === undefined) throw new Error('missing rename fixture');
+          |                                                           ^
+      704 |   const relationships = async () => {
+      705 |     const response = await request.get('http://localhost:7500/__fixture/relationships');
+      706 |     expect(response.status()).toBe(200);
+        at /tmp/puni-task11-abbrev-navigation/apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:703:59
+
+    Error Context: test-results/cross-project-refresh.real-dda03-uses-its-stable-destination/error-context.md
+
+  1 failed
+    apps/wbs/fe-01/e2e/cross-project-refresh.real.spec.ts:691:1 › abbreviation edit preserves a captured predecessor link and focuses its stable destination
+Warning: command "bunx playwright test --config apps/wbs/fe-01/playwright.cross-project.config.ts --grep "abbreviation edit"" exited with non-zero status code
+
+
+ NX   Running target e2e-cross-project for project wbs-fe-01 failed
+
+Failed tasks:
+
+- wbs-fe-01:e2e-cross-project
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      8.9s
+  Critical path:     8.9s (1 task)
+  Recoverable time:  <1ms

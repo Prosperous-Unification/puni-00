@@ -75,7 +75,7 @@ import type {
   WriteStamp,
 } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { DEFAULT_ESTIMATE_RULE, isLegacyMetric, schedule } from '@wbs/domain';
+import { DEFAULT_ESTIMATE_RULE, isLegacyMetric, schedule, scheduleResolved } from '@wbs/domain';
 import { createScheduler } from '@wbs/runtime-portable';
 import { describe, expect, it } from 'bun:test';
 import { asc, eq, sql } from 'drizzle-orm';
@@ -102,6 +102,8 @@ import {
   openSqliteSourceWithCaptureReadSeam,
   type SqliteSource,
 } from '../source';
+import { seedDependencyAuthority } from './dependency-activation';
+import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './dependency-capability';
 import {
   openSqliteSourceWithFault,
   openSqliteSourceWithMissingSavedPlanInput,
@@ -207,7 +209,8 @@ async function seedSqliteSource(
     const dbPath = join(directory, 'source.db');
     runMigrations(dbPath, MIGRATIONS);
     activateTestStepBlockages(dbPath);
-    source = openSource({ dbPath });
+    seedDependencyAuthority(dbPath);
+    source = openSource({ dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY, dbPath });
     const seed = DETERMINISTIC_SEED;
     for (const [index, ownerId] of seed.ownerIds.entries()) {
       const stamp = seed.stamps[index] ?? seed.stamps[0];
@@ -851,19 +854,21 @@ const openers: ExistingStoreOpeners = {
     const { source, directory } = await seedSqliteSource();
     const configured = source.bindLivePlans({
       schedulerOf: () =>
-        createScheduler((rows, edges, slices, floors, pools, reach, deadlines, typed, elsewhere) =>
-          schedule(
-            rows,
-            edges,
-            slices,
-            floors,
-            pools,
-            reach,
-            deadlines,
-            typed,
-            undefined,
-            elsewhere,
-          ),
+        createScheduler(
+          (rows, edges, slices, floors, pools, reach, deadlines, typed, elsewhere) =>
+            schedule(
+              rows,
+              edges,
+              slices,
+              floors,
+              pools,
+              reach,
+              deadlines,
+              typed,
+              undefined,
+              elsewhere,
+            ),
+          scheduleResolved,
         ),
     });
     return sqliteFixture(
@@ -907,7 +912,18 @@ const openers: ExistingStoreOpeners = {
   claims: (caseId) => openSqliteCase('claims', caseId),
   demands: (caseId) => openSqliteCase('demands', caseId),
   dependencies: (caseId) => openSqliteCase('dependencies', caseId),
-  typedDependencies: (caseId) => openSqliteCase('typedDependencies', caseId),
+  typedDependencies: async (caseId) => {
+    const { source, directory } = await seedSqliteSource();
+    source.db.run(
+      sql`INSERT INTO organization (id, name, created_at) VALUES ('typed-conformance-org', 'Typed', 1)`,
+    );
+    for (const projectId of DETERMINISTIC_SEED.projectIds) {
+      source.db.run(
+        sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, 'typed-conformance-org')`,
+      );
+    }
+    return sqliteFixture(source, directory, 'typedDependencies', caseId);
+  },
   directory: (caseId) => openSqliteCase('directory', caseId),
   eventLog: (caseId) => openSqliteCase('eventLog', caseId),
   planEvents: (caseId) => openSqliteCase('planEvents', caseId),
@@ -1057,6 +1073,7 @@ function emptyMissingCapture(): PlanInputReads {
     stepBlockages: [],
     stepParallels: [],
     measures: [],
+    measureDefinitions: null,
     measureEstimates: [],
     budgets: [],
     dependencies: [],
@@ -8952,7 +8969,10 @@ describe('permanent runtime storage conformance', () => {
     const directory = mkdtempSync(join(tmpdir(), 'runtime-conformance-'));
     const dbPath = join(directory, 'plan.db');
     runMigrations(dbPath, MIGRATIONS);
-    const source = openSqliteSource({ dbPath });
+    const source = openSqliteSource({
+      dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+      dbPath,
+    });
     return Promise.resolve({
       source,
       async close() {

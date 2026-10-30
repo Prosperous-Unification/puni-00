@@ -34,6 +34,7 @@ const startable = (claimed = false): StartableWork => ({
     },
   ],
   doesNotFit: [],
+  prerequisites: [],
   claimed: claimed
     ? [
         {

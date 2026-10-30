@@ -1,0 +1,27 @@
+Command: bun test /tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-host.test.ts -t required installed files --preload ./tools/test/scratch/preload.ts
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/solver-host.test.ts:
+41 |   try {
+42 |     await promise;
+43 |   } catch (cause) {
+44 |     failure = cause;
+45 |   }
+46 |   expect(failure).toBeInstanceOf(Error);
+                       ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: undefined
+
+      at refuses (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-host.test.ts:46:19)
+      at async <anonymous> (/tmp/puni-solver-drain/tools/tool-remote-scripts/src/lib/solver-host.test.ts:120:9)
+(fail) required installed files refuse unreadability and symlink aliases [2.17ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [27.00ms]
+
+Exit: 1

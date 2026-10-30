@@ -50,6 +50,7 @@ import {
   refusingRestoreApprovals,
 } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
+import { refusingProjectAddressSearch } from './testing/project-address-search-fixture';
 import { inMemoryProjects, testProjectService } from './testing/project-fixture';
 import { refusingProjectRanks } from './testing/project-rank-fixture';
 import { testReplay } from './testing/replay-fixture';
@@ -61,6 +62,7 @@ import { testWrites } from './testing/writes-fixture';
 
 function options(): AppOptions {
   return {
+    projectAddressSearch: refusingProjectAddressSearch,
     resourceRuntime: {
       bind: () => Promise.resolve({ ok: false, reason: 'not_found' }),
       read: () => Promise.resolve({ ok: false, reason: 'not_found' }),
@@ -106,6 +108,7 @@ function options(): AppOptions {
     savedPlans: testSavedPlanService(),
     steps: testStepService(),
     replay: testReplay().replay,
+    admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
     writes: testWrites(),
@@ -193,6 +196,7 @@ const PUBLIC_OPERATIONS = [
   'getApiAuthMe',
   'getApiAuthMethods',
   'getApiAuthOktaCallback',
+  'getDependencyCapability',
   'getHealth',
   'getMetrics',
   'postApiAuthLogin',
@@ -241,6 +245,9 @@ const SIGNED_IN_OPERATIONS = [
   'getApiProjectsByIdSaved-plans',
   'getApiProjectsByIdSaved-plansCompare',
   'getApiProjectsByIdStartable',
+  'getApiProjectAddressesProjects',
+  'getApiProjectsByIdAddressCandidates',
+  'getApiProjectsByIdAddressReferences',
   'getApiProjectsByIdStep-references',
   'getApiProjectsByIdWork-item-rows',
   'getApiProjectsByIdWork-items',
@@ -336,7 +343,10 @@ const WRITE_SCOPE_OPERATIONS = [
   'putApiResourceAuthoritiesByAuthorityIdAdmissions',
   'putApiResourceAuthoritiesByAuthorityIdEvents',
 ] as const;
-const INTERNAL_OPERATIONS = ['postInternalForward'] as const;
+const INTERNAL_OPERATIONS = [
+  'postInternalForward',
+  'postInternalGatewayDependencyAdmission',
+] as const;
 /** mcp-01's routes: its dedicated secret or, during the cutover, `x-internal-auth`. */
 const MCP_INTERNAL_OPERATIONS = [
   'postInternalMcpAuthority',
@@ -489,6 +499,9 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiProjectsByIdSaved-plans',
   'getApiProjectsByIdSaved-plansCompare',
   'getApiProjectsByIdStartable',
+  'getApiProjectAddressesProjects',
+  'getApiProjectsByIdAddressCandidates',
+  'getApiProjectsByIdAddressReferences',
   'getApiProjectsByIdStep-references',
   'getApiProjectsByIdWork-item-rows',
   'getApiProjectsByIdWork-items',
@@ -505,10 +518,12 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiTeams',
   'getApiTimezones',
   'getApiWork-item-types',
+  'getDependencyCapability',
   'getHealth',
   'getMetrics',
   'getPlansBy-solutionBySlug',
   'postInternalForward',
+  'postInternalGatewayDependencyAdmission',
   'postInternalGatewayProjectAccess',
   'postInternalGatewayProjectBrowserAccess',
   'postInternalMcpAuthority',
@@ -997,6 +1012,7 @@ it('refuses framed GET and HEAD bodies on the production health route', async ()
   let probes = 0;
   const app = buildApp({
     ...options(),
+    admitDependencyClient: () => null,
     probeDatabase: () => {
       probes++;
       return 'ok';

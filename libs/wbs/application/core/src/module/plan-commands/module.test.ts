@@ -9,9 +9,12 @@ import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Scope } from '../../ports/unit-of-work';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { installPlanCommands } from './check';
+import { createPlanCommandRunner } from './composition';
 import { PLAN_COMMANDS_LABEL } from './contract';
 import { planCommandsModule } from './module';
 
@@ -33,6 +36,7 @@ async function seeded() {
   const clock = clockOf({ now: () => 2, newId: () => `item-${String(++next)}` });
   const graphOver = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
     servicesOver(stores, {
+      dependencyContext: createLocalDependencyContext(stores),
       admission: CREATOR_ADMISSION,
       clock,
       broadcast,
@@ -45,6 +49,7 @@ async function seeded() {
     announcements,
     handed,
     requirements: {
+      commandAccess: localCommandAccess,
       batchServices: (scope: Scope, broadcast: Broadcaster) => {
         handed.push(broadcast);
         return graphOver(scope.stores, broadcast);
@@ -62,12 +67,16 @@ const hostRequirements = () => {
   const clock = clockOf({ now: () => 0, newId: () => 'unused' });
   const graphOver = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
     servicesOver(stores, {
+      dependencyContext: createLocalDependencyContext(stores),
       admission: CREATOR_ADMISSION,
       clock,
       broadcast,
       scheduler: fastScheduler,
     });
   return {
+    commandAccess: DiBag.createProvider(() => localCommandAccess, {
+      factoryReturnKind: 'sync-value',
+    }),
     batchServices: DiBag.createProvider(
       () => (scope: Scope, broadcast: Broadcaster) => graphOver(scope.stores, broadcast),
       { factoryReturnKind: 'sync-value' },
@@ -104,53 +113,64 @@ const completeHost = () =>
 
 describe('the Plan commands module', () => {
   /** Proof: provider omission made this scoped shared command throw missing delivery. */
-  it('passes the committed fan-out capability through its installed command graph', async () => {
-    const { source, requirements } = await seeded();
-    const capture = {
-      capture: () =>
-        Promise.resolve({
-          observation: { mode: 'shared' as const, organizationId: 'org-a', projects: [] },
-          localFacts: new Map<string, string>(),
-        }),
-      authorizeProjectUpdate: () => Promise.resolve({ ok: true as const }),
-      authorizeStepRemoval: () => Promise.resolve({ ok: true as const }),
-    };
-    const uow: typeof source.uow = {
-      run: (act) =>
-        source.uow.run((scope) =>
-          act({
-            ...scope,
-            stores: {
-              ...scope.stores,
-              projects: new Proxy(scope.stores.projects, {
-                get: (projects, key, receiver): unknown => {
-                  if (key === 'admitEditInOrganization') return () => Promise.resolve('ordinary');
-                  if (key === 'findCrossReferences') return () => Promise.resolve([]);
-                  return Reflect.get(projects, key, receiver) as unknown;
-                },
-              }),
-            },
-            fanoutCapture: capture,
+  it.each(['shared', 'isolated'] as const)(
+    'passes committed fan-out and refuses missing delivery for %s capture',
+    async (mode) => {
+      const { source, requirements } = await seeded();
+      const capture = {
+        capture: () =>
+          Promise.resolve({
+            observation: { mode, organizationId: 'org-a', projects: [] },
+            dependency:
+              mode === 'isolated'
+                ? { organizationId: 'org-a', projects: new Map<string, string>(), connections: [] }
+                : null,
+            localFacts: new Map<string, string>(),
           }),
-        ),
-    };
-    const { commands } = installPlanCommands({ ...requirements, uow });
-    expect(
-      (
-        await commands.runWithin(
-          PROJECT,
-          OWNER,
-          [],
-          {
+        authorizeProjectUpdate: () => Promise.resolve({ ok: true as const }),
+        authorizeStepRemoval: () => Promise.resolve({ ok: true as const }),
+      };
+      const uow: typeof source.uow = {
+        run: (act) =>
+          source.uow.run((scope) =>
+            act({
+              ...scope,
+              stores: {
+                ...scope.stores,
+                projects: new Proxy(scope.stores.projects, {
+                  get: (projects, key, receiver): unknown => {
+                    if (key === 'admitEditInOrganization') return () => Promise.resolve('ordinary');
+                    if (key === 'findCrossReferences') return () => Promise.resolve([]);
+                    return Reflect.get(projects, key, receiver) as unknown;
+                  },
+                }),
+              },
+              fanoutCapture: capture,
+            }),
+          ),
+      };
+      const { commands } = installPlanCommands({ ...requirements, uow });
+      expect(
+        (
+          await commands.runWithin(PROJECT, { id: OWNER, username: OWNER, scopes: ['write'] }, [], {
             kind: 'scoped',
             scope: { organizationId: 'org-a', userId: OWNER, role: 'member' },
-          },
-          null,
-          null,
-        )
-      ).ok,
-    ).toBe(true);
-  });
+          })
+        ).ok,
+      ).toBe(true);
+      const missingDelivery = createPlanCommandRunner({
+        ...requirements,
+        uow,
+        committedFanout: undefined,
+      });
+      expect(
+        missingDelivery.runWithin(PROJECT, { id: OWNER, username: OWNER, scopes: ['write'] }, [], {
+          kind: 'scoped',
+          scope: { organizationId: 'org-a', userId: OWNER, role: 'member' },
+        }),
+      ).rejects.toThrow('committed fan-out delivery is missing');
+    },
+  );
 
   it('drains a committed batch into the broadcaster installPlanCommands wires', async () => {
     const { announcements, requirements } = await seeded();
@@ -261,12 +281,14 @@ describe('a step allowance edit over the memory source', () => {
     const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
     const graphOver = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
       servicesOver(stores, {
+        dependencyContext: createLocalDependencyContext(stores),
         admission: CREATOR_ADMISSION,
         clock,
         broadcast,
         scheduler: fastScheduler,
       });
     const { commands } = installPlanCommands({
+      commandAccess: localCommandAccess,
       batchServices: (scope: Scope, broadcast: Broadcaster) => graphOver(scope.stores, broadcast),
       publicServices: graphOver(source.stores, recordingBroadcaster()),
       uow: source.uow,

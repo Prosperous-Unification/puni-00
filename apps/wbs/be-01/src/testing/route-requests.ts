@@ -216,5 +216,6 @@ export const REQUEST_QUERIES: Readonly<Partial<Record<string, Readonly<Record<st
     getApiPeopleLoad: { from: '2026-10-05', to: '2026-10-09' },
     getApiProjectsByIdExport: { format: 'json' },
     'getApiProjectsByIdSaved-plansCompare': { left: 'current', right: 'current' },
+    getApiProjectsByIdAddressReferences: { reference: 'P.010', revision: 'qar1:route-probe' },
     'getApiProjectsByIdStep-references': { reference: '010.dev', revision: 'ar1:route-probe' },
   };

@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/dependency-ingress.test.ts:
+303 |     edge,
+304 |     sites: layouts.map((selected) => selected.siteCaddyPath),
+305 |     hosts,
+306 |   });
+307 |   if (!isDeepStrictEqual(await inspectEdge(call, edge.id), edge))
+308 |     throw new Error('dependency ingress edge changed before publication');
+                    ^
+error: dependency ingress edge changed before publication
+      at fenceDependencyIngress (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/dependency-ingress.ts:308:15)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/dependency-ingress.test.ts:452:13)
+      at async acquire (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:183:20)
+      at async <anonymous> (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/edge-ownership.ts:169:24)
+      at async acquireLock (/tmp/puni-source-parked-mounts/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) Caddy native mount permutations preserve complete ingress identity and raw inputs [27.43ms]
+
+ 0 pass
+ 32 filtered out
+ 1 fail
+Ran 1 test across 1 file. [83.00ms]

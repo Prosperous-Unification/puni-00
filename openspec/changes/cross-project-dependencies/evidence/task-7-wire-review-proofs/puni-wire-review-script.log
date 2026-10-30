@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/scripts/solver-image-scenario.test.ts:
+(pass) shared-person solver image scenario > builds the exact booking and a later feasible baseline through production builders [4.57ms]
+(pass) shared-person solver image scenario > requires a publishing answer for the exact shared request [1.95ms]
+
+apps/wbs/be-01/scripts/solver-installed-client.test.ts:
+(pass) reports started identity and waits for host inspection before binding and revalidating [0.82ms]
+(pass) aborts when host refuses the inspected child [0.25ms]
+(pass) refuses unsuccessful terminal evidence {"exitCode":1,"deadlineKilled":false,"oomKilled":false} [0.21ms]
+(pass) refuses unsuccessful terminal evidence {"exitCode":0,"deadlineKilled":true,"oomKilled":false} [0.09ms]
+(pass) refuses unsuccessful terminal evidence {"exitCode":0,"deadlineKilled":false,"oomKilled":true} [0.08ms]
+(pass) rejects a shared-person answer that overlaps the sent fixed booking [0.77ms]
+(pass) refuses malformed client CLI before connecting {"argv":["/wrong/socket","baseline","11111111-1111-4111-8111-111111111111"]} [172.66ms]
+(pass) refuses malformed client CLI before connecting {"argv":["/run/wbs-solver/supervisor.sock","other","11111111-1111-4111-8111-111111111111"]} [188.83ms]
+(pass) refuses malformed client CLI before connecting {"argv":["/run/wbs-solver/supervisor.sock","baseline","------------------------------------"]} [235.42ms]
+(pass) refuses malformed client CLI before connecting {"argv":["/run/wbs-solver/supervisor.sock","baseline","11111111-1111-4111-8111-111111111111","extra"]} [163.71ms]
+
+ 12 pass
+ 0 fail
+ 30 expect() calls
+Ran 12 tests across 2 files. [1008.00ms]

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/connected-command-parity.test.ts:
+1633 |       await fixture.authority(fault);
+1634 |       const before = await fixture.inspect();
+1635 |       await fixture.authority('release');
+1636 |       held = false;
+1637 |       const refused = await pending;
+1638 |       expect(refused.isError).toBe(true);
+                                     ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: undefined
+
+      at <anonymous> (/tmp/puni-active-authority/apps/wbs/mcp-01/src/connected-command-parity.test.ts:1638:31)
+(fail) generated MCP queued external update revalidates revoke-credential atomically [5432.86ms]
+
+ 0 pass
+ 74 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [9.01s]

@@ -1,0 +1,34 @@
+import { expect, test } from 'bun:test';
+import { resolveScheduleInput } from '/tmp/puni-cross-resolved-schedule/libs/wbs/domain/domain/src/resolved-schedule-input';
+import { scheduleResolved } from '/tmp/puni-cross-resolved-schedule/libs/wbs/domain/domain/src/schedule';
+
+const empty = () => ({
+  ...resolveScheduleInput({ rows: [], slices: [], edges: [], notBefore: new Map(), deadlines: new Map(), poolSizes: new Map(), reach: 'whole-item', typed: [] }),
+  order: { kind: 'connected' as const, projectIdByWorkItem: new Map<string, string>(), rankByProject: new Map<string, number>() },
+});
+
+test('empty connected component accepts required empty maps', () => {
+  const plan = scheduleResolved(empty());
+  expect(plan.slices.size).toBe(0);
+  expect(plan.workItems.size).toBe(0);
+  expect(plan.waitingForPerson).toBe(0);
+  expect(plan.waitingForCapacity).toBe(0);
+});
+
+const singleton = () => ({
+  ...empty(),
+  rows: [{ id: 'a', position: 0, parentId: null, frozenNumber: null }],
+  slices: [{ workItemId: 'a', stepId: 'build', days: 1, width: 1, personId: null, poolIds: [] }],
+  graph: { nodes: [{ kind: 'step' as const, ref: { workItemId: 'a', stepId: 'build' }, at: 0 }], edges: [] },
+  order: { kind: 'connected' as const, projectIdByWorkItem: new Map([['a', 'A']]), rankByProject: new Map([['A', 0]]) },
+});
+
+test.each([-1, 0.5, Infinity, NaN])('invalid endpoint position %s is refused', (at) => {
+  const input = singleton();
+  expect(() => scheduleResolved({ ...input, graph: { ...input.graph, edges: [{ predecessor: { leafId: 'a', at }, successor: { leafId: 'a', at: 0 }, type: 'FS', provenance: 'workflow' }] } })).toThrow('resolved graph');
+});
+
+test('a step cannot be relabeled as a boundary', () => {
+  const input = singleton();
+  expect(() => scheduleResolved({ ...input, graph: { nodes: [{ kind: 'boundary', workItemId: 'a', at: 0 }], edges: [] } })).toThrow('resolved graph');
+});

@@ -31,6 +31,7 @@ describe('typed dependency editor', () => {
     expect(() =>
       render(
         <TypedDependencyEditor
+          projectId="p1"
           predecessor={predecessor}
           successor={successor}
           rows={rows}
@@ -65,6 +66,7 @@ describe('typed dependency editor', () => {
     const onSave = vi.fn().mockResolvedValue('landed');
     render(
       <TypedDependencyEditor
+        projectId="p1"
         predecessor={predecessor}
         successor={successor}
         rows={rows}
@@ -108,6 +110,7 @@ describe('typed dependency editor', () => {
     ];
     render(
       <TypedDependencyEditor
+        projectId="p1"
         predecessor={predecessor}
         successor={successor}
         rows={rows}
@@ -139,6 +142,7 @@ describe('typed dependency editor', () => {
     const branchRows = [...branch, ...(branch[0]?.subRows ?? [])];
     render(
       <TypedDependencyEditor
+        projectId="p1"
         predecessor={branch[0]}
         successor={successor}
         rows={[...branchRows, ...rows]}
@@ -167,6 +171,7 @@ describe('typed dependency editor', () => {
     ]);
     render(
       <TypedDependencyEditor
+        projectId="p1"
         predecessor={predecessor}
         successor={branch[0]}
         rows={[...rows, ...branch, ...(branch[0]?.subRows ?? [])]}
@@ -187,6 +192,7 @@ describe('typed dependency editor', () => {
     const onSave = vi.fn().mockResolvedValue('landed');
     render(
       <TypedDependencyEditor
+        projectId="p1"
         predecessor={predecessor}
         successor={successor}
         rows={rows}
@@ -225,6 +231,7 @@ describe('typed dependency editor', () => {
     const onSave = vi.fn().mockResolvedValue('landed');
     render(
       <TypedDependencyEditor
+        projectId="p1"
         predecessor={predecessor}
         successor={successor}
         rows={rows}
@@ -252,6 +259,7 @@ describe('typed dependency editor', () => {
     const onSave = vi.fn().mockResolvedValue('landed');
     render(
       <TypedDependencyEditor
+        projectId="p1"
         predecessor={predecessor}
         successor={successor}
         rows={rows}
@@ -348,6 +356,7 @@ describe('typed dependency editor', () => {
   it('keeps the editor open and announces a refused save', async () => {
     render(
       <TypedDependencyEditor
+        projectId="p1"
         predecessor={predecessor}
         successor={successor}
         rows={rows}
@@ -385,6 +394,7 @@ describe('typed dependency editor', () => {
     const onCancel = vi.fn();
     render(
       <TypedDependencyEditor
+        projectId="p1"
         predecessor={predecessor}
         successor={successor}
         rows={rows}

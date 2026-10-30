@@ -29,6 +29,7 @@ let logged: string[];
 let onResolve: (() => void) | undefined;
 let h: OrganizationHarness;
 let projectId: string;
+let firstStepId: string;
 let machineGrants: HarnessMachineGrants;
 
 beforeAll(async () => {
@@ -70,7 +71,11 @@ beforeEach(async () => {
   h.activate();
   const created = await h.call('dany', 'POST', '/api/projects', { name: 'Plan of A' });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  projectId = (created.body as { project: { id: string } }).project.id;
+  const plan = created.body as { project: { id: string }; steps: { id: string }[] };
+  projectId = plan.project.id;
+  const first = plan.steps.at(0);
+  if (first === undefined) throw new Error('pool fixture project has no first step');
+  firstStepId = first.id;
 });
 
 afterEach(async () => {
@@ -180,7 +185,9 @@ async function leafOf(name: string): Promise<string> {
 
 async function claimAs(agent: KeysDocument['agents'][number], leaf: string): Promise<void> {
   const claimed = await asAgent(agent.key, 'POST', `/api/projects/${projectId}/commands`, {
-    commands: [{ kind: 'claimWorkItem', workItemId: leaf, personId: agent.personId }],
+    commands: [
+      { kind: 'claimWorkItem', workItemId: leaf, personId: agent.personId, steps: [firstStepId] },
+    ],
   });
   if (claimed.status !== 200) throw new Error(`claim refused: ${JSON.stringify(claimed)}`);
 }

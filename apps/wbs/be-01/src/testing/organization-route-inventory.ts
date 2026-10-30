@@ -376,6 +376,24 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'read',
   },
   {
+    operationId: 'getApiProjectAddressesProjects',
+    method: 'GET',
+    path: '/api/project-addresses/projects',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiProjectsByIdAddressCandidates',
+    method: 'GET',
+    path: '/api/projects/:id/address-candidates',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiProjectsByIdAddressReferences',
+    method: 'GET',
+    path: '/api/projects/:id/address-references',
+    kind: 'read',
+  },
+  {
     operationId: 'getApiProjectsByIdStep-references',
     method: 'GET',
     path: '/api/projects/:id/step-references',
@@ -434,6 +452,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     method: 'GET',
     path: '/api/work-item-types',
     kind: 'read',
+  },
+  {
+    operationId: 'getDependencyCapability',
+    method: 'GET',
+    path: '/api/runtime/dependency-capability',
+    kind: 'control',
   },
   { operationId: 'getHealth', method: 'GET', path: '/health', kind: 'control' },
   { operationId: 'getMetrics', method: 'GET', path: '/metrics', kind: 'control' },
@@ -714,6 +738,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     method: 'POST',
     path: '/api/spaces/:id/projects/:projectId/move',
     kind: 'mutation',
+  },
+  {
+    operationId: 'postInternalGatewayDependencyAdmission',
+    method: 'POST',
+    path: '/internal/gateway/dependency-admission',
+    kind: 'control',
   },
   {
     operationId: 'postInternalForward',

@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+194 |     expect(answer.status).toBe(200);
+195 |     expect(
+196 |       (answer.body as { projects: { abbreviation: string }[] }).projects.map(
+197 |         (project) => project.abbreviation,
+198 |       ),
+199 |     ).toEqual(expected === 'none' ? [] : [expected]);
+            ^
+error: expect(received).toEqual(expected)
+
+- [
+-   "CITY",
+- ]
++ []
+
+- Expected  - 3
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:199:7)
+(fail) keeps exact Unicode name matching and literal punctuation [163.14ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [2.44s]

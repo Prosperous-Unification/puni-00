@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+236 |         'ada',
+237 |         'GET',
+238 |         `/api/projects/${selected}/address-candidates?cursor=${String(first.nextCursor)}`,
+239 |       )
+240 |     ).status,
+241 |   ).toBe(409);
+          ^
+error: expect(received).toBe(expected)
+
+Expected: 409
+Received: 200
+
+      at <anonymous> (/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:241:5)
+(fail) changes revision for leafhood and uncoded step order but keeps label-only edits [150.08ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [2.30s]

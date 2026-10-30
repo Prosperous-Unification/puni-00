@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import type { PlanDocumentImport } from '@wbs/contracts';
 import {
   clockOf,
-  LEGACY_ACCESS,
   prepareImport,
   servicesOver,
   type TransactionalStores,
@@ -13,7 +12,10 @@ import {
 } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { createImportService } from '@wbs/core/module/plan-import/composition';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { expect, test } from 'bun:test';
@@ -67,7 +69,10 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
     const coordinator = new WriteCoordinator();
     const stores = buildStores(connection.db, coordinator);
     const admittedStores = buildStores(connection.db, OPEN);
-    const sourceUow = sqliteUnitOfWork(connection.db, coordinator, admittedStores);
+    const sourceUow = sqliteUnitOfWork(connection.db, coordinator, {
+      createScope: () => ({ stores: admittedStores }),
+      createRepairScope: () => ({ stores: admittedStores }),
+    });
     const stamp = { at: 1_757_851_200_000, by: ACTOR };
     await stores.users.create(
       { id: ACTOR, username: ACTOR, passwordHash: 'x', createdAt: stamp.at },
@@ -117,6 +122,8 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
     const clock = clockOf({ now: () => stamp.at, newId: () => crypto.randomUUID() });
     const announcements = recordingBroadcaster();
     const imports = createImportService({
+      commandAccess: localCommandAccess,
+      externalDependencies: INACTIVE_EXTERNAL_DEPENDENCIES,
       clock,
       scheduler: fastScheduler,
       uow: measuredUow,
@@ -127,14 +134,15 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
           clock,
           broadcast,
           scheduler: fastScheduler,
+          dependencyContext: createLocalDependencyContext(scope.stores),
         }),
     });
 
-    const outcome = await imports.import(document, ACTOR, LEGACY_ACCESS);
+    const outcome = await imports.import(document, { kind: 'legacy', actorId: ACTOR });
     if (queuedWrite === undefined) throw new Error('ordinary write was not queued during import');
     const queuedTag = await queuedWrite;
     expect(outcome.ok).toBe(true);
-    if (!outcome.ok) throw new Error(`measurement import refused: ${JSON.stringify(outcome)}`);
+    if (!outcome.ok) throw new Error(`measurement import refused at ${JSON.stringify(outcome)}`);
     expect(outcome.rows).toBe(ROWS);
     expect(await stores.workItems.listByProject(outcome.projectId)).toHaveLength(ROWS);
     expect(queuedTag.name).toBe('Queued ordinary write');
@@ -153,10 +161,11 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
     expect(queuedAt).toBeGreaterThan(commitAt);
     const drizzleStatements = commitAt - beginAt + 1;
     // One project, bands, capacity, marker, team patch, person insert and subtree
-    // transaction, then one label patch per row: 7 + 500 nested transactions.
-    // Proof: omitting the native transaction observer reported 0 instead of 507,
-    // hiding its 1,014 SAVEPOINT/RELEASE controls from the admitted total.
-    expect(nativeTransactions).toBe(507);
+    // transaction, 500 label patches, and the response tree's unified typed read:
+    // 8 + 500 wrappers. Stack/boundary diagnostics observed the last read before COMMIT.
+    // Proof: omitting the native transaction observer reported 0 instead of 508,
+    // hiding its 1,016 SAVEPOINT/RELEASE controls from the admitted total.
+    expect(nativeTransactions).toBe(508);
     const nativeControls = nativeTransactions * 2;
     const admittedStatements = drizzleStatements + nativeControls;
 

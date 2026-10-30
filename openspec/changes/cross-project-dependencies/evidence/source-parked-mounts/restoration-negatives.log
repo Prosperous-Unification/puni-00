@@ -1,0 +1,16 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/backend-exclusion.test.ts:
+(pass) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: none [4882.93ms]
+(pass) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: source-mount-duplicate [3741.88ms]
+(pass) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: source-mount-field [3763.01ms]
+(pass) restoration coordinator starts only compatible solver after finalizers and leaves participants fenced: unrelated-mount-field [3944.08ms]
+
+tools/tool-remote-scripts/src/lib/source-dev-cohort.test.ts:
+(pass) parked identity derives actual source fields and exact raw membership without mutating input [0.71ms]
+
+ 5 pass
+ 126 filtered out
+ 0 fail
+ 8426 expect() calls
+Ran 5 tests across 2 files. [16.49s]

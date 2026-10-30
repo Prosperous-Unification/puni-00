@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:
+653 |       entries.some((entry) => entry.projectId === ownerId) ||
+654 |       keys.size !== entries.length ||
+655 |       keys.size !== required.size ||
+656 |       [...keys].some((key) => !required.has(key))
+657 |     )
+658 |       throw new Error('journal external revision coverage is not exact');
+                      ^
+error: journal external revision coverage is not exact
+      at requireExternalRevisions (/tmp/puni-incident-handdown/libs/wbs/application/core/src/service/compensating.ts:658:17)
+      at record (/tmp/puni-incident-handdown/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:8652:7)
+      at async recordCollected (/tmp/puni-incident-handdown/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:8570:16)
+      at async <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-fixture.ts:144:23)
+      at async <anonymous> (/tmp/puni-incident-handdown/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) mixed incident handdown preserves scopes steps both owners history and local retained rows through nested undo redo [672.94ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 11 expect() calls
+Ran 1 test across 1 file. [3.08s]

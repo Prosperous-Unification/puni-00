@@ -45,7 +45,8 @@ const listener = await startSolverSupervisor(
     },
     lifecycle: {
       pidsLimit: 128,
-      maxManagedContainers: 1,
+      // The composed SQLite client admits the real Pri/Time pair concurrently.
+      maxManagedContainers: 2,
       outputLimits: {
         maxPayloadBytes: 64 * 1024,
         maxStdoutBytes: 2 * 1024 * 1024,

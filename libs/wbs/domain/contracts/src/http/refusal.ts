@@ -150,6 +150,8 @@ export type CommandRefusalCode =
    * the solve lands, and arranging by Fast instead would put the rows in an
    * order the reader did not pick (ADR 0022's reasoning about unmarked dates).
    */
+  | 'arrangement_positions_unavailable'
+  | 'dependency_calendar_missing'
   | 'schedule_not_ready'
   | 'minutes_not_integer'
   | 'minutes_above_max'
@@ -179,7 +181,10 @@ export type CommandRefusalCode =
   | 'not_a_parent'
   | 'node_on_parent'
   | 'descendant_step_on_leaf'
+  | 'referenced_by_external_dependency'
   | 'unknown_dependency'
+  | 'external_dependencies_inactive'
+  | 'project_deleting'
   | 'duplicate_dependency'
   | 'unsupported_relationship_type'
   | 'too_large'
@@ -254,6 +259,7 @@ export type CommandRefusalCode =
   | 'steps_on_subtree'
   | 'item_done'
   | 'not_startable'
+  | 'prerequisites_unmet'
   | 'step_done'
   | 'already_claimed'
   // `claimWorkItem` occupancy (`wbs-resources` R3, R4), between already_claimed
@@ -469,6 +475,7 @@ export interface Quota {
  */
 export type Integrity = { savedPlanId: string } & (
   | { reason: 'body_missing'; body: 'input' | 'schedule' }
+  | { reason: 'body_invalid'; body: 'input' | 'schedule'; path: string; code: string }
   | { reason: 'body_hash_mismatch'; body: 'input' | 'schedule'; stored: string; recomputed: string }
   | {
       reason: 'schedule_input_mismatch';
@@ -494,7 +501,8 @@ export type CommandRefusalDetail = {
       : // Proof: optional nodes made the missing-detail compiler negative unused (mutation-optional-command-nodes.txt).
         C extends 'referenced_by_step_parallel'
         ? { nodes: { workItemId: string; stepId: string }[] }
-        : C extends 'node_on_parent' | 'descendant_step_on_leaf'
+        : C extends
+              'node_on_parent' | 'descendant_step_on_leaf' | 'referenced_by_external_dependency'
           ? { dependencyIds: string[] }
           : C extends 'in_use'
             ? { usage: DirectoryUsage; counts?: ResourceUsageCounts }
@@ -502,31 +510,42 @@ export type CommandRefusalDetail = {
               ? { name?: string }
               : C extends 'not_startable'
                 ? { status: string }
-                : C extends 'step_done'
-                  ? { stepIds: string[] }
-                  : C extends 'already_claimed' | 'destination_claimed' | 'children_claimed'
-                    ? { holders: ClaimRefusalHolder[] }
-                    : C extends 'inside_subtree_claim' | 'overlaps_subtree_claim'
-                      ? { holder: ClaimRefusalHolder }
-                      : C extends 'below_declared_demand'
-                        ? { resourceId: string; asked: number; declared: number }
-                        : C extends 'below_held_occupancy'
-                          ? { resourceId: string; asked: number; held: number }
-                          : C extends 'resources_exhausted'
-                            ? ResourceShortageDetail & { resources: ResourceShortageDetail[] }
-                            : C extends 'agent_person_limit'
-                              ? LimitRefusalDetail
-                              : C extends 'claim_limit'
-                                ? ClaimLimitRefusalDetail
-                                : C extends 'capacity_limit'
-                                  ? CapacityLimitRefusalDetail
-                                  : C extends 'budget_exhausted'
-                                    ? BudgetExhaustedRefusalDetail
-                                    : // Proof (type boundary only): omitting this arm produced TS2353 for bases
-                                      // and TS2578 for missing-bases negatives in assertMixedRateCardRefusalTypes.
-                                      C extends 'mixed_rate_cards'
-                                      ? { bases: typeof mixedBases.infer }
-                                      : Record<never, never>);
+                : C extends 'prerequisites_unmet'
+                  ? {
+                      stepIds: string[];
+                      blockers: {
+                        workItemId: string;
+                        stepId: string | null;
+                        type: 'FS' | 'SS' | 'FF';
+                        provenance: 'workflow' | 'legacy' | 'authored';
+                        relationshipId: string | null;
+                      }[];
+                    }
+                  : C extends 'step_done'
+                    ? { stepIds: string[] }
+                    : C extends 'already_claimed' | 'destination_claimed' | 'children_claimed'
+                      ? { holders: ClaimRefusalHolder[] }
+                      : C extends 'inside_subtree_claim' | 'overlaps_subtree_claim'
+                        ? { holder: ClaimRefusalHolder }
+                        : C extends 'below_declared_demand'
+                          ? { resourceId: string; asked: number; declared: number }
+                          : C extends 'below_held_occupancy'
+                            ? { resourceId: string; asked: number; held: number }
+                            : C extends 'resources_exhausted'
+                              ? ResourceShortageDetail & { resources: ResourceShortageDetail[] }
+                              : C extends 'agent_person_limit'
+                                ? LimitRefusalDetail
+                                : C extends 'claim_limit'
+                                  ? ClaimLimitRefusalDetail
+                                  : C extends 'capacity_limit'
+                                    ? CapacityLimitRefusalDetail
+                                    : C extends 'budget_exhausted'
+                                      ? BudgetExhaustedRefusalDetail
+                                      : // Proof (type boundary only): omitting this arm produced TS2353 for bases
+                                        // and TS2578 for missing-bases negatives in assertMixedRateCardRefusalTypes.
+                                        C extends 'mixed_rate_cards'
+                                        ? { bases: typeof mixedBases.infer }
+                                        : Record<never, never>);
 };
 
 type BareRefusalCode =
@@ -611,6 +630,9 @@ type BareRefusalCode =
   | 'optimizer_unavailable'
   /** Another of the organization's projects holds the requested solution slug. */
   | 'solution_taken'
+  | 'abbreviation_taken'
+  | 'abbreviation_exhausted'
+  | 'invalid_abbreviation'
   | 'engine_unavailable'
   | 'snapshot_busy'
   | 'invalid_client'
@@ -720,6 +742,7 @@ type BareRefusalCode =
   | 'delivery_busy';
 
 type SharedCommandCode =
+  | 'external_dependencies_inactive'
   | 'person_not_bound'
   | 'credential_not_for_person'
   | 'not_found'
@@ -817,6 +840,8 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
       | { nodes: { workItemId: string; stepId: string }[] }
       | CommandRefusalDetail['referenced_by_step_parallel'];
     estimates_present: { count: number };
+    external_dependencies_inactive:
+      { detail: string | null } | CommandRefusalDetail['external_dependencies_inactive'];
     nothing_to_undo: { detail: string | null };
     stale_undo: { detail: string | null };
     stale_address_revision: { addressRevision: string };
@@ -844,6 +869,7 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
       version: number;
       supported: readonly number[];
     };
+    client_dependency_incompatible: { required: 'cross-project-dependencies-v1' };
     dependency_unavailable: {
       status: 'migrating' | 'database_unreachable' | 'schema_missing';
       commit: string | null;
@@ -873,6 +899,8 @@ export interface ImportRefusal {
     | 'deadline_before_project_start'
     | 'engine_unavailable'
     | 'source_refused'
+    | 'abbreviation_taken'
+    | 'abbreviation_exhausted'
     /** A row with several types; `detail` lists every such row's file id. */
     | 'work_item_takes_one_type';
   path: string;
@@ -901,13 +929,31 @@ export type OptimizerRetryRefusal =
   | { code: 'stale-input-hash'; currentInputHash: string }
   | {
       code: 'not-retryable';
-      state: 'ready' | 'pending' | 'retrying' | 'failed' | 'corrupt' | 'plan-infeasible' | 'idle';
+      state:
+        | 'ready'
+        | 'pending'
+        | 'retrying'
+        | 'failed'
+        | 'corrupt'
+        | 'plan-infeasible'
+        | 'boundary-infeasible'
+        | 'idle';
     }
   | { code: 'already-running' }
   | {
       code: 'schedule-input-unavailable';
       reason: 'engine_unavailable' | 'cycle' | 'calendar_range';
       projectId: string;
+    }
+  | {
+      code: 'schedule-input-unavailable';
+      reason: 'dependency_calendar_missing';
+      projectId: string;
+      projects: readonly {
+        readonly projectId: string;
+        readonly abbreviation: string;
+        readonly name: string;
+      }[];
     };
 
 export type Refusal<C extends RefusalCode = RefusalCode> = ErrorRefusal<C> | OptimizerRetryRefusal;

@@ -1,0 +1,27 @@
+{
+  "command": "bunx --no-install openspec validate --all --json",
+  "exitCode": 0,
+  "summary": {
+    "totals": {
+      "items": 274,
+      "passed": 274,
+      "failed": 0
+    },
+    "byType": {
+      "change": {
+        "items": 256,
+        "passed": 256,
+        "failed": 0
+      },
+      "spec": {
+        "items": 18,
+        "passed": 18,
+        "failed": 0
+      }
+    }
+  },
+  "root": {
+    "path": "/tmp/puni-task42-oauth",
+    "source": "nearest"
+  }
+}

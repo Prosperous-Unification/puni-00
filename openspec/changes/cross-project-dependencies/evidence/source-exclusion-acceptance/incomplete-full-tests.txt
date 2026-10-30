@@ -1,0 +1,8 @@
+Two local full configured suite attempts were cancelled at the parent’s request
+using SIGINT only after checking their exact PID, argv and worktree cwd.
+Both returned exit 130. Neither supplies passing evidence.
+
+The restricted attempt additionally failed installer Unix-socket fixtures:
+EPERM on /tmp/solver-install-operation-*/ready.sock.
+The supported attempt was cancelled early to reserve the full suite for one
+integrated P1 + typed refusal terminal + source runner packet.

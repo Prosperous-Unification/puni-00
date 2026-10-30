@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-attempt-events.controller.db.test.ts:
+88 |     expect(answer.status).toBe(200);
+89 |   };
+90 |   expect(await readStartable()).toBe(false);
+91 |   await command({ kind: 'startAttempt' });
+92 |   expect(await readStartable()).toBe(true);
+93 |   for (const project of [downstream, tail]) expect(events(project.id)).toHaveLength(1);
+                                                                            ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 1
+Received length: 0
+
+      at <anonymous> (/tmp/puni-attempt-fanout/apps/wbs/be-01/src/controller/cross-project-attempt-events.controller.db.test.ts:93:72)
+(fail) attempt start, end and remove invalidate only the dependency component (shared=%s) [515.05ms]
+88 |     expect(answer.status).toBe(200);
+89 |   };
+90 |   expect(await readStartable()).toBe(false);
+91 |   await command({ kind: 'startAttempt' });
+92 |   expect(await readStartable()).toBe(true);
+93 |   for (const project of [downstream, tail]) expect(events(project.id)).toHaveLength(1);
+                                                                            ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 1
+Received length: 0
+
+      at <anonymous> (/tmp/puni-attempt-fanout/apps/wbs/be-01/src/controller/cross-project-attempt-events.controller.db.test.ts:93:72)
+(fail) attempt start, end and remove invalidate only the dependency component (shared=%s) [385.74ms]
+
+ 0 pass
+ 2 filtered out
+ 2 fail
+ 22 expect() calls
+Ran 2 tests across 1 file. [4.21s]

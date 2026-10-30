@@ -1,0 +1,24 @@
+{
+  "scope": "Only factual comment insertions after independently accepted7; sourcebefore/inverses retained",
+  "actualAuditSHA256": "7f84fe93f0423682f00326ae1108ac2712958d1e176219dbb450b6e46123ea0f",
+  "entries": [
+    {
+      "path": "tools/tool-remote-scripts/test/ci-leaf.ts",
+      "beforeSHA256": "bffe766cb816bf50872c27ccff675481682d3fbbad92751f463f4e56b3780de5",
+      "afterSHA256": "467fb21dfb90d867e9757dcd4df98b44da6890b86d95c80d9fc9b053b175519f",
+      "inverse": "/tmp/puni-source-restoration-ci-20261030/annotations/00.before.txt"
+    },
+    {
+      "path": "tools/tool-git-hooks/src/hooks/ci-run-runtime.ts",
+      "beforeSHA256": "072c7ca534c6648949a3e61efbbc3b9e367d36936a52b45f89721bc4beb5324a",
+      "afterSHA256": "e67369b0bb81b13afe5084e2de64a12a8f153d99247f2086cdfd9c119536962b",
+      "inverse": "/tmp/puni-source-restoration-ci-20261030/annotations/01.before.txt"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "beforeSHA256": "591a1f14cb9ffb04b8ad070c05625754278cb5667e1a89a3d9ce65a8f06e426a",
+      "afterSHA256": "6bec8b2d0130ffbfcebc52cc1e59010e814f44a003bba3f1890279ba7298e491",
+      "inverse": "/tmp/puni-source-restoration-ci-20261030/annotations/02.before.txt"
+    }
+  ]
+}

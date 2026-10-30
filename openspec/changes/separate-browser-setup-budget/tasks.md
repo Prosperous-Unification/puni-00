@@ -8,3 +8,7 @@
 - [x] 2.1 Record commands, original three timeouts, declaration mutations, Actions faults/controls and limitations in `verify.md`; obtain one scoped review and address blocking findings. Validate OpenSpec and normal commit hooks. Finish the local implementation and proof record before publication.
 
 Final acceptance follows publication: publish the correction once with the delivery PR, obtain actual complete browser and required gate verdicts on the final head, and retain the external receipt on the PR without an evidence-only source commit. Merged under the 2026-10-24 goal; deployment stays outside this change.
+
+## 3. Eight-shard integration amendment
+
+- [x] 3.1 Preserve eight-way partition and the dedicated shard-four command, declare its ten-minute limit and a 55-minute whole-job limit, then assert every selected path against parsed production YAML with five minutes of overhead. Watch omission of each phase and job limit, a 50-minute job, an unfunded dedicated limit, dedicated command/condition drift, shard denominator or matrix drift, and failure masking; restore the source and run focused workflow, lint, typecheck, format and OpenSpec checks. Record the integrated outcome separately from the earlier four-shard evidence.

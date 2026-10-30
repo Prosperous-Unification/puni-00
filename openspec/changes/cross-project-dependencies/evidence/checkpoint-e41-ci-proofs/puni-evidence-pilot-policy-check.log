@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+src/policy/pilot-policy.test.ts:
+(pass) reviewed radical-modularity pilot through production CLI > loads the narrow enforced Tool Wiki bootstrap policy through the trusted boundary [2055.46ms]
+(pass) reviewed radical-modularity pilot through production CLI > pins exact pre-index tuples and passes observe lint from external trust [19542.43ms]
+(pass) reviewed radical-modularity pilot through production CLI > refuses an externally selected mapping that resolves inside the candidate [2658.83ms]
+(pass) reviewed radical-modularity pilot through production CLI > refuses a missing externally selected mapping [2800.72ms]
+(pass) reviewed radical-modularity pilot through production CLI > refuses an unreadable externally selected mapping distinctly from absence [3093.67ms]
+(pass) reviewed radical-modularity pilot through production CLI > refuses an externally selected mapping whose digest differs from its binding [2784.68ms]
+(pass) reviewed radical-modularity pilot through production CLI > refuses an externally selected mapping for a different source revision [3072.84ms]
+(pass) reviewed radical-modularity pilot through production CLI > fails observe lint when one actual pilot member leaves its index [6124.86ms]
+(pass) reviewed radical-modularity pilot through production CLI > refuses a stale Burokrat test command without its literal source selection [14008.12ms]
+(pass) reviewed radical-modularity pilot through production CLI > refuses prose facts presented as applicable checks [14463.16ms]
+(pass) reviewed radical-modularity pilot through production CLI > refuses an owned README declared as its own external consumer [6414.97ms]
+(pass) reviewed radical-modularity pilot through production CLI > refuses a pilot mapping whose pinned predecessor identity differs from the candidate [6119.57ms]
+(pass) reviewed radical-modularity pilot through production CLI > refuses a missing mapped pilot index with current candidate evidence [6456.12ms]
+(pass) reviewed radical-modularity pilot through production CLI > refuses externally pinned module and ownership claims that disagree with indexes [22456.31ms]
+(pass) reviewed radical-modularity pilot through production CLI > refuses mapped external consumers that disagree with the owned index [7692.53ms]
+(pass) reviewed radical-modularity pilot through production CLI > refuses a selected pilot index omitted from the externally pinned mapping [8615.42ms]
+(pass) reviewed radical-modularity pilot through production CLI > refuses a trusted selector left at the pre-move directory of a relocated boundary [6158.98ms]
+(pass) reviewed radical-modularity pilot through production CLI > refuses an empty, unmapped, incompatible, or escaping pre-index tuple manifest [13121.77ms]
+(pass) reviewed radical-modularity pilot through production CLI > refuses a creation revision that is not the new module’s own first commit [23647.26ms]
+(pass) on-disk bootstrap policy, mapping and relationship files > shared test contract README checks have executable target facts [0.61ms]
+(pass) on-disk bootstrap policy, mapping and relationship files > the bootstrap policy and mapping select the moved pilot boundaries at HEAD [28.79ms]
+(pass) on-disk bootstrap policy, mapping and relationship files > every obligation check id resolves to a fact its policy declares [1.56ms]
+(pass) on-disk bootstrap policy, mapping and relationship files > every bootstrap nx-target fact names a workspace project whose cwd exists at HEAD [1291.44ms]
+(pass) on-disk bootstrap policy, mapping and relationship files > every bootstrap module declares external consumers that exist at HEAD [32.78ms]
+
+ 24 pass
+ 0 fail
+ 430 expect() calls
+Ran 24 tests across 1 file. [173.55s]

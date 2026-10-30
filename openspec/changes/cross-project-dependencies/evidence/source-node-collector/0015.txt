@@ -1,0 +1,24 @@
+
+test/source-inner-program-child.test.ts:
+source Node owning namespace actual UID/GID1000:1000 observed
+source Node address BEGIN canonical-v6
+447 |     try {
+448 |       console.error(`source Node address BEGIN ${fault}`);
+449 |       const receipt = await runActualReceipt(launcherWithCollector(collector), 'observe', [
+450 |         String(target.pid),
+451 |       ]);
+452 |       expect(receipt.code).toBe(1);
+                                 ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-program.model.ts:452:28)
+(fail) actual source address projection refuses canonical-v6 builtin observation [234.50ms]
+
+ 0 pass
+ 48 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [252.00ms]

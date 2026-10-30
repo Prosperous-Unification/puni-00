@@ -1,0 +1,56 @@
+{"argv": ["bun", "test", "--preload", "./tools/test/scratch/preload.ts", "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts", "--test-name-pattern=^isolated source restoration refuses dev gateway database opener$", "--timeout=320000"], "pid": 3249213, "exit": 1, "signal": null, "stdoutEOF": true, "stderrEOF": true, "elapsedSeconds": 98.62935518706217, "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47", "stderrSHA256": "88390a6ff2aa35e89b1f10958db963885b392f615bced280ba12ca78a4cc6b1c"}
+bun test v1.4.4 (38afee6c8)
+
+
+tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:
+
+test/dependency-source-restoration-model-child.test.ts:
+SOURCE_RESTORATION_REACHED: original prepare/consume/solver/backend/gateway complete; source cold and dev openers excluded
+SOURCE_RESTORATION_AUTHORITY_WIRE: dev-gateway decoded original-family collection
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: /source participant restoration refused/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at unknown:1:1
+      at unknown:1:1
+      at acquire (unknown:1:1)
+      at unknown:1:1
+      at acquireLock (unknown:1:1)
+(fail) source restoration refuses dev gateway database opener [98534.46ms]
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+ 571 expect() calls
+Ran 1 test across 1 file. [98.60s]
+SOURCE_RESTORATION_INNER_CUSTODY: {"name":"source restoration refuses dev gateway database opener","exitCode":1,"signal":null,"stdoutEof":true,"stderrEof":true}
+60 |       // This receipt follows the ORIGINAL child exit and both EOF joins, with
+61 |       // normal exit0/1 and null signal; an outcome line alone proves no custody.
+62 |       process.stderr.write(
+63 |         `SOURCE_RESTORATION_INNER_CUSTODY: ${JSON.stringify({ name, exitCode: exit.value, signal: null, stdoutEof: true, stderrEof: true })}\n`,
+64 |       );
+65 |       expect(exit.value).toBe(0);
+                              ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:65:26)
+(fail) isolated source restoration refuses dev gateway database opener [98618.19ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [98.63s]
+

@@ -6,8 +6,11 @@ import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { PlanTree } from '../../ports/plan-tree';
 import type { Scope } from '../../ports/unit-of-work';
 import { normalizeCommand, type PlanCommand } from '../../service/command-normalizers';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
+import { expectCreated } from '../../testing/expect-created';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { createPlanCommandRunner } from './composition';
 
@@ -26,6 +29,7 @@ async function seeded() {
   const source = fixture.source;
   fixture.addOrganization(ORG, { legacy: true });
   const options = {
+    dependencyContext: createLocalDependencyContext(source.stores),
     admission: CREATOR_ADMISSION,
     clock: testClock,
     broadcast: recordingBroadcaster(),
@@ -36,7 +40,7 @@ async function seeded() {
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const created = await graph.projects.create('Budgets', F);
+  const created = expectCreated(await graph.projects.create('Budgets', F));
   const projectId = created.project.id;
   fixture.ownProjectInOrganization(projectId, ORG);
   for (const step of created.steps) {
@@ -51,10 +55,15 @@ async function seeded() {
     throw new Error('the project has fewer than two steps');
   const runner = createPlanCommandRunner({
     uow: source.uow,
+    commandAccess: localCommandAccess,
     announcements: options.broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
-      servicesOver(scope.stores, { ...options, broadcast: announcements }),
+      servicesOver(scope.stores, {
+        ...options,
+        dependencyContext: createLocalDependencyContext(scope.stores),
+        broadcast: announcements,
+      }),
   });
   const defined = await runner.runDirectory(F, [
     {
@@ -579,7 +588,8 @@ describe('the headroom read', () => {
         },
       });
       // A's own looser strict budget loses to the parent's tighter one.
-      expect(stepOf(A, qa)?.budgets['tokens']?.strict?.workItemId).toBe(P);
+      expect(stepOf(A, dev)?.budgets['tokens']?.strict?.workItemId).toBe(P);
+      expect(stepOf(A, qa)).toBeUndefined();
       expect(read.steps.every(({ state }) => state === 'startable')).toBe(true);
     } finally {
       await source.close();
@@ -637,7 +647,10 @@ describe('the headroom read', () => {
       ]);
       const read = await graph.workItems.budgetHeadroomWithin(projectId, LEGACY, null);
       if (read === null || 'kind' in read) throw new Error(`refused: ${JSON.stringify(read)}`);
-      const onA = read.steps.find((each) => each.workItemId === A && each.stepId === qa);
+      const onA = read.steps.find((each) => each.workItemId === A && each.stepId === dev);
+      expect(
+        read.steps.find((each) => each.workItemId === A && each.stepId === qa),
+      ).toBeUndefined();
       expect(onA?.budgets['tokens']).toMatchObject({
         strict: { workItemId: P, remaining: 0 },
         advisory: { workItemId: A, source: 'derived', remaining: -200 },

@@ -5,12 +5,17 @@ import {
   DEFAULT_ESTIMATE_RULE,
   isIsoDate,
   isTimezone,
+  parseProjectAbbreviation,
   PertWeights,
 } from '@wbs/domain';
 import { NO_ALLOWANCE, STEP_POSITION_STEP, suggestStepCodes } from '@wbs/domain';
 import { type } from '@wbs/validation';
 
 import type { Clock } from '../../ports/clock';
+import {
+  type ServiceDependencyContext,
+  withDependencyContext,
+} from '../../ports/dependency-context';
 import type { BeforeProjectUpdate } from '../../ports/fanout-capture-store';
 import {
   findProjectWithin,
@@ -33,7 +38,6 @@ import type {
 } from '../../ports/project-store';
 import { isBudgetFactor } from '../../ports/project-values';
 import type { OptimizerAvailability } from '../../ports/scheduler';
-import type { DependencyGraphGuard } from '../../service/dependency-graph';
 
 export type {
   ProjectWithSteps,
@@ -49,13 +53,15 @@ export type {
 export const STARTING_STEPS = ['Dev', 'QA'] as const;
 
 /** A PATCH's settings: the stored ones, and the zone kept beside them. */
-export type ProjectSettingsPatch = ProjectPatch & { timezone?: string };
+export type ProjectSettingsPatch = ProjectPatch;
 
 export type UpdateOutcome =
   | { ok: true; value: ZonedProject }
   | {
       ok: false;
       reason:
+        | 'invalid_abbreviation'
+        | 'abbreviation_taken'
         | 'not_found'
         | 'forbidden'
         | 'bad_start_date'
@@ -87,7 +93,12 @@ export type UpdateOutcome =
 
 /** A scoped viewer may not create; legacy access and every writing role may. */
 export type CreateOutcome =
-  { ok: true; value: ProjectWithSteps } | { ok: false; reason: 'forbidden' };
+  | { ok: true; value: ProjectWithSteps }
+  | {
+      ok: false;
+      reason:
+        'forbidden' | 'invalid_abbreviation' | 'abbreviation_taken' | 'abbreviation_exhausted';
+    };
 
 /** Whether the caller may write `project`, found through the caller's access. */
 export type EditAuthorization =
@@ -135,7 +146,7 @@ export interface ProjectServiceOptions {
    * link's anchor at once, and a project that accepted one without asking
    * would store a plan whose every later read throws.
    */
-  dependencyGraph: Pick<DependencyGraphGuard, 'findCycle'>;
+  dependencyContext: ServiceDependencyContext;
   /** Trusted admitted-route observation seam; direct service callers need no fan-out capture. */
   beforeUpdate?: BeforeProjectUpdate;
 }
@@ -182,15 +193,24 @@ export class ProjectService {
     name: string,
     ownerId: string,
     access: ResourceAccess,
+    abbreviation?: string,
   ): Promise<CreateOutcome> {
     if (access.kind === 'scoped' && !canWriteInOrganization(access.scope.role)) {
       return { ok: false, reason: 'forbidden' };
     }
-    return { ok: true, value: await this.createProject(name, ownerId, access) };
+    const parsed = abbreviation === undefined ? undefined : parseProjectAbbreviation(abbreviation);
+    if (parsed !== undefined && !parsed.ok) return parsed;
+    const created = await this.createProject(name, ownerId, access, parsed?.abbreviation);
+    return typeof created === 'string'
+      ? { ok: false, reason: created }
+      : { ok: true, value: created };
   }
 
   /** Unscoped legacy creation for callers outside the project routes. */
-  create(name: string, ownerId: string): Promise<ProjectWithSteps> {
+  create(
+    name: string,
+    ownerId: string,
+  ): Promise<ProjectWithSteps | 'abbreviation_taken' | 'abbreviation_exhausted'> {
     return this.createProject(name, ownerId, LEGACY);
   }
 
@@ -198,7 +218,8 @@ export class ProjectService {
     name: string,
     ownerId: string,
     access: ResourceAccess,
-  ): Promise<ProjectWithSteps> {
+    abbreviation?: string,
+  ): Promise<ProjectWithSteps | 'abbreviation_taken' | 'abbreviation_exhausted'> {
     // Built before the row, because the row's own `createdAt` is this act's
     // instant: the project and the starting steps arriving in one transaction
     // are one beginning, and they are dated from one reading of the clock.
@@ -206,6 +227,7 @@ export class ProjectService {
     const project: NewProject = {
       id: this.clock.newId(),
       name,
+      ...(abbreviation === undefined ? {} : { abbreviation }),
       ownerId,
       restricted: false,
       // PERT is the default: it is the reason three points are collected, and
@@ -259,7 +281,7 @@ export class ProjectService {
             access.scope.organizationId,
           )
         : await this.opts.projects.create(project, steps, stamp);
-    return { project: written, steps };
+    return typeof written === 'string' ? written : { project: written, steps };
   }
 
   /**
@@ -398,7 +420,10 @@ export class ProjectService {
     settings: ProjectSettingsPatch,
     access: ResourceAccess,
   ): Promise<UpdateOutcome> {
-    const { timezone, ...patch } = settings;
+    // Splitting timezone into setTimezone made the mounted combined patches
+    // persist revision 2 while returning revision 1 (2026-10-22).
+    const patch = { ...settings };
+    const { timezone } = patch;
     // Checked against the runtime's own list, the one `GET /api/timezones`
     // serves, before anything is read: a zone `Intl` cannot format would throw
     // on every later read of the project's days.
@@ -455,67 +480,79 @@ export class ProjectService {
           ? 'ordinary'
           : 'refused';
     if (edit === 'refused') return { ok: false, reason: 'forbidden' };
-    const project = found;
-    // After the authorization check, so a reader of a restricted project still
-    // learns `forbidden` rather than a fact about how this box is wired.
-    if (turnsTheOptimizerOn(project, patch) && !this.optimizerAvailable()) {
-      return { ok: false, reason: 'optimizer_unavailable' };
-    }
-    // Asked of the state the patch would leave, before the write. The route
-    // runs this whole method as one unit of work (`admitted-write.ts`), so no
-    // other write lands between this read and the write below.
-    // Proof: this check skipped made the mounted `refuses a depReach change
-    // that closes a step-node cycle` fail on `Expected: 409, Received: 200`;
-    // watched 2026-09-27.
-    if (patch.depReach !== undefined && patch.depReach !== project.depReach) {
-      const cycle = await this.opts.dependencyGraph.findCycle(id, { reach: patch.depReach });
-      if (cycle !== null) return { ok: false, reason: 'dependency_cycle' };
-    }
-    if (this.opts.beforeUpdate !== undefined) {
-      const observed = await this.opts.beforeUpdate(id, actorId, access);
-      if (!observed.ok) return observed;
-    }
-    const stamp = this.clock.stampFor(actorId);
-    // Scoped writes are classified again inside the store's transaction, so a
-    // restriction or membership change since the read above cannot turn a
-    // recovery into an unaudited ordinary write.
-    const written =
-      access.kind === 'legacy'
-        ? await this.opts.projects.update(id, patch, stamp)
-        : await this.opts.projects.editInOrganization(
-            id,
-            patch,
-            stamp,
-            access.scope.organizationId,
-            { actorId, auditId: this.clock.newId() },
-          );
-    // The in-transaction classification refused: demoted, or the project
-    // changed hands or restriction, since the request was read.
-    if (written === 'forbidden') return { ok: false, reason: 'forbidden' };
-    if (written === 'solution_taken') return { ok: false, reason: 'solution_taken' };
-    const updated = written;
-    // Gone between the read and the write. Reporting success would tell the
-    // caller their rename landed on a project that no longer exists.
-    if (updated === null) return { ok: false, reason: 'not_found' };
-    // In the same unit of work as the settings (`admitted-write.ts`), so the
-    // two land or roll back together.
-    if (timezone !== undefined && !(await this.opts.projects.setTimezone(id, timezone, stamp))) {
-      return { ok: false, reason: 'not_found' };
-    }
-    // After the write and only on success, so nothing is announced that the
-    // store refused or that landed on a project that had gone. `forbidden` and
-    // both `not_found` arms return above this line, which is what makes
-    // tasks.md 3b.4's "refused and emits nothing" a property of the code rather
-    // than of the test that checks it.
-    if (settingsMoved(project, updated)) {
-      await this.opts.broadcast.publish(id, {
-        type: 'project_settings_changed',
-        optimizationEnabled: updated.optimizationEnabled,
-        scheduleEngine: updated.scheduleEngine,
-        scheduleObjective: updated.scheduleObjective,
-      });
-    }
-    return { ok: true, value: await this.zoned(updated) };
+    return withDependencyContext(
+      this.opts.dependencyContext,
+      id,
+      actorId,
+      async (dependencyContext) => {
+        // Proof: bypassing grammar made mounted `refuses invalid manual input without writes` accept an empty code with 200 instead of 422 (2026-10-22).
+        if (patch.abbreviation !== undefined) {
+          const parsed = parseProjectAbbreviation(patch.abbreviation);
+          if (!parsed.ok) return parsed;
+          patch.abbreviation = parsed.abbreviation;
+        }
+        const project = found;
+        // After the authorization check, so a reader of a restricted project still
+        // learns `forbidden` rather than a fact about how this box is wired.
+        if (turnsTheOptimizerOn(project, patch) && !this.optimizerAvailable()) {
+          return { ok: false, reason: 'optimizer_unavailable' };
+        }
+        // Asked of the state the patch would leave, before the write. The route
+        // runs this whole method as one unit of work (`admitted-write.ts`), so no
+        // other write lands between this read and the write below.
+        // Proof: this check skipped made the mounted `refuses a depReach change
+        // that closes a step-node cycle` fail on `Expected: 409, Received: 200`;
+        // watched 2026-09-27.
+        if (patch.depReach !== undefined && patch.depReach !== project.depReach) {
+          // Proof: bypassing this consumer failed `connected project-reach refuses an injected failed graph read`
+          // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
+          const cycle = await dependencyContext.graph.findCycle(id, { reach: patch.depReach });
+          if (cycle !== null) return { ok: false, reason: 'dependency_cycle' };
+        }
+        if (this.opts.beforeUpdate !== undefined) {
+          const observed = await this.opts.beforeUpdate(id, actorId, access);
+          if (!observed.ok) return observed;
+        }
+        dependencyContext.assertUsable(id, actorId);
+        const stamp = this.clock.stampFor(actorId);
+        // Scoped writes are classified again inside the store's transaction, so a
+        // restriction or membership change since the read above cannot turn a
+        // recovery into an unaudited ordinary write.
+        const written =
+          access.kind === 'legacy'
+            ? await this.opts.projects.update(id, patch, stamp)
+            : await this.opts.projects.editInOrganization(
+                id,
+                patch,
+                stamp,
+                access.scope.organizationId,
+                { actorId, auditId: this.clock.newId(), role: access.scope.role },
+              );
+        // The in-transaction classification refused: demoted, or the project
+        // changed hands or restriction, since the request was read.
+        if (written === 'forbidden') return { ok: false, reason: 'forbidden' };
+        if (written === 'abbreviation_taken') return { ok: false, reason: written };
+        if (written === 'solution_taken') return { ok: false, reason: 'solution_taken' };
+        const updated = written;
+        // Gone between the read and the write. Reporting success would tell the
+        // caller their rename landed on a project that no longer exists.
+        if (updated === null) return { ok: false, reason: 'not_found' };
+        // After the write and only on success, so nothing is announced that the
+        // store refused or that landed on a project that had gone. `forbidden` and
+        // both `not_found` arms return above this line, which is what makes
+        // tasks.md 3b.4's "refused and emits nothing" a property of the code rather
+        // than of the test that checks it.
+        if (settingsMoved(project, updated)) {
+          await this.opts.broadcast.publish(id, {
+            type: 'project_settings_changed',
+            optimizationEnabled: updated.optimizationEnabled,
+            scheduleEngine: updated.scheduleEngine,
+            scheduleObjective: updated.scheduleObjective,
+          });
+        }
+        return { ok: true, value: await this.zoned(updated) };
+      },
+    );
   }
 
   /**

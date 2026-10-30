@@ -86,9 +86,11 @@ function silentApi(): SilentApi {
     createWorkItem,
     api: refusingApi({
       listProjects: () => Promise.resolve([]),
-      createProject: () => Promise.resolve({ id: 'p', name: 'Plan', restricted: false }),
+      createProject: () =>
+        Promise.resolve({ id: 'p', name: 'Plan', restricted: false, abbreviation: 'PLAN' }),
       openProject: nothing,
       renameProject: nothing,
+      setAbbreviation: (_id, abbreviation) => Promise.resolve(abbreviation.toUpperCase()),
       tree: () =>
         Promise.resolve(
           planRead({

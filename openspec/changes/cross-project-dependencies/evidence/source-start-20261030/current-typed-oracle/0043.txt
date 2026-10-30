@@ -1,0 +1,409 @@
+{
+  "scope": "Current Node tuple actual fault with supplemental attribution plus exact verified inverse and SAME restored-only consumer; original14141driver FAILED/cbd108 remains unmodified, no invented model frame or successful original driver",
+  "restoredOwnerToolJoin": {
+    "session": 92183,
+    "chunk": "d1400d",
+    "exit": 0
+  },
+  "artifacts": [
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/packet.json",
+      "sha256": "d2ff30a030f1d91876faed6de7369ebfb94e15e1e63dd540238092ba331c78b8",
+      "mode": 436,
+      "bytes": 9105
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/openspec/changes/cross-project-dependencies/design.md",
+      "sha256": "780de6dd969d3992a00eaa27250f5fc34d927bc7418044dc25a3bbaacf138706",
+      "mode": 436,
+      "bytes": 120208
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/00.source.txt",
+      "sha256": "780de6dd969d3992a00eaa27250f5fc34d927bc7418044dc25a3bbaacf138706",
+      "mode": 436,
+      "bytes": 120208
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/openspec/changes/cross-project-dependencies/specs/cross-project-dependencies/spec.md",
+      "sha256": "efa9e820f1f3637fe105cd42ec572cbd47a76e88361d029430ff891dbb15aeec",
+      "mode": 436,
+      "bytes": 135705
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/01.source.txt",
+      "sha256": "efa9e820f1f3637fe105cd42ec572cbd47a76e88361d029430ff891dbb15aeec",
+      "mode": 436,
+      "bytes": 135705
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/openspec/changes/cross-project-dependencies/tasks.md",
+      "sha256": "a2fa9962972023c37e66c0757a77adb39376618d15bfd7fa0b336781813fd53d",
+      "mode": 436,
+      "bytes": 155061
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/02.source.txt",
+      "sha256": "a2fa9962972023c37e66c0757a77adb39376618d15bfd7fa0b336781813fd53d",
+      "mode": 436,
+      "bytes": 155061
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/fixtures/participant-process-bytes.ts",
+      "sha256": "7d3db6d2b271c50ec81cbb9ecc534cf56f72372b13f0c46322ad904f21fa82d0",
+      "mode": 436,
+      "bytes": 10892
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/03.source.txt",
+      "sha256": "7d3db6d2b271c50ec81cbb9ecc534cf56f72372b13f0c46322ad904f21fa82d0",
+      "mode": 436,
+      "bytes": 10892
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/fixtures/participant-solver-runtime.ts",
+      "sha256": "6f1490276650da0bf04df2db084a2bf458ebd55b940cd0db12a01b273ab55315",
+      "mode": 436,
+      "bytes": 4190
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/04.source.txt",
+      "sha256": "6f1490276650da0bf04df2db084a2bf458ebd55b940cd0db12a01b273ab55315",
+      "mode": 436,
+      "bytes": 4190
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/fixtures/participant-source-restoration-cases.ts",
+      "sha256": "c3f05917454d87136b72b886ef4b529e3361532b14984ca79796c43003fc6b4a",
+      "mode": 436,
+      "bytes": 2538
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/05.source.txt",
+      "sha256": "c3f05917454d87136b72b886ef4b529e3361532b14984ca79796c43003fc6b4a",
+      "mode": 436,
+      "bytes": 2538
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/fixtures/participant-source-restoration.ts",
+      "sha256": "242481f4b6577cf7fea7be3be4be0c577d45f4cd0affaed6a33c836832bb1eb6",
+      "mode": 436,
+      "bytes": 19120
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/06.source.txt",
+      "sha256": "242481f4b6577cf7fea7be3be4be0c577d45f4cd0affaed6a33c836832bb1eb6",
+      "mode": 436,
+      "bytes": 19120
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/fixtures/source-role-process.ts",
+      "sha256": "74d1f299831b409920a763328debde4593622467cfb9138b0134fdddebc6b105",
+      "mode": 436,
+      "bytes": 7419
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/07.source.txt",
+      "sha256": "74d1f299831b409920a763328debde4593622467cfb9138b0134fdddebc6b105",
+      "mode": 436,
+      "bytes": 7419
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-participant-restoration.ts",
+      "sha256": "deb803e4a47c3cd6279456ec7b6462947a4d1d68b7a678cb3c2ce2d36720ccff",
+      "mode": 436,
+      "bytes": 37643
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/08.source.txt",
+      "sha256": "deb803e4a47c3cd6279456ec7b6462947a4d1d68b7a678cb3c2ce2d36720ccff",
+      "mode": 436,
+      "bytes": 37643
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-product-process-model.model.ts",
+      "sha256": "60f757f4e43dd5b69a3af2454eeac258b0ae7d9346c30da1980bec12edb91075",
+      "mode": 436,
+      "bytes": 29304
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/09.source.txt",
+      "sha256": "60f757f4e43dd5b69a3af2454eeac258b0ae7d9346c30da1980bec12edb91075",
+      "mode": 436,
+      "bytes": 29304
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-product-process.ts",
+      "sha256": "b0e880561a2632fef8dfde6866e4ebcbe3dd12fa915dfcb20bd8230f44a7abc4",
+      "mode": 436,
+      "bytes": 21539
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/10.source.txt",
+      "sha256": "b0e880561a2632fef8dfde6866e4ebcbe3dd12fa915dfcb20bd8230f44a7abc4",
+      "mode": 436,
+      "bytes": 21539
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.model.ts",
+      "sha256": "97fe03f92a56d0c5c438566eae9add08a4f2141e190eec6d9d460cef60635563",
+      "mode": 436,
+      "bytes": 15537
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/11.source.txt",
+      "sha256": "97fe03f92a56d0c5c438566eae9add08a4f2141e190eec6d9d460cef60635563",
+      "mode": 436,
+      "bytes": 15537
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts",
+      "sha256": "07e7748ab17dec4b863425a040af49fcbaeb4eaa595eb5b301b1f787f4ce6bc4",
+      "mode": 436,
+      "bytes": 3057
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/12.source.txt",
+      "sha256": "07e7748ab17dec4b863425a040af49fcbaeb4eaa595eb5b301b1f787f4ce6bc4",
+      "mode": 436,
+      "bytes": 3057
+    },
+    {
+      "path": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/test/dependency-source-restoration-model-child.test.ts",
+      "sha256": "943f493d310d1e26d03844c8242d00843f1e34a7619ca7c079c65f273d2c7a0d",
+      "mode": 436,
+      "bytes": 57
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/13.source.txt",
+      "sha256": "943f493d310d1e26d03844c8242d00843f1e34a7619ca7c079c65f273d2c7a0d",
+      "mode": 436,
+      "bytes": 57
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/driver.py",
+      "sha256": "bcb00742ad6481c300ef62707e9f4093df4ba9bb3b9d00564e0f4d94a20eef53",
+      "mode": 436,
+      "bytes": 6885
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/recipes.json",
+      "sha256": "1b8cfe92c388578349547b6cdfd9e5a9a2cb73d347a354bf7a80472839941cc8",
+      "mode": 436,
+      "bytes": 998
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/run.py",
+      "sha256": "9abc61f6170449156a67011aaad3df214418c2eb34009f17dc2ca5ba4a875b4e",
+      "mode": 436,
+      "bytes": 1167
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-mutation.json",
+      "sha256": "6f110cdf0594b8c7320d794ab897c9ff0614962e26aa433eca6f370efc1ff6db",
+      "mode": 436,
+      "bytes": 789
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-fault.json",
+      "sha256": "658cd9aa88b68eda7e31b01c10995fd43b0c0a3a5a76b8fc82e05d545b7663dc",
+      "mode": 436,
+      "bytes": 598
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-fault.stdout",
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "mode": 436,
+      "bytes": 28
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-fault.stderr",
+      "sha256": "88390a6ff2aa35e89b1f10958db963885b392f615bced280ba12ca78a4cc6b1c",
+      "mode": 436,
+      "bytes": 2059
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-fault.driver.stdout",
+      "sha256": "189dcc5669a60611a32a7403b1c4f03a484b41d888bb71374f886d282f900064",
+      "mode": 436,
+      "bytes": 2635
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-fault.driver.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436,
+      "bytes": 0
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-fault.wrapper.json",
+      "sha256": "272ac0cb7e8bad4936bcbc93fc96ac8ea8141c81f4c32bc8ad63d6975221106f",
+      "mode": 436,
+      "bytes": 266
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/stopped-manifest.json",
+      "sha256": "7ad4f2c2a4cafb3d78a8c5c0be64d684f8266fe62099af385730b44d779cfb77",
+      "mode": 436,
+      "bytes": 2699
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/recovery.json",
+      "sha256": "ae1cbd02186322c7a0f5d9145e28e15004e0ef192aeccad3f5eed91006dbb0c2",
+      "mode": 436,
+      "bytes": 7081
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/restored-only-preseal.json",
+      "sha256": "85bd96c0a9d9a5bf37a53c5e6c28d5825cc35d76e90aa41399af913db39f96ca",
+      "mode": 436,
+      "bytes": 7750
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-restored-only.json",
+      "sha256": "7eec67b36c6349d4647fcddcb97c916c84ba61231642cd84ba5f1b94ccea1c69",
+      "mode": 436,
+      "bytes": 597
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-restored-only.stdout",
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "mode": 436,
+      "bytes": 28
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-restored-only.stderr",
+      "sha256": "d8268e239055e9a41ff82c2c2beeb36d7e4330187a26875f5b372c78b2201a46",
+      "mode": 436,
+      "bytes": 1014
+    },
+    {
+      "path": "/tmp/puni-source-current-node-fault-supplemental-review-20261030.md",
+      "sha256": "d589a90c2a0abb0dac0b55fddb7207d189df7cc1f5132ca79bef7ee23886c508",
+      "mode": 436,
+      "bytes": 3036
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-current-00.json",
+      "sha256": "dba99bad050f61a64ee4a49cfe8c1a46ff1cd7a6c38939108f1ba0c4e271d538",
+      "mode": 436,
+      "bytes": 623
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-current-00.stdout",
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "mode": 436,
+      "bytes": 28
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-current-00.stderr",
+      "sha256": "d4826b6597ef72ccc637b85318199a8425f7d5c55e2aebd3fcbf8ebab57f4b6b",
+      "mode": 436,
+      "bytes": 1180
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-current-00.driver.stdout",
+      "sha256": "f1a3e6ff64908a30308be367e0437e89552ba5e9ee1479ffe7a394f4f47cf44c",
+      "mode": 436,
+      "bytes": 1781
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-current-00.driver.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436,
+      "bytes": 0
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-current-01.json",
+      "sha256": "def3815aff51a4b5d8af85951a544420d7cdd82f8f81e7a8ebd0a643ffcb58c6",
+      "mode": 436,
+      "bytes": 616
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-current-01.stdout",
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "mode": 436,
+      "bytes": 28
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-current-01.stderr",
+      "sha256": "d4b09ad1dcee74815ed33e7fd3bf4e35b2501db155063f03b074032b91116dd7",
+      "mode": 436,
+      "bytes": 1012
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-current-01.driver.stdout",
+      "sha256": "b35b3a3af857aefbc7f2256df07901a65f913a3e4b1795421b2c82172bea4186",
+      "mode": 436,
+      "bytes": 1606
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-current-01.driver.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436,
+      "bytes": 0
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-current-02.json",
+      "sha256": "ccd797901e24762939c14892cedbdd528379e51928839a80ebaebaf78277f9bf",
+      "mode": 436,
+      "bytes": 595
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-current-02.stdout",
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "mode": 436,
+      "bytes": 28
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-current-02.stderr",
+      "sha256": "eb31842e7fc23b973977345f0c192a43a14e76835c5b92bafc6b5323cc41198a",
+      "mode": 436,
+      "bytes": 845
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-current-02.driver.stdout",
+      "sha256": "e7986bb4d9376f8cce422db3345a42edbf8ba52de3652f44c87ad6a46a4c44e1",
+      "mode": 436,
+      "bytes": 1418
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-current-02.driver.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436,
+      "bytes": 0
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-current-03.json",
+      "sha256": "5ed7d1cfd500afb17c94906c3f8629e07461aa19061b60218b38b7970a660f38",
+      "mode": 436,
+      "bytes": 612
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-current-03.stdout",
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "mode": 436,
+      "bytes": 28
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-current-03.stderr",
+      "sha256": "944cf2051999dee5ecb969a258cb0502031b1212d97bb4d31fdf1ad8c1995110",
+      "mode": 436,
+      "bytes": 975
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-current-03.driver.stdout",
+      "sha256": "23f50a744c6a33b5560daa6170d93fd47b0b336bf408360cc37cd90754d00210",
+      "mode": 436,
+      "bytes": 1565
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-current-03.driver.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436,
+      "bytes": 0
+    }
+  ],
+  "fourOrdinarySites": "Four existing consumers cover8Node sites; generic currentpair covers9th",
+  "sourceControlsRestored": 31,
+  "supplementalSourceAttributionSHA256": "d589a90c2a0abb0dac0b55fddb7207d189df7cc1f5132ca79bef7ee23886c508"
+}

@@ -1,0 +1,2 @@
+Original fixture {"issues":[{"message":"must have required property 'abbreviation'","path":["rows",0,"project","abbreviation"]},{"message":"must have required property 'abbreviation'","path":["rows",1,"project","abbreviation"]},{"message":"must have required property 'abbreviation'","path":["rows",2,"project","abbreviation"]},{"message":"must have required property 'abbreviation'","path":["rows",3,"project","abbreviation"]}]}
+With abbreviation accepted

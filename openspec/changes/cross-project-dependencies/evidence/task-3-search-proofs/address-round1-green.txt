@@ -1,0 +1,38 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+(pass) alphabetic prefix is bounded and organization scoped [160.83ms]
+(pass) numeric input is not external discovery [86.60ms]
+(pass) selected project scopes steps and work items and caps flattened candidates [92.14ms]
+(pass) manual punctuation and lowercase resolve and malformed syntax precedes stale [93.97ms]
+(pass) foreign and absent addresses have identical refusal [93.83ms]
+(pass) refuses malformed queries and cursor reuse across query project organization and kind [108.18ms]
+(pass) keeps exact Unicode name matching and literal punctuation [89.45ms]
+(pass) refuses duplicate numbers and missing endpoints without changing database state [104.89ms]
+(pass) changes revision for leafhood and uncoded step order but keeps label-only edits [91.91ms]
+{"level":"error","time":1792623909350,"service":"be-01","err":{"occurrence_id":"AE_8SEY80CV6C4X85ZDF4SHCNVPHJ","fingerprint":"fp1_c2e0b1a50eaa0b0c8d51dcf1b988b6b3","stack":["Error: project 9d3eb8ef-7ee0-4ff8-ba3a-d5255d6fa006 abbreviation is missing","    at decodeProjectAbbreviation (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-abbreviation.ts:49:15)","    at searchProjects (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:108:32)","    at <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/service/project-address-search.ts:180:32)","    at async withSnapshot (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:49:29)","    at async <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/http/project-address.routes.ts:20:39)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792623909354,"service":"be-01","err":{"occurrence_id":"AE_B5WYDJ3B2Y39VHNAQWDKV6B4BK","fingerprint":"fp1_f4c4618bc7aa01efc8f950a8b5327e93","stack":["Error: project 9d3eb8ef-7ee0-4ff8-ba3a-d5255d6fa006 abbreviation is missing","    at decodeProjectAbbreviation (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-abbreviation.ts:49:15)","    at capture (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:143:21)","    at <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/service/project-address-search.ts:214:33)","    at withSnapshot (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:49:29)","    at async <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/http/project-address.routes.ts:38:39)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) fails missing abbreviation evidence visibly even outside the discovery match [102.66ms]
+(pass) viewer can discover a restricted project and leaf steps belong to that project [94.91ms]
+(pass) legacy authority keeps duplicate organization codes as separate explicit choices [167.02ms]
+(pass) rejects impossible and malformed endpoint continuation coordinates [112.74ms]
+(pass) rejects present JSON null discovery cursor for token "a" [86.35ms]
+(pass) rejects present JSON null discovery cursor for token "010" [91.65ms]
+(pass) rejects present JSON null discovery cursor for token "" [93.91ms]
+(pass) rejects present JSON null selected project cursor [83.44ms]
+(pass) rejects array cursor scope before current revision checks [108.09ms]
+(pass) rejects array cursor scope before stale revision checks [98.23ms]
+{"level":"error","time":1792623910379,"service":"be-01","err":{"occurrence_id":"AE_WW322CYCQYHVAF5VW7KK717RAS","fingerprint":"fp1_d83b8bbdf911bd846b9eba60359bfa43","stack":["Error: malformed project address placement","    at capture (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:170:19)","    at <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/service/project-address-search.ts:214:33)","    at withSnapshot (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:49:29)","    at async <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/http/project-address.routes.ts:38:39)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) fails malformed frozen placement evidence visibly during mounted candidate lookup [88.69ms]
+
+libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts:
+(pass) closes success modeled refusal and throws and rejects retained reader capabilities [81.32ms]
+(pass) holds authorization metadata and selected placements in one snapshot across rival writes [88.03ms]
+(pass) uses bounded metadata SQL without work item trees and captures only selected project facts [91.00ms]
+(pass) rejects malformed trusted step evidence at capture before returning detached facts [79.40ms]
+(pass) rejects malformed trusted placement evidence at capture before returning detached facts [82.07ms]
+
+ 25 pass
+ 0 fail
+ 133 expect() calls
+Ran 25 tests across 2 files. [4.61s]

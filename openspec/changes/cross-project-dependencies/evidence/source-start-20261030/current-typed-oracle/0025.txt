@@ -1,0 +1,70 @@
+{
+  "scope": "STOP retained; no restoration/retry/frame matcher adjustment",
+  "sourcePath": "/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-participant-restoration.ts",
+  "sourceSHA256": "1dd3c19950c3d0c8773796315c71d85273bc1f0d601de061f00bb68fea3f4421",
+  "mode": 436,
+  "device": 66307,
+  "inode": 22631290,
+  "artifacts": [
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/packet.json",
+      "sha256": "d2ff30a030f1d91876faed6de7369ebfb94e15e1e63dd540238092ba331c78b8",
+      "mode": 436,
+      "bytes": 9105
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/driver.py",
+      "sha256": "bcb00742ad6481c300ef62707e9f4093df4ba9bb3b9d00564e0f4d94a20eef53",
+      "mode": 436,
+      "bytes": 6885
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/recipes.json",
+      "sha256": "1b8cfe92c388578349547b6cdfd9e5a9a2cb73d347a354bf7a80472839941cc8",
+      "mode": 436,
+      "bytes": 998
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-mutation.json",
+      "sha256": "6f110cdf0594b8c7320d794ab897c9ff0614962e26aa433eca6f370efc1ff6db",
+      "mode": 436,
+      "bytes": 789
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-fault.json",
+      "sha256": "658cd9aa88b68eda7e31b01c10995fd43b0c0a3a5a76b8fc82e05d545b7663dc",
+      "mode": 436,
+      "bytes": 598
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-fault.stdout",
+      "sha256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47",
+      "mode": 436,
+      "bytes": 28
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-fault.stderr",
+      "sha256": "88390a6ff2aa35e89b1f10958db963885b392f615bced280ba12ca78a4cc6b1c",
+      "mode": 436,
+      "bytes": 2059
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-fault.driver.stdout",
+      "sha256": "189dcc5669a60611a32a7403b1c4f03a484b41d888bb71374f886d282f900064",
+      "mode": 436,
+      "bytes": 2635
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-fault.driver.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436,
+      "bytes": 0
+    },
+    {
+      "path": "/tmp/puni-source-start-20261029/lint-one-pair/00-current-node-opener-tuple-fault.wrapper.json",
+      "sha256": "272ac0cb7e8bad4936bcbc93fc96ac8ea8141c81f4c32bc8ad63d6975221106f",
+      "mode": 436,
+      "bytes": 266
+    }
+  ]
+}

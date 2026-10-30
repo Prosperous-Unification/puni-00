@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:
+143 |   scope.relationships.push(link('old', 'b', 'a'), link('dc', 'd', 'c'));
+144 |   const captured = await scope.reader.read(
+145 |     ['a'],
+146 |     [{ projectId: 'a', typed: [link('new', 'c', 'a')] }],
+147 |   );
+148 |   expect(captured.projects.map((project) => project.projectId)).toEqual(['a', 'b', 'c', 'd']);
+                                                                      ^
+error: expect(received).toEqual(expected)
+
+  [
+    "a",
+-   "b",
+    "c",
+    "d",
+  ]
+
+- Expected  - 1
++ Received  + 0
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts:148:65)
+(fail) replaces complete successor-owned sets and seeds both old and new components [1.99ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [140.00ms]

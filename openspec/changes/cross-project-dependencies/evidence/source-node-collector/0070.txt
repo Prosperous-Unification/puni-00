@@ -1,0 +1,24 @@
+
+test/source-inner-program-child.test.ts:
+source Node owning namespace actual UID/GID1000:1000 observed
+source Node census probe BEGIN EACCES
+554 |     if (fault === 'absent') {
+555 |       expect(receipt.code).toBe(0);
+556 |       expect(receipt.stderr).toBe('');
+557 |       expect(receipt.tokens.slice(-2)).toEqual(['REAPED', 'source-actual-finite']);
+558 |     } else {
+559 |       expect(receipt.code).toBe(1);
+                                 ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-program.model.ts:559:28)
+(fail) actual source census second probe models EACCES explicitly [59.56ms]
+
+ 0 pass
+ 48 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [80.00ms]

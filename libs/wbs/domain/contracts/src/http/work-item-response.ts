@@ -1,5 +1,6 @@
 import { type } from 'arktype';
 
+import { scheduleError } from './schedule-error-shape';
 import { stepShape } from './step-shapes';
 
 const scheduled = type({
@@ -22,6 +23,22 @@ const typedEndpoint = type({
   // Proof: widening this to unknown made `tree boundary refuses missing core producer
   // fields while allowing additive metadata` accept a numeric node ID; watched 2026-09-27.
   'stepNodeId?': 'string',
+});
+const connectedEndpoint = type({
+  // Proof: widening projectId to unknown made the mounted malformed captured
+  // navigation identity test answer 200 instead of 500 (2026-10-22).
+  endpoint: typedEndpoint.and({ projectId: 'string' }),
+  isLeaf: 'boolean',
+  revision: 'number',
+  name: 'string',
+  projectAbbreviation: 'string',
+  workItemNumber: 'string',
+  step: type({ id: 'string', name: 'string', code: 'string | null', position: 'number' }).or(
+    'null',
+  ),
+  qualifiedReference: 'string | null',
+  stepReference: 'string | null',
+  stepNodeId: 'string | null',
 });
 /**
  * One attempt at a step node as the work-item read answers it
@@ -234,7 +251,7 @@ const optimizationVariant = type({ state: "'pending' | 'retrying' | 'idle'" })
       .array()
       .readonly(),
   });
-const optimization = type({
+const optimizationBase = type({
   enabled: 'boolean',
   engine: "'fast' | 'optimized'",
   objective: "'pri' | 'time'",
@@ -243,13 +260,11 @@ const optimization = type({
   contractVersion: 'string',
   budgetMs: 'number',
   displayed: "'fast' | 'pri' | 'time'",
-  variants: { pri: optimizationVariant, time: optimizationVariant },
   // Absolute finishes rather than one delta, and one entry per schedule the
-  // read computed: the cue names Fast, PRI and Time together, every difference
-  // is taken against Fast, and the delta is that subtraction through the shared
-  // workday drift the client already applies. `fast` is required because a
-  // read that carries this object at all has computed Fast — it is the
-  // schedule the rows are placed by unless a variant displaces it.
+  // read retains: the cue names Fast, PRI and Time together, every difference
+  // is taken against the reference through the client's shared workday drift.
+  // `fast` is local Fast for a local read and the exact retained pre-selection
+  // reference for a connected stage, never a newly scheduled unpinned project.
   finishDays: { fast: 'number', 'pri?': 'number', 'time?': 'number' },
   // One boolean per variant that has a finish above, server-side per tasks.md
   // 8.7: the order relation is the half of the comparison a client cannot
@@ -257,6 +272,65 @@ const optimization = type({
   // the same pair.
   sameOrderAsFast: { 'pri?': 'boolean', 'time?': 'boolean' },
 });
+
+// Proof: independently making each terminal/certificate/question property optional
+// admitted missing JSON fields in the real projected-tree response test (2026-10-22).
+const connectedVariant = optimizationVariant.or({
+  state: "'boundary-infeasible'",
+  certificate: {
+    kind: "'boundary-infeasible'",
+    question: {
+      projectId: 'string',
+      inputHash: 'string',
+      questionHash: 'string',
+      objective: "'pri' | 'time'",
+      contractVersion: 'string',
+      budgetMs: 'number',
+      quantum: 'number',
+      wireVersion: 'number',
+      stageBytes: 'string',
+    },
+    evidence: "'contradictory-bounds' | 'initial-model-infeasible'",
+  },
+});
+// Proof: independently omitting required scope, fixed-slice and descriptor fields
+// admitted the altered projected payload; scope faults failed the public
+// producer/response/client fixture (2026-10-22).
+const connectedScope = type({
+  kind: "'connected-stage'",
+  projectId: 'string',
+  originOrdinal: 'number',
+  mode: "'isolated' | 'shared'",
+  quantum: 'number',
+  wireVersion: 'number',
+  boundary: { format: "'wbs-connected-stage'", version: '1', canonical: 'string' },
+  fixed: type({
+    projectId: 'string',
+    projectName: 'string',
+    projectAbbreviation: 'string',
+    workItemId: 'string',
+    workItemName: 'string',
+    stepId: 'string | null',
+    stepName: 'string | null',
+    start: 'number',
+    finish: 'number',
+  })
+    .array()
+    .readonly(),
+});
+const optimization = optimizationBase
+  .and({
+    // Proof: removing never admitted malformed connected scope as a local ready
+    // payload; widening local variants admitted an unscoped terminal certificate.
+    'scope?': 'never',
+    variants: { pri: optimizationVariant, time: optimizationVariant },
+  })
+  .or(
+    optimizationBase.and({
+      scope: connectedScope,
+      variants: { pri: connectedVariant, time: connectedVariant },
+    }),
+  );
 
 /**
  * The complete project tree shared by reads and exports. Account-specific undo
@@ -266,14 +340,28 @@ const optimization = type({
  */
 export const workItemTree = type({
   workItems: numberedWorkItem.array(),
+  'connectedDependencies?': type({
+    id: 'string',
+    projectId: 'string',
+    type: "'FS' | 'SS' | 'FF'",
+    predecessor: connectedEndpoint,
+    successor: connectedEndpoint,
+  }).array(),
   'typedDependencies?': type({
     id: 'string',
     predecessor: typedEndpoint,
     successor: typedEndpoint,
     type: 'string',
   }).array(),
+  // Proof: omitting this known shape admitted malformed kind, absent identity and null label at the generated HTTP decoder (2026-10-23).
+  'remoteBlockageLabels?': type({
+    root: type({ kind: "'step'", nodeId: 'string' }).or(
+      type({ kind: "'work-item'", workItemId: 'string' }),
+    ),
+    label: 'string',
+  }).array(),
   seq: 'number',
-  scheduleError: "'calendar_range' | 'cycle' | null",
+  scheduleError,
   waitingForPerson: 'number',
   waitingForCapacity: 'number',
   // Both present exactly when the displayed schedule was placed around bookings

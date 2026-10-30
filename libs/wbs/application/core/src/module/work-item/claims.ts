@@ -1,3 +1,4 @@
+import type { ExecutionPrerequisite } from '@wbs/domain';
 import type {
   BelowDeclaredDemand,
   BelowHeldOccupancy,
@@ -74,6 +75,12 @@ export type PlainClaimReason =
 export type ClaimRefusalOutcome =
   | { readonly ok: false; readonly reason: PlainClaimReason }
   | { readonly ok: false; readonly reason: 'not_startable'; readonly status: WorkItemStatus }
+  | {
+      readonly ok: false;
+      readonly reason: 'prerequisites_unmet';
+      readonly stepIds: readonly string[];
+      readonly blockers: readonly ExecutionPrerequisite[];
+    }
   | { readonly ok: false; readonly reason: 'step_done'; readonly stepIds: readonly string[] }
   | {
       readonly ok: false;
@@ -251,6 +258,8 @@ export function refusalOf(
   switch (refusal.reason) {
     case 'not_startable':
       return { ok: false, reason: refusal.reason, status: refusal.status };
+    case 'prerequisites_unmet':
+      return { ok: false, ...refusal };
     case 'step_done':
       return { ok: false, reason: refusal.reason, stepIds: [...refusal.stepIds] };
     case 'already_claimed':

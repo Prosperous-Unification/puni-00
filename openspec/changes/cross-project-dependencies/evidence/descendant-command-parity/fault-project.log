@@ -1,0 +1,30 @@
+Injected fault: project
+const projectId = endpoint.projectId ?? context.requireProjectId();
+=>
+const projectId = context.requireProjectId();
+
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/connected-command-parity.test.ts:
+1037 |       const fixture = await openFixture();
+1038 |       try {
+1039 |         const { before, leaves } = await prepareDescendantPredecessor(fixture, slowFirst);
+1040 |         const commands = descendantCommands(fixture);
+1041 |         const reply = await submit(fixture, transport, commands);
+1042 |         expect(reply.status).toBe(200);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 0
+
+      at <anonymous> (/tmp/puni-descendant-command-parity/apps/wbs/mcp-01/src/connected-command-parity.test.ts:1042:30)
+(fail) MCP descendant-step remote parent constrains local node with slow leaf last [4385.59ms]
+
+ 0 pass
+ 61 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [7.11s]
+
+Observed exit code: 1

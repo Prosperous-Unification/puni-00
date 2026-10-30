@@ -1,0 +1,49 @@
+{"argv": ["bun", "test", "--preload", "./tools/test/scratch/preload.ts", "./tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts", "--test-name-pattern=^isolated source restoration retains original gateway authority through ready$", "--timeout=320000"], "pid": 3063315, "exit": 1, "signal": null, "stdoutEOF": true, "stderrEOF": true, "elapsedSeconds": 112.08692658599466, "stdoutSHA256": "bbe6a94c29cc8d3ff5a1792a5abae1f1122aed0642111b52036ab7e0b2b2ca47", "stderrSHA256": "ef7551a8d02d9eaaab267e68e5d90c1df8126e9f087f28509416439343cf2c9d"}
+bun test v1.4.4 (38afee6c8)
+
+
+tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:
+
+test/dependency-source-restoration-model-child.test.ts:
+SOURCE_RESTORATION_REACHED: original prepare/consume/solver/backend/gateway complete; source cold and dev openers excluded
+731 |     if (phase?.state !== 'gateway-ready')
+732 |       throw new Error('original gateway readiness is not retained');
+733 |     sourceContinuations.set(context, { state: 'source-attempted' });
+734 |     return await phase.restoreSource();
+735 |   } catch {
+736 |     throw new Error('source participant restoration refused');
+                    ^
+error: source participant restoration refused
+      at restoreSourceAfterGateway (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-participant-restoration.ts:736:15)
+      at async <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.model.ts:266:40)
+(fail) source restoration retains original gateway authority through ready [111995.65ms]
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+ 496 expect() calls
+Ran 1 test across 1 file. [112.06s]
+SOURCE_RESTORATION_INNER_CUSTODY: {"name":"source restoration retains original gateway authority through ready","exitCode":1,"signal":null,"stdoutEof":true,"stderrEof":true}
+60 |       // This receipt follows the ORIGINAL child exit and both EOF joins, with
+61 |       // normal exit0/1 and null signal; an outcome line alone proves no custody.
+62 |       process.stderr.write(
+63 |         `SOURCE_RESTORATION_INNER_CUSTODY: ${JSON.stringify({ name, exitCode: exit.value, signal: null, stdoutEof: true, stderrEof: true })}\n`,
+64 |       );
+65 |       expect(exit.value).toBe(0);
+                              ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/home/df/.codex/worktrees/f7f1/puni-00/tools/tool-remote-scripts/src/lib/dependency-source-restoration.test.ts:65:26)
+(fail) isolated source restoration retains original gateway authority through ready [112074.80ms]
+scratch cleanup source=afterAll event=start
+scratch cleanup source=afterAll event=return elapsedMs=0
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [112.08s]
+

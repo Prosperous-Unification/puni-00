@@ -52,9 +52,10 @@ import {
   rotateDomainProof,
   verifyDomainClaim,
 } from './domain-shapes';
+import { gatewayDependencyAdmission } from './gateway-dependency-http-shapes';
 import { readHistory } from './history-shapes';
 import { importProject } from './import-shapes';
-import { health, metrics } from './infrastructure-shapes';
+import { dependencyCapability, health, metrics } from './infrastructure-shapes';
 import {
   forwardInternal,
   gatewayBrowserProjectAccess,
@@ -104,6 +105,11 @@ import {
 } from './organization-shapes';
 import { readOrganizationLoad, readPersonLoad } from './person-load-shapes';
 import { readPersonWork } from './person-work-shapes';
+import {
+  discoverAddressCandidates,
+  discoverAddressProjects,
+  resolveAddressReference,
+} from './project-address-shapes';
 import { readProjectClaims } from './project-claims-shapes';
 import { moveProjectRank, readProjectRank } from './project-rank-shapes';
 import {
@@ -182,6 +188,7 @@ import {
 
 /** Migrated HTTP declarations; legacy families join this table as their handlers migrate. */
 const ordinaryHttpShapes = [
+  gatewayDependencyAdmission,
   bindResourceAuthority,
   readResourceAuthority,
   admitResourceRuntimeUse,
@@ -193,6 +200,8 @@ const ordinaryHttpShapes = [
   readResourceUseHistory,
   health,
   metrics,
+  // Proof: omitting this registration failed the mounted generated-client/OpenAPI capability test.
+  dependencyCapability,
   registerPassword,
   loginPassword,
   readPasswordSession,
@@ -329,6 +338,9 @@ const ordinaryHttpShapes = [
   endMcpConsentCredential,
   issueMcpDelegation,
   readMcpAuthority,
+  discoverAddressProjects,
+  discoverAddressCandidates,
+  resolveAddressReference,
   issueMcpMachineGrant,
 ] as const;
 

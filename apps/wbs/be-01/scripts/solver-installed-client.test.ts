@@ -12,7 +12,8 @@ function fixture(
     pid: 321,
     stdout: new Blob([
       JSON.stringify({
-        wireVersion: 4,
+        wireVersion: 5,
+        scope: { kind: 'local' },
         status: 'feasible',
         offsets: { 'A\u0000one': 0, 'A\u0000two': 10, 'A\u0000three': 20 },
         objectiveValues: {
@@ -83,7 +84,8 @@ it('rejects a shared-person answer that overlaps the sent fixed booking', async 
   const key = request.sharedPersonRequest().slices[0].key;
   const stdout = new Blob([
     JSON.stringify({
-      wireVersion: 4,
+      wireVersion: 5,
+      scope: { kind: 'local' },
       status: 'feasible',
       offsets: { [key]: 0 },
       objectiveValues: {

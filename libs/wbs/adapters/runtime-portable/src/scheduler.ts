@@ -5,6 +5,7 @@ import type {
   OptimizedScheduleAdapter,
   OptimizedScheduleAsk,
   OptimizedScheduleRead,
+  ResolvedFastScheduler,
   ScheduleAsk,
   Scheduler,
   ScheduleRead,
@@ -20,6 +21,7 @@ const NO_CAPACITIES: PoolSizes = new Map();
 /** Builds the synchronous scheduler view over installed runtime adapters. */
 export function createScheduler(
   fast: FastScheduler,
+  resolvedFast: ResolvedFastScheduler,
   optimized?: OptimizedScheduleAdapter,
 ): Scheduler {
   function read(ask: CapturedScheduleAsk): ScheduleRead;
@@ -32,6 +34,7 @@ export function createScheduler(
   return {
     supports: (engine) => engine === 'fast' || optimized !== undefined,
     read,
+    readResolvedFast: resolvedFast,
   };
 }
 

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { clockOf, type OptimizationVariantState, type ProjectEvent } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { compareSharedPeopleFanout } from '@wbs/core/service/shared-people-fanout';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { type CapacityMode, contractVersionOf, schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { createLogger } from '@wbs/observability';
@@ -27,13 +28,14 @@ import { createOptimizationRepository } from '../repository/optimization';
 import { beginOptimizationDrain } from '../repository/optimization-drain';
 import { ProjectRepository } from '../repository/project';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
+import { BACKEND_DEPENDENCY_CAPABILITY } from '../runtime/dependency-support';
 import { buildServices } from '../services';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
 import { optimizerWiring } from './optimizer-wiring';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
-const CONTRACT = '7+0.3.0';
+const CONTRACT = '18+0.4.0';
 const BUDGET = 60_000;
 function sampledScheduler() {
   return fc.sample(fc.scheduler(), { seed: 20260927, numRuns: 1 })[0];
@@ -247,7 +249,7 @@ function coordinator(world: World, owner: Owner): OptimizationCoordinator {
   return new OptimizationCoordinator({
     repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
     contractVersion: CONTRACT,
-    solverVersion: '0.3.0',
+    solverVersion: '0.4.0',
     budgetMs: BUDGET,
     ownerId: owner,
     now: () => world.now,
@@ -745,7 +747,8 @@ class ExitChild implements Command {
         this.disposition === 'failed'
           ? ''
           : JSON.stringify({
-              wireVersion: 4,
+              wireVersion: 5,
+              scope: { kind: 'local' },
               status: 'feasible',
               offsets: { 'w-1\u0000step-dev': 0 },
               objectiveValues: {
@@ -809,7 +812,7 @@ class Toggle implements Command {
   async run(model: Model, world: World): Promise<void> {
     note(this.enabled ? 'enable' : 'cancel');
     const service = new ProjectService({
-      dependencyGraph: sqliteDependencyGraph(
+      dependencyContext: sqliteDependencyContext(
         world.connections.west,
         new ProjectRepository(world.connections.west, OPEN),
       ),
@@ -1090,7 +1093,7 @@ describe('OptimizationCoordinator production SQLite model', () => {
       expect(world.attempts).toHaveLength(2);
       expect(world.attempts.every((attempt) => attempt.verdicts.length === 0)).toBe(true);
       const service = new ProjectService({
-        dependencyGraph: sqliteDependencyGraph(
+        dependencyContext: sqliteDependencyContext(
           world.connections.west,
           new ProjectRepository(world.connections.west, OPEN),
         ),
@@ -1408,7 +1411,7 @@ interface SharedWorld {
   omitCapture: boolean;
 }
 
-const SHARED_CONTRACT = contractVersionOf('0.3.0');
+const SHARED_CONTRACT = contractVersionOf('0.4.0');
 const SHARED_BUDGET = 60_000;
 const ELSEWHERE_B = { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' } as const;
 
@@ -1499,7 +1502,10 @@ async function createSharedWorld(): Promise<SharedWorld> {
   const path = join(dir, 'model.db');
   runMigrations(path, FOLDER);
   seedSharedOrganization(path);
-  const source = openSqliteSource({ dbPath: path });
+  const source = openSqliteSource({
+    dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
   const pushes: SharedWorld['pushes'] = [];
   const held: (() => void)[] = [];
   const children: SharedChild[] = [];
@@ -1523,6 +1529,8 @@ async function createSharedWorld(): Promise<SharedWorld> {
   };
   let pid = 9000;
   const services = buildServices({
+    commandAccess: localCommandAccess,
+    clock: clockOf({ now: () => Date.now(), newId: () => crypto.randomUUID() }),
     source: installed,
     logger: createLogger({ service: 'be-01', destination: { write: () => undefined } }),
     jwtKey: 'k'.repeat(32),
@@ -1541,7 +1549,7 @@ async function createSharedWorld(): Promise<SharedWorld> {
       });
     },
     optimizer: {
-      solverVersion: '0.3.0',
+      solverVersion: '0.4.0',
       budgetMs: SHARED_BUDGET,
       spawn: (request) => {
         let closeOut = (): void => undefined;
@@ -2165,7 +2173,7 @@ class SharedRetry implements SharedCommand {
         objective: 'pri',
         inputHash: committed.input_hash,
         input: inputFor(world, committed.input_hash),
-        scoped: { organizationId: 'org-a', actorId: 'ada' },
+        scoped: { organizationId: 'org-a', actorId: 'ada', role: 'super_admin' as const },
       }),
       'Retry decision waited for recipient transport',
     );

@@ -1,0 +1,818 @@
+bun test v1.4.2 (744846f84)
+
+src/connected-publication.test.ts:
+(pass) connected publication guard > replays incoming and outgoing FS through later-step endpoints [6.85ms]
+(pass) connected publication guard > replays incoming and outgoing SS through later-step endpoints [4.87ms]
+(pass) connected publication guard > replays incoming and outgoing FF through later-step endpoints [1.32ms]
+(pass) connected publication guard > enforces every supplied expanded parent relationship pair [1.37ms]
+(pass) connected publication guard > replays person contention and rejects a conflicting local pin [0.72ms]
+(pass) connected publication guard > replays team contention and rejects a conflicting local pin [0.88ms]
+(pass) connected publication guard > replays resource contention and rejects a conflicting local pin [0.55ms]
+(pass) connected publication guard > replays elsewhere contention and rejects a conflicting local pin [0.58ms]
+(pass) connected publication guard > keeps isolated encoded people independent [0.42ms]
+(pass) connected publication guard > enforces project-local team contention in a complete replay [0.61ms]
+(pass) connected publication guard > enforces project-local resource contention in a complete replay [0.39ms]
+(pass) connected publication guard > replays exact fractional A → B → C baseline and publishes complete local candidate [0.40ms]
+(pass) connected publication guard > uses an earlier accepted replacement as the later rank stage baseline [0.65ms]
+(pass) connected publication guard > refuses forged captured finish as trusted stage evidence [0.31ms]
+(pass) connected publication guard > refuses a captured start reconciled by the real scheduler [0.27ms]
+(pass) connected publication guard > keeps cumulative fractional finish for a width-three multi-step local tile [0.59ms]
+(pass) connected publication guard > refuses missing candidate keys or values [0.26ms]
+(pass) connected publication guard > refuses surplus candidate keys or values [0.19ms]
+(pass) connected publication guard > refuses foreign candidate keys or values [0.15ms]
+(pass) connected publication guard > refuses negative candidate keys or values [0.15ms]
+(pass) connected publication guard > refuses NaN candidate keys or values [0.12ms]
+(pass) connected publication guard > refuses Infinity candidate keys or values [0.13ms]
+(pass) connected publication guard > refuses missing reference as trusted question evidence [0.20ms]
+(pass) connected publication guard > refuses surplus reference as trusted question evidence [0.14ms]
+(pass) connected publication guard > refuses NaN reference as trusted question evidence [0.12ms]
+(pass) connected publication guard > refuses Infinity reference as trusted question evidence [0.11ms]
+(pass) connected publication guard > refuses negative reference as trusted question evidence [0.13ms]
+(pass) connected publication guard > refuses local movement that changes the pinned foreign successor [0.23ms]
+(pass) connected publication guard > refuses sub-drift foreign start reconciliation exactly [0.57ms]
+(pass) connected publication guard > applies a fractional local floor through replay [0.22ms]
+(pass) connected publication guard > folds a fractional project floor onto the local leaf [0.39ms]
+(pass) connected publication guard > scores a local regression despite a much longer fixed foreign task [0.31ms]
+(pass) connected publication guard > derives PRI weights from local leaves and gives an unprioritized leaf zero weight [1.75ms]
+(pass) connected publication guard > uses an inherited local priority in the dense PRI score [0.44ms]
+(pass) connected publication guard > refuses a nonfinite scoped score from individually finite movement origins [0.52ms]
+(pass) connected publication guard > rejects malformed captured key set before candidate validation [0.20ms]
+(pass) connected publication guard > refuses an invalid trusted baseline pin and an empty local stage [0.25ms]
+(pass) connected publication guard > refuses a structurally invalid trusted stage before real replay [0.09ms]
+(pass) connected publication guard > preserves stage and candidate maps after success and failure [0.38ms]
+810 |       finishes: new Map([...latePlan.slices].map(([key, placed]) => [key, placed.earliestFinish])),
+811 |     };
+812 |     expect(replayConnectedStage(lateStage).slices.get(localKey)?.lateBy).not.toBeNull();
+813 |     expect(() =>
+814 |       guardConnectedPublication(lateStage, reference(1), 'makespan', reference()),
+815 |     ).toThrow(ScheduleInvalidOptimizedStartError);
+            ^
+error: expect(received).toThrow(expected)
+
+Expected constructor: ScheduleInvalidOptimizedStartError
+
+Received function did not throw
+Received value: {
+  scope: {
+    kind: "connected-stage",
+    projectId: "B",
+  },
+  chosen: "optimized",
+  schedule: {
+    slices: Map(3) {
+      "a\u0000": {
+        workItemId: "a",
+        stepId: null,
+        duration: 0.2,
+        effort: 0.2,
+        width: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 0.2,
+        latestStart: 1.8,
+        latestFinish: 2,
+        float: 1.8,
+        critical: false,
+        personId: null,
+        boundBy: "projectStart",
+        resourcePredecessorId: null,
+        capacityPredecessorIds: [],
+        capacityTeamId: null,
+        lateBy: null,
+      },
+      "b\u0000": {
+        workItemId: "b",
+        stepId: null,
+        duration: 1,
+        effort: 1,
+        width: 1,
+        estimated: true,
+        earliestStart: 1,
+        earliestFinish: 2,
+        latestStart: 1,
+        latestFinish: 2,
+        float: 0,
+        critical: true,
+        personId: null,
+        boundBy: "optimizer",
+        resourcePredecessorId: null,
+        capacityPredecessorIds: [],
+        capacityTeamId: null,
+        lateBy: 1,
+      },
+      "c\u0000": {
+        workItemId: "c",
+        stepId: null,
+        duration: 1,
+        effort: 1,
+        width: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 1,
+        latestStart: 1,
+        latestFinish: 2,
+        float: 1,
+        critical: false,
+        personId: null,
+        boundBy: "projectStart",
+        resourcePredecessorId: null,
+        capacityPredecessorIds: [],
+        capacityTeamId: null,
+        lateBy: null,
+      },
+    },
+    workItems: Map(3) {
+      "a": {
+        duration: 0.2,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 0.2,
+        latestStart: 1.8,
+        latestFinish: 2,
+        float: 1.8,
+        critical: false,
+      },
+      "b": {
+        duration: 1,
+        estimated: true,
+        earliestStart: 1,
+        earliestFinish: 2,
+        latestStart: 1,
+        latestFinish: 2,
+        float: 0,
+        critical: true,
+      },
+      "c": {
+        duration: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 1,
+        latestStart: 1,
+        latestFinish: 2,
+        float: 1,
+        critical: false,
+      },
+    },
+    waitingForPerson: 0,
+    waitingForCapacity: 0,
+    eventsVisited: 0,
+  },
+  baseline: {
+    slices: Map(3) {
+      "a\u0000": {
+        workItemId: "a",
+        stepId: null,
+        duration: 0.2,
+        effort: 0.2,
+        width: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 0.2,
+        latestStart: 2.8,
+        latestFinish: 3,
+        float: 2.8,
+        critical: false,
+        personId: null,
+        boundBy: "projectStart",
+        resourcePredecessorId: null,
+        capacityPredecessorIds: [],
+        capacityTeamId: null,
+        lateBy: null,
+      },
+      "b\u0000": {
+        workItemId: "b",
+        stepId: null,
+        duration: 1,
+        effort: 1,
+        width: 1,
+        estimated: true,
+        earliestStart: 2,
+        earliestFinish: 3,
+        latestStart: 2,
+        latestFinish: 3,
+        float: 0,
+        critical: true,
+        personId: null,
+        boundBy: "optimizer",
+        resourcePredecessorId: null,
+        capacityPredecessorIds: [],
+        capacityTeamId: null,
+        lateBy: 2,
+      },
+      "c\u0000": {
+        workItemId: "c",
+        stepId: null,
+        duration: 1,
+        effort: 1,
+        width: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 1,
+        latestStart: 2,
+        latestFinish: 3,
+        float: 2,
+        critical: false,
+        personId: null,
+        boundBy: "projectStart",
+        resourcePredecessorId: null,
+        capacityPredecessorIds: [],
+        capacityTeamId: null,
+        lateBy: null,
+      },
+    },
+    workItems: Map(3) {
+      "a": {
+        duration: 0.2,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 0.2,
+        latestStart: 2.8,
+        latestFinish: 3,
+        float: 2.8,
+        critical: false,
+      },
+      "b": {
+        duration: 1,
+        estimated: true,
+        earliestStart: 2,
+        earliestFinish: 3,
+        latestStart: 2,
+        latestFinish: 3,
+        float: 0,
+        critical: true,
+      },
+      "c": {
+        duration: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 1,
+        latestStart: 2,
+        latestFinish: 3,
+        float: 2,
+        critical: false,
+      },
+    },
+    waitingForPerson: 0,
+    waitingForCapacity: 0,
+    eventsVisited: 0,
+  },
+  values: {
+    makespan: 2,
+    priority: 2,
+    movement: 1,
+  },
+  optimizedValues: {
+    makespan: 2,
+    priority: 2,
+    movement: 1,
+  },
+  baselineValues: {
+    makespan: 3,
+    priority: 3,
+    movement: 2,
+  },
+}
+
+      at <anonymous> (/tmp/puni-connected-publication-review-sandbox/src/connected-publication.test.ts:815:7)
+(fail) connected publication guard > rejects candidate after a local deadline but accepts the same late baseline capture [0.83ms]
+852 |     expect(guardConnectedPublication(stage, local, 'makespan', local).chosen).toBe('optimized');
+853 |     const separated = new Map([
+854 |       [first, 0],
+855 |       [second, 2],
+856 |     ]);
+857 |     expect(() => guardConnectedPublication(stage, separated, 'makespan', local)).toThrow(
+                                                                                       ^
+error: expect(received).toThrow(expected)
+
+Expected constructor: ScheduleInvalidOptimizedStartError
+
+Received function did not throw
+Received value: {
+  scope: {
+    kind: "connected-stage",
+    projectId: "B",
+  },
+  chosen: "baseline",
+  schedule: {
+    slices: Map(4) {
+      "a\u0000": {
+        workItemId: "a",
+        stepId: null,
+        duration: 1,
+        effort: 1,
+        width: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 1,
+        latestStart: 0,
+        latestFinish: 1,
+        float: 0,
+        critical: true,
+        personId: null,
+        boundBy: "projectStart",
+        resourcePredecessorId: null,
+        capacityPredecessorIds: [],
+        capacityTeamId: null,
+        lateBy: 1,
+      },
+      "b\u0000first": {
+        workItemId: "b",
+        stepId: "first",
+        duration: 0,
+        effort: 0,
+        width: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 0,
+        latestStart: 1,
+        latestFinish: 1,
+        float: 1,
+        critical: false,
+        personId: null,
+        boundBy: "projectStart",
+        resourcePredecessorId: null,
+        capacityPredecessorIds: [],
+        capacityTeamId: null,
+        lateBy: null,
+      },
+      "b\u0000second": {
+        workItemId: "b",
+        stepId: "second",
+        duration: 0,
+        effort: 0,
+        width: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 0,
+        latestStart: 1,
+        latestFinish: 1,
+        float: 1,
+        critical: false,
+        personId: null,
+        boundBy: "projectStart",
+        resourcePredecessorId: null,
+        capacityPredecessorIds: [],
+        capacityTeamId: null,
+        lateBy: null,
+      },
+      "c\u0000": {
+        workItemId: "c",
+        stepId: null,
+        duration: 1,
+        effort: 1,
+        width: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 1,
+        latestStart: 0,
+        latestFinish: 1,
+        float: 0,
+        critical: true,
+        personId: null,
+        boundBy: "projectStart",
+        resourcePredecessorId: null,
+        capacityPredecessorIds: [],
+        capacityTeamId: null,
+        lateBy: null,
+      },
+    },
+    workItems: Map(3) {
+      "a": {
+        duration: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 1,
+        latestStart: 0,
+        latestFinish: 1,
+        float: 0,
+        critical: true,
+      },
+      "b": {
+        duration: 0,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 0,
+        latestStart: 1,
+        latestFinish: 1,
+        float: 1,
+        critical: false,
+      },
+      "c": {
+        duration: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 1,
+        latestStart: 0,
+        latestFinish: 1,
+        float: 0,
+        critical: true,
+      },
+    },
+    waitingForPerson: 0,
+    waitingForCapacity: 0,
+    eventsVisited: 0,
+  },
+  baseline: {
+    slices: Map(4) {
+      "a\u0000": {
+        workItemId: "a",
+        stepId: null,
+        duration: 1,
+        effort: 1,
+        width: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 1,
+        latestStart: 0,
+        latestFinish: 1,
+        float: 0,
+        critical: true,
+        personId: null,
+        boundBy: "projectStart",
+        resourcePredecessorId: null,
+        capacityPredecessorIds: [],
+        capacityTeamId: null,
+        lateBy: 1,
+      },
+      "b\u0000first": {
+        workItemId: "b",
+        stepId: "first",
+        duration: 0,
+        effort: 0,
+        width: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 0,
+        latestStart: 1,
+        latestFinish: 1,
+        float: 1,
+        critical: false,
+        personId: null,
+        boundBy: "projectStart",
+        resourcePredecessorId: null,
+        capacityPredecessorIds: [],
+        capacityTeamId: null,
+        lateBy: null,
+      },
+      "b\u0000second": {
+        workItemId: "b",
+        stepId: "second",
+        duration: 0,
+        effort: 0,
+        width: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 0,
+        latestStart: 1,
+        latestFinish: 1,
+        float: 1,
+        critical: false,
+        personId: null,
+        boundBy: "projectStart",
+        resourcePredecessorId: null,
+        capacityPredecessorIds: [],
+        capacityTeamId: null,
+        lateBy: null,
+      },
+      "c\u0000": {
+        workItemId: "c",
+        stepId: null,
+        duration: 1,
+        effort: 1,
+        width: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 1,
+        latestStart: 0,
+        latestFinish: 1,
+        float: 0,
+        critical: true,
+        personId: null,
+        boundBy: "projectStart",
+        resourcePredecessorId: null,
+        capacityPredecessorIds: [],
+        capacityTeamId: null,
+        lateBy: null,
+      },
+    },
+    workItems: Map(3) {
+      "a": {
+        duration: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 1,
+        latestStart: 0,
+        latestFinish: 1,
+        float: 0,
+        critical: true,
+      },
+      "b": {
+        duration: 0,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 0,
+        latestStart: 1,
+        latestFinish: 1,
+        float: 1,
+        critical: false,
+      },
+      "c": {
+        duration: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 1,
+        latestStart: 0,
+        latestFinish: 1,
+        float: 0,
+        critical: true,
+      },
+    },
+    waitingForPerson: 0,
+    waitingForCapacity: 0,
+    eventsVisited: 0,
+  },
+  values: {
+    makespan: 0,
+    priority: 0,
+    movement: 0,
+  },
+  optimizedValues: {
+    makespan: 2,
+    priority: 2,
+    movement: 2,
+  },
+  baselineValues: {
+    makespan: 0,
+    priority: 0,
+    movement: 0,
+  },
+}
+
+      at <anonymous> (/tmp/puni-connected-publication-review-sandbox/src/connected-publication.test.ts:857:82)
+(fail) connected publication guard > checks separated zero milestones individually and ignores a fixed foreign late deadline [0.79ms]
+881 |       },
+882 |     });
+883 |     expect(guardConnectedPublication(stage, reference(0), 'makespan', reference()).chosen).toBe(
+884 |       'optimized',
+885 |     );
+886 |     expect(() => guardConnectedPublication(stage, reference(1), 'makespan', reference())).toThrow(
+                                                                                                ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "effective deadline 0.5"
+
+Received function did not throw
+Received value: {
+  scope: {
+    kind: "connected-stage",
+    projectId: "B",
+  },
+  chosen: "baseline",
+  schedule: {
+    slices: Map(3) {
+      "a\u0000": {
+        workItemId: "a",
+        stepId: null,
+        duration: 0.2,
+        effort: 0.2,
+        width: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 0.2,
+        latestStart: 0.8,
+        latestFinish: 1,
+        float: 0.8,
+        critical: false,
+        personId: null,
+        boundBy: "projectStart",
+        resourcePredecessorId: null,
+        capacityPredecessorIds: [],
+        capacityTeamId: null,
+        lateBy: null,
+      },
+      "b\u0000": {
+        workItemId: "b",
+        stepId: null,
+        duration: 0.2,
+        effort: 0.2,
+        width: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 0.2,
+        latestStart: 0.8,
+        latestFinish: 1,
+        float: 0.8,
+        critical: false,
+        personId: null,
+        boundBy: "projectStart",
+        resourcePredecessorId: null,
+        capacityPredecessorIds: [],
+        capacityTeamId: null,
+        lateBy: null,
+      },
+      "c\u0000": {
+        workItemId: "c",
+        stepId: null,
+        duration: 1,
+        effort: 1,
+        width: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 1,
+        latestStart: 0,
+        latestFinish: 1,
+        float: 0,
+        critical: true,
+        personId: null,
+        boundBy: "projectStart",
+        resourcePredecessorId: null,
+        capacityPredecessorIds: [],
+        capacityTeamId: null,
+        lateBy: null,
+      },
+    },
+    workItems: Map(4) {
+      "a": {
+        duration: 0.2,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 0.2,
+        latestStart: 0.8,
+        latestFinish: 1,
+        float: 0.8,
+        critical: false,
+      },
+      "b": {
+        duration: 0.2,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 0.2,
+        latestStart: 0.8,
+        latestFinish: 1,
+        float: 0.8,
+        critical: false,
+      },
+      "c": {
+        duration: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 1,
+        latestStart: 0,
+        latestFinish: 1,
+        float: 0,
+        critical: true,
+      },
+      "parent-b": {
+        duration: 0,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 0.2,
+        latestStart: 0,
+        latestFinish: 1,
+        float: 0.8,
+        critical: false,
+      },
+    },
+    waitingForPerson: 0,
+    waitingForCapacity: 0,
+    eventsVisited: 0,
+  },
+  baseline: {
+    slices: Map(3) {
+      "a\u0000": {
+        workItemId: "a",
+        stepId: null,
+        duration: 0.2,
+        effort: 0.2,
+        width: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 0.2,
+        latestStart: 0.8,
+        latestFinish: 1,
+        float: 0.8,
+        critical: false,
+        personId: null,
+        boundBy: "projectStart",
+        resourcePredecessorId: null,
+        capacityPredecessorIds: [],
+        capacityTeamId: null,
+        lateBy: null,
+      },
+      "b\u0000": {
+        workItemId: "b",
+        stepId: null,
+        duration: 0.2,
+        effort: 0.2,
+        width: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 0.2,
+        latestStart: 0.8,
+        latestFinish: 1,
+        float: 0.8,
+        critical: false,
+        personId: null,
+        boundBy: "projectStart",
+        resourcePredecessorId: null,
+        capacityPredecessorIds: [],
+        capacityTeamId: null,
+        lateBy: null,
+      },
+      "c\u0000": {
+        workItemId: "c",
+        stepId: null,
+        duration: 1,
+        effort: 1,
+        width: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 1,
+        latestStart: 0,
+        latestFinish: 1,
+        float: 0,
+        critical: true,
+        personId: null,
+        boundBy: "projectStart",
+        resourcePredecessorId: null,
+        capacityPredecessorIds: [],
+        capacityTeamId: null,
+        lateBy: null,
+      },
+    },
+    workItems: Map(4) {
+      "a": {
+        duration: 0.2,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 0.2,
+        latestStart: 0.8,
+        latestFinish: 1,
+        float: 0.8,
+        critical: false,
+      },
+      "b": {
+        duration: 0.2,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 0.2,
+        latestStart: 0.8,
+        latestFinish: 1,
+        float: 0.8,
+        critical: false,
+      },
+      "c": {
+        duration: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 1,
+        latestStart: 0,
+        latestFinish: 1,
+        float: 0,
+        critical: true,
+      },
+      "parent-b": {
+        duration: 0,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 0.2,
+        latestStart: 0,
+        latestFinish: 1,
+        float: 0.8,
+        critical: false,
+      },
+    },
+    waitingForPerson: 0,
+    waitingForCapacity: 0,
+    eventsVisited: 0,
+  },
+  values: {
+    makespan: 0.2,
+    priority: 0.2,
+    movement: 0,
+  },
+  optimizedValues: {
+    makespan: 1.2,
+    priority: 1.2,
+    movement: 1,
+  },
+  baselineValues: {
+    makespan: 0.2,
+    priority: 0.2,
+    movement: 0,
+  },
+}
+
+      at <anonymous> (/tmp/puni-connected-publication-review-sandbox/src/connected-publication.test.ts:886:91)
+(fail) connected publication guard > folds an inherited fractional local deadline without rounding it [0.68ms]
+(pass) connected publication guard > does not treat a zero step inside positive work as a separate milestone [0.34ms]
+
+3 tests failed:
+(fail) connected publication guard > rejects candidate after a local deadline but accepts the same late baseline capture [0.83ms]
+(fail) connected publication guard > checks separated zero milestones individually and ignores a fixed foreign late deadline [0.79ms]
+(fail) connected publication guard > folds an inherited fractional local deadline without rounding it [0.68ms]
+
+ 40 pass
+ 3 fail
+ 111 expect() calls
+Ran 43 tests across 1 file. [44.00ms]

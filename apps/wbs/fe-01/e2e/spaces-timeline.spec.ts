@@ -31,6 +31,7 @@ test('blank timeline lanes contain wrapped labels at a narrow viewport', async (
           position: index,
           project: {
             id: `p${String(index)}`,
+            abbreviation: `P${String(index)}`,
             name,
             ownerId: 'u',
             restricted: false,

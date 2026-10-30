@@ -5,6 +5,8 @@
     "types": ["node", "vite/client"],
     "paths": {
       "@/*": ["./src/*"],
+      "@wbs/domain/typed-dependency": ["../../../libs/wbs/domain/domain/src/typed-dependency.ts"],
+      "@wbs/domain/project-address": ["../../../libs/wbs/domain/domain/src/project-address.ts"],
       "@wbs/domain/step-node": ["../../../libs/wbs/domain/domain/src/step-node.ts"],
       "@wbs/domain/step-reference": ["../../../libs/wbs/domain/domain/src/step-reference.ts"],
       "@wbs/domain/workday": ["../../../libs/wbs/domain/domain/src/workday.ts"],
@@ -49,6 +51,8 @@
     "playwright.config.ts",
     "playwright.packaged.config.ts",
     "playwright.performance.config.ts",
-    "e2e-performance/**/*.ts"
+    "e2e-performance/**/*.ts",
+    "playwright.cross-project.config.ts",
+    "e2e/**/*.tsx"
   ]
 }

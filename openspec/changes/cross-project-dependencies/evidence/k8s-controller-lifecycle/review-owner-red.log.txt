@@ -1,0 +1,53 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-deploy/src/k8s/controller-release.test.ts:
+863 | for (const fault of ['template', 'token']) test(`mounted owner ${fault} drift after drain refuses before source replay`, async () => {
+864 |   const fixture = mounted(false);
+865 |   try {
+866 |     fixture.objects['swapOwner'] = fault; fixture.save();
+867 |     await expect(executeRelease(fixture.request, fixture.journal, fixture.fake, () => undefined, fixture.options)).rejects.toThrow('rollback-failed');
+868 |     expect(fixture.fake.calls).not.toContain('observeReplayInventory');
+                                         ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "observeReplayInventory"
+Received: [
+  "observeCluster", "readLease", "createLease", "renewLease", "renewLease", "admitBackendImages",
+  "renewLease", "renewLease", "closeWrites", "renewLease", "drainGateway", "renewLease", "stopWriter",
+  "renewLease", "renewLease", "renewLease", "renewLease", "requireJournal", "renewLease", "renewLease",
+  "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease",
+  "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "observeReplayInventory",
+  "observeReplayCapabilities", "observeReplayCapabilities", "renewLease", "renewLease", "renewLease",
+  "parkLease"
+]
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:868:36)
+(fail) mounted owner template drift after drain refuses before source replay [1144.56ms]
+863 | for (const fault of ['template', 'token']) test(`mounted owner ${fault} drift after drain refuses before source replay`, async () => {
+864 |   const fixture = mounted(false);
+865 |   try {
+866 |     fixture.objects['swapOwner'] = fault; fixture.save();
+867 |     await expect(executeRelease(fixture.request, fixture.journal, fixture.fake, () => undefined, fixture.options)).rejects.toThrow('rollback-failed');
+868 |     expect(fixture.fake.calls).not.toContain('observeReplayInventory');
+                                         ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "observeReplayInventory"
+Received: [
+  "observeCluster", "readLease", "createLease", "renewLease", "renewLease", "admitBackendImages",
+  "renewLease", "renewLease", "closeWrites", "renewLease", "drainGateway", "renewLease", "stopWriter",
+  "renewLease", "renewLease", "renewLease", "renewLease", "requireJournal", "renewLease", "renewLease",
+  "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease",
+  "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "renewLease", "observeReplayInventory",
+  "observeReplayCapabilities", "observeReplayCapabilities", "renewLease", "renewLease", "renewLease",
+  "parkLease"
+]
+
+      at <anonymous> (/tmp/puni-k8s-controller-lifecycle/tools/tool-deploy/src/k8s/controller-release.test.ts:868:36)
+(fail) mounted owner token drift after drain refuses before source replay [1061.88ms]
+
+ 0 pass
+ 30 filtered out
+ 2 fail
+ 4 expect() calls
+Ran 2 tests across 1 file. [2.25s]

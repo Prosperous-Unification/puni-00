@@ -546,6 +546,7 @@ export function fakeProjectApi(): ProjectApi & {
           id: 'p1',
           name: 'Rewire the shed',
           restricted: false,
+          abbreviation: 'PLAN',
           lastOpenedAt: null,
           ownerName: 'kat',
           createdAt: 1_780_000_000_000,
@@ -558,9 +559,11 @@ export function fakeProjectApi(): ProjectApi & {
       ]),
     // No `lastOpenedAt`: the create route answers with the project it wrote,
     // and never with this account's navigation history.
-    createProject: (name: string) => Promise.resolve({ id: 'p1', name, restricted: false }),
+    createProject: (name: string) =>
+      Promise.resolve({ id: 'p1', name, restricted: false, abbreviation: 'PLAN' }),
     openProject: () => Promise.resolve(),
     renameProject: () => Promise.resolve(),
+    setAbbreviation: (_id, abbreviation) => Promise.resolve(abbreviation.toUpperCase()),
     tree: (projectId) => {
       // The sequence advances with every mutation, the way be-01's does, so a
       // test that asserts what the stream was told is asserting something real.
@@ -1467,7 +1470,7 @@ export function fakeProjectApi(): ProjectApi & {
       typedDependencies.push({
         id: `dependency-${String(++nextDependencyId)}`,
         predecessor:
-          predecessor.scope === 'node'
+          predecessor.scope === 'node' && predecessor.stepNodeId !== undefined
             ? {
                 ...predecessor,
                 workItemId: predecessor.stepNodeId.split('.')[1] ?? '',
@@ -1475,7 +1478,7 @@ export function fakeProjectApi(): ProjectApi & {
               }
             : predecessor,
         successor:
-          successor.scope === 'node'
+          successor.scope === 'node' && successor.stepNodeId !== undefined
             ? {
                 ...successor,
                 workItemId: successor.stepNodeId.split('.')[1] ?? '',
@@ -1491,7 +1494,7 @@ export function fakeProjectApi(): ProjectApi & {
       const dependency = typedDependencies.find((candidate) => candidate.id === dependencyId);
       if (dependency === undefined) return Promise.reject(new Error('not_found'));
       dependency.predecessor =
-        predecessor.scope === 'node'
+        predecessor.scope === 'node' && predecessor.stepNodeId !== undefined
           ? {
               ...predecessor,
               workItemId: predecessor.stepNodeId.split('.')[1] ?? '',
@@ -1499,7 +1502,7 @@ export function fakeProjectApi(): ProjectApi & {
             }
           : predecessor;
       dependency.successor =
-        successor.scope === 'node'
+        successor.scope === 'node' && successor.stepNodeId !== undefined
           ? {
               ...successor,
               workItemId: successor.stepNodeId.split('.')[1] ?? '',

@@ -1,0 +1,54 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/connected-step-node.test.ts:
+(pass) accepts A.design B.build A.test and retains ownership and relationship provenance [0.62ms]
+(pass) refuses true reverse cycles and a cycle through distinct tasks [0.33ms]
+(pass) keeps local self-node refusal and authored provenance [0.09ms]
+(pass) expands every remote parent pair using each endpoint tree and own step identity [0.14ms]
+(pass) preserves whole FS SS FF boundaries and stepless nodes [0.18ms]
+(pass) accepts empty projects [0.02ms]
+(pass) refuses duplicate project and work-item ownership even without relationships [0.26ms]
+(pass) refuses missing endpoint project, cross-owned work item, absent work item and absent step [0.19ms]
+(pass) refuses absent and empty slices instead of creating a boundary [0.08ms]
+(pass) refuses local/external misclassification and conflicting relationship identities [0.24ms]
+
+libs/wbs/domain/domain/src/slice-edges.test.ts:
+(pass) reachedSliceOf > reaches the LAST slice under whole-item [0.06ms]
+(pass) reachedSliceOf > reaches the first ESTIMATED slice under anchor-slice, stepping over the blanks [0.03ms]
+(pass) reachedSliceOf > falls through to the last slice when nobody estimated any of them [0.01ms]
+(pass) reachedSliceOf > reads days !== null, so an explicit zero is an estimate
+(pass) resolveStepNodeGraph > selects the whole leaf boundary named by each relationship type [0.15ms]
+(pass) resolveStepNodeGraph > expands SS and FF parent endpoints to every leaf pair [0.17ms]
+(pass) resolveStepNodeGraph > lists every node, isolated and unestimated ones included, and a stepless boundary [0.04ms]
+(pass) resolveStepNodeGraph > marks a Dev to QA chain as FS workflow edges [0.02ms]
+(pass) resolveStepNodeGraph > marks reach-decided joins as FS legacy edges after the workflow chains [0.05ms]
+(pass) resolveStepNodeGraph > chains each leaf’s own steps in the order the group was given [0.02ms]
+(pass) resolveStepNodeGraph > leaves a leaf of one slice out of the chain entirely [0.01ms]
+(pass) resolveStepNodeGraph > joins the predecessor’s REACHED slice to the successor’s FIRST, plain [0.03ms]
+(pass) resolveStepNodeGraph > emits every chain before any external edge — the order the adjacency is walked in [0.02ms]
+(pass) resolveStepNodeGraph > asks the lookup for BOTH ends, so a successor with no group refuses [0.13ms]
+(pass) authored typed dependencies > resolves Whole to Whole as the predecessor’s last node to the successor’s first [0.10ms]
+(pass) authored typed dependencies > carries authored provenance and the relationship id on each resolved edge [0.05ms]
+(pass) authored typed dependencies > joins node to whole at the successor’s first node, and whole to node from the predecessor’s last [0.04ms]
+(pass) authored typed dependencies > expands a whole parent to every descendant leaf, every pair constrained [0.04ms]
+(pass) authored typed dependencies > constrains every pair when both ends are parents [0.08ms]
+(pass) authored typed dependencies > expands a descendant-step endpoint to that step’s node in every leaf beneath it [0.04ms]
+(pass) authored typed dependencies > keeps overlapping relationships distinct, each with its own provenance [0.05ms]
+(pass) authored typed dependencies > resolves a stepless project’s whole endpoint to the work-item boundary [0.04ms]
+(pass) authored typed dependencies > refuses a node endpoint on a parent, a descendant-step on a leaf, and an unknown step [0.08ms]
+(pass) authored edges on a missing leaf > asks the lookup for both ends of an authored edge [0.05ms]
+(pass) authored edges on a missing leaf > refuses to order a graph whose edge names a node it does not hold [0.11ms]
+(pass) authored edges on a missing leaf > refuses an unheld node before answering a self-node pair [0.03ms]
+(pass) findStepNodeCycle > accepts an apparent work-item cycle that is a step-node DAG [0.11ms]
+(pass) findStepNodeCycle > refuses a directed cycle through the workflow chain, naming the authored edges in it [0.06ms]
+(pass) findStepNodeCycle > refuses a directed SS cycle even when equal starts could satisfy it [0.05ms]
+(pass) findStepNodeCycle > refuses a self-node pair [0.03ms]
+(pass) findStepNodeCycle > refuses a cycle a parent expansion closes [0.05ms]
+(pass) findStepNodeCycle > refuses a cycle a legacy edge closes against a typed one [0.05ms]
+(pass) findStepNodeCycle > reads the legacy anchor dynamically: clearing B.dev’s estimate moves it into a cycle [0.09ms]
+(pass) findStepNodeCycle > answers null for a graph with no authored edges and no cycle [0.04ms]
+
+ 44 pass
+ 0 fail
+ 74 expect() calls
+Ran 44 tests across 2 files. [32.00ms]

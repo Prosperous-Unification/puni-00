@@ -109,8 +109,16 @@ async function acquireAuthority() {
 }
 async function createClaimRequest(): Promise<RuntimeClaimRequest & { personId: string }> {
   const { observation, grant } = await acquireAuthority();
+  // Pin/cap/receipt fixtures require an unstarted first step before the project's default Dev/QA.
+  const first = h.sqlite
+    .query<{ position: number }, [string]>(
+      'SELECT position FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+    )
+    .get(projectId);
+  if (first === null) throw new Error('fixture default workflow steps missing');
+  expect(first.position).toBeGreaterThan(0);
   h.sqlite.run(
-    "INSERT INTO step (id, project_id, name, position, code) VALUES ('dev', ?, 'Runtime test', 100, 'runtime-test')",
+    "INSERT INTO step (id, project_id, name, position, code) VALUES ('dev', ?, 'Runtime test', 0, 'runtime-test')",
     [projectId],
   );
   h.sqlite.run(
@@ -433,6 +441,10 @@ test('unused rollback and valid reinstall change the pin before replay or absenc
     '20261023150000_key_step_measure',
     '20261023140000_add_measure',
     '20261023100000_add_claim_lease',
+    '20261022213000_add_optimization_boundary_certificates',
+    '20261022212000_add_cross_project_dependency_activation',
+    '20261022211000_add_external_dependencies',
+    '20261022210000_add_project_abbreviations',
     '20261022140100_widen_organization_audit_compute_providers',
     '20261022140000_add_resource_provider',
     '20261022130100_widen_organization_audit_organization_limits',

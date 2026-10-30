@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:
+805 |   expect(pair.pri.request.elsewhere).toEqual({ ana: [[0, 10]] });
+806 |   const missingBooking = structuredClone(pair.pri.request);
+807 |   Object.assign(missingBooking, { elsewhere: {} });
+808 |   expect(() => {
+809 |     validateConnectedSolverRequest(missingBooking);
+810 |   }).toThrow(/elsewhere person set/);
+           ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /elsewhere person set/
+Received message: "connected elsewhere intervals differ from foreign occupancy"
+
+      at <anonymous> (/tmp/puni-cross-solver-wire/libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts:810:6)
+(fail) connected request names the exact foreign person holder and booking [6.14ms]
+
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [183.00ms]

@@ -546,6 +546,12 @@ children (laundering, rejected); (c) subject patterns (deferred); (d) one admin 
 - `EXCLUDED_PATHS` keeps auth, internal, smoke and `/api/organization/active`.
 - The capacity report becomes a tool.
 - A `humanOnly` shape matching nothing fails startup.
+- The same generated OpenAPI artifact carries required top-level
+  `x-wbs-human-only-operations` records (`method`, canonical `path`, `operationId`),
+  derived from the same shape table. Runtime validates this list and matches its
+  method/path entries against that document; it never imports runtime validators.
+  Missing or malformed metadata refuses startup; an explicit empty generated list
+  is valid. Explicit external-fixture policy arguments remain deliberate overrides.
 
 _Alternatives:_ the path list; admin tools for consented humans.
 

@@ -29,6 +29,7 @@ import {
   refusingRestoreApprovals,
 } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
+import { refusingProjectAddressSearch } from './testing/project-address-search-fixture';
 import { testProjectService } from './testing/project-fixture';
 import { refusingProjectRanks } from './testing/project-rank-fixture';
 import { testReplay } from './testing/replay-fixture';
@@ -81,6 +82,7 @@ async function signedInProbe(): Promise<{
 
 function optionsFor(auth: AuthService, internalAuthSecret = TEST_SECRET): AppOptions {
   return {
+    projectAddressSearch: refusingProjectAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -108,6 +110,7 @@ function optionsFor(auth: AuthService, internalAuthSecret = TEST_SECRET): AppOpt
     savedPlans: testSavedPlanService(),
     steps: testStepService(),
     replay: testReplay().replay,
+    admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
     internalAuthSecret,
     writes: testWrites(),

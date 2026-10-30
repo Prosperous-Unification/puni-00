@@ -1,0 +1,13 @@
+{
+  "sourceSha": "24f7e50d6ee2a9239bc59194107c5126dc848b00",
+  "exitCode": 0,
+  "finishEpoch": 1792835516.3344736,
+  "logSha256": "eb5d41d7dfc54d2ea7f965f28609f62418c166b58c8d60dcf45ae095674085c5",
+  "logBytes": 22337,
+  "fullFactoryTests": 212,
+  "assertions": 1776,
+  "durationSeconds": 1020.16,
+  "sourceUnchangedDuringReplay": true,
+  "nativeAcceptance": false,
+  "reviewerLintLogSha256": "2df9cb7b9ac323f22bcb841045d9e6b85b14a377a29bac86fc68b68e71a52b93"
+}

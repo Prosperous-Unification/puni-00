@@ -1,0 +1,56 @@
+
+ NX   Nx was denied permission to create a plugin worker socket. Running plugins in the main process instead.
+
+Plugins that expect isolation may misbehave, and this is slower than a worker.
+Nx was denied permission to use its unix socket under /tmp/.nx or ~/.nx.
+To fix this, do one of the following:
+  - In `~/.codex/config.toml`, set `sandbox_workspace_write.network_access` to true and add /tmp/.nx or ~/.nx to `sandbox_workspace_write.writable_roots`. Codex has no setting that scopes sockets to a path, and `network_access` also grants general network access, so this is a broader grant than the other agents need.
+  - Get permission to create sockets under /tmp/.nx or ~/.nx, or set NX_SOCKET_DIR to a directory you do have permission for.
+See https://nx.dev/docs/kb/nx-sandbox-unix-sockets for details.
+
+
+ NX   Running target build for project tool-remote-scripts and 3 tasks it depends on:
+
+
+✔  nx run tool-test-scratch:build
+✔  nx run wbs-solver-supervisor-protocol:build
+✔  nx run tool-compose:build
+
+> nx run tool-remote-scripts:build
+
+> bun build tools/tool-remote-scripts/src/swap.ts --target=bun --outfile dist/tool-remote-scripts/swap.js
+
+[32mBundled 142 modules in 28ms[0m
+
+  [34mswap.js[33m  0.38 MB  [2m(entry point)[0m
+
+> bun build tools/tool-remote-scripts/src/solver-supervisor.ts --target=bun --outfile dist/tool-remote-scripts/solver-supervisor.js
+
+[32mBundled 20 modules in 30ms[0m
+
+  [34msolver-supervisor.js[0m  60.89 KB  [2m(entry point)[0m
+
+> bun build tools/tool-remote-scripts/src/check-installed-solver.ts --target=bun --outfile dist/tool-remote-scripts/check-installed-solver.js
+
+[32mBundled 5 modules in 21ms[0m
+
+  [34mcheck-installed-solver.js[0m  21.10 KB  [2m(entry point)[0m
+
+> bun build tools/tool-remote-scripts/src/activate-dependencies.ts --target=bun --outfile dist/tool-remote-scripts/activate-dependencies.js
+
+[32mBundled 36 modules in 15ms[0m
+
+  [34mactivate-dependencies.js[0m  103.63 KB  [2m(entry point)[0m
+
+
+
+
+ NX   Successfully ran target build for project tool-remote-scripts and 3 tasks it depends on
+
+
+Output of 3 successful tasks were not shown. Run with --verbose or --output-style=static to see it.
+
+  Run duration:      351ms
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     335ms (3 tasks)
+  Recoverable time:  <1ms

@@ -1,0 +1,43 @@
+
+test/source-inner-command-child.test.ts:
+source Node command boundary: genuine original context and original running tree reached
+source Node command actual dispatch captured
+source Node complete command observed
+product original BusyBox UID0 observe and cleanup dispatch bytes preserved
+source Node private receipt consumer BEGIN source-session-nonce
+source Node private receipt consumer observed source-session-nonce
+source Node private receipt consumer BEGIN source-session-group
+source Node private receipt consumer observed source-session-group
+source Node private receipt consumer BEGIN source-completion-count
+source Node private receipt consumer observed source-completion-count
+source Node private receipt consumer BEGIN source-duplicate-done
+source Node private receipt consumer observed source-duplicate-done
+source Node private receipt consumer BEGIN source-missing-reap
+187 |           ]) {
+188 |             sourceFault.name = fault;
+189 |             console.error(`source Node private receipt consumer BEGIN ${fault}`);
+190 |             const tokensBefore = sourceFault.collectionTokens;
+191 |             const acksBefore = sourceFault.collectionAcks;
+192 |             await rejects(observeSourceInner(context, fixture.source.Id, observation.roster));
+                        ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: undefined,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/source-inner-command.model.ts:192:19
+      at acquire (unknown:1:1)
+      at unknown:1:1
+      at acquireLock (/home/df/.codex/worktrees/df14/puni-00/tools/tool-remote-scripts/src/lib/lock.ts:188:18)
+(fail) source original context dispatches the complete fixed Node command [70793.56ms]
+
+ 0 pass
+ 1 fail
+ 135 expect() calls
+Ran 1 test across 1 file. [70.84s]

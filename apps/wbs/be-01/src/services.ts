@@ -1,9 +1,11 @@
+import { createLocalDependencyContext } from '@wbs/core';
 import {
   type AccountfulServices,
   type Broadcaster,
   type CapacityModeSwitch,
   type Clock,
   clockOf,
+  type CommandAccess,
   composeServices,
   type OidcVerifier,
   type PlanTransactionalStores,
@@ -12,6 +14,7 @@ import {
 } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import type { TrustedIssuerVerification } from '@wbs/core/module/authentication/authentication.feature';
+import type { ConnectedOptimizationAdmission } from '@wbs/core/ports/optimization-input';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import { standaloneCapacityModeSwitch } from '@wbs/core/service/standalone-capacity-mode';
 import { standaloneRankStore } from '@wbs/core/service/standalone-rank';
@@ -26,6 +29,7 @@ import {
   scheduleInputHash,
   type SqliteSource,
 } from '@wbs/store-sqlite';
+import { hashConnectedBytes } from '@wbs/store-sqlite/connected-question-identity';
 
 import { installOptimization } from './module/optimization/check';
 import type { ReservedSpawner } from './module/optimization/contract';
@@ -61,6 +65,8 @@ export interface OptimizerRuntime {
 }
 
 export interface ServicesOptions {
+  commandAccess: CommandAccess;
+  clock: Clock;
   source: SqliteSource;
   logger: Logger;
   jwtKey: string;
@@ -85,6 +91,7 @@ export interface ServicesOptions {
 }
 
 export interface BeServices extends AccountfulServices {
+  readonly commandAccess: CommandAccess;
   readonly optimizer: OptimizationCoordinator | undefined;
   readonly optimizationLifecycle: OptimizationLifecycle;
   readonly gate: SqliteSource['gate'];
@@ -105,6 +112,7 @@ export interface SharedRuntime {
 export function servicesOver(stores: PlanTransactionalStores, shared: SharedRuntime) {
   return coreServicesOver(stores, {
     admission: CREATOR_ADMISSION,
+    dependencyContext: createLocalDependencyContext(stores),
     clock: shared.clock,
     broadcast: shared.broadcast,
     scheduler: shared.optimized.scheduler,
@@ -114,8 +122,10 @@ export function servicesOver(stores: PlanTransactionalStores, shared: SharedRunt
 /** Adds be-01's optimizer process adapter around core's single service composition. */
 export function buildServices(options: ServicesOptions): BeServices {
   const { source } = options;
-  const now = options.now ?? (() => Date.now());
-  const clock = clockOf({ now, newId: () => crypto.randomUUID() });
+  const clock =
+    options.now === undefined
+      ? options.clock
+      : clockOf({ now: options.now, newId: () => crypto.randomUUID() });
   let coordinator: OptimizationCoordinator | undefined;
   const optimized =
     options.optimizer === undefined
@@ -130,7 +140,7 @@ export function buildServices(options: ServicesOptions): BeServices {
           readCaptured: capturedOptimizationReaderOf(source.db, {
             contractVersion: contractVersionOf(options.optimizer.solverVersion),
             budgetMs: options.optimizer.budgetMs,
-            now: Date.now,
+            now: options.now ?? Date.now,
           }),
         };
   const scheduler = optimizerWiring(optimized).scheduler;
@@ -150,10 +160,16 @@ export function buildServices(options: ServicesOptions): BeServices {
     ...(options.optimizer === undefined
       ? {}
       : {
+          // Proof: omitting this config made both mounted ready trees expose connected_optimization_not_supported.
+          connected: {
+            solverVersion: options.optimizer.solverVersion,
+            budgetMs: options.optimizer.budgetMs,
+            now: options.now ?? Date.now,
+          },
           optimization: {
             contractVersion: contractVersionOf(options.optimizer.solverVersion),
             budgetMs: options.optimizer.budgetMs,
-            now: Date.now,
+            now: options.now ?? Date.now,
           },
         }),
   });
@@ -161,6 +177,7 @@ export function buildServices(options: ServicesOptions): BeServices {
     // Proof: omitting installation failed mounted `shared tree and export agree` (start 0 instead of 3).
     source: boundSource,
     runtime: {
+      commandAccess: options.commandAccess,
       clock,
       digest: nodeDigest,
       timers: systemTimers,
@@ -176,6 +193,19 @@ export function buildServices(options: ServicesOptions): BeServices {
       }),
       scheduler,
       onPlanChanged: (projectId) => coordinator?.inputChanged(projectId),
+      ...(options.optimizer === undefined
+        ? {}
+        : {
+            // Proof: omitting this installation made cold mounted reads fail without admission.
+            admitConnectedOptimization: (async (ask) => {
+              // Invariant diagnostic: public services are exposed only after coordinator installation.
+              if (coordinator === undefined)
+                throw new Error(
+                  'connected optimizer admission before service composition completed',
+                );
+              await coordinator.admitCaptured(ask);
+            }) satisfies ConnectedOptimizationAdmission,
+          }),
       passwords: bunPasswordHasher,
       tokens: joseTokenCodec(options.jwtKey),
       // Proof: 2026-10-12, wiring a collaborator that proves nothing here made
@@ -270,15 +300,18 @@ export function buildServices(options: ServicesOptions): BeServices {
       solverVersion: optimizer.solverVersion,
       budgetMs: optimizer.budgetMs,
       ownerId: crypto.randomUUID(),
-      now: Date.now,
+      now: options.now ?? Date.now,
       attemptToken: () => crypto.randomUUID(),
       inputOf: async (projectId) => await graph.workItems.scheduleInput(projectId),
       enabledOf: async (projectId) =>
         (await source.stores.projects.findById(projectId))?.optimizationEnabled === true,
       // Proof: omitting the shared capture made the mounted upstream-only edit
       // request lose `elsewhere` (undefined instead of its holder interval).
-      captureOf: async (projectId) => await graph.workItems.optimizationInput(projectId),
+      // Proof: legacy optimizationInput made mounted upstream edits log connected optimization input is unsupported.
+      captureOf: async (projectId) => await graph.workItems.optimizationCapture(projectId),
       hashInput: scheduleInputHash,
+      // Proof: omitting this digest made mounted upstream edits log connected optimizer lacks installed digest.
+      hashConnectedBytes,
       spawn: optimizer.spawn,
       deliverCommitted: (events) => graph.committedFanout.deliverCommitted(events),
       onChildError: (error) => {
@@ -291,6 +324,7 @@ export function buildServices(options: ServicesOptions): BeServices {
   if (publicRanks === undefined) throw new Error('SQLite source omitted its public rank store');
   return {
     ...graph,
+    commandAccess: options.commandAccess,
     optimizer: coordinator,
     // Proof: omitting the unconditional binding left the mounted lifecycle
     // undefined when this process had no active solver runtime.

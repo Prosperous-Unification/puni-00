@@ -1,0 +1,89 @@
+import json, pathlib, re, subprocess, time, sys
+root=pathlib.Path.cwd()
+evidence=root/'openspec/changes/cross-project-dependencies/evidence/k8s-controller-lifecycle'
+module='tools/tool-deploy/src/k8s/controller-lifecycle.ts'
+execute='tools/tool-deploy/src/k8s/execute.ts'
+release='tools/tool-deploy/src/k8s/release.ts'
+journal='tools/tool-deploy/src/k8s/journal.ts'
+unit='tools/tool-deploy/src/k8s/controller-lifecycle.test.ts'
+mounted='tools/tool-deploy/src/k8s/controller-release.test.ts'
+lease='tools/tool-deploy/src/k8s/controller-lease.test.ts'
+journaltests='tools/tool-deploy/src/k8s/journal.test.ts'
+
+def change(before,after,count=1):
+ def apply(text):
+  if text.count(before)<count:raise Exception('missing mutation anchor '+before)
+  return text.replace(before,after,count)
+ return apply
+
+def regex(pattern,replacement):
+ def apply(text):
+  changed,count=re.subn(pattern,replacement,text,count=1,flags=re.S)
+  if count!=1:raise Exception('missing regex anchor '+pattern)
+  return changed
+ return apply
+
+cases=[
+ ('controller-uid',module,change("    { op: 'test', path: '/metadata/uid', value: owner.owner.uid },\n",''),mounted,'mounted atomic UID guard'),
+ ('controller-rv',module,regex(r"    \{\n      op: 'test',\n      path: '/metadata/resourceVersion',\n      value: observed.observation.owner.resourceVersion,\n    \},\n",''),mounted,'mounted atomic resourceVersion guard'),
+ ('controller-template',module,change("    { op: 'test', path: '/spec', value: observed.spec },\n",''),mounted,'mounted atomic template guard'),
+ ('controller-token',module,change("[{ op: 'test', path: '/metadata/annotations', value: observed.annotations }]",'[]'),mounted,'mounted atomic token guard'),
+ ('pending-checkpoint',module,change("pending = await checkpoint({ ownership: owner, stage: 'suspend-pending' }, authority);","pending = { ownership: owner, stage: 'suspend-pending' };"),mounted,'mounted release checkpoints and restores exact false'),
+ ('suspension-ack',module,change("return checkpoint({ ownership: owner, stage: 'suspended' }, authority);","return { ownership: owner, stage: 'suspended' };",2),mounted,'mounted release checkpoints and restores exact false'),
+ ('drain-dispatch',execute,change('    await effects.drainStorageController(prior, authority);',''),mounted,'mounted unlabelled readonly'),
+ ('restore-dispatch',execute,change("      if (step === 'rollout-backend') await restoreInterval('forward');",''),mounted,'mounted release checkpoints and restores exact false'),
+ ('rollback-reentry',execute,regex(r"  const activeDirection = \(\): 'forward' \| 'rollback' =>\n.*?      : 'rollback';", "  const activeDirection = (): 'forward' | 'rollback' => 'forward';"),mounted,'mounted dormant abort after rollout'),
+ ('uncertain-routing',execute,change('if (e instanceof ControllerUncertainError) {','if (false && e instanceof ControllerUncertainError) {'),mounted,'mounted exact restore failure'),
+ ('lease-authority',execute,change('        await serialRenew();','        await Promise.resolve();'),mounted,'mounted Lease loss during inventory'),
+ ('journal-marker',release,regex(r"  if \(observed.journalRequired && claim.journalTransaction === null\)\n    throw new Error\(\n      'release Lease requires its missing authoritative journal; manual recovery required',\n    \);",''),mounted,'mounted missing journal'),
+ ('marker-uid',execute,change("            { op: 'test', path: '/metadata/uid', value: observed.uid },\n",''),lease,'real Lease marker refuses UID'),
+ ('marker-rv',execute,change("            { op: 'test', path: '/metadata/resourceVersion', value: observed.version },\n",''),lease,'real Lease marker refuses resourceVersion'),
+ ('marker-holder',execute,change("            { op: 'test', path: '/spec/holderIdentity', value: holder },\n",''),lease,'real Lease marker refuses holder'),
+ ('marker-readback',execute,regex(r"      if \(\s*readback\?\.uid !== observed.uid \|\|\s*readback.holder !== holder \|\|\s*!readback.journalRequired\s*\)\s*throw new LeaseLostError\(\s*`release journal marker did not read back its Lease session: \$\{messageOf\(uncertain\)\}`,\s*\);",''),lease,'real Lease marker refuses no-apply'),
+ ('lease-renew-uid',execute,regex(r"(    async renewLease\(holder\) \{.*?)(        observed.uid !== session.uid \|\|\n)",r'\1'),lease,'real Lease renewLease refuses delete-recreate'),
+ ('takeover-uid',execute,change('observed?.version !== version || observed.uid !== uid','observed?.version !== version'),lease,'real Lease takeover refuses UID ABA'),
+ ('lease-sticky-preservation',execute,regex(r"(    async renewLease\(holder\) \{.*?observed.uid,\n            )observed.journalRequired,",r'\1false,'),lease,'real Lease adapter preserves a sticky'),
+ ('lease-cleanup-phase',execute,regex(r"!\['flux-resumed', 'rollback-flux-resumed', 'rollback-writes-reopened'\].includes\(\n            durable.state.phase,\n          \)",'false'),lease,'real Lease cleanup refuses recoverable'),
+ ('lease-delete-uid',execute,change('preconditions: { uid: observed.uid, resourceVersion: observed.version }','preconditions: { resourceVersion: observed.version }'),lease,'real Lease cleanup deleteUID race'),
+ ('lease-delete-rv',execute,change('preconditions: { uid: observed.uid, resourceVersion: observed.version }','preconditions: { uid: observed.uid }'),lease,'real Lease cleanup deleteVersion race'),
+ ('descendant-delete-uid',module,change('preconditions: { uid: target.uid }','preconditions: {}'),mounted,'mounted drain deletes actual UID'),
+ ('descendant-ancestry',module,change("reference['uid'] === uid",'true'),mounted,'mounted drain never deletes a Pod'),
+ ('closed-lifecycle',module,regex(r"  if \(\n    Object.keys\(lifecycle\).sort\(\).join\(','\) !== 'ownership,stage' \|\|.*?    throw new Error\('malformed controller lifecycle'\);",''),unit,'unknown lifecycle fields refuse before any cluster transport'),
+ ('object-boundary',module,regex(r"  if \(typeof value !== 'object' \|\| value === null \|\| Array.isArray\(value\)\)\n    throw new Error\('malformed backup controller'\);",''),unit,'malformed lifecycle object identifies'),
+ ('token-stability',module,regex(r"    if \(firstToken !== null && firstToken.value !== token\)\n      throw new Error\('backup token changed during observation'\);",''),unit,'owned token changing between read passes'),
+ ('restored-current-state',module,regex(r"  if \(prior.stage === 'restored'\) \{.*?    return prior;\n  \}","  if (prior.stage === 'restored') return prior;"),unit,'completed restore history'),
+ ('journal-history-required',journal,change("  if (!isRecord(controllers) || Object.keys(controllers).sort().join(',') !== 'forward,rollback')","  if (false)"),journaltests,'refuses missing or malformed controller lifecycle'),
+ ('journal-progress-validation',journal,change('  assertControllerProgress(record.state, record.request);',''),journaltests,'refuses missing source drain and restore'),
+]
+cases.append(('non-force-pod-delete',module,change("propagationPolicy: 'Orphan',","propagationPolicy: 'Orphan', gracePeriodSeconds: 0,"),mounted,'mounted drain deletes actual UID'))
+cases.append(('fresh-storage-binding','tools/tool-deploy/src/k8s/controller-adapter.ts',regex("      if \\(\\n        JSON.stringify\\(fence.storage\\).*?throw new Error\\('controller interval storage or owner identity changed'\\);",''),mounted,'mounted storage replacement'))
+cases.append(('original-identity-comparison',module,change("  if (serializeStorage(left) !== serializeStorage(right))\n    throw new Error(`backup ${label} changed`);",''),unit,'refuses foreign UID before mutation'))
+cases.append(('drain-convergence',module,change("  throw new Error('backup controller drain did not converge within its bounded budget');",'  return;'),mounted,'mounted bounded drain timeout'))
+cases.append(('legacy-schema3',journal,change(" ||\n      parsed['schemaVersion'] === 3",''),journaltests,'refuses a legacy in-flight journal schema 3'))
+cases.append(('final-original-owner','tools/tool-deploy/src/k8s/controller-adapter.ts',change('      await suspendController(owner, lifecycle, call, authority);',''),mounted,'mounted owner template drift after drain'))
+cases.append(('rollback-restored-selector',execute,regex(r"if \(step === 'rollback-tiers'\)\s*await restoreInterval\(state.controllers.rollback === null \? 'forward' : 'rollback'\);","if (step === 'rollback-tiers') await restoreInterval(activeDirection());"),mounted,'mounted dormant rollback resumes'))
+cases.append(('terminal-history-acceptance',module,change("!isTerminalJob(job)",'true'),mounted,'mounted retained production Job manifests'))
+cases.append(('terminal-active-worker','tools/tool-deploy/src/k8s/storage-fence.ts',change("['active', 'terminating']","['terminating']"),mounted,'mounted retained history refuses active'))
+cases.append(('terminal-terminating-worker','tools/tool-deploy/src/k8s/storage-fence.ts',change("['active', 'terminating']","['active']"),mounted,'mounted retained history refuses terminating'))
+cases.append(('terminal-condition','tools/tool-deploy/src/k8s/storage-fence.ts',regex("    return \\(\\n      \\['Complete', 'Failed'\\].*?\\n    \\);",'    return true;'),mounted,'mounted retained history refuses condition'))
+cases.append(('terminal-deleting-job','tools/tool-deploy/src/k8s/storage-fence.ts',change("  if ('deletionTimestamp' in metadata) return false;\n",''),mounted,'mounted retained history refuses deleting-job'))
+cases.append(('terminal-live-pod','tools/tool-deploy/src/k8s/storage-fence.ts',change("  return phase === 'Succeeded' || phase === 'Failed';",'  return true;'),mounted,'mounted retained history refuses live-pod'))
+cases.append(('terminal-deleting-pod','tools/tool-deploy/src/k8s/storage-fence.ts',regex(r"(export function isTerminalPod.*?)(  if \('deletionTimestamp' in metadata\) return false;\n)",r'\1'),mounted,'mounted retained history refuses deleting-pod'))
+rows=[]
+selected=set(sys.argv[1:])
+for name,file,mutate,testfile,test in cases:
+ if selected and name not in selected:continue
+ path=root/file; original=path.read_text()
+ try:
+  path.write_text(mutate(original))
+  call=subprocess.run(['bun','test','--preload','./tools/test/scratch/preload.ts',testfile,'-t',test],cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=55)
+  (evidence/(name+'.log.txt')).write_text(call.stdout)
+  named='(fail) '+test in call.stdout or any(line.startswith('(fail)') and test in line for line in call.stdout.splitlines())
+  rows.append({'fault':name,'exit':call.returncode,'namedFailure':named,'test':test})
+  print(name,call.returncode,'named='+str(named),flush=True)
+ finally:path.write_text(original)
+prior=json.loads((evidence/'mutations.json').read_text()) if (evidence/'mutations.json').exists() else []
+merged={row['fault']:row for row in prior}
+merged.update({row['fault']:row for row in rows})
+(evidence/'mutations.json').write_text(json.dumps(list(merged.values()),indent=2)+'\n')
+if any(row['exit']==0 or not row['namedFailure'] for row in rows):raise SystemExit(1)

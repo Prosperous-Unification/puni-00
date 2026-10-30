@@ -1,0 +1,57 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:48:9). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-successor-92/apps/wbs/fe-01
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx (80 tests | 1 failed | 79 skipped) 326ms
+   × keeps a foreign-owned relationship details-only even when work-item ids collide on phone 323ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/persisted-remote-dependencies.test.tsx > keeps a foreign-owned relationship details-only even when work-item ids collide on phone
+AssertionError: expected <select>…(4)</select> to be null
+
+- Expected:
+null
+
++ Received:
+<select>
+  <option
+    value="[\"p1\",\"w1\",\"whole\",null]"
+  >
+    Whole work item
+  </option>
+  <option
+    value="[\"p1\",\"w1\",\"node\",\"step-dev\"]"
+  >
+    Dev step
+  </option>
+  <option
+    value="[\"p1\",\"w1\",\"node\",\"step-qa\"]"
+  >
+    QA step
+  </option>
+  <option
+    disabled=""
+    value="[\"p1\",\"w1\",\"node\",\"remote-dev\"]"
+  >
+    Persisted successor scope unavailable. Choose a current scope.
+  </option>
+</select>
+
+ ❯ src/components/wbs/persisted-remote-dependencies.test.tsx:687:55
+    685|     );
+    686|     const dialog = within(screen.getByRole('dialog', { name: 'Captured…
+    687|     expect(dialog.queryByLabelText('This work item')).toBeNull();
+       |                                                       ^
+    688|     expect(dialog.queryByLabelText('Relationship')).toBeNull();
+    689|     expect(dialog.queryByRole('button', { name: 'Save' })).toBeNull();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 79 skipped (80)
+   Start at  04:17:25
+   Duration  6.78s (import 62%, transform 26%, environment 6%, tests 5%, setup 1%)

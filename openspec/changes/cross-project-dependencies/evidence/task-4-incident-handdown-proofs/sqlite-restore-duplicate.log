@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:
+674 | it('incident restore refuses a reused physical identity before writing revisions',async()=>{
+675 |  const repo=repository();const original=link();await repo.add(original,stamp);
+676 |  const receipt=await repo.incidents.capture(original.id);await repo.incidents.detach(receipt);
+677 |  await repo.add({...original,type:'SS'},{at:3,by:'u'});
+678 |  const before=stored('SELECT * FROM external_dependency');const revisions=stored('SELECT id,revision FROM work_item ORDER BY id');
+679 |  expect(await rejection(repo.incidents.restore(receipt,original,{at:4,by:'u'}))).toContain('incident dependency external already exists');
+                                                                                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "incident dependency external already exists"
+Received: "DrizzleQueryError: Failed query: insert into \"external_dependency\" (\"id\", \"organization_id\", \"predecessor_project_id\", \"successor_project_id\", \"predecessor_work_item_id\", \"predecessor_scope\", \"predecessor_step_id\", \"successor_work_item_id\", \"successor_scope\", \"successor_step_id\", \"type\", \"created_at\", \"updated_at\", \"created_by\") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\nparams: external,org,a,b,a,whole,,b,whole,,FS,2,4,u"
+
+      at <anonymous> (/tmp/puni-incident-handdown/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:679:82)
+(fail) incident restore refuses a reused physical identity before writing revisions [134.12ms]
+
+ 0 pass
+ 28 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.27s]

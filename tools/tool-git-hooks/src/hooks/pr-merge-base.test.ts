@@ -2,7 +2,7 @@ import { mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it, test } from 'bun:test';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
 const SCRIPT = join(import.meta.dir, 'pr-merge-base.ts');
@@ -174,6 +174,19 @@ interface Step {
 interface Workflow {
   jobs: Record<string, { steps: Step[] } | undefined>;
 }
+const runtimeSteps = [
+  ['gate_workspace', 'Gate — test, lint, typecheck, build'],
+  ['gate_backend', 'Backend — test, lint, typecheck, build'],
+  ['gate_remote', 'Remote — test, lint, typecheck, build'],
+  ['gate_remote_model', 'Remote isolated leaf — test'],
+  ['gate_frontend', 'Frontend — test, lint, typecheck, build'],
+] as const;
+function runtimePartition(job: string): string {
+  if (job === 'gate_remote') return 'remote-rest';
+  if (job === 'gate_remote_model') return 'remote-model';
+  return job.slice(5);
+}
+
 const workflow = Bun.YAML.parse(
   await Bun.file(join(ROOT, '.github/workflows/ci.yml')).text(),
 ) as Workflow;
@@ -206,7 +219,7 @@ case "$*" in
   *ci-gate-annotations.ts*) exit "\${ANNOTATION_STATUS:-0}" ;;
   *ci-plan.ts*)
     printf '%s\\n' "$*" >> "$NX_CALLS"
-    printf '{"schemaVersion":1,"base":"%s","head":"%s","mode":"affected","twilight":"skip","projects":["wbs-fe-01"],"workspaceProjects":["wbs-fe-01"],"twilightProjects":[],"reasons":["test boundary"]}\\n' "$3" "$4"
+    printf '{"schemaVersion":1,"base":"%s","head":"%s","mode":"affected","twilight":"skip","projects":["wbs-fe-01"],"workspaceProjects":["wbs-fe-01"],"partitions":{"backend":[],"remote":[],"frontend":["wbs-fe-01"],"workspace":[]},"twilightProjects":[],"reasons":["test boundary"]}\\n' "$3" "$4"
     exit 0 ;;
   *ci-run-runtime.ts*) printf '%s\\n' "$*" >> "$NX_CALLS"; exit "\${RUNTIME_STATUS:-0}" ;;
 esac
@@ -225,6 +238,7 @@ exec '${process.execPath}' "$@"
       ...h.env,
       GITHUB_OUTPUT: output,
       NX_CALLS: calls,
+      RUNTIME_PARTITION: 'remote-model',
       PATH: `${bin}:${process.env['PATH'] ?? ''}`,
       ...env,
     },
@@ -241,7 +255,7 @@ describe('production workflow PR consumers', () => {
       for (const [job, name] of [
         ['gate_mode', 'Gate mode'],
         ['pixels_mode', 'Browser stack scope'],
-        ['gate_workspace', 'Gate — test, lint, typecheck, build'],
+        ...runtimeSteps,
         ['gate_twilight', 'Twilight — test, typecheck, build, lint'],
       ]) {
         const h = history();
@@ -257,8 +271,9 @@ describe('production workflow PR consumers', () => {
         if (job === 'gate_mode') expect(await execution.output.text()).toContain('mode=full');
         if (job === 'pixels_mode')
           expect(await execution.output.text()).toContain('stack=affected');
-        if (job === 'gate_workspace' || job === 'gate_twilight')
-          expect(await execution.calls.text()).toContain('nx run-many');
+        if (runtimeSteps.some(([runtimeJob]) => runtimeJob === job))
+          expect(await execution.calls.text()).toContain('ci-run-runtime.ts');
+        if (job === 'gate_twilight') expect(await execution.calls.text()).toContain('nx run-many');
       }
     },
   );
@@ -285,10 +300,7 @@ describe('production workflow PR consumers', () => {
     expect(await failure.output.text()).toBe('');
   });
 
-  it.each([
-    ['gate_workspace', 'Gate — test, lint, typecheck, build'],
-    ['gate_twilight', 'Twilight — test, typecheck, build, lint'],
-  ])(
+  it.each([...runtimeSteps, ['gate_twilight', 'Twilight — test, typecheck, build, lint']])(
     '%s propagates resolver failure before runtime work even with a valid GATE_BASE',
     async (job, name) => {
       const h = history();
@@ -302,60 +314,96 @@ describe('production workflow PR consumers', () => {
     },
   );
 
-  it.each([
-    ['gate_workspace', 'Gate — test, lint, typecheck, build'],
-    ['gate_twilight', 'Twilight — test, typecheck, build, lint'],
-  ])('%s refuses a resolver that emits a valid base then fails', async (job, name) => {
-    const h = history();
-    const execution = runStep(h, step(job, name), {
-      GATE_MODE: 'affected',
-      GATE_BASE: h.base,
-      RESOLVER_BASE: h.base,
-      RESOLVER_STATUS: '7',
-    });
-    expect(execution.invocation.exitCode).toBe(7);
-    expect(await execution.calls.text()).toBe('');
-  });
-
-  it.each([
-    ['gate_workspace', 'Gate — test, lint, typecheck, build'],
-    ['gate_twilight', 'Twilight — test, typecheck, build, lint'],
-  ])('%s validates GATE_BASE against its own checkout before runtime work', async (job, name) => {
-    for (const valid of [true, false]) {
-      const h = history();
-      const execution = runStep(h, step(job, name), {
-        GATE_MODE: 'affected',
-        GATE_BASE: valid ? h.base : h.stale,
-      });
-      if (valid) {
-        expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(0);
-        expect(await execution.calls.text()).toContain(
-          `ci-run-runtime.ts ${job === 'gate_workspace' ? 'workspace' : 'twilight'} ${h.base} ${h.merge} .`,
-        );
-      } else {
-        expect(execution.invocation.exitCode).not.toBe(0);
-        expect(await execution.calls.text()).toBe('');
-      }
-    }
-  });
-  it.each([
-    ['gate_workspace', 'Gate — test, lint, typecheck, build'],
-    ['gate_twilight', 'Twilight — test, typecheck, build, lint'],
-  ])('%s propagates runtime and annotation failures and refuses unknown modes', (job, name) => {
-    for (const fault of [{ RUNTIME_STATUS: '7' }, { ANNOTATION_STATUS: '8' }]) {
+  it.each([...runtimeSteps, ['gate_twilight', 'Twilight — test, typecheck, build, lint']])(
+    '%s refuses a resolver that emits a valid base then fails',
+    async (job, name) => {
       const h = history();
       const execution = runStep(h, step(job, name), {
         GATE_MODE: 'affected',
         GATE_BASE: h.base,
-        ...fault,
+        RESOLVER_BASE: h.base,
+        RESOLVER_STATUS: '7',
       });
-      expect(execution.invocation.exitCode).toBe(fault.RUNTIME_STATUS === '7' ? 7 : 8);
-    }
-    for (const mode of ['', 'docs', 'unknown']) {
-      const h = history();
-      const execution = runStep(h, step(job, name), { GATE_MODE: mode, GATE_BASE: h.base });
-      expect(execution.invocation.exitCode).not.toBe(0);
-      expect(execution.calls.size).toBe(0);
-    }
-  });
+      expect(execution.invocation.exitCode).toBe(7);
+      expect(await execution.calls.text()).toBe('');
+    },
+  );
+
+  it.each([...runtimeSteps, ['gate_twilight', 'Twilight — test, typecheck, build, lint']])(
+    '%s validates GATE_BASE against its own checkout before runtime work',
+    async (job, name) => {
+      for (const valid of [true, false]) {
+        const h = history();
+        const execution = runStep(h, step(job, name), {
+          GATE_MODE: 'affected',
+          GATE_BASE: valid ? h.base : h.stale,
+        });
+        if (valid) {
+          expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(0);
+          expect(await execution.calls.text()).toContain(
+            `ci-run-runtime.ts ${runtimePartition(job)} ${h.base} ${h.merge} .`,
+          );
+        } else {
+          expect(execution.invocation.exitCode).not.toBe(0);
+          expect(await execution.calls.text()).toBe('');
+        }
+      }
+    },
+  );
+  it.each([...runtimeSteps, ['gate_twilight', 'Twilight — test, typecheck, build, lint']])(
+    '%s propagates runtime and annotation failures and refuses unknown modes',
+    async (job, name) => {
+      for (const fault of [{ RUNTIME_STATUS: '7' }, { ANNOTATION_STATUS: '8' }]) {
+        const h = history();
+        const execution = runStep(h, step(job, name), {
+          GATE_MODE: 'affected',
+          GATE_BASE: h.base,
+          ...fault,
+        });
+        expect(execution.invocation.exitCode).toBe(fault.RUNTIME_STATUS === '7' ? 7 : 8);
+        if (job !== 'gate_twilight') {
+          const log = Bun.file(join(h.root, 'nx-gate.log'));
+          expect(log.size).toBeGreaterThan(0);
+          const phase = await log.text();
+          expect(phase).toContain(
+            `runtime phase start partition=${runtimePartition(job)} head=${h.merge}`,
+          );
+          expect(phase).toContain(`runtime phase end partition=${runtimePartition(job)}`);
+          expect(phase).toContain(`exit=${fault.RUNTIME_STATUS === '7' ? '7' : '0'}`);
+        }
+      }
+      for (const mode of ['', 'docs', 'unknown']) {
+        const h = history();
+        const execution = runStep(h, step(job, name), { GATE_MODE: mode, GATE_BASE: h.base });
+        expect(execution.invocation.exitCode).not.toBe(0);
+        expect(execution.calls.size).toBe(0);
+      }
+    },
+  );
 });
+
+test.each([
+  'remote-model',
+  'remote-model-continuation',
+  'remote-source',
+  'remote-source-restoration',
+])(
+  'actual model matrix shell dispatches %s with its immutable merge base and status',
+  async (partition) => {
+    const h = history();
+    const execution = runStep(h, step('gate_remote_model', 'Remote isolated leaf — test'), {
+      GATE_MODE: 'affected',
+      GATE_BASE: h.base,
+      RUNTIME_PARTITION: partition,
+      RUNTIME_STATUS: '23',
+    });
+    expect(execution.invocation.exitCode).toBe(23);
+    expect(await execution.calls.text()).toContain(
+      `ci-run-runtime.ts ${partition} ${h.base} ${h.merge} . affected`,
+    );
+    const phase = await Bun.file(join(h.root, 'nx-gate.log')).text();
+    expect(phase).toContain(`runtime phase start partition=${partition} head=${h.merge}`);
+    expect(phase).toContain(`runtime phase end partition=${partition}`);
+    expect(phase).toContain('exit=23');
+  },
+);

@@ -1,5 +1,6 @@
 import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
 import { CLAIM_LEASE_MS } from '@wbs/domain';
+import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 
 import { importMachineGrantKeys, type MachineGrantKeys } from '../runtime/machine-grant';
@@ -19,7 +20,9 @@ let h: OrganizationHarness;
 let projectId: string;
 let steps: string[];
 let claireKey: string;
+let claireCredentialId: string;
 let workerKey: string;
+let pushes: string[];
 
 beforeAll(async () => {
   keys = await importMachineGrantKeys({
@@ -36,9 +39,19 @@ beforeAll(async () => {
  * presented on `/api` only in the parity case, whose raw-key half is removed
  * by 7.1 (M9).
  */
-beforeEach(async () => {
+async function openMachineFixture(connected = false) {
   now = T;
+  pushes = [];
   h = OrganizationHarness.openComposedWith({
+    ...(connected
+      ? {
+          syntheticExternalCommands: true as const,
+          pushFetch: (request: string) => {
+            pushes.push(request);
+            return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+          },
+        }
+      : {}),
     now: () => now,
     machineGrants: { secret: SECRET, keys, authorizationServer: AUTHORIZATION_SERVER },
   });
@@ -57,13 +70,13 @@ beforeEach(async () => {
   if (steps.length < 2) throw new Error(`the project holds ${String(steps.length)} steps`);
   addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
   addAgentPerson(h.sqlite, 'claire-worker', 'org-a', h.userId('dany'));
-  claireKey = (
-    await issueApiKey(h.sqlite, {
-      organizationId: 'org-a',
-      personId: 'claire',
-      issuedBy: h.userId('dany'),
-    })
-  ).key;
+  const claireCredential = await issueApiKey(h.sqlite, {
+    organizationId: 'org-a',
+    personId: 'claire',
+    issuedBy: h.userId('dany'),
+  });
+  claireKey = claireCredential.key;
+  claireCredentialId = claireCredential.id;
   workerKey = (
     await issueApiKey(h.sqlite, {
       organizationId: 'org-a',
@@ -71,7 +84,9 @@ beforeEach(async () => {
       issuedBy: h.userId('dany'),
     })
   ).key;
-});
+}
+
+beforeEach(() => openMachineFixture());
 
 afterEach(async () => {
   await h.closeComposed();
@@ -121,7 +136,18 @@ async function workItems(names: string[], parentId: string | null = null): Promi
     commands: names.map((name) => ({ kind: 'createWorkItem', parentId, name })),
   });
   if (created.status !== 200) throw new Error(`rows refused: ${JSON.stringify(created)}`);
-  return (created.body as { results: { id: string }[] }).results.map(({ id }) => id);
+  const workItemIds = (created.body as { results: { id: string }[] }).results.map(({ id }) => id);
+  // Lease/run cases continue already-running later-step work; Dev remains normally runnable.
+  expectApplied(
+    await h.call('dany', 'POST', `/api/projects/${projectId}/commands`, {
+      commands: workItemIds.flatMap((workItemId) =>
+        steps
+          .slice(1)
+          .map((stepId) => ({ kind: 'setProgress', workItemId, stepId, state: 'in_progress' })),
+      ),
+    }),
+  );
+  return workItemIds;
 }
 
 interface ClaimRow {
@@ -473,12 +499,217 @@ describe('run scoping through wbs_run (task 1.6)', () => {
     );
     expectApplied(await withGrant(processA, 'POST', `/api/projects/${projectId}/undo`));
     expect(claimedItems()).toEqual([forA]);
-    // The human's own stack holds its own entry, the rows' creation, which
-    // the agents' claims have since changed: no agent entry is on it.
+    // The human's latest entry is the later-step progress setup, which the
+    // agents' claims have since changed: no agent entry is on that stack.
     expect(await h.call('dany', 'POST', `/api/projects/${projectId}/undo`)).toMatchObject({
       status: 409,
       body: { error: 'stale_undo', detail: '“For A” has changed since then.' },
     });
     expect(claimedItems()).toEqual([forA]);
   });
+});
+
+/** A mounted connected batch whose predecessor is readable but editable only by its owner. */
+async function connectedBatch() {
+  await h.closeComposed();
+  await openMachineFixture(true);
+  seedDependencyAuthority(h.databasePath());
+  await h.register('owner');
+  h.member('org-a', 'owner', 'member');
+  const created = await h.call('dany', 'POST', '/api/projects', { name: 'Restricted predecessor' });
+  expectApplied(created);
+  const predecessorProjectId = (created.body as { project: { id: string } }).project.id;
+  const rows = await h.call('dany', 'POST', `/api/projects/${predecessorProjectId}/commands`, {
+    commands: [{ kind: 'createWorkItem', name: 'Readable predecessor' }],
+  });
+  expectApplied(rows);
+  const predecessorWorkItemId = (rows.body as { results: { id: string }[] }).results.at(0)?.id;
+  if (predecessorWorkItemId === undefined) throw new Error('predecessor row missing');
+  const [successor, forA, forB, beforeOptIn] = await workItems([
+    'Successor',
+    'For A',
+    'For B',
+    'Before opt-in',
+  ]);
+  const processA = await grantFor(claireKey, 'a');
+  for (const [grant, workItemId] of [
+    [processA, forA],
+    [await grantFor(claireKey, 'b'), forB],
+    [await grantFor(claireKey), beforeOptIn],
+  ] as const)
+    expectApplied(await commands(asGrant(grant), [{ kind: 'claimWorkItem', workItemId }]));
+  h.sqlite.run('UPDATE project SET owner_id=?, restricted=1 WHERE id=?', [
+    h.userId('owner'),
+    predecessorProjectId,
+  ]);
+  h.sqlite.run(
+    "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id=?",
+    [h.userId('dany')],
+  );
+  now = T + 5 * MINUTE;
+  const predecessor = {
+    projectId: predecessorProjectId,
+    workItemId: predecessorWorkItemId,
+    scope: 'whole',
+  };
+  const successorEndpoint = { projectId, workItemId: successor, scope: 'whole' };
+  return { processA, predecessor, successor, successorEndpoint };
+}
+
+/** Every persisted table, including claims, history and publication sequencing. */
+function connectedTables() {
+  return h.sqlite
+    .query<{ name: string }, []>(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+    )
+    .all()
+    .map(({ name }) => ({
+      name,
+      rows: h.sqlite
+        .query(`SELECT * FROM "${name.replaceAll('"', '""')}"`)
+        .all()
+        .map((row) => JSON.stringify(row))
+        .sort(),
+    }));
+}
+
+/** Exact due-authentication bookkeeping from an immutable complete pre-request snapshot. */
+function captureConnectedTouch() {
+  const credentialId = claireCredentialId;
+  const at = T + 5 * MINUTE;
+  expect(now).toBe(at);
+  const before = Object.freeze(
+    connectedTables().map((table) =>
+      Object.freeze({
+        name: table.name,
+        rows: Object.freeze([...table.rows]),
+      }),
+    ),
+  );
+  const credentials = before.filter(({ name }) => name === 'machine_credential');
+  if (credentials.length !== 1) throw new Error('credential table missing or duplicated');
+  const table = credentials.at(0);
+  if (table === undefined) throw new Error('credential table missing');
+  // Test boundary: these are our complete SQLite rows serialized by connectedTables.
+  const rows = table.rows.map((row) => JSON.parse(row) as Record<string, unknown>);
+  const presented = rows.filter((row) => row['id'] === credentialId);
+  if (presented.length !== 1) throw new Error('issued credential missing or duplicated');
+  expect(presented[0]).toMatchObject({
+    id: credentialId,
+    person_id: 'claire',
+    organization_id: 'org-a',
+    source: 'api_key',
+    last_used_at: T,
+    updated_at: T,
+  });
+  const tables = before.map((snapshot) => ({
+    name: snapshot.name,
+    rows:
+      snapshot.name === 'machine_credential'
+        ? rows
+            .map((row, index) =>
+              row['id'] === credentialId
+                ? JSON.stringify({ ...row, last_used_at: at, updated_at: at })
+                : table.rows[index],
+            )
+            .sort()
+        : [...snapshot.rows],
+  }));
+  return { credentialId, at, tables };
+}
+
+/** Require the presented credential's exact touch and every other persisted value unchanged. */
+function expectConnectedTouch(expected: ReturnType<typeof captureConnectedTouch>) {
+  expect(
+    h.sqlite
+      .query<{ id: string; last_used_at: number; updated_at: number }, [string]>(
+        'SELECT id, last_used_at, updated_at FROM machine_credential WHERE id=?',
+      )
+      .get(expected.credentialId),
+  ).toEqual({
+    id: expected.credentialId,
+    last_used_at: expected.at,
+    updated_at: expected.at,
+  });
+  expect(connectedTables()).toEqual(expected.tables);
+}
+
+describe('run admission through mounted connected dependency batches', () => {
+  it('adds a successor-owned link and renews due A and pre-opt-in leases, leaving B unchanged', async () => {
+    const { processA, predecessor, successorEndpoint } = await connectedBatch();
+    const touch = captureConnectedTouch();
+    const predecessorBefore = h.sqlite
+      .query<Record<string, unknown> & { revision: number; updated_at: number }, [string]>(
+        'SELECT * FROM work_item WHERE id=?',
+      )
+      .get(predecessor.workItemId);
+    if (predecessorBefore === null) throw new Error('fixture predecessor missing');
+    expect(predecessorBefore).toMatchObject({ revision: 0, updated_at: T });
+    expect(now).toBe(T + 5 * MINUTE);
+    // The link bumps both incident rows; the predecessor's authored fields stay exact.
+    const expectedPredecessor = {
+      ...predecessorBefore,
+      revision: predecessorBefore.revision + 1,
+      updated_at: now,
+    };
+    const sent = [...pushes];
+    expect(
+      await withGrant(processA, 'POST', `/api/projects/${predecessor.projectId}/commands`, {
+        commands: [
+          { kind: 'patchWorkItem', workItemId: predecessor.workItemId, patch: { name: 'Denied' } },
+        ],
+      }),
+    ).toMatchObject({ status: 403, body: { error: 'forbidden' } });
+    expectConnectedTouch(touch);
+    expect(pushes).toEqual(sent);
+    expectApplied(
+      await commands(asGrant(processA), [
+        {
+          kind: 'addTypedDependency',
+          predecessor,
+          successor: successorEndpoint,
+          type: 'FS',
+        },
+      ]),
+    );
+    expect(h.sqlite.query('SELECT id FROM external_dependency').all()).toHaveLength(1);
+    expect(
+      h.sqlite.query('SELECT * FROM work_item WHERE id=?').get(predecessor.workItemId),
+    ).toEqual(expectedPredecessor);
+    expect(claimRows()).toHaveLength(6);
+    expect(
+      new Set(claimRows().map(({ runId, leaseExpiresAt }) => [runId, leaseExpiresAt].join(':'))),
+    ).toEqual(
+      new Set([
+        `a:${String(now + CLAIM_LEASE_MS)}`,
+        `:${String(now + CLAIM_LEASE_MS)}`,
+        `b:${String(T + CLAIM_LEASE_MS)}`,
+      ]),
+    );
+    expect(pushes.length).toBeGreaterThan(sent.length);
+  });
+
+  for (const fault of ['absent-project', 'foreign-row'] as const)
+    it(`conceals ${fault} after an earlier mutation and rolls back leases and publications`, async () => {
+      const { processA, predecessor, successor, successorEndpoint } = await connectedBatch();
+      const touch = captureConnectedTouch();
+      const sent = [...pushes];
+      const concealed =
+        fault === 'absent-project'
+          ? { ...predecessor, projectId: 'absent-project' }
+          : { ...predecessor, workItemId: successor };
+      expect(
+        await commands(asGrant(processA), [
+          { kind: 'patchWorkItem', workItemId: successor, patch: { name: 'Must roll back' } },
+          {
+            kind: 'addTypedDependency',
+            predecessor: concealed,
+            successor: successorEndpoint,
+            type: 'FS',
+          },
+        ]),
+      ).toEqual({ status: 404, body: { error: 'not_found', at: 1, kind: 'addTypedDependency' } });
+      expectConnectedTouch(touch);
+      expect(pushes).toEqual(sent);
+    });
 });
