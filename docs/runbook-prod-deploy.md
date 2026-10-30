@@ -264,8 +264,9 @@ calls `/api` with a key.
    rather than let it expire.
 6. **Task 3.8 is done.** The consent path refuses a token without `token_use` (no fallback).
    Dev was past one `MCP_ACCESS_TOKEN_TTL` since slice 2 (PR #761, live 2026-10-27), and the
-   Compose prod swap routes no `/mcp` yet, so prod's first mcp-01 already issues
-   `token_use: consent` and needs no wait.
+   Compose prod swap routes no `/mcp` and the Kubernetes cutover is not yet authorized, so
+   no prod mcp-01 has run: the first one already issues `token_use: consent` and needs no
+   wait. This step is a record, not an action.
 
 ### Audience preflight
 

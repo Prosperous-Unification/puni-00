@@ -3074,7 +3074,10 @@ file (`runtime-wbs.test.ts`, 8 pass) and Dash's typecheck and lint were rerun.
   `consent`, including none. `admitCaller`'s JSDoc, design M5 and the prod runbook's step 6 say so.
 - **Timing:** slice 2 (PR #761) reached dev with #751 on 2026-10-27, so one
   `MCP_ACCESS_TOKEN_TTL` (3,600 s) had long passed. The Compose prod swap deploys only be, gw and
-  fe and routes no `/mcp` (slice 14), so prod's first mcp-01 already issues `token_use: consent`.
+  fe and routes no `/mcp` (slice 14), and the Kubernetes cutover is prepared but not authorized
+  (`docs/infra/cutover-plan.md`), so prod's first mcp-01 already issues `token_use: consent`.
+- **Review (Fable high):** no S1–S3; S4 wording fixes applied (design M5 tense, tasks 3.8 past
+  tense, the Kubernetes clause here and in the runbook).
 - **Proof:** `refuses a consent session token of any use but consent` (`oauth.test.ts`) now
   expects a re-signed token without `token_use` to be refused. With the pre-3.8 guard
   `use !== undefined &&` restored, it received `"admitted"` and failed (1 fail); with the fix,

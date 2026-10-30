@@ -456,10 +456,10 @@ _Alternative:_ a 1 h cap, which breaks any orchestrator that hands out a token p
   mcp-01's one access-token key. Machine tokens carry `token_use: machine` and
   `wbs_machine_grant`; consent tokens issued since slice 2 carry `token_use: consent`. Section
   3's machine path requires `token_use: machine` **and** `wbs_machine_grant`, and its consent
-  path refuses any `token_use` other than `consent` (an absent one only until the consent
-  tokens issued before slice 2 have expired, at most `MCP_ACCESS_TOKEN_TTL`). Slice 3 still
+  path refuses any `token_use` other than `consent`, an absent one included. Slice 3 still
   admitted an absent one; task 3.8 removed that branch on 2026-10-30, once
-  `MCP_ACCESS_TOKEN_TTL` had passed since the slice-2 release reached dev; prod runs no mcp-01
+  `MCP_ACCESS_TOKEN_TTL` had passed since the slice-2 release reached dev; no prod mcp-01 has run (Compose
+  routes no `/mcp` and the Kubernetes cutover is not yet authorized)
   yet, so its first one never issued a token without the claim (review of PR #764). Since slice 2,
   a token naming mcp-01's issuer that fails local verification is never handed to the
   upstream verifier.
