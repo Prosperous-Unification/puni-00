@@ -4588,3 +4588,33 @@ storage, correlated signals/operator views/isolation/history/recovery and live
 dev acceptance remain open at 4/11. No host upgrade, persistent Secret, production
 activation, destructive retirement or final implementation merge is authorized
 by this review. Existing working dev/history and all packet bytes are preserved.
+
+## Approved packet publication — 2026-10-30
+
+The user explicitly approved publishing the reviewed packet. That authorization
+supersedes the prior unresolved export decision for this exact payload; the
+historical automatic rejection remains recorded. Before publication all 86 reviewed
+file hashes and all 14 execution-package identities matched the retained review.
+No scanner, chart, test, runtime component or old proof matrix was rerun.
+
+One ordinary non-force push created
+`feat/observability-parity-source-765c7dec` at artifact commit
+`c793ee8919f1b401fa00dab790c767b36f931322`. The complete remote root tree
+`b9b4324fd7c279a6b476e259e1add8f82821d76e` contains exactly 86 reviewed blobs with
+matching paths, modes and Git identities, no parents and no truncation. The old
+artifact branch still points to 2a63a99f2005eb9770695f11e5dbcba4f10ad703 before
+and after. The managed source repository identity also matched the destination.
+Root inspected all 12 command outcomes and the complete publication proof; normal
+branch-absence exit 2 was distinguished from failure. There was no unknown outcome,
+force push, replay or export beyond the approved packet. Proof SHA256:
+`04288eebca7d6f4b013592d4b844ba51ceeffddb60d04183800ecd3d0d3780dd`.
+
+The artifact is the reviewed source 765 packet, not a new capture of later resource
+policies. Publication closes only the export prerequisite: source-client trust/
+authority and authenticated binding, physical admission, full Kubernetes/runtime
+rehearsal, signals/views/isolation/history/recovery and live dev acceptance remain
+open. Existing dev and telemetry history are unchanged. No main/code-head/old-ref
+change, merge, deployment, persistent Secret, storage retirement or host upgrade
+occurred. Goal remains active at 4/11; packet approval does not authorize those
+separately gated operations. Reviewable approval, command streams, remote closure
+and hashes are retained in the private packet-publication-2026-10-30 evidence.
