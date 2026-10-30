@@ -242,3 +242,14 @@ This closes only the test correction; full CI/runtime acceptance remains open.
 Source 52faa917 is independently approved without findings; root inspected retained
 command outputs and source identities without replaying passing checks. Full
 runtime/live acceptance and the remaining capacity/source prerequisites stay open.
+
+### Task70 authenticated source component within 3.1
+
+- [x] Use the explicitly approved published source 765 packet through the existing frozen source/client adapter, with fresh prerequisite observations and the unchanged bounded component profile. Retain authenticated fetch, full blob/provenance equality, actual dependency/tool/alias controls, receipt/stdout agreement and explicit trust/authority/runtime limitations.
+- [x] Correct the three observed private provider contracts without broadening security or resource policy: canonical bridge, explicit local-log compression=false under the same size/count caps, and exact requested-ID lowercase absence. Watch the new focused safety negatives fail with their production dependencies removed; restore, inspect retained evidence and obtain independent scoped review.
+- [x] Reconcile only recorded owned resources, preserve actual failed attempts, retain both successful-client streams, prove exact-ID absence and baseline preservation, and record commands/timings/limitations. Leave full task 3.1 and live acceptance open.
+
+The source-component execution completed in 19.33 seconds, with successful final
+cleanup and no live owned client remaining. This is source 765 evidence; full
+current-source Kubernetes, capacity, signals/history/recovery and live convergence
+remain required under the original objective.

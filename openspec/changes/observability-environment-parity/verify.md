@@ -4618,3 +4618,70 @@ change, merge, deployment, persistent Secret, storage retirement or host upgrade
 occurred. Goal remains active at 4/11; packet approval does not authorize those
 separately gated operations. Reviewable approval, command streams, remote closure
 and hashes are retained in the private packet-publication-2026-10-30 evidence.
+
+## Actual authenticated source verification and cleanup — 2026-10-30
+
+After approved publication, the retained source 765 component completed actual
+read-only authenticated packet verification on h4claw. Fresh preflight confirmed
+the existing Docker 29.1.3 daemon/image, retained source/dependencies/tools and
+managed credential file metadata without copying credential values into inventory.
+Available memory 12765319168 bytes and free disk 112972922880 bytes passed the unchanged
+component-only 2 GiB/8 GiB floors; full rehearsal remains unadmitted.
+
+The first owned attempt stopped before client execution: Docker reports canonical
+NetworkMode bridge whereas the checker expected default. After a reviewed exact
+bridge correction, cleanup exposed local-driver default compression conflicting
+with max-file=1. That container never started (created/Pid=0/zero timestamps/no
+start receipt). Its log-capture failure remains explicit. A concrete exact-ID
+operator removal used no force or volume deletion; subsequent observations prove
+absence and baseline preservation. Its owned scratch and diagnostic evidence remain.
+
+Three narrow private-package corrections restore the existing provider contracts:
+exact bridge plus explicit create network; explicit compress=false with the same
+local driver/max-size=1m/max-file=1; and the exact lowercase Docker missing-object
+message containing the requested ID. Missing/unknown values still refuse. These
+are precise contract corrections under R4, with no product model/API or provider
+pin change. Resource ceilings, read-only mounts/root, capability/PID restrictions,
+restart=no, bounded streams, deadlines, retained history and no-replay rules remain.
+Each correction received scoped independent specification/quality approval without
+findings. Their final focused controls passed 12/10/21 assertions respectively,
+with genuine old-code REDs and watched production-path network/log/ID-membership
+faults losing their intended negatives, followed by exact restoration and adjacent
+Proof comments. Syntax checks and current valid fixture acceptance passed. Existing
+40/72-check matrices and prior passing render/proof suites were not replayed.
+
+One justified fresh attempt used the corrected package; the failed original start
+was never replayed. Actual client execution ran 12:56:40.545750217–12:56:59.876658011 UTC
+(19.330907794s), exit 0/no OOM, under 1 GiB/one CPU/256 PIDs and a 600-second deadline.
+Prebind traversed 112815 dependency entries with strict resolved-link containment,
+imported actual arktype/yaml and resolved the Fleet alias to the frozen source.
+The client validated the packet and authenticated-fetch compared the exact root
+artifact against source 765, including all payload/provenance bytes. Source/generator
+revision 765 was clean; artifact c793 and packet 0a4f matched. CLI stdout JSON equaled
+the exclusive binding receipt; stderr was empty. Binding receipt SHA256:
+`9fb561b70dcfba2caacc549df5513cf413f1b10ddddc23490128fc7af6927a9d`.
+
+Cleanup retained 27329 stdout bytes and 0 stderr bytes, removed the recorded exact
+creator once, then initially refused the unrecognized lowercase absence diagnostic.
+Read-only reconciliation confirmed absence and baseline resources present. After
+the reviewed exact diagnostic addition, the same cleanup reused the retained
+streams/stopped/removal receipts and wrote its final cleaned receipt; no second
+removal, new client or restart occurred. Baseline containers/images, original
+workspace/receipts and telemetry history remain preserved; no volume deletion.
+Final cleanup receipt SHA256:
+`652b5784e43f9fbb856332790a875680da0dc6bfe7f5b9646fa3283f1e336957`.
+Root independently retrieved/rehashed the proof and both streams and inspected
+all three complete review reports, actual negative/restored outputs and final
+17-entry package manifest. Private task 70/70b/70c reports, raw command receipts,
+complete package snapshots and artifact manifests retain reproduction evidence.
+Docker's local-driver contract documents compression enabled by default and the
+explicit false option: https://docs.docker.com/engine/logging/drivers/local/.
+
+This closes the authenticated source-component prerequisite for reviewed source 765.
+It does not certify the later source 66 policy, full common-stack rehearsal or live
+migration. Trust approval and global credential privilege scope remain explicitly
+external/unverified. HandoffExecuted, runtimeAcceptance and liveBinding remain false:
+no cluster apply or persistent Secret operation occurred. Complete physical capacity,
+effective Pods/CNI/storage, stored signals/views/isolation/history/recovery and live
+dev acceptance stay open at 4/11. Current implementation CI still lacks a passing
+required gate after the recorded 90-minute timeout; no rerun or policy change occurred.
