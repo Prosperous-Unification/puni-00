@@ -32,6 +32,9 @@ export function issueClientSecret(method: ConfidentialMethod): {
   return { secret, authentication: { method, secretSha256: secretSha256Of(secret) } };
 }
 
+// SHA-256, not a password KDF: the secret is 32 CSPRNG bytes mcp-01 issued, never a human
+// password, so a slow hash adds nothing; refresh tokens are digested the same way
+// (`digestOf` in session-store.ts). CodeQL's js/insufficient-password-hash reads it as one.
 function secretSha256Of(secret: string): string {
   return createHash('sha256').update(secret).digest('hex');
 }
@@ -76,12 +79,22 @@ export function presentedClientOf(
     // non-Basic Authorization header invalid_client` (consent-client.test.ts) read it as `none`.
     if (basic === 'malformed') return 'invalid_client';
     // Proof: 2026-10-31, with this refusal removed `refuses two methods, a repeated field and a
-    // Basic user unlike the body client_id invalid_request` (consent-client.test.ts) took Basic.
+    // Basic user unlike the body client_id invalid_request` (consent-client.test.ts) read the
+    // Basic secret beside the body one.
     if (bodySecret !== undefined) return 'invalid_request';
-    const clientId = basic.user === '' ? bodyClientId : basic.user;
-    // Proof: 2026-10-31, with this refusal removed the same test took the Basic user.
-    if (bodyClientId !== undefined && clientId !== bodyClientId) return 'invalid_request';
-    return { clientId, method: 'client_secret_basic', secret: new Concealed(basic.password) };
+    // RFC 6749 §2.3.1: the Basic user is the client_id; an empty one names no client.
+    // Proof: 2026-10-31, with this refusal removed `refuses a client_assertion and a non-Basic
+    // Authorization header invalid_client` (consent-client.test.ts) read `Basic :secret` as a
+    // client named ''.
+    if (basic.user === '') return 'invalid_client';
+    // Proof: 2026-10-31, with this refusal removed `refuses two methods, a repeated field and a
+    // Basic user unlike the body client_id invalid_request` (consent-client.test.ts) took Basic.
+    if (bodyClientId !== undefined && basic.user !== bodyClientId) return 'invalid_request';
+    return {
+      clientId: basic.user,
+      method: 'client_secret_basic',
+      secret: new Concealed(basic.password),
+    };
   }
   if (bodySecret !== undefined)
     return {

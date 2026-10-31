@@ -259,7 +259,9 @@
       400); skip the code or refresh refusal; compare only the secret, not the method; make the
       digest compare return `true`; the migration CHECKs as `CHECK (1)`; the rollback preflight
       and down `DELETE` removed. A boot test runs the claude.ai-shaped flow through the MCP SDK.
-      The claude.ai check on dev after deploy stays with 3.6. verify.md slice 20.
+      The claude.ai check on dev after deploy stays with 3.6. Review of PR #791: the family
+      records its client's method and the exchange is atomic (S2-1), an absent method is
+      `client_secret_basic`, and the metadata lists all three methods. verify.md slice 20.
 - [x] 3.7 Secret cutover (M14), with each secret tested on `/internal/mcp/delegation`. The old
       secret is removed in release N+1 (a follow-up).
 - [x] 3.8 Removed the consent path's `use === undefined` branch (`consentClaimsOf` in

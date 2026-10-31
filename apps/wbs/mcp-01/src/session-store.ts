@@ -3,7 +3,7 @@ import { closeSync, openSync } from 'node:fs';
 
 import { Database, SQLiteError } from 'bun:sqlite';
 
-import type { ClientAuthentication } from './consent-client';
+import type { ClientAuthentication, ConfidentialMethod } from './consent-client';
 import {
   McpStoreRefused,
   migrateMcpStore,
@@ -45,6 +45,11 @@ export interface FamilyInput {
    * (`wbs-machine-credentials` A20); omitted when the human authorized as themself.
    */
   readonly consent?: ConsentBinding;
+  /**
+   * The confidential method of the client the family was issued to (design M17); omitted for a
+   * public client. A refresh of a confidential family needs a live client of that method.
+   */
+  readonly clientMethod?: ConfidentialMethod;
 }
 
 /** The agent person and consent credential of a family that acts as an agent person. */
@@ -167,6 +172,7 @@ export class McpSessionStore {
     sessionExpiresAt: number,
     refreshToken: string,
     now: number = Date.now(),
+    promotedClientExpiresAt?: number,
   ): void {
     this.db.transaction(() => {
       if (input.consent !== undefined) {
@@ -188,9 +194,10 @@ export class McpSessionStore {
           `INSERT INTO mcp_family (
         family_id, client_id, subject, scope, upstream_access_ct, upstream_refresh_ct,
         upstream_expires_at, idle_expires_at, absolute_expires_at, version,
-        organization_id, user_id, issuer, credential_epoch, act_as_person_id, credential_id
+        organization_id, user_id, issuer, credential_epoch, act_as_person_id, credential_id,
+        client_auth_method
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?,
-        (SELECT epoch FROM mcp_credential_epoch WHERE singleton = 1), ?, ?)`,
+        (SELECT epoch FROM mcp_credential_epoch WHERE singleton = 1), ?, ?, ?)`,
         )
         .run(
           input.familyId,
@@ -209,10 +216,35 @@ export class McpSessionStore {
           input.binding?.issuer ?? null,
           input.consent?.personId ?? null,
           input.consent?.credentialId ?? null,
+          input.clientMethod ?? null,
         );
       this.insertSession(jti, input.familyId, sessionExpiresAt);
       this.insertRefresh(refreshToken, input.familyId, input.absoluteExpiresAt);
+      // The code exchange promotes its client in the family's own transaction, so a process
+      // that dies after the family commits cannot leave it beside an unproven, soon-swept client.
+      if (promotedClientExpiresAt !== undefined)
+        this.promoteClient(input.clientId, promotedClientExpiresAt);
     })();
+  }
+
+  /**
+   * The client method recorded on the family `refreshToken` belongs to: `none` for a public
+   * family, or `null` when no family holds that token. Reads nothing encrypted.
+   *
+   * @throws when the stored method is malformed.
+   */
+  refreshClientMethod(refreshToken: string): ClientAuthentication['method'] | null {
+    const row = this.db
+      .query(
+        `SELECT f.client_auth_method AS method FROM mcp_refresh r JOIN mcp_family f
+          USING (family_id) WHERE r.token_digest = ?`,
+      )
+      .get(digestOf(refreshToken)) as { method: unknown } | null;
+    if (row === null) return null;
+    if (row.method === null) return 'none';
+    if (row.method === 'client_secret_basic' || row.method === 'client_secret_post')
+      return row.method;
+    throw new Error('MCP family client_auth_method is malformed');
   }
 
   /**
@@ -793,6 +825,10 @@ export class McpSessionStore {
         credentialEpoch: Number(row['credential_epoch']),
         ...bindingOf(row),
         ...consentOf(row),
+        ...(row['client_auth_method'] === 'client_secret_basic' ||
+        row['client_auth_method'] === 'client_secret_post'
+          ? { clientMethod: row['client_auth_method'] }
+          : {}),
       };
     } catch (cause) {
       this.revokeFamily(familyId, Date.now());

@@ -49,6 +49,9 @@ describe('presentedClientOf', () => {
       'invalid_client',
     );
     expect(presentedClientOf(form({ client_id: 'c1' }), 'Bearer token')).toBe('invalid_client');
+    // RFC 6749 §2.3.1: Basic names the client; an empty user is no body client_id's stand-in.
+    expect(presentedClientOf(form({}), basic('', 's1'))).toBe('invalid_client');
+    expect(presentedClientOf(form({ client_id: 'c1' }), basic('', 's1'))).toBe('invalid_client');
     expect(presentedClientOf(form({ client_id: 'c1' }), 'Basic bm9jb2xvbg==')).toBe(
       'invalid_client',
     );

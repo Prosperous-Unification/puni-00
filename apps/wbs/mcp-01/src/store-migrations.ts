@@ -112,8 +112,9 @@ function preflightFamilyPersonDown(db: Database): void {
 }
 
 /**
- * Refuses the client-secret migration's reversal while a confidential client is live: without
- * its method and digest it would read as public and redeem codes and refreshes with no secret.
+ * Refuses the client-secret migration's reversal while a confidential client is live or a
+ * confidential family is usable: without the columns either would read as public and redeem
+ * codes or refreshes with no secret.
  */
 function preflightClientSecretDown(db: Database, now: number): void {
   const live = db
@@ -122,11 +123,19 @@ function preflightClientSecretDown(db: Database, now: number): void {
         WHERE token_endpoint_auth_method IS NOT NULL AND expires_at > ?`,
     )
     .get(now)?.n;
+  const usable = db
+    .query<{ n: number }, [number, number]>(
+      `SELECT COUNT(*) AS n FROM mcp_family WHERE client_auth_method IS NOT NULL
+        AND revoked_at IS NULL AND idle_expires_at > ? AND absolute_expires_at > ?`,
+    )
+    .get(now, now)?.n;
   // Proof: 2026-10-31, with this refusal removed `refuses to roll back the client secret
-  // migration while a confidential client is live` (store-migrations.test.ts) rolled back.
-  if (live !== 0)
+  // migration while a confidential client is live` and `… while a confidential family is
+  // usable` (store-migrations.test.ts) rolled back.
+  if (live !== 0 || usable !== 0)
     throw new McpStoreRefused(
-      `MCP store rollback refused: ${String(live)} live confidential clients must expire first`,
+      `MCP store rollback refused: ${String(live)} live confidential clients and ` +
+        `${String(usable)} usable confidential families must expire or be revoked first`,
     );
 }
 

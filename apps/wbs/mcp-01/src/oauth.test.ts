@@ -4028,9 +4028,19 @@ describe('confidential consent clients (M17)', () => {
     }
   });
 
-  it('still refuses an absent, unknown or private_key_jwt auth method', async () => {
+  // Proof: 2026-10-31, refusing an absent method made this answer 400 invalid_client_metadata.
+  it('registers an absent method as client_secret_basic (RFC 7591 §2)', async () => {
     const { oauth } = fixture();
-    for (const method of [undefined, 'private_key_jwt', 'tls_client_auth', 'NONE']) {
+    const response = await registerAs(oauth, undefined);
+    expect(response.status).toBe(201);
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body['token_endpoint_auth_method']).toBe('client_secret_basic');
+    expect(body['client_secret']).toMatch(/^[A-Za-z0-9_-]{43}$/);
+  });
+
+  it('still refuses an unknown or private_key_jwt auth method', async () => {
+    const { oauth } = fixture();
+    for (const method of ['private_key_jwt', 'tls_client_auth', 'NONE', '']) {
       const response = await registerAs(oauth, method);
       expect(response.status).toBe(400);
       expect(await response.json()).toEqual({ error: 'invalid_client_metadata' });
@@ -4129,6 +4139,95 @@ describe('confidential consent clients (M17)', () => {
       await tokenCall(oauth, { ...fields, client_id: clientId, client_secret: secret }),
     );
     expect((await tokenCall(oauth, fields, [clientId, secret])).status).toBe(200);
+  });
+
+  // Proof: 2026-10-31, with `refreshGrant`'s family-method refusal removed this answered 200 to
+  // client_id alone once the row was gone, and once it was rewritten as public; omitting the
+  // method from `createFamily` failed it the same way.
+  it("refuses a confidential family's refresh once its client row is gone", async () => {
+    const root = mkdtempSync(join(tmpdir(), 'mcp-confidential-'));
+    const path = join(root, 'sessions.sqlite');
+    try {
+      const store = new McpSessionStore(path, [randomBytes(32)]);
+      const { oauth } = fixture({ store });
+      const { clientId, secret } = await registered(oauth, 'client_secret_post');
+      const issued = await tokenCall(oauth, {
+        ...exchange(await codeFor(oauth, clientId), clientId),
+        client_secret: secret,
+      });
+      const { refresh_token: refresh } = (await issued.json()) as { refresh_token: string };
+      const fields = { grant_type: 'refresh_token', refresh_token: refresh, client_id: clientId };
+      const db = new Database(path);
+      db.run(
+        'UPDATE mcp_client SET token_endpoint_auth_method = NULL, client_secret_sha256 = NULL',
+      );
+      await expectInvalidClient(await tokenCall(oauth, fields));
+      db.run('DELETE FROM mcp_client');
+      db.close();
+      await expectInvalidClient(await tokenCall(oauth, fields));
+      await expectInvalidClient(await tokenCall(oauth, { ...fields, client_secret: secret }));
+      store.close();
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it("keeps a public family's refresh once its client row is gone", async () => {
+    const root = mkdtempSync(join(tmpdir(), 'mcp-confidential-'));
+    const path = join(root, 'sessions.sqlite');
+    try {
+      const store = new McpSessionStore(path, [randomBytes(32)]);
+      const { oauth } = fixture({ store });
+      const clientId = await register(oauth);
+      const issued = await tokenCall(oauth, exchange(await codeFor(oauth, clientId), clientId));
+      const { refresh_token: refresh } = (await issued.json()) as { refresh_token: string };
+      const db = new Database(path);
+      db.run('DELETE FROM mcp_client');
+      db.close();
+      const refreshed = await tokenCall(oauth, {
+        grant_type: 'refresh_token',
+        refresh_token: refresh,
+        client_id: clientId,
+      });
+      expect(refreshed.status).toBe(200);
+      store.close();
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  // Proof: 2026-10-31, promoting after the family's transaction committed (the pre-review
+  // order), with that write failing, left a family row beside an unproven client here.
+  it("commits the family and the client's promotion together", async () => {
+    const root = mkdtempSync(join(tmpdir(), 'mcp-confidential-'));
+    const path = join(root, 'sessions.sqlite');
+    try {
+      const store = new McpSessionStore(path, [randomBytes(32)]);
+      const { oauth } = fixture({ store });
+      const { clientId, secret } = await registered(oauth, 'client_secret_post');
+      const code = await codeFor(oauth, clientId);
+      const promote = store.promoteClient.bind(store);
+      store.promoteClient = () => {
+        throw new Error('process killed before the promotion');
+      };
+      // Caught rather than `rejects.toThrow`, whose bun typing is `void` (server.test.ts).
+      const cause: unknown = await tokenCall(oauth, {
+        ...exchange(code, clientId),
+        client_secret: secret,
+      })
+        .then(() => undefined)
+        .catch((error: unknown) => error);
+      expect(String(cause)).toContain('process killed');
+      store.promoteClient = promote;
+      const db = new Database(path, { readonly: true });
+      const families = db.query('SELECT COUNT(*) AS n FROM mcp_family').get() as { n: number };
+      db.close();
+      expect(families.n).toBe(0);
+      expect(store.client(clientId, 1_700_000_000_000)?.proven).toBe(false);
+      store.close();
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
   });
 
   it('keeps the public flow: a none client exchanges and refreshes with its client_id alone', async () => {

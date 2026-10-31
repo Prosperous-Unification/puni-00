@@ -158,14 +158,17 @@ who linked several methods acts as one user whichever one they used.
 ### Public and confidential connectors
 
 Dynamic registration accepts `token_endpoint_auth_method` `none` (Claude Code),
-`client_secret_post` (claude.ai, which reads the methods the metadata lists for
-the machine grants) and `client_secret_basic`. A confidential client gets a
+`client_secret_post` (claude.ai) and `client_secret_basic`, which is also what
+an absent method means (RFC 7591 §2); the metadata lists all three everywhere.
+A confidential client gets a
 random `client_secret` once, in the `201`, with `client_secret_expires_at`
 equal to `client_id_expires_at`: the secret lives as long as the client, whose
 lifetime slides with use. Only its SHA-256 is stored. Its code exchanges and
 refreshes need that secret by the registered method alone, else `401
 invalid_client` with a Basic challenge; a public client that sends a secret is
-refused the same way. The `client_credentials` grant never looks a registered
+refused the same way, as is any `Authorization` header from a public client. A
+family remembers its client's method, so a confidential family whose client row
+is gone or public again cannot refresh. The `client_credentials` grant never looks a registered
 client up, so a client secret is no API key, and an API key never authenticates
 a consent grant. Revocation stays possession-based for both kinds
 (`src/consent-client.ts`; `wbs-mcp-agent-surface` design M17).
@@ -311,8 +314,9 @@ is still usable or the epoch has advanced, and (reversing
 `20261022130000_mcp_family_person`) while a consent family acting as an agent
 person has an end be-01 has not acknowledged (`consent_ended_reported_at IS
 NULL`) or a row is left in `mcp_consent_pending`, and (reversing
-`20261031120000_mcp_client_secret`) while a confidential client is live, since
-it would read as public; wait out its expiry. When it refuses for those:
+`20261031120000_mcp_client_secret`) while a confidential client is live or a
+confidential family usable, since either would read as public; wait out their
+expiry or revoke them. When it refuses for those:
 end the live consent families with
 `UPDATE mcp_family SET revoked_at = <now in ms> WHERE credential_id IS NOT NULL AND revoked_at IS NULL;`
 on the stopped store, wait out the five-minute code lifetime of any pending

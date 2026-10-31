@@ -16,7 +16,7 @@ import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from '
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 
 import type { McpConfig } from './config';
-import { mcpFetchHandler, oauthMetadataResponse } from './http';
+import { mcpFetchHandler } from './http';
 import { machineGrantClient } from './machine-grant-client';
 import { NO_MACHINE_LIMITS } from './machine-limits';
 import { ActivationMarkersDisagree, McpOAuthServer } from './oauth';
@@ -473,115 +473,6 @@ describe('MCP organization delegation against a booted be-01', () => {
     expect((JSON.parse(batch.text) as { results: unknown[] }).results).toHaveLength(2);
   });
 
-  // Task 3.9 (M17): claude.ai's connector registers `client_secret_post`, because the metadata
-  // lists the machine grants' methods. The MCP SDK stands in for claude.ai at the token
-  // endpoint: it reads the method from the registration answer and sends the secret by it.
-  // Proof: 2026-10-31, with registration accepting only `none` again (oauth.ts `register`) this
-  // failed at `registerClient` with the live `invalid_client_metadata`.
-  test('a claude.ai-shaped confidential connector consents, calls a tool and refreshes', async () => {
-    login.subject = 'auth0|dany';
-    login.lifetimeSeconds = 900;
-    const fetchFn = (input: string | URL, init?: RequestInit) => handle(new Request(input, init));
-    // Discovery as dev answers it: dev sets MCP_BE_INTERNAL_SECRET, so its metadata lists
-    // `client_secret_basic` and `client_secret_post`; this file's `config` composes the machine
-    // grants without that variable, so its own metadata lists only `none`.
-    const metadata = await discoverAuthorizationServerMetadata(OAUTH, {
-      fetchFn: (input) =>
-        Promise.resolve(
-          oauthMetadataResponse(new URL(input), {
-            ...config,
-            MCP_BE_INTERNAL_SECRET: MACHINE_SECRET,
-          }) ?? new Response(null, { status: 404 }),
-        ),
-    });
-    if (metadata === undefined) throw new Error('no authorization server metadata');
-    expect(metadata.token_endpoint_auth_methods_supported).toContain('client_secret_post');
-    const client = await registerClient(OAUTH, {
-      metadata,
-      clientMetadata: {
-        client_name: 'Claude',
-        redirect_uris: [CALLBACK],
-        grant_types: ['authorization_code', 'refresh_token'],
-        response_types: ['code'],
-        token_endpoint_auth_method: 'client_secret_post',
-      },
-      fetchFn,
-    });
-    expect(client.token_endpoint_auth_method).toBe('client_secret_post');
-    if (client.client_secret === undefined) throw new Error('registration issued no secret');
-    const sent: Request[] = [];
-    const recording = (input: string | URL, init?: RequestInit) => {
-      const request = new Request(input, init);
-      sent.push(request.clone());
-      return handle(request);
-    };
-    const tokens = await exchangeAuthorization(OAUTH, {
-      metadata,
-      clientInformation: client,
-      authorizationCode: await consentCode(client.client_id, undefined),
-      codeVerifier: VERIFIER,
-      redirectUri: CALLBACK,
-      fetchFn: recording,
-    });
-    const exchanged = new URLSearchParams(await sent[0]?.text());
-    expect(exchanged.get('client_secret')).toBe(client.client_secret);
-    expect(sent[0]?.headers.get('authorization')).toBeNull();
-    const listed = await tool(tokens.access_token, 'getApiProjects', {});
-    expect(listed.isError).toBe(false);
-    expect(projectNames(listed.text)).toEqual(['Launch']);
-    const refreshed = await refreshAuthorization(OAUTH, {
-      metadata,
-      clientInformation: client,
-      refreshToken: tokens.refresh_token ?? '',
-      fetchFn,
-    });
-    expect((await tool(refreshed.access_token, 'getApiProjects', {})).isError).toBe(false);
-
-    // Without its secret, the same client is refused, and so is an API key on either grant.
-    const withoutSecret = await oauthCall(
-      new Request(`${OAUTH}/token`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          grant_type: 'refresh_token',
-          refresh_token: refreshed.refresh_token ?? '',
-          client_id: client.client_id,
-        }),
-      }),
-    );
-    expect(withoutSecret.status).toBe(401);
-    const asKey = await oauthCall(
-      new Request(`${OAUTH}/token`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/x-www-form-urlencoded',
-          authorization: `Basic ${btoa(`${MACHINE_CREDENTIAL}:${MACHINE_KEY}`)}`,
-        },
-        body: new URLSearchParams({
-          code: await consentCode(client.client_id, undefined),
-          code_verifier: VERIFIER,
-          grant_type: 'authorization_code',
-          redirect_uri: CALLBACK,
-        }),
-      }),
-    );
-    expect(await asKey.json()).toEqual({ error: 'invalid_grant' });
-    const asMachine = await oauthCall(
-      new Request(`${OAUTH}/token`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          grant_type: CLIENT_CREDENTIALS_GRANT,
-          resource: MCP_URL,
-          client_id: client.client_id,
-          client_secret: client.client_secret,
-        }),
-      }),
-    );
-    expect(asMachine.status).toBe(401);
-    expect(await asMachine.json()).toEqual({ error: 'invalid_client' });
-  });
-
   test("the same session is refused on another organization's project", async () => {
     const grace = await connect('auth0|grace');
     const created = await tool(grace.access, 'postApiProjects', { name: 'Foreign' });
@@ -896,5 +787,107 @@ describe('MCP organization delegation against a booted be-01', () => {
     );
     expect(refreshed.status).toBe(400);
     expect(await refreshed.json()).toEqual({ error: 'invalid_grant' });
+  });
+
+  // Task 3.9 (M17): claude.ai's connector registers `client_secret_post`, because the metadata
+  // lists the machine grants' methods. The MCP SDK stands in for claude.ai at the token
+  // endpoint: it reads the method from the registration answer and sends the secret by it.
+  // It signs in as grace, whom no earlier test removes, and makes its own project, so it reads
+  // nothing an earlier test wrote.
+  // Proof: 2026-10-31, with registration accepting only `none` again (oauth.ts `register`) this
+  // failed at `registerClient` with the live `invalid_client_metadata`.
+  test('a claude.ai-shaped confidential connector consents, calls a tool and refreshes', async () => {
+    login.subject = 'auth0|grace';
+    login.lifetimeSeconds = 900;
+    const fetchFn = (input: string | URL, init?: RequestInit) => handle(new Request(input, init));
+    const metadata = await discoverAuthorizationServerMetadata(OAUTH, { fetchFn });
+    if (metadata === undefined) throw new Error('no authorization server metadata');
+    expect(metadata.token_endpoint_auth_methods_supported).toContain('client_secret_post');
+    const client = await registerClient(OAUTH, {
+      metadata,
+      clientMetadata: {
+        client_name: 'Claude',
+        redirect_uris: [CALLBACK],
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'client_secret_post',
+      },
+      fetchFn,
+    });
+    expect(client.token_endpoint_auth_method).toBe('client_secret_post');
+    if (client.client_secret === undefined) throw new Error('registration issued no secret');
+    const sent: Request[] = [];
+    const recording = (input: string | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      sent.push(request.clone());
+      return handle(request);
+    };
+    const tokens = await exchangeAuthorization(OAUTH, {
+      metadata,
+      clientInformation: client,
+      authorizationCode: await consentCode(client.client_id, undefined),
+      codeVerifier: VERIFIER,
+      redirectUri: CALLBACK,
+      fetchFn: recording,
+    });
+    const exchanged = new URLSearchParams(await sent[0]?.text());
+    expect(exchanged.get('client_secret')).toBe(client.client_secret);
+    expect(sent[0]?.headers.get('authorization')).toBeNull();
+    const created = await tool(tokens.access_token, 'postApiProjects', { name: 'Confidential' });
+    expect(created.isError).toBe(false);
+    const listed = await tool(tokens.access_token, 'getApiProjects', {});
+    expect(listed.isError).toBe(false);
+    expect(projectNames(listed.text)).toContain('Confidential');
+    const refreshed = await refreshAuthorization(OAUTH, {
+      metadata,
+      clientInformation: client,
+      refreshToken: tokens.refresh_token ?? '',
+      fetchFn,
+    });
+    expect((await tool(refreshed.access_token, 'getApiProjects', {})).isError).toBe(false);
+
+    // Without its secret, the same client is refused, and so is an API key on either grant.
+    const withoutSecret = await oauthCall(
+      new Request(`${OAUTH}/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: refreshed.refresh_token ?? '',
+          client_id: client.client_id,
+        }),
+      }),
+    );
+    expect(withoutSecret.status).toBe(401);
+    const asKey = await oauthCall(
+      new Request(`${OAUTH}/token`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          authorization: `Basic ${btoa(`${MACHINE_CREDENTIAL}:${MACHINE_KEY}`)}`,
+        },
+        body: new URLSearchParams({
+          code: await consentCode(client.client_id, undefined),
+          code_verifier: VERIFIER,
+          grant_type: 'authorization_code',
+          redirect_uri: CALLBACK,
+        }),
+      }),
+    );
+    expect(await asKey.json()).toEqual({ error: 'invalid_grant' });
+    const asMachine = await oauthCall(
+      new Request(`${OAUTH}/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: CLIENT_CREDENTIALS_GRANT,
+          resource: MCP_URL,
+          client_id: client.client_id,
+          client_secret: client.client_secret,
+        }),
+      }),
+    );
+    expect(asMachine.status).toBe(401);
+    expect(await asMachine.json()).toEqual({ error: 'invalid_client' });
   });
 });

@@ -1069,6 +1069,51 @@ describe('MCP client-secret migration', () => {
     store.close();
   });
 
+  // Proof: 2026-10-31, `CHECK (1)` on `mcp_family.client_auth_method` stored this row.
+  it('refuses a family client method outside the confidential two', () => {
+    const path = storePath();
+    const store = new McpSessionStore(path, [KEY]);
+    store.createFamily(familyInput('fam-a'), 'session-a', NOW + 60_000, 'refresh-a', NOW);
+    expect(() =>
+      withDb(path, (db) => db.run("UPDATE mcp_family SET client_auth_method = 'none'")),
+    ).toThrow(/CHECK constraint failed/);
+    store.close();
+  });
+
+  it('records a confidential family method and reads it back for its refresh token', () => {
+    const store = new McpSessionStore(':memory:', [KEY]);
+    store.createFamily(
+      { ...familyInput('fam-c'), clientMethod: 'client_secret_basic' },
+      'session-c',
+      NOW + 60_000,
+      'refresh-c',
+      NOW,
+    );
+    store.createFamily(familyInput('fam-p'), 'session-p', NOW + 60_000, 'refresh-p', NOW);
+    expect(store.refreshClientMethod('refresh-c')).toBe('client_secret_basic');
+    expect(store.refreshClientMethod('refresh-p')).toBe('none');
+    expect(store.refreshClientMethod('refresh-unknown')).toBeNull();
+    expect(store.family('fam-c')?.clientMethod).toBe('client_secret_basic');
+    store.close();
+  });
+
+  it('refuses to roll back the client secret migration while a confidential family is usable', () => {
+    const path = storePath();
+    const store = new McpSessionStore(path, [KEY]);
+    store.createFamily(
+      { ...familyInput('fam-c'), clientMethod: 'client_secret_post' },
+      'session-c',
+      NOW + 60_000,
+      'refresh-c',
+      NOW,
+    );
+    store.close();
+    withDb(path, (db) => {
+      expect(() => rollbackMcpStore(db, PERSON, NOW)).toThrow(/1 usable confidential families/);
+    });
+    expect(ledger(path)).toEqual([BASELINE, BINDING, CLIENT, PERSON, SECRET]);
+  });
+
   it('refuses to roll back the client secret migration while a confidential client is live', () => {
     const path = storePath();
     admitted(path, confidential('client-a')).close();

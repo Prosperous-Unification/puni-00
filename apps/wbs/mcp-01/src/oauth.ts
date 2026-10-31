@@ -833,11 +833,16 @@ export class McpOAuthServer implements McpOAuthHandler {
     } catch {
       return protocolError('invalid_client_metadata');
     }
-    // A confidential consent client (M17) is issued a secret; the machine grants' Basic and
-    // body methods are what the metadata lists, so claude.ai asks for `client_secret_post`.
+    // A confidential consent client (M17) is issued a secret; the metadata lists the Basic and
+    // body methods, so claude.ai asks for `client_secret_post`. An absent method is
+    // `client_secret_basic`, RFC 7591 §2's default.
     // Proof: 2026-10-31, accepting only `none` here made `registers a client_secret_post and a
-    // client_secret_basic client, answering the secret once` (oauth.test.ts) answer 400.
-    const method: unknown = isObject(body) ? body['token_endpoint_auth_method'] : undefined;
+    // client_secret_basic client, answering the secret once` (oauth.test.ts) answer 400;
+    // refusing an absent method made `registers an absent method as client_secret_basic` 400.
+    const requestedMethod: unknown = isObject(body)
+      ? body['token_endpoint_auth_method']
+      : undefined;
+    const method = requestedMethod === undefined ? 'client_secret_basic' : requestedMethod;
     if (!isObject(body) || !isRegistrableMethod(method)) {
       return protocolError('invalid_client_metadata');
     }
@@ -1552,6 +1557,18 @@ export class McpOAuthServer implements McpOAuthHandler {
     const expiresAt = Math.min(now + this.accessTtlMs, absoluteExpiresAt);
     this.grants.delete(code);
     try {
+      // Signed before anything is written, then the family and the client's promotion commit in
+      // one transaction: a process that dies at any point leaves either nothing or both.
+      // Proof: 2026-10-31, promoting after the family's transaction committed, with that write
+      // failing, made `commits the family and the client's promotion together` (oauth.test.ts)
+      // find a family row beside an unproven client.
+      const token = await this.issueAccessToken(
+        grant.subject,
+        grant.scope,
+        jti,
+        familyId,
+        expiresAt,
+      );
       this.store.createFamily(
         {
           familyId,
@@ -1575,22 +1592,20 @@ export class McpOAuthServer implements McpOAuthHandler {
                   credentialId: grant.consent.credentialId,
                 },
               }),
+          // Proof: 2026-10-31, omitting the method here made `refuses a confidential family's
+          // refresh once its client row is gone` (oauth.test.ts) refresh with client_id alone.
+          ...(client.authentication.method === 'none'
+            ? {}
+            : { clientMethod: client.authentication.method }),
         },
         jti,
         expiresAt,
         refreshToken,
         now,
+        // Proof: 2026-10-21, skipping this write failed `promotes a client only after a successful
+        // token exchange` and `keeps a promoted client proven and counted across the restart`.
+        now + this.provenClientTtlMs,
       );
-      const token = await this.issueAccessToken(
-        grant.subject,
-        grant.scope,
-        jti,
-        familyId,
-        expiresAt,
-      );
-      // Proof: 2026-10-21, skipping this write failed `promotes a client only after a successful
-      // token exchange` and `keeps a promoted client proven and counted across the restart`.
-      this.store.promoteClient(client.clientId, now + this.provenClientTtlMs);
       this.promotionReservations.delete(client.clientId);
       return tokenResponse(token, refreshToken, grant.scope, expiresAt - now);
     } catch (error) {
@@ -1607,11 +1622,10 @@ export class McpOAuthServer implements McpOAuthHandler {
 
   /**
    * The refresh grant. The client authenticates before the token is judged, so a caller without
-   * a confidential client's secret cannot even end that family by replaying its token. A client
-   * already swept is judged as public: a proven client is renewed past its families' absolute
-   * expiry at every exchange and refresh, so no live family outlives its client in production,
-   * and a family of a swept confidential client fails anyway for a connector that still sends
-   * its secret.
+   * a confidential client's secret cannot even end that family by replaying its token. A family
+   * issued to a confidential client fails closed (`invalid_client`) unless a live client of its
+   * recorded method authenticates, so a swept or re-admitted client row never turns it public;
+   * a public family whose client row is gone is judged as public, as before.
    */
   private async refreshGrant(
     form: FormData,
@@ -1624,12 +1638,13 @@ export class McpOAuthServer implements McpOAuthHandler {
     if (refreshToken === undefined || clientId === undefined) return protocolError('invalid_grant');
     // Proof: 2026-10-31, skipping this refusal made `refreshes a confidential client only with
     // its secret` (oauth.test.ts) answer 200 for a refresh without the secret.
-    if (
-      !authenticatesClient(
-        this.store.client(clientId, this.now())?.authentication ?? { method: 'none' },
-        presented,
-      )
-    )
+    const registered = this.store.client(clientId, this.now())?.authentication;
+    const familyMethod = this.store.refreshClientMethod(refreshToken);
+    // Proof: 2026-10-31, with this refusal removed `refuses a confidential family's refresh once
+    // its client row is gone` (oauth.test.ts) answered 200 to client_id alone.
+    if (familyMethod !== null && familyMethod !== 'none' && registered?.method !== familyMethod)
+      return machineRefusal('invalid_client');
+    if (!authenticatesClient(registered ?? { method: 'none' }, presented))
       return machineRefusal('invalid_client');
     const requestedScope = form.get('scope');
     // Proof: on 2026-09-27, reading scope through stringField failed `refuses a refresh whose scope

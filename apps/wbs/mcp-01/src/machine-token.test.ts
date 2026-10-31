@@ -639,7 +639,12 @@ describe('metadata and configuration', () => {
       expect(offersMachineGrants(config)).toBe(false);
       const metadata = await metadataOf(config);
       expect(metadata['grant_types_supported']).toEqual(['authorization_code', 'refresh_token']);
-      expect(metadata['token_endpoint_auth_methods_supported']).toEqual(['none']);
+      // Confidential consent clients (M17) are served everywhere, so their methods stay listed.
+      expect(metadata['token_endpoint_auth_methods_supported']).toEqual([
+        'none',
+        'client_secret_basic',
+        'client_secret_post',
+      ]);
     }
   });
 
