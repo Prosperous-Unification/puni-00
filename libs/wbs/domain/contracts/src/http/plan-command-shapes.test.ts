@@ -3,7 +3,6 @@ import { expect, test } from 'bun:test';
 import {
   type PlanCommandsBody,
   planCommandsBody,
-  planCommandSchema,
   type PlanCommandWire,
 } from './plan-command-shapes';
 import { validateSchema } from './schema-shape';
@@ -71,7 +70,9 @@ const commands: PlanCommandWire[] = [
 test('validates all structural wire arms without applying semantic defaults or a batch cap', async () => {
   expect(commands).toHaveLength(46);
   for (const command of commands) {
-    expect(await validateSchema(planCommandSchema, command)).toEqual({ value: command });
+    expect(await validateSchema(planCommandsBody, { commands: [command] })).toEqual({
+      value: { commands: [command] },
+    });
   }
   const batch = {
     commands: Array.from({ length: 201 }, () => ({ kind: 'freezeProject' as const })),
@@ -106,7 +107,9 @@ test('preserves optional fields, nulls and unresolved references without normali
       externalRefs: [{ systemId: 'unresolved', url: 'not-a-url' }],
     },
   };
-  expect(await validateSchema(planCommandSchema, command)).toEqual({ value: command });
+  expect(await validateSchema(planCommandsBody, { commands: [command] })).toEqual({
+    value: { commands: [command] },
+  });
   for (const command of [
     {
       kind: 'createWorkItem',
@@ -128,9 +131,12 @@ test('preserves optional fields, nulls and unresolved references without normali
       personKind: 'future',
     },
   ] satisfies PlanCommandWire[])
-    expect(await validateSchema(planCommandSchema, command)).toEqual({ value: command });
+    expect(await validateSchema(planCommandsBody, { commands: [command] })).toEqual({
+      value: { commands: [command] },
+    });
 });
 
+// Proof: changing the production batch to commands:unknown[] admitted the invented kind here.
 test('rejects malformed structures and nested extras including derived numbering', async () => {
   for (const command of [
     { kind: 'invented' },
@@ -157,7 +163,7 @@ test('rejects malformed structures and nested extras including derived numbering
     { kind: 'deletePerson', cascade: 'true' },
     { kind: 'freezeProject', extra: 1 },
   ])
-    expect((await validateSchema(planCommandSchema, command)).issues).toBeDefined();
+    expect((await validateSchema(planCommandsBody, { commands: [command] })).issues).toBeDefined();
   for (const body of [{ commands: 'bad' }, { commands: [], extra: 1 }, []])
     expect((await validateSchema(planCommandsBody, body)).issues).toBeDefined();
 });
@@ -243,6 +249,41 @@ export function commandTypes(command: PlanCommandWire) {
 test('retains the nullable deadline wire field without taking over date semantics', async () => {
   for (const deadline of [null, '2026-09-07', 'not-a-date']) {
     const command = { kind: 'patchWorkItem', patch: { deadline } } as const;
-    expect(await validateSchema(planCommandSchema, command)).toEqual({ value: command });
+    expect(await validateSchema(planCommandsBody, { commands: [command] })).toEqual({
+      value: { commands: [command] },
+    });
   }
+});
+
+// Proof: restoring the standalone declaration made this real import compile twice instead of once.
+test('compiles only the production command batch when the module is loaded', async () => {
+  const module = new URL('./plan-command-shapes.ts', import.meta.url).pathname;
+  const script = `
+    const { Ajv2020 } = await import('ajv/dist/2020.js');
+    const compile = Ajv2020.prototype.compile;
+    let compilations = 0;
+    let compiledSchema;
+    Ajv2020.prototype.compile = function (...args) {
+      compilations++;
+      compiledSchema = args[0];
+      return Reflect.apply(compile, this, args);
+    };
+    const { planCommandsBody } = await import(${JSON.stringify(module)});
+    console.log(JSON.stringify({
+      compilations,
+      compiledBatch: JSON.stringify(compiledSchema) === JSON.stringify(planCommandsBody.jsonSchema),
+    }));
+  `;
+  const child = Bun.spawn([process.execPath, '-e', script], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+    env: { ...process.env, NODE_ENV: 'production' },
+  });
+  const [out, err, code] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  if (code !== 0) throw new Error(`loading the command batch failed: ${err}`);
+  expect(JSON.parse(out)).toEqual({ compilations: 1, compiledBatch: true });
 });

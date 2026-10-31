@@ -73,8 +73,18 @@ printf '%s' "$authorization" | ORIGIN="$ORIGIN" "$BUN" -e '
   for (const [key, value] of Object.entries(expected)) {
     if (body[key] !== value) throw new Error(`unexpected MCP ${key}: ${String(body[key])}`);
   }
+  // Dev seeds MCP_BE_INTERNAL_SECRET, so mcp-01 offers machine grants (#751) and lists
+  // client authentication for them; a dev without them can no longer serve agent swarms.
+  // Proof: against a stub listing only ["none"] and the browser grants, this exited 1
+  // naming grant_types_supported (and passed against dev at 75c2a2ecf); watched 2026-10-27.
   const expectedArrays = {
-    token_endpoint_auth_methods_supported: ["none"],
+    grant_types_supported: [
+      "authorization_code",
+      "refresh_token",
+      "client_credentials",
+      "urn:ietf:params:oauth:grant-type:jwt-bearer",
+    ],
+    token_endpoint_auth_methods_supported: ["none", "client_secret_basic", "client_secret_post"],
     code_challenge_methods_supported: ["S256"],
   };
   for (const [key, value] of Object.entries(expectedArrays)) {

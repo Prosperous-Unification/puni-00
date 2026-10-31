@@ -174,6 +174,7 @@ async function measure(): Promise<void> {
         [{ kind: 'claimWorkItem', workItemId, personId }],
         admin,
         null,
+        null,
       );
       const elapsed = performance.now() - started;
       if (!claimed.ok) throw new Error(`a measured claim was refused: ${JSON.stringify(claimed)}`);

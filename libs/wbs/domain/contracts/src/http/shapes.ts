@@ -1,4 +1,10 @@
 import {
+  createAgentPool,
+  listAgentPools,
+  rekeyAgentPool,
+  revokeAgentPool,
+} from './agent-pool-shapes';
+import {
   completeAuth0Link,
   completeOidcLogin,
   listAuthMethods,
@@ -74,6 +80,7 @@ import {
 import {
   endMcpConsentCredential,
   issueMcpDelegation,
+  issueMcpMachineGrant,
   listMcpOrganizations,
   mintMcpConsentCredential,
   readMcpAuthority,
@@ -128,6 +135,7 @@ import {
   readResourceUseHistory,
   registerResourceUse,
 } from './resource-use-shapes';
+import { runtimeCommandShapes } from './runtime-command-shapes';
 import {
   compareSavedPlans,
   deleteSavedPlan,
@@ -173,7 +181,7 @@ import {
 } from './work-item-shapes';
 
 /** Migrated HTTP declarations; legacy families join this table as their handlers migrate. */
-export const httpShapes = [
+const ordinaryHttpShapes = [
   bindResourceAuthority,
   readResourceAuthority,
   admitResourceRuntimeUse,
@@ -218,6 +226,10 @@ export const httpShapes = [
   createMachineCredential,
   rotateMachineCredential,
   revokeMachineCredential,
+  listAgentPools,
+  createAgentPool,
+  rekeyAgentPool,
+  revokeAgentPool,
   listTrustedIssuers,
   registerTrustedIssuer,
   removeTrustedIssuer,
@@ -318,4 +330,10 @@ export const httpShapes = [
   endMcpConsentCredential,
   issueMcpDelegation,
   readMcpAuthority,
+  issueMcpMachineGrant,
 ] as const;
+
+export const httpShapes: readonly [...typeof ordinaryHttpShapes, ...typeof runtimeCommandShapes] = [
+  ...ordinaryHttpShapes,
+  ...runtimeCommandShapes,
+];

@@ -235,8 +235,19 @@ export type CommandRefusalCode =
   | 'taken'
   | 'in_use'
   // `claimWorkItem` and `releaseWorkItem` (`wbs-team-claims`), in the spec's order.
+  /**
+   * Naming no person from a request that acts as its account, which has no
+   * agent person to stand for (`wbs-claim-own-person`).
+   */
+  | 'person_required'
   | 'person_not_bound'
   | 'credential_not_for_person'
+  /**
+   * A machine grant with an opted-in run (`wbs-mcp-agent-surface` M15) claims
+   * for its own person under another `runId`, or releases its person's claims
+   * held only under other runs.
+   */
+  | 'run_mismatch'
   | 'parent_claim_unknown'
   | 'parent_claim_foreign'
   | 'parent_claim_not_ancestor'
@@ -422,14 +433,9 @@ export interface DirectoryUsage {
   }[];
   members: { id: string; name: string }[];
   /**
-   * Linked credentials pinned to the person, revoked by a confirmed removal.
-   * Optional on the wire: an outgoing be-01 mid-swap counts no pins.
-   */
-  pinnedCredentials?: number;
-  /**
    * Unrevoked machine credentials of the person, revoked by a confirmed
-   * removal and refusing an unbind or rebind. Optional on the wire: an
-   * outgoing be-01 mid-swap counts none.
+   * removal and refusing an unbind or rebind; 0 for a team. Optional on the
+   * wire: a be-01 older than `wbs-machine-credentials` slice 2 omits it.
    */
   machineCredentials?: number;
 }
@@ -583,6 +589,24 @@ type BareRefusalCode =
   | 'invalid_origin'
   | 'unauthorized'
   /**
+   * mcp-01's dedicated service secret was missing or wrong, on `/internal/mcp/*`
+   * or beside a machine grant (`wbs-mcp-agent-surface` M3, M14): a deployment
+   * fault mcp-01 reports, never a user's refusal.
+   */
+  | 'internal_unauthorized'
+  /**
+   * A `wbs_mk_` key or another issuer's JWT presented to `/api`
+   * (`wbs-mcp-agent-surface` M9): machines call WBS through `/mcp`, which the
+   * refusal's `endpoint` names. Refused before any read.
+   */
+  | 'machine_bearer_not_accepted'
+  /** A machine grant whose `kid` names no configured grant key (M3): mcp-01 re-fetches. */
+  | 'unknown_grant_key'
+  /** A workload assertion whose `typ` is neither absent nor `JWT` (M2). */
+  | 'unsupported_assertion_type'
+  /** Machine grants are issued only after organization activation (M5). */
+  | 'not_activated'
+  /**
    * A verified machine token (no groups claim) whose `(issuer, subject)` no
    * account is linked to (`wbs-team-claims` D6b): refused before any account
    * is minted. Also a `wbs_mk_` API key that is malformed or that no live
@@ -664,6 +688,18 @@ type BareRefusalCode =
   // Provisioning tokens (`organization-scim`): two tokens already live
   // (`sso_connection_unproven` above also refuses a token).
   | 'token_limit'
+  | 'runtime_scope_unavailable'
+  | 'runtime_generation_conflict'
+  | 'runtime_authority_stale'
+  | 'runtime_revision_conflict'
+  | 'runtime_claim_mismatch'
+  | 'runtime_claim_unmanaged'
+  | 'runtime_attempt_bound'
+  | 'runtime_command_conflict'
+  | 'runtime_ledger_mismatch'
+  | 'runtime_receipt_not_found'
+  | 'runtime_command_target_mismatch'
+  | 'runtime_command_not_supported'
   // Machine credentials (`wbs-machine-credentials`): an agent person bound to
   // an account that is no member; a second rotation inside the window; a
   // rotation of a credential whose secret its issuer rotates.
@@ -685,11 +721,21 @@ type BareRefusalCode =
   // organization at its trusted issuer cap.
   | 'audience_taken'
   | 'trusted_issuer_limit'
+  // `wbs-mcp-agent-surface` M2: an audience that is not WBS's authorization
+  // server or under it after a `/`.
+  | 'audience_not_wbs'
+  // Agent pools (`wbs-mcp-agent-surface` M7): a pool person removed while a
+  // re-key minted its keys; a re-key of a pool past its expiry with no new
+  // one. `persons_not_removed` carries detail, below.
+  | 'pool_changed'
+  | 'pool_expired'
   // Delivery observation (`track-work-delivery`): every provider read slot
   // stayed taken for the bounded wait.
   | 'delivery_busy';
 
 type SharedCommandCode =
+  | 'person_not_bound'
+  | 'credential_not_for_person'
   | 'not_found'
   | 'forbidden'
   | 'name_required'
@@ -702,7 +748,6 @@ type SharedCommandCode =
   | 'unknown_person'
   | 'agent_person_limit'
   | 'capacity_limit'
-  | 'person_not_bound'
   | 'organization_required'
   | 'unknown_provider';
 
@@ -714,7 +759,7 @@ type SharedCommandCode =
  * Approved translations preserve statuses: bodiless callback 400 becomes
  * invalid_oidc_callback; callback/refresh 401 becomes invalid_oidc_session;
  * unresolved OIDC account 409 becomes oidc_identity_conflict. Health 503 becomes
- * dependency_unavailable and retains status/commit. Malformed JSON 400 becomes
+ * dependency_unavailable and retains status/commit/bootCommit. Malformed JSON 400 becomes
  * invalid_json; freeform smoke/internal validation 400 becomes invalid_body
  * (existing invalid_body 422 arms stay 422). Cookies, logs and timing stay local
  * to their endpoint; RefusalStatus does not infer a status from a code.
@@ -745,7 +790,8 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
      */
     organization_required: undefined | CommandContext;
     /** Naming the person from a machine credential create; with its command context from a batch. */
-    person_not_bound: { personId: string } | CommandRefusalDetail['person_not_bound'];
+    person_not_bound: undefined | { personId: string } | CommandRefusalDetail['person_not_bound'];
+    credential_not_for_person: undefined | CommandRefusalDetail['credential_not_for_person'];
     /**
      * Also a trusted issuer that unrevoked machine credentials name
      * (`wbs-machine-credentials` A16), and a provider instance resources name
@@ -772,6 +818,12 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     provider_mismatch: { providerId: string | null };
     /** A capacity report not newer than the stored one, naming the stored instant. */
     report_superseded: { storedObservedAt: number };
+    /**
+     * A revoked agent pool whose persons' removal the directory batch refused
+     * (`wbs-mcp-agent-surface` M7): the pool, and how many keys the revocation
+     * ended before the refusal.
+     */
+    persons_not_removed: { poolId: string; revokedCredentials: number };
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };
     // Proof: omitted registry entry made removeStep fail TS2345 in the smallest step-module typecheck, 2026-10-17.
@@ -809,6 +861,7 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     dependency_unavailable: {
       status: 'migrating' | 'database_unreachable' | 'schema_missing';
       commit: string | null;
+      bootCommit: string | null;
     };
     /** Enforced SSO refused this credential in this organization only (`organization-sso`). */
     sso_required: { organizationId: string; login: string; link: true };

@@ -57,8 +57,8 @@ Directory capacity, Occupancy scope (in `CONTEXT.md`).
 
 ## Decisions Recorded
 
-design.md S1 to S12, each assumed until Dany reads them. S1's choice gets an ADR if
-confirmed.
+design.md S1 to S12, each accepted by Dany on 2026-11-01. S1's choice gets an ADR, now
+that it is confirmed.
 
 ## Impact
 

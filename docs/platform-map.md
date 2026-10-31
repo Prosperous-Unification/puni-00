@@ -28,7 +28,9 @@ Context glossaries: [WBS](../CONTEXT.md), [Twilight](twilight-structure/CONTEXT.
 
 Four processes, one database writer. Routes are declared once as shapes in
 `libs/wbs/domain/contracts/src/http/*-shapes.ts`; the OpenAPI document, the MCP tools and the
-route-binding test all derive from them.
+route-binding test all derive from them. The OpenAPI document is an internal contract between be-01 and
+mcp-01, not an agent surface: machines call `/mcp`, and `/api` refuses their credentials
+(`openspec/changes/wbs-mcp-agent-surface` M9, M12).
 
 | Process  | Role                                                          | Port      | Ships as                        |
 | -------- | ------------------------------------------------------------- | --------- | ------------------------------- |
@@ -47,7 +49,7 @@ route-binding test all derive from them.
 | Derived numbers with freeze and unfreeze                                                                                                                  | `derive-numbers.ts`; commands `freeze*`/`unfreeze*`                                                        | built                                                            |
 | Scheduling: Fast engine (deterministic) and Optimized engine (solver result), PRI or Time objective, cache by input hash, generation and contract version | `schedule.ts`, `libs/wbs/adapters/solver-py` (lexicographic CP), supervisor protocol v1 over a unix socket | partial: `dual-optimized-scheduler` 111/131                      |
 | Capacity per team and project, shared capacity and person load across projects                                                                            | `module/capacity`, `service/person-load.feature.ts`; [capacity.md](capacity.md)                            | built                                                            |
-| Claims, delegated claims, startable work, fleet credentials pinned to one agent person                                                                    | `claim.ts`, `store-sqlite/src/{claim,credential-link}.ts`                                                  | partial: `wbs-team-claims` 16/21 (holder display, fleet rollout) |
+| Claims, delegated claims, startable work, machine credentials pinned to one agent person                                                                  | `claim.ts`, `store-sqlite/src/{claim,machine-credential}.ts`                                               | partial: `wbs-team-claims` 16/21 (holder display, fleet rollout) |
 | Resources: exclusive and divisible, demands, occupancy, levelled by both engines                                                                          | `resource.ts`, `occupancy.ts`, `store-sqlite/src/resource.ts`                                              | partial: `wbs-resources` 15/18, design R1–R8 awaiting Dany       |
 | Priority bands and ladder, project rank, typed SS/FF dependencies, step blockage, attempts, calendar markers                                              | domain files of the same names; commands in `contracts/src/commands/definitions.ts`                        | built                                                            |
 | Command batches: 53 kinds, one transaction, one journal entry                                                                                             | `runCommandBatch`; spec `openspec/specs/plan-command-registry`                                             | built                                                            |
@@ -60,15 +62,15 @@ route-binding test all derive from them.
 
 ### Accounts and organizations
 
-| Capability                                                                                                                           | State                                              |
-| ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
-| OIDC (Auth0, Okta) or local auth; browser sessions; social sign-in                                                                   | built; real Okta and Google wiring owed            |
-| Organizations: members, roles, invitations, join requests, verified domains with DNS proof, project rank, session policy             | partial: `organization-ownership-and-access` 34/56 |
-| Enterprise SSO connections, SCIM v2 users and groups, provisioning tokens                                                            | built (ADR 0049)                                   |
-| Onboarding: email challenges, invitation accept, organization creation                                                               | built; SMTP delivery configured per host           |
-| Shared people across projects with restore approvals                                                                                 | built                                              |
-| MCP delegation: single-use `wbs-be-01/via-mcp-01` delegations per tool call                                                          | built; refresh policy `mcp-refresh-policy` 5/12    |
-| Operator CLIs: migrate/down/status, backup and restore, organization activation and preflight, per-feature rollback, link-credential | built; runbooks `runbook-organization-*.md`        |
+| Capability                                                                                                               | State                                              |
+| ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| OIDC (Auth0, Okta) or local auth; browser sessions; social sign-in                                                       | built; real Okta and Google wiring owed            |
+| Organizations: members, roles, invitations, join requests, verified domains with DNS proof, project rank, session policy | partial: `organization-ownership-and-access` 34/56 |
+| Enterprise SSO connections, SCIM v2 users and groups, provisioning tokens                                                | built (ADR 0049)                                   |
+| Onboarding: email challenges, invitation accept, organization creation                                                   | built; SMTP delivery configured per host           |
+| Shared people across projects with restore approvals                                                                     | built                                              |
+| MCP delegation: single-use `wbs-be-01/via-mcp-01` delegations per tool call                                              | built; refresh policy `mcp-refresh-policy` 5/12    |
+| Operator CLIs: migrate/down/status, backup and restore, organization activation and preflight, per-feature rollback      | built; runbooks `runbook-organization-*.md`        |
 
 ### Frontend
 

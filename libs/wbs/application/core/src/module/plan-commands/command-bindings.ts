@@ -63,6 +63,11 @@ export class CommandContext {
      * session: what `claimWorkItem` reads the credential pin of (D6).
      */
     readonly credential: CredentialPin | null,
+    /**
+     * The person the request acts as (`actingPersonOf`): a machine or consent
+     * credential's own agent person, null for an account acting as itself.
+     */
+    private readonly actingPersonId: string | null,
   ) {
     // Proof: removing registry-scope admission let a directory batch unfreeze a real plan row
     // and commit its preceding tag instead of refusing `project_required` at index 1.
@@ -93,6 +98,20 @@ export class CommandContext {
     const found = this.id(given, ref);
     if (found === null) this.refuse({ reason: 'missing_id' });
     return found;
+  }
+
+  /**
+   * The person a `claimWorkItem` or `releaseWorkItem` names, else the person
+   * the request acts as, so an agent claims for itself without naming its own
+   * id. A request acting as its account has no such person and must name one:
+   * refused `person_required`, never defaulted to someone.
+   */
+  claimant(given: string | undefined, ref: string | undefined): string {
+    // Proof: without the acting-person default an API key's claim naming no
+    // person answered 400 person_required; defaulting to the actor id made a
+    // session's answer 404 unknown_person (claim-own-person.controller.db.test.ts
+    // and claim-command.test.ts); watched 2026-10-26.
+    return this.id(given, ref) ?? this.actingPersonId ?? this.refuse({ reason: 'person_required' });
   }
 
   ids(given: readonly string[] | undefined, named: readonly string[] | undefined): string[] {
@@ -198,6 +217,7 @@ export class CommandContext {
       case 'resources_on_subtree':
       case 'person_not_bound':
       case 'credential_not_for_person':
+      case 'run_mismatch':
       case 'parent_claim_unknown':
       case 'parent_claim_foreign':
       case 'parent_claim_not_ancestor':
@@ -667,7 +687,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           context.required(command.workItemId, command.workItemRef),
           context.actorId,
           {
-            personId: context.required(command.personId, command.personRef),
+            personId: context.claimant(command.personId, command.personRef),
             stepIds: command.steps ?? null,
             runId: command.runId ?? null,
             parentClaimId: command.parentClaim ?? null,
@@ -693,7 +713,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           context.required(command.workItemId, command.workItemRef),
           context.actorId,
           {
-            personId: context.required(command.personId, command.personRef),
+            personId: context.claimant(command.personId, command.personRef),
             stepIds: command.steps ?? null,
           },
           context.access,

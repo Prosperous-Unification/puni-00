@@ -40,11 +40,7 @@ export function appendOrganizationAudit(
     readonly at: number;
   },
 ): void {
-  for (const value of Object.values(row.detail)) {
-    const strings = typeof value === 'string' ? [value] : Array.isArray(value) ? value : [];
-    if (strings.some((text: string) => isSecretShaped(text)))
-      throw new Error(`audit detail for ${row.action} would carry a secret or a full subject`);
-  }
+  assertAuditDetailHoldsNoSecret(row.action, row.detail);
   tx.insert(organizationAudit)
     .values({
       id: row.id,
@@ -57,6 +53,23 @@ export function appendOrganizationAudit(
       createdAt: row.at,
     })
     .run();
+}
+
+/**
+ * Refuses an audit detail any of whose values looks like a token, a digest or
+ * a full subject ({@link isSecretShaped}).
+ *
+ * @throws naming the action: a programming fault, and the act rolls back.
+ */
+export function assertAuditDetailHoldsNoSecret(
+  action: OrganizationAuditAction,
+  detail: OrganizationAuditDetail,
+): void {
+  for (const value of Object.values(detail)) {
+    const strings = typeof value === 'string' ? [value] : Array.isArray(value) ? value : [];
+    if (strings.some((text: string) => isSecretShaped(text)))
+      throw new Error(`audit detail for ${action} would carry a secret or a full subject`);
+  }
 }
 
 /** {@link OrganizationAuditLog} over the shared database. */

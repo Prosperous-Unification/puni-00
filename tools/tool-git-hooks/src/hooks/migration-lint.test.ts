@@ -1,4 +1,5 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { doesNotReject, rejects } from 'node:assert/strict';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
@@ -7,6 +8,85 @@ import { afterAll, describe, expect, it } from 'bun:test';
 import { lintMigration } from './migration-lint';
 
 const WORKSPACE = new URL('../../../../', import.meta.url);
+const RUN_MIGRATIONS = 'apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/migrations';
+
+it('routes only run-store migration SQL through the production staged hook', async () => {
+  const config = Bun.YAML.parse(await Bun.file(new URL('lefthook.yml', WORKSPACE)).text()) as {
+    'pre-commit': { commands: Record<string, { run: string; glob?: string }> };
+  };
+  const routes = (path: string) =>
+    Object.entries(config['pre-commit'].commands)
+      .filter(
+        ([, command]) =>
+          command.run ===
+            'bun run tools/tool-git-hooks/src/hooks/migration-lint.ts {staged_files}' &&
+          command.glob !== undefined &&
+          new Bun.Glob(command.glob).match(path),
+      )
+      .map(([name]) => name);
+  for (const script of ['migration.sql', 'down.sql'])
+    expect(routes(`${RUN_MIGRATIONS}/0001-run-store/${script}`)).toEqual([
+      'run-store-migration-lint',
+    ]);
+  for (const path of [
+    'apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/fixtures/migration.sql',
+    'apps/twilight-structure/twilight-dash/cli/src/runs/testing/migrations/example/migration.sql',
+    `${RUN_MIGRATIONS}/0001-run-store/notes.md`,
+  ])
+    expect(routes(path)).toEqual([]);
+});
+
+describe('run-store migration registration', () => {
+  const roots: string[] = [];
+  afterAll(() => {
+    for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+  });
+  function migration(up: string, down?: string, relative = RUN_MIGRATIONS) {
+    const root = scratchSync('runs-migration-lint-');
+    roots.push(root);
+    const folder = join(root, relative, 'fixture');
+    mkdirSync(folder, { recursive: true });
+    const forward = join(folder, 'migration.sql');
+    writeFileSync(forward, up);
+    expect(existsSync(forward)).toBe(true);
+    if (down !== undefined) writeFileSync(join(folder, 'down.sql'), down);
+    return { root, forward };
+  }
+  it('accepts the real run-store forward and destructive down scripts', async () => {
+    const root = new URL('.', WORKSPACE).pathname.replace(/\/$/, '');
+    for (const script of ['migration.sql', 'down.sql']) {
+      const path = join(root, RUN_MIGRATIONS, '0001-run-store', script);
+      expect(existsSync(path)).toBe(true);
+      await doesNotReject(async () => {
+        expect(await lintMigration(path, root)).toBeNull();
+      });
+    }
+  });
+  it('requires a run-store down script', async () => {
+    // Proof: bypassing down-script validation returned no issue and failed this assertion.
+    const { root, forward } = migration('CREATE TABLE example (id TEXT);');
+    expect((await lintMigration(forward, root))?.reason).toMatch(/no down\.sql/);
+  });
+  it('refuses destructive run-store forward scripts', async () => {
+    // Proof: bypassing destructive-statement validation returned no issue and failed this assertion.
+    const { root, forward } = migration('DROP TABLE example;', 'SELECT 1;');
+    expect((await lintMigration(forward, root))?.reason).toMatch(/DROP TABLE/);
+  });
+  it('refuses run-store provider paths outside the exact migrations root', async () => {
+    for (const relative of [
+      'apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/fixtures',
+      'apps/twilight-structure/twilight-dash/cli/src/runs/testing/migrations',
+      `${RUN_MIGRATIONS}-shadow`,
+    ]) {
+      const { root, forward } = migration(
+        'CREATE TABLE example (id TEXT);',
+        'DROP TABLE example;',
+        relative,
+      );
+      await rejects(lintMigration(forward, root), /does not own migration/);
+    }
+  });
+});
 
 it('routes staged SQL from lefthook through the moved migration root', async () => {
   const config: unknown = Bun.YAML.parse(await Bun.file(new URL('lefthook.yml', WORKSPACE)).text());
@@ -371,7 +451,7 @@ describe('the directory capacity audit rebuild', () => {
     const root = new URL('.', WORKSPACE).pathname.replace(/\/$/, '');
     const file = join(
       root,
-      'apps/wbs/be-01/drizzle/20261025140000_widen_organization_audit_directory_capacity/migration.sql',
+      'apps/wbs/be-01/drizzle/20261101100000_widen_organization_audit_directory_capacity/migration.sql',
     );
     expect(await lintMigration(file, root)).toBeNull();
   });

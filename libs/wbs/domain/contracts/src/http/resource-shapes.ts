@@ -77,7 +77,7 @@ export const readProjectResources = defineEndpointShape({
 
 /**
  * What stating, lowering or clearing a resource's directory capacity would
- * leave (`wbs-shared-occupancy` S12, assumed), for an organization admin or
+ * leave (`wbs-shared-occupancy` S12), for an organization admin or
  * super-admin, writing nothing: the units before and after, each project the
  * caller may read that uses the resource with the units it holds, the others
  * counted, the free units after the change (below 0 when held units exceed
@@ -87,9 +87,13 @@ export const previewDirectoryCapacity = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/resources/:resourceId/directory-capacity/preview',
   operationId: 'postApiOrganizationResourcesByResourceIdDirectory-capacityPreview',
+  // Write scope although it writes nothing: mcp-01 asks write scope of every
+  // non-GET tool, and be-01 holds the same line (`server.test.ts`, "marks every
+  // non-GET tool of the real document as needing be-01 write scope").
+  // Proof: with `signed-in` here, that test failed on this route; watched 2026-11-01.
   policies: [
     { kind: 'origin', when: 'always-unsafe-with-session-cookie' },
-    { kind: 'identity', require: 'signed-in' },
+    { kind: 'identity', require: 'write-scope' },
     { kind: 'organization-resource', operation: 'read' },
   ],
   params: requestSchema(type({ resourceId: 'string' })),
@@ -119,7 +123,13 @@ export const previewDirectoryCapacity = defineEndpointShape({
       ),
     },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
-    { status: 403, schema: responseSchema(type({ error: "'invalid_origin'" })) },
+    // Proof: with only invalid_origin here, `guards every registered user-facing
+    // mutation with write scope` (oidc.integration.test.ts) answered 500 for a
+    // read-only cookie; watched 2026-11-01.
+    {
+      status: 403,
+      schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
+    },
     // A member, a viewer or any agent: only an admin previews an organization act.
     { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },

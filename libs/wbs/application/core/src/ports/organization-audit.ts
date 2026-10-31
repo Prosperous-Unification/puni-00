@@ -28,6 +28,11 @@ export const ORGANIZATION_AUDIT_ACTIONS = [
   'compute_provider_registered',
   'compute_provider_updated',
   'compute_provider_removed',
+  'machine_token_issued',
+  'machine_token_issued_overflow',
+  'agent_pool_created',
+  'agent_pool_revoked',
+  'agent_pool_rekeyed',
   'directory_capacity_changed',
 ] as const;
 
@@ -44,6 +49,7 @@ export const ORGANIZATION_AUDIT_SUBJECT_KINDS = [
   'trusted_issuer',
   'organization_limits',
   'compute_provider',
+  'agent_pool',
   'resource',
 ] as const;
 

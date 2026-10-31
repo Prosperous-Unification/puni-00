@@ -1,6 +1,8 @@
 import {
+  actingPersonOf,
   applyDirectoryCommands,
   applyProjectCommands,
+  type AuthenticatedUser,
   commandParserRefusal,
   getStepReference,
   getWorkItem,
@@ -35,6 +37,7 @@ import { CLAIM_HISTORY_LIMIT } from '../module/work-item/claim-history';
 import { readStepAddresses, resolveAddressedStep } from '../module/work-item/step-addresses';
 import type { UndoOutcome, WorkItemService } from '../module/work-item/work-item.resource';
 import type { Clock } from '../ports/clock';
+import type { UndoStack } from '../ports/command-journal-store';
 import type { CapacityReports } from '../ports/compute-providers';
 import type { OrganizationAccess } from '../ports/organization-access';
 import type { Digest } from '../ports/runtime';
@@ -94,6 +97,25 @@ class BadRequest extends Error {
 function asRecord(body: unknown): Record<string, unknown> {
   if (!isFieldBag(body)) throw new BadRequest('expected_object');
   return body;
+}
+
+/**
+ * The caller's own undo stack on this project: the account, and the agent
+ * person its machine or consent credential acts as. A consent principal acts as
+ * its human's account, so the account alone would let the agent's undo pop the
+ * human's browser edits.
+ *
+ * Proof: with `personId: null` here, four of the five cases of
+ * `undo-acting-person.controller.db.test.ts` failed (1 pass, 4 fail), and
+ * `undo and redo walk a consent agent's own stack` (work-item.routes.test.ts)
+ * failed (1 pass, 1 fail); watched 2026-10-26.
+ */
+function undoStackOf(projectId: string, principal: AuthenticatedUser): UndoStack {
+  return {
+    projectId,
+    userId: principal.id,
+    personId: actingPersonOf(principal.authentication),
+  };
 }
 
 /**
@@ -400,6 +422,8 @@ function answerBatch(
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
     case 'missing_id':
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
+    case 'person_required':
+      return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
     case 'duplicate_ref':
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
     case 'name_required':
@@ -419,6 +443,7 @@ function answerBatch(
     // The caller may not act as the person, or under the parent claim, named.
     case 'person_not_bound':
     case 'credential_not_for_person':
+    case 'run_mismatch':
     case 'parent_claim_foreign':
       return { ok: false, status: 403, body: { ...context, error: outcome.reason } };
     case 'parent_claim_unknown':
@@ -625,7 +650,7 @@ export function workItemRoutes(
           status: 200,
           body: {
             ...tree,
-            ...(await workItems.undoState(params.id, principal.id)),
+            ...(await workItems.undoState(undoStackOf(params.id, principal))),
             ...(await readStepAddresses(params.id, tree, digest)),
             // Proof: left out, `carries UTC by default and the patched zone
             // after a PATCH` (`step-node-attempt.controller.db.test.ts`) read
@@ -698,12 +723,16 @@ export function workItemRoutes(
     bind(undoProject, async ({ params, principal }): Promise<HttpReply<typeof undoProject>> => {
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved);
-      return answerUndo(await commands.undoWithin(params.id, principal.id, resolved.access));
+      return answerUndo(
+        await commands.undoWithin(undoStackOf(params.id, principal), resolved.access),
+      );
     }),
     bind(redoProject, async ({ params, principal }): Promise<HttpReply<typeof redoProject>> => {
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved);
-      return answerUndo(await commands.redoWithin(params.id, principal.id, resolved.access));
+      return answerUndo(
+        await commands.redoWithin(undoStackOf(params.id, principal), resolved.access),
+      );
     }),
     bind(
       getStepReference,

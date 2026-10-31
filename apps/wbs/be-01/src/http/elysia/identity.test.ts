@@ -10,7 +10,7 @@ import { REFUSE_DELEGATIONS } from '../../runtime/delegation';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../../testing/auth-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { bind } from '../endpoint';
-import { identityResolver } from '../identity';
+import { identityResolver, secretMatcher } from '../identity';
 import { mountEndpoints } from './mount';
 
 const internalSecret = 'identity-test-internal-secret';
@@ -314,4 +314,18 @@ test('preserves an explicitly composed local identity without credentials', asyn
   const reply = await userApp(auth, 'write-scope').handle(request());
   expect(reply.status).toBe(200);
   expect(await reply.json()).toEqual({ id: 'local-account', username: 'local' });
+});
+
+// Proof: digesting an absent expected secret as '' made the empty presented secret match it;
+// dropping the presented-absent test made an absent header throw (watched 2026-10-28).
+test('matches a secret only against a configured one, whatever is presented', () => {
+  const configured = secretMatcher('s'.repeat(32));
+  expect(configured('s'.repeat(32))).toBe(true);
+  expect(configured('s'.repeat(31))).toBe(false);
+  expect(configured('')).toBe(false);
+  expect(configured(null)).toBe(false);
+  const unconfigured = secretMatcher(null);
+  expect(unconfigured('')).toBe(false);
+  expect(unconfigured(null)).toBe(false);
+  expect(unconfigured('s'.repeat(32))).toBe(false);
 });

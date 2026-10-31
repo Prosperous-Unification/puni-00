@@ -11,10 +11,10 @@ import { afterEach, describe, expect, it } from 'bun:test';
 
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
-/** The newest folder on `main` when this change's two were stamped (`wbs-resource-release`). */
-const RESOURCE_RUNTIME = '20261025130000_add_resource_runtime';
-const AUDIT_WIDENING = '20261025140000_widen_organization_audit_directory_capacity';
-const DIRECTORY_CAPACITY = '20261025140100_add_resource_directory_capacity';
+/** The newest folder on `main` when this change's two were restamped (`wbs-mcp-agent-surface`). */
+const AGENT_POOL_WIDENING = '20261028100100_widen_organization_audit_agent_pools';
+const AUDIT_WIDENING = '20261101100000_widen_organization_audit_directory_capacity';
+const DIRECTORY_CAPACITY = '20261101100100_add_resource_directory_capacity';
 /** What the widening adds; every other value of the two vocabularies was admitted before it. */
 const NEW_ACTION = 'directory_capacity_changed';
 const NEW_KIND = 'resource';
@@ -39,7 +39,7 @@ function migratedStore(): { root: string; dbPath: string } {
   return { root, dbPath };
 }
 
-/** A store migrated only through {@link RESOURCE_RUNTIME}: the schema this change finds. */
+/** A store migrated only through {@link AGENT_POOL_WIDENING}: the schema this change finds. */
 function baselineStore(): { root: string; dbPath: string } {
   const root = mkdtempSync(join(tmpdir(), 'wbs-directory-capacity-baseline-'));
   roots.push(root);
@@ -106,16 +106,18 @@ async function rollBack(root: string, dbPath: string, to: string) {
 // out of order there and never be reversed by a rollback to that one.
 // Proof: with the two folders stamped 20261025100000 and 20261025100100
 // (their first stamps, below #735's), this failed on the index of
-// AUDIT_WIDENING; watched 2026-10-25.
+// AUDIT_WIDENING; watched 2026-10-25. At the 2026-11-01 merge with main, the
+// 20261025140000/140100 stamps failed it the same way, below main's
+// machine-token and agent-pool folders, until they were restamped 20261101.
 //
-// Deliberately the newest two, not merely after RESOURCE_RUNTIME: until this
+// Deliberately the newest two, not merely after AGENT_POOL_WIDENING: until this
 // change merges, a migration landing on main first makes this fail at merge
 // time, and the fix is to restamp these two above it (verify.md, "Merge-time
 // restamp").
-it('is the newest pair of folders, after #735, colliding with none', () => {
+it('is the newest pair of folders, after the agent pool widening, colliding with none', () => {
   const names = readdirSync(MIGRATIONS).sort();
   expect(duplicateMigrationStamps(names)).toEqual([]);
-  expect(names.indexOf(AUDIT_WIDENING)).toBe(names.indexOf(RESOURCE_RUNTIME) + 1);
+  expect(names.indexOf(AUDIT_WIDENING)).toBe(names.indexOf(AGENT_POOL_WIDENING) + 1);
   expect(names.slice(-2)).toEqual([AUDIT_WIDENING, DIRECTORY_CAPACITY]);
 });
 
@@ -124,9 +126,13 @@ describe(AUDIT_WIDENING, () => {
   const earlierActions = ORGANIZATION_AUDIT_ACTIONS.filter((action) => action !== NEW_ACTION);
   const earlierKinds = ORGANIZATION_AUDIT_SUBJECT_KINDS.filter((kind) => kind !== NEW_KIND);
 
+  // Every earlier value is main's latest vocabulary: the machine token and
+  // agent pool acts and the `agent_pool` kind included.
   // Proof: with `compute_provider_removed` dropped from the rebuilt CHECK in
   // `migration.sql`, the forward run threw on the rebuild's copy (a
   // DrizzleQueryError from `runMigrations`); watched 2026-10-25.
+  // With `agent_pool_rekeyed`, or the `agent_pool` kind, dropped from that
+  // CHECK, this failed the same way (9 pass, 1 fail); watched 2026-11-01.
   it('keeps one row of every earlier action and subject kind through the rebuild', () => {
     const { dbPath } = baselineStore();
     run(dbPath, [
@@ -178,11 +184,26 @@ describe(AUDIT_WIDENING, () => {
     }).toThrow(/append-only/);
   });
 
-  it('restores the table, index and triggers the compute provider rebuild left, byte for byte', async () => {
+  // Proof: with the `_run` index left out of `migration.sql`'s rebuild, this
+  // failed, as did the byte-for-byte case below (8 pass, 2 fail); watched 2026-11-01.
+  it('keeps the two machine-token issuance indexes the agent pool rebuild left', () => {
+    const issuanceIndexes = (dbPath: string) =>
+      auditSchemaOf(dbPath).filter(
+        ({ type, name }) => type === 'index' && name.startsWith('organization_audit_machine_token'),
+      );
+    const baseline = issuanceIndexes(baselineStore().dbPath);
+    expect(baseline.map(({ name }) => name)).toEqual([
+      'organization_audit_machine_token_issued_overflow_day',
+      'organization_audit_machine_token_issued_run',
+    ]);
+    expect(issuanceIndexes(migratedStore().dbPath)).toEqual(baseline);
+  });
+
+  it('restores the table, indexes and triggers the agent pool rebuild left, byte for byte', async () => {
     const baseline = auditSchemaOf(baselineStore().dbPath);
     const { root, dbPath } = migratedStore();
     expect(auditSchemaOf(dbPath)).not.toEqual(baseline);
-    const down = await rollBack(root, dbPath, RESOURCE_RUNTIME);
+    const down = await rollBack(root, dbPath, AGENT_POOL_WIDENING);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(`rolled back: ${DIRECTORY_CAPACITY}, ${AUDIT_WIDENING}\n`);
@@ -190,11 +211,12 @@ describe(AUDIT_WIDENING, () => {
   }, 60_000);
 
   // Proof: with the filter in `down.sql` replaced by `WHERE 0`, this failed
-  // on the narrow table's CHECK instead of the named guard; watched 2026-10-25.
+  // on the narrow table's CHECK instead of the named guard; watched 2026-10-25
+  // and again 2026-11-01 after the restamp (9 pass, 1 fail).
   it('refuses rollback over one directory capacity audit row, keeping it', async () => {
     const { root, dbPath } = migratedStore();
     run(dbPath, [audit('d1', NEW_ACTION, NEW_KIND)]);
-    const down = await rollBack(root, dbPath, RESOURCE_RUNTIME);
+    const down = await rollBack(root, dbPath, AGENT_POOL_WIDENING);
     expect(down.exitCode).not.toBe(0);
     expect(down.stderr).toContain('directory capacity audit rows exist');
     expect(count(dbPath, 'SELECT count(*) AS n FROM organization_audit')).toBe(1);

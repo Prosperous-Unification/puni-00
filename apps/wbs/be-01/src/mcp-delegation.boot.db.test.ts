@@ -468,7 +468,8 @@ describe('MCP delegation through the booted composition', () => {
   test('refuses an unlinked token, a native session and an expired upstream token', async () => {
     be = await boot();
     await activateTwoOrganizations(be);
-    // Groups-less and linked to nobody: the claims change's machine-token rule.
+    // Groups-less: a machine bearer (`wbs-mcp-agent-surface` M9, its groups-less half), which
+    // proves no human sign-in to delegate, as a foreign issuer's token does not.
     const machine = await new SignJWT({})
       .setProtectedHeader({ alg: 'RS256', kid: 'idp' })
       .setIssuer(ISSUER)
@@ -488,7 +489,7 @@ describe('MCP delegation through the booted composition', () => {
         },
         { organizationId: 'org-a', userId: 'u-ada', client: 'c', grant: 'g', scope: 'read' },
       );
-    expect(await ask(machine)).toEqual({ status: 401, body: { error: 'unknown_identity' } });
+    expect(await ask(machine)).toEqual({ status: 401, body: { error: 'unauthenticated' } });
     const expired = await upstreamToken('auth0|ada', { lifetimeSeconds: -10 });
     expect(await ask(expired)).toEqual({ status: 401, body: { error: 'unauthenticated' } });
     expect(await ask('not-a-token')).toEqual({ status: 401, body: { error: 'unauthenticated' } });
@@ -978,5 +979,105 @@ describe('MCP consent as an agent person (wbs-machine-credentials A20)', () => {
       }),
     ).toEqual({ status: 200, body: { outcome: 'absent' } });
     expect(consentRows(be)).toMatchObject([{ id: CREDENTIAL, revoked_at: null }]);
+  });
+});
+
+/**
+ * Undo per acting person through the delegation verifier: a consent session
+ * acts as its human's account (`u-ada`) but journals and undoes on its agent
+ * person's own stack (`claire`), never on ada's.
+ */
+describe('undo through an MCP consent session', () => {
+  // Proof: with `actingPersonOf` answering null for `consent`, the agent's
+  // second undo expected 409 nothing_to_undo and got 200 done (it reverted
+  // ada's rename from her stack); 0 pass, 1 fail, watched 2026-10-26.
+  test("an agent's undo reverts its own edit, and its human's undo reverts the human's", async () => {
+    const booted = await boot();
+    be = booted;
+    await activateWithAgents(booted);
+    expect((await requestMint(booted, 'auth0|ada')).status).toBe(201);
+    // A delegation is spent by the request it authorizes, so every call asks
+    // mcp-01's route for a fresh one: ada's own session, or claire's consent.
+    const human = async () => ({
+      ...bearer(tokenOf(await requestDelegation(booted, 'auth0|ada'))),
+      origin: BOOTED_ORIGIN,
+    });
+    const agent = async () => ({
+      ...bearer(
+        tokenOf(
+          await requestDelegation(booted, 'auth0|ada', {
+            grant: 'family-claire',
+            credentialId: CREDENTIAL,
+          }),
+        ),
+      ),
+      origin: BOOTED_ORIGIN,
+    });
+    const listed = await call(booted, 'GET', '/api/projects', await human());
+    const projectId = (listed.body as { projects: { id: string; name: string }[] }).projects.find(
+      ({ name }) => name === 'A plan',
+    )?.id;
+    if (projectId === undefined) throw new Error(`no A plan: ${JSON.stringify(listed)}`);
+    const created = await call(
+      booted,
+      'POST',
+      `/api/projects/${projectId}/commands`,
+      await human(),
+      {
+        commands: ['Human', 'Agent'].map((name) => ({
+          kind: 'createWorkItem',
+          parentId: null,
+          name,
+        })),
+      },
+    );
+    expect(created.status).toBe(200);
+    const [humanRow = '', agentRow = ''] = (
+      created.body as { results: { id: string }[] }
+    ).results.map(({ id }) => id);
+    const rename = async (
+      headers: () => Promise<Record<string, string>>,
+      workItemId: string,
+      name: string,
+    ) => {
+      const renamed = await call(
+        booted,
+        'POST',
+        `/api/projects/${projectId}/commands`,
+        await headers(),
+        {
+          commands: [{ kind: 'patchWorkItem', workItemId, patch: { name } }],
+        },
+      );
+      expect(renamed.status).toBe(200);
+    };
+    const names = () =>
+      Object.fromEntries(
+        booted.sqlite
+          .query<{ id: string; name: string }, []>('SELECT id, name FROM work_item')
+          .all()
+          .map(({ id, name }) => [id, name]),
+      );
+
+    await rename(human, humanRow, 'Human, renamed');
+    await rename(agent, agentRow, 'Agent, renamed');
+    expect(
+      await call(booted, 'POST', `/api/projects/${projectId}/undo`, await agent()),
+    ).toMatchObject({
+      status: 200,
+    });
+    expect(names()).toMatchObject({ [humanRow]: 'Human, renamed', [agentRow]: 'Agent' });
+    expect(
+      await call(booted, 'POST', `/api/projects/${projectId}/undo`, await agent()),
+    ).toMatchObject({
+      status: 409,
+      body: { error: 'nothing_to_undo' },
+    });
+    expect(
+      await call(booted, 'POST', `/api/projects/${projectId}/undo`, await human()),
+    ).toMatchObject({
+      status: 200,
+    });
+    expect(names()).toMatchObject({ [humanRow]: 'Human', [agentRow]: 'Agent' });
   });
 });

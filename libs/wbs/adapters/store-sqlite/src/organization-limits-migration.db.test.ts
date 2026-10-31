@@ -124,8 +124,12 @@ describe(MIGRATION, () => {
             WORK_ITEM_BUDGETS,
             '20261025120000_add_resource_use',
             '20261025130000_add_resource_runtime',
-            '20261025140000_widen_organization_audit_directory_capacity',
-            '20261025140100_add_resource_directory_capacity',
+            '20261026120000_add_command_journal_person',
+            '20261026130000_widen_organization_audit_machine_tokens',
+            '20261028100000_add_agent_pool',
+            '20261028100100_widen_organization_audit_agent_pools',
+            '20261101100000_widen_organization_audit_directory_capacity',
+            '20261101100100_add_resource_directory_capacity',
           ].includes(name),
       ),
     );
@@ -133,8 +137,12 @@ describe(MIGRATION, () => {
 
   it('rolls back when empty and comes forward again', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
-      '20261025140100_add_resource_directory_capacity',
-      '20261025140000_widen_organization_audit_directory_capacity',
+      '20261101100100_add_resource_directory_capacity',
+      '20261101100000_widen_organization_audit_directory_capacity',
+      '20261028100100_widen_organization_audit_agent_pools',
+      '20261028100000_add_agent_pool',
+      '20261026130000_widen_organization_audit_machine_tokens',
+      '20261026120000_add_command_journal_person',
       '20261025130000_add_resource_runtime',
       '20261025120000_add_resource_use',
       WORK_ITEM_BUDGETS,
@@ -146,6 +154,7 @@ describe(MIGRATION, () => {
       RESOURCE_PROVIDER,
       LIMITS_AUDIT,
       MIGRATION,
+      '20261022121000_add_runtime_commands',
     ]);
     expect(
       db.query("SELECT name FROM sqlite_master WHERE name = 'organization_limits'").all(),

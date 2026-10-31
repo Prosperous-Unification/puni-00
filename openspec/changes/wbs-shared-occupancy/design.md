@@ -70,10 +70,10 @@ elasticity.
 
 ## Decisions
 
-Each is **assumed, awaiting Dany**, overrulable by id.
+Each is **accepted by Dany 2026-11-01** ("ok i accept all S1-12 i'll change them later if it causes
+problems"), still overrulable by id.
 
-**S1. The directory capacity is authoritative for shared occupancy (assumed, awaiting
-Dany).** A new satellite `resource_directory_capacity (resource_id PK → resource, units ≥ 0)`;
+**S1. The directory capacity is authoritative for shared occupancy (accepted by Dany 2026-11-01).** A new satellite `resource_directory_capacity (resource_id PK → resource, units ≥ 0)`;
 a row is stated, its absence unstated. Unlike a project capacity (`docs/capacity.md`), it has
 no **remembered** state: it is a fact about the resource, not about a plan's use of it, so
 it is stated or not whatever any leaf demands. Which number decides what:
@@ -87,7 +87,7 @@ it is stated or not whatever any leaf demands. Which number decides what:
 Alternative: a nullable `total_units` column on `resource`. Rejected: a satellite keeps
 `resource` rows and the plan export unchanged and gives `down.sql` one table to guard.
 
-**S2. Occupancy scope is the resource's organization (assumed, awaiting Dany).** For a
+**S2. Occupancy scope is the resource's organization (accepted by Dany 2026-11-01).** For a
 resource with a stated directory capacity, the claim check reads every `claim_occupancy` row
 naming that resource, joined through `claim → work_item → project_organization` and filtered
 to the resource's organization. A plan already cannot name another organization's resource
@@ -95,7 +95,7 @@ to the resource's organization. A plan already cannot name another organization'
 `resource_organization` row cannot take a directory capacity: `setDirectoryCapacity` is
 refused with the existing `organization_required` (`refusal.ts`), as a measure definition is.
 
-**S3. A claim counts against both scopes (assumed, awaiting Dany).** For each asked resource:
+**S3. A claim counts against both scopes (accepted by Dany 2026-11-01).** For each asked resource:
 the project check as today (project capacity minus the project's other leaves), then, when a
 directory capacity is stated, directory capacity minus every other leaf of the organization.
 Unstated project capacity skips the first; unstated directory capacity skips the second. The
@@ -106,8 +106,7 @@ claim's refusal stays `resources_exhausted`; each shortage gains `scope: 'projec
 `organization_required`, `forbidden` and `capacity_limit`. Project capacities may sum above
 the directory capacity: they are ceilings, not shares.
 
-**S4. The check stays in the write turn and reads straight through (assumed, awaiting
-Dany).** The organization-wide read runs inside the claim batch's transaction, after the
+**S4. The check stays in the write turn and reads straight through (accepted by Dany 2026-11-01).** The organization-wide read runs inside the claim batch's transaction, after the
 batch has taken its turn, on the batch's own connection, exactly where `claim_limit` counts;
 blue and green serialise on SQLite's `BEGIN IMMEDIATE`. A source that locks less than the
 whole store, which ADR 0015 allows, must make its lock cover the organization for such a
@@ -118,8 +117,8 @@ through. The same check serves claim, redo of a claim, undo of a release and und
 (`refuseOccupancy` stays the one check, now given both row sets).
 
 **S5. Units held of a shared resource are an organization fact; holders are named only to
-readers who may read them (assumed, awaiting Dany).** `wbs-permissions` makes an ungranted
-project absent (404, not listed). This is a deliberate carve-out for Dany to confirm in 0.1:
+readers who may read them (accepted by Dany 2026-11-01).** `wbs-permissions` makes an ungranted
+project absent (404, not listed). This is a deliberate carve-out, confirmed by Dany in 0.1:
 **the units held of a resource with a directory capacity are an organization fact**, so a
 reader of a project that uses the resource sees the units held in projects it may not read,
 as `hiddenHolders: { units }` per shortage, with no claim count, project id, project name,
@@ -132,10 +131,9 @@ production body answers true for every project of the caller's organization (eve
 reads every project today) and false otherwise; `wbs-permissions` replaces the body with the
 grant check, and the grants that judge a machine principal are that change's. Until a grant
 can deny, the redaction has no production-path negative, only a port-seam one: an R5
-exception that 0.1 asks Dany to waive explicitly.
+exception Dany waived in 0.1 by accepting S1 to S12 on 2026-11-01.
 
-**S6. The startable read keeps its contract and adds per-resource scope (assumed, awaiting
-Dany).** The top-level `occupancyScope` stays the literal `'project'` (`startable-shapes.ts`
+**S6. The startable read keeps its contract and adds per-resource scope (accepted by Dany 2026-11-01).** The top-level `occupancyScope` stays the literal `'project'` (`startable-shapes.ts`
 and every client that validates responses accept nothing else); it now means "every resource
 is counted within the project", which stays true, since S3 always applies the project check.
 Each entry of `resources` gains `occupancyScope: 'project' | 'organization'` (the widest
@@ -149,7 +147,7 @@ it on some leaf or states a capacity for it. The project resources read carries
 `directoryCapacity` and the same `directory` totals, never holders: it is readable by
 viewers and is not where an agent decides to claim.
 
-**S7. Engines are unchanged; the input is clamped once (assumed, awaiting Dany).** R5 stands:
+**S7. Engines are unchanged; the input is clamped once (accepted by Dany 2026-11-01).** R5 stands:
 no schedule reads a claim, an occupancy or another project's plan. One function,
 `effectivePoolSizesOf(projectCapacities, directoryCapacities, demandedResourceIds)`, gives
 each resource's pool: the project capacity clamped to the directory capacity when both are
@@ -170,15 +168,14 @@ the whole 16 GB on the same day; the claim path enforces the share. Alternative:
 levelling. Rejected for v1: one project's dates would move on another's edit and the hash
 would span projects.
 
-**S8. Undo, redo, lease expiry and removal cross projects (assumed, awaiting Dany).** An
+**S8. Undo, redo, lease expiry and removal cross projects (accepted by Dany 2026-11-01).** An
 undo of a release, an undo of a delete that restores claims (`withClaimsRestored`) or a redo
 of a claim in A may be refused `stale_undo` with detail `resources_exhausted:` because of B;
 the detail names the scope. An undo of a cascading release re-acquires leaf by leaf through
 the one check, all or nothing. A release or lease sweep in A frees units for B.
 `deleteResource`'s `in_use` counts include the directory capacity; the cascade drops it.
 
-**S9. This change supersedes six sentences of `wbs-resource-release` (assumed, awaiting
-Dany).** That change commits to: no change to WBS claim occupancy (proposal line 23); WBS holding
+**S9. This change supersedes six sentences of `wbs-resource-release` (accepted by Dany 2026-11-01).** That change commits to: no change to WBS claim occupancy (proposal line 23); WBS holding
 no competing capacity ledger (proposal line 32); claim occupancy retaining its current
 semantics (design line 34); scheduling hashes intact (design line 42); WBS's project-scoped
 occupancy unchanged (design lines 185 to 186, as amended); claim occupancy and schedule inputs keeping
@@ -195,7 +192,7 @@ reservations outlive the claim during cleanup), and Dash may have headroom WBS r
 (declared demands exceed real use, or the directory capacity was set low). Each side shows its
 own number with its own label.
 
-**S10. Organization limits follow the directory capacity (assumed, awaiting Dany).**
+**S10. Organization limits follow the directory capacity (accepted by Dany 2026-11-01).**
 `maxCapacityUnitsPerResource` (`wbs-organization-limits` L2) bounds `setDirectoryCapacity`,
 refused `capacity_limit` with `CapacityLimitRefusalDetail { resourceId, cap, declared: 0,
 asked: units }`. While a directory capacity is stated, L2's sum over project capacities no
@@ -208,8 +205,7 @@ directory capacity for a resource that states one, else the sum as today, each e
 `countedFrom: 'directory' | 'projects'` (not `source`, which the read's top level already
 uses).
 
-**S11. Who sets a directory capacity, on which routes, and its audit (assumed, awaiting
-Dany).** `setDirectoryCapacity { resourceId, units | null, confirm?: true }` is accepted on
+**S11. Who sets a directory capacity, on which routes, and its audit (accepted by Dany 2026-11-01).** `setDirectoryCapacity { resourceId, units | null, confirm?: true }` is accepted on
 both routes that carry directory commands, `POST /api/directory/commands` and
 `POST /api/projects/:id/commands`, in all-or-none batches like every other command, and the
 admin check sits in the one function both paths take, as R8a's removal check does. Allowed:
@@ -226,7 +222,7 @@ is one `organization_audit` row, `directory_capacity_changed` on subject kind `r
 action and subject kind are CHECK-constrained, so this needs a compatible table rebuild
 (Migration).
 
-**S12. Previewing a change and finding the holders (assumed, awaiting Dany).** Under Dany's
+**S12. Previewing a change and finding the holders (accepted by Dany 2026-11-01).** Under Dany's
 rule to list what breaks before a config change, and both admin-only (others `forbidden`,
 agents included, by the same role check as S11):
 

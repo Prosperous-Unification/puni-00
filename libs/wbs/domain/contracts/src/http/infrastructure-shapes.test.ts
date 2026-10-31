@@ -78,21 +78,30 @@ test('every GET shape declares the adapter invalid-body refusal as a 400', async
   }
 });
 
-test('health distinguishes ready, migration and dependency states while retaining commit metadata', async () => {
+test('health distinguishes ready, migration and dependency states while retaining both commit fields', async () => {
   const ready = health.responses[0];
   const unavailable = health.refusals[0];
-  expect(await validateSchema(ready.schema, { status: 'ok', commit: null })).toEqual({
-    value: { status: 'ok', commit: null },
+  expect(
+    await validateSchema(ready.schema, { status: 'ok', commit: null, bootCommit: null }),
+  ).toEqual({
+    value: { status: 'ok', commit: null, bootCommit: null },
   });
+  // Proof: with `bootCommit` struck from the 200 schema this answer validated
+  // (`issues` received undefined), so a backend that stopped reporting the code
+  // it booted would still match the contract.
+  expect(
+    (await validateSchema(ready.schema, { status: 'ok', commit: 'abc' })).issues,
+  ).toBeDefined();
   for (const status of ['migrating', 'database_unreachable', 'schema_missing'] as const) {
     expect(
       await validateSchema(unavailable.schema, {
         error: 'dependency_unavailable',
         status,
         commit: 'abc',
+        bootCommit: 'def',
       }),
     ).toEqual({
-      value: { error: 'dependency_unavailable', status, commit: 'abc' },
+      value: { error: 'dependency_unavailable', status, commit: 'abc', bootCommit: 'def' },
     });
   }
   expect(
@@ -101,6 +110,7 @@ test('health distinguishes ready, migration and dependency states while retainin
         error: 'dependency_unavailable',
         status: 'ok',
         commit: null,
+        bootCommit: null,
       })
     ).issues,
   ).toBeDefined();
@@ -109,6 +119,16 @@ test('health distinguishes ready, migration and dependency states while retainin
       await validateSchema(unavailable.schema, {
         error: 'dependency_unavailable',
         status: 'database_unreachable',
+        bootCommit: null,
+      })
+    ).issues,
+  ).toBeDefined();
+  expect(
+    (
+      await validateSchema(unavailable.schema, {
+        error: 'dependency_unavailable',
+        status: 'migrating',
+        commit: null,
       })
     ).issues,
   ).toBeDefined();

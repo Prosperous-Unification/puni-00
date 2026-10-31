@@ -230,7 +230,7 @@ async function seeded(store: (typeof STORES)[number]) {
     return id;
   };
   const run = (project: 0 | 1, commands: PlanCommand[], credential: CredentialPin | null = null) =>
-    runner.runWithin(project === 0 ? a : b, F, commands, { kind: 'legacy' }, credential);
+    runner.runWithin(project === 0 ? a : b, F, commands, { kind: 'legacy' }, credential, null);
   const claim = (project: 0 | 1, index: number, personId: string): PlanCommand => ({
     kind: 'claimWorkItem',
     workItemId: leaf(project, index),
@@ -369,6 +369,7 @@ for (const store of STORES) {
               F,
               [{ kind: 'claimWorkItem', workItemId, personId }],
               admin,
+              null,
               null,
             );
           expect(await claimIn(projects.a, leaf(0, 0), 'a0')).toMatchObject({ ok: true });

@@ -3,8 +3,13 @@ import { digestMachineSecret } from '@wbs/core';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { exportJWK, generateKeyPair } from 'jose';
 
-import { addAgentPerson } from '../testing/machine-credential-fixture';
-import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+import { addAgentPerson, MACHINE_BEARER_NOT_ACCEPTED } from '../testing/machine-credential-fixture';
+import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
+import {
+  type Answer,
+  type HarnessMachineGrants,
+  OrganizationHarness,
+} from '../testing/organization-harness';
 import { delegationFor, mapUpstream } from '../testing/scim-fixture';
 
 const PATH = '/api/organization/machine-credentials';
@@ -12,10 +17,12 @@ const HOUR = 60 * 60 * 1000;
 const UNKNOWN = { status: 401, body: { error: 'unknown_identity' } };
 
 let jwks: ReturnType<typeof Bun.serve>;
+let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
 let clockAt: number;
 
 beforeAll(async () => {
+  machineGrants = await forwardingMachineGrants();
   const { publicKey } = await generateKeyPair('RS256');
   const publicJwk = await exportJWK(publicKey);
   jwks = Bun.serve({
@@ -35,7 +42,7 @@ afterAll(async () => {
  * 2.4, design A7, A11, A15, A17, A22, A23) over be-01's production
  * composition and real SQLite, with one injected clock shared by the routes
  * and the API-key verification, so a key minted here is judged by the same
- * path a fleet's request takes.
+ * path a fleet's request takes: mcp-01's forwarded grant ({@link asAgent}).
  */
 beforeEach(async () => {
   clockAt = Date.now();
@@ -74,7 +81,13 @@ function openHarness(): OrganizationHarness {
       groupsClaim: 'wbs_groups',
     },
     now: () => clockAt,
+    machineGrants,
   });
+}
+
+/** One call of the agent holding `key`, as mcp-01 forwards it, at the harness clock. */
+function asAgent(key: string, method: string, path: string, body?: unknown): Promise<Answer> {
+  return callForwarded(h, key, method, path, body, { now: clockAt });
 }
 
 interface Created {
@@ -101,10 +114,14 @@ function credentialCount(): number {
   return rows('SELECT id FROM machine_credential').length;
 }
 
+/**
+ * The credential administration's audit rows, oldest first: not the
+ * `machine_token_issued` row each agent call's grant writes.
+ */
 function auditRows(): { action: string; actor_id: string; subject_id: string; detail: string }[] {
   return h.sqlite
     .query<{ action: string; actor_id: string; subject_id: string; detail: string }, []>(
-      "SELECT action, actor_id, subject_id, detail FROM organization_audit WHERE subject_kind = 'machine_credential' ORDER BY created_at, id",
+      "SELECT action, actor_id, subject_id, detail FROM organization_audit WHERE subject_kind = 'machine_credential' AND action <> 'machine_token_issued' ORDER BY created_at, id",
     )
     .all();
 }
@@ -129,7 +146,7 @@ describe('creating an API key', () => {
     const secret = secretOf(created.key);
     const digest = await digestMachineSecret(secret);
     expect(rows('SELECT digest FROM machine_credential_secret')).toEqual([{ digest }]);
-    expect(await h.callWith(created.key, 'GET', '/api/projects')).toMatchObject({ status: 200 });
+    expect(await asAgent(created.key, 'GET', '/api/projects')).toMatchObject({ status: 200 });
 
     const list = await h.call('dany', 'GET', PATH);
     expect(list.status).toBe(200);
@@ -148,7 +165,8 @@ describe('creating an API key', () => {
       issuedBy: h.userId('dany'),
     });
     expect(detail).not.toHaveProperty('name');
-    for (const serialized of [JSON.stringify(list.body), JSON.stringify(audit)]) {
+    const everyAuditRow = rows('SELECT * FROM organization_audit');
+    for (const serialized of [JSON.stringify(list.body), JSON.stringify(everyAuditRow)]) {
       expect(serialized).not.toContain(secret);
       expect(serialized).not.toContain(digest);
       expect(serialized).not.toContain('wbs_mk_');
@@ -158,8 +176,8 @@ describe('creating an API key', () => {
   it('lets a member issue for their own agent, acting as the member with read and write only', async () => {
     const created = await create('mem', 'mems-agent');
     expect(created.answer).toMatchObject({ status: 201, body: { issuedBy: h.userId('mem') } });
-    expect(await h.callWith(created.key, 'GET', '/api/projects')).toMatchObject({ status: 200 });
-    expect(await h.callWith(created.key, 'GET', '/api/organization/members')).toEqual({
+    expect(await asAgent(created.key, 'GET', '/api/projects')).toMatchObject({ status: 200 });
+    expect(await asAgent(created.key, 'GET', '/api/organization/members')).toEqual({
       status: 403,
       body: { error: 'insufficient_scope' },
     });
@@ -284,7 +302,7 @@ describe('listing', () => {
 
   it('shows last use, and revoked credentials only when asked', async () => {
     const created = await create('dany', 'claire');
-    await h.callWith(created.key, 'GET', '/api/projects');
+    await asAgent(created.key, 'GET', '/api/projects');
     expect(listed(await h.call('dany', 'GET', PATH))[0]).toMatchObject({
       lastUsedAt: clockAt,
       revokedAt: null,
@@ -324,11 +342,14 @@ describe('rotation', () => {
     });
 
     clockAt = t0 + 23 * HOUR;
-    expect((await h.callWith(created.key, 'GET', '/api/projects')).status).toBe(200);
-    expect((await h.callWith(next, 'GET', '/api/projects')).status).toBe(200);
+    expect((await asAgent(created.key, 'GET', '/api/projects')).status).toBe(200);
+    expect((await asAgent(next, 'GET', '/api/projects')).status).toBe(200);
     clockAt = t0 + 25 * HOUR;
-    expect(await h.callWith(created.key, 'GET', '/api/projects')).toEqual(UNKNOWN);
-    expect((await h.callWith(next, 'GET', '/api/projects')).status).toBe(200);
+    // Through mcp-01 the grant's lifetime cap at the secret's expiry refuses
+    // the old key as well as `admitMachineCredential`'s expiry predicate, whose
+    // own negative is `machine-credential.test.ts` since 7.1 (M9).
+    expect(await asAgent(created.key, 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect((await asAgent(next, 'GET', '/api/projects')).status).toBe(200);
 
     const audit = auditRows().filter((row) => row.action === 'machine_credential_rotated');
     expect(audit).toHaveLength(1);
@@ -379,8 +400,8 @@ describe('revocation', () => {
       status: 204,
       body: null,
     });
-    expect(await h.callWith(created.key, 'GET', '/api/projects')).toEqual(UNKNOWN);
-    expect(await h.callWith(next, 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect(await asAgent(created.key, 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect(await asAgent(next, 'GET', '/api/projects')).toEqual(UNKNOWN);
     expect(await h.call('dany', 'DELETE', `${PATH}/${created.id}`)).toEqual({
       status: 404,
       body: { error: 'not_found' },
@@ -414,7 +435,7 @@ describe('revocation', () => {
         status: 404,
         body: { error: 'not_found' },
       });
-    expect((await h.callWith(strangers.key, 'GET', '/api/projects')).status).toBe(200);
+    expect((await asAgent(strangers.key, 'GET', '/api/projects')).status).toBe(200);
     const own = await create('mem', 'mems-agent');
     expect((await h.call('mem', 'POST', `${PATH}/${own.id}/rotate`)).status).toBe(201);
     expect((await h.call('mem', 'DELETE', `${PATH}/${own.id}`)).status).toBe(204);
@@ -459,11 +480,16 @@ describe('who may administer', () => {
       ['POST', PATH, { source: 'api_key', name: 'x', personId: 'claire' }],
       ['POST', `${PATH}/${created.id}/rotate`, undefined],
       ['DELETE', `${PATH}/${created.id}`, undefined],
-    ] as const)
-      expect(await h.callWith(created.key, method, path, body)).toEqual({
+    ] as const) {
+      expect(await asAgent(created.key, method, path, body)).toEqual({
         status: 403,
         body: { error: 'insufficient_scope' },
       });
+      // The key itself as a Bearer on `/api` is refused before any route (M9).
+      expect(await h.callWith(created.key, method, path, body)).toEqual(
+        MACHINE_BEARER_NOT_ACCEPTED,
+      );
+    }
     expect(credentialCount()).toBe(1);
     expect(rows('SELECT id FROM machine_credential_secret')).toHaveLength(1);
   });
@@ -533,7 +559,7 @@ describe("a credential's person", () => {
         error: 'in_use',
         at: 0,
         kind: 'deletePerson',
-        usage: { projects: [], members: [], pinnedCredentials: 0, machineCredentials: 1 },
+        usage: { projects: [], members: [], machineCredentials: 1 },
       },
     });
     expect(credentialCount()).toBe(1);
@@ -542,7 +568,7 @@ describe("a credential's person", () => {
     ).toBe(200);
     expect(credentialCount()).toBe(0);
     expect(rows('SELECT id FROM machine_credential_secret')).toEqual([]);
-    expect(await h.callWith(created.key, 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect(await asAgent(created.key, 'GET', '/api/projects')).toEqual(UNKNOWN);
     const revoked = auditRows().filter((row) => row.action === 'machine_credential_revoked');
     expect(revoked).toHaveLength(1);
     expect(revoked[0]).toMatchObject({ actor_id: h.userId('dany'), subject_id: created.id });
@@ -568,7 +594,7 @@ describe("a credential's person", () => {
           error: 'in_use',
           at: 0,
           kind: 'patchPerson',
-          usage: { projects: [], members: [], pinnedCredentials: 0, machineCredentials: 1 },
+          usage: { projects: [], members: [], machineCredentials: 1 },
         },
       });
     expect(rows("SELECT account_id FROM person WHERE id = 'claire'")).toEqual([
@@ -600,11 +626,11 @@ describe("a credential's person", () => {
         error: 'in_use',
         at: 0,
         kind: 'patchPerson',
-        usage: { projects: [], members: [], pinnedCredentials: 0, machineCredentials: 1 },
+        usage: { projects: [], members: [], machineCredentials: 1 },
       },
     });
     expect(rows("SELECT kind FROM person WHERE id = 'claire'")).toEqual([{ kind: 'agent' }]);
-    expect((await h.callWith(created.key, 'GET', '/api/projects')).status).toBe(200);
+    expect((await asAgent(created.key, 'GET', '/api/projects')).status).toBe(200);
   });
 
   const cascade = (personId: string) => ({
@@ -619,7 +645,7 @@ describe("a credential's person", () => {
     );
     expect(credentialCount()).toBe(1);
     expect(auditRows().map((row) => row.action)).toEqual(['machine_credential_created']);
-    expect((await h.callWith(strangers.key, 'GET', '/api/projects')).status).toBe(200);
+    expect((await asAgent(strangers.key, 'GET', '/api/projects')).status).toBe(200);
     await create('mem', 'mems-agent');
     expect(
       (await h.call('mem', 'POST', '/api/directory/commands', cascade('mems-agent'))).status,
@@ -629,9 +655,9 @@ describe("a credential's person", () => {
   it("refuses a machine key's cascade over its own person", async () => {
     const created = await create('dany', 'claire');
     expect(
-      await h.callWith(created.key, 'POST', '/api/directory/commands', cascade('claire')),
+      await asAgent(created.key, 'POST', '/api/directory/commands', cascade('claire')),
     ).toEqual(FORBIDDEN);
     expect(credentialCount()).toBe(1);
-    expect((await h.callWith(created.key, 'GET', '/api/projects')).status).toBe(200);
+    expect((await asAgent(created.key, 'GET', '/api/projects')).status).toBe(200);
   });
 });

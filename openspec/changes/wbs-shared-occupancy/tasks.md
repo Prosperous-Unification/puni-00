@@ -1,11 +1,14 @@
 ## 0. Readings and landing order
 
-- [ ] 0.1 Dany confirms or amends design.md S1 to S12: first alternative A (organization
+- [x] 0.1 Dany confirms or amends design.md S1 to S12: first alternative A (organization
       occupancy) over B (shares) and C (Dash admission only), then the S5 carve-out (units
       of a shared resource are an organization fact, an exception to `wbs-permissions`'
       "ungranted is absent"), an explicit waiver of R5's production-path negative for the
       S5 redaction until a grant can deny, S7 (clamp, no portfolio levelling) and S10
-      (limits). If A holds, record it as an ADR.
+      (limits). If A holds, record it as an ADR. Done 2026-11-01: Dany accepted S1 to S12
+      whole, alternative A and the S5 carve-out included, and that acceptance waives R5's
+      production-path negative for the S5 redaction until a grant can deny. The S1 ADR is
+      still owed.
 - [ ] 0.2 (Its sentences are amended in this branch with pointers to S9, since it landed first
       in #735; the agreement is still open.) The owner of `wbs-resource-release` agrees to S9: this change supersedes that
       change's six sentences on claim occupancy and schedule inputs, and whichever change
@@ -117,7 +120,7 @@
       reader gets units only (string search over the whole body for A's project, person,
       run and work item ids). Fault line: return holders unfiltered and the string search
       finds A's ids. No production-path negative exists until a `wbs-permissions` grant can
-      deny (waiver asked in 0.1); the negative moves to the production path in the
+      deny (waived in 0.1, 2026-11-01); the negative moves to the production path in the
       `wbs-permissions` slice that replaces the method's body.
 - [ ] 4.2 `GET /api/organization/resources/:resourceId/occupancy` (S12) with
       `releasableBy` — test: the two spec scenarios; a member and an admin's agent

@@ -81,7 +81,7 @@ at all, and meets terminal atomicity by staging, acting and one atomic rename, w
 memory source with a persist hook. Neither is built; both fit the three interfaces without
 core changing.
 
-**Amended 2026-10-25 (`wbs-shared-occupancy` design S4, assumed, awaiting Dany): a check
+**Amended 2026-10-25 (`wbs-shared-occupancy` design S4, accepted by Dany 2026-11-01): a check
 that reads across projects needs the source's lock to cover the organization.** A claim on a
 resource with a directory capacity reads every project's occupancy of it inside its batch
 and refuses or writes on what it read; `claim_limit` already counts across projects the same

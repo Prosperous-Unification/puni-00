@@ -1,7 +1,7 @@
 ## Verification record
 
 Drafted 2026-10-25 as an OpenSpec proposal only; nothing is implemented. S1 to S12 in
-design.md are assumed, awaiting Dany. Amended the same day after two Fable reviews of PR #737
+design.md were assumed, awaiting Dany, until Dany accepted them all on 2026-11-01. Amended the same day after two Fable reviews of PR #737
 (first pass: eight S2 and eight S3 findings; second pass at `882ca2169`: three S2 and the
 S3 list).
 
@@ -62,15 +62,15 @@ Run on the worktree with this change staged, 2026-10-25:
 Each task's fault line, watched failing with the check removed, with its `Proof:` comment
 beside the check and the command output recorded here.
 
-## Implementation record (branch `feat/wbs-shared-occupancy-1`, built on assumed S1 to S12)
+## Implementation record (branch `feat/wbs-shared-occupancy-1`, built on S1 to S12, accepted 2026-11-01)
 
 All commands run in the worktree with `env -u CLAUDECODE` (the Bun output tests misreport
 under `CLAUDECODE=1`). Only targeted files ran; the full suites are CI's.
 
 ### Slice 1.0 and 1.1: the two migrations
 
-`20261025140000_widen_organization_audit_directory_capacity` and
-`20261025140100_add_resource_directory_capacity`, each with a guarded `down.sql`.
+`20261101100000_widen_organization_audit_directory_capacity` and
+`20261101100100_add_resource_directory_capacity`, each with a guarded `down.sql`.
 
 - `bun test apps/wbs/be-01/src/directory-capacity-migration.db.test.ts` → 8 pass, 0 fail.
 - `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts` over both folders' four files →
@@ -163,7 +163,7 @@ wbs-contracts wbs-conformance` → exit 0.
 | the memory coordinator granting every turn at once (a lock covering less than the organization) | unit-of-work (m) failed: the second act started while the first held its turn (6 pass, 1 fail)                                                                                              |
 
 ADR 0015 carries the amendment "a check that reads across projects needs the source's lock to
-cover the organization", marked assumed with S4.
+cover the organization", marked assumed with S4 and accepted with it on 2026-11-01.
 
 ### Slice 1.2 to 1.5: the command, its announce, the preview, the inventory
 
@@ -265,8 +265,8 @@ passed).
 ## Review of #745 (Fable, at `7a26feb86`), addressed 2026-10-25
 
 - **S1-1 done.** Merged `origin/main` (#735, `a403db487`). The two migrations are restamped
-  `20261025140000_widen_organization_audit_directory_capacity` and
-  `20261025140100_add_resource_directory_capacity`, after #735's `20261025120000` and
+  `20261101100000_widen_organization_audit_directory_capacity` and
+  `20261101100100_add_resource_directory_capacity`, after #735's `20261025120000` and
   `20261025130000`; every constant, comment and pinned list follows (46 test files). New
   case `is stamped after every folder that existed when it was written, colliding with none`
   in `directory-capacity-migration.db.test.ts`; Proof: with the widening folder renamed back
@@ -334,7 +334,7 @@ its turn`; it, ADR 0015's amendment and task 3.3 now say it proves the store-wid
   `docs/runbook-dev-deploy.md`: state capacities only after the swap or restart completes;
   the table's rollback needs every capacity cleared; once any was written the audit rows stop
   the rollback at the widening, completed with
-  `migrate-down-cli.ts --to=20261025140000_widen_organization_audit_directory_capacity`.
+  `migrate-down-cli.ts --to=20261101100000_widen_organization_audit_directory_capacity`.
   Task 7.4's operator half stays open.
 - **S3-8 done by throwing.** Both stores throw when a resource some organization owns is held
   in a project of no organization; a project of another organization stays filtered. Test:
@@ -371,7 +371,7 @@ saved-plan capture boundary fault` timed out alone (5,947 ms). Neither touches t
 No S1 or S2. The S3s:
 
 - **Merge-time restamp (1).** `is the newest pair of folders, after #735, colliding with none`
-  now asserts that `20261025140000_…` and `20261025140100_…` are the last two folders in
+  now asserts that `20261101100000_…` and `20261101100100_…` are the last two folders in
   `apps/wbs/be-01/drizzle`. Until this change merges, a migration that lands on `main` first
   fails this test at merge time; the fix is to restamp these two above it and follow every
   pinned list, as the #735 merge did. Proof: with an empty folder `20261026000000_probe_newer`
@@ -427,3 +427,61 @@ after 5000ms` at load average 15 to 20 (`reinjects capacity and priority-band �
   and the same for `wbs-core wbs-be-01` → exit 0.
 - `check-indexes working . HEAD` → exit 0; `openspec validate --all --json` → 293/293;
   Prettier clean. No migration changed this pass.
+
+## Merged with main `0bfe58611`, migrations renumbered (2026-11-01)
+
+`origin/main` at `0bfe58611` merged into the branch (a merge commit; about 51 files conflicted,
+most of them migration ledgers and rollback lists). Main had landed
+`20261026120000_add_command_journal_person`, `20261026130000_widen_organization_audit_machine_tokens`,
+`20261028100000_add_agent_pool` and `20261028100100_widen_organization_audit_agent_pools`, and
+dev has applied them, so this change's two folders are restamped after them:
+`20261101100000_widen_organization_audit_directory_capacity` and
+`20261101100100_add_resource_directory_capacity`. Every ledger, rollback list, runbook and
+this record name the new stamps; each ordered list has them last.
+
+- The widening is rebuilt on main's latest vocabulary: the agent-pool widening's whole CHECK
+  (machine-token and agent-pool acts, the `agent_pool` kind) plus `directory_capacity_changed`
+  and `resource`, recreating the two machine-token issuance indexes after the rebuild as that
+  migration does. `down.sql` restores the agent-pool widening's vocabulary and indexes, guarded
+  while any directory capacity row or `resource` subject exists.
+- Proofs, each watched 2026-11-01 in `directory-capacity-migration.db.test.ts`: with
+  `agent_pool_rekeyed`, or the `agent_pool` kind, dropped from the forward CHECK, `keeps one row
+of every earlier action and subject kind through the rebuild` failed (9 pass, 1 fail); with the
+  `_run` index left out of the forward rebuild, the new `keeps the two machine-token issuance
+indexes the agent pool rebuild left` failed (8 pass, 2 fail); with `agent_pool` left out of the
+  restored CHECK, the byte-for-byte rollback case failed (9 pass, 1 fail); with the guard's filter
+  replaced by `WHERE 0`, `refuses rollback over one directory capacity audit row` failed.
+- `agent-pool-migration.db.test.ts` now stores without the two later folders: the later rebuild
+  recreates the issuance indexes and hid that test's own negative ("recorded" instead of the
+  `ON CONFLICT` failure), watched 2026-11-01.
+- **ASSUMED: the preview requires write scope.** Main's `server.test.ts` holds every non-GET MCP
+  tool to be-01 write scope; the preview writes nothing but is a POST tool, so its shape now
+  requires `write-scope` (a read-only credential is refused `403 insufficient_scope`, declared on
+  the shape). It stays an MCP tool (not `humanOnly`): an admin's own MCP session may preview, as
+  S11/S12 intend; 77 tools in all.
+- **ASSUMED: agent keys reach these commands only over MCP.** Since #785 `/api` refuses machine
+  bearers `401 machine_bearer_not_accepted`; the agent key cases in
+  `directory-capacity.controller.db.test.ts` now go through mcp-01's forwarded grant
+  (`callForwarded`) and are still refused `forbidden`, and straight at `/api` answer 401.
+  Proof: with the role check skipped, the forwarded case failed with the member, viewer and
+  consent cases (8 pass, 3 fail).
+- Composed harness: main's composed `delegationKey` wiring is kept, with the consent credential
+  reader the branch added (`organization-harness.ts`), so a consent acting as an agent is read
+  live as `boot.ts` reads it.
+- Dany accepted S1 to S12 on 2026-11-01; the S5 R5 waiver counts as given (tasks 0.1).
+
+Commands (each with `env -u CLAUDECODE`):
+
+- `bunx nx run-many -t typecheck,lint -p wbs-be-01 wbs-core wbs-store-sqlite wbs-store-memory
+wbs-mcp-01 wbs-contracts wbs-domain wbs-conformance --skip-nx-cache --parallel=1` → exit 0.
+- `bunx nx run-many -t test -p wbs-domain wbs-core wbs-conformance wbs-store-memory --parallel=1`
+  → pass; `wbs-store-sqlite wbs-contracts wbs-mcp-01 tool-git-hooks` → pass (rerun after the
+  contracts pin and write-scope fixes; under load the first mcp-01 run timed out
+  `oauth-timing-safe.test.ts` and failed the in-flight model in `token-request.test.ts`, both
+  27/0 alone and green in the rerun).
+- `bunx nx run wbs-be-01:test` → 3867 pass, 4 fail (route inventory, OIDC write-scope sweep,
+  two agent-key cases), all fixed above; those files and the preview/route suites rerun → 95/0,
+  mcp-01 `server` + `generated-document` → 49/0, contracts → 610/0.
+- Migration lint as CI runs it (`git ls-files '*.sql'`) → exit 0; `migration-lint.test.ts` → 29/0.
+- `bunx prettier --check` on every file differing from main → clean; `openspec validate --all
+--json` → 304/304; `check-indexes working . HEAD` → exit 0.

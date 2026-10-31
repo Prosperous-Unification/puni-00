@@ -5,7 +5,12 @@ import {
   type OidcCredentialRecord,
   type TrustedIssuerRegistration,
 } from '@wbs/core';
-import type { MachineCredentialRecord, MachineCredentialSource } from '@wbs/domain';
+import {
+  type MachineCredentialRecord,
+  type MachineCredentialSource,
+  ORGANIZATION_ROLES,
+  type OrganizationRole,
+} from '@wbs/domain';
 import { and, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -13,15 +18,39 @@ import { auditOnUpdate } from './audit';
 import type { Gate } from './gate';
 import { writeImmediately } from './immediate-write';
 import {
+  agentPool,
   MACHINE_CREDENTIAL_SOURCES,
   machineCredential,
   type MachineCredentialRow,
   machineCredentialSecret,
+  organizationMembership,
   organizationTrustedIssuer,
   person,
 } from './schema';
 
 const DIGEST = /^[0-9a-f]{64}$/;
+
+/**
+ * The bound account's membership in the credential's own organization: the
+ * role {@link MachineCredentialRecord.boundAccountRole} reads, absent for an
+ * unbound person or a non-member account.
+ */
+const boundMembership = and(
+  eq(organizationMembership.organizationId, machineCredential.organizationId),
+  eq(organizationMembership.userId, person.accountId),
+);
+
+/**
+ * The pool a credential was issued by, if any: only an agent pool gives a
+ * credential an expiry (`wbs-mcp-agent-surface` M7), read with the credential
+ * so {@link admitMachineCredential} judges it in its one place.
+ *
+ * Proof: with `findById` answering `expiresAt: null` in place of the pool's,
+ * `refuses its keys at admission and lets its leases lapse as lease expired`
+ * (agent-pool.controller.db.test.ts) admitted the expired pool's key; watched
+ * 2026-10-28.
+ */
+const issuingPool = eq(agentPool.id, machineCredential.agentPoolId);
 
 /** {@link MachineCredentials} over the shared database. */
 export class MachineCredentialRepository implements MachineCredentials {
@@ -40,14 +69,22 @@ export class MachineCredentialRepository implements MachineCredentials {
    *
    * Proof: each of the three shape checks removed in turn made its case of
    * `fails as a server error on a malformed stored …` in
-   * `machine-credential.controller.db.test.ts` fail; watched 2026-10-22.
+   * `machine-credential.controller.db.test.ts` fail; watched 2026-10-22, and
+   * again through the grant route mcp-01 calls 2026-10-29.
    */
   async findById(id: string): Promise<MachineCredentialRecord | null> {
     await Promise.resolve();
     const row = this.db
-      .select({ credential: machineCredential, boundAccountId: person.accountId })
+      .select({
+        credential: machineCredential,
+        boundAccountId: person.accountId,
+        boundAccountRole: organizationMembership.role,
+        poolExpiresAt: agentPool.expiresAt,
+      })
       .from(machineCredential)
       .innerJoin(person, eq(person.id, machineCredential.personId))
+      .leftJoin(organizationMembership, boundMembership)
+      .leftJoin(agentPool, issuingPool)
       .where(eq(machineCredential.id, id))
       .get();
     if (row === undefined) return null;
@@ -71,7 +108,9 @@ export class MachineCredentialRepository implements MachineCredentials {
       personId: row.credential.personId,
       source: checkedSource(row.credential),
       boundAccountId: row.boundAccountId,
+      boundAccountRole: checkedRole(row.boundAccountRole, id),
       revokedAt: checkedTime(row.credential.revokedAt, id),
+      expiresAt: checkedTime(row.poolExpiresAt, id),
       trustedIssuerId: row.credential.trustedIssuerId,
       mcpFamilyId: row.credential.mcpFamilyId,
       secrets,
@@ -115,9 +154,16 @@ export class MachineCredentialRepository implements MachineCredentials {
   ): Promise<OidcCredentialRecord | null> {
     await Promise.resolve();
     const row = this.db
-      .select({ credential: machineCredential, boundAccountId: person.accountId })
+      .select({
+        credential: machineCredential,
+        boundAccountId: person.accountId,
+        boundAccountRole: organizationMembership.role,
+        poolExpiresAt: agentPool.expiresAt,
+      })
       .from(machineCredential)
       .innerJoin(person, eq(person.id, machineCredential.personId))
+      .leftJoin(organizationMembership, boundMembership)
+      .leftJoin(agentPool, issuingPool)
       .innerJoin(
         organizationTrustedIssuer,
         and(
@@ -125,7 +171,8 @@ export class MachineCredentialRepository implements MachineCredentials {
           // Proof: with this predicate removed, `refuses a credential that
           // names another organization's trusted issuer` in
           // `oidc-credential.controller.db.test.ts` admitted B's credential
-          // through A's trusted issuer; watched 2026-10-22.
+          // through A's trusted issuer; watched 2026-10-22, and again through
+          // mcp-01's jwt-bearer grant 2026-10-29.
           eq(organizationTrustedIssuer.organizationId, machineCredential.organizationId),
           eq(organizationTrustedIssuer.issuer, machineCredential.issuer),
         ),
@@ -147,7 +194,9 @@ export class MachineCredentialRepository implements MachineCredentials {
         personId: row.credential.personId,
         source: checkedSource(row.credential),
         boundAccountId: row.boundAccountId,
+        boundAccountRole: checkedRole(row.boundAccountRole, id),
         revokedAt: checkedTime(row.credential.revokedAt, id),
+        expiresAt: checkedTime(row.poolExpiresAt, id),
         trustedIssuerId: row.credential.trustedIssuerId,
         mcpFamilyId: row.credential.mcpFamilyId,
         secrets: [],
@@ -223,6 +272,15 @@ function checkedSource(row: MachineCredentialRow): MachineCredentialSource {
   if (!known.includes(row.source))
     throw new Error(`machine credential ${row.id} has a malformed source`);
   return row.source;
+}
+
+/** @throws on a role outside `ORGANIZATION_ROLES`. */
+function checkedRole(value: string | null, id: string): OrganizationRole | null {
+  const roles: readonly string[] = ORGANIZATION_ROLES;
+  if (value !== null && !roles.includes(value))
+    throw new Error(`the account bound to machine credential ${id} has a malformed role`);
+  // Narrowed by the vocabulary check above, which is the boundary.
+  return value as OrganizationRole | null;
 }
 
 /** @throws on a time that is not a safe integer. */

@@ -69,7 +69,7 @@ export function mayRemoveResourceInOrganization(role: OrganizationRole): boolean
 /**
  * Whether `role` may state, change or clear a resource's directory capacity,
  * or preview that change or read the resource's holders across projects
- * (`wbs-shared-occupancy` S11, S12, assumed): an admin or a super-admin, as
+ * (`wbs-shared-occupancy` S11, S12): an admin or a super-admin, as
  * {@link mayRemoveResourceInOrganization} decides a removal. The units of a
  * shared resource bind every project of the organization, so stating them is
  * an organization act. `role` is the one `organizationRoleOf` answered, so a

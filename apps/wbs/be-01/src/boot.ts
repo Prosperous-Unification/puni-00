@@ -11,6 +11,7 @@ import type { Logger } from '@wbs/observability';
 import { SqliteResourceRuntime } from '@wbs/store-sqlite';
 import { SqliteResourceUses } from '@wbs/store-sqlite';
 import {
+  AgentPoolRepository,
   computeProvidersOver,
   ConsentCredentialRepository,
   currentMembershipAccess,
@@ -22,6 +23,7 @@ import {
   JoinRequestRepository,
   MachineCredentialAdministrationRepository,
   MachineCredentialRepository,
+  MachineTokenAuditRepository,
   NO_BOUND_ORGANIZATION,
   OnboardingRepository,
   openSqliteSource,
@@ -48,7 +50,7 @@ import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { DiBag } from 'di-bag';
 
 import { type AppOptions, buildApp } from './app';
-import type { DelegationKeys } from './config';
+import { type DelegationKeys, type McpServiceSettings, missingMcpServiceSettings } from './config';
 import type { OidcRouteOptions } from './controller/oidc-options';
 import { readDeployedCommit } from './deployed-commit';
 import { OPEN } from './repository/gate';
@@ -64,6 +66,13 @@ import { importDelegationKeys, type ImportedDelegationKeys } from './runtime/del
 import { runDomainProofWorker, startDomainProofWorker } from './runtime/domain-proof-worker';
 import { createEmailDelivery } from './runtime/email-delivery';
 import type { EmailDeliveryConfig } from './runtime/email-delivery-config';
+import {
+  assertServiceSecretStrength,
+  importMachineGrantKeys,
+  type MachineGrantKeys,
+  machineGrantVerifier,
+} from './runtime/machine-grant';
+import { machineGrantAuthority } from './runtime/machine-grant-authority';
 import { type McpDelegationAuthority, mcpDelegationAuthority } from './runtime/mcp-delegation';
 import { organizationCookieBinding } from './runtime/organization-cookie';
 import {
@@ -107,6 +116,13 @@ export interface BootOptions {
   /** Parsed explicit SMTP authority; absence keeps direct/test boot callers disabled. */
   emailDelivery?: EmailDeliveryConfig;
   delegationKeys?: DelegationKeys;
+  /**
+   * mcp-01's dedicated secret, the machine grant keys and its authorization
+   * server (`wbs-mcp-agent-surface` M3, M14). Absent means none configured: a
+   * pre-activation store boots and issues nothing, and an activated store
+   * refuses readiness naming every missing variable.
+   */
+  mcpService?: McpServiceSettings;
   /** Explicit recursive IPs; absence retains the refusing domain resolver. */
   organizationDnsResolvers?: readonly string[];
   /** Defaults to enabled exactly when authoritative DNS is configured. */
@@ -262,11 +278,14 @@ function mcpDelegationComposition(
             consentCredentialOf,
           ),
     mcpDelegation: mcpDelegationAuthority({
-      // mcp-01 forwards a human's configured-issuer token; one the trusted-issuer
-      // path refuses `invalid_token` is no upstream sign-in at all.
+      // mcp-01 forwards a human's configured-issuer token; an invalid one, and
+      // a machine bearer (M9: a key, another issuer's JWT or a groups-less
+      // one), is no upstream sign-in at all.
       authenticate: async (token) => {
         const outcome = await services.auth.authenticateOrRefuse(token);
-        return outcome === 'invalid_token' ? null : outcome;
+        return outcome === 'invalid_token' || outcome === 'machine_bearer_not_accepted'
+          ? null
+          : outcome;
       },
       choices: new SqliteOrganizationSelection(db),
       organizations: access,
@@ -279,6 +298,52 @@ function mcpDelegationComposition(
       signingKey: keys?.signingKey ?? null,
       consents: new ConsentCredentialRepository(db, services.gate),
       consentCredentialOf,
+      now,
+    }),
+  };
+}
+
+/** No mcp-01 service setting configured. */
+const NO_MCP_SERVICE_SETTINGS: McpServiceSettings = {
+  internalSecret: null,
+  grantSigningKeys: null,
+  authorizationServer: null,
+};
+
+/**
+ * Machine grants (`wbs-mcp-agent-surface` M3): the identity that admits
+ * mcp-01's dedicated secret and the grants it carries, and the issuance its
+ * token endpoint asks for. Issuance reads the activation marker per request,
+ * so a process started before activation issues once the marker is set.
+ */
+function machineGrantComposition(
+  db: ReturnType<typeof openSqliteSource>['db'],
+  services: BeServices,
+  settings: McpServiceSettings,
+  keys: MachineGrantKeys | null,
+): Pick<AppOptions, 'mcpService' | 'machineGrants'> {
+  const now = () => services.clock.now();
+  return {
+    mcpService: {
+      secret: settings.internalSecret,
+      verifyGrant: keys === null ? null : machineGrantVerifier(keys, now),
+      grantKeySecrets:
+        settings.grantSigningKeys === null
+          ? []
+          : [
+              settings.grantSigningKeys.current,
+              ...(settings.grantSigningKeys.previous === null
+                ? []
+                : [settings.grantSigningKeys.previous]),
+            ],
+    },
+    machineGrants: machineGrantAuthority({
+      activationState: () => readOrganizationActivation(db),
+      keys,
+      authorizationServer: settings.authorizationServer,
+      admitProof: (presented, audienceRoot) =>
+        services.auth.admitMachineProof(presented, audienceRoot),
+      audit: new MachineTokenAuditRepository(db, services.gate),
       now,
     }),
   };
@@ -321,21 +386,37 @@ type BuiltApp = ReturnType<typeof buildApp>;
  * reach — the same shape of gap as the `runRetention` that had no caller at all.
  *
  * **It owns what it acquires.** The bag below opens the source, composes the
- * services, starts retention, mounts the listener and starts configured proof scheduling, in that order,
+ * services, awaits startup preparation and runtime ledger inspection, starts retention,
+ * mounts the listener and starts configured proof scheduling, in that order,
  * and releases them in the reverse of it. A step that fails takes the whole
  * startup down with it and gives back every resource the earlier steps took;
  * that is why this is `async` — `source.close()` and `retention.stop()` are
  * promises, and a synchronous boot could not wait for them before rethrowing.
- * It rejects with `DiBagStartupError`, whose `cause` is the original failure.
+ * It rejects with `DiBagServiceReadinessError`, whose `cause` is the original failure.
  */
 export async function bootBe01(
   opts: BootOptions,
   dependencies: BootDependencies = { openSource: openSqliteSource },
 ): Promise<RunningBe> {
+  // Read once, first: the modules already loaded are the commit this process
+  // runs, whatever the checkout moves to later. `/health` reports it beside
+  // the per-request `commit` so a deploy can tell a stale watcher from a
+  // landed reset (`tools/tool-devsync/src/sync.ts`, `convergeBootCommits`).
+  const bootCommit = readDeployedCommit(opts.commitDir);
   // Keys are parsed before storage opens, so a broken configured pair cannot
   // hide until a later activation.
   const delegationKeys =
     opts.delegationKeys === undefined ? undefined : await importDelegationKeys(opts.delegationKeys);
+  const mcpService = opts.mcpService ?? NO_MCP_SERVICE_SETTINGS;
+  const grantKeys =
+    mcpService.grantSigningKeys === null
+      ? null
+      : await importMachineGrantKeys(mcpService.grantSigningKeys);
+  // Proof: with this check removed, `refuses a weak MCP_BE_INTERNAL_SECRET
+  // before opening storage` (machine-grant.boot.db.test.ts) booted; watched
+  // 2026-10-26.
+  if (mcpService.internalSecret !== null)
+    assertServiceSecretStrength(mcpService.internalSecret, 'MCP_BE_INTERNAL_SECRET');
   // Proof: dropping scheduling in the combined SMTP/DNS boot test observed0 workers instead of1.
   const schedulesProofs =
     opts.organizationDomainProofScheduling === undefined
@@ -410,16 +491,86 @@ export async function bootBe01(
           }),
         { factoryReturnKind: 'sync-value' },
       ),
+      readiness: DiBag.createProvider(
+        async ({
+          source,
+          services: _services,
+        }: {
+          source: OwnedSource;
+          services: BeServices;
+        }): Promise<void> => {
+          const db = source.db;
+          if (opts.migrateOnStartup !== true) {
+            opts.logger.info('be-01 preparing (schema managed by the deploy pipeline)');
+          } else {
+            opts.logger.info('be-01 preparing (migrating)');
+            runMigrations(opts.dbPath, opts.migrationsFolder ?? './drizzle');
+            // Proof: post-migration admission check omitted; missing-marker boot completed instead of refusing readiness (2026-10-14).
+            readStepBlockageActivation(db);
+            // The swap's post-`stop-blue` step, here because a process that
+            // migrates itself has no older colour left to wait for.
+            const coded = backfillStepCodes(db, new DrizzleEventLogStore(db, OPEN), Date.now());
+            opts.logger.info({ coded: coded.length }, 'step codes backfilled');
+          }
+          if (opts.migrateOnStartup !== true) readStepBlockageActivation(db);
+          // An activated store serves machine grants, so their secret, keys and
+          // authorization server are required, never defaulted
+          // (`wbs-mcp-agent-surface` M3).
+          // Proof: with this refusal disabled, `refuses an activated store
+          // without the machine grant settings, naming them`
+          // (machine-grant.boot.db.test.ts) saw boot resolve with no readiness
+          // failure; watched 2026-10-26.
+          const missing = missingMcpServiceSettings(mcpService);
+          if (missing.length > 0 && readOrganizationActivation(db) === 'activated')
+            throw new Error(
+              `be-01 refuses an activated store without ${missing.join(', ')}; see docs/runbook-organization-activation.md`,
+            );
+          if (opts.localIdentity !== undefined) {
+            // The one write in the tree whose author is the row it writes:
+            // the fixed local-mode account brings itself into existence, so
+            // it is its own `created_by`. `Date.now()` rather than an
+            // injected clock because boot is not a service and has none —
+            // the rule the stamp exists for is that the *repository* reads
+            // no clock, and this is the caller.
+            //
+            // OPEN: preparation completes before requests can enter a batch.
+            new UserRepository(db, OPEN).ensureLocalIdentity(opts.localIdentity, {
+              at: Date.now(),
+              by: opts.localIdentity.id,
+            });
+          }
+          // Proof: P-final-02 omitted inspection; the held-inspection boot test
+          // observed listening first. Missing/corrupt ledger tests also reject here.
+          // Proof: P-final-01 replaced the UoW with standalone inspection; the
+          // second-connection boot regression falsely refused a healthy ledger's counts.
+          await source.uow.run(async (scope) => {
+            await scope.stores.runtimeCommands.inspectLedger();
+            return { commit: false, value: undefined };
+          });
+          state.migrationsApplied = true;
+          if (opts.migrateOnStartup === true) opts.logger.info('migrations applied');
+        },
+        { factoryReturnKind: 'native-promise' },
+      ),
       // Registered rather than started beside `listen`: a timer nobody stops
       // outlives the file it sweeps, so what starts it is now what the bag can
       // stop, and it stops before the source closes because it depends on it.
       retention: DiBag.providerWithDisposal({
         provider: DiBag.createProvider(
-          ({ services }: { services: BeServices }): BeServices['retention'] => {
+          async ({
+            services,
+            readiness,
+          }: {
+            services: BeServices;
+            readiness: Promise<void>;
+          }): Promise<BeServices['retention']> => {
+            // Proof: P6-02 removed this await; the held-inspection test
+            // observed retention.start once while inspection remained held.
+            await readiness;
             services.retention.start();
             return services.retention;
           },
-          { factoryReturnKind: 'sync-value' },
+          { factoryReturnKind: 'native-promise' },
         ),
         // Proof: on 2026-09-20, dropping this disposal made the refused-release
         // test report `Expected: false`, `Received: true` for timer activity.
@@ -429,14 +580,25 @@ export async function bootBe01(
       // is so it stops before the source it releases through closes.
       claimLeases: DiBag.providerWithDisposal({
         provider: DiBag.createProvider(
-          ({ services }: { services: BeServices }): BeServices['claimLeases'] => {
+          async ({
+            services,
+            readiness,
+          }: {
+            services: BeServices;
+            readiness: Promise<void>;
+          }): Promise<BeServices['claimLeases']> => {
+            // The sweep reads and writes claims; it starts only after the ledger is ready.
+            // Proof: F1 omitted this await; `holds listener, retention, claim sweep and proof
+            // workers until actual ledger inspection settles` (runtime-command.boot.db.test.ts)
+            // saw one sweep start while inspection was held (0 pass, 1 fail), 2026-10-25.
+            await readiness;
             // Proof: with this start removed, `starts the claim lease sweep with
             // the process` (boot.db.test.ts) read it stopped (36 pass, 1 fail);
             // watched 2026-10-23.
             services.claimLeases.start();
             return services.claimLeases;
           },
-          { factoryReturnKind: 'sync-value' },
+          { factoryReturnKind: 'native-promise' },
         ),
         disposeService: (sweep) => sweep.stop(),
       }),
@@ -449,27 +611,30 @@ export async function bootBe01(
       // has always shut down in.
       server: DiBag.providerWithDisposal({
         provider: DiBag.createProvider(
-          (
+          async (
             {
               source,
               services,
-              retention: _retention,
+              retention,
               claimLeases,
             }: {
               source: OwnedSource;
               services: BeServices;
               // Read for its edge as `retention` is (its disposer runs after the
               // listener's), and handed to the app so a revoke asks it for a tick.
-              claimLeases: BeServices['claimLeases'];
-              // Read for its edge, not its value: it is what puts the timer's
-              // disposer after the listener's. Drop it and the timer is never
-              // started at all.
+              claimLeases: Promise<BeServices['claimLeases']>;
+              // Await startup and keep the timer's disposer after the listener's.
+              // Dropping this edge also prevents timer acquisition.
               // Proof: on 2026-09-20, dropping this edge made the timer test
               // report `Expected: true`, `Received: false` (0 pass, 1 fail).
-              retention: BeServices['retention'];
+              retention: Promise<BeServices['retention']>;
             },
             factoryCtx,
-          ): BuiltApp => {
+          ): Promise<BuiltApp> => {
+            // Proof: P6-03 removed this await; the held-inspection test
+            // observed one listener before inspection settled.
+            await retention;
+            const claimLeaseSweep = await claimLeases;
             const db = source.db;
             // Proof: removing this resolver binding made the activated
             // `immediate configured sweep` fail instead of recording DNS absence.
@@ -528,7 +693,16 @@ export async function bootBe01(
               // credentials`: the fallback answers every route
               // no_active_organization; watched 2026-10-22.
               machineCredentials: new MachineCredentialAdministrationRepository(db, services.gate),
-              claimLeases,
+              // Proof: omitting this binding made `serves agent pools from the
+              // shared database once activated` (boot.db.test.ts) throw `boot
+              // did not wire agent pools`; watched 2026-10-28.
+              agentPools: new AgentPoolRepository(
+                db,
+                services.gate,
+                opts.organizationDefaultLimits,
+              ),
+              mcpAuthorizationServer: mcpService.authorizationServer,
+              claimLeases: claimLeaseSweep,
               // Proof: omitting this binding made `serves trusted issuer
               // administration from the shared database once activated`
               // (boot.db.test.ts) throw `boot did not wire trusted issuers`:
@@ -586,8 +760,13 @@ export async function bootBe01(
               // under live watchers, so this process outlives the commit it
               // started on.
               deployedCommit: () => readDeployedCommit(opts.commitDir),
+              bootCommit,
               internalAuthSecret: opts.internalAuthSecret,
               ...mcpDelegationComposition(db, services, delegationKeys),
+              // Proof: omitting this binding made `issues a grant once activated
+              // and admits it on the next call` (machine-grant.boot.db.test.ts)
+              // answer the grant request 401; watched 2026-10-26.
+              ...machineGrantComposition(db, services, mcpService, grantKeys),
               version: opts.version,
             });
             // Pushed before `listen`, because from here on there is something
@@ -598,53 +777,12 @@ export async function bootBe01(
             factoryCtx.pushDisposer(async (disposerCtx) => {
               if (disposerCtx.reason !== 'service-disposed') await app.stop();
             });
-            // Elysia runs this callback inline, before `listen` returns, so the
-            // schema step and the identity write happen exactly where they did —
-            // and a throw in either still leaves this factory, which is now what
-            // releases the socket above.
+            // Readiness and retention have settled before acquiring a socket.
             const startListener =
               dependencies.startListener ??
               ((server: BuiltApp, port: number, ready: () => void) => server.listen(port, ready));
             startListener(app, opts.port, () => {
-              if (opts.migrateOnStartup !== true) {
-                opts.logger.info(
-                  { port: opts.port },
-                  'be-01 listening (schema managed by the deploy pipeline)',
-                );
-              } else {
-                opts.logger.info({ port: opts.port }, 'be-01 listening (migrating)');
-                runMigrations(opts.dbPath, opts.migrationsFolder ?? './drizzle');
-                // Proof: post-migration admission check omitted; missing-marker boot completed instead of refusing readiness (2026-10-14).
-                readStepBlockageActivation(db);
-                // The swap's post-`stop-blue` step, here because a process that
-                // migrates itself has no older colour left to wait for.
-                const coded = backfillStepCodes(db, new DrizzleEventLogStore(db, OPEN), Date.now());
-                opts.logger.info({ coded: coded.length }, 'step codes backfilled');
-              }
-              if (opts.migrateOnStartup !== true) readStepBlockageActivation(db);
-              if (opts.localIdentity !== undefined) {
-                // The one write in the tree whose author is the row it writes:
-                // the fixed local-mode account brings itself into existence, so
-                // it is its own `created_by`. `Date.now()` rather than an
-                // injected clock because boot is not a service and has none —
-                // the rule the stamp exists for is that the *repository* reads
-                // no clock, and this is the caller.
-                //
-                // **This has to finish before the first write, and it does.**
-                // Every audit column's `created_by` references `users(id)` with
-                // foreign keys on, so a write attributed to this identity before
-                // its row exists is a `FOREIGN KEY constraint failed` rather
-                // than a quiet null. `/health` answers 503 `migrating` until the
-                // flag below, and both things that send the first request wait
-                // for a 200 first: Playwright's `webServer` does, and so does
-                // the deploy poller before it routes traffic to green. `OPEN`:
-                // this runs before the first request is served, so there is no
-                // batch for this write to land inside and no turn to wait for.
-                new UserRepository(db, OPEN).ensureLocalIdentity(opts.localIdentity, {
-                  at: Date.now(),
-                  by: opts.localIdentity.id,
-                });
-              }
+              opts.logger.info({ port: opts.port }, 'be-01 listening');
             });
             services.optimizer?.start();
             factoryCtx.pushDisposer(async () => {
@@ -691,11 +829,9 @@ export async function bootBe01(
                 },
               );
             }
-            state.migrationsApplied = true;
-            if (opts.migrateOnStartup === true) opts.logger.info('migrations applied');
             return app;
           },
-          { factoryReturnKind: 'sync-value', factoryReceivesContext: true },
+          { factoryReturnKind: 'native-promise', factoryReceivesContext: true },
         ),
         // A block body, not `(app) => app.stop()`: Elysia's `stop()` resolves to
         // the application, and a disposer must resolve to nothing.
@@ -713,7 +849,7 @@ export async function bootBe01(
     .ensureServicesReady(['server']);
 
   const services = bag.resolve('services');
-  const app = bag.resolve('server');
+  const app = await bag.resolve('server');
 
   return {
     backgroundFailure: backgroundFailure.source,

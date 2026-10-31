@@ -528,6 +528,11 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
   );
 
   const stores: PlanTransactionalStores = {
+    get runtimeCommands() {
+      // Proof: P49 omitted the lifetime check; the closed runtime-catalog getter returned its borrowed store.
+      assertOpen();
+      return scope.stores.runtimeCommands;
+    },
     get livePlans() {
       assertOpen();
       return scope.stores.livePlans;
@@ -552,6 +557,11 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     // every activated statement case of capacity-limit.controller.db.test.ts
     // answered 500 "a resource capacity was stated under scoped access without
     // organization limits" (2 pass, 10 fail).
+    // Proof: removing this getter made the mounted runtime cap refusal case
+    // return shared-client unexpected_status 500 instead of claim_limit 409,
+    // logging "a bound claim was added under scoped access without organization
+    // limits" (0 pass, 1 fail); exact restoration passed both runtime cap cases,
+    // watched 2026-10-22 in runtime-claim-limit.db.test.ts.
     get organizationLimits() {
       assertOpen();
       return scope.stores.organizationLimits;
@@ -657,9 +667,9 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       },
       // A renewal is the person's, across projects, and moves no revision or
       // retained row: a lease is not a plan fact (`wbs-claim-leases` L4).
-      renewLeases: (personId, now) => {
+      renewLeases: (personId, runId, now) => {
         assertOpen();
-        return scope.stores.claims.renewLeases(personId, now);
+        return scope.stores.claims.renewLeases(personId, runId, now);
       },
       expiredLeasesOf: (requestedProjectId, at) => {
         assertProject(requestedProjectId);

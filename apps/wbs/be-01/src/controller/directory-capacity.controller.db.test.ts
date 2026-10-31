@@ -1,17 +1,25 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { generateKeyPair } from 'jose';
 
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
-import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
+import {
+  type Answer,
+  type HarnessMachineGrants,
+  OrganizationHarness,
+} from '../testing/organization-harness';
 import { delegationFor, mapUpstream } from '../testing/scim-fixture';
 
 /**
  * A resource's directory capacity (`wbs-shared-occupancy` slice 1, on the
- * assumed S1, S11 and S12) over be-01's production composition and real
+ * S1, S11 and S12, accepted 2026-11-01) over be-01's production composition and real
  * SQLite: `setDirectoryCapacity` on both command routes, who may send it, its
  * audit row, the resources read, a removal counting it, the preview, and that
- * a lowering strands nothing.
+ * a lowering strands nothing. An agent key reaches be-01 only on the MCP path
+ * (`wbs-mcp-agent-surface`, #785), through mcp-01's forwarded grant
+ * ({@link callForwarded}); `/api` refuses it as a bearer.
  */
+let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
 let projectA: string;
 let projectB: string;
@@ -21,8 +29,12 @@ const DIRECTORY = '/api/directory/commands';
 const previewPath = (resourceId: string) =>
   `/api/organization/resources/${resourceId}/directory-capacity/preview`;
 
+beforeAll(async () => {
+  machineGrants = await forwardingMachineGrants();
+});
+
 beforeEach(async () => {
-  h = OrganizationHarness.openComposed();
+  h = OrganizationHarness.openComposedWith({ machineGrants });
   await setUp(h);
 });
 
@@ -154,6 +166,9 @@ describe('setDirectoryCapacity', () => {
     expect(auditRows(h)).toEqual([]);
   });
 
+  // Proof: with the role check skipped in `setDirectoryCapacityWithin`, this
+  // forwarded (MCP-path) case failed with the member, viewer and consent cases
+  // (8 pass, 3 fail); watched 2026-11-01.
   it("refuses an admin's agent key as a member on either route", async () => {
     addAgentPerson(h.sqlite, 'sue-agent', 'org-a', h.userId('sue'));
     const { key } = await issueApiKey(h.sqlite, {
@@ -161,11 +176,18 @@ describe('setDirectoryCapacity', () => {
       personId: 'sue-agent',
       issuedBy: h.userId('sue'),
     });
-    for (const path of [DIRECTORY, `/api/projects/${projectA}/commands`])
-      expect(await h.callWith(key, 'POST', path, { commands: [state(ram, 16)] }), path).toEqual({
+    for (const path of [DIRECTORY, `/api/projects/${projectA}/commands`]) {
+      const commands = { commands: [state(ram, 16)] };
+      expect(await callForwarded(h, key, 'POST', path, commands), path).toEqual({
         status: 403,
         body: { at: 0, kind: 'setDirectoryCapacity', error: 'forbidden' },
       });
+      // Straight at `/api`, the key is no bearer at all (#785).
+      expect(await h.callWith(key, 'POST', path, commands), path).toMatchObject({
+        status: 401,
+        body: { error: 'machine_bearer_not_accepted' },
+      });
+    }
     expect(stated(h, ram)).toBeNull();
   });
 
@@ -325,9 +347,13 @@ describe('previewing and lowering a directory capacity', () => {
       personId: 'sue-agent',
       issuedBy: h.userId('sue'),
     });
-    expect(await h.callWith(key, 'POST', previewPath(ram), { units: 10 })).toEqual({
+    expect(await callForwarded(h, key, 'POST', previewPath(ram), { units: 10 })).toEqual({
       status: 403,
       body: { error: 'forbidden' },
+    });
+    expect(await h.callWith(key, 'POST', previewPath(ram), { units: 10 })).toMatchObject({
+      status: 401,
+      body: { error: 'machine_bearer_not_accepted' },
     });
     expect(await h.call('grace', 'POST', previewPath(ram), { units: 10 })).toEqual({
       status: 404,

@@ -2,7 +2,7 @@ import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
-import type { CredentialPair } from '../../ports/claim-store';
+import type { CredentialPin } from '../../ports/claim-store';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { Scope } from '../../ports/unit-of-work';
@@ -16,17 +16,15 @@ import type { AppliedCommand } from './plan-commands.feature';
 const F = 'account-f';
 const G = 'account-g';
 
-/** The fleet's machine credential, linked to account F. */
-const FLEET: CredentialPair = { issuer: 'https://idp.test', subject: 'claire-m2m@clients' };
+/** The fleet's machine credential of account F, pinned to `claire` as its own person. */
+const FLEET: CredentialPin = { personId: 'claire' };
 
 /**
- * Who each person is bound to (`person.account_id`) and the person the fleet
- * credential is pinned to (`external_identity.person_id`), written through the
+ * Who each person is bound to (`person.account_id`), written through the
  * memory source's real directory before the batch runs.
  */
 interface Identities {
   readonly bound: ReadonlyMap<string, string>;
-  readonly pinned: string | null;
 }
 
 const BOUND: Identities = {
@@ -37,7 +35,6 @@ const BOUND: Identities = {
     ['codex-fleet', F],
     ['stranger', G],
   ]),
-  pinned: null,
 };
 
 /**
@@ -97,8 +94,6 @@ async function seeded(identities: Identities = BOUND) {
     );
     if (!bound.ok) throw new Error(`binding ${personId} was refused: ${bound.reason}`);
   }
-  if (identities.pinned !== null)
-    fixture.pinCredential(FLEET.issuer, FLEET.subject, identities.pinned);
   const runner = createPlanCommandRunner({
     uow: source.uow,
     announcements: broadcast,
@@ -111,7 +106,7 @@ async function seeded(identities: Identities = BOUND) {
   const revision = async (id: string) =>
     (await source.stores.workItems.listByProject(projectId)).find((row) => row.id === id)?.revision;
   const entries = async (actor: string) =>
-    (await source.stores.journal.entriesFor(projectId, actor)).length;
+    (await source.stores.journal.entriesFor({ projectId, userId: actor, personId: null })).length;
   return { source, fixture, graph, runner, projectId, steps, claims, progress, revision, entries };
 }
 
@@ -468,22 +463,55 @@ describe('claimWorkItem in a batch', () => {
   // Proof: with decideClaim's pin check replaced by `false`, this case failed
   // through the command path; watched 2026-10-19.
   it('refuses a pinned credential claiming as another agent', async () => {
-    const { source, runner, projectId } = await seeded({ bound: BOUND.bound, pinned: 'claire' });
+    const { source, runner, projectId } = await seeded();
     try {
-      const claimAs = (personId: string, credential: CredentialPair | null) =>
+      const claimAs = (personId: string, credential: CredentialPin | null) =>
         runner.runWithin(
           projectId,
           F,
           [{ kind: 'claimWorkItem', workItemId: '090', personId }],
           LEGACY_ACCESS,
           credential,
+          null,
         );
       expect(await claimAs('codex-fleet', FLEET)).toMatchObject({
         ok: false,
         reason: 'credential_not_for_person',
       });
-      // The account's own session carries no pair, so nothing pins it.
+      // The account's own session carries no credential, so nothing pins it.
       expect(await claimAs('codex-fleet', null)).toMatchObject({ ok: true });
+    } finally {
+      await source.close();
+    }
+  });
+
+  // `wbs-claim-own-person`, through the binding itself: legacy access skips the
+  // scoped reference check that resolves the claimant first.
+  // Proof: with `claimant`'s acting-person default removed, the agent claim
+  // answered person_required; with it falling back to the actor id, the account
+  // claim answered unknown_person; watched 2026-10-26.
+  it('claims and releases as the acting agent person when none is named; an account must name one', async () => {
+    const { source, runner, projectId, claims } = await seeded();
+    try {
+      const asAgent = (command: Parameters<typeof runner.run>[2][number]) =>
+        runner.runWithin(projectId, F, [command], LEGACY_ACCESS, { personId: 'claire' }, 'claire');
+      expect(await asAgent({ kind: 'claimWorkItem', workItemId: '090' })).toMatchObject({
+        ok: true,
+      });
+      expect((await claims()).map(({ personId }) => personId)).toEqual(['claire', 'claire']);
+      expect(await asAgent({ kind: 'releaseWorkItem', workItemId: '090' })).toMatchObject({
+        ok: true,
+      });
+      expect(await claims()).toEqual([]);
+      for (const kind of ['claimWorkItem', 'releaseWorkItem'] as const) {
+        expect(await runner.run(projectId, F, [{ kind, workItemId: '090' }])).toMatchObject({
+          ok: false,
+          at: 0,
+          kind,
+          reason: 'person_required',
+        });
+      }
+      expect(await claims()).toEqual([]);
     } finally {
       await source.close();
     }

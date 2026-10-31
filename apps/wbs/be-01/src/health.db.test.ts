@@ -123,6 +123,7 @@ describe('GET /health', () => {
       error: 'dependency_unavailable',
       status: 'migrating',
       commit: null,
+      bootCommit: null,
     });
   });
 });
@@ -176,6 +177,7 @@ describe('/health tells the truth about the database', () => {
         error: 'dependency_unavailable',
         status: 'schema_missing',
         commit: null,
+        bootCommit: null,
       });
       close();
     } finally {
@@ -276,6 +278,7 @@ describe('/health tells the truth about the database', () => {
       error: 'dependency_unavailable',
       status: 'database_unreachable',
       commit: null,
+      bootCommit: null,
     });
   });
 });

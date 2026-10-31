@@ -1493,3 +1493,27 @@ intro; `mem` has the hint above the list and `Adopt 64 GB` on h2puni ram;
 `settings-mem-demoted-forbidden-1280-light`: `mem` demoted to viewer by sqlite while the section
 was open, States 3 slots, and the row says "this plan is not yours to change" while the reread
 takes every box away and shows the viewer sentence (role restored after).
+
+## Current-role resource actions after refresh — 2026-10-25
+
+Restores the existing resource-directory role contract on main `a403db48`.
+After a completed role reread sees viewer, a landed capacity adoption retains
+its feedback and withdraws Undo. An open rename form is discarded when rename
+capability disappears; restoring write permission opens a fresh draft. The
+resource-use panel and its dirty/busy reporting remain present. This is a UI
+write-offer correction; no backend authorization bypass is claimed.
+
+Both mounted HTTP-transition regressions failed on original main before the
+correction: retained Undo and retained rename form, two failures. The corrected
+full resource-panel suite passed all 62 tests, including writer Undo/rename,
+409 refusal, static viewer and forbidden-capacity recovery. App and test
+TypeScript compilation, a fresh Nx graph followed by scoped ESLint, Prettier
+and diff checks passed. The existing Vite future-loader warning remained.
+
+Three independent production-path omissions each failed the intended mounted
+assertion: unconditional Undo callback, unconditional Undo button, and omitted
+rename draft reset. Each fault patch was saved before execution and source
+was restored in finally with an exact hash check. These demonstrate withdrawn
+controls, not a server-side authorization bypass. Proof comments follow the
+observed regressions. CI, browser E2E and a host gate are separate evidence;
+none is established by these focused source checks.

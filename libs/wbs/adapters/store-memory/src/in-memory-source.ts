@@ -20,6 +20,7 @@ import { inMemoryProgress, memoryProgressTable } from './progress-fixture';
 import { inMemoryProjects, memoryProjectTables } from './project-fixture';
 import { inMemoryEventLog } from './replay-fixture';
 import { inMemoryDemands, inMemoryResourceCapacity } from './resource-fixture';
+import { inMemoryRuntimeCommands, memoryRuntimeTable } from './runtime-command';
 import { inMemoryStepBlockages } from './step-blockage-fixture';
 import { inMemorySteps } from './step-fixture';
 import { inMemoryStepParallels, memoryStepParallelTable } from './step-parallel-fixture';
@@ -73,6 +74,7 @@ export function inMemoryStores(): TransactionalStores {
   const dependencies = inMemoryDependencies([], undefined, workItems);
   const demands = inMemoryDemands(directoryTables.resources, workItems);
   return {
+    runtimeCommands: inMemoryRuntimeCommands(memoryRuntimeTable()),
     users,
     projects,
     directory,

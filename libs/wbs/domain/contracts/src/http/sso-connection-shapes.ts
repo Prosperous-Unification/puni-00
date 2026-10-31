@@ -53,6 +53,7 @@ export const listSsoConnections = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/sso-connections',
   operationId: 'getApiOrganizationSso-connections',
+  humanOnly: true,
   policies: [...readPolicy, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     {
@@ -73,6 +74,7 @@ export const createSsoConnection = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/sso-connections',
   operationId: 'postApiOrganizationSso-connections',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   body: requestSchema(
     type({ domainClaimId: 'string', auth0Connection, strategy, loginSlug: enterpriseLoginSlug }),
@@ -103,6 +105,7 @@ export const updateSsoConnection = defineEndpointShape({
   method: 'PATCH',
   path: '/api/organization/sso-connections/:id',
   operationId: 'patchApiOrganizationSso-connectionsById',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   body: requestSchema(
@@ -138,6 +141,7 @@ export const removeSsoConnection = defineEndpointShape({
   method: 'DELETE',
   path: '/api/organization/sso-connections/:id',
   operationId: 'deleteApiOrganizationSso-connectionsById',
+  humanOnly: true,
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],

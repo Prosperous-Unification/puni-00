@@ -175,6 +175,8 @@ export function MachineCredentialsPanel({
   const [isSending, setIsSending] = useState(false);
   const isPending = useRef(false);
   const generation = useRef(0);
+  /** The audience root the last issuer read answered, for `audience_not_wbs`. */
+  const audienceRoot = useRef<string | null>(null);
   const isAdmin = viewer.reach === 'all';
   const idPrefix =
     person === undefined ? 'machine-credentials' : `machine-credentials-${person.id}`;
@@ -184,7 +186,9 @@ export function MachineCredentialsPanel({
       // Proof: 2026-10-22, omitting this clearing kept the key on screen in
       // `discards a created key when the reread is refused`.
       setSecret(null);
-      const outcome = credentialRefusal(refusal, operation);
+      // Proof: 2026-10-27, passing null here failed `renders audience_not_wbs on
+      // an oidc create` (the root missing from the sentence).
+      const outcome = credentialRefusal(refusal, operation, audienceRoot.current);
       if (outcome.kind === 'lost') {
         setView({ kind: 'loading' });
         onAccessLost(outcome.loss);
@@ -279,6 +283,7 @@ export function MachineCredentialsPanel({
         switch (issuers.kind) {
           case 'success':
             choice = { kind: 'ready', issuers: issuers.body.trustedIssuers };
+            audienceRoot.current = issuers.body.audienceRoot;
             break;
           case 'failure':
             if (issuers.failure.code === 'cancelled') return;

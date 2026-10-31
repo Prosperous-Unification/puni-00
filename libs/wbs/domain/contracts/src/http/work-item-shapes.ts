@@ -64,9 +64,8 @@ const usage = type({
     }).array(),
   }).array(),
   members: named.array(),
-  // Optional on the wire: an outgoing be-01 mid-swap counts no pins.
-  'pinnedCredentials?': 'number',
-  // Optional on the wire for the same reason (`wbs-machine-credentials`).
+  // Optional on the wire: a be-01 older than `wbs-machine-credentials`
+  // slice 2 omits it; every later release sends it, 0 for a team.
   'machineCredentials?': 'number',
 });
 /**
@@ -192,6 +191,7 @@ const batchRefusals = [
           'project_required',
           'unknown_ref',
           'missing_id',
+          'person_required',
           'duplicate_ref',
           'name_required',
           'strategy_required',
@@ -213,6 +213,8 @@ const batchRefusals = [
           // `claimWorkItem`/`releaseWorkItem`: the caller may not act as the person named.
           'person_not_bound',
           'credential_not_for_person',
+          // An opted-in run's claim or release for its own person under another run.
+          'run_mismatch',
           'parent_claim_foreign',
         ),
       ),
@@ -467,7 +469,8 @@ const batchRefusals = [
 ] as const;
 
 /**
- * Reads the complete tree, this account's conditional undo state, and current
+ * Reads the complete tree, the caller's own conditional undo state (its account
+ * and acting person), and current
  * step addresses. The two address fields are optional on the wire because a
  * newer client can read an older be-01 during blue/green swap or after rollback.
  * Every be-01 that knows these fields sends both; they stay outside
@@ -713,7 +716,10 @@ const undoRefusals = [
     ),
   },
 ] as const;
-/** Reverses this account's last unchanged project batch. */
+/**
+ * Reverses the caller's own last unchanged project batch: its account's, or the agent person's
+ * when a machine or consent credential acts (`actingPersonOf`), never another actor's.
+ */
 export const undoProject = defineEndpointShape({
   method: 'POST',
   path: '/api/projects/:id/undo',
@@ -722,9 +728,9 @@ export const undoProject = defineEndpointShape({
   params,
   responses: undoResponses,
   refusals: undoRefusals,
-  document: { summary: 'Undo a project batch.' },
+  document: { summary: 'Undo your own last project batch; an agent key has its own stack.' },
 });
-/** Reapplies this account's last reversed project batch. */
+/** Reapplies the caller's own last reversed project batch; see {@link undoProject}. */
 export const redoProject = defineEndpointShape({
   method: 'POST',
   path: '/api/projects/:id/redo',
@@ -733,5 +739,5 @@ export const redoProject = defineEndpointShape({
   params,
   responses: undoResponses,
   refusals: undoRefusals,
-  document: { summary: 'Redo a project batch.' },
+  document: { summary: 'Redo your own last undone project batch; an agent key has its own stack.' },
 });

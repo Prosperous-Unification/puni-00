@@ -2,6 +2,11 @@ import type { Stores, TransactionalStores } from '@wbs/core';
 import { expect } from 'bun:test';
 
 import type { CaseId, CaseRegistration } from './case-manifest';
+import {
+  RUNTIME_CLAIM,
+  RUNTIME_SCOPE,
+  runtimeAcceptanceFixture,
+} from './runtime-command-conformance';
 import type { CaseFixture, SourceDeclaration } from './source-declaration';
 import { actualRegistrations } from './stores/actuals';
 import { calendarMarkerRegistrations } from './stores/calendar-markers';
@@ -69,6 +74,7 @@ export interface ExistingStoreOpeners {
   readonly progress: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['progress']>>;
   readonly attempts: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['attempts']>>;
   readonly stepParallels: OpenCase<'stepParallels'>;
+  readonly runtimeCommands: OpenCase<'runtimeCommands'>;
   readonly claims: OpenCase<'claims'>;
   readonly demands: OpenCase<'demands'>;
   readonly blockages: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['blockages']>>;
@@ -228,6 +234,31 @@ export function existingStoreRegistrations(
         expect(await port.listByProject(seed.projectIds[1])).toEqual([]);
         await port.remove(parallel.workItemId, parallel.stepId, seed.stamps[1]);
         expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
+      },
+    ),
+    storeCase(
+      'runtimeCommands',
+      'runtimeCommands.write:permanent-history',
+      openers.runtimeCommands,
+      async ({ port }) => {
+        const initial = await port.inspectLedger();
+        expect(await port.compareAuthority(RUNTIME_SCOPE, null, 'owner')).toEqual({
+          ownerId: 'owner',
+          generation: 1,
+        });
+        await port.insertBinding(RUNTIME_SCOPE, RUNTIME_CLAIM);
+        const accepted = runtimeAcceptanceFixture(initial.ledgerId);
+        await port.insertAcceptance(accepted);
+        expect(await port.readAttemptBinding(RUNTIME_SCOPE, 'store', 'attempt')).toEqual(
+          RUNTIME_CLAIM,
+        );
+        expect(await port.readAcceptance(RUNTIME_SCOPE, 'command')).toEqual(accepted);
+        expect(await port.inspectLedger()).toEqual({
+          ...initial,
+          authorityCount: 1,
+          bindingCount: 1,
+          receiptCount: 1,
+        });
       },
     ),
     storeCase(
@@ -438,16 +469,16 @@ export function existingStoreRegistrations(
         // At 5,000 a lease is due below 845,000 (`renewalAt`): the first moves
         // to 905,000, the second was renewed within the resolution and stays.
         // Only the first project's lease moved, so only it is named.
-        expect(await port.renewLeases(agent, () => 5_000)).toEqual({
+        expect(await port.renewLeases(agent, null, () => 5_000)).toEqual({
           standing: { leases: 2, leaseExpiresAt: 860_000 },
           renewedProjectIds: [seed.projectIds[0]],
         });
         // At 860,000 the second lease has run out: it is not revived.
-        expect(await port.renewLeases(agent, () => 860_000)).toEqual({
+        expect(await port.renewLeases(agent, null, () => 860_000)).toEqual({
           standing: { leases: 1, leaseExpiresAt: 1_760_000 },
           renewedProjectIds: [seed.projectIds[0]],
         });
-        expect(await port.renewLeases(human, () => 860_000)).toEqual({
+        expect(await port.renewLeases(human, null, () => 860_000)).toEqual({
           standing: { leases: 0, leaseExpiresAt: null },
           renewedProjectIds: [],
         });
@@ -491,7 +522,7 @@ export function existingStoreRegistrations(
             ),
           ).toBe('written');
         }
-        expect(await port.renewLeases(agent, () => 1_800_000)).toEqual({
+        expect(await port.renewLeases(agent, null, () => 1_800_000)).toEqual({
           standing: { leases: 3, leaseExpiresAt: 2_700_000 },
           renewedProjectIds: [seed.projectIds[0], seed.projectIds[1]].sort((left, right) =>
             left < right ? -1 : Number(left > right),
@@ -600,7 +631,7 @@ export function existingStoreRegistrations(
         expect(await scenario.endLeasesOf(agent, 5_000)).toBe(1);
         expect(await port.listStampedByProject(seed.projectIds[0])).toEqual(stamped(5_000, 5_000));
         // A revoked lease is never renewed again, and expires as revoked.
-        expect(await port.renewLeases(agent, () => 4_000)).toEqual({
+        expect(await port.renewLeases(agent, null, () => 4_000)).toEqual({
           standing: { leases: 0, leaseExpiresAt: null },
           renewedProjectIds: [],
         });
@@ -612,6 +643,68 @@ export function existingStoreRegistrations(
         expect(await port.findById(seed.projectIds[0], leased.id)).toEqual(leased);
       },
     ),
+    // `wbs-mcp-agent-surface` M15: a run renews its own leases and the
+    // person's no-run ones (taken before it opted in), never another run's;
+    // no run renews every lease of the person, those of every run included.
+    storeCase('claims', 'claims.lease:run-scoped', openers.claims, async ({ port, seed }) => {
+      const [leaf, child] = seed.workItemIds[0];
+      const [stepId, otherStepId] = seed.stepIds[0];
+      const [agent] = seed.personIds;
+      const underA = {
+        id: 'claim-run-a',
+        workItemId: leaf,
+        stepId,
+        personId: agent,
+        runId: 'a',
+        parentClaimId: null,
+        accountId: seed.ownerIds[0],
+      };
+      const underB = { ...underA, id: 'claim-run-b', stepId: otherStepId, runId: 'b' };
+      const noRun = { ...underA, id: 'claim-no-run', workItemId: child, runId: null };
+      for (const leased of [underA, underB, noRun])
+        expect(
+          await port.add(
+            [leased],
+            [],
+            seed.stamps[0],
+            [],
+            [{ claimId: leased.id, expiresAt: 10_000 }],
+          ),
+        ).toBe('written');
+      const expiries = async () =>
+        Object.fromEntries(
+          (await port.listStampedByProject(seed.projectIds[0])).map(({ id, leaseExpiresAt }) => [
+            id,
+            leaseExpiresAt,
+          ]),
+        );
+      // Run a: its lease and the no-run lease move, b's stays where it was,
+      // and the standing counts those two.
+      expect(await port.renewLeases(agent, 'a', () => 5_000)).toEqual({
+        standing: { leases: 2, leaseExpiresAt: 905_000 },
+        renewedProjectIds: [seed.projectIds[0]],
+      });
+      expect(await expiries()).toEqual({
+        'claim-run-a': 905_000,
+        'claim-run-b': 10_000,
+        'claim-no-run': 905_000,
+      });
+      // A run that holds nothing renews nothing new; it stands at the no-run lease.
+      expect(await port.renewLeases(agent, 'c', () => 6_000)).toEqual({
+        standing: { leases: 1, leaseExpiresAt: 905_000 },
+        renewedProjectIds: [],
+      });
+      // No run: every lease of the person, whatever its run.
+      expect(await port.renewLeases(agent, null, () => 7_000)).toEqual({
+        standing: { leases: 3, leaseExpiresAt: 905_000 },
+        renewedProjectIds: [seed.projectIds[0]],
+      });
+      expect(await expiries()).toEqual({
+        'claim-run-a': 905_000,
+        'claim-run-b': 907_000,
+        'claim-no-run': 905_000,
+      });
+    }),
     storeCase(
       'claims',
       'claims.occupancy:hold-read-cascade',

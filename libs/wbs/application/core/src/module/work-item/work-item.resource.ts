@@ -22,7 +22,9 @@ import {
   chargedWorkdaysOf,
   type Claim,
   CLAIM_LEASE_MS,
+  type ClaimCaller,
   type ClaimRefusal,
+  claimRunOf,
   type Days,
   deadlineOffsetOf,
   deadlineOffsetsOf,
@@ -50,6 +52,7 @@ import {
   freeUnitsOf,
   haveSameSliceOrder,
   type Hold,
+  isHeldUnderRun,
   isLegacyMetric,
   type IsoDate,
   isoDateOfInstantIn,
@@ -143,12 +146,14 @@ import {
   type ClaimStore,
   type CredentialPin,
   type LeaseRenewal,
+  pinnedRunOf,
   unstampClaim,
 } from '../../ports/claim-store';
 import type { Clock } from '../../ports/clock';
 import type {
   CommandJournalStore,
   JournalEntry,
+  UndoStack,
   UndoState,
 } from '../../ports/command-journal-store';
 import type { DemandStore } from '../../ports/demand-store';
@@ -3798,7 +3803,7 @@ export class WorkItemService {
 
   /**
    * What setting a resource's directory capacity to `units` would leave
-   * (`wbs-shared-occupancy` S12, assumed), writing nothing: the units before
+   * (`wbs-shared-occupancy` S12), writing nothing: the units before
    * and after, each project of the organization that holds, states or demands
    * the resource with the units its leaves hold, the free units after (null
    * when it would be unstated), and the refusal the write would meet.
@@ -3968,6 +3973,12 @@ export class WorkItemService {
     const status = (await this.statusesOf(projectId, rows)).get(id);
     if (status === undefined) throw new Error(`work item ${id} has no derived status`);
     const pinnedPersonId = await identity.pinnedPersonOf(credential);
+    const caller: ClaimCaller = {
+      accountId: actorId,
+      isAdmin: isClaimAdmin(access),
+      pinnedPersonId,
+      pinnedRunId: pinnedRunOf(credential),
+    };
     const decided = decideClaim({
       target: {
         workItemId: id,
@@ -3979,11 +3990,7 @@ export class WorkItemService {
           ? steps.map((step) => ({ stepId: step.id, progress: stated.get(step.id) ?? 'unknown' }))
           : [],
       },
-      caller: {
-        accountId: actorId,
-        isAdmin: isClaimAdmin(access),
-        pinnedPersonId,
-      },
+      caller,
       claimant: {
         personId: input.personId,
         boundAccountId: await identity.boundAccountOf(input.personId),
@@ -4004,10 +4011,17 @@ export class WorkItemService {
     });
     if (decided.kind === 'refused')
       return this.refusedWithHolders(decided.refusal, id, projectId, access, nameOf);
+    // The run the decision wrote and compared: the caller's opted-in run for
+    // its own person (M15), else the command's.
+    const run = claimRunOf(caller, input.personId, input.runId);
+    if ('reason' in run) throw new Error(`claim of ${id} was decided under a mismatched run`);
     if (decided.kind === 'alreadyHeld') {
+      // Proof: with `input.runId` here, `counts a run’s second step on a held
+      // leaf as no new bound claim` (machine-grant-run.controller.db.test.ts)
+      // answered the repeat with no claim ids; watched 2026-10-27.
       const held = near.filter(
         (each) =>
-          each.workItemId === id && each.personId === input.personId && each.runId === input.runId,
+          each.workItemId === id && each.personId === input.personId && isHeldUnderRun(each, run),
       );
       return {
         ok: true,
@@ -4031,8 +4045,14 @@ export class WorkItemService {
     // and five more were applied, the second run of one person among them
     // (7 pass, 6 fail).
     const addsBoundClaim = !near.some(
+      // The stamped run, exactly: an adopted no-run claim is another triple,
+      // so a run's first step beside it still adds a bound claim.
+      // Proof: with `input.runId` here (the command's run, null for a grant
+      // that sent none), `counts a run's second step on a held leaf as no new
+      // bound claim` (machine-grant-run.controller.db.test.ts) was refused
+      // claim_limit at cap 1; watched 2026-10-27.
       (each) =>
-        each.workItemId === id && each.personId === input.personId && each.runId === input.runId,
+        each.workItemId === id && each.personId === input.personId && each.runId === run.runId,
     );
     if (addsBoundClaim) {
       const crossed = await this.refuseBoundClaims(access, 1);
@@ -4151,6 +4171,7 @@ export class WorkItemService {
         accountId: actorId,
         isAdmin: isClaimAdmin(access),
         pinnedPersonId: await identity.pinnedPersonOf(credential),
+        pinnedRunId: pinnedRunOf(credential),
       },
       claimant: {
         personId: input.personId,
@@ -4185,12 +4206,14 @@ export class WorkItemService {
 
   /**
    * Renews every lease of `personId` due at this instant, in every project
-   * (`wbs-claim-leases` L4), and answers the person's standing after it. The
-   * store writes only when one is due, so a call within the resolution of the
-   * last one writes nothing, and names the projects whose leases it moved.
+   * (`wbs-claim-leases` L4), scoped to `runId` when the caller opted into one
+   * (`wbs-mcp-agent-surface` M15; null renews every lease of the person), and
+   * answers the standing after it. The store writes only when one is due, so a
+   * call within the resolution of the last one writes nothing, and names the
+   * projects whose leases it moved.
    */
-  renewLeases(personId: string): Promise<LeaseRenewal> {
-    return this.claiming().claims.renewLeases(personId, () => this.clock.now());
+  renewLeases(personId: string, runId: string | null): Promise<LeaseRenewal> {
+    return this.claiming().claims.renewLeases(personId, runId, () => this.clock.now());
   }
 
   /**
@@ -8029,7 +8052,7 @@ export class WorkItemService {
   }
 
   /**
-   * Whether this account has anything to undo or redo on this project.
+   * Whether this {@link UndoStack} has anything to undo or redo.
    *
    * Read by the controller alongside the tree rather than from its own route.
    * The tree read is already the thing every client does after every change of
@@ -8037,8 +8060,8 @@ export class WorkItemService {
    * exactly when it can have changed — and {@link tree} itself stays free of
    * an account, which matters because the broadcast reuses it.
    */
-  undoState(projectId: string, actorId: string): Promise<UndoState> {
-    return this.opts.journal.stateOf(projectId, actorId);
+  undoState(stack: UndoStack): Promise<UndoState> {
+    return this.opts.journal.stateOf(stack);
   }
 
   /**
@@ -8055,8 +8078,9 @@ export class WorkItemService {
   }
 
   /**
-   * Reverses this account's newest command on this project — **if nothing it
-   * touched has moved since**.
+   * Reverses this account's own newest command on this project — **if nothing
+   * it touched has moved since**. The account acting as itself, with no agent
+   * person: legacy access carries no credential, as the legacy `run` pins none.
    *
    * The condition is the whole design. An undo is a write computed from a
    * state that was read a while ago, so applying it blind is not "last writer
@@ -8071,23 +8095,23 @@ export class WorkItemService {
    * refusing every later press of the key for a change nobody can reach.
    */
   undo(projectId: string, actorId: string): Promise<UndoOutcome> {
-    return this.walkStack(projectId, actorId, 'undo', LEGACY_ACCESS);
+    return this.walkStack({ projectId, userId: actorId, personId: null }, 'undo', LEGACY_ACCESS);
   }
 
   /**
-   * {@link undo} through the caller's access. Under scoped access the entry is
+   * {@link undo} of `stack` through the caller's access. Under scoped access the entry is
    * refused as `not_found` before anything is written when a row it would
    * write exists in another project: an entry journalled before activation
    * may name one, and the project's own closure would not show the write.
    * The caller owns the project check and the closure check around it.
    */
-  undoWithin(projectId: string, actorId: string, access: ResourceAccess): Promise<UndoOutcome> {
-    return this.walkStack(projectId, actorId, 'undo', access);
+  undoWithin(stack: UndoStack, access: ResourceAccess): Promise<UndoOutcome> {
+    return this.walkStack(stack, 'undo', access);
   }
 
-  /** {@link redo} through the caller's access; see {@link undoWithin}. */
-  redoWithin(projectId: string, actorId: string, access: ResourceAccess): Promise<UndoOutcome> {
-    return this.walkStack(projectId, actorId, 'redo', access);
+  /** {@link redo} of `stack` through the caller's access; see {@link undoWithin}. */
+  redoWithin(stack: UndoStack, access: ResourceAccess): Promise<UndoOutcome> {
+    return this.walkStack(stack, 'redo', access);
   }
 
   /**
@@ -8101,15 +8125,15 @@ export class WorkItemService {
    * command on top of a plan that has moved on is a different command.
    */
   redo(projectId: string, actorId: string): Promise<UndoOutcome> {
-    return this.walkStack(projectId, actorId, 'redo', LEGACY_ACCESS);
+    return this.walkStack({ projectId, userId: actorId, personId: null }, 'redo', LEGACY_ACCESS);
   }
 
   private async walkStack(
-    projectId: string,
-    actorId: string,
+    stack: UndoStack,
     direction: 'undo' | 'redo',
     access: ResourceAccess,
   ): Promise<UndoOutcome> {
+    const { projectId, userId: actorId } = stack;
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found', detail: null };
     // An undo is a mutation. Being allowed to read a restricted project is not
@@ -8119,11 +8143,11 @@ export class WorkItemService {
 
     // The whole stack, because applying one entry re-stamps its neighbours.
     // It is capped at fifty rows.
-    const stack = await this.opts.journal.entriesFor(projectId, actorId);
+    const entries = await this.opts.journal.entriesFor(stack);
     const entry: JournalEntry | undefined =
       direction === 'undo'
-        ? [...stack].reverse().find((each) => !each.undone)
-        : stack.find((each) => each.undone);
+        ? [...entries].reverse().find((each) => !each.undone)
+        : entries.find((each) => each.undone);
     if (entry === undefined) return { ok: false, reason: 'nothing_to_undo', detail: null };
 
     const payload = readPayload(entry.payload);
@@ -8198,7 +8222,7 @@ export class WorkItemService {
         };
       }
     }
-    const neighbors = await this.captureReplayNeighbors(stack, entry, direction, projectId);
+    const neighbors = await this.captureReplayNeighbors(entries, entry, direction, projectId);
     // Proof: broadening these pairs to all owner facts accepted stale mounted/memory replay; watched 2026-10-14.
     const written = new Set(
       progressKeysOf(command).map(({ workItemId, stepId }) => progressKey(workItemId, stepId)),
@@ -8242,7 +8266,7 @@ export class WorkItemService {
       ...expectedProgressOwnersOf(payload.forward),
       ...expectedProgressOwnersOf(readCommand(entry.inverse)),
     ]);
-    await this.opts.journal.flip(entry.id, direction === 'undo', {
+    await this.opts.journal.flip(stack, entry.id, direction === 'undo', {
       expected: now,
       from: preconditions.expected,
       // Proof: dropping flip snapshots made changed known-step redo succeed; watched 2026-10-14.
@@ -9685,8 +9709,8 @@ export class WorkItemService {
   }
 
   /**
-   * Writes one command down — to the account's undo stack and to the project's
-   * history — after it has been applied and announced.
+   * Writes one command down — to the actor's {@link UndoStack} and to the
+   * project's history — after it has been applied and announced.
    *
    * **Ordering, and what it costs.** The change is applied and broadcast
    * first, then journalled. A journal write that throws therefore fails the
@@ -9751,40 +9775,47 @@ export class WorkItemService {
    * `plan-commands` D3.
    */
   async recordCollected(
-    projectId: string,
-    actorId: string,
+    stack: UndoStack,
     recordings: readonly CollectedRecording[],
   ): Promise<void> {
     if (recordings.length === 0) return;
+    const { projectId, personId } = stack;
     // The batch's own act, and its own stamp: the steps it gathered each dated
     // their rows when they ran, and this is the one entry and one event standing
     // for all of them.
-    const stamp = this.clock.stampFor(actorId);
+    const stamp = this.clock.stampFor(stack.userId);
     const [only] = recordings;
     if (recordings.length === 1) {
-      await this.record(projectId, stamp, only.kind, only.label, only.recording);
+      await this.appendRecording(projectId, stamp, personId, only.kind, only.label, only.recording);
       return;
     }
-    await this.record(projectId, stamp, 'batch', `${String(recordings.length)} changes`, {
-      forward: { do: 'batch', steps: recordings.map((each) => each.recording.forward) },
-      inverse: {
-        do: 'batch',
-        steps: recordings.map((each) => each.recording.inverse).reverse(),
+    await this.appendRecording(
+      projectId,
+      stamp,
+      personId,
+      'batch',
+      `${String(recordings.length)} changes`,
+      {
+        forward: { do: 'batch', steps: recordings.map((each) => each.recording.forward) },
+        inverse: {
+          do: 'batch',
+          steps: recordings.map((each) => each.recording.inverse).reverse(),
+        },
+        touched: [...new Set(recordings.flatMap((each) => each.recording.touched))],
+        // Proof: omitting collected owners let a collected move redo delete changed progress; watched 2026-10-14.
+        moveProgressOwners: [
+          // Proof: omitting collection owners made mounted collected deletion undo refuse damaged metadata (500 vs 200); watched 2026-10-14.
+          ...new Set(recordings.flatMap((each) => each.recording.moveProgressOwners ?? [])),
+        ],
+        before: only.recording.before,
+        // The first step to write each step is the one whose before-state the
+        // batch started from, so later steps never overwrite it.
+        stepsBefore: recordings.reduceRight<Revisions>(
+          (later, each) => ({ ...later, ...each.recording.stepsBefore }),
+          {},
+        ),
       },
-      touched: [...new Set(recordings.flatMap((each) => each.recording.touched))],
-      // Proof: omitting collected owners let a collected move redo delete changed progress; watched 2026-10-14.
-      moveProgressOwners: [
-        // Proof: omitting collection owners made mounted collected deletion undo refuse damaged metadata (500 vs 200); watched 2026-10-14.
-        ...new Set(recordings.flatMap((each) => each.recording.moveProgressOwners ?? [])),
-      ],
-      before: only.recording.before,
-      // The first step to write each step is the one whose before-state the
-      // batch started from, so later steps never overwrite it.
-      stepsBefore: recordings.reduceRight<Revisions>(
-        (later, each) => ({ ...later, ...each.recording.stepsBefore }),
-        {},
-      ),
-    });
+    );
   }
 
   /**
@@ -9817,6 +9848,24 @@ export class WorkItemService {
       this.collector.recordings.push({ kind, label, recording });
       return;
     }
+    // Outside a batch no credential reaches this service, so the act is the
+    // account's own: the legacy `run`'s `credential: null`.
+    await this.appendRecording(projectId, stamp, null, kind, label, recording);
+  }
+
+  /**
+   * {@link record}'s write, onto the {@link UndoStack} of `stamp.by` and
+   * `personId`: the agent person the batch's credential acts as, null for the
+   * account acting as itself.
+   */
+  private async appendRecording(
+    projectId: string,
+    stamp: WriteStamp,
+    personId: string | null,
+    kind: string,
+    label: string,
+    recording: Recording,
+  ): Promise<void> {
     const units = new Map(
       (await this.opts.projects.stepsOf(projectId)).map((step) => [step.id, step.estimateUnit]),
     );
@@ -9832,6 +9881,7 @@ export class WorkItemService {
         id: this.clock.newId(),
         projectId,
         userId: stamp.by,
+        personId,
         kind,
         payload: { label, forward: recording.forward },
         inverse: recording.inverse,

@@ -18,6 +18,7 @@ const entry = (id: string): NewJournalEntry => ({
   id,
   projectId: 'p1',
   userId: 'owner',
+  personId: null,
   kind: 'estimate',
   payload: {},
   inverse: {},
@@ -171,9 +172,15 @@ describe('SQLite conformance fault controls', () => {
 
       expect(control.reached()).toBe(true);
       // Proof: moving the barrier after the transaction added `faulted` here.
-      expect((await source.stores.journal.entriesFor('p1', 'owner')).map(({ id }) => id)).toEqual([
-        'sentinel',
-      ]);
+      expect(
+        (
+          await source.stores.journal.entriesFor({
+            projectId: 'p1',
+            userId: 'owner',
+            personId: null,
+          })
+        ).map(({ id }) => id),
+      ).toEqual(['sentinel']);
       expect((await source.stores.planEvents.listFor('p1', {})).map(({ id }) => id)).toEqual([
         'event-sentinel',
       ]);
@@ -182,9 +189,15 @@ describe('SQLite conformance fault controls', () => {
         sqliteLateWriteControl('journal-history-insert'),
       );
       await restored.stores.journal.append(entry('restored'), event('restored'));
-      expect((await restored.stores.journal.entriesFor('p1', 'owner')).map(({ id }) => id)).toEqual(
-        ['sentinel', 'restored'],
-      );
+      expect(
+        (
+          await restored.stores.journal.entriesFor({
+            projectId: 'p1',
+            userId: 'owner',
+            personId: null,
+          })
+        ).map(({ id }) => id),
+      ).toEqual(['sentinel', 'restored']);
       await restored.close();
     } finally {
       await source.close();

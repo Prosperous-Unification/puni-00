@@ -46,7 +46,7 @@ function leafClaim(workItemId: string, over: Partial<ClaimRequest>): ClaimReques
       descendantIds: [],
       steps: [{ stepId: 'impl', progress: 'unknown' }],
     },
-    caller: { accountId: F, isAdmin: true, pinnedPersonId: null },
+    caller: { accountId: F, isAdmin: true, pinnedPersonId: null, pinnedRunId: null },
     claimant: { personId: 'agent', boundAccountId: F },
     stepIds: null,
     runId: null,

@@ -110,7 +110,6 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
   people: [],
   members: [],
   claims: [],
-  pinnedCredentials: 0,
   machineCredentials: 0,
   capacityOf: new Map(),
 };
@@ -313,20 +312,9 @@ function usageRowsIn(
     people,
     members,
     claims: [],
-    pinnedCredentials: 0,
     machineCredentials: 0,
     capacityOf: new Map(stated.map((row) => [row.projectId, row.size])),
   };
-}
-
-/** The ids of the linked credentials pinned to one person (`external_identity.person_id`). */
-function credentialsPinnedTo(reader: Reader, personId: string): string[] {
-  return reader
-    .select({ id: externalIdentity.id })
-    .from(externalIdentity)
-    .where(eq(externalIdentity.personId, personId))
-    .all()
-    .map(({ id }) => id);
 }
 
 /**
@@ -360,7 +348,6 @@ function personUsageIn(
   return {
     ...usageRowsIn(reader, projectIds, []),
     claims: claimsTakenWith(reader, personId),
-    pinnedCredentials: credentialsPinnedTo(reader, personId).length,
     machineCredentials: liveMachineCredentialsOf(reader, personId).length,
   };
 }
@@ -1742,17 +1729,6 @@ export class DirectoryRepository implements DirectoryStore {
     return row.accountId;
   }
 
-  /** {@link DirectoryStore.credentialPinOf}: `external_identity.person_id` of the pair. */
-  async credentialPinOf(issuer: string, subject: string): Promise<string | null> {
-    await Promise.resolve();
-    const row = this.db
-      .select({ personId: externalIdentity.personId })
-      .from(externalIdentity)
-      .where(and(eq(externalIdentity.issuer, issuer), eq(externalIdentity.subject, subject)))
-      .get();
-    return row?.personId ?? null;
-  }
-
   /**
    * The projects a person's assignments reach into, read for the refusal that
    * names them.
@@ -2138,23 +2114,14 @@ export class DirectoryRepository implements DirectoryStore {
         // Own and delegated: the delegated go by the parent cascade, and their
         // work items' revisions move with the rest.
         const claimed = claimsTakenWith(tx, personId);
-        const pinned = credentialsPinnedTo(tx, personId);
         const machines = liveMachineCredentialsOf(tx, personId);
         // Proof: with `claimed` left out of this test, the SQLite certification's
         // `directory.removePerson:claims-in-use` case failed; watched 2026-10-19.
-        // Proof: with `pinned` left out of this test, the SQLite certification's
-        // `directory.removePerson:pinned-credential` case removed the person
-        // unconfirmed; with the revoking delete below removed, the confirmed
-        // removal failed on the `external_identity.person_id` foreign key
-        // (both watched 2026-10-20).
         // Proof: with `machines` left out of this test, `refuses removing a
         // person with a live machine credential unless cascaded` in
         // `machine-credential-admin.controller.db.test.ts` removed the person
         // unconfirmed; watched 2026-10-22.
-        if (
-          !cascade &&
-          (held.length > 0 || claimed.length > 0 || pinned.length > 0 || machines.length > 0)
-        ) {
+        if (!cascade && (held.length > 0 || claimed.length > 0 || machines.length > 0)) {
           return {
             ok: false,
             reason: 'in_use',
@@ -2172,11 +2139,15 @@ export class DirectoryRepository implements DirectoryStore {
         tx.delete(assignment).where(eq(assignment.personId, personId)).run();
         // Delegated claims under these go with them: `parent_claim_id` cascades.
         tx.delete(claim).where(eq(claim.personId, personId)).run();
-        // Revoked, not unpinned: `person_id` null would let the fleet claim as
-        // any person of its account. `external_identity.person_id` has no
-        // `ON DELETE` action, so without this the person delete fails on it.
-        if (pinned.length > 0)
-          tx.delete(externalIdentity).where(inArray(externalIdentity.id, pinned)).run();
+        // The rows the retired operator link pinned to this person admit
+        // nothing (`wbs-machine-credentials` A18) and go with it, unasked:
+        // `external_identity.person_id` has no `ON DELETE` action. This write
+        // is the column's last use until a cleanup change drops it.
+        // Proof: with this delete removed, `removes a person with a pinned row
+        // unconfirmed, taking the inert row with it`
+        // (`fleet-credential.controller.db.test.ts`) answered 500 on the
+        // foreign key; watched 2026-10-25.
+        tx.delete(externalIdentity).where(eq(externalIdentity.personId, personId)).run();
         // Proof: without this, the confirmed removals in `refuses removing a
         // person with a live machine credential unless cascaded` and `removes a
         // person whose credentials are all revoked …` failed on the

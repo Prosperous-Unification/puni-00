@@ -4,8 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { BrowserOidcClient, JwtClaims } from '@wbs/auth';
+import { newMachineKey } from '@wbs/core';
 import { Database } from 'bun:sqlite';
 import { describe, expect, it } from 'bun:test';
+import { decodeJwt, decodeProtectedHeader, SignJWT } from 'jose';
 
 import type { McpConfig } from './config';
 import { mcpFetchHandler, mcpHttpResponse } from './http';
@@ -14,11 +16,13 @@ import type { DerivedTool } from './openapi-tools';
 import type { McpRefreshAuthority, McpRefreshAuthorityReader } from './refresh-authority';
 import { createServer } from './server';
 import { McpSessionStore } from './session-store';
+import { UNATTRIBUTED_SOURCE } from './source-address';
 import { EdgeGate, SessionRefreshRefused } from './wbs-client';
 
 const CONFIG: McpConfig = {
   MCP_AUTH_MODE: 'standalone',
   MCP_PUBLIC_URL: 'https://dev.wbs.bulletpoints.club/mcp',
+  MCP_TRUSTED_PROXY_HOPS: 1,
   WBS_API_URL: 'https://dev.wbs.bulletpoints.club',
 };
 const CALLBACK = 'https://claude.ai/api/mcp/auth_callback';
@@ -35,7 +39,7 @@ function fixture(
     clientLimit?: number;
     clientSourceLimit?: number;
     clientTtlMs?: number;
-    activeClientTtlMs?: number;
+    provenClientTtlMs?: number;
     grantLimit?: number;
     provenClientSourceLimit?: number;
     sessionLimit?: number;
@@ -332,6 +336,8 @@ describe('McpOAuthServer', () => {
 
   // Proof: omitting cleanup before the capacity check leaves an expired client
   // occupying the only slot and rejects a replacement connector forever.
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
   it('expires dynamic clients and frees their capacity', async () => {
     const expiring = fixture({ clientLimit: 1, clientTtlMs: 1_000 });
     const clientId = await register(expiring.oauth);
@@ -424,6 +430,8 @@ describe('McpOAuthServer', () => {
 
   // Proof: extending expiry from the current time on every authorize lets a
   // registered but unauthenticated client renew itself forever without login.
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
   it('caps repeated authorization extensions at an absolute unproven lifetime', async () => {
     const { advance, oauth } = fixture();
     const clientId = await register(oauth);
@@ -459,7 +467,7 @@ describe('McpOAuthServer', () => {
   });
 
   // Proof: counting promoted clients in the source bucket makes shared
-  // connector egress hit the anonymous cap for up to 24 hours.
+  // connector egress hit the anonymous cap for as long as each proven client lives (30 days).
   it('removes a proven client from its anonymous source partition', async () => {
     const { oauth } = fixture({ clientLimit: 2, clientSourceLimit: 1 });
     const verifier = 'v'.repeat(43);
@@ -502,7 +510,7 @@ describe('McpOAuthServer', () => {
   // anonymous clients, then lets both promote and exceed the authenticated cap.
   it('reserves proven-source capacity before consuming a token grant', async () => {
     const { advance, oauth } = fixture({
-      activeClientTtlMs: 1_000,
+      provenClientTtlMs: 1_000,
       clientLimit: 3,
       clientSourceLimit: 2,
       provenClientSourceLimit: 1,
@@ -640,6 +648,34 @@ describe('McpOAuthServer', () => {
     expect((await tokenResponse(oauth, 'random-1', firstCode, verifier)).status).toBe(200);
   });
 
+  // `wbs-mcp-agent-surface` M5 and task 3.8: the consent path admits only `token_use: consent`,
+  // even with a live session; a token without the claim is refused too.
+  it('refuses a consent session token of any use but consent', async () => {
+    const signingKeys = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const { oauth } = fixture({ signingKeys });
+    const verifier = 'v'.repeat(43);
+    const code = await authorizationCode(oauth, verifier);
+    const issued = await tokenResponse(oauth, 'random-1', code, verifier);
+    const consent = ((await issued.json()) as { access_token: string }).access_token;
+    expect(decodeJwt(consent)['token_use']).toBe('consent');
+    const resigned = (use: string | undefined) => {
+      const { token_use: _dropped, ...claims } = decodeJwt(consent);
+      return new SignJWT(use === undefined ? claims : { ...claims, token_use: use })
+        .setProtectedHeader(decodeProtectedHeader(consent) as { alg: string })
+        .sign(signingKeys.privateKey);
+    };
+    const settled = (token: string) =>
+      oauth.admitCaller(token).then(
+        () => 'admitted',
+        (cause: unknown) => String(cause),
+      );
+    expect(await settled(consent)).toBe('admitted');
+    expect(await settled(await resigned(undefined))).toContain('unknown use');
+    expect(await settled(await resigned('other'))).toContain('unknown use');
+    // A machine use without a grant is refused by the machine path, never the session's.
+    expect(await settled(await resigned('machine'))).not.toBe('admitted');
+  });
+
   // Proof: allowing token exchanges to append sessions without a bound keeps
   // arbitrary upstream access tokens live until every local token expires.
   it('refuses token exchange at session capacity and preserves the retryable grant', async () => {
@@ -659,7 +695,9 @@ describe('McpOAuthServer', () => {
         method: 'POST',
       }),
     );
-    expect(oauth.verify(firstToken)).rejects.toThrow(/not an upstream token/);
+    expect(oauth.verify(firstToken)).rejects.toThrow(
+      /MCP OAuth session is missing, expired, or revoked/,
+    );
     const store = oauth as unknown as { store: { sessionCount(now: number): number } };
     expect(store.store.sessionCount(1_700_000_000_000)).toBe(0);
     expect((await tokenResponse(oauth, 'random-7', secondCode, verifier)).status).toBe(200);
@@ -958,6 +996,7 @@ describe('McpOAuthServer', () => {
       iss: 'https://dev.wbs.bulletpoints.club/mcp/oauth',
       jti: 'random-8',
       sub: 'person-1',
+      token_use: 'consent',
     });
     expect(oauth.upstreamTokenFor(body.access_token)).resolves.toBe('upstream-okta-token');
     expect((await exchange())?.status).toBe(400);
@@ -1195,7 +1234,9 @@ describe('McpOAuthServer', () => {
       }),
     );
     expect(replay?.status).toBe(400);
-    expect(oauth.verify(refreshedBody.access_token)).rejects.toThrow(/not an upstream token/);
+    expect(oauth.verify(refreshedBody.access_token)).rejects.toThrow(
+      /MCP OAuth session is missing, expired, or revoked/,
+    );
   });
 
   for (const path of ['automatic', 'forced', 'grant'] as const) {
@@ -3090,6 +3131,10 @@ describe('registered clients across a restart', () => {
       get oauth() {
         return current.oauth;
       },
+      get store() {
+        return store;
+      },
+      path,
       restart: () => {
         store.close();
         store = new McpSessionStore(path, [key]);
@@ -3119,6 +3164,8 @@ describe('registered clients across a restart', () => {
     server.close();
   });
 
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
   it('answers invalid_client with a re-register hint for an unknown client_id', async () => {
     const { oauth } = fixture();
     const response = await oauth.response(new Request(authorizeUrl('never-registered')));
@@ -3128,6 +3175,8 @@ describe('registered clients across a restart', () => {
     expect(await response?.json()).toEqual(INVALID_CLIENT);
   });
 
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
   it('answers invalid_client once an unproven client expires across a restart', async () => {
     const server = restartable({ clientTtlMs: 1_000 });
     const clientId = await register(server.oauth);
@@ -3209,6 +3258,31 @@ describe('registered clients across a restart', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
+  it('refuses a stored redirect that carries a planted response field', async () => {
+    const store = new McpSessionStore(':memory:', [randomBytes(32)]);
+    const { oauth } = fixture({ store });
+    const planted = 'http://127.0.0.1:33418/callback?code=planted';
+    store.admitClient(
+      UNATTRIBUTED_SOURCE,
+      1_700_000_000_000,
+      () => true,
+      () => ({
+        clientId: 'planted-client',
+        source: UNATTRIBUTED_SOURCE,
+        redirectUris: [planted],
+        authentication: { method: 'none' },
+        proven: true,
+        expiresAt: 1_700_000_000_000 + 60_000,
+        unprovenExpiresAt: 1_700_000_000_000 + 60_000,
+      }),
+    );
+
+    const refused = await oauth.response(new Request(authorizeUrl('planted-client', planted)));
+    expect(refused?.status).toBe(400);
+    expect(await refused?.json()).toEqual({ error: 'invalid_request' });
+    store.close();
+  });
+
   it('deletes an expired client from the store when the next request sweeps', async () => {
     const store = new McpSessionStore(':memory:', [randomBytes(32)]);
     const { advance, oauth } = fixture({ clientTtlMs: 1_000, store });
@@ -3216,12 +3290,14 @@ describe('registered clients across a restart', () => {
     advance(1_001);
     await register(oauth);
 
-    expect(store.clientsFromSource('unknown', 0).map(({ clientId }) => clientId)).toEqual([
-      'random-2',
-    ]);
+    expect(store.clientsFromSource(UNATTRIBUTED_SOURCE, 0).map(({ clientId }) => clientId)).toEqual(
+      ['random-2'],
+    );
     store.close();
   });
 
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
   it('keeps the absolute unproven lifetime an authorization extension stored before the restart', async () => {
     const server = restartable();
     const clientId = await register(server.oauth);
@@ -3234,5 +3310,977 @@ describe('registered clients across a restart', () => {
     const expired = await server.oauth.response(new Request(authorizeUrl(clientId)));
     expect(await expired?.json()).toEqual(INVALID_CLIENT);
     server.close();
+  });
+
+  const HOUR = 3_600_000;
+  const DAY = 24 * HOUR;
+  /** An upstream that issues a refresh token, so the family outlives the 5-minute access token. */
+  const refreshable = {
+    exchange: () =>
+      Promise.resolve({
+        accessToken: 'upstream-okta-token',
+        expiresIn: 300,
+        refreshToken: 'upstream-refresh-token',
+      }),
+    refresh: () =>
+      Promise.resolve({
+        accessToken: 'upstream-okta-token',
+        expiresIn: 300,
+        refreshToken: 'upstream-refresh-token',
+      }),
+  };
+
+  async function signIn(oauth: McpOAuthServer, clientId: string): Promise<string> {
+    const verifier = 'v'.repeat(43);
+    const { response } = await completedAuthorization(oauth, verifier, clientId);
+    const code = new URL(response.headers.get('location') ?? '').searchParams.get('code');
+    const issued = await tokenResponse(oauth, clientId, code ?? '', verifier);
+    expect(issued.status).toBe(200);
+    return ((await issued.json()) as { refresh_token: string }).refresh_token;
+  }
+
+  async function refreshed(
+    oauth: McpOAuthServer,
+    clientId: string,
+    refreshToken: string,
+  ): Promise<string> {
+    const response = await oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+        body: new URLSearchParams({
+          client_id: clientId,
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+        }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      }),
+    );
+    expect(response?.status).toBe(200);
+    return ((await response?.json()) as { refresh_token: string }).refresh_token;
+  }
+
+  // The combined regression test for the failure seen on dev.
+  // Proof: 2026-10-25, the pre-fix oauth.ts (24 h promotion, refresh not renewing the client)
+  // made this authorization answer 400 invalid_client instead of 302.
+  it('authorizes a client 25 h after its code exchange when it refreshed since, across a restart', async () => {
+    const server = restartable(refreshable);
+    const clientId = await register(server.oauth);
+    const refreshToken = await signIn(server.oauth, clientId);
+    server.advance(13 * HOUR);
+    await refreshed(server.oauth, clientId, refreshToken);
+    server.restart();
+    server.advance(12 * HOUR);
+
+    const { response } = await completedAuthorization(server.oauth, 'v'.repeat(43), clientId);
+    expect(response.status).toBe(302);
+    server.close();
+  });
+
+  // Proof: 2026-10-25, restoring the 24 h promotion lifetime (PROVEN_CLIENT_TTL_MS = 86_400_000)
+  // made this authorization answer 400 invalid_client instead of 302.
+  it('authorizes a client 25 h after its code exchange without a refresh, across a restart', async () => {
+    const server = restartable(refreshable);
+    const clientId = await register(server.oauth);
+    await signIn(server.oauth, clientId);
+    server.restart();
+    server.advance(25 * HOUR);
+
+    const { response } = await completedAuthorization(server.oauth, 'v'.repeat(43), clientId);
+    expect(response.status).toBe(302);
+    server.close();
+  });
+
+  // Proof: 2026-10-25, passing `now` as the client expiry to consumeRefresh left the stored expiry
+  // at the exchange's 30 days; a 24 h or a 2 * REFRESH_ABSOLUTE_MS lifetime failed it as well.
+  it('renews the client at each refresh, so it outlives a lapsed family for re-authorization', async () => {
+    const server = restartable(refreshable);
+    const clientId = await register(server.oauth);
+    const exchangedAt = 1_700_000_000_000;
+    const first = await signIn(server.oauth, clientId);
+    expect(server.store.client(clientId, exchangedAt)?.expiresAt).toBe(exchangedAt + 30 * DAY);
+    server.advance(13 * DAY);
+    const second = await refreshed(server.oauth, clientId, first);
+    expect(server.store.client(clientId, exchangedAt)?.expiresAt).toBe(exchangedAt + 43 * DAY);
+    server.restart();
+    server.advance(13 * DAY);
+    await refreshed(server.oauth, clientId, second);
+    // The family's absolute 30 days end at day 30; the client, last used at day 26, lives to day 56.
+    server.advance(24 * DAY);
+
+    const { response } = await completedAuthorization(server.oauth, 'v'.repeat(43), clientId);
+    expect(response.status).toBe(302);
+    server.close();
+  });
+
+  // Proof: 2026-10-25, a proven lifetime of 2 * REFRESH_ABSOLUTE_MS made this authorization
+  // answer 302 instead of invalid_client; dropping the cleanup sweep kept the expired row.
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
+  it('deletes an expired proven client with no live family and answers invalid_client', async () => {
+    const server = restartable(refreshable);
+    const clientId = await register(server.oauth);
+    await signIn(server.oauth, clientId);
+    server.restart();
+    server.advance(30 * DAY + 1);
+
+    const response = await server.oauth.response(new Request(authorizeUrl(clientId)));
+    expect(response?.status).toBe(400);
+    expect(await response?.json()).toEqual(INVALID_CLIENT);
+    expect(server.store.clientsFromSource(UNATTRIBUTED_SOURCE, 0)).toEqual([]);
+    server.close();
+  });
+
+  function refreshRequest(clientId: string, refreshToken: string): Request {
+    return new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+      body: new URLSearchParams({
+        client_id: clientId,
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      }),
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      method: 'POST',
+    });
+  }
+
+  function storedExpiry(path: string, clientId: string): unknown {
+    const db = new Database(path, { strict: true });
+    try {
+      return db
+        .query<{ expires_at: unknown }, [string]>(
+          'SELECT expires_at FROM mcp_client WHERE client_id = ?',
+        )
+        .get(clientId)?.expires_at;
+    } finally {
+      db.close();
+    }
+  }
+
+  // Proof: 2026-10-25, renewing the client after consumeRefresh committed (the first version of
+  // this fix) made the retry answer 400 invalid_grant: the consumed token read as a replay.
+  it('rolls back the whole refresh when the client renewal fails, so the retry still refreshes', async () => {
+    const server = restartable(refreshable);
+    const clientId = await register(server.oauth);
+    const refreshToken = await signIn(server.oauth, clientId);
+    server.advance(60_000);
+    const planted = new Database(server.path, { strict: true });
+    planted.run('CREATE TABLE renewal_fault (armed INTEGER)');
+    planted.run('INSERT INTO renewal_fault VALUES (1)');
+    planted.run(`CREATE TRIGGER renewal_fails BEFORE UPDATE OF expires_at ON mcp_client
+      WHEN EXISTS (SELECT 1 FROM renewal_fault) BEGIN SELECT RAISE(ABORT, 'disk full'); END`);
+
+    expect(server.oauth.response(refreshRequest(clientId, refreshToken))).rejects.toThrow(
+      /disk full/,
+    );
+    planted.run('DELETE FROM renewal_fault');
+    planted.close();
+
+    const retried = await server.oauth.response(refreshRequest(clientId, refreshToken));
+    expect(retried?.status).toBe(200);
+    server.close();
+  });
+
+  // Proof: 2026-10-25, dropping `expires_at > ?` from the store's client renewal moved the planted
+  // expired row 30 d forward (stored 1702592060000, not 1700000030000).
+  // Injected ids lack the shape mcp-01 issues, so an unknown or expired one is never re-admitted
+  // here; `re-admitting a swept client` covers ids of that shape.
+  it('does not revive an expired, unswept client through a refresh', async () => {
+    const server = restartable(refreshable);
+    const clientId = await register(server.oauth);
+    const refreshToken = await signIn(server.oauth, clientId);
+    server.advance(60_000);
+    const expiredAt = 1_700_000_000_000 + 30_000;
+    const planted = new Database(server.path, { strict: true });
+    planted
+      .query('UPDATE mcp_client SET expires_at = ? WHERE client_id = ?')
+      .run(expiredAt, clientId);
+    planted.close();
+
+    // A family from before the 30 d lifetime can outlive its client; it still refreshes.
+    expect((await server.oauth.response(refreshRequest(clientId, refreshToken)))?.status).toBe(200);
+    expect(storedExpiry(server.path, clientId)).toBe(expiredAt);
+    const response = await server.oauth.response(new Request(authorizeUrl(clientId)));
+    expect(await response?.json()).toEqual(INVALID_CLIENT);
+    server.close();
+  });
+
+  // Proof: 2026-10-25, renewing the client at the top of refreshGrant (before any token check)
+  // changed the stored expiry on each of these refused refreshes.
+  it('renews a client only on a successful refresh', async () => {
+    const server = restartable(refreshable);
+    const exchangedAt = 1_700_000_000_000;
+    const first = await register(server.oauth);
+    const firstToken = await signIn(server.oauth, first);
+    const second = await register(server.oauth);
+    const secondToken = await signIn(server.oauth, second);
+    const unchanged = () => {
+      expect(server.store.client(first, exchangedAt)?.expiresAt).toBe(exchangedAt + 30 * DAY);
+      expect(server.store.client(second, exchangedAt)?.expiresAt).toBe(exchangedAt + 30 * DAY);
+    };
+    server.advance(60_000);
+
+    const refused = async (clientId: string, refreshToken: string) => {
+      const response = await server.oauth.response(refreshRequest(clientId, refreshToken));
+      expect(response?.status).toBe(400);
+      unchanged();
+    };
+    await refused(first, 'not-a-refresh-token');
+    await refused(second, firstToken);
+    const family = server.store.familyForRefreshToken(secondToken);
+    if (family === null) throw new Error('the second sign-in stored no family');
+    server.store.revokeFamily(family.familyId, exchangedAt + 60_000);
+    await refused(second, secondToken);
+    server.advance(15 * DAY);
+    await refused(first, firstToken);
+    server.close();
+  });
+
+  describe('re-admitting a swept client', () => {
+    const START = 1_700_000_000_000;
+    const LOOPBACK = 'http://127.0.0.1:33418/callback';
+    const issuedId = () => randomBytes(32).toString('base64url');
+
+    /** Stores `clientId` as a client that expires 1 s after `now`, as a former lifetime left it. */
+    function plantClient(
+      store: McpSessionStore,
+      clientId: string,
+      redirectUris: readonly string[] = [LOOPBACK],
+      now = START,
+    ): void {
+      store.admitClient(
+        UNATTRIBUTED_SOURCE,
+        now,
+        () => true,
+        () => ({
+          clientId,
+          source: UNATTRIBUTED_SOURCE,
+          redirectUris,
+          authentication: { method: 'none' },
+          proven: true,
+          expiresAt: now + 1_000,
+          unprovenExpiresAt: now + 1_000,
+        }),
+      );
+    }
+
+    /** A connector's cached id whose client a restarted mcp-01 sweeps at its next request. */
+    function sweptClient(limits: Parameters<typeof fixture>[0] = {}) {
+      const server = restartable(limits);
+      const clientId = issuedId();
+      plantClient(server.store, clientId);
+      server.restart();
+      server.advance(1_001);
+      return { clientId, server };
+    }
+
+    function storedRow(path: string, clientId: string): unknown {
+      const db = new Database(path, { strict: true });
+      try {
+        return db.query('SELECT * FROM mcp_client WHERE client_id = ?').get(clientId);
+      } finally {
+        db.close();
+      }
+    }
+
+    function authorizeFrom(url: URL, source: string): Request {
+      return new Request(url, { headers: { 'x-forwarded-for': source } });
+    }
+
+    async function codeAt(
+      oauth: McpOAuthServer,
+      clientId: string,
+      redirectUri: string,
+      verifier: string,
+    ): Promise<string> {
+      const url = authorizeUrl(clientId, redirectUri);
+      url.searchParams.set('code_challenge', challengeOf(verifier));
+      const started = await oauth.response(new Request(url));
+      expect(started?.status).toBe(302);
+      const binding = started?.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+      const upstream = new URL(started?.headers.get('location') ?? 'https://invalid');
+      const completed = await oauth.response(
+        new Request(
+          `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=upstream&state=${String(upstream.searchParams.get('state'))}`,
+          { headers: { cookie: binding } },
+        ),
+      );
+      const returned = new URL(completed?.headers.get('location') ?? 'https://invalid');
+      expect(`${returned.origin}${returned.pathname}`).toBe(redirectUri);
+      return returned.searchParams.get('code') ?? '';
+    }
+
+    async function exchangeAt(
+      oauth: McpOAuthServer,
+      clientId: string,
+      code: string,
+      verifier: string,
+      redirectUri: string,
+    ): Promise<Response | undefined> {
+      return oauth.response(
+        new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+          body: new URLSearchParams({
+            client_id: clientId,
+            code,
+            code_verifier: verifier,
+            grant_type: 'authorization_code',
+            redirect_uri: redirectUri,
+          }),
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          method: 'POST',
+        }),
+      );
+    }
+
+    // The regression test for the connector stuck on dev with a swept client_id.
+    // Proof: 2026-10-25, the oauth.ts before re-admission made the first authorization answer
+    // 400 invalid_client instead of 302.
+    it('re-admits a swept client, exchanges its code, and keeps it proven across a restart', async () => {
+      const { clientId, server } = sweptClient();
+      const verifier = 'r'.repeat(43);
+      const code = await codeAt(server.oauth, clientId, LOOPBACK, verifier);
+      const readmittedAt = START + 1_001;
+      expect(server.store.client(clientId, readmittedAt)).toMatchObject({
+        clientId,
+        proven: false,
+        redirectUris: [LOOPBACK],
+        source: UNATTRIBUTED_SOURCE,
+        unprovenExpiresAt: readmittedAt + 1_200_000,
+      });
+      const exchanged = await exchangeAt(server.oauth, clientId, code, verifier, LOOPBACK);
+      expect(exchanged?.status).toBe(200);
+      expect(server.store.client(clientId, readmittedAt)).toMatchObject({
+        proven: true,
+        expiresAt: readmittedAt + 30 * DAY,
+      });
+
+      server.restart();
+      server.advance(DAY);
+      expect(
+        (await server.oauth.response(new Request(authorizeUrl(clientId, LOOPBACK))))?.status,
+      ).toBe(302);
+      server.close();
+    });
+
+    it('re-admits a swept client at a listed hosted callback', async () => {
+      const { clientId, server } = sweptClient();
+      const response = await server.oauth.response(new Request(authorizeUrl(clientId)));
+
+      expect(response?.status).toBe(302);
+      expect(server.store.client(clientId, START + 1_001)?.redirectUris).toEqual([CALLBACK]);
+      server.close();
+    });
+
+    // Proof: 2026-10-25, dropping the shape check from readmitClient made every case here
+    // answer 302 instead of 400 invalid_client.
+    it.each([
+      ['an id issued by an injected generator', () => 'start-1-1'],
+      ['a 42-character id', () => issuedId().slice(0, 42)],
+      ['a 44-character id', () => `${issuedId()}A`],
+      ['a padded id', () => `${issuedId().slice(0, 42)}A=`],
+      ['a non-canonical last character', () => `${issuedId().slice(0, 42)}B`],
+      ['a base64 rather than base64url id', () => `${issuedId().slice(0, 41)}+A`],
+      ['an empty id', () => ''],
+    ])('keeps invalid_client for a swept client whose id is %s', async (_, idOf) => {
+      const server = restartable();
+      const clientId = idOf();
+      const response = await server.oauth.response(new Request(authorizeUrl(clientId, LOOPBACK)));
+
+      expect(response?.status).toBe(400);
+      expect(response?.headers.get('location')).toBeNull();
+      expect(await response?.json()).toEqual(INVALID_CLIENT);
+      expect(storedRow(server.path, clientId)).toBeNull();
+      server.close();
+    });
+
+    // Proof: 2026-10-25, dropping the redirect check from readmitClient stored a client for
+    // every case and answered the planted-query and oversized loopbacks 302 and the rest 400
+    // invalid_request.
+    it.each([
+      'https://evil.example/callback',
+      'https://vscode.dev:8443/redirect',
+      'http://192.168.1.2:8080/callback',
+      'http://127.0.0.1:33418/callback?code=planted',
+      'http://127.0.0.1:33418/callback#fragment',
+      `http://127.0.0.1:33418/${'p'.repeat(600)}`,
+    ])(
+      'keeps invalid_client for a swept client with the unlisted or malformed redirect %s',
+      async (redirectUri) => {
+        const { clientId, server } = sweptClient();
+        const response = await server.oauth.response(
+          new Request(authorizeUrl(clientId, redirectUri)),
+        );
+
+        expect(response?.status).toBe(400);
+        expect(await response?.json()).toEqual(INVALID_CLIENT);
+        expect(storedRow(server.path, clientId)).toBeNull();
+        server.close();
+      },
+    );
+
+    it('keeps invalid_request for a malformed authorization of a swept client', async () => {
+      const { clientId, server } = sweptClient();
+      const url = authorizeUrl(clientId, LOOPBACK);
+      url.searchParams.set('code_challenge_method', 'plain');
+
+      const response = await server.oauth.response(new Request(url));
+      expect(response?.status).toBe(400);
+      expect(await response?.json()).toEqual({ error: 'invalid_request' });
+      expect(storedRow(server.path, clientId)).toBeNull();
+      server.close();
+    });
+
+    // Proof: 2026-10-25, admitting with `() => true` in readmitClient made the first authorization
+    // answer 302 instead of 429.
+    it('re-admits a swept client only within the per-source unproven cap', async () => {
+      const { clientId, server } = sweptClient({ clientSourceLimit: 1 });
+      expect((await registrationResponse(server.oauth, [CALLBACK], '203.0.113.1')).status).toBe(
+        201,
+      );
+
+      const refused = await server.oauth.response(
+        authorizeFrom(authorizeUrl(clientId, LOOPBACK), '203.0.113.1'),
+      );
+      expect(refused?.status).toBe(429);
+      expect(await refused?.json()).toEqual({ error: 'temporarily_unavailable' });
+      expect(storedRow(server.path, clientId)).toBeNull();
+
+      const admitted = await server.oauth.response(
+        authorizeFrom(authorizeUrl(clientId, LOOPBACK), '203.0.113.2'),
+      );
+      expect(admitted?.status).toBe(302);
+      expect(server.store.client(clientId, START + 1_001)?.source).toBe('203.0.113.2');
+      server.close();
+    });
+
+    // Proof: 2026-10-25, re-admitting before reading the stored client, with the store's live-row
+    // read dropped, made this authorization throw `UNIQUE constraint failed:
+    // mcp_client.client_id`; with the live-row read kept it returned the row unchanged.
+    it('never re-admits or alters a live client', async () => {
+      const server = restartable();
+      const clientId = issuedId();
+      plantClient(server.store, clientId, [CALLBACK], START + 5_000);
+      const before = storedRow(server.path, clientId);
+      server.restart();
+
+      const response = await server.oauth.response(
+        authorizeFrom(authorizeUrl(clientId, LOOPBACK), '203.0.113.7'),
+      );
+      expect(response?.status).toBe(400);
+      expect(await response?.json()).toEqual({ error: 'invalid_request' });
+      expect(storedRow(server.path, clientId)).toEqual(before);
+      server.close();
+    });
+
+    // Blue and green share the store: the second colour read the id as absent before the first
+    // admitted it.
+    // Proof: 2026-10-25, dropping the live-row read from the store's readmitClient made this
+    // throw `UNIQUE constraint failed: mcp_client.client_id`.
+    it('continues with the client another process re-admitted first, unchanged', async () => {
+      const { clientId, server } = sweptClient();
+      expect(
+        (await server.oauth.response(new Request(authorizeUrl(clientId, LOOPBACK))))?.status,
+      ).toBe(302);
+      const first = storedRow(server.path, clientId);
+      const other = new McpSessionStore(server.path, [Buffer.alloc(32, 13)]);
+      const now = START + 1_001;
+
+      const continued = other.readmitClient(
+        {
+          clientId,
+          source: '203.0.113.9',
+          redirectUris: [CALLBACK],
+          authentication: { method: 'none' },
+          proven: false,
+          expiresAt: now + 600_000,
+          unprovenExpiresAt: now + 1_200_000,
+        },
+        now,
+        () => true,
+      );
+      expect(continued).toMatchObject({ redirectUris: [LOOPBACK], source: UNATTRIBUTED_SOURCE });
+      expect(storedRow(server.path, clientId)).toEqual(first);
+      other.close();
+      server.close();
+    });
+
+    /** A proven client of an issued-shape id with a live family, then swept by an older release. */
+    async function sweptWithLiveFamily() {
+      const server = restartable(refreshable);
+      const clientId = issuedId();
+      server.store.admitClient(
+        UNATTRIBUTED_SOURCE,
+        START,
+        () => true,
+        () => ({
+          clientId,
+          source: UNATTRIBUTED_SOURCE,
+          redirectUris: [CALLBACK],
+          authentication: { method: 'none' },
+          proven: true,
+          expiresAt: START + 30 * DAY,
+          unprovenExpiresAt: START + 30 * DAY,
+        }),
+      );
+      const refreshToken = await signIn(server.oauth, clientId);
+      const db = new Database(server.path, { strict: true });
+      db.query('DELETE FROM mcp_client WHERE client_id = ?').run(clientId);
+      db.close();
+      server.advance(HOUR);
+      return { clientId, refreshToken, server };
+    }
+
+    // Proof: 2026-10-25, renewing unproven clients at refresh moved the pre-claimed row 30 d
+    // forward (expiresAt 1702595900000, not 1700004200000).
+    it("keeps a pre-claimed swept id unproven through the victim's refresh", async () => {
+      const { clientId, refreshToken, server } = await sweptWithLiveFamily();
+      const claimed = await server.oauth.response(
+        authorizeFrom(authorizeUrl(clientId, LOOPBACK), '198.51.100.66'),
+      );
+      expect(claimed?.status).toBe(302);
+      const preClaimed = server.store.client(clientId, START + HOUR);
+      server.advance(5 * 60_000);
+
+      await refreshed(server.oauth, clientId, refreshToken);
+      expect(server.store.client(clientId, START + HOUR)).toEqual(preClaimed);
+      expect(preClaimed?.proven).toBe(false);
+      server.advance(DAY);
+      const victim = await server.oauth.response(new Request(authorizeUrl(clientId)));
+      expect(victim?.status).toBe(302);
+      expect(server.store.client(clientId, START + HOUR + DAY)).toMatchObject({
+        proven: false,
+        redirectUris: [CALLBACK],
+        source: UNATTRIBUTED_SOURCE,
+      });
+      server.close();
+    });
+
+    // Proof: 2026-10-25, renewing unproven clients at refresh answered the authorization an hour
+    // after the refresh 429 instead of 302: the row outlived its absolute unproven lifetime.
+    it('keeps an abandoned re-admission unproven through a refresh', async () => {
+      const { clientId, refreshToken, server } = await sweptWithLiveFamily();
+      expect((await server.oauth.response(new Request(authorizeUrl(clientId))))?.status).toBe(302);
+      server.advance(5 * 60_000);
+
+      await refreshed(server.oauth, clientId, refreshToken);
+      server.advance(HOUR);
+      expect((await server.oauth.response(new Request(authorizeUrl(clientId))))?.status).toBe(302);
+      server.close();
+    });
+
+    // Proof: 2026-10-25, dropping `expires_at > ?` from the store's extendClient moved the
+    // planted expired row's expiry to the extension.
+    it('does not revive an expired, unswept client through an authorization extension', () => {
+      const store = new McpSessionStore(':memory:', [randomBytes(32)]);
+      const clientId = issuedId();
+      plantClient(store, clientId);
+      const now = START + 2_000;
+
+      store.extendClient(clientId, now + 600_000, now);
+      expect(store.client(clientId, START)?.expiresAt).toBe(START + 1_000);
+      store.close();
+    });
+
+    // Proof: 2026-10-25, replacing the store's expired-row DELETE with a no-op returned the
+    // planted expired row instead of the re-admitted client.
+    it('re-admits over an expired row of the same id that no sweep removed yet', () => {
+      const store = new McpSessionStore(':memory:', [randomBytes(32)]);
+      const clientId = issuedId();
+      plantClient(store, clientId);
+      const now = START + 2_000;
+      const readmitted = {
+        clientId,
+        source: '203.0.113.9',
+        redirectUris: [CALLBACK],
+        authentication: { method: 'none' as const },
+        proven: false,
+        expiresAt: now + 600_000,
+        unprovenExpiresAt: now + 1_200_000,
+      };
+
+      expect(store.readmitClient(readmitted, now, () => true)).toEqual(readmitted);
+      expect(store.client(clientId, now)).toEqual(readmitted);
+      store.close();
+    });
+  });
+});
+
+describe('confidential consent clients (M17)', () => {
+  type Confidential = 'client_secret_basic' | 'client_secret_post';
+  const TOKEN = 'https://dev.wbs.bulletpoints.club/mcp/oauth/token';
+  const VERIFIER = 'c'.repeat(43);
+
+  /** The registration claude.ai sends, with `method` as its token endpoint auth method. */
+  async function registerAs(oauth: McpOAuthServer, method: string | undefined): Promise<Response> {
+    const response = await oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/register', {
+        body: JSON.stringify({
+          client_name: 'Claude',
+          grant_types: ['authorization_code', 'refresh_token'],
+          redirect_uris: [CALLBACK],
+          response_types: ['code'],
+          token_endpoint_auth_method: method,
+        }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      }),
+    );
+    if (response === undefined) throw new Error('DCR endpoint did not handle the request');
+    return response;
+  }
+
+  async function registered(
+    oauth: McpOAuthServer,
+    method: Confidential,
+  ): Promise<{ clientId: string; secret: string }> {
+    const response = await registerAs(oauth, method);
+    expect(response.status).toBe(201);
+    const body = (await response.json()) as { client_id: string; client_secret: string };
+    return { clientId: body.client_id, secret: body.client_secret };
+  }
+
+  async function codeFor(oauth: McpOAuthServer, clientId: string): Promise<string> {
+    const { response } = await completedAuthorization(oauth, VERIFIER, clientId);
+    const code = new URL(response.headers.get('location') ?? 'https://invalid').searchParams.get(
+      'code',
+    );
+    if (code === null) throw new Error('consent did not issue a code');
+    return code;
+  }
+
+  /** One token request; `basic` puts `[id, secret]` in the header, every field goes in the body. */
+  async function tokenCall(
+    oauth: McpOAuthServer,
+    fields: Record<string, string>,
+    basic?: readonly [string, string],
+  ): Promise<Response> {
+    const response = await oauth.response(
+      new Request(TOKEN, {
+        body: new URLSearchParams(fields),
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          ...(basic === undefined ? {} : { authorization: `Basic ${btoa(basic.join(':'))}` }),
+        },
+        method: 'POST',
+      }),
+    );
+    if (response === undefined) throw new Error('token endpoint did not handle the request');
+    return response;
+  }
+
+  const exchange = (code: string, clientId?: string): Record<string, string> => ({
+    ...(clientId === undefined ? {} : { client_id: clientId }),
+    code,
+    code_verifier: VERIFIER,
+    grant_type: 'authorization_code',
+    redirect_uri: CALLBACK,
+  });
+
+  async function expectInvalidClient(response: Response): Promise<void> {
+    expect(response.status).toBe(401);
+    expect(response.headers.get('www-authenticate')).toBe('Basic realm="wbs-mcp"');
+    expect(await response.json()).toEqual({ error: 'invalid_client' });
+  }
+
+  // Proof: 2026-10-31, accepting only `none` at registration made this answer 400
+  // invalid_client_metadata for both methods (the live claude.ai failure).
+  it('registers a client_secret_post and a client_secret_basic client, answering the secret once', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'mcp-confidential-'));
+    const path = join(root, 'sessions.sqlite');
+    try {
+      const store = new McpSessionStore(path, [randomBytes(32)]);
+      const { oauth } = fixture({ store });
+      for (const method of ['client_secret_post', 'client_secret_basic'] as const) {
+        const response = await registerAs(oauth, method);
+        expect(response.status).toBe(201);
+        expect(response.headers.get('cache-control')).toBe('no-store');
+        const body = (await response.json()) as Record<string, unknown>;
+        expect(body).toMatchObject({
+          grant_types: ['authorization_code', 'refresh_token'],
+          redirect_uris: [CALLBACK],
+          token_endpoint_auth_method: method,
+        });
+        expect(body['client_secret']).toMatch(/^[A-Za-z0-9_-]{43}$/);
+        expect(body['client_secret_expires_at']).toBe(body['client_id_expires_at']);
+      }
+      const publicBody = (await (await registerAs(oauth, 'none')).json()) as Record<
+        string,
+        unknown
+      >;
+      expect(publicBody['token_endpoint_auth_method']).toBe('none');
+      expect(publicBody).not.toHaveProperty('client_secret');
+      expect(publicBody).not.toHaveProperty('client_secret_expires_at');
+      store.close();
+      const db = new Database(path, { readonly: true });
+      const rows = db
+        .query(
+          'SELECT token_endpoint_auth_method AS method, client_secret_sha256 AS digest FROM mcp_client ORDER BY rowid',
+        )
+        .all() as { method: string | null; digest: string | null }[];
+      db.close();
+      expect(rows.map(({ method }) => method)).toEqual([
+        'client_secret_post',
+        'client_secret_basic',
+        null,
+      ]);
+      expect(rows[0]?.digest).toMatch(/^[0-9a-f]{64}$/);
+      expect(rows[2]?.digest).toBeNull();
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  // Proof: 2026-10-31, refusing an absent method made this answer 400 invalid_client_metadata.
+  it('registers an absent method as client_secret_basic (RFC 7591 §2)', async () => {
+    const { oauth } = fixture();
+    const response = await registerAs(oauth, undefined);
+    expect(response.status).toBe(201);
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body['token_endpoint_auth_method']).toBe('client_secret_basic');
+    expect(body['client_secret']).toMatch(/^[A-Za-z0-9_-]{43}$/);
+  });
+
+  it('still refuses an unknown or private_key_jwt auth method', async () => {
+    const { oauth } = fixture();
+    for (const method of ['private_key_jwt', 'tls_client_auth', 'NONE', '']) {
+      const response = await registerAs(oauth, method);
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: 'invalid_client_metadata' });
+    }
+  });
+
+  it('exchanges and refreshes a confidential client with its secret, by its own method', async () => {
+    for (const method of ['client_secret_post', 'client_secret_basic'] as const) {
+      const { oauth } = fixture();
+      const { clientId, secret } = await registered(oauth, method);
+      const code = await codeFor(oauth, clientId);
+      const issued =
+        method === 'client_secret_post'
+          ? await tokenCall(oauth, { ...exchange(code, clientId), client_secret: secret })
+          : await tokenCall(oauth, exchange(code), [clientId, secret]);
+      expect(issued.status).toBe(200);
+      const { refresh_token: refresh } = (await issued.json()) as { refresh_token: string };
+      const refreshFields = { grant_type: 'refresh_token', refresh_token: refresh };
+      const refreshed =
+        method === 'client_secret_post'
+          ? await tokenCall(oauth, { ...refreshFields, client_id: clientId, client_secret: secret })
+          : await tokenCall(oauth, refreshFields, [clientId, secret]);
+      expect(refreshed.status).toBe(200);
+    }
+  });
+
+  // Proof: 2026-10-31, skipping the token endpoint's `authenticatesClient` refusal made this
+  // answer 200 for the code sent without its secret; returning `true` from the digest compare
+  // made it answer 200 for the wrong secret.
+  it("refuses a confidential client's code without its secret or with a wrong one, and burns it", async () => {
+    const { oauth } = fixture();
+    const { clientId, secret } = await registered(oauth, 'client_secret_post');
+    const missing = await codeFor(oauth, clientId);
+    await expectInvalidClient(await tokenCall(oauth, exchange(missing, clientId)));
+    const burned = await tokenCall(oauth, {
+      ...exchange(missing, clientId),
+      client_secret: secret,
+    });
+    expect(burned.status).toBe(400);
+    expect(await burned.json()).toEqual({ error: 'invalid_grant' });
+
+    const wrong = await codeFor(oauth, clientId);
+    await expectInvalidClient(
+      await tokenCall(oauth, { ...exchange(wrong, clientId), client_secret: `${secret}x` }),
+    );
+    await expectInvalidClient(
+      await tokenCall(oauth, {
+        ...exchange(await codeFor(oauth, clientId), clientId),
+        client_secret: randomBytes(32).toString('base64url'),
+      }),
+    );
+  });
+
+  // Proof: 2026-10-31, comparing only the secret in `authenticatesClient` made the Basic
+  // client's secret sent in the body answer 200.
+  it('refuses a secret sent by the method it was not registered with, and a secret from a public client', async () => {
+    const { oauth } = fixture();
+    const basic = await registered(oauth, 'client_secret_basic');
+    await expectInvalidClient(
+      await tokenCall(oauth, {
+        ...exchange(await codeFor(oauth, basic.clientId), basic.clientId),
+        client_secret: basic.secret,
+      }),
+    );
+    const post = await registered(oauth, 'client_secret_post');
+    await expectInvalidClient(
+      await tokenCall(oauth, exchange(await codeFor(oauth, post.clientId)), [
+        post.clientId,
+        post.secret,
+      ]),
+    );
+    const { oauth: other } = fixture();
+    const publicId = await register(other);
+    await expectInvalidClient(
+      await tokenCall(other, {
+        ...exchange(await codeFor(other, publicId), publicId),
+        client_secret: 'anything',
+      }),
+    );
+  });
+
+  // Proof: 2026-10-31, skipping `refreshGrant`'s `authenticatesClient` refusal made the refresh
+  // without the secret answer 200.
+  it('refreshes a confidential client only with its secret, and a refused refresh keeps the family', async () => {
+    const { oauth } = fixture();
+    const { clientId, secret } = await registered(oauth, 'client_secret_basic');
+    const issued = await tokenCall(oauth, exchange(await codeFor(oauth, clientId)), [
+      clientId,
+      secret,
+    ]);
+    const { refresh_token: refresh } = (await issued.json()) as { refresh_token: string };
+    const fields = { grant_type: 'refresh_token', refresh_token: refresh };
+    await expectInvalidClient(await tokenCall(oauth, { ...fields, client_id: clientId }));
+    await expectInvalidClient(await tokenCall(oauth, fields, [clientId, 'wrong']));
+    await expectInvalidClient(
+      await tokenCall(oauth, { ...fields, client_id: clientId, client_secret: secret }),
+    );
+    expect((await tokenCall(oauth, fields, [clientId, secret])).status).toBe(200);
+  });
+
+  // Proof: 2026-10-31, with `refreshGrant`'s family-method refusal removed this answered 200 to
+  // client_id alone once the row was gone, and once it was rewritten as public; omitting the
+  // method from `createFamily` failed it the same way.
+  it("refuses a confidential family's refresh once its client row is gone", async () => {
+    const root = mkdtempSync(join(tmpdir(), 'mcp-confidential-'));
+    const path = join(root, 'sessions.sqlite');
+    try {
+      const store = new McpSessionStore(path, [randomBytes(32)]);
+      const { oauth } = fixture({ store });
+      const { clientId, secret } = await registered(oauth, 'client_secret_post');
+      const issued = await tokenCall(oauth, {
+        ...exchange(await codeFor(oauth, clientId), clientId),
+        client_secret: secret,
+      });
+      const { refresh_token: refresh } = (await issued.json()) as { refresh_token: string };
+      const fields = { grant_type: 'refresh_token', refresh_token: refresh, client_id: clientId };
+      const db = new Database(path);
+      db.run(
+        'UPDATE mcp_client SET token_endpoint_auth_method = NULL, client_secret_sha256 = NULL',
+      );
+      await expectInvalidClient(await tokenCall(oauth, fields));
+      db.run('DELETE FROM mcp_client');
+      db.close();
+      await expectInvalidClient(await tokenCall(oauth, fields));
+      await expectInvalidClient(await tokenCall(oauth, { ...fields, client_secret: secret }));
+      store.close();
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it("keeps a public family's refresh once its client row is gone", async () => {
+    const root = mkdtempSync(join(tmpdir(), 'mcp-confidential-'));
+    const path = join(root, 'sessions.sqlite');
+    try {
+      const store = new McpSessionStore(path, [randomBytes(32)]);
+      const { oauth } = fixture({ store });
+      const clientId = await register(oauth);
+      const issued = await tokenCall(oauth, exchange(await codeFor(oauth, clientId), clientId));
+      const { refresh_token: refresh } = (await issued.json()) as { refresh_token: string };
+      const db = new Database(path);
+      db.run('DELETE FROM mcp_client');
+      db.close();
+      const refreshed = await tokenCall(oauth, {
+        grant_type: 'refresh_token',
+        refresh_token: refresh,
+        client_id: clientId,
+      });
+      expect(refreshed.status).toBe(200);
+      store.close();
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  // Proof: 2026-10-31, promoting after the family's transaction committed (the pre-review
+  // order), with that write failing, left a family row beside an unproven client here.
+  it("commits the family and the client's promotion together", async () => {
+    const root = mkdtempSync(join(tmpdir(), 'mcp-confidential-'));
+    const path = join(root, 'sessions.sqlite');
+    try {
+      const store = new McpSessionStore(path, [randomBytes(32)]);
+      const { oauth } = fixture({ store });
+      const { clientId, secret } = await registered(oauth, 'client_secret_post');
+      const code = await codeFor(oauth, clientId);
+      const promote = store.promoteClient.bind(store);
+      store.promoteClient = () => {
+        throw new Error('process killed before the promotion');
+      };
+      // Caught rather than `rejects.toThrow`, whose bun typing is `void` (server.test.ts).
+      const cause: unknown = await tokenCall(oauth, {
+        ...exchange(code, clientId),
+        client_secret: secret,
+      })
+        .then(() => undefined)
+        .catch((error: unknown) => error);
+      expect(String(cause)).toContain('process killed');
+      store.promoteClient = promote;
+      const db = new Database(path, { readonly: true });
+      const families = db.query('SELECT COUNT(*) AS n FROM mcp_family').get() as { n: number };
+      db.close();
+      expect(families.n).toBe(0);
+      expect(store.client(clientId, 1_700_000_000_000)?.proven).toBe(false);
+      store.close();
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it('keeps the public flow: a none client exchanges and refreshes with its client_id alone', async () => {
+    const { oauth } = fixture();
+    const clientId = await register(oauth);
+    const issued = await tokenCall(oauth, exchange(await codeFor(oauth, clientId), clientId));
+    expect(issued.status).toBe(200);
+    const { refresh_token: refresh } = (await issued.json()) as { refresh_token: string };
+    const refreshed = await tokenCall(oauth, {
+      client_id: clientId,
+      grant_type: 'refresh_token',
+      refresh_token: refresh,
+    });
+    expect(refreshed.status).toBe(200);
+  });
+
+  // Proof: 2026-10-31, `authenticatesClient` returning `true` made the key sent as the client's
+  // secret redeem the code (200). Dropping the token endpoint's `presented.clientId ===
+  // grant.clientId` guard only turned the key's own id from invalid_grant into invalid_client:
+  // a code is bound to its client twice.
+  it('an API key never authenticates a consent grant, by its own id or as a client secret', async () => {
+    const { oauth } = fixture();
+    const { clientId, secret } = await registered(oauth, 'client_secret_basic');
+    const credentialId = '0b7c2f8e-3a41-4c55-9f0e-1d2e3f405162';
+    const { key } = newMachineKey(credentialId);
+    const asKey = await tokenCall(oauth, exchange(await codeFor(oauth, clientId)), [
+      credentialId,
+      key,
+    ]);
+    expect(asKey.status).toBe(400);
+    expect(await asKey.json()).toEqual({ error: 'invalid_grant' });
+    await expectInvalidClient(
+      await tokenCall(oauth, exchange(await codeFor(oauth, clientId)), [clientId, key]),
+    );
+    const issued = await tokenCall(oauth, exchange(await codeFor(oauth, clientId)), [
+      clientId,
+      secret,
+    ]);
+    const { refresh_token: refresh } = (await issued.json()) as { refresh_token: string };
+    const fields = { grant_type: 'refresh_token', refresh_token: refresh };
+    await expectInvalidClient(await tokenCall(oauth, fields, [credentialId, key]));
+    await expectInvalidClient(await tokenCall(oauth, fields, [clientId, key]));
+    expect((await tokenCall(oauth, fields, [clientId, secret])).status).toBe(200);
+  });
+
+  // Proof: 2026-10-31, recording the token form's `client_secret` in `routeEvidenceOf` (the
+  // evidence the `mcp_oauth_route` log line prints) put the secret in this evidence.
+  it('records no client secret in route evidence', async () => {
+    const { oauth, routeEvidence } = fixture();
+    const { clientId, secret } = await registered(oauth, 'client_secret_post');
+    const code = await codeFor(oauth, clientId);
+    await tokenCall(oauth, { ...exchange(code, clientId), client_secret: `${secret}-wrong` });
+    expect(routeEvidence.length).toBeGreaterThan(2);
+    expect(JSON.stringify(routeEvidence)).not.toContain(secret);
   });
 });

@@ -39,7 +39,7 @@ function leafRequest(over: Partial<ClaimRequest> = {}): ClaimRequest {
         { stepId: 'review', progress: 'in_progress' },
       ],
     },
-    caller: { accountId: F, isAdmin: false, pinnedPersonId: null },
+    caller: { accountId: F, isAdmin: false, pinnedPersonId: null, pinnedRunId: null },
     claimant: { personId: 'worker', boundAccountId: F },
     stepIds: null,
     runId: 'agent:main:subagent:7f',
@@ -227,7 +227,7 @@ describe('decideClaim refusals, one per reason', () => {
   it('lets an admin claim for an unbound person', () => {
     const decided = decideClaim(
       leafRequest({
-        caller: { accountId: F, isAdmin: true, pinnedPersonId: null },
+        caller: { accountId: F, isAdmin: true, pinnedPersonId: null, pinnedRunId: null },
         claimant: { personId: 'worker', boundAccountId: null },
       }),
     );
@@ -237,7 +237,7 @@ describe('decideClaim refusals, one per reason', () => {
   it('credential_not_for_person: a pinned credential names another person', () => {
     const decided = decideClaim(
       leafRequest({
-        caller: { accountId: F, isAdmin: false, pinnedPersonId: 'claire' },
+        caller: { accountId: F, isAdmin: false, pinnedPersonId: 'claire', pinnedRunId: null },
         claimant: { personId: 'codex-fleet', boundAccountId: F },
       }),
     );
@@ -247,7 +247,7 @@ describe('decideClaim refusals, one per reason', () => {
   it('the admin bypass does not reach credential_not_for_person', () => {
     const decided = decideClaim(
       leafRequest({
-        caller: { accountId: F, isAdmin: true, pinnedPersonId: 'claire' },
+        caller: { accountId: F, isAdmin: true, pinnedPersonId: 'claire', pinnedRunId: null },
         claimant: { personId: 'codex-fleet', boundAccountId: null },
       }),
     );
@@ -257,7 +257,7 @@ describe('decideClaim refusals, one per reason', () => {
   it('a pinned credential may claim for a subagent under its own person’s claim', () => {
     const decided = decideClaim(
       leafRequest({
-        caller: { accountId: F, isAdmin: false, pinnedPersonId: 'claire' },
+        caller: { accountId: F, isAdmin: false, pinnedPersonId: 'claire', pinnedRunId: null },
         parentClaim: subtree,
         parentClaimId: subtree.id,
         claims: [subtree],
@@ -351,7 +351,7 @@ describe('decideClaim refusals, one per reason', () => {
   it('inside_subtree_claim: a stranger claims inside a claimed subtree, naming the holder', () => {
     const decided = decideClaim(
       leafRequest({
-        caller: { accountId: G, isAdmin: false, pinnedPersonId: null },
+        caller: { accountId: G, isAdmin: false, pinnedPersonId: null, pinnedRunId: null },
         claimant: { personId: 'stranger', boundAccountId: G },
         claims: [subtree],
       }),
@@ -371,7 +371,7 @@ describe('decideClaim refusals, one per reason', () => {
     const held = claim({ id: 'h', workItemId: 'leaf', stepId: 'plan', personId: 'agent-a' });
     const decided = decideClaim(
       leafRequest({
-        caller: { accountId: G, isAdmin: false, pinnedPersonId: null },
+        caller: { accountId: G, isAdmin: false, pinnedPersonId: null, pinnedRunId: null },
         claimant: { personId: 'stranger', boundAccountId: G },
         claims: [subtree, held],
       }),
@@ -384,7 +384,7 @@ describe('decideClaim refusals, one per reason', () => {
     const decided = decideClaim(
       leafRequest({
         target,
-        caller: { accountId: G, isAdmin: false, pinnedPersonId: 'claire' },
+        caller: { accountId: G, isAdmin: false, pinnedPersonId: 'claire', pinnedRunId: null },
         parentClaimId: 'gone',
       }),
     );
@@ -641,7 +641,7 @@ describe('decideClaim never takes a held step', () => {
 function releaseRequest(over: Partial<ReleaseRequest> = {}): ReleaseRequest {
   return {
     target: { workItemId: 'leaf', isLeaf: true },
-    caller: { accountId: F, isAdmin: false, pinnedPersonId: null },
+    caller: { accountId: F, isAdmin: false, pinnedPersonId: null, pinnedRunId: null },
     claimant: { personId: 'worker', boundAccountId: F },
     stepIds: null,
     claims: [],
@@ -687,7 +687,7 @@ describe('decideRelease', () => {
     expect(
       decideRelease(
         releaseRequest({
-          caller: { accountId: F, isAdmin: false, pinnedPersonId: 'claire' },
+          caller: { accountId: F, isAdmin: false, pinnedPersonId: 'claire', pinnedRunId: null },
           claims: [impl],
         }),
       ),
@@ -699,7 +699,7 @@ describe('decideRelease', () => {
     expect(
       decideRelease(
         releaseRequest({
-          caller: { accountId: F, isAdmin: false, pinnedPersonId: 'claire' },
+          caller: { accountId: F, isAdmin: false, pinnedPersonId: 'claire', pinnedRunId: null },
           claims: [subtree, delegated],
         }),
       ),
@@ -757,5 +757,193 @@ describe('decideRelease', () => {
         }),
       ),
     ).toEqual({ kind: 'release', claims: [subtree, mid, w1, w2] });
+  });
+});
+
+/** A machine grant pinned to `worker` that opted into run `a` (`wbs-mcp-agent-surface` M15). */
+const RUN_A = { accountId: F, isAdmin: false, pinnedPersonId: 'worker', pinnedRunId: 'a' };
+
+describe('decideClaim under an opted-in run', () => {
+  it('stamps the run on a claim for its own person, given no runId', () => {
+    const decided = decideClaim(leafRequest({ caller: RUN_A, runId: null }));
+    if (decided.kind !== 'claim') throw new Error(`refused: ${JSON.stringify(decided)}`);
+    expect(decided.drafts.map(({ runId }) => runId)).toEqual(['a', 'a']);
+  });
+
+  it('accepts the same runId as its run', () => {
+    const decided = decideClaim(leafRequest({ caller: RUN_A, runId: 'a' }));
+    expect(decided.kind).toBe('claim');
+  });
+
+  it('refuses a forged run id run_mismatch, after the identity refusals', () => {
+    expect(decideClaim(leafRequest({ caller: RUN_A, runId: 'b' }))).toEqual({
+      kind: 'refused',
+      refusal: { reason: 'run_mismatch' },
+    });
+    expect(
+      decideClaim(
+        leafRequest({
+          caller: { ...RUN_A, pinnedPersonId: 'claire' },
+          claimant: { personId: 'codex-fleet', boundAccountId: F },
+          runId: 'b',
+        }),
+      ),
+    ).toEqual({ kind: 'refused', refusal: { reason: 'credential_not_for_person' } });
+  });
+
+  it('refuses run_mismatch before the parent-claim checks', () => {
+    expect(
+      decideClaim(
+        leafRequest({ caller: RUN_A, runId: 'b', parentClaimId: 'c-absent', parentClaim: null }),
+      ),
+    ).toEqual({ kind: 'refused', refusal: { reason: 'run_mismatch' } });
+  });
+
+  it('answers alreadyHeld for its own run, and already_claimed for another run', () => {
+    const held = [
+      claim({ id: 'p', workItemId: 'leaf', stepId: 'plan', personId: 'worker', runId: 'a' }),
+      claim({ id: 'r', workItemId: 'leaf', stepId: 'review', personId: 'worker', runId: 'a' }),
+    ];
+    expect(decideClaim(leafRequest({ caller: RUN_A, runId: null, claims: held }))).toEqual({
+      kind: 'alreadyHeld',
+    });
+    const underB = held.map((each) => ({ ...each, runId: 'b' }));
+    expect(decideClaim(leafRequest({ caller: RUN_A, runId: null, claims: underB })).kind).toBe(
+      'refused',
+    );
+  });
+
+  it('adopts its own pre-opt-in claim as alreadyHeld, without restamping it', () => {
+    const before = [
+      claim({ id: 'p', workItemId: 'leaf', stepId: 'plan', personId: 'worker', runId: null }),
+      claim({ id: 'r', workItemId: 'leaf', stepId: 'review', personId: 'worker', runId: null }),
+    ];
+    expect(decideClaim(leafRequest({ caller: RUN_A, runId: null, claims: before }))).toEqual({
+      kind: 'alreadyHeld',
+    });
+    // A step beside the adopted one is written under the run.
+    const decided = decideClaim(
+      leafRequest({ caller: RUN_A, runId: null, claims: before.slice(0, 1) }),
+    );
+    if (decided.kind !== 'claim') throw new Error(`refused: ${JSON.stringify(decided)}`);
+    expect(decided.drafts.map(({ stepId, runId }) => [stepId, runId])).toEqual([['review', 'a']]);
+  });
+
+  it('adopts no other person’s no-run claim', () => {
+    const theirs = [
+      claim({ id: 'p', workItemId: 'leaf', stepId: 'plan', personId: 'other', runId: null }),
+    ];
+    expect(decideClaim(leafRequest({ caller: RUN_A, runId: null, claims: theirs })).kind).toBe(
+      'refused',
+    );
+  });
+
+  it("a lead writes a worker's delegated claim with the worker's run", () => {
+    const lead = { accountId: F, isAdmin: false, pinnedPersonId: 'claire', pinnedRunId: 'a' };
+    const decided = decideClaim(
+      leafRequest({
+        caller: lead,
+        runId: 'b',
+        parentClaim: subtree,
+        parentClaimId: subtree.id,
+        claims: [subtree],
+      }),
+    );
+    if (decided.kind !== 'claim') throw new Error(`refused: ${JSON.stringify(decided)}`);
+    expect(decided.drafts.map(({ runId }) => runId)).toEqual(['b', 'b']);
+  });
+
+  it('leaves a caller without a run to the command’s runId', () => {
+    const decided = decideClaim(
+      leafRequest({ caller: { ...RUN_A, pinnedRunId: null }, runId: 'free' }),
+    );
+    if (decided.kind !== 'claim') throw new Error(`refused: ${JSON.stringify(decided)}`);
+    expect(decided.drafts.map(({ runId }) => runId)).toEqual(['free', 'free']);
+  });
+});
+
+describe('decideRelease under an opted-in run', () => {
+  const implA = claim({
+    id: 'ia',
+    workItemId: 'leaf',
+    stepId: 'impl',
+    personId: 'worker',
+    runId: 'a',
+  });
+  const reviewB = claim({
+    id: 'rb',
+    workItemId: 'leaf',
+    stepId: 'review',
+    personId: 'worker',
+    runId: 'b',
+  });
+
+  it('releases only its run’s claim on a leaf held under two runs', () => {
+    expect(decideRelease(releaseRequest({ caller: RUN_A, claims: [implA, reviewB] }))).toEqual({
+      kind: 'release',
+      claims: [implA],
+    });
+  });
+
+  it('releases its run’s step of named steps split across runs, refusing nothing', () => {
+    expect(
+      decideRelease(
+        releaseRequest({ caller: RUN_A, stepIds: ['impl', 'review'], claims: [implA, reviewB] }),
+      ),
+    ).toEqual({ kind: 'release', claims: [implA] });
+  });
+
+  it('refuses run_mismatch naming only another run’s step', () => {
+    expect(
+      decideRelease(
+        releaseRequest({ caller: RUN_A, stepIds: ['review'], claims: [implA, reviewB] }),
+      ),
+    ).toEqual({ kind: 'refused', refusal: { reason: 'run_mismatch' } });
+  });
+
+  it('judges not_claimed_by first, over every run', () => {
+    expect(
+      decideRelease(releaseRequest({ caller: RUN_A, stepIds: ['plan'], claims: [implA, reviewB] })),
+    ).toEqual({ kind: 'refused', refusal: { reason: 'not_claimed_by' } });
+  });
+
+  it('refuses run_mismatch when the person holds the item only under other runs', () => {
+    expect(decideRelease(releaseRequest({ caller: RUN_A, claims: [reviewB] }))).toEqual({
+      kind: 'refused',
+      refusal: { reason: 'run_mismatch' },
+    });
+  });
+
+  it('releases a claim taken with no run before it opted in', () => {
+    const before = { ...reviewB, runId: null };
+    expect(decideRelease(releaseRequest({ caller: RUN_A, claims: [before] }))).toEqual({
+      kind: 'release',
+      claims: [before],
+    });
+  });
+
+  it('refuses run_mismatch on a subtree claim held under another run', () => {
+    const underB = { ...subtree, personId: 'worker', runId: 'b' };
+    expect(
+      decideRelease(
+        releaseRequest({
+          target: { workItemId: 'parent', isLeaf: false },
+          caller: RUN_A,
+          claims: [underB],
+        }),
+      ),
+    ).toEqual({ kind: 'refused', refusal: { reason: 'run_mismatch' } });
+  });
+
+  // Proof: with the run applied to every release the principal makes (the
+  // pinned-person test dropped from `decideRelease`), this answered
+  // run_mismatch; watched 2026-10-27.
+  it("judges a lead's release of a worker's delegated claim without a run", () => {
+    const delegated = { ...reviewB, parentClaimId: 'c-parent' };
+    const lead = { accountId: F, isAdmin: false, pinnedPersonId: 'claire', pinnedRunId: 'a' };
+    expect(decideRelease(releaseRequest({ caller: lead, claims: [subtree, delegated] }))).toEqual({
+      kind: 'release',
+      claims: [delegated],
+    });
   });
 });

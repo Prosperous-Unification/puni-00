@@ -595,7 +595,7 @@ export class DirectoryService {
 
   /**
    * States (`units`) or clears (`null`) a resource's **Directory capacity**
-   * (`wbs-shared-occupancy` S1, S11, assumed), the one function both command
+   * (`wbs-shared-occupancy` S1, S11), the one function both command
    * routes take. Under scoped access only an admin or a super-admin may
    * (`forbidden` otherwise, before the resource is looked up, as a removal is
    * refused); every agent arrives as at most a member. A foreign or absent
@@ -1015,8 +1015,7 @@ export class DirectoryService {
         await this.opts.directory.usageOfPerson(personId),
         personId,
       );
-      if (seen.projects.length > 0 || seen.pinnedCredentials > 0)
-        return { ok: false, reason: 'in_use', usage: seen };
+      if (seen.projects.length > 0) return { ok: false, reason: 'in_use', usage: seen };
     }
     // Legacy access exists only before activation, when no machine
     // credential can have been created, so it reaches none.
@@ -1602,7 +1601,6 @@ export class DirectoryService {
             usage: {
               projects: [],
               members: [],
-              pinnedCredentials: 0,
               machineCredentials: written.machineCredentials,
             },
           };
@@ -1690,7 +1688,7 @@ export class DirectoryService {
       removal.usageIn(await this.localUsage(rows, scope), id);
     if (!cascade) {
       const seen = await shown(await removal.usageOf(id));
-      if (seen.projects.length > 0 || seen.members.length > 0 || seen.pinnedCredentials > 0) {
+      if (seen.projects.length > 0 || seen.members.length > 0) {
         return { ok: false, reason: 'in_use', usage: seen };
       }
     }

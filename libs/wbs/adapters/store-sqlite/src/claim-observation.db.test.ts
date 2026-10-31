@@ -279,4 +279,34 @@ describe("the source's public claims read", () => {
       }
     });
   }
+
+  it('reuses one read connection and closes every pooled one with the source', async () => {
+    const opened = { now: 0, ever: 0 };
+    const source = openSqliteSource({
+      dbPath: path,
+      openReadOnlyConnection: (dbPath) => {
+        const connection = openReadOnlyConnection(dbPath);
+        opened.now += 1;
+        opened.ever += 1;
+        return {
+          db: connection.db,
+          close: () => {
+            connection.close();
+            opened.now -= 1;
+          },
+        };
+      },
+    }).bindLivePlans({ schedulerOf: () => fastScheduler });
+    await claimNewRow('w-first', 0);
+    const first = await source.stores.claims.observeProject('project', LEGACY);
+    await claimNewRow('w-second', 0);
+    const second = await source.stores.claims.observeProject('project', LEGACY);
+    if (first.kind !== 'observed' || second.kind !== 'observed')
+      throw new Error('an observation did not answer');
+    expect(first.claims.map(({ id }) => id)).toEqual(['claim-w-first']);
+    expect(second.claims.map(({ id }) => id).sort()).toEqual(['claim-w-first', 'claim-w-second']);
+    expect(opened).toEqual({ now: 1, ever: 1 });
+    await source.close();
+    expect(opened.now).toBe(0);
+  });
 });
