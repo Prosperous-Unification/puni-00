@@ -102,6 +102,28 @@ A dev migration SHALL retain the Compose stores and the old telemetry path until
 - **THEN** each operation has a distinct immutable receipt and prior receipts are not overwritten
 - **AND** known historical Elastic and Prometheus evidence remains queryable at its recorded location
 
+#### Scenario: Reviewed acceptance does not replace current checks
+
+- **WHEN** a dev route cutover or restore is requested
+- **THEN** independently pinned reviewed evidence binds the complete common-stack rehearsal and staged candidate acceptance to their exact sources, targets, stores and routes
+- **AND** missing, failed, stale, component-only, source-only or mismatched evidence prevents mutation
+- **AND** the operation independently reruns fresh target preflight, current effective observer ownership, candidate stored-signal and retained-history checks before switching
+- **AND** reviewed evidence remains explicitly reviewed evidence, rather than an invented automated runtime certification
+
+#### Scenario: Rollback remains available during candidate failure
+
+- **WHEN** the candidate or its Kubernetes path is unavailable after a route switch
+- **THEN** recovery to the captured retained route validates fresh retained source, store, effective unit and history ownership without requiring the failed candidate to be Ready
+- **AND** unknown retained ownership or a changed effective observer still prevents mutation
+- **AND** no broad readiness-blocker exception or source-only inventory authorizes recovery
+
+#### Scenario: Uncertain route mutation remains visible
+
+- **WHEN** a restart, reload or transport outcome is uncertain after mutation begins
+- **THEN** durable immutable evidence records that mutation may have occurred
+- **AND** the operation never reports the route unchanged or accepted without observing it
+- **AND** any compensating rollback has a distinct receipt, while unresolved ownership or failed recovery produces a pinned manual inspection and recovery instruction
+
 ### Requirement: Evidence states are distinct
 
 Reports SHALL distinguish source conformance, runtime rehearsal and actual live migration. They MUST bind evidence to exact revisions, target identities and observed commands. Planned production readiness, passing render validation and an accepted ingest response MUST NOT be reported as live stored-signal acceptance.

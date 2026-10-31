@@ -7,7 +7,7 @@ Dev uses Compose and production plans Kubernetes/Flux, with different pipelines,
 - Use shared observability components, configuration and acceptance checks across local rehearsal, dev and production candidates; Kubernetes/Flux is the existing deployment direction to converge on.
 - Make environment differences explicit inputs with reasons and verification. Runtime, signal processing, security guarantees and recovery semantics do not vary merely because an environment is called dev.
 - Bring the proven Elastic trace gateway and autonomous stored-query acceptance into the common deployment, preserving working log mappings and metrics coverage.
-- Prepare migration with retained telemetry references and explicit history verification. Preserve dev until its replacement passes common checks; record the transition separately from parity.
+- Implement dev route cutover, rollback and restore with distinct retained-history receipts. Preserve dev until its replacement passes reviewed common checks; record transitions separately from parity.
 - Report source parity, rehearsal evidence and live convergence separately.
 - Inventory and bound source contributors and conditional lifecycles through shared accounting, retaining provider and enforcement provenance.
 - Collect host/workload resource history through the existing observer, with provider-neutral readings, explicit unavailable states and reversible immutable-binary updates.

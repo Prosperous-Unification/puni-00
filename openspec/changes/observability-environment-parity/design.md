@@ -522,8 +522,8 @@ Full parity, history/recovery and Kubernetes/Flux admission remain open.
 
 Task76 audited the actual seven open main tasks against their owning source.
 The shared instance/security composition already exists; do not rebuild it.
-Task4.1 still lacks historical witnesses and route operations. Implement the
-first dependency now: reusable read-only capture/verification instead of relying
+Task4.1 initially lacked historical witnesses and route operations. Its
+completed first dependency provides: reusable read-only capture/verification instead of relying
 on the private ad hoc history script. Actual cutover/rollback/restore follows
 through existing binding/unit ownership only after its required live inventory;
 this source slice cannot admit a candidate or finish4.1/4.2.
@@ -560,3 +560,57 @@ Reuse existing transport deadlines, capped reads and read-only privilege checks;
 all local protocol fixtures stay explicit component evidence. The real existing
 dev stores can corroborate the reader after source review without deploying
 anything or replaying a previous outage. No live route is changed in this slice.
+
+## Dev route cutover, rollback and restore
+
+Extend the existing dev runtime flow with one route operation: replace only the
+owned observer unit's ingest/query bindings, preserve its binary and containment,
+reload and restart that unit, then observe the result. Reuse the existing
+transport, backend acceptance, retained-history and Grafana receipt semantics.
+Keep shared operation identities and states provider-neutral; SSH, systemd,
+Kubernetes and concrete binding details belong in dedicated adapters. Fleet
+composes its existing fresh preflight with the observability runtime adapter,
+avoiding a reverse dependency from the observability tool to Fleet.
+
+Forward cutover and restore require an independently pinned, separately reviewed
+full acceptance cohort covering real common-stack rehearsal and staged-dev
+acceptance. Its check evidence binds exact revisions, target identities, source,
+controller/store/claim identities, routes, bounded command outcomes and capture
+digests. Stored signals, operator views, authentication/isolation, alerts,
+process/outage recovery, retained history, backup/restore and required advancing
+freshness windows cannot be replaced by source comparison or component fixtures.
+This is an explicit operator-reviewed evidence boundary, like reviewed preflight
+pins, not a signing framework or an invented automated certification. Full
+acceptance collection in the existing rehearsal path remains required separately.
+The operation reruns fresh real preflight, candidate stored queries, source and
+effective unit inspection and original retained-history verification itself.
+
+Rollback is recovery to the captured healthy retained route. It must work during
+candidate/Kubernetes failure. Reuse the existing retained Docker ownership and
+volume-pin guards through a narrow extraction, with fresh observer/binary/unit,
+source, old-route health and historical queries. Do not reinterpret inventory as
+readiness or whitelist general preflight blockers. Existing full cutover and
+bootstrap-adoption preflight behavior remains unchanged.
+
+Each operation reserves an exclusive private receipt location and nonwaiting
+observer ownership lock. Capture and sync exact reversible prior unit ownership,
+credential-free route commitments and linked evidence before mutation; record
+mutation-started durably before the unit write. Inspect loaded ExecStart,
+drop-ins, binary/source and initialized checkpoints rather than only the unit
+file. Recheck expected ownership before replacement. Credentials stay in existing
+private bindings; receipts contain neither their values nor password/private-key
+hashes. Preserve the tunnel, old services/stores, Grafana objects and all prior
+receipts. No deletion or production action belongs in this command.
+
+After restart, validate effective runtime/source, advancing stored health over the
+required windows, preserved services and original historical references. Only a
+complete durable outcome accepts the route. Timeout, lost transport and nonzero
+command outcomes after invocation retain explicit failure/uncertainty evidence.
+A compensating rollback is a separate recorded operation; uncertain ownership or
+failed recovery requires a precise manual inspection/recovery instruction.
+Subsequent restore links a new receipt to its completed rollback and requires
+fresh forward acceptance, preserving every earlier receipt byte-for-byte.
+
+Task79 source tests use disposable HTTP/process fixtures and remain component
+evidence. Actual shared-stack rehearsal and dev migration stay open until the
+unchanged admission, inventory and persistent-material prerequisites are met.
