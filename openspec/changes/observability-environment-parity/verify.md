@@ -4822,3 +4822,73 @@ recommended, no resource or retention setting was reduced, and no store, workloa
 credential, provider resource or history was changed. Private measured-dev-2026-10-31
 receipts retain safe projections, query expressions, script and hashes. Software/
 runtime acceptance tests and host gates were not run for this documentation correction.
+
+## Task74 bounded resource reader — 2026-10-31, implementation review pending
+
+Actual pre-intent BASE `16f2dd1c670655fb6d57fa4016f15a5606d2fe42`; approved
+intent `99396ad6112532dbd374eb2481ec4f14d94781e5`; normal source commit
+`452ab999e5e85894aa2c8d07954755f1b24c1009`. The existing observer now carries
+optional provider-neutral `HealthCheckpoint.resources`, with every new CLI cycle
+supplying complete or unavailable. A fixed embedded SSH/Python adapter reads actual
+host memory/busy CPU and exactly thirteen selected workload cgroups, binding
+machine/daemon/boot, projected ownership/control/lifecycle and PID/cgroup generations
+before/after. Missing, malformed, stale/future, escaped or changed evidence refuses.
+Unselected workloads remain an explicit count; selected memory is never host RAM.
+Configured limits remain separate from current charges, including explicit null for
+unbounded memory and valid pressure observations above a configured limit.
+
+The existing sender appends resource state/checked/observed timestamps, current
+memory and cumulative CPU metrics. CPU sums carry execution start time; bounded-role
+host/workload start gauges also expose epochs to consumers that omit OTLP start time.
+Checkpoint provenance retains IDs while metric labels contain only bounded target,
+group and role values. Producer identity remains distinct from measured legacy/dev
+workloads. Local mode emits unavailable with no actual samples or SSH invocation.
+The provider is embedded in the compiled binary, not read from a workspace asset.
+Old health/progress/storage contracts and the8192-byte checkpoint cap are unchanged.
+
+The actual existing local CLI assertion first failed because resource state was
+absent. A second genuine RED showed foreign-machine acceptance under optimized
+Python; explicit non-assert refusal now prevents disabled identity/path assertions.
+Tests execute actual Python against temporary proc/cgroup files, bounded Docker/SSH
+stdio fixtures and the actual OTLP sender against loopback HTTP. Both source and
+compiled CLI tests verify local SSH tripwires and default-cycle measured publication;
+the compiled provider also runs outside the source directory. The complete thirteen
+samples and provenance fit the unchanged checkpoint cap. Actual blocked-process
+deadline/cancellation controls terminate their fixture processes.
+
+The one focused covering command was:
+
+```sh
+bun test tools/tool-observability-stack/src/dev/resources.test.ts tools/tool-observability-stack/src/dev/resources-ssh.test.ts tools/tool-observability-stack/src/dev/autonomous.test.ts
+```
+
+It passed78tests/277assertions with0failures in34.31seconds. After mechanical
+fixture typing/string interpolation and array-style lint corrections, the selected
+source/compiled/provider/OTLP/encoding smoke passed5tests/51assertions in2.58seconds.
+Final affected lib/spec `bunx tsc --build --force tools/tool-observability-stack/tsconfig.json`,
+changed-file ESLint and Prettier passed. Strict owning OpenSpec validation passed
+1change/0issues in34ms. Normal source hooks passed lint/format/plaintext-secrets and
+private-nesting; ToolWiki explicitly reported inactive/uncertified, not certification.
+
+Raw receipts and exact argv are indexed in `/tmp/puni-task74-evidence/command-index.json`;
+source file SHA256s are in `source.json`, with receipt hashes in `manifest.json`.
+Private report: `.superpowers/sdd/observability-environment-parity/task-74-report.md`.
+`python-fault-index.json` and `boundary-fault-index.json` retain individual injected
+faults, test outputs, timings and exact restoration hashes. Of58 observed mutations,
+27 admitted invalid readings after guard removal,20 changed diagnostic/boundary order,
+7 exercised deadline/modeled-failure behavior, and1each exercised transport argv,
+local isolation, unavailable encoding and generation encoding. Diagnostic-order
+failures are not independent unsafe-acceptance proofs. Adjacent Proof comments name
+the observed tests. The original command-deadline mutation's12004ms harness timeout
+is uncredited; `command-deadline-fault-refined.json` supersedes it with the intended
+refusal mismatch in9.052seconds. Initial missing-module, duplicate-newline fixture,
+typecheck and lint failures remain retained and uncredited. Automatic approval
+rejected the first CLI wiring command over possible local SSH; it ran nothing, and
+the explicit local branch plus executable tripwires resolved that concern.
+
+No full Nx/host gate, old proof matrix, chart render, network install, actual SSH,
+Docker/provider operation, deployment, credential/history/resource-policy change,
+push or merge ran in this source slice. Independent specification/quality review and
+separately bounded actual adapter/existing-pipeline corroboration remain open; no
+stored-history/Prometheus-reset or runtime-acceptance claim is made. Task74,3.1 and
+full two-instance Kubernetes/isolation/history/recovery acceptance stay open.
