@@ -74,7 +74,7 @@ The coordinator SHALL overlay current WBS eligibility and durable execution, wai
 
 ### Requirement: Ticket reports retain local identity and generation
 
-The integration SHALL accept completion reports only for tickets issued by its current session and exact activity identity after verifying the supplied accepted WBS facts. Foreign, fabricated, retargeted and pre-rebuild tickets SHALL refuse without satisfying a dependency. Exact repeated accepted reports SHALL preserve the original acknowledgement and SHALL NOT repeat durable or remote effects. Retryable business failures SHALL remain host policy and SHALL NOT be translated into a fatal traversal failure automatically.
+Completion SHALL require a current-session ticket, exact activity identity and verified accepted WBS facts. Foreign, fabricated, retargeted and pre-rebuild tickets SHALL refuse without satisfying dependencies. Exact repeated accepted reports SHALL preserve the original acknowledgement without repeating durable or remote effects. Retryable business failures SHALL remain host policy, without automatic fatal traversal failure.
 
 #### Scenario: Stale and duplicate reports
 
