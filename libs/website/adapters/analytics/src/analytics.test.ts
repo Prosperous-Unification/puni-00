@@ -741,3 +741,52 @@ test('cookie-permission downgrade reports cleanup failure and stops later events
   expect(f.analytics.dispatch({ name: 'funnel_failure', category: 'network' })).toBe('unavailable');
   expect(f.sent.map((event) => event.name)).toEqual(['page_view']);
 });
+
+test('choice observation follows persisted choices independently of loading', async () => {
+  const f = fixture();
+  expect(f.analytics.getChoice()).toBe('unset');
+  const choices: string[] = [];
+  const unsubscribe = f.analytics.subscribeChoice((choice) => choices.push(choice));
+  f.analytics.accept();
+  expect(f.analytics.getState().status).toBe('loading');
+  expect(f.analytics.getChoice()).toBe('accepted');
+  expect(choices).toEqual(['accepted']);
+  await f.complete('unavailable');
+  expect(f.analytics.getChoice()).toBe('accepted');
+  f.analytics.reject();
+  expect(f.analytics.getChoice()).toBe('rejected');
+  unsubscribe();
+  f.setPreference(null);
+  f.analytics.sync();
+  expect(choices).toEqual(['accepted', 'rejected']);
+});
+
+for (const preference of [
+  null,
+  'malformed',
+  JSON.stringify({ version: 1, accepted: true, expires: 1 }),
+])
+  test(`invalid or missing choice remains unset: ${String(preference)}`, () => {
+    const f = fixture(href, preference);
+    expect(f.analytics.getChoice()).toBe('unset');
+  });
+
+test('choice observation syncs expiry, navigation, read failure and write recovery', () => {
+  const f = fixture();
+  f.analytics.accept();
+  f.advance();
+  f.analytics.navigate();
+  expect(f.analytics.getChoice()).toBe('unset');
+  f.setPreference(JSON.stringify({ version: 1, accepted: false, expires: Date.UTC(2030, 0) }));
+  f.analytics.sync();
+  expect(f.analytics.getChoice()).toBe('rejected');
+  f.ports.readPreference = () => ({ status: 'unavailable' });
+  f.analytics.sync();
+  expect(f.analytics.getChoice()).toBe('unavailable');
+  f.ports.writePreference = () => ({ status: 'unavailable' });
+  f.analytics.reject();
+  expect(f.analytics.getChoice()).toBe('unavailable');
+  f.ports.writePreference = () => ({ status: 'ok' });
+  f.analytics.reject();
+  expect(f.analytics.getChoice()).toBe('rejected');
+});

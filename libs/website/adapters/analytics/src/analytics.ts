@@ -16,6 +16,7 @@ export type { MeasurementContext } from './configuration';
 export type AnalyticsState =
   | { status: 'disabled' | 'denied' | 'loading' | 'cookieless' | 'ready' }
   | { status: 'unavailable'; reason: 'storage' | 'loader' | 'transport' };
+export type AnalyticsChoice = 'unset' | 'accepted' | 'rejected' | 'unavailable';
 export type CookiePermission = 'denied' | 'granted';
 export type StorageOutcome = { status: 'ok' } | { status: 'unavailable' };
 export type StorageRead<T> = { status: 'ok'; value: T } | { status: 'unavailable' };
@@ -55,6 +56,10 @@ export type DispatchOutcome = 'sent' | 'dropped' | 'duplicate' | 'unavailable';
 export type LeadEvent = Extract<AnalyticsEvent, { name: 'generate_lead' }>;
 export interface Analytics {
   getState(): AnalyticsState;
+  /** Validated preference, independent of vendor readiness; unavailable means the last preference read or write failed. */
+  getChoice(): AnalyticsChoice;
+  /** Notifies preference changes even when collection remains loading; sync/navigation refresh expiry. */
+  subscribeChoice(listener: (choice: AnalyticsChoice) => void): () => void;
   subscribe(listener: (state: AnalyticsState) => void): () => void;
   accept(): void;
   reject(): void;
@@ -104,6 +109,14 @@ function readChoice(value: string | null, now: number): 'unset' | 'accepted' | '
 export function createAnalytics(options: AnalyticsOptions, ports: AnalyticsPorts): Analytics {
   const configuration = configureAnalytics(options, ports.location());
   let state: AnalyticsState = { status: configuration.enabled ? 'denied' : 'disabled' };
+  let choice: AnalyticsChoice = 'unset';
+  const choiceListeners = new Set<(choice: AnalyticsChoice) => void>();
+  function setChoice(next: AnalyticsChoice) {
+    if (choice === next) return;
+    choice = next;
+    // Proof: removing this notification left the strip visible in focus-sync while collection stayed loading.
+    for (const listener of choiceListeners) listener(choice);
+  }
   let generation = 0;
   let attempts = 0;
   let disposed = false;
@@ -173,6 +186,7 @@ export function createAnalytics(options: AnalyticsOptions, ports: AnalyticsPorts
       if (current !== generation || disposed || state.status !== 'loading') return;
       const preference = ports.readPreference(configuration);
       if (preference.status === 'unavailable') {
+        setChoice('unavailable');
         stop({ status: 'unavailable', reason: 'storage' }, false);
         return;
       }
@@ -185,6 +199,7 @@ export function createAnalytics(options: AnalyticsOptions, ports: AnalyticsPorts
     });
   }
   function applyChoice(choice: ReturnType<typeof readChoice>): boolean {
+    setChoice(choice);
     if (choice === 'rejected') {
       // Proof: bypassing rejection admission loaded Google for valid-legacy-rejection and
       // sent future events in withdrawal; completion generation remains independently fenced.
@@ -225,6 +240,8 @@ export function createAnalytics(options: AnalyticsOptions, ports: AnalyticsPorts
     }
     const preference = ports.readPreference(configuration);
     if (preference.status === 'unavailable') {
+      // Proof: injecting unset here failed unreadable-preference assertions for both arrival actions.
+      setChoice('unavailable');
       stop({ status: 'unavailable', reason: 'storage' }, false);
       return false;
     }
@@ -246,9 +263,12 @@ export function createAnalytics(options: AnalyticsOptions, ports: AnalyticsPorts
     if (
       ports.writePreference(preference, configuration, expires.getTime()).status === 'unavailable'
     ) {
+      // Proof: injecting a rejected choice here hid both refused actions in arrival-choice persistence tests.
+      setChoice('unavailable');
       stop({ status: 'unavailable', reason: 'storage' }, false);
       return;
     }
+    if (!accepted) setChoice('rejected');
     if (accepted) {
       page = resolvePage(configuration, ports.location(), ports.referrer());
       if (page === null) {
@@ -262,6 +282,13 @@ export function createAnalytics(options: AnalyticsOptions, ports: AnalyticsPorts
   }
   const controller: Analytics = {
     getState: () => state,
+    getChoice: () => choice,
+    subscribeChoice: (listener) => {
+      choiceListeners.add(listener);
+      return () => {
+        choiceListeners.delete(listener);
+      };
+    },
     subscribe: (listener) => {
       listeners.add(listener);
       return () => {
@@ -329,6 +356,7 @@ export function createAnalytics(options: AnalyticsOptions, ports: AnalyticsPorts
       disposed = true;
       stop({ status: 'disabled' }, false);
       listeners.clear();
+      choiceListeners.clear();
     },
   };
   sync();
