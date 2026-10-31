@@ -122,7 +122,7 @@ function createFormatIdentity(
 /** Immutable source identities calculated from complete forward/down artifact bytes. They do not attest to any database inspection. */
 export const FORMAT3_IDENTITY = createFormatIdentity(3, MIGRATIONS.slice(0, 3));
 // Proof: T3M2 replaced only the new complete-bundle dependency with the predecessor hash; actual already-loaded BB14 code inserted a fresh manifest on physical/version4. Exact restoration refused with unchanged rows.
-export const FORMAT4_IDENTITY = createFormatIdentity(4, MIGRATIONS);
+export const FORMAT4_IDENTITY = createFormatIdentity(4, MIGRATIONS.slice(0, 4));
 
 /** Complete compiled current bundle used by bootstrap and semantic admission. */
 export const FORMAT_HASH = FORMAT4_IDENTITY.bundleHash;

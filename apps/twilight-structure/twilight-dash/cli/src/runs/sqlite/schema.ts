@@ -51,7 +51,7 @@ function readRequiredSchema(
     reference.close();
   }
 }
-/** Adapter-private descriptors select a complete compiled artifact set; ordinary opens and mutations always use CURRENT_FORMAT. Only the explicit transition boundary selects PREDECESSOR_FORMAT. */
+/** Adapter-private descriptors select a complete compiled artifact set; ordinary opens and mutations always use CURRENT_FORMAT. Explicit transitions select named format descriptors. */
 export interface FormatDescriptor {
   readonly identity: SqliteFormatIdentity;
   readonly schema: readonly SchemaEntry[];
@@ -68,9 +68,11 @@ function describeFormat(
     tables: new Set(schema.filter((entry) => entry.type === 'table').map((entry) => entry.name)),
   };
 }
-export const PREDECESSOR_FORMAT = describeFormat(FORMAT3_IDENTITY, MIGRATIONS.slice(0, 3));
+export const FORMAT3 = describeFormat(FORMAT3_IDENTITY, MIGRATIONS.slice(0, 3));
+export const FORMAT4 = describeFormat(FORMAT4_IDENTITY, MIGRATIONS.slice(0, 4));
+export const PREDECESSOR_FORMAT = FORMAT3;
 // Proof: T3M1 the ordinary current opener admitted genuine format3 when its new descriptor dependency was replaced with the predecessor; exact restoration passed.
-export const CURRENT_FORMAT = describeFormat(FORMAT4_IDENTITY, MIGRATIONS);
+export const CURRENT_FORMAT = FORMAT4;
 
 /** Requires exact compiled table/index declarations, including empty families. Additional triggers and unrelated tables are outside comparison. */
 function validatePhysicalSchema(database: Database, format: FormatDescriptor): void {

@@ -18,9 +18,9 @@ import { isBusy, RunStoreContentionError } from './run-store';
 import {
   assertFormatCompatibility,
   configureDatabase,
-  CURRENT_FORMAT,
+  FORMAT3,
+  FORMAT4,
   type FormatDescriptor,
-  PREDECESSOR_FORMAT,
   validateDatabaseForFormat,
 } from './schema';
 
@@ -239,13 +239,13 @@ async function transitionFormat(
 }
 /** Upgrades an existing genuine format3 store without acquiring ownership or rewriting legacy records. Ordinary open never calls this operator boundary. */
 export async function upgradeSqliteStores(options: SqliteOptions): Promise<SqliteFormatTransition> {
-  return await transitionFormat(options, PREDECESSOR_FORMAT, CURRENT_FORMAT, 'upgraded');
+  return await transitionFormat(options, FORMAT3, FORMAT4, 'upgraded');
 }
 /** Reverses only an unused recovery schema, preserving populated old history. Any valid recovery use or corrupt successor state refuses before destructive statements. */
 export async function downgradeUnusedSqliteStores(
   options: SqliteOptions,
 ): Promise<SqliteFormatTransition> {
-  return await transitionFormat(options, CURRENT_FORMAT, PREDECESSOR_FORMAT, 'downgraded');
+  return await transitionFormat(options, FORMAT4, FORMAT3, 'downgraded');
 }
 export { FORMAT3_IDENTITY, FORMAT4_IDENTITY };
 export type { SqliteFormatIdentity, SqliteMigrationIdentity } from './format';
