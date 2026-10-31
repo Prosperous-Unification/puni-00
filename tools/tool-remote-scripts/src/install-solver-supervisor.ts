@@ -1,7 +1,17 @@
+import { dirname } from 'node:path';
+
 import type { BundleFile } from './lib/deploy-contract';
 import { requireInheritedEdgeLock } from './lib/edge-admission';
 import {
+  captureSolverReaderArtifact,
+  decodeSolverReaderSelection,
+  runSolverReaderTransport,
+  type SolverReaderLayout,
+  type SolverReaderSelection,
+} from './lib/solver-reader-preparation';
+import {
   assertSolverSupervisorBunVersion,
+  SOLVER_READER_STATE,
   SOLVER_SUPERVISOR_BUN,
   SOLVER_SUPERVISOR_BUN_SOURCE,
   SOLVER_SUPERVISOR_BUNDLE,
@@ -11,6 +21,8 @@ import {
   SOLVER_SUPERVISOR_UNIT_SOURCE,
 } from './lib/solver-supervisor-install-contract';
 import {
+  buildSolverReaderPreparationBundle,
+  buildSolverReaderPreparationExecution,
   buildSolverSupervisorInstallOperation,
   describeSolverSupervisorInstallEvidence,
   quoteInstallShell,
@@ -38,6 +50,7 @@ export interface SolverSupervisorInstallStep {
 
 interface CommandOutput {
   code: number;
+  signal?: NodeJS.Signals | null;
   stdout: string;
   stderr: string;
 }
@@ -47,6 +60,7 @@ export interface SolverSupervisorInstallerDependencies {
   exists(path: string): Promise<boolean>;
   command(argv: readonly string[], inherit?: boolean): Promise<CommandOutput>;
   hash(path: string): Promise<string>;
+  readerCommand?: (argv: readonly string[], finalOperation: boolean) => Promise<CommandOutput>;
 }
 
 export function parseSolverSupervisorInstallArgs(
@@ -157,7 +171,7 @@ export async function runSolverSupervisorInstallCommand(
     new Response(child.stderr).text(),
     child.exited,
   ]);
-  return { code, stdout, stderr };
+  return { code, signal: child.signalCode, stdout, stderr };
 }
 
 const DEFAULT_DEPENDENCIES: SolverSupervisorInstallerDependencies = {
@@ -169,6 +183,7 @@ const DEFAULT_DEPENDENCIES: SolverSupervisorInstallerDependencies = {
     ),
   exists: (path) => Bun.file(path).exists(),
   command: runSolverSupervisorInstallCommand,
+  readerCommand: runSolverReaderTransport,
   hash: async (path) =>
     new Bun.CryptoHasher('sha256').update(await Bun.file(path).arrayBuffer()).digest('hex'),
 };
@@ -249,7 +264,13 @@ export async function installSolverSupervisor(
 }
 
 async function main(): Promise<void> {
-  const args = parseSolverSupervisorInstallArgs(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  if (argv[0] === '--prepare-first-reader') {
+    const plan = await runSolverSupervisorInstaller(argv);
+    for (const step of plan) console.log(`  ${step.description}`);
+    return;
+  }
+  const args = parseSolverSupervisorInstallArgs(argv);
   const plan = await installSolverSupervisor(args);
   console.log(
     `[tool-remote-scripts] solver supervisor host=${args.local === true ? 'local' : args.host} execute=${String(args.execute)}`,
@@ -270,4 +291,231 @@ if (import.meta.main) {
     );
     process.exit(1);
   });
+}
+
+export interface SolverReaderInstallation {
+  readonly host: string;
+  readonly execute: boolean;
+  readonly selection: unknown;
+}
+
+/** Explicit attended first-reader branch; never selected by missing files or normal installer defaults. */
+export async function prepareSolverReaderInstallation(
+  request: SolverReaderInstallation,
+  dependencies: SolverSupervisorInstallerDependencies = DEFAULT_DEPENDENCIES,
+  construction?: SolverReaderLayout,
+): Promise<readonly SolverSupervisorInstallStep[]> {
+  const selection = decodeSolverReaderSelection(request.selection);
+  if (
+    !HOST.test(request.host) ||
+    (construction === undefined &&
+      (selection.target.account.name !== 'puni1' ||
+        selection.target.account.uid !== 1000 ||
+        selection.target.account.gid !== 1000))
+  )
+    throw new Error(
+      'first-reader preparation requires an independently selected fresh target/account',
+    );
+  const artifacts = [selection.bun, selection.reader, selection.initializer];
+  for (const artifact of artifacts) {
+    const observed = await captureSolverReaderArtifact(artifact.path);
+    if (
+      observed.artifact.sha256 !== artifact.sha256 ||
+      observed.artifact.byteLength !== artifact.byteLength
+    )
+      throw new Error(`preselected first-reader artifact differs: ${artifact.path}`);
+  }
+
+  const staging = `/home/puni1/.cache/wbs-solver/reader-${crypto.randomUUID()}`;
+  const layout = construction ?? {
+    state: SOLVER_READER_STATE,
+    staging,
+    bun: SOLVER_SUPERVISOR_BUN,
+    reader: SOLVER_SUPERVISOR_BUNDLE.remote,
+  };
+  const steps = await buildSolverReaderPreparationPlan(request.host, selection, layout);
+  if (!request.execute) return steps;
+  const preflight = steps.at(0);
+  if (preflight === undefined) throw new Error('missing first-reader Bun preflight');
+  const command = dependencies.readerCommand;
+  if (command === undefined) throw new Error('first-reader requires original observed transport');
+  const run = async (step: SolverSupervisorInstallStep, finalOperation: boolean) => {
+    let output: CommandOutput;
+    try {
+      output = await command(step.argv, finalOperation);
+    } catch (cause) {
+      throw new Error(
+        `first-reader transport failed; remote settlement is unknown; ${step.failureContext}`,
+        { cause },
+      );
+    }
+    if (output.code !== 0 || output.signal !== null)
+      throw new Error(
+        `first-reader transport settlement is unknown or abnormal; ${step.failureContext}`,
+      );
+    return output;
+  };
+  assertSolverSupervisorBunVersion((await run(preflight, false)).stdout);
+  for (const [index, step] of steps.slice(1).entries()) await run(step, index === steps.length - 2);
+
+  return steps;
+}
+
+/** Builds the same first-reader transport for fixed production paths or isolated test construction. */
+export async function buildSolverReaderPreparationPlan(
+  host: string,
+  selection: SolverReaderSelection,
+  layout: SolverReaderLayout,
+): Promise<readonly SolverSupervisorInstallStep[]> {
+  if (!HOST.test(host))
+    throw new Error('first-reader preparation requires an explicit selected host');
+  const staging = layout.staging;
+  const artifacts = [selection.bun, selection.reader, selection.initializer];
+  const transported: SolverReaderSelection = {
+    ...selection,
+    bun: { ...selection.bun, path: `${staging}/0` },
+    reader: { ...selection.reader, path: `${staging}/1` },
+    initializer: { ...selection.initializer, path: `${staging}/2` },
+  };
+  const builtOperation = await buildSolverReaderPreparationBundle(transported, layout);
+  const operation = builtOperation.bytes;
+  const operationHash = new Bun.CryptoHasher('sha256').update(operation).digest('hex');
+  const quote = quoteInstallShell;
+  const shell = (script: string) => ['ssh', host, `sh -c ${quote(script)}`];
+  const failureContext = `first-reader attempt=${staging}; target=${selection.target.hostname}/${selection.target.account.name}; artifacts=${artifacts.map((artifact) => `${artifact.sha256}:${String(artifact.byteLength)}:${artifact.path}`).join(';')}; operation=${operationHash}:${String(operation.byteLength)}; buildBun=${builtOperation.bunVersion}; compiler=${JSON.stringify(builtOperation.compiler)}; virtualEntry=${JSON.stringify(builtOperation.virtualEntry)}; externals=${JSON.stringify(builtOperation.externals)}; buildInputs=${builtOperation.inputs.map((input) => `${input.artifact.sha256}:${String(input.artifact.byteLength)}:${input.artifact.path}`).join(',')}; retain policy, published files and evidence for attended inspection; no automatic retry or inverse`;
+  const steps: SolverSupervisorInstallStep[] = [
+    {
+      phase: 'preflight',
+      description: 'require the selected transport Bun version',
+      argv: [selection.bun.path, '--version'],
+      failureContext,
+    },
+    {
+      phase: 'files',
+      description: 'create private first-reader invocation staging',
+      argv: shell(
+        `set -eu; install -d -m 0700 -- ${quote(dirname(staging))}; mkdir -m 0700 -- ${quote(staging)}`,
+      ),
+      failureContext,
+    },
+    ...artifacts.map((artifact, index) => ({
+      phase: 'files' as const,
+      description: `stage selected first-reader artifact ${artifact.path}`,
+      argv: ['scp', artifact.path, `${host}:${staging}/${String(index)}`],
+      failureContext,
+    })),
+    {
+      phase: 'files',
+      description: 'stage the pinned transient first-reader operation',
+      argv: shell(
+        `set -eu; printf %s ${quote(Buffer.from(operation).toString('base64'))} | base64 -d > ${quote(`${staging}/3`)}; chmod 0600 -- ${quote(`${staging}/3`)}`,
+      ),
+      failureContext,
+    },
+    {
+      phase: 'files',
+      description:
+        'initialize once and prepare the fixed installed reader under original edge.lock',
+      argv: shell(
+        buildSolverReaderPreparationExecution(transported, {
+          path: `${staging}/3`,
+          sha256: operationHash,
+          byteLength: operation.byteLength,
+        }),
+      ),
+      failureContext,
+    },
+  ];
+  return steps;
+}
+
+/** Closed explicit action; flags record an attended selection and are not an authority token. */
+export function parseSolverReaderInstallArgs(argv: readonly string[]): SolverReaderInstallation {
+  if (argv[0] !== '--prepare-first-reader')
+    throw new Error('expected explicit --prepare-first-reader');
+  const fields = new Map<string, string>();
+  let execute = false;
+  let selectedMode = false;
+  for (const argument of argv.slice(1)) {
+    if (argument === '--execute' || argument === '--dry-run') {
+      if (selectedMode) throw new Error('duplicate first-reader execution mode');
+      selectedMode = true;
+      execute = argument === '--execute';
+      continue;
+    }
+    const match = /^--([a-z0-9-]+)=(.+)$/.exec(argument);
+    if (match === null) throw new Error(`unexpected first-reader argument ${argument}`);
+    const key = match[1];
+    if (fields.has(key)) throw new Error(`duplicate first-reader --${key}`);
+    fields.set(key, match[2]);
+  }
+  const required = [
+    'host',
+    'target-hostname',
+    'account',
+    'uid',
+    'gid',
+    'fresh-target',
+    'bun',
+    'bun-sha256',
+    'bun-bytes',
+    'reader',
+    'reader-sha256',
+    'reader-bytes',
+    'initializer',
+    'initializer-sha256',
+    'initializer-bytes',
+  ];
+  if (fields.size !== required.length || required.some((key) => !fields.has(key)))
+    throw new Error(
+      'first-reader requires the complete closed independently selected target/account and artifact inputs',
+    );
+  const text = (key: string) => {
+    const value = fields.get(key);
+    if (value === undefined) throw new Error(`missing first-reader --${key}`);
+    return value;
+  };
+  const integer = (key: string) => {
+    const value = text(key);
+    if (!/^(0|[1-9][0-9]*)$/.test(value)) throw new Error(`invalid first-reader --${key}`);
+    const number = Number(value);
+    if (!Number.isSafeInteger(number)) throw new Error(`unsafe first-reader --${key}`);
+    return number;
+  };
+  const artifact = (name: string) => ({
+    path: text(name),
+    sha256: text(`${name}-sha256`),
+    byteLength: integer(`${name}-bytes`),
+  });
+  const host = text('host');
+  if (!HOST.test(host)) throw new Error('first-reader requires an explicit selected host');
+  return {
+    host,
+    execute,
+    selection: decodeSolverReaderSelection({
+      target: {
+        hostname: text('target-hostname'),
+        account: { name: text('account'), uid: integer('uid'), gid: integer('gid') },
+        freshness: text('fresh-target'),
+      },
+      bun: artifact('bun'),
+      reader: artifact('reader'),
+      initializer: artifact('initializer'),
+    }),
+  };
+}
+
+/** Public dispatch preserves normal four-file installation; construction paths are available only to local tests. */
+export async function runSolverSupervisorInstaller(
+  argv: readonly string[],
+  dependencies: SolverSupervisorInstallerDependencies = DEFAULT_DEPENDENCIES,
+  construction?: SolverReaderLayout,
+): Promise<readonly SolverSupervisorInstallStep[]> {
+  if (argv[0] === '--prepare-first-reader')
+    return prepareSolverReaderInstallation(
+      parseSolverReaderInstallArgs(argv),
+      dependencies,
+      construction,
+    );
+  return installSolverSupervisor(parseSolverSupervisorInstallArgs(argv), dependencies);
 }

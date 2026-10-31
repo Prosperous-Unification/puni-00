@@ -1,3 +1,4 @@
+import { closeSync, constants, openSync } from 'node:fs';
 import { chmod, lstat, unlink, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
@@ -5,6 +6,7 @@ import { scratchSync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
 import { withDependencyOwner, withOwnerSolverRuntime } from './lib/edge-ownership';
+import { initializeOrdinaryEdgePolicy } from './lib/edge-policy';
 import { envLayout } from './lib/env';
 import { withCanonicalLock } from './lib/lock';
 
@@ -464,3 +466,129 @@ for (const admission of ['legacy', 'policy'])
     expect(await child.exited).toBe(78);
     expect(await new Response(child.stderr).text()).toContain('admission closed');
   });
+
+for (const admission of [
+  'ordinary',
+  'missing-descriptor',
+  'foreign-descriptor',
+  'independent-description',
+  'missing-policy',
+  'invalid-policy',
+  'restoring-policy',
+  'active-policy',
+  'unknown-policy',
+  'committed-marker',
+  'pending-marker',
+] as const) {
+  test(`actual inherited refusal-only reader ${admission} terminates before config and service effects`, async () => {
+    const { directory } = await fixture();
+    await initializeOrdinaryEdgePolicy(directory);
+    if (admission === 'missing-policy') await unlink(`${directory}/edge-policy.json`);
+    if (admission === 'invalid-policy') await writeFile(`${directory}/edge-policy.json`, '{}');
+    if (['restoring-policy', 'active-policy', 'unknown-policy'].includes(admission))
+      await writeFile(
+        `${directory}/edge-policy.json`,
+        JSON.stringify({
+          format: 'dependency-edge-policy',
+          version: 1,
+          phase:
+            admission === 'restoring-policy'
+              ? 'restoring'
+              : admission === 'active-policy'
+                ? 'active'
+                : 'unknown',
+          edgeState: directory,
+          ownerPublicationSha256: 'a'.repeat(64),
+          restorationIntent: { name: 'restore.json', sha256: 'b'.repeat(64) },
+        }),
+      );
+    if (admission === 'committed-marker')
+      await writeFile(`${directory}/edge-owner.json`, 'retained');
+    if (admission === 'pending-marker')
+      await writeFile(`${directory}/edge-owner.pending`, 'retained');
+    const compilation = await Bun.build({
+      entrypoints: [executable],
+      target: 'bun',
+      plugins: [
+        {
+          name: 'fixed-reader-fixture',
+          setup(build) {
+            build.onLoad({ filter: /solver-supervisor-install-contract\.ts$/ }, async (file) => ({
+              contents: (await Bun.file(file.path).text()).replace(
+                "export const SOLVER_READER_STATE = '/home/puni1/wbs/state';",
+                `export const SOLVER_READER_STATE = ${JSON.stringify(directory)};`,
+              ),
+              loader: 'ts',
+            }));
+          },
+        },
+      ],
+    });
+    const output = compilation.outputs.at(0);
+    if (!compilation.success || output === undefined || compilation.outputs.length !== 1)
+      throw new Error('fixed reader fixture build failed');
+    const fixedReader = `${directory}/fixed-reader.js`;
+    await writeFile(fixedReader, new Uint8Array(await output.arrayBuffer()));
+    const foreign = `${directory}/foreign.lock`;
+    await writeFile(foreign, '');
+    await withCanonicalLock(`${directory}/edge.lock`, async (descriptor) => {
+      const independent =
+        admission === 'foreign-descriptor' || admission === 'independent-description'
+          ? openSync(
+              admission === 'foreign-descriptor' ? foreign : `${directory}/edge.lock`,
+              constants.O_RDONLY,
+            )
+          : undefined;
+      try {
+        const inherited = independent ?? descriptor;
+        const child = Bun.spawn([process.execPath, fixedReader, '--check-edge-policy-inherited'], {
+          env: {
+            ...process.env,
+            WBS_EDGE_STATE: directory,
+            ...(admission === 'missing-descriptor' ? {} : { WBS_EDGE_LOCK_FD: '3' }),
+          },
+          stdio:
+            admission === 'missing-descriptor'
+              ? ['ignore', 'pipe', 'pipe']
+              : ['ignore', 'pipe', 'pipe', inherited],
+        });
+        const [code, stdout, stderr] = await Promise.all([
+          child.exited,
+          new Response(child.stdout).text(),
+          new Response(child.stderr).text(),
+        ]);
+        expect(child.signalCode).toBe(null);
+        if (admission === 'ordinary') {
+          expect({ code, stderr }).toEqual({ code: 0, stderr: '' });
+          expect(stdout).toContain('inherited ordinary edge policy ok');
+        } else {
+          expect(code).not.toBe(0);
+          expect(stdout).toBe('');
+        }
+        expect(await Bun.file(`${directory}/docker.calls`).exists()).toBe(false);
+        expect(await Bun.file(`${directory}/s.sock`).exists()).toBe(false);
+      } finally {
+        if (independent !== undefined) closeSync(independent);
+      }
+    });
+  });
+}
+
+test('production inherited reader refuses a valid foreign state root and held descriptor', async () => {
+  const { directory } = await fixture();
+  await initializeOrdinaryEdgePolicy(directory);
+  await withCanonicalLock(`${directory}/edge.lock`, async (descriptor) => {
+    const child = Bun.spawn([process.execPath, executable, '--check-edge-policy-inherited'], {
+      env: { ...process.env, WBS_EDGE_STATE: directory, WBS_EDGE_LOCK_FD: '3' },
+      stdio: ['ignore', 'pipe', 'pipe', descriptor],
+    });
+    const [code, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+    expect(code).toBe(1);
+    expect(stdout).toBe('');
+    expect(stderr).toContain('requires fixed canonical state');
+  });
+});

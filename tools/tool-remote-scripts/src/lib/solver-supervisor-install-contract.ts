@@ -42,3 +42,6 @@ export function assertSolverSupervisorBunVersion(stdout: string): void {
     );
   }
 }
+
+/** First-reader preparation never derives state or destinations from the environment. */
+export const SOLVER_READER_STATE = '/home/puni1/wbs/state';

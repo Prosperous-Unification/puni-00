@@ -1899,3 +1899,125 @@ The closed receipt SHALL identify format `edge-policy-origin-receipt`, version1,
 - **WHEN** existing policy, writer markers, malformed, unreadable or other invalid trusted state is encountered
 - **THEN** existing refusals remain and the receipt request supplies no replacement, downgrade, repair or active-state bypass
 - **AND** an on-disk receipt after failed or unknown process settlement cannot be labeled successful initialization
+
+### Requirement: First-reader preparation is an explicit fresh-target operation
+
+The existing installer SHALL require an explicit independently selected and
+independently designated fresh target/account plus approved artifacts for its
+separately selected first-reader operation. It SHALL admit only the closed
+fresh-state matrix and publish exactly the fixed Bun and reader destinations,
+without config, unit, mappings or service effects.
+
+#### Scenario: Existing or uncertain state cannot become fresh
+
+- **WHEN** policy or either marker exists, either reader destination exists, an observation is malformed/unreadable/nonregular/noncanonical, a required tool is absent, or access fails other than ENOENT
+- **THEN** first preparation refuses without reset, repair, overwrite or normal-installer fallback
+
+#### Scenario: Absence does not establish an independently fresh target
+
+- **WHEN** policy, markers and reader files are absent but the selected target/account lacks independent fresh designation
+- **THEN** the operation refuses before initialization; an operation selector, environment flag or candidate-provided ready value cannot supply that designation
+
+#### Scenario: An ordinary invocation lacks a reader
+
+- **WHEN** the ordinary installer observes a missing installed reader
+- **THEN** it does not implicitly enter first-reader preparation or infer authorization from absence
+
+### Requirement: Receipt consumption retains original initializer custody and origin
+
+Preparation SHALL launch the actual selected initializer once, require its normal
+successful exit and both actual stream EOFs, and validate the closed bounded
+private receipt against the preselected attempt, paths and ordinary bytes.
+Reacquisition SHALL compare those original identities without recapture.
+
+#### Scenario: Policy is replaced with identical bytes after initializer exit
+
+- **WHEN** the named policy inode changes between original initializer exit and publication-lock reacquisition
+- **THEN** the real preparation consumer refuses before reader publication, even if current policy bytes match
+
+#### Scenario: Receipt or process settlement is uncertain
+
+- **WHEN** receipt is absent, partial, mismatched or unreadable, or original exit/signal/streams are not the required known successful settlement
+- **THEN** preparation retains existing policy/evidence and refuses without another initialization attempt or stdout fallback
+
+### Requirement: Publication reacquires only the existing original lock
+
+Preparation SHALL acquire the existing canonical lock nonblockingly without
+O_CREAT or holder-record rewrites. Under the same held open description it
+SHALL validate original parent/lock/policy identity, exact ordinary bytes,
+marker absence and destination absence before publication and success.
+
+#### Scenario: Original lock is absent or replaced
+
+- **WHEN** the original lock pathname disappears or identifies a different inode before reacquisition
+- **THEN** preparation refuses and does not create a replacement lock or adopt a new baseline
+
+#### Scenario: Another description owns the lock
+
+- **WHEN** another process holds the original canonical lock
+- **THEN** acquisition refuses immediately without publication or retries
+
+### Requirement: First-reader publication never replaces existing files
+
+The locked operation SHALL validate approved bytes in regular destination-local
+siblings, set the required mode, sync and publish Bun then reader by exclusive
+hard links with independent readback. Before either publication it SHALL run and
+join the approved staged pair's strict `--check-edge-policy` check under the
+reacquired lock. Collisions and EXDEV SHALL refuse without copying or replacement
+rename, retaining partial publication on failure.
+
+#### Scenario: A destination appears after the absence check
+
+- **WHEN** another file occupies either final destination before its publication link
+- **THEN** that file remains unchanged and preparation reports refusal with exact partial-state evidence
+
+#### Scenario: The first file publishes before a later failure
+
+- **WHEN** sibling validation, the second link, installed readback or a later required step fails
+- **THEN** published policy/files remain for inspection; only positively owned unpublished staging is eligible for removal, with no two-file atomicity claim
+
+### Requirement: Completion depends on the actual installed inherited-lock reader
+
+Preparation SHALL independently verify installed bytes/identity/modes and invoke
+the fixed installed Bun and reader under the same inherited lock description.
+The closed refusal-only mode SHALL require ordinary policy and absent markers
+before service configuration or supervisor effects. Closing checks SHALL
+precede success and lock release.
+
+#### Scenario: Installed bytes differ after a successful staged check
+
+- **WHEN** an installed runtime or reader differs from the independently selected artifact
+- **THEN** preparation refuses; a staged success or callback cannot establish installed-reader completion
+
+#### Scenario: Inherited descriptor or required policy is invalid
+
+- **WHEN** the descriptor is absent, foreign or replaced, or required policy/marker state refuses
+- **THEN** the actual installed entry refuses before configuration/service effects and does not mint future admission
+
+#### Scenario: A real contender observes the publication interval
+
+- **WHEN** the valid installed pair is checked while the original publication description is retained
+- **THEN** a real competing process cannot acquire that lock until the preparation operation finishes its closing checks
+
+### Requirement: First-reader observation bounds never manufacture settlement
+
+Preparation SHALL use one180s monotonic limit,30s child execution plus15s
+observation, and45s remaining before a child launch. It SHALL retain at most1MiB
+per stream with8KiB diagnostic excerpts while continuing drain/count. Only actual
+original wait and both EOFs establish settlement; expiry or observation failure
+SHALL never authorize publication, cleanup or lock release.
+
+#### Scenario: Original exit precedes both stream EOFs
+
+- **WHEN** the original exits while an owned writer retains a stream, or a stream observation fails before settlement
+- **THEN** the operation and held lock remain in live HOLD with bounded retained output; a real contender cannot acquire and no next effect begins
+
+#### Scenario: Original observations settle after a cutoff
+
+- **WHEN** the original wait and both real EOFs eventually settle after execution/observation expiry
+- **THEN** the operation retires only as refusal, even for normal0, and cannot resume publication from that attempt
+
+#### Scenario: Transport does not establish remote completion
+
+- **WHEN** a stage command exceeds60s+15s observation or operation SSH exceeds210s+15s, is nonnormal, or loses observation
+- **THEN** the observer retains its original pending local custody and remote partial-state context, does not infer remote settlement and sends no later command, retry or inverse
