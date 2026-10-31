@@ -105,7 +105,8 @@ Files: new runs/sqlite/identity-key.ts; new migrations/0005-identity-keys/{migra
 new migrate-identities.ts and identity-keys.db.test.ts; modify format/schema/open-stores,
 run-store, row-codecs, runtime-store, recovery-store and all read-{history,executions,
 outcomes,signals,runtime,recovery}.ts consumers as the finite key inventory requires.
-Read /tmp/puni-format5-inventory-20261031.md before editing. Do not duplicate it as policy.
+Read the finite key/family inventory in design.md before editing. The source-intake report
+is retained separately as investigation evidence and is not a second normative policy.
 
 Consumes explicit immutable predecessor descriptors. Produces FORMAT5_IDENTITY, FORMAT5,
 CURRENT_FORMAT5, canonical encodeKey/decodeKey and explicit preserving4↔5 API. Existing
