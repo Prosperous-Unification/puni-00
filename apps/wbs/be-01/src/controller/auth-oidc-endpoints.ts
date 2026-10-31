@@ -780,6 +780,24 @@ export function authOidcEndpoints(
             accessEvidence.identity.subject !== identity.subject)
         )
           return { ok: false, status: 401, body: EMPTY, headers: clearsFor(settled) };
+        // An access token without the groups claim is a machine bearer on
+        // `/api` (`wbs-mcp-agent-surface` M9), so a session on it would be
+        // refused at every call: a sign-in loop. Refused as a rendered error
+        // before anything is written; an empty claim is a scopeless session.
+        // Proof: with this check removed, `refuses a sign-in whose access
+        // token has no groups claim, issuing no session`
+        // (`oidc-identity.controller.db.test.ts`) redirected to `/` instead;
+        // watched 2026-10-31.
+        if (
+          options.browserLifecycle !== undefined &&
+          accessEvidence?.identity.groupsClaimed !== true
+        )
+          return {
+            ok: true,
+            status: 302,
+            body: EMPTY,
+            headers: [...clearsFor(settled), ['location', '/?auth_error=groups_claim_missing']],
+          };
         // Proof: catching account-store failure as null returned409 (now the account_exists 302) instead of500 in the mounted failure test.
         const account = await auth.resolveOidcIdentity(identity);
         // A verified email another account holds: a rendered refusal naming no

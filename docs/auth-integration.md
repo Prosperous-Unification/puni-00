@@ -24,7 +24,10 @@ The provider must supply:
 - `email` and `email_verified=true` in the ID token for first-login linking.
 - A string-array groups claim (default `wbs_groups`) containing environment-
   prefixed values such as `dev:wbs:read`, `dev:wbs:write`, and
-  `dev:wbs:editor`.
+  `dev:wbs:editor`. The claim must be present on every access token,
+  refreshed ones included; an empty array is fine. A token without it is a
+  machine's, so the sign-in is refused and a refresh without it ends the
+  session.
 - Refresh tokens when `offline_access` is requested (the default scope).
 
 The registered redirect URI must match byte-for-byte and its path must be
@@ -193,7 +196,10 @@ Only the scope-guarded routes refuse them: mutations return
 `403 insufficient_scope`, and so do the routes that ask for `read` explicitly
 (the solution reader and the project export route). A wrong prefix
 therefore reads as "the app is up but nothing saves", not as a login failure —
-check the emitted group values before chasing a write bug.
+check the emitted group values before chasing a write bug. A missing claim is
+different: it is a refused session, not a scopeless one. The callback answers
+`/?auth_error=groups_claim_missing` and issues no session, because `/api`
+refuses a groups-less token as a machine bearer.
 
 Assign the WBS roles to each user and require `email_verified=true` before
 first-login linking. Real dev credentials live only in

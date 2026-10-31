@@ -198,8 +198,12 @@ See `verify.md`, "Slice 3 record".
 ## 4. Retirement of the operator links (A18, A21)
 
 - [x] 4.1 The verification path refuses every groups-less token of the configured issuer
-      `401 unknown_identity` with no credential lookup and no link read;
-      `readExistingOidcIdentity` and the pinned-row admission are deleted — test:
+      (on `/api` `401 machine_bearer_not_accepted` naming `/mcp`, `wbs-mcp-agent-surface`
+      M9; it was `401 unknown_identity` until the merge with main, verify.md "Slice 4 merge
+      with main") with no credential lookup and no link read; the pinned-row admission is
+      deleted, and `readExistingOidcIdentity` is kept as a never-minting read guarded by the
+      groups check (browser refresh, `sessionUser`); a sign-in without the claim is refused
+      `/?auth_error=groups_claim_missing` — test:
       `fleet-credential.controller.db.test.ts` rewritten: a pinned `external_identity` row
       admits nothing, the owner's row stays byte for byte, a browser token keeps its groups;
       negative: restore the link read and the pinned-row case is admitted; watched.

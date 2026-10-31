@@ -3100,9 +3100,11 @@ fleet (`wbs-machine-credentials` verify.md "Task 4.3 pre-swap evidence").
   `401 unauthenticated` (was `unknown_identity`). mcp-01 treats the two alike
   (`organization-authority.ts` `isUserRefusal`). Assumed acceptable: the route takes human
   tokens only. `mcp-delegation.boot.db.test.ts` expects the new answer.
-- **Spec.** A `fleet-credentials` MODIFIED delta restates `wbs-machine-credentials`' "A machine
-  token is scoped by its linked account…" with the M9 answer; design.md's table row and M9's
-  "two halves" note say both halves landed; task 7.1's sub-item ticked; 0.2 (e) notes it.
+- **Spec.** `wbs-machine-credentials`' own `fleet-credentials` delta ("A machine token is
+  scoped by its linked account…") now states the M9 answer; it is the one restatement (the
+  review of the merge, S3-2, removed a second copy here). This change's `machine-credentials`
+  delta keeps its groups-less sentence and scenario. design.md's table row and M9's "two
+  halves" note say both halves landed; task 7.1's sub-item ticked; 0.2 (e) notes it.
 - **Docs.** `docs/auth-integration.md` (groups-less token) and `docs/runbook-prod-deploy.md`
   (swap window; fleets call through `/mcp`) name the new refusal.
 - **Merge fixes found by the suites** (`wbs-machine-credentials` verify.md "Slice 4 merge with
@@ -3131,3 +3133,22 @@ Each fault was reverted and the file's diff checked.
 
 Not rerun after the last fixes: the whole be-01 suite (only the fixed files and the touched
 suites were); CI carries it. No migration touched, so no migration lint. No h2puni/h4claw gate.
+
+### Review of #731 merge (Fable, high), how each item is addressed
+
+No S1 or S2. Confirmed by the review: the conflict resolution, run scoping, absent vs empty
+groups (`Object.hasOwn`), the delegation route and the rewritten tests.
+
+| Item                                                                                                             | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S3-1 the login callback minted a session from a groups-less access token (a sign-in loop: every `/api` call 401) | `auth-oidc-endpoints.ts`: with a browser lifecycle, an access token whose `groupsClaimed` is not true is refused `302 /?auth_error=groups_claim_missing` before any account read or write. fe-01 `auth-form.tsx` renders a message for the code. `docs/auth-integration.md` says a missing claim is a refused session, unlike a wrong prefix. Red first: `refuses a sign-in whose access token has no groups claim, issuing no session` (`oidc-identity.controller.db.test.ts`) redirected to `/`. fe-01: with the entry renamed away, `names the missing access groups and the administrator` failed (1 of 31). |
+| S3-2 two deltas restated one requirement with different answers                                                  | `wbs-machine-credentials/specs/fleet-credentials/spec.md` now states the M9 answer and the callback refusal; this change's copy is deleted. `wbs-machine-credentials` tasks 4.1 says what was built: `readExistingOidcIdentity` is kept and guarded by the groups check, not deleted.                                                                                                                                                                                                                                                                                                                            |
+| S3-3 the provider requirements did not say the claim must be present                                             | `docs/auth-integration.md` "The provider must supply": the claim must be present on every access token, refreshed ones included; an empty array is fine.                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| S4 tautological `'personId' in pin`                                                                              | Dropped in `claim-lease.routes.ts` and `plan-commands.feature.ts`; the adjacent proofs stand, since the guarded behaviour is unchanged. `authenticated.ts` JSDoc names the groups-less token as a machine bearer.                                                                                                                                                                                                                                                                                                                                                                                                |
+| S4 runtime-authority combination                                                                                 | `checks project, organization person, account binding and credential pin…` used to test the pin with the agent unbound and the actor admin, where an upstream pair's admin bypass of the binding let the pin check run. A machine principal gets no such bypass, so the test now binds the agent again before the pin case. The order unbound → `person_not_bound`, then bound + foreign pin → `credential_not_for_person` is what it asserts now.                                                                                                                                                               |
+
+After the review fixes (`env -u CLAUDECODE`, 2026-10-31): `nx run-many -t test -p wbs-be-01
+wbs-fe-01 wbs-core --parallel=1 --skip-nx-cache` exited 0 (the full be-01 suite included; the
+per-test counts were lost with the log file); `nx run-many -t typecheck lint -p wbs-be-01
+wbs-core wbs-fe-01` succeeded; the oidc-identity suite ran 81 pass and fe-01's auth-form 31
+pass; Prettier clean; `openspec validate --all` 304 of 304; Burokrat `check-indexes` exit 0.

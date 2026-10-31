@@ -2755,6 +2755,29 @@ describe('the OIDC callback after activation', () => {
     expect(response.headers.get('set-cookie')).toContain('__Host-wbs_access=access-1;');
   });
 
+  // A human whose access token carries no groups claim would get a session every `/api` call
+  // refuses (a groups-less configured-issuer token is a machine bearer, M9): a sign-in loop.
+  // The callback refuses it as a rendered error before anything is written.
+  // Proof: with the callback's groups check removed (red first), this redirected to `/`
+  // instead of the rendered error; watched 2026-10-31.
+  it('refuses a sign-in whose access token has no groups claim, issuing no session', async () => {
+    const { wbs_groups: _groups, ...groupless } = claims;
+    callbackAccessClaims = { ...groupless, exp: Math.floor((now + 900_000) / 1000) };
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const app = mounted(claims, lifecycle);
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1', {
+        headers: { cookie: `${browserBindingCookieName('binding-1')}=binding-1` },
+      }),
+    );
+    expect(response.status).toBe(302);
+    expect(response.headers.get('location')).toBe('/?auth_error=groups_claim_missing');
+    expect(response.headers.get('set-cookie') ?? '').not.toContain('__Host-wbs_access=access-1');
+    expect(all('SELECT id FROM users')).toEqual([]);
+    expect(all('SELECT * FROM browser_auth_lifecycle')).toEqual([]);
+    expect(localTokens.read('session-1')).toBeNull();
+  });
+
   describe('sign-in times (organization-session-policy)', () => {
     const times = () =>
       all('SELECT opened_at, reauthenticated_at FROM browser_auth_lifecycle') as {

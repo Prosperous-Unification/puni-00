@@ -734,7 +734,7 @@ export class PlanCommandRunner {
             // every committed write, and not on a refused one`
             // (claim-lease.db.test.ts) read the old expiry (9 pass, 1 fail);
             // watched 2026-10-23.
-            if (!('ok' in applied) && credential !== null && 'personId' in credential) {
+            if (!('ok' in applied) && credential !== null) {
               // Only the grant's own run when it opted in (M15); every lease
               // of the person otherwise.
               // Proof: with `null` for the run here, `a run-scoped write renews
