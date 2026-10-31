@@ -1,29 +1,50 @@
-# Observability capacity plan
+# Observability sizing evidence
 
-Planning basis: 2026-10-31, implementation `49857aa2903fa56feea389211a36624c26bbdb19`, evidence checkout `6aebc4b70935a693749ec62dba4cb0fd800a5808`. These budgets cover the current one-replica dev and retained-production instances. They are proposed allocations for hardware selection; they do not authorize a resize or establish runtime admission. The existing Compose services and all history remain preserved.
+**The hardware purchase recommendation from the 2026-10-31 capacity plan is withdrawn.** Its 64/128 GiB profiles, CPU profiles and disk classes were conservative illustrative allocations, not measured requirements for a platform with no users. Do not resize or buy a host based on them. The arithmetic below is retained for audit, not as a minimum hardware requirement.
 
-Keep Flux, cert-manager and ingress on h4claw, and plan the monitoring services/stores on h3mon. For that placement, **64 GiB-class RAM, a proposed 32-vCPU migration profile and at least 456 GiB of service-usable filesystem capacity** cover the migration proposal below. Prefer a **600 GB or larger disk**; 512 GB does not meet the reserve example. Normal operation alone has a smaller budget. Use a separate **128 GiB-class, 24-or-more-vCPU rehearsal host with at least 408 GiB service-usable filesystem capacity**, then verify the actual guest capacity. A 512 GB disk is a candidate for that fresh lab. If all platform controllers move onto the monitoring host, its migration RAM budget increases.
+The distinction matters: source requests/limits, full configured claim capacity, conditional retry/replacement slots, proposed overhead tiers and measured consumption answer different questions. Combining all of them and adding 20 percent free capacity does not establish the concurrent peak of a real execution. In particular, a finished attempt can retain disk history without retaining a live process's RAM. A smaller phase-aware model must prove the applicable lifecycle/concurrency facts instead of assuming that cleanup has happened.
 
-## Budget summary
+## Measured current dev baseline
 
-RAM minima mean guest-visible `MemTotal`, including the reserves listed below. Disk minima exclude filesystem-reserved bytes and include 20% unallocated capacity. GB is decimal; GiB is binary.
+A read-only inspection on 2026-10-31 at 14:56:49 UTC verified the existing h3mon machine/daemon/container identities and exact Elasticsearch/Prometheus loopback port bindings. The whole command completed in 2.314 seconds. No workload, retention policy, credentials or store changed.
 
-| Scenario                                                                       | RAM before free margin | Guest RAM minimum, 20% unused |               Service-usable disk minimum | Practical candidate to verify                                                    |
-| ------------------------------------------------------------------------------ | ---------------------: | ----------------------------: | ----------------------------------------: | -------------------------------------------------------------------------------- |
-| Normal dev + retained-production pair on h3mon                                 |              25.19 GiB |                     31.49 GiB |                                340.40 GiB | 64 GiB RAM / 512 GB disk                                                         |
-| Migration, old dev running, one complete first replacement wave, reused claims |              47.88 GiB |                     59.85 GiB |                                455.40 GiB | 64 GiB RAM / 600 GB+ disk                                                        |
-| Same migration retaining a second complete set of claims                       |              47.88 GiB |                     59.85 GiB |                                630.40 GiB | 64 GiB RAM / 1 TB disk; extra concurrently running instances need additional RAM |
-| Normal pair plus all platform controllers on the same host                     |              31.19 GiB |                     38.99 GiB | Recalculate platform writers/claims there | 64 GiB RAM; placement changes the disk budget                                    |
-| Migration with those controllers and their replacement wave                    |              59.88 GiB |                     74.85 GiB | Recalculate platform writers/claims there | 96 GiB+ guest RAM; 128 GiB-class candidate                                       |
-| Full rehearsal, fresh isolated host                                            |              63.44 GiB |                     79.30 GiB |                                407.27 GiB | 128 GiB-class RAM / 512 GB disk                                                  |
+| Observation                                               |                 Actual value | Scope                                                                                              |
+| --------------------------------------------------------- | ---------------------------: | -------------------------------------------------------------------------------------------------- |
+| Six running dev containers, summed `memory.current`       |                    2.829 GiB | Point-in-time cgroup charge, including charged cache; not RSS, a peak, or the Kubernetes candidate |
+| Those six containers' combined memory limits              |                      5.5 GiB | Configured cap sum, not actual demand                                                              |
+| Seven retained legacy containers, summed `memory.current` |                    1.851 GiB | Separate current charge; all remain running                                                        |
+| h3mon RAM total / available                               |          15.237 / 11.661 GiB | Host counters, not derived by subtracting cgroup sums                                              |
+| Elasticsearch total primary/index-store bytes             | 38,658,806 bytes (36.87 MiB) | Current index files; excludes translogs, logs, snapshots and other filesystem writers              |
+| Prometheus current head series                            |                        1,903 | Current TSDB head, not disk use                                                                    |
+| Prometheus maximum RSS returned by a 24-hour query        |                      120 MiB | Prometheus process only; range-query result does not establish complete sampling coverage          |
+| Prometheus maximum head series returned by that query     |                        1,908 | Same sampling limitation                                                                           |
+| Prometheus maximum five-minute CPU rate over that query   |                0.00456 cores | Prometheus process only, not the whole stack or host                                               |
 
-The normal and migration disk columns retain h3mon's entire current 23.314 GiB used allocation. An existing-host rehearsal instead needs 436.41 GiB service capacity with h3mon's preserved bytes, or 458.29 GiB with h4claw's. Existing workloads would also need their own RAM/CPU allowance. The fresh-lab row avoids that overlap.
+The queries used existing backends: Elasticsearch `_stats/store`, Prometheus TSDB metadata/metric-name discovery and three bounded historical PromQL queries. Missing historical series are explicit states, never zeros. Per-container kernel lifetime peaks were observed separately; adding their maxima would not prove a simultaneous stack peak. These measurements do not certify sustained growth, load, startup, migration or outage/recovery demand.
 
-These are capacity targets, not a verified vendor SKU, price, stock level or performance guarantee. A nominal 64 GiB plan must expose at least 59.85 GiB guest RAM for the migration proposal. A nominal 512 GB disk is only 476.84 GiB before formatting/reservations. With an illustrative 5% filesystem reserve, the h3mon migration requires about 479.37 GiB total filesystem size: 512 GB is insufficient; 600 GB is the more practical target.
+## Next sizing work
 
-For a concrete provider mapping, Hetzner's [published General Purpose specifications](https://www.hetzner.com/cloud/general-purpose/) list CCX43 as 16 vCPU / 64 GB RAM / 360 GB disk, and CCX53 as 32 vCPU / 128 GB RAM / 600 GB disk. The former does not meet this migration disk/profile proposal; the latter is a candidate to inspect for the combined resource targets. This is a specification comparison, not confirmed regional stock, account eligibility, price or an instruction to order. The budgets remain independent of those vendor names. A CPU/RAM-only rescale does not solve the disk shortfall; retaining disk size preserves future downgrade options under the [provider's rescale contract](https://github.com/hetznercloud/cli/blob/main/docs/reference/manual/hcloud_server_change-type.md).
+1. Reuse the existing telemetry to establish actual resource peaks and storage growth, with time window, scrape coverage and workload phase attached. Identify missing whole-host/container histories explicitly; the Prometheus self-metrics above cover only one process.
+2. Derive peak concurrency for cold start, normal collection, copy/restore and each required failure/recovery phase. Retain every required two-instance parity, isolation, stored-signal, UI and history proof; do not turn the current Compose baseline into Kubernetes acceptance.
+3. Budget current dev operation separately from the on-demand full rehearsal. Production definitions and capacity policies remain reviewable without claiming that production is activated or that a filled production store exists today.
+4. Recommend hardware only if those measured and source-bound phase budgets establish a deficit. Preserve the existing 16 GiB-available full-lab floor and all ownership/enforcement guards until an explicitly justified change is reviewed; the current measurements do not bypass them.
 
-## Fresh existing-host baseline
+## Historical conservative allocations
+
+The following records the earlier arithmetic, including unmeasured proposed tiers and an arbitrary 20 percent unused fraction. These are **not current measured peaks, hardware minima, procurement guidance or runtime admission**. No replacement hardware size is recommended yet.
+
+| Scenario                                                | Allocation before margin | Allocation divided by 0.8 | Disk allocation divided by 0.8 |
+| ------------------------------------------------------- | -----------------------: | ------------------------: | -----------------------------: |
+| Normal full pair on h3mon                               |                25.19 GiB |                 31.49 GiB |                     340.40 GiB |
+| Migration with an entire first replacement wave         |                47.88 GiB |                 59.85 GiB |                     455.40 GiB |
+| Same migration with a second retained 140 GiB claim set |                47.88 GiB |                 59.85 GiB |                     630.40 GiB |
+| Full pair and all platform controllers co-located       |                31.19 GiB |                 38.99 GiB |            Placement-dependent |
+| Migration with those controllers and replacement wave   |                59.88 GiB |                 74.85 GiB |            Placement-dependent |
+| Full conditional rehearsal slot/attempt sum             |                63.44 GiB |                 79.30 GiB |     407.27 GiB on a fresh host |
+
+Historical source basis: implementation 49857aa2903fa56feea389211a36624c26bbdb19 and evidence checkout 6aebc4b70935a693749ec62dba4cb0fd800a5808. The two-instance source quantities below remain useful facts. The discretionary overhead allocations and resulting purchase recommendations have not become operational policy.
+
+## Earlier host snapshot
 
 Read-only observations at 2026-10-31 13:48–13:50 UTC used the existing pinned operator transport and verified fleet machine/daemon identities. No Secret values, container environment, private key material or database contents were exported.
 
@@ -79,7 +100,7 @@ The retained full-rehearsal ledger's 49,984 MiB counts complete conditional repl
 
 These lifecycle allocations cover one immutable-source operation, the retained ledger's declared retry/history horizon and one first replacement wave. Native StatefulSet same-ordinal replacement assumes reachable cooperative controllers and no duplicate execution. Forced deletion, lost-node execution, additional Helm/Flux generations or further retained attempts require additional allocation and fresh admission. No cleanup or termination timing is assumed merely to lower the budget.
 
-Monitoring source CPU requests total 2.94 cores; co-located platform increases that to 3.54. Full-rehearsal conditional slots request 9.07 cores. CPU limits total 19.9 / 28.9 / 82.6 cores respectively and can be overcommitted; they are not required physical core counts. Preserved Docker quotas total 5.75 cores, or 12.75 with the old dev stack, without scheduler reservations. Proposed starting profiles are **16 vCPU normal, 32 vCPU for conservative migration overlap, and 24 vCPU for the isolated lab**, with aggregate copy/import workers capped at two cores and two cores reserved for host work. These profiles require measured ingest/query/backup latency and throttling checks; no throughput SLO or benchmark currently proves them necessary or sufficient.
+Monitoring source CPU requests total 2.94 cores; co-located platform increases that to 3.54. Full-rehearsal conditional slots request 9.07 cores. CPU limits total 19.9 / 28.9 / 82.6 cores respectively and can be overcommitted; they are not required physical core counts. Preserved Docker quotas total 5.75 cores, or 12.75 with the old dev stack, without scheduler reservations. The withdrawn illustrative profiles were 16 vCPU normal, 32 vCPU for migration and 24 vCPU for the lab, with hypothetical two-core worker and host allocations. They are not measured CPU requirements or current recommendations. These profiles require measured ingest/query/backup latency and throttling checks; no throughput SLO or benchmark currently proves them necessary or sufficient.
 
 ## Disk accounting
 
@@ -118,7 +139,7 @@ The lab's 20 GiB MinIO store does not certify backing up full 50 GiB registry or
 
 ## Operational prerequisites
 
-Planning is complete for the declared placements and finite scenarios above. Every non-source tier remains a proposed allocation. The existing full-lab prerequisites of at least 16 GiB available RAM and 120 GiB active claims remain unchanged; passing either minimum does not satisfy the larger complete budget. Before creation or cutover, verify actual guest RAM, allocatable resources, complete effective Pods, device/claim ownership, aggregate worker concurrency/cgroups and the allocated writer limits. Queue counts, PVC requests, disk `emptyDir.sizeLimit` and ephemeral eviction thresholds do not by themselves prove hard physical quotas. Bind hostPath growth, image/cache retention, logs, copy/archive outputs and retained generations to the budget and fail visibly before exceeding it.
+Only the historical allocation arithmetic is complete; evidence-based hardware sizing remains open. Every non-source tier below remains an unmeasured illustration, not an adopted operational budget. The existing full-lab prerequisites of at least 16 GiB available RAM and 120 GiB active claims remain unchanged; passing either minimum does not satisfy the larger complete budget. Before creation or cutover, verify actual guest RAM, allocatable resources, complete effective Pods, device/claim ownership, aggregate worker concurrency/cgroups and the allocated writer limits. Queue counts, PVC requests, disk `emptyDir.sizeLimit` and ephemeral eviction thresholds do not by themselves prove hard physical quotas. Bind hostPath growth, image/cache retention, logs, copy/archive outputs and retained generations to the budget and fail visibly before exceeding it.
 
 Use the existing [preflight and admission contract](observability-preflight.md). Current h4claw unbounded workloads remain outside any certified finite envelope. Sustained ingest, query, backup/restore, history retention and outage recovery must demonstrate that the proposed allowances are sufficient. Hardware selection does not remove those runtime checks, authorize persistent credentials or approve production activation. No workload, store, secret, graph, limit or capacity floor was changed to prepare this plan.
 

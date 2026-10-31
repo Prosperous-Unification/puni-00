@@ -4792,3 +4792,33 @@ Documentation formatting completed for all three changed files. Strict owning ch
 validation passed1change/0issues (34ms). The final documentation review has no open
 Critical or Important findings. Software/runtime tests and full host gates were not
 run for this documentation-only change; they are not inferred from arithmetic checks.
+
+## Hardware recommendation withdrawn; actual dev baseline — 2026-10-31
+
+The user challenged the large hardware recommendation for a platform without users.
+The earlier arithmetic is internally consistent but does not establish a justified
+purchase: it combines the complete two-instance source, configured store capacity,
+conditional attempt/replacement allocations, unmeasured overhead tiers and20percent
+headroom. Treating that envelope as measured concurrent demand was incorrect. The
+64/128GiB, CPU and disk purchase recommendations are withdrawn in the sizing note;
+its earlier figures remain historical audit evidence. Phase-aware sizing is open.
+No source capacity policy, floor or acceptance criterion was changed to hide it.
+
+One fresh read-only h3mon command completed in2.314seconds at14:56:49UTC, verifying
+machine/daemon/container identities and exact existing loopback endpoint bindings.
+Six dev cgroups charge2.829GiB now under5.5GiB combined configured limits. Seven
+retained services charge1.851GiB; host MemAvailable is11.661GiB of15.237GiB total.
+These are current counters, not a simultaneous lifetime peak or Kubernetes proof.
+Elasticsearch reports38,658,806index-store bytes with0failed shards, excluding its
+translog and other filesystem writers. Prometheus has1903head series; historical
+queries return120MiB max selfRSS,1908maxseries and0.00456core maximum5minute CPU
+rate over the queried24hours. Whole-stack CPU and historical sampling coverage
+were not measured; per-process self-metrics cannot substitute for them.
+
+The sizing note now leads with measured evidence and next phase/concurrency work.
+Full two-instance isolation, signals/operator views/history/recovery acceptance and
+the existing16GiB-available lab floor remain required. No new hardware size is
+recommended, no resource or retention setting was reduced, and no store, workload,
+credential, provider resource or history was changed. Private measured-dev-2026-10-31
+receipts retain safe projections, query expressions, script and hashes. Software/
+runtime acceptance tests and host gates were not run for this documentation correction.
