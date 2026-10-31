@@ -5689,3 +5689,66 @@ complete those criteria. No observer unit, credential, tunnel, running service,
 store, claim, Grafana object, production resource or hardware was changed by this
 source closure. Production activation, persistent Secret changes, destructive
 retirement and final implementation merge retain their separate authorization.
+
+## Task82 — current-source packet and canonical inventory — 2026-11-01
+
+The historical source 765 packet omitted later collector/Velero ephemeral-storage
+and scratch declarations. One new capture used the existing production sequence
+`prepareObservabilityRehearsal` then `prepareRehearsalInventory`, with the existing
+locked tools and explicit Helm archive. Source and clean generator are both
+`49955ac5c14c410b7d0b035d6946c555abf33480`; all 142 generator commitments match
+that Git revision. No source implementation, pin or tool changed.
+
+The exact command, run from the owning implementation worktree, was:
+
+```sh
+/home/df/.bun/bin/bun test --preload ./tools/test/scratch/preload.ts /tmp/puni-task82/capture.test.ts -t 'Task82 single current-source operational capture'
+```
+
+It exited 0 in 27.490s: preparation 9.016s, canonical inventory 13.493s and the existing
+retained-input capacity reader 3.253s. The supported protocol performed TWO existing
+validation/build passes, ONE selected Helm render covering 12 releases and ONE
+bootstrap production returning two frames. Only the inventory phase was observed
+with counters; preparation's first validation/build is established by the actual
+successful production return. No third validation, replacement producer/cache or
+old passing suite/proof replay ran.
+
+New packet commitment:
+`fadb64b624fe72224556efc6a5e0e30feaadf74bad110869088ce6c8d259a09b`.
+Canonical inventory commitment:
+`f40d33473eb48b39532d214882c22e1c725f6eac6db0a3e31ccdd361e0e05807`.
+The saved Flux build remains
+`396dbce5daaee951aa93ed56135e1ad722707faaeed2a776fcf698f7a99e4d34`.
+Only local Velero and the generated collector release payload changed; their
+observability/backup stage streams and corresponding Helm owners changed. All
+other saved stage/render streams match the historical capture. The request retains
+six explicitly synthetic network inputs; no runtime address was observed or bound.
+
+Root independently checked all 112 indexed files, all 85 payload hashes and all 142
+generator files against current bytes and committed Git blobs, with zero
+mismatches. All 1380 historical entries retain their bytes, modes and symlink
+identities. Private evidence is `/tmp/puni-task82/evidence`, report
+`/tmp/puni-task82-report.md`, and independent audit
+`/tmp/puni-task82-parent-check.json`. The complete receipt index SHA256 is
+`49ed0bac3cfaab19431a5ede0f724428f00c566359615a98b964032b49304558`.
+
+The capacity reader deliberately received no historical Cron horizon: the old
+window and packet selection are not current facts. Known conditional contributions
+are 49728Mi memory, 8650m CPU requests and 157248Mi disk, with 273 named unresolved
+obligations. These values neither establish a whole-attempt budget nor support
+hardware sizing. Inventory runnable closure and capacity remain incomplete;
+creation/runtime authority remains false. No missing contribution became zero.
+
+The existing hard full-lab floors are 16384MiB AVAILABLE memory and 40960MiB Docker
+free disk. The 120GiB figure is declared logical store capacity, not a proven
+initial physical free-disk requirement or a complete attempt budget. HostCapacity
+alone still cannot admit the full rehearsal. No target is allocated or admitted.
+
+The NEW packet was not exported or authenticated through Flux. Historical 765/c793
+publication and authenticated-source evidence remain valid only for those exact
+inputs. Whole-source production-placement parity, full Kubernetes/effective Pods,
+CNI/storage/enforcement, functional collector/Velero sufficiency, stored signals,
+operator views, isolation, outage/history/backup recovery and live dev migration
+remain unverified. No runtime, Secret, production, hardware, merge or storage
+mutation occurred. Canonical completion remains 4/11 with all seven main pending
+tasks open; this source capture closes no runtime milestone.
