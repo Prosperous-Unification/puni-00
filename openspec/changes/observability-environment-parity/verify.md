@@ -5794,5 +5794,30 @@ bunx prettier --check tools/tool-fleet/src/observability-route.test.ts
 The complete `tool-fleet` suite, typecheck, build, CI, remote/runtime checks, production work and
 full host gate were not run. No new safety check or production behavior was introduced, so no new
 production-path mutant matrix was required. This verifies fixture behavior only and does not
-certify runtime/live observability acceptance (still 4/11). Command receipts and source hashes are
+certify runtime/live observability acceptance (still 4/11). Worker command summaries and source hashes are
 in `/tmp/puni-task83-evidence/index.md`.
+
+### Task83 independent review and retained validation
+
+Independent scoped specification/quality review approved the exact test-only diff
+49943afa0→5c601c86d with no actionable findings. Production route code, recovery
+checks, actual child ownership writes, injected-fault checks, exact diagnostic/JSON
+parsing and receipt assertions remain unchanged.
+
+The worker did not retain its targeted command stdout/stderr as files; its earlier
+counts/timings are summaries of tool returns, not independently inspectable raw
+receipts. `/tmp/puni-task83-evidence/receipt-limitation.md` records that limitation.
+To resolve this evidence gap before publication, root ran the exact eleven-case
+forced-color covering command above once at committed5c601c86d. It passed11/11,
+0fail,69assertions in30.88s (30.897s parent elapsed), with44 unrelated cases filtered.
+`FORCE_COLOR=1` was set and inherited `NO_COLOR` removed; exact command/env/head,
+start time, source hashes and exit0 are retained in
+`/tmp/puni-task83-root/command.json`, alongside verbatim stdout/stderr. Stderr SHA256:
+`2695da8dde79f92930db891d641d58bdd672640ffa9fe7f81c375faa7f9e72fc`.
+The original unavailable output was not reconstructed or relabeled. No full suite,
+old mutant matrix, unchanged CLI build or source render was repeated.
+
+Root checked tested source bytes against5c601c86d before/after, and all142 packet
+generator inputs still match the retained49955 capture. This test-only correction
+needs no new packet or production binary. Current-head CI and all runtime/live
+acceptance remain separate; canonical observability milestones remain4/11.
