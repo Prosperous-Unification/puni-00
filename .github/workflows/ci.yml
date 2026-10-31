@@ -312,7 +312,7 @@ jobs:
     name: gate workspace
     needs: gate_mode
     if: ${{ needs.gate_mode.outputs.mode != 'docs' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # The original 20-minute box expired after the ordinary Nx phase and during Tool Wiki.
     # Forty-five minutes then expired too: run 35337661318 (2026-09-18, every project affected and
     # the packed package suite in scope) spent 44m48s through the solver image smoke and was
