@@ -75,7 +75,8 @@ const names = [
   'puni_dev_revision_info',
   'puni_dev_probe_success',
 ] as const;
-class QueryFault extends Error {}
+/** Bounded backend protocol failure, distinct from trusted configuration/programming errors. */
+export class QueryFault extends Error {}
 
 const Privileges = type({
   '+': 'reject',
@@ -273,15 +274,7 @@ async function logEvidence(
 ): Promise<SignalEvidence> {
   const documents = await search(base, scope, 'logs', previous, signal);
   if (documents.length === 0) return { state: 'missing' };
-  for (const document of documents) {
-    // Proof: removing stored log timestamp equality accepts the wrong-timestamp HTTP fixture.
-    if (
-      document.body?.text !== scope.logName ||
-      document.span_id !== previous.parentSpanId ||
-      epoch(document['@timestamp']) !== previous.observedAt
-    )
-      throw new QueryFault('invalid-log');
-  }
+  validateLogs(documents, previous, scope);
   return {
     state: 'found',
     identity: identity(previous),
@@ -297,6 +290,41 @@ async function traceEvidence(
 ): Promise<SignalEvidence> {
   const documents = await search(base, scope, 'traces', previous, signal);
   if (documents.length === 0) return { state: 'missing' };
+  validateTraces(documents, previous, scope);
+  return {
+    state: 'found',
+    identity: identity(previous),
+    observedAt: previous.observedAt,
+    proof: {
+      kind: 'trace',
+      traceId: previous.traceId,
+      parentSpanId: previous.parentSpanId,
+      childSpanId: previous.childSpanId,
+      childParentSpanId: previous.parentSpanId,
+    },
+  };
+}
+type StoredDocument = ReturnType<typeof validateDocument>;
+function validateLogs(
+  documents: StoredDocument[],
+  previous: AcceptedObservation,
+  scope: AcceptanceScope,
+): void {
+  for (const document of documents) {
+    // Proof: removing stored log timestamp equality accepts the wrong-timestamp HTTP fixture.
+    if (
+      document.body?.text !== scope.logName ||
+      document.span_id !== previous.parentSpanId ||
+      epoch(document['@timestamp']) !== previous.observedAt
+    )
+      throw new QueryFault('invalid-log');
+  }
+}
+function validateTraces(
+  documents: StoredDocument[],
+  previous: AcceptedObservation,
+  scope: AcceptanceScope,
+): void {
   const canonical = new Map<string, string>();
   for (const document of documents) {
     const time = epoch(document['@timestamp']);
@@ -337,18 +365,50 @@ async function traceEvidence(
   }
   // Proof: accepting a single root fails the partial-trace HTTP fixture.
   if (canonical.size !== 2) throw new QueryFault('incomplete-trace');
-  return {
-    state: 'found',
-    identity: identity(previous),
-    observedAt: previous.observedAt,
-    proof: {
-      kind: 'trace',
-      traceId: previous.traceId,
-      parentSpanId: previous.parentSpanId,
-      childSpanId: previous.childSpanId,
-      childParentSpanId: previous.parentSpanId,
-    },
-  };
+}
+/**
+ * Validates frozen legacy records independently of freshness, using the same source,
+ * identity and trace relationship checks as current acceptance. Returns only selected
+ * validated fields: arbitrary attributes and document bodies never enter a receipt hash.
+ */
+export function selectRetainedDocuments(
+  previous: ProbeObservation,
+  kind: 'log' | 'trace',
+  wires: unknown[],
+): unknown[] {
+  const documents = wires.map((wire) => validateDocument(wire, previous, legacyScope));
+  if (kind === 'log') validateLogs(documents, previous, legacyScope);
+  else validateTraces(documents, previous, legacyScope);
+  return documents.map((document) => ({
+    timestamp: epoch(document['@timestamp']),
+    environment: document.resource.attributes['deployment.environment.name'],
+    producer: document.resource.attributes['service.name'],
+    target: [
+      document.attributes['puni.target.environment'],
+      document.attributes['puni.target.service'],
+      document.attributes['puni.target.revision'],
+    ],
+    observation: [
+      document.attributes['puni.observation.id'],
+      document.attributes['puni.observation.timestamp_ms'],
+      document.attributes['puni.probe.success'],
+    ],
+    source: [
+      document.attributes['puni.source.kind'],
+      document.attributes['puni.target.container'],
+      document.attributes['puni.target.container.id'],
+      document.attributes['puni.target.mount.source'],
+    ],
+    trace: [document.trace_id, document.span_id, document.parent_span_id ?? ''],
+    ...(kind === 'log'
+      ? { message: document.body?.text }
+      : {
+          name: document.name,
+          kind: document.kind,
+          status: document.status?.code,
+          root: document.attributes['transaction.root'] ?? false,
+        }),
+  }));
 }
 async function metricEvidence(
   base: BoundTransport,
@@ -580,23 +640,24 @@ const Scope = type({
 export interface AcceptanceScope extends Omit<typeof Scope.infer, 'metricNames'> {
   metricNames: readonly [string, string, string];
 }
+const legacyScope: AcceptanceScope = {
+  environment: 'dev',
+  service: 'be-01',
+  producer: 'puni-dev-probe',
+  namespace: 'dev',
+  sourceIdentity: 'legacy-ssh',
+  provenance: 'measured',
+  metricNames: names,
+  logName: 'dev health observation',
+  childName: 'GET be-01 /health',
+};
 /** Legacy adapter preserves validated SSH/container/mount provenance and its existing storage mapping. */
 export function createBackendAcceptance(
   configuration: BackendConfiguration,
 ): PreviousObservationPort & {
   inspect(previous: ProbeObservation, signal: AbortSignal): Promise<AcceptanceReport>;
 } {
-  return createAcceptance(configuration, {
-    environment: 'dev',
-    service: 'be-01',
-    producer: 'puni-dev-probe',
-    namespace: 'dev',
-    sourceIdentity: 'legacy-ssh',
-    provenance: 'measured',
-    metricNames: names,
-    logName: 'dev health observation',
-    childName: 'GET be-01 /health',
-  });
+  return createAcceptance(configuration, legacyScope);
 }
 /** Scoped acceptance reports component evidence distinctly; the common health evaluator remains unchanged. */
 export function createScopedBackendAcceptance(

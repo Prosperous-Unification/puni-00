@@ -353,3 +353,58 @@ changes and sufficient samples before interpreting a CPU rate; missing rate/hist
 not zero usage. Treat unavailable collection or stale observation timestamps as missing
 capacity evidence. Do not sum independent lifetime maxima or turn configured limits into
 measured concurrent demand.
+
+## Retain one observation before route work
+
+From a reviewed source checkout, the existing runtime CLI can capture a fresh, complete
+stored observation and later verify those exact historical witnesses. These commands
+only read the existing backends. They do not switch routes, update the observer, admit
+a migration or replace the separate candidate/preflight/ownership checks.
+
+Create a private request file (`chmod 600`) with the existing observation checkpoint
+path and explicit read routes. Legacy loopback routes use this shape:
+
+```json
+{
+  "version": 1,
+  "checkpointPath": "/absolute/path/to/existing-observation-checkpoint.json",
+  "elastic": { "kind": "loopback", "url": "http://127.0.0.1:19200" },
+  "prometheus": { "kind": "loopback", "url": "http://127.0.0.1:19090" }
+}
+```
+
+For an authenticated route, replace its descriptor with
+`{"kind":"binding-file","path":"/absolute/private/transport-binding.json"}`.
+That file uses the existing verified transport format. Request files contain paths,
+never resolved credentials. The actual authenticated Elasticsearch query principal
+must retain exactly the existing read-only scopes. Route commitments bind endpoint,
+service, CA and principal identity; password/private-key bytes or hashes are excluded.
+Credential rotation alone therefore does not make old history a different route.
+
+```sh
+bun tools/tool-observability-stack/src/dev/runtime-cli.ts history-capture request.json new-history.json
+sha256sum new-history.json
+bun tools/tool-observability-stack/src/dev/runtime-cli.ts history-verify request.json new-history.json EXPECTED_SHA256 new-verification.json
+```
+
+Use the independently retained complete SHA256 printed for the original receipt in
+place of `EXPECTED_SHA256`. Both output paths must be new; publication uses exclusive
+owner-private files and syncs the file and directory. Retain the original bytes and
+digest. A later verify writes a distinct outcome linked to that digest. It does not
+read a newer checkpoint or classify the old observation as fresh application health.
+
+Inputs must be readable owner-private regular files; trusted request/receipt/outcome
+bytes are capped at262144. Missing, unreadable, malformed, occupied or changed-route
+inputs refuse with fixed redacted diagnostic categories. Checkpoints retain their
+existing8192-byte bound and are never initialized here. Backend reads are capped at
+1MiB under one10-second operation deadline, at most16 Elasticsearch records per signal,
+and at most512 stored metric samples. Historical metric reads use original stored
+scrape coordinates, not query-range evaluation times or current values. Receipts keep
+bounded references and canonical fingerprints, excluding raw bodies and metric labels.
+A noncomplete verification publishes an explicit unavailable outcome and exits nonzero;
+malformed trusted state refuses before publication. Earlier history and Grafana receipts
+are never overwritten. An interrupted partial output requires inspection and a new path.
+
+Source/fixture verification is recorded in the owning OpenSpec evidence. Actual existing
+dev-store corroboration and review are separate; Task77, full4.1 and4.2 remain open until
+their stated requirements are met.
