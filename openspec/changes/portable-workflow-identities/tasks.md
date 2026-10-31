@@ -186,10 +186,10 @@ task-scoped ledger/review packets under the unique portable-workflow-identities 
 - [x] 4.2 Reverify migration hashes, every new check's actual fault/restored evidence, native
       close/cleanup outcomes, affected static checks and task review findings. Use a task
       review after each implementation task, then one whole-change review.
-- [ ] 4.3 Commit/push the reviewed feature candidate and run required CI and canonical
+- [x] 4.3 Commit/push the reviewed feature candidate and run required CI and canonical
       bin/h2puni-gate.sh on its actual final SHA in a clean isolated h2/h4 gate tree. Record
       executed target coverage, failures/skips and complete terminal receipts. No raw full
       host Nx gate, foreign cleanup, force/admin merge or production action.
-- [ ] 4.4 Invoke openspec-verify-change and write verify.md from actual outputs/proof table;
+- [x] 4.4 Invoke openspec-verify-change and write verify.md from actual outputs/proof table;
       keep unverified tasks open. Re-read WBS after notes/status updates, preserving old notes.
       Keep architectural main merge/operator stores/prod held and the wider foundation open.
