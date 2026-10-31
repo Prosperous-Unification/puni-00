@@ -39,7 +39,7 @@ export type RunCreation = Pick<Run, 'projectId' | 'workItemId' | 'manifestDigest
 export function createRun(input: RunCreation): Run;
 ```
 
-- [ ] 1.1 TDD: constructor returns distinct random UUIDv4 run IDs for separate creations,
+- [x] 1.1 TDD: constructor returns distinct random UUIDv4 run IDs for separate creations,
       version1/revision0 and exact separate project/work-item/manifest/budget fields. Its
       flat returned Run is frozen. Use the real randomUUID; no injectable generator or new
       retry framework. Test: create-run.test.ts, generated identity and immutable snapshot cases.
@@ -60,10 +60,10 @@ return Object.freeze(
 );
 ```
 
-- [ ] 1.2 TDD: submit that same constructed record twice through the real memory RunStore,
+- [x] 1.2 TDD: submit that same constructed record twice through the real memory RunStore,
       including after read; compare exact run identity and returned original payload. Test:
       create-run.test.ts retained-creation retry. Do not imply coordinator CLI/restart exists.
-- [ ] 1.3 Test the constructor's actual validation boundary with invalid project/work-item,
+- [x] 1.3 Test the constructor's actual validation boundary with invalid project/work-item,
       manifest and retry-budget values. Independently bypass its decodeRun dependency, watch
       the negative lose refusal, then restore; record the actual command and add a Proof
       comment naming that fault. Run the new test file and existing admission.test.ts once
