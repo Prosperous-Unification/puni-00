@@ -191,7 +191,7 @@ export async function bootstrapSqliteStores(input: SqliteOptions) {
         owner: null,
       };
       database.run('BEGIN IMMEDIATE');
-      for (const migration of MIGRATIONS)
+      for (const migration of MIGRATIONS.slice(0, SCHEMA_VERSION))
         // Proof: F34c restored whole-script forward SQL and published after an intermediate CHECK failure; 'intermediate required migration' failed and exact restoration passed.
         for (const statement of migration.forwardStatements) database.run(statement);
       database

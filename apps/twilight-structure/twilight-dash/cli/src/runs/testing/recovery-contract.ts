@@ -46,6 +46,7 @@ export async function createRecoveryFenceCall(
   begin: RecoveryBeginCall,
   generation: number | null = 2,
   previous?: RecoveryFence,
+  commandId?: string,
 ): Promise<RecoveryCall<RecoveryFenceInput>> {
   const recoveryId = begin.intent.recoveryId;
   const scope = begin.guard.scope;
@@ -96,7 +97,11 @@ export async function createRecoveryFenceCall(
   );
   if (state.kind !== 'state') throw new Error('recovery fixture state missing');
   const ordinal = previous === undefined ? 1 : previous.ordinal + 1;
-  const canonicalRequest = authorityRequest('fence-' + String(ordinal), generation, scope);
+  const canonicalRequest = authorityRequest(
+    commandId ?? 'fence-' + String(ordinal),
+    generation,
+    scope,
+  );
   let basis: RecoveryFence['basis'] = { kind: 'initial', state: state.exchange };
   if (previous !== undefined) {
     const lookup = await readRecoveryExchange(
@@ -237,11 +242,14 @@ export async function createRecoveryResolveCall(
   accepted: boolean,
   claimReceipt?: ArtifactRef,
   fenceGeneration?: number,
+  fenceCommandId?: string,
 ): Promise<RecoveryResolveCall> {
   const staged = await createRecoveryFenceCall(
     stores.artifacts,
     begin,
     fenceGeneration ?? (begin.kind === 'claim' ? 1 : 3),
+    undefined,
+    fenceCommandId,
   );
   unwrapReply(await stores.runs.stageRecoveryFence(staged));
   const observed = unwrapReply(

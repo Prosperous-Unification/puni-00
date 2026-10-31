@@ -254,7 +254,7 @@ describe('snapshot process', () => {
     let commits = 0;
     function query(this: Database, sql: string) {
       const statement = original.call(this, sql);
-      if (sql === 'SELECT * FROM run_record' && commits === 0) {
+      if (sql === 'SELECT * FROM run5_record' && commits === 0) {
         const all = statement.all.bind(statement);
         Object.defineProperty(statement, 'all', {
           configurable: true,

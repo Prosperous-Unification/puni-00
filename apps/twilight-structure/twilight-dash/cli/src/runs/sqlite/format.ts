@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 export const MIGRATION = readFileSync(
   new URL('./migrations/0001-run-store/migration.sql', import.meta.url),
   'utf8',
@@ -34,6 +34,14 @@ const recoveryForward = readFileSync(
 );
 const recoveryDown = readFileSync(
   new URL('./migrations/0004-runtime-recovery/down.sql', import.meta.url),
+  'utf8',
+);
+const identityForward = readFileSync(
+  new URL('./migrations/0005-identity-keys/migration.sql', import.meta.url),
+  'utf8',
+);
+const identityDown = readFileSync(
+  new URL('./migrations/0005-identity-keys/down.sql', import.meta.url),
   'utf8',
 );
 /** Complete ordered bootstrap identity. The pinned0001 artifact contains only simple statements, so its unchanged bytes use a narrowly scoped semicolon split. New artifacts use explicit complete-statement breakpoints. Before down, callers must validate the exact installed full bundle and physical schema. Down artifacts require fail-fast complete-statement breakpoint execution inside a caller transaction, stopping and rolling back at the first error. Whole-script Bun Database.run/exec is unsupported. Existing first-migration exports preserve their exact original bytes and hashes. */
@@ -82,6 +90,17 @@ export const MIGRATIONS = [
     forwardHash: createHash('sha256').update(recoveryForward).digest('hex'),
     downHash: createHash('sha256').update(recoveryDown).digest('hex'),
   },
+  {
+    name: '0005-identity-keys',
+    forwardStatements: identityForward
+      .split('--> statement-breakpoint')
+      .map((statement) => statement.trim())
+      .filter((statement) => statement.length > 0),
+    forward: identityForward,
+    down: identityDown,
+    forwardHash: createHash('sha256').update(identityForward).digest('hex'),
+    downHash: createHash('sha256').update(identityDown).digest('hex'),
+  },
 ] as const;
 export interface SqliteMigrationIdentity {
   readonly name: string;
@@ -89,12 +108,12 @@ export interface SqliteMigrationIdentity {
   readonly downHash: string;
 }
 export interface SqliteFormatIdentity {
-  readonly version: 3 | 4;
+  readonly version: 3 | 4 | 5;
   readonly bundleHash: string;
   readonly migrations: readonly SqliteMigrationIdentity[];
 }
 function createFormatIdentity(
-  version: 3 | 4,
+  version: 3 | 4 | 5,
   migrations: readonly SqliteMigrationIdentity[],
 ): SqliteFormatIdentity {
   return Object.freeze({
@@ -124,5 +143,7 @@ export const FORMAT3_IDENTITY = createFormatIdentity(3, MIGRATIONS.slice(0, 3));
 // Proof: T3M2 replaced only the new complete-bundle dependency with the predecessor hash; actual already-loaded BB14 code inserted a fresh manifest on physical/version4. Exact restoration refused with unchanged rows.
 export const FORMAT4_IDENTITY = createFormatIdentity(4, MIGRATIONS.slice(0, 4));
 
+export const FORMAT5_IDENTITY = createFormatIdentity(5, MIGRATIONS.slice(0, 5));
+
 /** Complete compiled current bundle used by bootstrap and semantic admission. */
-export const FORMAT_HASH = FORMAT4_IDENTITY.bundleHash;
+export const FORMAT_HASH = FORMAT5_IDENTITY.bundleHash;

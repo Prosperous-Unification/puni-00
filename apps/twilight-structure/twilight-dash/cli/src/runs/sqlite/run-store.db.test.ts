@@ -89,14 +89,14 @@ test('reservation trigger abort rolls back attempt revision and capacity across 
     const before = await fixture.stores.runs.readRun(fixture.guard.runId);
     expect(before.attempts).toEqual([]);
     database.run(
-      "CREATE TRIGGER fail_reservation BEFORE INSERT ON run_reservation BEGIN SELECT RAISE(ABORT,'injected reservation fault'); END",
+      "CREATE TRIGGER fail_reservation BEFORE INSERT ON run5_reservation BEGIN SELECT RAISE(ABORT,'injected reservation fault'); END",
     );
     await rejects(
       fixture.stores.runs.admitAttempt(fixture.guard, fixture.admission),
       new RegExp('injected reservation fault'),
     );
-    expect(database.query('SELECT * FROM run_attempt').all()).toEqual([]);
-    expect(database.query('SELECT * FROM run_reservation').all()).toEqual([]);
+    expect(database.query('SELECT * FROM run5_attempt').all()).toEqual([]);
+    expect(database.query('SELECT * FROM run5_reservation').all()).toEqual([]);
     await fixture.stores.close();
     const reopened = await openSqliteStores(fixture.options);
     try {
@@ -180,7 +180,7 @@ for (const fault of ['throw', 'skip'] as const)
     let rollbackCalls = 0;
     try {
       database.run(
-        "CREATE TRIGGER fail_reservation BEFORE INSERT ON run_reservation BEGIN SELECT RAISE(ABORT,'injected reservation fault'); END",
+        "CREATE TRIGGER fail_reservation BEFORE INSERT ON run5_reservation BEGIN SELECT RAISE(ABORT,'injected reservation fault'); END",
       );
       function run(
         this: Database,
@@ -252,7 +252,7 @@ test('stale ownership refuses manifest and run mutations before decoding corrupt
   const database = new Database(fixture.options.path);
   try {
     database.run(`UPDATE run_manifest SET record='{}'`);
-    database.run(`UPDATE run_record SET record='{}'`);
+    database.run(`UPDATE run5_record SET record='{}'`);
     fixture.options.clock.advance(100);
     expect(fixture.guard.ownership.epoch).toBe(1);
     await doesNotReject(async () => {

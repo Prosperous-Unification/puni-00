@@ -10,6 +10,43 @@ import { createPolicyWorkspace, runLint, writeProject } from './testing/lint-wor
 const workspace = fileURLToPath(new URL('../../..', import.meta.url));
 const lint = new ESLint({ cwd: workspace });
 
+it('Dash format4 lifetime preload reaches only the scratch helper', async () => {
+  const path =
+    'apps/twilight-structure/twilight-dash/cli/src/runs/testing/format4-lifetime-preload.ts';
+  const peer = 'apps/twilight-structure/twilight-dash/cli/src/runs/testing/format4-provider.ts';
+  const source = await readFile(join(workspace, path), 'utf8');
+  expect(importsAlias(source, '@tools/test-scratch')).toBe(true);
+  const [admission] = await lint.lintText(source, { filePath: path });
+  expect(admission.fatalErrorCount).toBe(0);
+  expect(admission.messages.map((message) => message.ruleId)).not.toContain(
+    '@nx/enforce-module-boundaries',
+  );
+  const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
+  const peerOptions = boundaryOf(
+    await lint.calculateConfigForFile(
+      'apps/twilight-structure/twilight-dash/cli/src/runs/plan-execution.ts',
+    ),
+  )[1];
+  if (!isRecord(options)) throw new Error('preload policy malformed');
+  expect(options['allow']).toEqual(['^@tools/test-scratch$']);
+  const constrainedOptions: unknown = { ...options, allow: [] };
+  expect(constrainedOptions).toEqual(peerOptions);
+  for (const [target, alias] of [
+    [path, '@tools/fleet-plan'],
+    [path, '@tools/test-clock-reads'],
+    [peer, '@tools/test-scratch'],
+    [path, '../../../../../../../tools/test/scratch/index.ts'],
+  ]) {
+    const [denial] = await lint.lintText('await import(' + JSON.stringify(alias) + ');', {
+      filePath: target,
+    });
+    expect(denial.fatalErrorCount).toBe(0);
+    expect(denial.messages.map((message) => message.ruleId)).toContain(
+      '@nx/enforce-module-boundaries',
+    );
+  }
+}, 30_000);
+
 /**
  * The only entries the root config's `allow` list may name, sorted. A bare `allow` entry is an
  * unanchored regular expression, so each is anchored and excuses its exact specifier alone. They

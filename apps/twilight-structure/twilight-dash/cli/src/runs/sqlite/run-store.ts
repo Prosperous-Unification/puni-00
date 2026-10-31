@@ -63,6 +63,7 @@ import {
   decodeRuntimeScope,
 } from '../runtime-codecs';
 import { createSqliteArtifactStore } from './artifact-store';
+import { markIdentityUsage } from './identity-usage';
 import { findExecution, validateAttempt } from './read-executions';
 import { readHistory } from './read-history';
 import { readRuntimeCatalog } from './read-runtime';
@@ -76,6 +77,7 @@ import {
 import { decodeAttemptRow, decodeManifestRow, decodeRunRow } from './row-codecs';
 import { decodeCompletionRow } from './row-codecs';
 import { insertRuntimeAcceptance, insertRuntimeIntent, insertRuntimePin } from './runtime-store';
+import { CURRENT_FORMAT } from './schema';
 import { readCapacity, readMeta } from './schema';
 
 export interface TransactionOptions {
@@ -181,6 +183,9 @@ export function createSqliteRunStore(
   function finish<T>(reply: StoreReply<T>, observedAt: number): StoreReply<T> {
     // Proof: omitting refused observations accepted clock 1049 after owner_busy at 1050 in the shared contract.
     database.query('UPDATE run_meta SET last_observed_at=? WHERE singleton=1').run(observedAt);
+    // Proof: Task3 038 removed this call; applied ownership left a genuine upgraded store eligible for downgrade. Restored 042 passed.
+    if (reply.kind === 'applied' && CURRENT_FORMAT.identity.version === 5)
+      markIdentityUsage(database);
     return reply;
   }
   function publishOwnership(
@@ -205,7 +210,9 @@ export function createSqliteRunStore(
     return manifest;
   }
   function findRun(identity: string) {
-    const row = database.query('SELECT * FROM run_record WHERE run_id=?').get(identity);
+    const row = database
+      .query(`SELECT * FROM ${CURRENT_FORMAT.family.record} WHERE run_id=?`)
+      .get(CURRENT_FORMAT.encode(identity));
     return row === null ? undefined : decodeRunRow(row);
   }
   function requireRun(identity: string) {
@@ -215,7 +222,9 @@ export function createSqliteRunStore(
     return record;
   }
   function requireAttempt(identity: string) {
-    const row = database.query('SELECT * FROM run_attempt WHERE attempt_id=?').get(identity);
+    const row = database
+      .query(`SELECT * FROM ${CURRENT_FORMAT.family.attempt} WHERE attempt_id=?`)
+      .get(CURRENT_FORMAT.encode(identity));
     // Proof: injecting sqlite missing attempt bypass failed `sqlite signal edges > missing named attempts throw before inbox or receipt mutation` at its explicit assertion.
     if (row === null) throw new Error('attempt does not exist');
     const { attempt } = decodeAttemptRow(row);
@@ -227,17 +236,20 @@ export function createSqliteRunStore(
   }
   function applyChange(run: Run, change: AttemptChange): void {
     database
-      .query('UPDATE run_attempt SET record=? WHERE attempt_id=?')
-      .run(JSON.stringify(change.attempt), change.attempt.attemptId);
+      .query(`UPDATE ${CURRENT_FORMAT.family.attempt} SET record=? WHERE attempt_id=?`)
+      .run(JSON.stringify(change.attempt), CURRENT_FORMAT.encode(change.attempt.attemptId));
     database
-      .query('UPDATE run_record SET record=? WHERE run_id=?')
-      .run(JSON.stringify({ ...run, revision: change.runRevision }), run.runId);
+      .query(`UPDATE ${CURRENT_FORMAT.family.record} SET record=? WHERE run_id=?`)
+      .run(
+        JSON.stringify({ ...run, revision: change.runRevision }),
+        CURRENT_FORMAT.encode(run.runId),
+      );
     // Proof: bypassing release only settled sqlite enforcement failed 'sqlite execution > unknown effects and takeover retain capacity until determinate quiescence'.
     // Proof: bypassing release settled sqlite enforcement failed 'sqlite execution > unknown effects and takeover retain capacity until determinate quiescence'.
     if (!change.attempt.holdsCapacity)
       database
-        .query('DELETE FROM run_reservation WHERE attempt_id=?')
-        .run(change.attempt.attemptId);
+        .query(`DELETE FROM ${CURRENT_FORMAT.family.reservation} WHERE attempt_id=?`)
+        .run(CURRENT_FORMAT.encode(change.attempt.attemptId));
   }
   const runs: RunStore = {
     async resolveRecovery(input) {
@@ -474,10 +486,10 @@ export function createSqliteRunStore(
         if (reply.kind === 'applied')
           database
             .query(
-              'INSERT INTO run_record(run_id,manifest_digest,record,initial_record) VALUES (?,?,?,?)',
+              `INSERT INTO ${CURRENT_FORMAT.family.record}(run_id,manifest_digest,record,initial_record) VALUES (?,?,?,?)`,
             )
             .run(
-              run.runId,
+              CURRENT_FORMAT.encode(run.runId),
               run.manifestDigest,
               JSON.stringify(reply.value),
               JSON.stringify(reply.value),
@@ -549,11 +561,17 @@ export function createSqliteRunStore(
         if (reply.kind === 'applied') {
           const revision = addInteger(run.revision, 1);
           database
-            .query('INSERT INTO run_decision(decision_id,attempt_id,record) VALUES (?,?,?)')
-            .run(decision.decisionId, decision.attemptId, JSON.stringify(decision));
+            .query(
+              `INSERT INTO ${CURRENT_FORMAT.family.decision}(decision_id,attempt_id,record) VALUES (?,?,?)`,
+            )
+            .run(
+              CURRENT_FORMAT.encode(decision.decisionId),
+              CURRENT_FORMAT.encode(decision.attemptId),
+              JSON.stringify(decision),
+            );
           database
-            .query('UPDATE run_record SET record=? WHERE run_id=?')
-            .run(JSON.stringify({ ...run, revision }), run.runId);
+            .query(`UPDATE ${CURRENT_FORMAT.family.record} SET record=? WHERE run_id=?`)
+            .run(JSON.stringify({ ...run, revision }), CURRENT_FORMAT.encode(run.runId));
         }
         return finish(reply, authority.observedAt);
       });
@@ -583,16 +601,18 @@ export function createSqliteRunStore(
         applyChange(run, reply.value);
         database
           .query(
-            'INSERT INTO run_consumption(decision_id,attempt_id,correlation_key,wait,reply) VALUES (?,?,?,?,?)',
+            `INSERT INTO ${CURRENT_FORMAT.family.consumption}(decision_id,attempt_id,correlation_key,wait,reply) VALUES (?,?,?,?,?)`,
           )
           .run(
-            identity,
-            attempt.attemptId,
-            reply.value.wait.correlationKey,
+            CURRENT_FORMAT.encode(identity),
+            CURRENT_FORMAT.encode(attempt.attemptId),
+            CURRENT_FORMAT.encode(reply.value.wait.correlationKey),
             JSON.stringify(reply.value.wait),
             JSON.stringify(reply.value.attempt),
           );
-        database.query('INSERT INTO run_reservation(attempt_id) VALUES (?)').run(attempt.attemptId);
+        database
+          .query(`INSERT INTO ${CURRENT_FORMAT.family.reservation}(attempt_id) VALUES (?)`)
+          .run(CURRENT_FORMAT.encode(attempt.attemptId));
         return finish({ kind: reply.kind, value: reply.value.attempt }, authority.observedAt);
       });
     },
@@ -616,11 +636,13 @@ export function createSqliteRunStore(
         const { run } = requireRun(guard.runId);
         const attempt = requireAttempt(guard.attemptId);
         const completionRow = database
-          .query('SELECT * FROM run_completion WHERE command_id=?')
+          .query(`SELECT * FROM ${CURRENT_FORMAT.family.completion} WHERE command_id=?`)
           .get(
-            attempt.state.kind === 'outcome_pending_progress'
-              ? attempt.state.commandId
-              : receipt.commandId,
+            CURRENT_FORMAT.encode(
+              attempt.state.kind === 'outcome_pending_progress'
+                ? attempt.state.commandId
+                : receipt.commandId,
+            ),
           );
         const intent =
           completionRow === null ? undefined : decodeCompletionRow(completionRow).completion.intent;
@@ -628,14 +650,18 @@ export function createSqliteRunStore(
         if (reply.kind === 'refused') return finish(reply, authority.observedAt);
         applyChange(run, reply.value);
         database
-          .query('INSERT INTO run_receipt(command_id,attempt_id,record,reply) VALUES (?,?,?,?)')
+          .query(
+            `INSERT INTO ${CURRENT_FORMAT.family.receipt}(command_id,attempt_id,record,reply) VALUES (?,?,?,?)`,
+          )
           .run(
-            receipt.commandId,
-            attempt.attemptId,
+            CURRENT_FORMAT.encode(receipt.commandId),
+            CURRENT_FORMAT.encode(attempt.attemptId),
             JSON.stringify(receipt),
             JSON.stringify(reply.value.attempt),
           );
-        database.query('DELETE FROM run_outbox WHERE command_id=?').run(receipt.commandId);
+        database
+          .query(`DELETE FROM ${CURRENT_FORMAT.family.outbox} WHERE command_id=?`)
+          .run(CURRENT_FORMAT.encode(receipt.commandId));
         return finish({ kind: reply.kind, value: reply.value.attempt }, authority.observedAt);
       });
     },
@@ -652,8 +678,8 @@ export function createSqliteRunStore(
         readCapacity(database, meta.capacity);
         const { run } = requireRun(guard.runId);
         const row = database
-          .query('SELECT * FROM run_attempt WHERE attempt_id=?')
-          .get(guard.attemptId);
+          .query(`SELECT * FROM ${CURRENT_FORMAT.family.attempt} WHERE attempt_id=?`)
+          .get(CURRENT_FORMAT.encode(guard.attemptId));
         // Proof: bypassing commitOutcome missing attempt sqlite enforcement failed 'sqlite execution edges > successful effects cannot retry and missing attempts throw without mutations'.
         if (row === null) throw new Error('attempt does not exist');
         const { attempt } = decodeAttemptRow(row);
@@ -663,24 +689,29 @@ export function createSqliteRunStore(
         validateAttempt(database, requireRun(attempt.identity.runId).run, attempt);
         const previous = database
           .query(
-            'SELECT * FROM run_completion WHERE command_id=? OR attempt_id=? ORDER BY command_id',
+            `SELECT * FROM ${CURRENT_FORMAT.family.completion} WHERE command_id=? OR attempt_id=? ORDER BY command_id`,
           )
-          .all(completion.intent.commandId, attempt.attemptId)
-          .map(decodeCompletionRow);
+          .all(
+            CURRENT_FORMAT.encode(completion.intent.commandId),
+            CURRENT_FORMAT.encode(attempt.attemptId),
+          )
+          .map((row) => decodeCompletionRow(row));
         const reply = planOutcome({ run, attempt, previous: previous[0] }, guard, completion);
         if (reply.kind === 'refused') return finish(reply, authority.observedAt);
         if (reply.kind === 'applied') {
           applyChange(run, reply.value);
           database
-            .query('INSERT INTO run_completion(command_id,attempt_id,record) VALUES (?,?,?)')
+            .query(
+              `INSERT INTO ${CURRENT_FORMAT.family.completion}(command_id,attempt_id,record) VALUES (?,?,?)`,
+            )
             .run(
-              completion.intent.commandId,
-              attempt.attemptId,
+              CURRENT_FORMAT.encode(completion.intent.commandId),
+              CURRENT_FORMAT.encode(attempt.attemptId),
               JSON.stringify({ version: 1, completion, reply: reply.value.attempt }),
             );
           database
-            .query('INSERT INTO run_outbox(command_id) VALUES (?)')
-            .run(completion.intent.commandId);
+            .query(`INSERT INTO ${CURRENT_FORMAT.family.outbox}(command_id) VALUES (?)`)
+            .run(CURRENT_FORMAT.encode(completion.intent.commandId));
         }
         return finish({ kind: reply.kind, value: reply.value.attempt }, authority.observedAt);
       });
@@ -744,10 +775,12 @@ export function createSqliteRunStore(
         if (reply.kind === 'refused') return finish(reply, authority.observedAt);
         applyChange(run, reply.value);
         database
-          .query('INSERT INTO run_execution(command_id,attempt_id,record,reply) VALUES (?,?,?,?)')
+          .query(
+            `INSERT INTO ${CURRENT_FORMAT.family.execution}(command_id,attempt_id,record,reply) VALUES (?,?,?,?)`,
+          )
           .run(
-            command.commandId,
-            attempt.attemptId,
+            CURRENT_FORMAT.encode(command.commandId),
+            CURRENT_FORMAT.encode(attempt.attemptId),
             JSON.stringify({ version: 1, command, context: null }),
             JSON.stringify({ version: 1, kind: 'execution', attempt: reply.value.attempt }),
           );
@@ -809,10 +842,12 @@ export function createSqliteRunStore(
         );
         applyChange(run, { attempt: ack.attempt, runRevision: reply.value.runRevision });
         database
-          .query('INSERT INTO run_execution(command_id,attempt_id,record,reply) VALUES (?,?,?,?)')
+          .query(
+            `INSERT INTO ${CURRENT_FORMAT.family.execution}(command_id,attempt_id,record,reply) VALUES (?,?,?,?)`,
+          )
           .run(
-            command.commandId,
-            attempt.attemptId,
+            CURRENT_FORMAT.encode(command.commandId),
+            CURRENT_FORMAT.encode(attempt.attemptId),
             JSON.stringify({
               version: 1,
               command,
@@ -878,10 +913,12 @@ export function createSqliteRunStore(
         );
         applyChange(run, { attempt: ack.attempt, runRevision: reply.value.runRevision });
         database
-          .query('INSERT INTO run_execution(command_id,attempt_id,record,reply) VALUES (?,?,?,?)')
+          .query(
+            `INSERT INTO ${CURRENT_FORMAT.family.execution}(command_id,attempt_id,record,reply) VALUES (?,?,?,?)`,
+          )
           .run(
-            command.commandId,
-            attempt.attemptId,
+            CURRENT_FORMAT.encode(command.commandId),
+            CURRENT_FORMAT.encode(attempt.attemptId),
             JSON.stringify({
               version: 1,
               command,
@@ -942,10 +979,12 @@ export function createSqliteRunStore(
 
         applyChange(run, { attempt: ack.attempt, runRevision: reply.value.runRevision });
         database
-          .query('INSERT INTO run_execution(command_id,attempt_id,record,reply) VALUES (?,?,?,?)')
+          .query(
+            `INSERT INTO ${CURRENT_FORMAT.family.execution}(command_id,attempt_id,record,reply) VALUES (?,?,?,?)`,
+          )
           .run(
-            command.commandId,
-            attempt.attemptId,
+            CURRENT_FORMAT.encode(command.commandId),
+            CURRENT_FORMAT.encode(attempt.attemptId),
             JSON.stringify({
               version: 1,
               command,
@@ -972,10 +1011,14 @@ export function createSqliteRunStore(
         const { run } = requireRun(guard.runId);
         const history = database
           .query(
-            'SELECT * FROM run_attempt WHERE attempt_id=? OR (run_id=? AND occurrence_id=?) ORDER BY ordinal',
+            `SELECT * FROM ${CURRENT_FORMAT.family.attempt} WHERE attempt_id=? OR (run_id=? AND occurrence_id=?) ORDER BY ordinal`,
           )
-          .all(admission.attemptId, run.runId, admission.identity.occurrenceId)
-          .map(decodeAttemptRow);
+          .all(
+            CURRENT_FORMAT.encode(admission.attemptId),
+            CURRENT_FORMAT.encode(run.runId),
+            CURRENT_FORMAT.encode(admission.identity.occurrenceId),
+          )
+          .map((row) => decodeAttemptRow(row));
         for (const { attempt } of history) {
           const { run: targetRun } = requireRun(attempt.identity.runId);
           // Proof: injecting admission provenance bypass failed `admission rejects terminal predecessor missing its confirmed receipt provenance` at its explicit assertion.
@@ -1003,24 +1046,27 @@ export function createSqliteRunStore(
           const attempt = reply.value.attempt;
           database
             .query(
-              'INSERT INTO run_attempt(attempt_id,run_id,occurrence_id,ordinal,record,admission) VALUES (?,?,?,?,?,?)',
+              `INSERT INTO ${CURRENT_FORMAT.family.attempt}(attempt_id,run_id,occurrence_id,ordinal,record,admission) VALUES (?,?,?,?,?,?)`,
             )
             .run(
-              attempt.attemptId,
-              run.runId,
-              attempt.identity.occurrenceId,
+              CURRENT_FORMAT.encode(attempt.attemptId),
+              CURRENT_FORMAT.encode(run.runId),
+              CURRENT_FORMAT.encode(attempt.identity.occurrenceId),
               attempt.ordinal,
               JSON.stringify(attempt),
               JSON.stringify(admission),
             );
           database
-            .query('UPDATE run_record SET record=? WHERE run_id=?')
-            .run(JSON.stringify({ ...run, revision: reply.value.runRevision }), run.runId);
+            .query(`UPDATE ${CURRENT_FORMAT.family.record} SET record=? WHERE run_id=?`)
+            .run(
+              JSON.stringify({ ...run, revision: reply.value.runRevision }),
+              CURRENT_FORMAT.encode(run.runId),
+            );
           // Proof: suppressing the reservation intent let both capacity-one admissions apply.
           if (reply.value.reserveSlot)
             database
-              .query('INSERT INTO run_reservation(attempt_id) VALUES (?)')
-              .run(attempt.attemptId);
+              .query(`INSERT INTO ${CURRENT_FORMAT.family.reservation}(attempt_id) VALUES (?)`)
+              .run(CURRENT_FORMAT.encode(attempt.attemptId));
         }
         return finish({ kind: reply.kind, value: reply.value.attempt }, authority.observedAt);
       });

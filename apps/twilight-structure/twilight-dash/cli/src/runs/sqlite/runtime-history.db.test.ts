@@ -9,6 +9,7 @@ import { expect, test } from 'bun:test';
 import { organizationId, ownerId, storeId } from '../record-codecs';
 import { acceptRuntimeReceipt, readRuntimeHistory } from '../runtime-history';
 import { FixtureClock, unwrapReply } from '../testing/fixtures';
+import { bootstrapFormat4Stores } from '../testing/format4-fixture';
 import { authorityReceipt } from '../testing/runtime-history-contract';
 import {
   authorityRequest,
@@ -16,10 +17,12 @@ import {
   runtimePin,
   runtimeScope,
 } from '../testing/runtime-history-contract';
+import { encodeKey } from './identity-key';
 import { bootstrapSqliteStores, openSqliteStores } from './open-stores';
-import { DOWN_HASH, MIGRATION, MIGRATION_HASH, validateDatabase } from './schema';
+import { FORMAT4, validateDatabaseForFormat } from './schema';
+import { DOWN_HASH, MIGRATION, MIGRATION_HASH } from './schema';
 
-export async function createRuntimeDatabaseFixture() {
+export async function createRuntimeDatabaseFixture(format: 'current' | 'historical' = 'current') {
   const directory = mkdtempSync(join(tmpdir(), 'runtime-history-'));
   const clock = new FixtureClock();
   const options = {
@@ -31,7 +34,9 @@ export async function createRuntimeDatabaseFixture() {
     maxBusyAttempts: 20,
     busyDelayMilliseconds: 1,
   };
-  const stores = await bootstrapSqliteStores(options);
+  const stores = await (format === 'historical' ? bootstrapFormat4Stores : bootstrapSqliteStores)(
+    options,
+  );
   let closing: Promise<void> | undefined;
   return {
     ...stores,
@@ -129,7 +134,7 @@ test('runtime transaction abort preserves scope revision rows and retained marke
     unwrapReply(await stores.runs.pinRuntimeScope(ownership, runtimePin));
     const before = await stores.runs.readRuntimeScope(runtimeScope);
     database.run(
-      "CREATE TRIGGER fail_runtime_marker BEFORE UPDATE ON run_format BEGIN SELECT RAISE(ABORT,'injected runtime marker fault'); END",
+      "CREATE TRIGGER fail_runtime_marker BEFORE UPDATE ON run5_runtime_format BEGIN SELECT RAISE(ABORT,'injected runtime marker fault'); END",
     );
     await rejects(
       stores.runs.stageRuntimeRequest(
@@ -139,9 +144,11 @@ test('runtime transaction abort preserves scope revision rows and retained marke
       /injected runtime marker fault/,
     );
     expect(await stores.runs.readRuntimeScope(runtimeScope)).toEqual(before);
-    expect(database.query('SELECT * FROM run_runtime_intent').all()).toEqual([]);
+    expect(database.query('SELECT * FROM run5_runtime_intent').all()).toEqual([]);
     expect(
-      database.query('SELECT scope_count,intent_count,acceptance_count FROM run_format').get(),
+      database
+        .query('SELECT scope_count,intent_count,acceptance_count FROM run5_runtime_format')
+        .get(),
     ).toEqual({ scope_count: 1, intent_count: 0, acceptance_count: 0 });
     await stores.disconnect();
     const reopened = await openSqliteStores(stores.options);
@@ -163,52 +170,54 @@ import { runtimeEvidence } from '../testing/runtime-history-contract';
 import { MIGRATIONS } from './format';
 
 const runtimeFaults = {
-  'missing marker': 'DELETE FROM run_format',
+  'missing marker': 'DELETE FROM run5_runtime_format',
   'extra marker':
-    'PRAGMA ignore_check_constraints=ON; INSERT INTO run_format SELECT 2,bundle_hash,scope_count,intent_count,acceptance_count FROM run_format; PRAGMA ignore_check_constraints=OFF',
-  'malformed marker count': 'UPDATE run_format SET intent_count=0.5',
-  'lost scope concealed': 'DELETE FROM run_runtime_scope; UPDATE run_format SET scope_count=0',
+    'PRAGMA ignore_check_constraints=ON; INSERT INTO run5_runtime_format SELECT 2,scope_count,intent_count,acceptance_count FROM run5_runtime_format; PRAGMA ignore_check_constraints=OFF',
+  'malformed marker count': 'UPDATE run5_runtime_format SET intent_count=0.5',
+  'lost scope concealed':
+    'DELETE FROM run5_runtime_scope; UPDATE run5_runtime_format SET scope_count=0',
   'lost whole runtime family':
-    'DELETE FROM run_runtime_acceptance; DELETE FROM run_runtime_intent; DELETE FROM run_runtime_scope',
-  'lost acceptance counted': 'DELETE FROM run_runtime_acceptance',
+    'DELETE FROM run5_runtime_acceptance; DELETE FROM run5_runtime_intent; DELETE FROM run5_runtime_scope',
+  'lost acceptance counted': 'DELETE FROM run5_runtime_acceptance',
   'lost acceptance concealed':
-    'DELETE FROM run_runtime_acceptance; UPDATE run_format SET acceptance_count=0',
-  'lost intent concealed': 'DELETE FROM run_runtime_intent; UPDATE run_format SET intent_count=0',
-  'scope physical key': "UPDATE run_runtime_scope SET scope_key='borrowed'",
-  'intent physical command': "UPDATE run_runtime_intent SET command_id='borrowed'",
-  'intent physical scope': "UPDATE run_runtime_intent SET scope_key='borrowed'",
-  'acceptance physical command': "UPDATE run_runtime_acceptance SET command_id='borrowed'",
-  'acceptance physical scope': "UPDATE run_runtime_acceptance SET scope_key='borrowed'",
-  'scope ledger': "UPDATE run_runtime_scope SET pin=json_set(pin,'$.ledgerId','borrowed')",
+    'DELETE FROM run5_runtime_acceptance; UPDATE run5_runtime_format SET acceptance_count=0',
+  'lost intent concealed':
+    'DELETE FROM run5_runtime_intent; UPDATE run5_runtime_format SET intent_count=0',
+  'scope physical key': "UPDATE run5_runtime_scope SET scope_key='borrowed'",
+  'intent physical command': 'UPDATE run5_runtime_intent SET command_id=\'"borrowed"\'',
+  'intent physical scope': "UPDATE run5_runtime_intent SET scope_key='borrowed'",
+  'acceptance physical command': 'UPDATE run5_runtime_acceptance SET command_id=\'"borrowed"\'',
+  'acceptance physical scope': "UPDATE run5_runtime_acceptance SET scope_key='borrowed'",
+  'scope ledger': "UPDATE run5_runtime_scope SET pin=json_set(pin,'$.ledgerId','borrowed')",
   'scope organization':
-    "UPDATE run_runtime_scope SET pin=json_set(pin,'$.scope.organizationId','borrowed')",
-  'scope malformed': "UPDATE run_runtime_scope SET pin='{'",
-  'scope unknown field': "UPDATE run_runtime_scope SET pin=json_set(pin,'$.ignored',true)",
-  'final revision': 'UPDATE run_runtime_scope SET revision=3',
+    "UPDATE run5_runtime_scope SET pin=json_set(pin,'$.scope.organizationId','borrowed')",
+  'scope malformed': "UPDATE run5_runtime_scope SET pin='{'",
+  'scope unknown field': "UPDATE run5_runtime_scope SET pin=json_set(pin,'$.ignored',true)",
+  'final revision': 'UPDATE run5_runtime_scope SET revision=3',
   'intent revision gap':
-    "UPDATE run_runtime_intent SET record=json_set(record,'$.stagedRevision',2)",
+    "UPDATE run5_runtime_intent SET record=json_set(record,'$.stagedRevision',2)",
   'acceptance revision gap':
-    "UPDATE run_runtime_acceptance SET record=json_set(record,'$.acceptedRevision',3)",
+    "UPDATE run5_runtime_acceptance SET record=json_set(record,'$.acceptedRevision',3)",
   'intent digest':
-    "UPDATE run_runtime_intent SET record=json_set(record,'$.requestDigest','" +
+    "UPDATE run5_runtime_intent SET record=json_set(record,'$.requestDigest','" +
     'b'.repeat(64) +
     "')",
   'consistent false digest':
-    "UPDATE run_runtime_intent SET record=json_set(record,'$.requestDigest','" +
+    "UPDATE run5_runtime_intent SET record=json_set(record,'$.requestDigest','" +
     'b'.repeat(64) +
-    "'); UPDATE run_runtime_acceptance SET record=json_set(record,'$.requestDigest','" +
+    "'); UPDATE run5_runtime_acceptance SET record=json_set(record,'$.requestDigest','" +
     'b'.repeat(64) +
     "')",
   'acceptance digest':
-    "UPDATE run_runtime_acceptance SET record=json_set(record,'$.requestDigest','" +
+    "UPDATE run5_runtime_acceptance SET record=json_set(record,'$.requestDigest','" +
     'b'.repeat(64) +
     "')",
   'current local label':
-    "UPDATE run_runtime_intent SET record=json_set(record,'$.localOwner.ownerId','borrowed-local')",
+    "UPDATE run5_runtime_intent SET record=json_set(record,'$.localOwner.ownerId','borrowed-local')",
   'future local epoch':
-    "UPDATE run_runtime_intent SET record=json_set(record,'$.localOwner.epoch',5)",
+    "UPDATE run5_runtime_intent SET record=json_set(record,'$.localOwner.epoch',5)",
   'intent canonical whitespace':
-    "UPDATE run_runtime_intent SET record=json_set(record,'$.canonicalRequest',' ' || json_extract(record,'$.canonicalRequest'))",
+    "UPDATE run5_runtime_intent SET record=json_set(record,'$.canonicalRequest',' ' || json_extract(record,'$.canonicalRequest'))",
 };
 for (const [fault, mutation] of Object.entries(runtimeFaults))
   test(`trusted runtime ${fault} throws before absence or mutation and reopen`, async () => {
@@ -247,10 +256,10 @@ for (const [fault, mutation] of Object.entries(runtimeFaults))
   });
 
 for (const table of [
-  'run_format',
-  'run_runtime_scope',
-  'run_runtime_intent',
-  'run_runtime_acceptance',
+  'run5_runtime_format',
+  'run5_runtime_scope',
+  'run5_runtime_intent',
+  'run5_runtime_acceptance',
 ])
   test(`empty ${table} declaration is validated before it contains rows`, async () => {
     const stores = await createRuntimeDatabaseFixture();
@@ -308,13 +317,13 @@ test('retained generation progression validates canonical bytes with their indep
       ),
     );
     const canonicalRequest = authorityRequest('next', null);
-    database.query('UPDATE run_runtime_intent SET record=? WHERE command_id=?').run(
+    database.query('UPDATE run5_runtime_intent SET record=? WHERE command_id=?').run(
       JSON.stringify({
         ...second,
         canonicalRequest,
         requestDigest: createHash('sha256').update(canonicalRequest).digest('hex'),
       }),
-      second.commandId,
+      encodeKey(second.commandId),
     );
     await rejects(stores.runs.readRuntimeScope(runtimeScope), /runtime generation progression/);
   } finally {
@@ -335,8 +344,8 @@ test('current owner fencing precedes corrupt retained runtime rows for all mutat
         authorityRequest(),
       ),
     );
-    database.run('CREATE TEMP TABLE restored_format AS SELECT * FROM run_format');
-    database.run('DELETE FROM run_format');
+    database.run('CREATE TEMP TABLE restored_format AS SELECT * FROM run5_runtime_format');
+    database.run('DELETE FROM run5_runtime_format');
     stores.clock.advance(100);
     const guard = { ownership, scope: runtimeScope, expectedRevision: 1 };
     expect(await stores.runs.pinRuntimeScope(ownership, runtimePin)).toEqual({
@@ -352,11 +361,11 @@ test('current owner fencing precedes corrupt retained runtime rows for all mutat
     ).toEqual({ kind: 'refused', reason: 'owner_stale' });
     await rejects(
       stores.runs.acquireOwnership(ownerId('local-B'), 1),
-      /corrupt runtime format marker/,
+      /corrupt runtime count marker/,
     );
-    database.query('INSERT INTO run_format SELECT * FROM restored_format').run();
+    database.query('INSERT INTO run5_runtime_format SELECT * FROM restored_format').run();
     const current = unwrapReply(await stores.runs.acquireOwnership(ownerId('local-B'), 1));
-    database.run('DELETE FROM run_format');
+    database.run('DELETE FROM run5_runtime_format');
     await rejects(stores.runs.pinRuntimeScope(current, runtimePin));
   } finally {
     database.close();
@@ -365,7 +374,7 @@ test('current owner fencing precedes corrupt retained runtime rows for all mutat
 });
 
 test('unused new down restores exact original physical schema and old records', async () => {
-  const stores = await createRuntimeDatabaseFixture();
+  const stores = await createRuntimeDatabaseFixture('historical');
   const database = new Database(stores.options.path);
   const reference = new Database(':memory:');
   try {
@@ -427,7 +436,7 @@ for (const fault of [
   'malformed counter',
 ] as const)
   test(`new down refuses ${fault} without deleting runtime tables`, async () => {
-    const stores = await createRuntimeDatabaseFixture();
+    const stores = await createRuntimeDatabaseFixture('historical');
     const database = new Database(stores.options.path);
     try {
       const ownership = unwrapReply(await stores.runs.acquireOwnership(ownerId('local-A'), 0));
@@ -494,7 +503,7 @@ for (const fault of [
 function executeExecutionDown(database: Database): void {
   database.run('BEGIN IMMEDIATE');
   try {
-    validateDatabase(database);
+    validateDatabaseForFormat(database, FORMAT4);
     for (const statement of [
       ...MIGRATIONS[3].down.split('--> statement-breakpoint'),
       ...MIGRATIONS[2].down.split('--> statement-breakpoint'),
@@ -576,11 +585,11 @@ test('trusted runtime second pending event refuses complete otherwise valid rows
     };
     database
       .query(
-        'INSERT INTO run_runtime_intent(command_id,scope_key,record) SELECT ?,scope_key,? FROM run_runtime_scope',
+        'INSERT INTO run5_runtime_intent(command_id,scope_key,record) SELECT ?,scope_key,? FROM run5_runtime_scope',
       )
-      .run('second', JSON.stringify(second));
-    database.run('UPDATE run_runtime_scope SET revision=2');
-    database.run('UPDATE run_format SET intent_count=2');
+      .run(encodeKey('second'), JSON.stringify(second));
+    database.run('UPDATE run5_runtime_scope SET revision=2');
+    database.run('UPDATE run5_runtime_format SET intent_count=2');
     await rejects(stores.runs.readRuntimeScope(runtimeScope), /runtime pending command/);
   } finally {
     database.close();
@@ -638,7 +647,7 @@ test('verified SQLite receipt reads actual JSON artifacts before acceptance SQL 
       ),
       /runtime receipt schema/,
     );
-    expect(database.query('SELECT * FROM run_runtime_acceptance').all()).toEqual([]);
+    expect(database.query('SELECT * FROM run5_runtime_acceptance').all()).toEqual([]);
     const retained = await stores.artifacts.retainArtifact(
       new TextEncoder().encode(JSON.stringify(authorityReceipt(intent))),
       'application/json',
@@ -679,6 +688,7 @@ test('bootstrap retains the complete named forward and down bundle identity', as
       '0002-runtime-authority',
       '0003-execution-history',
       '0004-runtime-recovery',
+      '0005-identity-keys',
     ].map((name) => [
       name,
       ...['migration.sql', 'down.sql'].map((file) =>
@@ -688,7 +698,7 @@ test('bootstrap retains the complete named forward and down bundle identity', as
       ),
     ]);
     const expected = createHash('sha256')
-      .update(JSON.stringify(['run-store-format', 4, identities]), 'utf8')
+      .update(JSON.stringify(['run-store-format', 5, identities]), 'utf8')
       .digest('hex');
     expect(database.query('SELECT bundle_hash FROM run_format').get()).toEqual({
       bundle_hash: expected,
@@ -742,7 +752,7 @@ for (const surface of ['read', 'mutation', 'reopen'] as const)
         },
       });
       database.run(
-        "UPDATE run_runtime_intent SET record=json_set(record,'$.localOwner.epoch',1) WHERE command_id='request-1'",
+        "UPDATE run5_runtime_intent SET record=json_set(record,'$.localOwner.epoch',1) WHERE command_id='\"request-1\"'",
       );
       const before = captureRuntimeDatabase(database);
       if (surface === 'read')
@@ -807,7 +817,7 @@ function executeValidatedRuntimeDown(database: Database): void {
   database.run('BEGIN IMMEDIATE');
   try {
     // Proof: R1F02 removing this actual validation call let wrong-bundle and altered-empty-schema callers delete tables; both missing-rejection tests failed, and exact restoration passed.
-    validateDatabase(database);
+    validateDatabaseForFormat(database, FORMAT4);
     for (const statement of [
       ...MIGRATIONS[3].down.split('--> statement-breakpoint'),
       ...MIGRATIONS[2].down.split('--> statement-breakpoint'),
@@ -823,7 +833,7 @@ function executeValidatedRuntimeDown(database: Database): void {
 
 for (const fault of ['wrong bundle', 'altered empty schema'] as const)
   test(`validated down caller refuses ${fault} before deleting schema or records`, async () => {
-    const stores = await createRuntimeDatabaseFixture();
+    const stores = await createRuntimeDatabaseFixture('historical');
     const database = new Database(stores.options.path);
     try {
       const ownership = unwrapReply(await stores.runs.acquireOwnership(ownerId('local-A'), 0));
@@ -847,7 +857,7 @@ for (const fault of ['wrong bundle', 'altered empty schema'] as const)
   });
 
 test('validated down caller restores unused format1 declarations and all old records', async () => {
-  const stores = await createRuntimeDatabaseFixture();
+  const stores = await createRuntimeDatabaseFixture('historical');
   const database = new Database(stores.options.path);
   const reference = new Database(':memory:');
   try {
@@ -885,7 +895,7 @@ test('validated down caller restores unused format1 declarations and all old rec
 });
 
 test('validated down caller rolls back its guard when retained runtime use forbids down', async () => {
-  const stores = await createRuntimeDatabaseFixture();
+  const stores = await createRuntimeDatabaseFixture('historical');
   const database = new Database(stores.options.path);
   try {
     const ownership = unwrapReply(await stores.runs.acquireOwnership(ownerId('local-A'), 0));
@@ -968,7 +978,7 @@ for (const history of ['generic run', 'authority pending', 'authority accepted']
   test(
     'format3 down preserves compatible ' + history + ' and restores exact format2 identity',
     async () => {
-      const stores = await createRuntimeDatabaseFixture();
+      const stores = await createRuntimeDatabaseFixture('historical');
       const database = new Database(stores.options.path);
       try {
         const ownership = unwrapReply(await stores.runs.acquireOwnership(ownerId('down-owner'), 0));
@@ -1038,13 +1048,13 @@ for (const history of ['queued attempt', 'prepared execution', 'accepted claim']
   test(
     'format3 down refuses retained ' + history + ' and rolls back the first guard error',
     async () => {
-      const stores = await createRuntimeDatabaseFixture();
+      const stores = await createRuntimeDatabaseFixture('historical');
       const database = new Database(stores.options.path);
       try {
         if (history === 'queued attempt') await admitExecutionForDown(stores);
         else if (history === 'prepared execution') await prepareSessionForDown(stores);
         else await prepareClaimedForDown(stores);
-        validateDatabase(database);
+        validateDatabaseForFormat(database, FORMAT4);
         const before = captureRuntimeDatabase(database);
         expect(() => {
           executeExecutionDown(database);
@@ -1067,7 +1077,7 @@ for (const fault of [
   test(
     'format3 down prevalidation refuses ' + fault + ' without changing retained state',
     async () => {
-      const stores = await createRuntimeDatabaseFixture();
+      const stores = await createRuntimeDatabaseFixture('historical');
       const database = new Database(stores.options.path);
       try {
         if (fault === 'missing marker') database.run('DELETE FROM run_format');
@@ -1094,7 +1104,7 @@ for (const fault of [
   );
 
 test('format3 down stops on metadata write failure and rolls back its already-created guard', async () => {
-  const stores = await createRuntimeDatabaseFixture();
+  const stores = await createRuntimeDatabaseFixture('historical');
   const database = new Database(stores.options.path);
   // eslint-disable-next-line @typescript-eslint/unbound-method -- This test intercepts and restores the exact prototype receiver; retaining the original function/receiver is intentional.
   const original = Database.prototype.run;
@@ -1131,7 +1141,7 @@ for (const fault of ['version', 'physical'] as const)
     try {
       await stores.runs.readRuntimeScope(runtimeScope);
       if (fault === 'version') database.run('UPDATE run_meta SET schema_version=3');
-      else database.run('ALTER TABLE run_runtime_scope ADD COLUMN unexpected TEXT');
+      else database.run('ALTER TABLE run5_runtime_scope ADD COLUMN unexpected TEXT');
       await rejects(stores.runs.readRuntimeScope(runtimeScope));
     } finally {
       database.close();

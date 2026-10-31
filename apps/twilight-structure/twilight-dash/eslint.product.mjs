@@ -45,6 +45,13 @@ export default ({
   });
   return [
     {
+      files: [
+        'apps/twilight-structure/twilight-dash/cli/src/runs/testing/format4-lifetime-preload.ts',
+      ],
+      // Proof: Task3 077 omitted this allowance and actual preload lint refused its import; 078 widened the alias and 079 added the provider peer, failing the effective-policy oracle with zero parser failures.
+      rules: boundary(['^@tools/test-scratch$']),
+    },
+    {
       files: ['apps/twilight-structure/twilight-dash/cli/src/**/*.ts'],
       ignores: ['apps/twilight-structure/twilight-dash/cli/src/**/*.test.ts'],
       // Fixture helpers bootstrap on absence, which production must never do. A separate rule

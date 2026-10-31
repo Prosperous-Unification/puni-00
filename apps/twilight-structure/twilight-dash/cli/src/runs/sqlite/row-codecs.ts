@@ -16,6 +16,7 @@ import {
   decodeRun,
   OwnershipStatusCodec,
 } from '../record-codecs';
+import { CURRENT_FORMAT, type FormatDescriptor } from './schema';
 
 const MetaCodec = type({
   schema_version: 'number',
@@ -70,13 +71,14 @@ export function decodeManifestRow(input: unknown) {
   return manifest;
 }
 /** Retains immutable initial identity alongside the current run revision. */
-export function decodeRunRow(input: unknown) {
+export function decodeRunRow(input: unknown, format: FormatDescriptor = CURRENT_FORMAT) {
   const row = parseOrThrow(RunRowCodec, input);
   const run = decodeRun(JSON.parse(row.record));
   const initial = decodeRun(JSON.parse(row.initial_record));
   // Proof: independently bypassing each comparison accepted corrupt run keys, manifest keys or immutable initial identity.
   if (
-    run.runId !== row.run_id ||
+    // Proof: Task3 010 removed this comparison only; a canonical physical key disagreeing with the retained record passed public readRun.
+    run.runId !== format.decode(row.run_id) ||
     run.manifestDigest !== row.manifest_digest ||
     JSON.stringify({ ...run, revision: 0 }) !== JSON.stringify(initial)
   )
@@ -84,15 +86,15 @@ export function decodeRunRow(input: unknown) {
   return { run, initial };
 }
 /** Decodes the immutable admission identity together with its current attempt. */
-export function decodeAttemptRow(input: unknown) {
+export function decodeAttemptRow(input: unknown, format: FormatDescriptor = CURRENT_FORMAT) {
   const row = parseOrThrow(AttemptRowCodec, input);
   const attempt = decodeCurrentAttempt(JSON.parse(row.record));
   const admission = decodeAdmission(JSON.parse(row.admission));
   // Proof: independently bypassing each comparison accepted the corresponding valid-shaped attempt/admission key, ordinal or operation corruption.
   if (
-    attempt.attemptId !== row.attempt_id ||
-    attempt.identity.runId !== row.run_id ||
-    attempt.identity.occurrenceId !== row.occurrence_id ||
+    attempt.attemptId !== format.decode(row.attempt_id) ||
+    attempt.identity.runId !== format.decode(row.run_id) ||
+    attempt.identity.occurrenceId !== format.decode(row.occurrence_id) ||
     attempt.ordinal !== row.ordinal ||
     admission.attemptId !== attempt.attemptId ||
     admission.ordinal !== attempt.ordinal ||
@@ -104,7 +106,7 @@ export function decodeAttemptRow(input: unknown) {
 
 const CompletionRowCodec = type({ command_id: 'string', attempt_id: 'string', record: 'string' });
 /** Keeps the immutable command identity independent of pending delivery state. */
-export function decodeCompletionRow(input: unknown) {
+export function decodeCompletionRow(input: unknown, format: FormatDescriptor = CURRENT_FORMAT) {
   const row = parseOrThrow(CompletionRowCodec, input);
   // Proof: F206 bypassed this parse; public completion version and unknown-key reads resolved instead of rejecting. Exact restoration passed the eight-case group.
   const envelope = parseOrThrow(CompletionRecordCodec, JSON.parse(row.record));
@@ -113,13 +115,18 @@ export function decodeCompletionRow(input: unknown) {
   // Proof: F207 removed only the reply attempt comparison; its actual retained-row decoder negative lost rejection. Direct row-owner proof only. Exact restoration passed the eight-case group.
   // Proof: F208 removed only the reply run comparison; its actual retained-row decoder negative lost rejection. Direct row-owner proof only. Exact restoration passed the eight-case group.
   if (
-    completion.intent.commandId !== row.command_id ||
-    completion.intent.claim.attemptId !== row.attempt_id ||
-    reply.attemptId !== row.attempt_id ||
+    completion.intent.commandId !== format.decode(row.command_id) ||
+    completion.intent.claim.attemptId !== format.decode(row.attempt_id) ||
+    reply.attemptId !== format.decode(row.attempt_id) ||
     completion.intent.claim.runId !== reply.identity.runId
   )
     throw new Error('corrupt completion identity');
-  return { version: 1 as const, attemptId: attemptId(row.attempt_id), completion, reply };
+  return {
+    version: 1 as const,
+    attemptId: attemptId(format.decode(row.attempt_id)),
+    completion,
+    reply,
+  };
 }
 
 const ExecutionRowCodec = type({
@@ -130,7 +137,7 @@ const ExecutionRowCodec = type({
   reply: 'string',
 });
 /** Decodes physical execution keys and strict correlated original envelopes; shared history folding validates the actual predecessor. */
-export function decodeExecutionRow(input: unknown) {
+export function decodeExecutionRow(input: unknown, format: FormatDescriptor = CURRENT_FORMAT) {
   const row = parseOrThrow(ExecutionRowCodec, input);
   // Proof: F209 bypassed this strict record parse; a forbidden record.reply shadow was overwritten by the physical reply and the public read lost its rejection. Exact restoration passed the eight-case group.
   const record = parseOrThrow(ExecutionRecordCodec, JSON.parse(row.record));
@@ -142,9 +149,9 @@ export function decodeExecutionRow(input: unknown) {
   // Proof: bypassing execution physical attempt enforcement failed 'open rejects immutable execution attempt key corruption'.
   // Proof: bypassing execution physical run enforcement failed 'open rejects immutable execution run key corruption'.
   if (
-    execution.command.commandId !== row.command_id ||
-    execution.reply.attempt.attemptId !== row.attempt_id ||
-    execution.reply.attempt.identity.runId !== row.run_id
+    execution.command.commandId !== format.decode(row.command_id) ||
+    execution.reply.attempt.attemptId !== format.decode(row.attempt_id) ||
+    execution.reply.attempt.identity.runId !== format.decode(row.run_id)
   )
     throw new Error('corrupt execution command identity');
   return execution;

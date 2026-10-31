@@ -15,8 +15,9 @@ import {
   type Format3Command,
   settleFixture,
 } from '../testing/format3-fixture';
+import { bootstrapFormat4Stores, openFormat4Stores } from '../testing/format4-fixture';
 import { downgradeUnusedSqliteStores, upgradeSqliteStores } from './migrate-recovery';
-import { openSqliteStores } from './open-stores';
+import type { openSqliteStores } from './open-stores';
 test('loaded original BB14 writer refuses fresh manifest on physically version4 successor', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'recovery-old-writer-'));
   const path = join(directory, 'runs.sqlite');
@@ -69,12 +70,12 @@ test('loaded original BB14 writer refuses fresh manifest on physically version4 
     },
   ]);
 });
-import { copyFileSync, cpSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 
 import { Database } from 'bun:sqlite';
 
 import { FORMAT4_IDENTITY } from './format';
-import { bootstrapSqliteStores } from './open-stores';
+import type { bootstrapSqliteStores } from './open-stores';
 const workspaceRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], {
   cwd: import.meta.dirname,
   encoding: 'utf8',
@@ -98,19 +99,18 @@ for (const artifact of ['migration.sql', 'down.sql'] as const)
     let output: Promise<string> | undefined;
     let diagnostic: Promise<string> | undefined;
     await settleFixture(async () => {
-      stores = await bootstrapSqliteStores(options);
+      stores = await bootstrapFormat4Stores(options);
       await stores.close();
       observer = new Database(options.path);
       const before = observer.query('SELECT * FROM run_format').all();
       const source = join(directory, 'source');
-      cpSync(join(workspaceRoot, cli), join(source, cli), { recursive: true });
-      copyFileSync(join(workspaceRoot, 'tsconfig.base.json'), join(source, 'tsconfig.base.json'));
-      symlinkSync(
-        join(workspaceRoot, 'apps/twilight-structure/twilight-burokrat'),
-        join(source, 'apps/twilight-structure/twilight-burokrat'),
-        'dir',
+      mkdirSync(source);
+      const archive = execFileSync(
+        'git',
+        ['archive', '--format=tar', 'b3b594dab4f0153d2ef00a2989bbeb02ea0cbbda'],
+        { cwd: workspaceRoot, maxBuffer: 256 * 1024 * 1024 },
       );
-      symlinkSync(join(workspaceRoot, 'libs'), join(source, 'libs'), 'dir');
+      execFileSync('tar', ['-xf', '-', '-C', source], { input: archive });
       symlinkSync(join(workspaceRoot, 'node_modules'), join(source, 'node_modules'), 'dir');
       const path = join(source, cli, 'src/runs/sqlite/migrations/0004-runtime-recovery', artifact);
       const original = readFileSync(path, 'utf8');
@@ -526,7 +526,7 @@ test('old artifact insertion duplicate and metadata conflict preserve successor 
       (before.tables.find((table) => table.name === 'run_artifact')?.rows.length ?? 0) + 1,
     );
     expect(artifacts?.rows.at(-1)?.at(-1)).toEqual(bytes);
-    current = await openSqliteStores(legacyOptions(path));
+    current = await openFormat4Stores(legacyOptions(path));
     await current.runs.readRun(runId('run'));
     await current.close();
     current = undefined;

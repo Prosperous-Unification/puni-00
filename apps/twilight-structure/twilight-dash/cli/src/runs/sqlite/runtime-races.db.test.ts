@@ -30,12 +30,12 @@ if(packet.mode==='before') {
  Database.prototype.run=function(sql,...parameters) {
   if(sql==='COMMIT') {
    assert.equal(this.inTransaction,true,'runtime COMMIT must have a transaction');
-   const marker=this.query('SELECT scope_count,intent_count,acceptance_count FROM run_format').get();
-   const scope=this.query('SELECT revision FROM run_runtime_scope').get();
+   const marker=this.query('SELECT scope_count,intent_count,acceptance_count FROM run5_runtime_format').get();
+   const scope=this.query('SELECT revision FROM run5_runtime_scope').get();
    assert.equal(scope.revision,packet.operation==='stage'?1:2,'complete revision before COMMIT');
    assert.deepEqual(marker,{scope_count:1,intent_count:1,acceptance_count:packet.operation==='stage'?0:1},'complete retained marker before COMMIT');
-   assert.equal(this.query('SELECT count(*) AS count FROM run_runtime_intent').get().count,1);
-   assert.equal(this.query('SELECT count(*) AS count FROM run_runtime_acceptance').get().count,packet.operation==='stage'?0:1);
+   assert.equal(this.query('SELECT count(*) AS count FROM run5_runtime_intent').get().count,1);
+   assert.equal(this.query('SELECT count(*) AS count FROM run5_runtime_acceptance').get().count,packet.operation==='stage'?0:1);
    writeSync(1,JSON.stringify({phase:'before-commit'})+'\\n');
    const stop=Date.now()+10000;while(Date.now()<stop)Bun.sleepSync(5);throw new Error('kill barrier timeout');
   }
@@ -223,7 +223,7 @@ for (const operation of ['stage', 'accept'] as const)
             });
           expect(
             database
-              .query('SELECT scope_count,intent_count,acceptance_count FROM run_format')
+              .query('SELECT scope_count,intent_count,acceptance_count FROM run5_runtime_format')
               .get(),
           ).toEqual({
             scope_count: 1,

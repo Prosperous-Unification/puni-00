@@ -10,6 +10,7 @@ import { createManifest, createRun, FixtureClock, unwrapReply } from '../testing
 import { bootstrapSqliteStores, openSqliteStores } from './open-stores';
 
 const childSource = `
+import { encodeKey } from ${JSON.stringify(new URL('./identity-key.ts', import.meta.url).pathname)};
 import { existsSync, writeSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
 import { Database } from 'bun:sqlite';
@@ -24,9 +25,9 @@ if(packet.mode==='before') {
  Database.prototype.run=function(sql,...parameters) {
   if(sql==='COMMIT') {
    assert.equal(this.inTransaction,true,'admission COMMIT must have active transaction');
-   const attempt=this.query('SELECT * FROM run_attempt WHERE attempt_id=?').get(packet.admission.attemptId);
-   const reservation=this.query('SELECT * FROM run_reservation WHERE attempt_id=?').get(packet.admission.attemptId);
-   const run=this.query('SELECT record FROM run_record WHERE run_id=?').get(packet.guard.runId);
+   const attempt=this.query('SELECT * FROM run5_attempt WHERE attempt_id=?').get(encodeKey(packet.admission.attemptId));
+   const reservation=this.query('SELECT * FROM run5_reservation WHERE attempt_id=?').get(encodeKey(packet.admission.attemptId));
+   const run=this.query('SELECT record FROM run5_record WHERE run_id=?').get(encodeKey(packet.guard.runId));
    assert.ok(attempt,'attempt staged before COMMIT');assert.ok(reservation,'reservation staged before COMMIT');
    assert.equal(JSON.parse(run.record).revision,1,'revision staged before COMMIT');
    writeSync(1,JSON.stringify({phase:'before-commit'})+'\\n');
@@ -374,8 +375,8 @@ for (const mode of ['before', 'after'] as const)
       if (mode === 'before') {
         const reader = new Database(setup.options.path, { readonly: true, create: false });
         try {
-          expect(reader.query('SELECT * FROM run_attempt').all()).toEqual([]);
-          expect(reader.query('SELECT * FROM run_reservation').all()).toEqual([]);
+          expect(reader.query('SELECT * FROM run5_attempt').all()).toEqual([]);
+          expect(reader.query('SELECT * FROM run5_reservation').all()).toEqual([]);
           expect(await setup.stores.runs.readRun(setup.guard.runId)).toEqual(before);
         } finally {
           reader.close();

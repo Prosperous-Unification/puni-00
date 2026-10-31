@@ -45,7 +45,7 @@ try {
     return 1;
   });
   const table =
-    command.operation.kind === 'begin' ? 'run_recovery_journal' : 'run_runtime_acceptance';
+    command.operation.kind === 'begin' ? 'run5_recovery_journal' : 'run5_runtime_acceptance';
   database.run(
     `CREATE TRIGGER recovery_test_barrier BEFORE INSERT ON ${table} BEGIN SELECT recovery_test_barrier(); END;`,
   );

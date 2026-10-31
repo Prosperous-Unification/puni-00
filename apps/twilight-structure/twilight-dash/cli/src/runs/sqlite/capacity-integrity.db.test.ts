@@ -18,6 +18,7 @@ import {
 } from '../testing/fixtures';
 import { prepareReceipt } from '../testing/receipts-contract';
 import { prepareWait } from '../testing/signals-contract';
+import { encodeKey } from './identity-key';
 import { bootstrapSqliteStores } from './open-stores';
 
 async function createFixture(capacity = 3) {
@@ -53,15 +54,15 @@ async function createFixture(capacity = 3) {
 function readRows(database: Database) {
   return [
     'run_meta',
-    'run_record',
-    'run_attempt',
-    'run_reservation',
-    'run_execution',
-    'run_completion',
-    'run_outbox',
-    'run_decision',
-    'run_consumption',
-    'run_receipt',
+    'run5_record',
+    'run5_attempt',
+    'run5_reservation',
+    'run5_execution',
+    'run5_completion',
+    'run5_outbox',
+    'run5_decision',
+    'run5_consumption',
+    'run5_receipt',
   ].map((table) => database.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
 }
 
@@ -156,11 +157,11 @@ for (const route of [
           }
         };
         if (fault === 'missing')
-          fixture.database.run("DELETE FROM run_reservation WHERE attempt_id='other'");
+          fixture.database.run('DELETE FROM run5_reservation WHERE attempt_id=\'"other"\'');
         else
           fixture.database
-            .query('INSERT INTO run_reservation(attempt_id) VALUES (?)')
-            .run(fault === 'orphan' ? 'absent' : 'other');
+            .query('INSERT INTO run5_reservation(attempt_id) VALUES (?)')
+            .run(encodeKey(fault === 'orphan' ? 'absent' : 'other'));
         const damaged = readRows(fixture.database);
         if (route !== 'read')
           expect(
@@ -172,11 +173,11 @@ for (const route of [
         );
         expect(readRows(fixture.database)).toEqual(damaged);
         if (fault === 'missing')
-          fixture.database.run("INSERT INTO run_reservation(attempt_id) VALUES ('other')");
+          fixture.database.run('INSERT INTO run5_reservation(attempt_id) VALUES (\'"other"\')');
         else
           fixture.database
-            .query('DELETE FROM run_reservation WHERE attempt_id=?')
-            .run(fault === 'orphan' ? 'absent' : 'other');
+            .query('DELETE FROM run5_reservation WHERE attempt_id=?')
+            .run(encodeKey(fault === 'orphan' ? 'absent' : 'other'));
         const restored = await operation();
         if ('kind' in restored) expect(restored.kind).toBe('applied');
         else expect(restored.capacity.reserved).toBe(fault === 'settled' ? 1 : 2);
@@ -207,11 +208,11 @@ test('capacity one rejects cross-run admission after a live reservation disappea
       attemptId: 'target',
       identity: { ...setup.admission.identity, runId: target.runId },
     });
-    fixture.database.run('DELETE FROM run_reservation');
+    fixture.database.run('DELETE FROM run5_reservation');
     const damaged = readRows(fixture.database);
     await rejects(fixture.runs.admitAttempt(guard, admission), /corrupt attempt reservation/);
     expect(readRows(fixture.database)).toEqual(damaged);
-    fixture.database.run("INSERT INTO run_reservation(attempt_id) VALUES ('attempt')");
+    fixture.database.run('INSERT INTO run5_reservation(attempt_id) VALUES (\'"attempt"\')');
     expect(await fixture.runs.admitAttempt(guard, admission)).toEqual({
       kind: 'refused',
       reason: 'capacity_full',
@@ -247,16 +248,16 @@ for (const route of ['execution', 'outcome', 'receipt'] as const) {
       };
       fixture.database.run(
         route === 'receipt'
-          ? "INSERT INTO run_reservation(attempt_id) VALUES ('attempt')"
-          : 'DELETE FROM run_reservation',
+          ? 'INSERT INTO run5_reservation(attempt_id) VALUES (\'"attempt"\')'
+          : 'DELETE FROM run5_reservation',
       );
       const damaged = readRows(fixture.database);
       await rejects(operation(), /corrupt attempt reservation/);
       expect(readRows(fixture.database)).toEqual(damaged);
       fixture.database.run(
         route === 'receipt'
-          ? 'DELETE FROM run_reservation'
-          : "INSERT INTO run_reservation(attempt_id) VALUES ('attempt')",
+          ? 'DELETE FROM run5_reservation'
+          : 'INSERT INTO run5_reservation(attempt_id) VALUES (\'"attempt"\')',
       );
       expect((await operation()).kind).toBe('applied');
       const snapshot = await fixture.runs.readRun(setup.run.runId);

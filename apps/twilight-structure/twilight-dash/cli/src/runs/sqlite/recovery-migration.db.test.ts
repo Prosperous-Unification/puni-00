@@ -11,11 +11,11 @@ import { readRuntimeHistory } from '../runtime-history';
 import { constructFixture } from '../testing/construct-fixture';
 import { FixtureClock } from '../testing/fixtures';
 import { createFormat3Fixture, settleFixture } from '../testing/format3-fixture';
+import { createFormat4Inspection, openFormat4Stores } from '../testing/format4-fixture';
 import {
   createRecoveryFenceCall,
   createRecoveryObservationCall,
 } from '../testing/recovery-contract';
-import { createRecoveryInspection } from '../testing/sqlite-fixture';
 import { FORMAT3_IDENTITY, FORMAT4_IDENTITY } from './format';
 import { downgradeUnusedSqliteStores, upgradeSqliteStores } from './migrate-recovery';
 import { openSqliteStores, type SqliteOptions } from './open-stores';
@@ -98,7 +98,7 @@ for (const population of [
         { name: 'run_recovery_observation', rows: [] },
       ]);
       for (const declaration of before.schema) expect(upgraded.schema).toContainEqual(declaration);
-      const current = await openSqliteStores(options);
+      const current = await openFormat4Stores(options);
       await settleFixture(async () => {
         await readRuntimeHistory(current.runs, current.artifacts, {
           organizationId: 'organization',
@@ -364,7 +364,7 @@ test('committed cleanup failure preserves committed phase and successor identity
       return true;
     });
     Database.prototype.close = originalClose;
-    const current = await openSqliteStores(createOptions(path));
+    const current = await openFormat4Stores(createOptions(path));
     await current.close();
   }, [
     () => {
@@ -385,7 +385,7 @@ for (const stage of ['journal', 'fence', 'observation'] as const)
       const directory = mkdtempSync(join(tmpdir(), 'recovery-used-down-'));
       const path = join(directory, 'runs.sqlite');
       const options = createOptions(path);
-      const { stores, database, close } = await createRecoveryInspection(directory, options);
+      const { stores, database, close } = await createFormat4Inspection(directory, options);
       await settleFixture(async () => {
         const ownership = unwrapReply(await stores.runs.acquireOwnership(ownerId('owner'), 0));
         unwrapReply(await stores.runs.pinRuntimeScope(ownership, runtimePin));

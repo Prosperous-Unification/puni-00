@@ -3,17 +3,19 @@ import type { Database } from 'bun:sqlite';
 import type { Attempt, ProgressIntent } from '../records';
 import { findReceipt } from './read-signals';
 import { decodeCompletionRow } from './row-codecs';
+import { CURRENT_FORMAT, type FormatDescriptor } from './schema';
 
 /** Reads pending delivery after attempt provenance reconstruction in the caller's consistent transaction. Missing completions or contradictory outbox/receipt presence throw; state equality belongs to reconstruction. */
 export function readOutcomes(
   database: Database,
   attempts: readonly Attempt[],
+  format: FormatDescriptor = CURRENT_FORMAT,
 ): readonly ProgressIntent[] {
   const intents: ProgressIntent[] = [];
   for (const attempt of attempts) {
     const row = database
-      .query('SELECT * FROM run_completion WHERE attempt_id=?')
-      .get(attempt.attemptId);
+      .query(`SELECT * FROM ${format.family.completion} WHERE attempt_id=?`)
+      .get(format.encode(attempt.attemptId));
     // Proof: omitting terminal completion presence accepted a null second read; `terminal inspection refuses completion unreadable after reconstruction` failed its expected-rejection assertion.
     if (
       row === null &&
@@ -21,11 +23,11 @@ export function readOutcomes(
       attempt.state.kind !== 'terminal'
     )
       continue;
-    const { completion } = decodeCompletionRow(row);
-    const receipt = findReceipt(database, completion.intent.commandId);
+    const { completion } = decodeCompletionRow(row, format);
+    const receipt = findReceipt(database, completion.intent.commandId, format);
     const pending = database
-      .query('SELECT command_id FROM run_outbox WHERE command_id=?')
-      .get(completion.intent.commandId);
+      .query(`SELECT command_id FROM ${format.family.outbox} WHERE command_id=?`)
+      .get(format.encode(completion.intent.commandId));
     if (receipt !== undefined) {
       // Proof: injecting terminal outbox absence bypass failed `public read rejects terminal outbox present and reopen rejects corruption` at its explicit assertion.
       if (pending !== null) throw new Error('corrupt terminal outbox');

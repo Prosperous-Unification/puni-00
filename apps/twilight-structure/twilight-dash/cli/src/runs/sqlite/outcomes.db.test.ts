@@ -91,7 +91,7 @@ test('outbox abort rolls back outcome revisions and capacity before reopen then 
     const completion = createCompletion(setup.claim, setup.quiescence);
     const before = await stores.runs.readRun(setup.run.runId);
     database.run(
-      "CREATE TRIGGER fail_outbox BEFORE INSERT ON run_outbox BEGIN SELECT RAISE(ABORT, 'injected outbox fault'); END;",
+      "CREATE TRIGGER fail_outbox BEFORE INSERT ON run5_outbox BEGIN SELECT RAISE(ABORT, 'injected outbox fault'); END;",
     );
     await rejects(
       recordOutcome(stores.runs, stores.artifacts, guard, completion),
@@ -102,8 +102,8 @@ test('outbox abort rolls back outcome revisions and capacity before reopen then 
     await doesNotReject(reopening);
     stores = await reopening;
     expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
-    expect(database.query('SELECT * FROM run_completion').all()).toEqual([]);
-    expect(database.query('SELECT * FROM run_outbox').all()).toEqual([]);
+    expect(database.query('SELECT * FROM run5_completion').all()).toEqual([]);
+    expect(database.query('SELECT * FROM run5_outbox').all()).toEqual([]);
     database.run('DROP TRIGGER fail_outbox');
     expect((await recordOutcome(stores.runs, stores.artifacts, guard, completion)).kind).toBe(
       'applied',
@@ -212,6 +212,7 @@ for (const operation of [
   });
 
 const childSource = `
+import { encodeKey } from ${JSON.stringify(new URL('./identity-key.ts', import.meta.url).pathname)};
 import { writeSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
 import { Database } from 'bun:sqlite';
@@ -229,12 +230,12 @@ try {
 if(packet.mode==='before') {
  const original=Database.prototype.run;
  Database.prototype.run=function(sql,...parameters) {
-  if(sql==='COMMIT' && this.query('SELECT command_id FROM run_outbox WHERE command_id=?').get(packet.completion.intent.commandId)!==null) {
+  if(sql==='COMMIT' && this.query('SELECT command_id FROM run5_outbox WHERE command_id=?').get(encodeKey(packet.completion.intent.commandId))!==null) {
    assert.equal(this.inTransaction,true,'outcome COMMIT must have active transaction');
-   const attempt=this.query('SELECT record FROM run_attempt WHERE attempt_id=?').get(packet.guard.attemptId);
-   const reservation=this.query('SELECT * FROM run_reservation WHERE attempt_id=?').get(packet.guard.attemptId);
-   const run=this.query('SELECT record FROM run_record WHERE run_id=?').get(packet.guard.runId);
-   const completion=this.query('SELECT * FROM run_completion WHERE command_id=?').get(packet.completion.intent.commandId);
+   const attempt=this.query('SELECT record FROM run5_attempt WHERE attempt_id=?').get(encodeKey(packet.guard.attemptId));
+   const reservation=this.query('SELECT * FROM run5_reservation WHERE attempt_id=?').get(encodeKey(packet.guard.attemptId));
+   const run=this.query('SELECT record FROM run5_record WHERE run_id=?').get(encodeKey(packet.guard.runId));
+   const completion=this.query('SELECT * FROM run5_completion WHERE command_id=?').get(encodeKey(packet.completion.intent.commandId));
    assert.equal(JSON.parse(attempt.record).state.kind,'outcome_pending_progress');
    assert.equal(reservation,null,'settled capacity released before COMMIT');
    assert.equal(JSON.parse(run.record).revision,7,'revision staged before COMMIT');
@@ -426,19 +427,19 @@ for (const fault of [
     await setup.stores.close();
     const database = new Database(setup.options.path);
     try {
-      if (fault === 'missing outbox') database.run('DELETE FROM run_outbox');
+      if (fault === 'missing outbox') database.run('DELETE FROM run5_outbox');
       else if (fault === 'missing completion') {
-        database.run('DELETE FROM run_outbox');
-        database.run('DELETE FROM run_completion');
+        database.run('DELETE FROM run5_outbox');
+        database.run('DELETE FROM run5_completion');
       } else if (fault === 'state outcome mismatch')
         database.run(
-          "UPDATE run_attempt SET record=json_set(record,'$.state.outcome.summary','tampered')",
+          "UPDATE run5_attempt SET record=json_set(record,'$.state.outcome.summary','tampered')",
         );
       else if (fault === 'completion attempt key')
-        database.run("UPDATE run_completion SET attempt_id='other'");
+        database.run('UPDATE run5_completion SET attempt_id=\'"other"\'');
       else
         database.run(
-          "UPDATE run_completion SET record=json_set(record,'$.completion.intent.claim.attemptId','other')",
+          "UPDATE run5_completion SET record=json_set(record,'$.completion.intent.claim.attemptId','other')",
         );
       await rejects(openSqliteStores(setup.options), /corrupt/);
     } finally {
@@ -472,10 +473,10 @@ for (const kind of ['queued', 'turn_pending', 'reconciling', 'unresolved'] as co
                 };
       database
         .query(
-          "UPDATE run_attempt SET record=json_set(record,'$.state',json(?),'$.holdsCapacity',json('false'))",
+          "UPDATE run5_attempt SET record=json_set(record,'$.state',json(?),'$.holdsCapacity',json('false'))",
         )
         .run(JSON.stringify(state));
-      database.run('DELETE FROM run_reservation');
+      database.run('DELETE FROM run5_reservation');
       await rejects(openSqliteStores(setup.options), /corrupt/);
     } finally {
       database.close();
@@ -518,11 +519,11 @@ for (const kind of ['interrupted', 'waiting', 'outcome'] as const)
     const database = new Database(setup.options.path);
     try {
       database.run(
-        "UPDATE run_attempt SET record=json_set(record,'$.state.quiescence.effect','unknown')",
+        "UPDATE run5_attempt SET record=json_set(record,'$.state.quiescence.effect','unknown')",
       );
       if (kind === 'outcome')
         database.run(
-          "UPDATE run_completion SET record=json_set(record,'$.completion.quiescence.effect','unknown')",
+          "UPDATE run5_completion SET record=json_set(record,'$.completion.quiescence.effect','unknown')",
         );
       await rejects(openSqliteStores(setup.options), /corrupt/);
     } finally {
@@ -541,15 +542,15 @@ for (const fault of ['command key', 'attempt key', 'run key'] as const)
     try {
       if (fault === 'command key')
         database.run(
-          "UPDATE run_execution SET record=json_set(record,'$.command.commandId','other')",
+          "UPDATE run5_execution SET record=json_set(record,'$.command.commandId','other')",
         );
       else if (fault === 'attempt key')
         database.run(
-          "UPDATE run_execution SET reply=json_set(reply,'$.attempt.attemptId','other')",
+          "UPDATE run5_execution SET reply=json_set(reply,'$.attempt.attemptId','other')",
         );
       else
         database.run(
-          "UPDATE run_execution SET reply=json_set(reply,'$.attempt.identity.runId','other')",
+          "UPDATE run5_execution SET reply=json_set(reply,'$.attempt.identity.runId','other')",
         );
       await rejects(openSqliteStores(setup.options), /corrupt/);
     } finally {
@@ -573,8 +574,8 @@ test('open identifies a physically relabeled completion before treating it as an
   await setup.stores.close();
   const database = new Database(setup.options.path);
   try {
-    database.run("UPDATE run_completion SET command_id='relabeled'");
-    database.run("UPDATE run_outbox SET command_id='relabeled'");
+    database.run('UPDATE run5_completion SET command_id=\'"relabeled"\'');
+    database.run('UPDATE run5_outbox SET command_id=\'"relabeled"\'');
     await rejects(
       openSqliteStores(setup.options),
       (cause: unknown) =>

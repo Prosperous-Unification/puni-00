@@ -8,6 +8,7 @@ import { expect, test } from 'bun:test';
 import { organizationId } from '../record-codecs';
 import { executionHistoryContract } from '../testing/execution-history-contract';
 import { FixtureClock } from '../testing/fixtures';
+import { encodeKey } from './identity-key';
 import { bootstrapSqliteStores } from './open-stores';
 
 async function createExecutionDatabase() {
@@ -51,7 +52,7 @@ test('execution history bootstrap declares format4', async () => {
   const database = new Database(stores.options.path, { readonly: true });
   try {
     expect(database.query('SELECT schema_version FROM run_meta').get()).toEqual({
-      schema_version: 4,
+      schema_version: 5,
     });
   } finally {
     database.close();
@@ -65,7 +66,9 @@ test('sqlite renewal audits lost execution history after owner fencing', async (
   const database = new Database(stores.options.path);
   try {
     const setup = await prepareSession(stores);
-    database.query('DELETE FROM run_execution WHERE command_id=?').run(setup.opened.commandId);
+    database
+      .query('DELETE FROM run5_execution WHERE command_id=?')
+      .run(encodeKey(setup.opened.commandId));
     expect(
       await stores.runs.renewOwnership({ ...setup.ownership, epoch: setup.ownership.epoch + 1 }),
     ).toEqual({ kind: 'refused', reason: 'owner_stale' });
@@ -108,10 +111,10 @@ test('history rejects preparation owner earlier than admission with otherwise co
         .admittedEpoch,
     ).toBe(2);
     database.run(
-      "UPDATE run_execution SET record=json_set(record,'$.command.fact.intent.owner.epoch',1),reply=json_set(reply,'$.attempt.state.preparation.owner.epoch',1)",
+      "UPDATE run5_execution SET record=json_set(record,'$.command.fact.intent.owner.epoch',1),reply=json_set(reply,'$.attempt.state.preparation.owner.epoch',1)",
     );
     database.run(
-      "UPDATE run_attempt SET record=json_set(record,'$.state.preparation.owner.epoch',1)",
+      "UPDATE run5_attempt SET record=json_set(record,'$.state.preparation.owner.epoch',1)",
     );
     // eslint-disable-next-line @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression -- Bun rejection matchers complete asynchronously despite their void declaration; keep the assertion awaited.
     await expect(
@@ -145,11 +148,11 @@ test('history rejects same epoch reattachment label change below current ownersh
     ).toHaveLength(3);
     database
       .query(
-        "UPDATE run_execution SET record=json_set(record,'$.command.fact.owner.ownerId','forged'),reply=json_set(reply,'$.attempt.state.session.attachment.owner.ownerId','forged') WHERE command_id=?",
+        "UPDATE run5_execution SET record=json_set(record,'$.command.fact.owner.ownerId','forged'),reply=json_set(reply,'$.attempt.state.session.attachment.owner.ownerId','forged') WHERE command_id=?",
       )
-      .run(command.commandId);
+      .run(encodeKey(command.commandId));
     database.run(
-      "UPDATE run_attempt SET record=json_set(record,'$.state.session.attachment.owner.ownerId','forged')",
+      "UPDATE run5_attempt SET record=json_set(record,'$.state.session.attachment.owner.ownerId','forged')",
     );
     // eslint-disable-next-line @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression -- Bun rejection matchers complete asynchronously despite their void declaration; keep the assertion awaited.
     await expect(
@@ -222,16 +225,18 @@ for (const fault of ['earlier epoch', 'same epoch different label'] as const)
       for (const commandId of [rotated.commandId, staged.intent.commandId])
         database
           .query(
-            "UPDATE run_runtime_intent SET record=json_set(record,'$.localOwner',json(?)) WHERE command_id=?",
+            "UPDATE run5_runtime_intent SET record=json_set(record,'$.localOwner',json(?)) WHERE command_id=?",
           )
-          .run(JSON.stringify(forged), commandId);
+          .run(JSON.stringify(forged), encodeKey(commandId));
       database
         .query(
-          "UPDATE run_execution SET reply=json_set(reply,'$.intent.localOwner',json(?),'$.attempt.state.intent.localOwner',json(?)) WHERE command_id='stage'",
+          "UPDATE run5_execution SET reply=json_set(reply,'$.intent.localOwner',json(?),'$.attempt.state.intent.localOwner',json(?)) WHERE command_id='\"stage\"'",
         )
         .run(JSON.stringify(forged), JSON.stringify(forged));
       database
-        .query("UPDATE run_attempt SET record=json_set(record,'$.state.intent.localOwner',json(?))")
+        .query(
+          "UPDATE run5_attempt SET record=json_set(record,'$.state.intent.localOwner',json(?))",
+        )
         .run(JSON.stringify(forged));
       // eslint-disable-next-line @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression -- Bun rejection matchers complete asynchronously despite their void declaration; keep the assertion awaited.
       await expect(
@@ -312,11 +317,11 @@ for (const cut of [
       if (cut !== 'older same epoch grant')
         database
           .query(
-            "UPDATE run_execution SET record=json_set(record,'$.context.scopeRevision',?) WHERE command_id=?",
+            "UPDATE run5_execution SET record=json_set(record,'$.context.scopeRevision',?) WHERE command_id=?",
           )
           .run(
             cut === 'before claim acceptance' ? 2 : cut === 'backward continuation' ? 4 : 5,
-            commandId,
+            encodeKey(commandId),
           );
       if (
         cut === 'backward continuation' ||
@@ -325,11 +330,11 @@ for (const cut of [
       ) {
         database
           .query(
-            "UPDATE run_execution SET reply=json_set(reply,'$.intent.grantCommandId','authority','$.attempt.state.turn.grantCommandId','authority') WHERE command_id=?",
+            "UPDATE run5_execution SET reply=json_set(reply,'$.intent.grantCommandId','authority','$.attempt.state.turn.grantCommandId','authority') WHERE command_id=?",
           )
-          .run(commandId);
+          .run(encodeKey(commandId));
         database.run(
-          "UPDATE run_attempt SET record=json_set(record,'$.state.turn.grantCommandId','authority')",
+          "UPDATE run5_attempt SET record=json_set(record,'$.state.turn.grantCommandId','authority')",
         );
       }
       const message =
@@ -444,13 +449,13 @@ for (const kind of ['stage_claim', 'accept_claim', 'stage_turn'] as const) {
           const target =
             seam === 'scope row'
               ? kind === 'stage_claim'
-                ? 'INSERT ON run_runtime_intent'
-                : 'INSERT ON run_runtime_acceptance'
+                ? 'INSERT ON run5_runtime_intent'
+                : 'INSERT ON run5_runtime_acceptance'
               : seam === 'scope counter'
-                ? 'UPDATE ON run_format'
+                ? 'UPDATE ON run5_runtime_format'
                 : seam === 'attempt'
-                  ? 'UPDATE ON run_attempt'
-                  : 'INSERT ON run_execution';
+                  ? 'UPDATE ON run5_attempt'
+                  : 'INSERT ON run5_execution';
           database.run(
             'CREATE TRIGGER abort_coupled BEFORE ' +
               target +
@@ -506,6 +511,7 @@ for (const kind of ['stage_claim', 'accept_claim', 'stage_turn'] as const) {
 
 import { afterAll, beforeAll, describe } from 'bun:test';
 const coupledChildSource = `
+import { encodeKey } from ${JSON.stringify(new URL('./identity-key.ts', import.meta.url).pathname)};
 import { writeSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
 import { Database } from 'bun:sqlite';
@@ -522,22 +528,22 @@ try {
 if(packet.mode==='before') {
  const original=Database.prototype.run;
  Database.prototype.run=function(sql,...parameters) {
-  const execution=sql==='COMMIT'?this.query('SELECT record,reply FROM run_execution WHERE command_id=?').get(packet.command.commandId):null;
+  const execution=sql==='COMMIT'?this.query('SELECT record,reply FROM run5_execution WHERE command_id=?').get(encodeKey(packet.command.commandId)):null;
   if(execution!==null) {
    assert.equal(this.inTransaction,true,'coupled COMMIT has active transaction');
-   const scope=this.query('SELECT revision FROM run_runtime_scope').get();
-   const counts=this.query('SELECT scope_count,intent_count,acceptance_count FROM run_format').get();
-   const run=this.query('SELECT record FROM run_record WHERE run_id=?').get(packet.guard.runId);
-   const attempt=this.query('SELECT record FROM run_attempt WHERE attempt_id=?').get(packet.guard.attemptId);
+   const scope=this.query('SELECT revision FROM run5_runtime_scope').get();
+   const counts=this.query('SELECT scope_count,intent_count,acceptance_count FROM run5_runtime_format').get();
+   const run=this.query('SELECT record FROM run5_record WHERE run_id=?').get(encodeKey(packet.guard.runId));
+   const attempt=this.query('SELECT record FROM run5_attempt WHERE attempt_id=?').get(encodeKey(packet.guard.attemptId));
    assert.equal(JSON.parse(run.record).revision,packet.guard.expectedRevision+1);
    assert.equal(JSON.parse(attempt.record).revision,packet.guard.expectedAttemptRevision+1);
    assert.equal(JSON.parse(execution.record).context.scopeRevision,packet.guard.expectedScopeRevision);
    assert.deepEqual(JSON.parse(execution.reply).attempt,JSON.parse(attempt.record));
-   assert.equal(this.query('SELECT count(*) AS count FROM run_reservation').get().count,1);
+   assert.equal(this.query('SELECT count(*) AS count FROM run5_reservation').get().count,1);
    assert.equal(scope.revision,packet.guard.expectedScopeRevision+(packet.command.kind==='stage_turn'?0:1));
    assert.deepEqual(counts,{scope_count:packet.counts.scope_count,intent_count:packet.counts.intent_count+(packet.command.kind==='stage_claim'?1:0),acceptance_count:packet.counts.acceptance_count+(packet.command.kind==='accept_claim'?1:0)});
-   if(packet.command.kind==='stage_claim') assert.ok(this.query('SELECT record FROM run_runtime_intent WHERE command_id=?').get(JSON.parse(packet.command.canonicalRequest).commandId));
-   if(packet.command.kind==='accept_claim') assert.ok(this.query('SELECT record FROM run_runtime_acceptance WHERE command_id=?').get(packet.command.intent.commandId));
+   if(packet.command.kind==='stage_claim') assert.ok(this.query('SELECT record FROM run5_runtime_intent WHERE command_id=?').get(encodeKey(JSON.parse(packet.command.canonicalRequest).commandId)));
+   if(packet.command.kind==='accept_claim') assert.ok(this.query('SELECT record FROM run5_runtime_acceptance WHERE command_id=?').get(encodeKey(packet.command.intent.commandId)));
    writeSync(1,JSON.stringify({phase:'before-commit',scope,counts,execution,attempt,run})+'\\n');
    const deadline=Date.now()+10000;while(Date.now()<deadline) Bun.sleepSync(5);throw new Error('coupled before COMMIT kill barrier timed out');
   }
@@ -686,7 +692,7 @@ async function prepareCoupledProcess(kind: CoupledCommand['kind'], mode: 'before
       fixture.setup.attempt.attemptId,
     );
     const counts = database
-      .query('SELECT scope_count,intent_count,acceptance_count FROM run_format')
+      .query('SELECT scope_count,intent_count,acceptance_count FROM run5_runtime_format')
       .get();
     database.close();
     await fixture.stores.connection.close();
@@ -795,15 +801,15 @@ for (const kind of ['stage_claim', 'accept_claim', 'stage_turn'] as const)
       database = new Database(fixture.stores.options.path);
     try {
       const opened = database
-        .query('SELECT * FROM run_execution WHERE command_id=?')
-        .get(fixture.setup.opened.commandId) as {
+        .query('SELECT * FROM run5_execution WHERE command_id=?')
+        .get(encodeKey(fixture.setup.opened.commandId)) as {
         command_id: string;
         attempt_id: string;
         record: string;
         reply: string;
       } | null;
       if (opened === null) throw new Error('opened fixture row missing');
-      database.query('DELETE FROM run_execution WHERE command_id=?').run(opened.command_id);
+      database.query('DELETE FROM run5_execution WHERE command_id=?').run(opened.command_id);
       const before = captureRows(database);
       expect(
         await invokeCoupled(
@@ -821,7 +827,7 @@ for (const kind of ['stage_claim', 'accept_claim', 'stage_turn'] as const)
       ).rejects.toThrow(/provenance|revision|history/);
       expect(captureRows(database)).toEqual(before);
       database
-        .query('INSERT INTO run_execution(command_id,attempt_id,record,reply) VALUES (?,?,?,?)')
+        .query('INSERT INTO run5_execution(command_id,attempt_id,record,reply) VALUES (?,?,?,?)')
         .run(opened.command_id, opened.attempt_id, opened.record, opened.reply);
       expect((await invokeCoupled(fixture.stores.runs, fixture.guard, fixture.command)).kind).toBe(
         'applied',
@@ -882,10 +888,10 @@ for (const kind of ['stage_claim', 'accept_claim', 'stage_turn'] as const)
       database = new Database(fixture.stores.options.path);
     try {
       const reservation = database
-        .query('SELECT attempt_id FROM run_reservation WHERE attempt_id=?')
-        .get(fixture.setup.attempt.attemptId) as { attempt_id: string } | null;
+        .query('SELECT attempt_id FROM run5_reservation WHERE attempt_id=?')
+        .get(encodeKey(fixture.setup.attempt.attemptId)) as { attempt_id: string } | null;
       if (reservation === null) throw new Error('fixture reservation missing');
-      database.query('DELETE FROM run_reservation WHERE attempt_id=?').run(reservation.attempt_id);
+      database.query('DELETE FROM run5_reservation WHERE attempt_id=?').run(reservation.attempt_id);
       const before = captureRows(database);
       expect(
         await invokeCoupled(
@@ -903,7 +909,7 @@ for (const kind of ['stage_claim', 'accept_claim', 'stage_turn'] as const)
       ).rejects.toThrow('corrupt attempt reservation');
       expect(captureRows(database)).toEqual(before);
       database
-        .query('INSERT INTO run_reservation(attempt_id) VALUES (?)')
+        .query('INSERT INTO run5_reservation(attempt_id) VALUES (?)')
         .run(reservation.attempt_id);
       expect((await invokeCoupled(fixture.stores.runs, fixture.guard, fixture.command)).kind).toBe(
         'applied',
@@ -1604,10 +1610,12 @@ test('remaining sqlite outbox orphan rejects before public read publication', as
     const setup = await admitExecution(stores),
       before = await stores.runs.readRun(setup.run.runId);
     database.run('PRAGMA foreign_keys=OFF');
-    database.query('INSERT INTO run_outbox(command_id) VALUES (?)').run('orphan-pending');
+    database
+      .query('INSERT INTO run5_outbox(command_id) VALUES (?)')
+      .run(encodeKey('orphan-pending'));
     // eslint-disable-next-line @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression -- Bun rejection matchers complete asynchronously despite their void declaration; keep the assertion awaited.
     await expect(stores.runs.readRun(setup.run.runId)).rejects.toThrow('orphan pending intent');
-    database.query('DELETE FROM run_outbox WHERE command_id=?').run('orphan-pending');
+    database.query('DELETE FROM run5_outbox WHERE command_id=?').run(encodeKey('orphan-pending'));
     expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
   } finally {
     database.close();
@@ -1648,18 +1656,18 @@ for (const fault of ['version', 'unknown key'] as const)
         before = await stores.runs.readRun(setup.run.runId);
       const row = parseOrThrow(
         type({ command_id: 'string', record: 'string' }),
-        database.query('SELECT command_id,record FROM run_completion').get(),
+        database.query('SELECT command_id,record FROM run5_completion').get(),
       );
       const envelope = parseOrThrow(CompletionRecordCodec, JSON.parse(row.record));
       const candidate =
         fault === 'version' ? { ...envelope, version: 2 } : { ...envelope, unexpected: true };
       database
-        .query('UPDATE run_completion SET record=? WHERE command_id=?')
+        .query('UPDATE run5_completion SET record=? WHERE command_id=?')
         .run(JSON.stringify(candidate), row.command_id);
       // eslint-disable-next-line @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression -- Bun rejection matchers complete asynchronously despite their void declaration; keep the assertion awaited.
       await expect(stores.runs.readRun(setup.run.runId)).rejects.toThrow();
       database
-        .query('UPDATE run_completion SET record=? WHERE command_id=?')
+        .query('UPDATE run5_completion SET record=? WHERE command_id=?')
         .run(row.record, row.command_id);
       expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
     } finally {
@@ -1676,8 +1684,12 @@ for (const field of ['attempt', 'run'] as const)
       try {
         const setup = await prepareReceipt(stores);
         const row = parseOrThrow(
-          type({ command_id: 'string', attempt_id: 'string', record: 'string' }),
-          database.query('SELECT * FROM run_completion').get(),
+          type({
+            command_id: 'string',
+            attempt_id: 'string',
+            record: 'string',
+          }),
+          database.query('SELECT * FROM run5_completion').get(),
         );
         expect(decodeCompletionRow(row).attemptId).toBe(setup.attempt.attemptId);
         const envelope = parseOrThrow(CompletionRecordCodec, JSON.parse(row.record));
@@ -1702,16 +1714,16 @@ test('storage boundary execution record rejects forbidden reply shadow', async (
       before = await stores.runs.readRun(setup.run.runId);
     const row = parseOrThrow(
       type({ command_id: 'string', record: 'string' }),
-      database.query('SELECT command_id,record FROM run_execution ORDER BY rowid LIMIT 1').get(),
+      database.query('SELECT command_id,record FROM run5_execution ORDER BY rowid LIMIT 1').get(),
     );
     const envelope = parseOrThrow(ExecutionRecordCodec, JSON.parse(row.record));
     database
-      .query('UPDATE run_execution SET record=? WHERE command_id=?')
+      .query('UPDATE run5_execution SET record=? WHERE command_id=?')
       .run(JSON.stringify({ ...envelope, reply: { ignored: true } }), row.command_id);
     // eslint-disable-next-line @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression -- Bun rejection matchers complete asynchronously despite their void declaration; keep the assertion awaited.
     await expect(stores.runs.readRun(setup.run.runId)).rejects.toThrow();
     database
-      .query('UPDATE run_execution SET record=? WHERE command_id=?')
+      .query('UPDATE run5_execution SET record=? WHERE command_id=?')
       .run(row.record, row.command_id);
     expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
   } finally {
@@ -1734,7 +1746,7 @@ test('storage boundary execution decoder rejects mismatched original reply famil
       }),
       database
         .query(
-          "SELECT e.*,a.run_id FROM run_execution e JOIN run_attempt a ON a.attempt_id=e.attempt_id WHERE json_extract(e.record,'$.command.kind')='stage_claim'",
+          "SELECT e.*,a.run_id FROM run5_execution e JOIN run5_attempt a ON a.attempt_id=e.attempt_id WHERE json_extract(e.record,'$.command.kind')='stage_claim'",
         )
         .get(),
     );
@@ -1757,7 +1769,9 @@ test('sqlite shared history audit rejects queued reservation loss before public 
     expect((await stores.runs.readRun(setup.run.runId)).attempts.at(0)?.state).toEqual({
       kind: 'queued',
     });
-    database.query('DELETE FROM run_reservation WHERE attempt_id=?').run(setup.admission.attemptId);
+    database
+      .query('DELETE FROM run5_reservation WHERE attempt_id=?')
+      .run(encodeKey(setup.admission.attemptId));
     try {
       // eslint-disable-next-line @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression -- Bun rejection matchers complete asynchronously despite their void declaration; keep the assertion awaited.
       await expect(stores.runs.readRun(setup.run.runId)).rejects.toThrow(
@@ -1765,8 +1779,8 @@ test('sqlite shared history audit rejects queued reservation loss before public 
       );
     } finally {
       database
-        .query('INSERT INTO run_reservation(attempt_id) VALUES (?)')
-        .run(setup.admission.attemptId);
+        .query('INSERT INTO run5_reservation(attempt_id) VALUES (?)')
+        .run(encodeKey(setup.admission.attemptId));
     }
     expect((await stores.runs.readRun(setup.run.runId)).capacity.reserved).toBe(1);
   } finally {
@@ -1788,24 +1802,24 @@ test('sqlite shared history audit rejects queued run revision drift before publi
       .query<
         { run_id: string; manifest_digest: string; record: string; initial_record: string },
         [string]
-      >('SELECT * FROM run_record WHERE run_id=?')
-      .get(setup.run.runId);
+      >('SELECT * FROM run5_record WHERE run_id=?')
+      .get(encodeKey(setup.run.runId));
     if (row === null) throw new Error('missing retained run row');
     const retained = decodeRunRow(row);
     const candidate = JSON.stringify({ ...retained.run, revision: retained.run.revision + 1 });
     expect(decodeRunRow({ ...row, record: candidate }).run.revision).toBe(2);
     try {
       database
-        .query('UPDATE run_record SET record=? WHERE run_id=?')
-        .run(candidate, setup.run.runId);
+        .query('UPDATE run5_record SET record=? WHERE run_id=?')
+        .run(candidate, encodeKey(setup.run.runId));
       // eslint-disable-next-line @typescript-eslint/await-thenable, @typescript-eslint/no-confusing-void-expression -- Bun rejection matchers complete asynchronously despite their void declaration; keep the assertion awaited.
       await expect(stores.runs.readRun(setup.run.runId)).rejects.toThrow(
         'corrupt run revision provenance',
       );
     } finally {
       database
-        .query('UPDATE run_record SET record=? WHERE run_id=?')
-        .run(row.record, setup.run.runId);
+        .query('UPDATE run5_record SET record=? WHERE run_id=?')
+        .run(row.record, encodeKey(setup.run.runId));
     }
     expect(await stores.runs.readRun(setup.run.runId)).toEqual(snapshot);
   } finally {

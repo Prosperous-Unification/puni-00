@@ -4,10 +4,12 @@ import {
   DOWN_HASH,
   FORMAT3_IDENTITY,
   FORMAT4_IDENTITY,
+  FORMAT5_IDENTITY,
   MIGRATION_HASH,
   MIGRATIONS,
   type SqliteFormatIdentity,
 } from './format';
+import { decodeKey, encodeKey, KEYED_TABLES, RAW_TABLES } from './identity-key';
 import { readHistoryForFormat } from './read-history';
 import { readRuntimeCatalogForFormat } from './read-runtime';
 import { decodeMeta } from './row-codecs';
@@ -56,6 +58,9 @@ export interface FormatDescriptor {
   readonly identity: SqliteFormatIdentity;
   readonly schema: readonly SchemaEntry[];
   readonly tables: ReadonlySet<string>;
+  readonly family: typeof RAW_TABLES | typeof KEYED_TABLES;
+  encode(identity: string): string;
+  decode(physical: string): string;
 }
 function describeFormat(
   identity: SqliteFormatIdentity,
@@ -64,22 +69,24 @@ function describeFormat(
   const schema = readRequiredSchema(migrations);
   return {
     identity,
+    family: identity.version === 5 ? KEYED_TABLES : RAW_TABLES,
+    encode: identity.version === 5 ? encodeKey : (identity: string) => identity,
+    decode: identity.version === 5 ? decodeKey : (physical: string) => physical,
     schema,
     tables: new Set(schema.filter((entry) => entry.type === 'table').map((entry) => entry.name)),
   };
 }
 export const FORMAT3 = describeFormat(FORMAT3_IDENTITY, MIGRATIONS.slice(0, 3));
 export const FORMAT4 = describeFormat(FORMAT4_IDENTITY, MIGRATIONS.slice(0, 4));
+export const FORMAT5 = describeFormat(FORMAT5_IDENTITY, MIGRATIONS.slice(0, 5));
 export const PREDECESSOR_FORMAT = FORMAT3;
 // Proof: T3M1 the ordinary current opener admitted genuine format3 when its new descriptor dependency was replaced with the predecessor; exact restoration passed.
-export const CURRENT_FORMAT = FORMAT4;
+export const CURRENT_FORMAT = FORMAT5;
 
 /** Requires exact compiled table/index declarations, including empty families. Additional triggers and unrelated tables are outside comparison. */
 function validatePhysicalSchema(database: Database, format: FormatDescriptor): void {
-  // Proof: predecessor-only filtering let an empty successor declaration reach DDL; the partial-successor upgrade test observed transition_failed instead of corrupt.
-  const installed = readSchema(database).filter((entry) =>
-    CURRENT_FORMAT.tables.has(entry.tbl_name),
-  );
+  // Proof: Task3 054 filtered only FORMAT4 names; a partial run5_record reached DDL and failed as transition_failed instead of corrupt. Diagnostic-only; DDL still refused.
+  const installed = readSchema(database).filter((entry) => FORMAT5.tables.has(entry.tbl_name));
   // Proof: bypassing this comparison accepted all ten empty-store column, constraint and active-index corruptions in open-stores.db.test.ts.
   if (JSON.stringify(installed) !== JSON.stringify(format.schema))
     throw new Error('corrupt sqlite physical schema');
@@ -150,21 +157,25 @@ export function validateDatabaseForFormat(database: Database, format: FormatDesc
   // Proof: F211 removed this delegation; open with a missing pending outbox lost its required corruption rejection. Exact restoration passed the eight-case group.
   readHistoryForFormat(database, format);
   // Proof: bypassing this route failed `open rejects valid-shaped corrupt missing reservation`.
-  readCapacity(database, meta.capacity);
+  readCapacity(database, meta.capacity, format);
 }
 
 /** Reads global capacity only when every held attempt has exactly its reservation and no settled or absent attempt has one. Call inside the caller's read snapshot or write transaction, before changing attempts. Corrupt correspondence is never repaired by a release. */
-export function readCapacity(database: Database, limit: number) {
+export function readCapacity(
+  database: Database,
+  limit: number,
+  format: FormatDescriptor = CURRENT_FORMAT,
+) {
   // Proof: independently omitting missing-held, settled-reserved or orphan selection failed all six corresponding `rejects global` public-operation tests.
   const broken = database
     .query(
-      `SELECT a.attempt_id FROM run_attempt a LEFT JOIN run_reservation r ON r.attempt_id=a.attempt_id WHERE json_extract(a.record,'$.holdsCapacity') IS NOT (r.attempt_id IS NOT NULL)
+      `SELECT a.attempt_id FROM ${format.family.attempt} a LEFT JOIN ${format.family.reservation} r ON r.attempt_id=a.attempt_id WHERE json_extract(a.record,'$.holdsCapacity') IS NOT (r.attempt_id IS NOT NULL)
        UNION ALL
-       SELECT r.attempt_id FROM run_reservation r LEFT JOIN run_attempt a ON a.attempt_id=r.attempt_id WHERE a.attempt_id IS NULL`,
+       SELECT r.attempt_id FROM ${format.family.reservation} r LEFT JOIN ${format.family.attempt} a ON a.attempt_id=r.attempt_id WHERE a.attempt_id IS NULL`,
     )
     .all();
   const reservations = database
-    .query<{ count: number }, []>('SELECT count(*) AS count FROM run_reservation')
+    .query<{ count: number }, []>(`SELECT count(*) AS count FROM ${format.family.reservation}`)
     .get();
   // Proof: bypassing correspondence enforcement failed all 18 `rejects global` tests; removing the ceiling failed `reservation counts above persisted capacity throw during reads and reopen`.
   if (

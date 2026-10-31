@@ -10,6 +10,7 @@ import {
   readRuntimeRequest,
   runtimeScopeKey,
 } from '../runtime-codecs';
+import { readIdentityUsage } from './identity-usage';
 import { readRecoveryCatalog } from './read-recovery';
 import { CURRENT_FORMAT, type FormatDescriptor, validateFormatSchema } from './schema';
 
@@ -51,8 +52,11 @@ export function readRuntimeCatalogForFormat(
   // Proof: F22 bypassed the complete bundle hash comparison; 'current format complete bundle hash' failed and exact restoration passed.
   if (marker.bundle_hash !== format.identity.bundleHash)
     throw new Error('incompatible sqlite format bundle hash');
+  // Proof: Task3 035 omitted this audit; public manifest reads accepted absent, invalid and extra usage markers. Restored 042 passed.
+  if (format.identity.version === 5) readIdentityUsage(database);
+  const counts = format.identity.version === 5 ? readRuntimeCounts(database, format) : marker;
   const scopes = database
-    .query('SELECT * FROM run_runtime_scope')
+    .query(`SELECT * FROM ${format.family.runtime_scope}`)
     .all()
     .map((input) => {
       const row = parseOrThrow(scopeRowCodec, input);
@@ -63,14 +67,14 @@ export function readRuntimeCatalogForFormat(
       return { pin, revision: row.revision };
     });
   const intents = database
-    .query('SELECT * FROM run_runtime_intent')
+    .query(`SELECT * FROM ${format.family.runtime_intent}`)
     .all()
     .map((input) => {
       const row = parseOrThrow(commandRowCodec, input);
       const intent = decodeRuntimeIntent(JSON.parse(row.record));
       if (
         // Proof: F17 ignored the physical intent command key; 'trusted runtime intent physical command' failed and exact restoration passed.
-        row.command_id !== intent.commandId ||
+        format.decode(row.command_id) !== intent.commandId ||
         // Proof: F18 ignored the physical intent scope key; 'trusted runtime intent physical scope' failed and exact restoration passed.
         row.scope_key !== runtimeScopeKey(readRuntimeRequest(intent.canonicalRequest).scope)
       )
@@ -78,7 +82,7 @@ export function readRuntimeCatalogForFormat(
       return intent;
     });
   const acceptances = database
-    .query('SELECT * FROM run_runtime_acceptance')
+    .query(`SELECT * FROM ${format.family.runtime_acceptance}`)
     .all()
     .map((input) => {
       const row = parseOrThrow(commandRowCodec, input);
@@ -86,7 +90,7 @@ export function readRuntimeCatalogForFormat(
       const intent = intents.find((candidate) => candidate.commandId === acceptance.commandId);
       if (
         // Proof: F19 ignored the physical acceptance command key; 'trusted runtime acceptance physical command' failed and exact restoration passed.
-        row.command_id !== acceptance.commandId ||
+        format.decode(row.command_id) !== acceptance.commandId ||
         intent === undefined ||
         // Proof: F20 ignored the physical acceptance scope key; 'trusted runtime acceptance physical scope' failed and exact restoration passed.
         row.scope_key !== runtimeScopeKey(readRuntimeRequest(intent.canonicalRequest).scope)
@@ -96,9 +100,9 @@ export function readRuntimeCatalogForFormat(
     });
   if (
     // Proof: F21 bypassed retained row counts; 'trusted runtime lost whole runtime family' failed and exact restoration passed.
-    marker.scope_count !== scopes.length ||
-    marker.intent_count !== intents.length ||
-    marker.acceptance_count !== acceptances.length
+    counts.scope_count !== scopes.length ||
+    counts.intent_count !== intents.length ||
+    counts.acceptance_count !== acceptances.length
   )
     throw new Error('corrupt runtime retained counts');
   const catalog: RuntimeCatalog = {
@@ -106,8 +110,9 @@ export function readRuntimeCatalogForFormat(
     intents,
     acceptances,
     recovery:
-      format.identity.version === 4
-        ? readRecoveryCatalog(database)
+      // Proof: Task3 040 restored the old version===4 branch; all eight actual format5 recovery histories silently became empty. Restored 042 passed.
+      format.identity.version !== 3
+        ? readRecoveryCatalog(database, format)
         : {
             histories: [],
             barriers: [],
@@ -124,4 +129,17 @@ export function readRuntimeCatalogForFormat(
   };
   auditRuntimeCatalog(catalog, ownership);
   return catalog;
+}
+
+const countCodec = type({
+  singleton: '1',
+  scope_count: integer,
+  intent_count: integer,
+  acceptance_count: integer,
+}).onUndeclaredKey('reject');
+function readRuntimeCounts(database: Database, format: FormatDescriptor) {
+  const markers = database.query(`SELECT * FROM ${format.family.runtime_format}`).all();
+  // Proof: Task3 041 removed this count check; public manifest read accepted an extra successor counter marker. Restored 042 passed.
+  if (markers.length !== 1) throw new Error('corrupt runtime count marker');
+  return parseOrThrow(countCodec, markers[0]);
 }

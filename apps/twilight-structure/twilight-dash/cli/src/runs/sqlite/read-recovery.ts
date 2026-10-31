@@ -4,6 +4,7 @@ import type { Database } from 'bun:sqlite';
 import type { RecoveryCatalog } from '../plan-recovery-history';
 import { decodeRecoveryHistory } from '../recovery-codecs';
 import { decodeRuntimeScope, readRuntimeRequest, runtimeScopeKey } from '../runtime-codecs';
+import { CURRENT_FORMAT, type FormatDescriptor } from './schema';
 
 function parseRecord(record: string): unknown {
   return JSON.parse(record);
@@ -59,27 +60,50 @@ const barrierValueCodec = type({
 }).onUndeclaredKey('reject');
 
 /** Reads every physical recovery family and independent key/count witness. Missing families and markers are corruption, never an empty catalog. The complete logical audit belongs to the enclosing history reader. */
-export function readRecoveryCatalog(database: Database): RecoveryCatalog {
-  const markers = database.query('SELECT * FROM run_recovery_format').all();
+export function readRecoveryCatalog(
+  database: Database,
+  format: FormatDescriptor = CURRENT_FORMAT,
+): RecoveryCatalog {
+  const markers = database.query(`SELECT * FROM ${format.family.recovery_format}`).all();
   // Proof: T3P1 removed this check; a corrupt public scope read resolved in the matching recovery contract; exact restoration passed.
   if (markers.length !== 1) throw new Error('corrupt recovery format marker');
   const marker = parseOrThrow(markerCodec, markers[0]);
   const journals = database
-    .query('SELECT * FROM run_recovery_journal')
+    .query(`SELECT * FROM ${format.family.recovery_journal}`)
     .all()
-    .map((row) => parseOrThrow(journalCodec, row));
+    .map((input) => {
+      const row = parseOrThrow(journalCodec, input);
+      return {
+        ...row,
+        recovery_id: format.decode(row.recovery_id),
+        command_id: format.decode(row.command_id),
+      };
+    });
   const fences = database
-    .query('SELECT * FROM run_recovery_fence ORDER BY ordinal')
+    .query(`SELECT * FROM ${format.family.recovery_fence} ORDER BY ordinal`)
     .all()
-    .map((row) => parseOrThrow(fenceCodec, row));
+    .map((input) => {
+      const row = parseOrThrow(fenceCodec, input);
+      return {
+        ...row,
+        recovery_id: format.decode(row.recovery_id),
+        command_id: format.decode(row.command_id),
+      };
+    });
   const observations = database
-    .query('SELECT * FROM run_recovery_observation ORDER BY ordinal')
+    .query(`SELECT * FROM ${format.family.recovery_observation} ORDER BY ordinal`)
     .all()
-    .map((row) => parseOrThrow(observationCodec, row));
+    .map((input) => {
+      const row = parseOrThrow(observationCodec, input);
+      return { ...row, recovery_id: format.decode(row.recovery_id) };
+    });
   const closures = database
-    .query('SELECT * FROM run_recovery_closure')
+    .query(`SELECT * FROM ${format.family.recovery_closure}`)
     .all()
-    .map((row) => parseOrThrow(closureCodec, row));
+    .map((input) => {
+      const row = parseOrThrow(closureCodec, input);
+      return { ...row, recovery_id: format.decode(row.recovery_id) };
+    });
   const histories = journals.map((row) => {
     const ownedFences = fences.filter((fence) => fence.recovery_id === row.recovery_id);
     const ownedObservations = observations.filter(
@@ -139,10 +163,11 @@ export function readRecoveryCatalog(database: Database): RecoveryCatalog {
   )
     throw new Error('orphan recovery physical row');
   const barriers = database
-    .query('SELECT * FROM run_recovery_barrier')
+    .query(`SELECT * FROM ${format.family.recovery_barrier}`)
     .all()
     .map((input) => {
-      const row = parseOrThrow(barrierCodec, input);
+      const physical = parseOrThrow(barrierCodec, input);
+      const row = { ...physical, recovery_id: format.decode(physical.recovery_id) };
       const value = parseOrThrow(barrierValueCodec, parseRecord(row.record));
       const barrier = { ...value, scope: decodeRuntimeScope(value.scope) };
       // Proof: T3P4B removed this check; a corrupt public scope read resolved in the matching recovery contract; exact restoration passed.
@@ -155,10 +180,11 @@ export function readRecoveryCatalog(database: Database): RecoveryCatalog {
       return barrier;
     });
   const active = database
-    .query('SELECT * FROM run_recovery_active')
+    .query(`SELECT * FROM ${format.family.recovery_active}`)
     .all()
     .map((input) => {
-      const row = parseOrThrow(activeCodec, input);
+      const physical = parseOrThrow(activeCodec, input);
+      const row = { ...physical, recovery_id: format.decode(physical.recovery_id) };
       const journal = histories.find((history) => history.intent.recoveryId === row.recovery_id);
       if (journal === undefined) throw new Error('orphan active recovery');
       const scope = readRuntimeRequest(journal.intent.target.original.canonicalRequest).scope;

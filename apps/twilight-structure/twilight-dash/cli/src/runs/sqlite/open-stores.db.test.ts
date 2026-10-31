@@ -107,14 +107,14 @@ test('open refuses corrupt unknown missing and malformed trusted state', async (
     else {
       const database = inspectDatabase(configuration.path);
       if (fault === 'version') database.run('UPDATE run_meta SET schema_version=99');
-      if (fault === 'table') database.run('DROP TABLE run_reservation');
-      if (fault === 'record') database.run(`UPDATE run_record SET record='{"version":99}'`);
+      if (fault === 'table') database.run('DROP TABLE run5_reservation');
+      if (fault === 'record') database.run(`UPDATE run5_record SET record='{"version":99}'`);
       if (fault === 'hash') database.run(`UPDATE run_meta SET migration_hash='bad'`);
       if (fault === 'down') database.run(`UPDATE run_meta SET down_hash='bad'`);
       if (fault === 'owner') database.run(`UPDATE run_meta SET ownership='{}'`);
       if (fault === 'reservation') {
         database.run('PRAGMA foreign_keys=OFF');
-        database.run("INSERT INTO run_reservation(attempt_id) VALUES ('orphan')");
+        database.run('INSERT INTO run5_reservation(attempt_id) VALUES (\'"orphan"\')');
       }
       database.close();
     }
@@ -161,18 +161,18 @@ const corruptions: Record<string, string> = {
   'metadata owner store': `UPDATE run_meta SET ownership=json_set(ownership,'$.owner.storeId','other')`,
   'metadata owner organization': `UPDATE run_meta SET ownership=json_set(ownership,'$.owner.organizationId','other')`,
   'manifest key': `UPDATE run_manifest SET digest='${'a'.repeat(64)}'`,
-  'run key': `UPDATE run_record SET record=json_set(record,'$.runId','other'),initial_record=json_set(initial_record,'$.runId','other')`,
-  'run manifest key': `UPDATE run_record SET record=json_set(record,'$.manifestDigest','${'a'.repeat(64)}'),initial_record=json_set(initial_record,'$.manifestDigest','${'a'.repeat(64)}')`,
-  'run initial revision': `UPDATE run_record SET initial_record=json_set(initial_record,'$.revision',1)`,
-  'run immutable identity': `UPDATE run_record SET initial_record=json_set(initial_record,'$.maxAttempts',4)`,
-  'attempt key': `UPDATE run_attempt SET record=json_set(record,'$.attemptId','other'),admission=json_set(admission,'$.attemptId','other')`,
-  'attempt run key': `UPDATE run_attempt SET record=json_set(record,'$.identity.runId','other'),admission=json_set(admission,'$.identity.runId','other')`,
-  'attempt occurrence key': `UPDATE run_attempt SET occurrence_id='other'`,
-  'attempt ordinal key': `UPDATE run_attempt SET ordinal=2`,
-  'admission attempt identity': `UPDATE run_attempt SET admission=json_set(admission,'$.attemptId','other')`,
-  'admission ordinal identity': `UPDATE run_attempt SET admission=json_set(admission,'$.ordinal',2)`,
-  'admission operation identity': `UPDATE run_attempt SET admission=json_set(admission,'$.identity.operationKey','other')`,
-  'missing reservation': `DELETE FROM run_reservation`,
+  'run key': `UPDATE run5_record SET record=json_set(record,'$.runId','other'),initial_record=json_set(initial_record,'$.runId','other')`,
+  'run manifest key': `UPDATE run5_record SET record=json_set(record,'$.manifestDigest','${'a'.repeat(64)}'),initial_record=json_set(initial_record,'$.manifestDigest','${'a'.repeat(64)}')`,
+  'run initial revision': `UPDATE run5_record SET initial_record=json_set(initial_record,'$.revision',1)`,
+  'run immutable identity': `UPDATE run5_record SET initial_record=json_set(initial_record,'$.maxAttempts',4)`,
+  'attempt key': `UPDATE run5_attempt SET record=json_set(record,'$.attemptId','other'),admission=json_set(admission,'$.attemptId','other')`,
+  'attempt run key': `UPDATE run5_attempt SET record=json_set(record,'$.identity.runId','other'),admission=json_set(admission,'$.identity.runId','other')`,
+  'attempt occurrence key': 'UPDATE run5_attempt SET occurrence_id=\'"other"\'',
+  'attempt ordinal key': `UPDATE run5_attempt SET ordinal=2`,
+  'admission attempt identity': `UPDATE run5_attempt SET admission=json_set(admission,'$.attemptId','other')`,
+  'admission ordinal identity': `UPDATE run5_attempt SET admission=json_set(admission,'$.ordinal',2)`,
+  'admission operation identity': `UPDATE run5_attempt SET admission=json_set(admission,'$.identity.operationKey','other')`,
+  'missing reservation': `DELETE FROM run5_reservation`,
 };
 for (const [fault, sql] of Object.entries(corruptions))
   test(`open rejects valid-shaped corrupt ${fault}`, async () => {
@@ -264,6 +264,7 @@ test('migration down chain removes exactly the provider schema', async () => {
     try {
       validateDatabase(database);
       for (const statement of [
+        ...MIGRATIONS[4].down.split('--> statement-breakpoint'),
         ...MIGRATIONS[3].down.split('--> statement-breakpoint'),
         ...MIGRATIONS[2].down.split('--> statement-breakpoint'),
         ...MIGRATIONS[1].down.split('--> statement-breakpoint'),
@@ -394,19 +395,19 @@ test('bootstrap refuses inaccessible and absent parents without creating directo
 const structuralFaults: Record<string, string> = {
   'missing column': 'ALTER TABLE run_manifest RENAME COLUMN record TO payload',
   'column type':
-    'DROP TABLE run_reservation; CREATE TABLE run_reservation(attempt_id INTEGER PRIMARY KEY REFERENCES run_attempt(attempt_id))',
+    'DROP TABLE run5_reservation; CREATE TABLE run5_reservation(attempt_id INTEGER PRIMARY KEY REFERENCES run5_attempt(attempt_id))',
   'column nullability':
     'DROP TABLE run_manifest; CREATE TABLE run_manifest(digest TEXT PRIMARY KEY, record TEXT)',
   'primary key and foreign key':
-    'DROP TABLE run_reservation; CREATE TABLE run_reservation(attempt_id TEXT)',
+    'DROP TABLE run5_reservation; CREATE TABLE run5_reservation(attempt_id TEXT)',
   'foreign key target':
-    'DROP TABLE run_reservation; CREATE TABLE run_reservation(attempt_id TEXT PRIMARY KEY REFERENCES run_record(run_id))',
-  'occurrence uniqueness': `DROP TABLE run_attempt; CREATE TABLE run_attempt(attempt_id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES run_record(run_id), occurrence_id TEXT NOT NULL, ordinal INTEGER NOT NULL CHECK(ordinal > 0), record TEXT NOT NULL, admission TEXT NOT NULL); CREATE UNIQUE INDEX run_active_occurrence ON run_attempt(run_id, occurrence_id) WHERE json_extract(record, '$.holdsCapacity') = 1`,
-  'missing active index': 'DROP INDEX run_active_occurrence',
+    'DROP TABLE run5_reservation; CREATE TABLE run5_reservation(attempt_id TEXT PRIMARY KEY REFERENCES run5_record(run_id))',
+  'occurrence uniqueness': `DROP TABLE run5_attempt; CREATE TABLE run5_attempt(attempt_id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES run5_record(run_id), occurrence_id TEXT NOT NULL, ordinal INTEGER NOT NULL CHECK(ordinal > 0), record TEXT NOT NULL, admission TEXT NOT NULL); CREATE UNIQUE INDEX run5_active_occurrence ON run5_attempt(run_id, occurrence_id) WHERE json_extract(record, '$.holdsCapacity') = 1`,
+  'missing active index': 'DROP INDEX run5_active_occurrence',
   'nonunique wrong-column index':
-    'DROP INDEX run_active_occurrence; CREATE INDEX run_active_occurrence ON run_attempt(run_id)',
-  'active index columns': `DROP INDEX run_active_occurrence; CREATE UNIQUE INDEX run_active_occurrence ON run_attempt(run_id) WHERE json_extract(record, '$.holdsCapacity') = 1`,
-  'active index predicate': `DROP INDEX run_active_occurrence; CREATE UNIQUE INDEX run_active_occurrence ON run_attempt(run_id, occurrence_id) WHERE json_extract(record, '$.holdsCapacity') = 0`,
+    'DROP INDEX run5_active_occurrence; CREATE INDEX run5_active_occurrence ON run5_attempt(run_id)',
+  'active index columns': `DROP INDEX run5_active_occurrence; CREATE UNIQUE INDEX run5_active_occurrence ON run5_attempt(run_id) WHERE json_extract(record, '$.holdsCapacity') = 1`,
+  'active index predicate': `DROP INDEX run5_active_occurrence; CREATE UNIQUE INDEX run5_active_occurrence ON run5_attempt(run_id, occurrence_id) WHERE json_extract(record, '$.holdsCapacity') = 0`,
 };
 for (const [fault, sql] of Object.entries(structuralFaults))
   test(`open rejects empty-store physical schema ${fault}`, async () => {
