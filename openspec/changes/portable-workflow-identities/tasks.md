@@ -180,7 +180,7 @@ and transition are ready, recording the exact dependency ordering in the ledger.
 Files: shared runs/testing contracts as needed; change verify.md only after implementation;
 task-scoped ledger/review packets under the unique portable-workflow-identities workspace.
 
-- [ ] 4.1 Complete shared identity/reference cases across all memory/SQLite key families,
+- [x] 4.1 Complete shared identity/reference cases across all memory/SQLite key families,
       including bounded-edge and finite unbounded-key controls. Verify actual completion
       collisions and decoded attempt/numeric revision ordering. No domain narrowing.
 - [ ] 4.2 Reverify migration hashes, every new check's actual fault/restored evidence, native
