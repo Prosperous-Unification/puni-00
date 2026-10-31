@@ -60,7 +60,22 @@ canary through the existing probe/publisher to its destination OTLP route, then
 await bounded stored-query convergence. It never initializes or overwrites an
 existing checkpoint. The canary is distinct from the original frozen historical
 witness and from post-restart observer progression. It cannot replace UI,
-isolation, auth, alert, recovery or backup acceptance.
+isolation, auth, alert, recovery or backup acceptance. Its metric names use
+`puni_route_canary_*` and an exact `puni_observation_id` selector, preserving
+producer scope/version and avoiding interference with continuous observer gauges
+or another canary. It never clears another producer's revision series.
+
+Application commits may advance inside the same owned dev container during these
+operations. The observer binary and container pins remain fixed; each fresh source
+read and completed stored observation records its actual revision. Reviewed cohort
+revisions and historical witnesses retain their original values.
+Retained-route rollback, compensation and explicit recovery observe two120-second
+windows, allowing dormant revision gauges to expire under the existing2m exporter
+policy. Actual stored health and strict uniqueness must still pass; elapsed time
+does not certify recovery or clear another producer's series.
+Forward switch/restore similarly waits at least120s per window even if the reviewed
+cohort's minimum interval is shorter. Candidate gauges may retain the staged
+revision while the application has already advanced; actual health must still pass.
 
 Each operation reserves a new private `route-<uuid>` directory and a nonwaiting
 observer ownership lock. Prepared evidence is synced before mutation, and a

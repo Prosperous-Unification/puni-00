@@ -5353,3 +5353,52 @@ closing `verify.md` metadata changed after tests. Final metadata identity and th
 compact artifact index are retained under `/tmp/puni-task79-evidence/` and the
 scoped handoff report is
 `.superpowers/sdd/observability-environment-parity/task-79-report.md`.
+
+### Task79 progress and canary correction before independent review
+
+The parent identified two correctness defects in source8f: application revisions
+were frozen as observer authority, and operation-producer canaries shared legacy
+observer metrics despite distinct producer scopes. Canonical scenarios preceded
+the corrections. `65-app-progress-red.txt` genuinely failed at the checkpoint
+guard when the same owned container advanced A→B. `66-canary-coexist-red.txt`
+failed stored canary acceptance with real OTLP producer scopes/cached gauges.
+The fix removes application revision from immutable observer pins, preserves
+historical cohort/history revisions, records actual completed revisions, and
+maps canaries to `puni_route_canary_*` with exact observation-ID correlation.
+The legacy observer binary, encoder/default acceptance, gauges and checkpoints
+remain unchanged. Foreign physical source, producer and invalid revision refuse.
+
+`71-source-physical-fault.txt`, `72-correlation-query-fault.txt` and
+`73-correlation-response-fault.txt` each failed their intended production-path
+assertion, respectively admitting a foreign container, omitting the selector,
+and certifying foreign returned metrics. All three exact source restorations
+are recorded in `progress-faults.json`. The old app-revision source-drift control
+is superseded by the physical-source control; normal progress is legitimate.
+The original31 controls were not replayed.
+
+Existing collector configuration sets2m metric expiry. The pinned upstream0.160.0
+accumulator confirms scope/version-aware gauge identity, last-update expiry and
+strict expiration independent of scrapes. This is source evidence, not live timing
+certification. Faithful fixtures exposed30s recovery settling failures in75 and
+preloaded candidateA/currentB forward failure in86. Recovery uses two120s windows;
+forward uses `max(reviewed minimum,120s)`. Actual stored uniqueness still must pass.
+The over-retention model in67/70 is uncredited;75 models the real finite cache.
+No canary zeroes another producer's gauge or overwrites an observer checkpoint.
+
+Final covering `88-final-settled-covering.txt` passed123 tests/285 assertions in
+49.41s across route model/provider/Fleet and mapped-acceptance compatibility.
+Both owning no-emit spec typechecks89/90, scoped lint91 and strict OpenSpec92
+exited0. The interim81 run passed122 tests but82/83 found a fixture-only empty-array
+type inference error; an explicit exact series type fixed it before88. After88,
+one fixture comparison was corrected from `<120` to `<=120` to match upstream's
+strict expiry boundary. Focused93 then passed5 affected cases/31 assertions in
+17.81s: preloaded forward, moving-app cutover/rollback, compensation, lost reload
+and inactive failed start. Original50–64/8f artifacts remain untouched.
+
+`settled-tested-source.json` preserves the exact21-file88 input at SHA256
+`6c9c3cede47a6a89d11cd10d7076af5a284600fd86ada87786e998dede30fc4e`.
+The fixture-only expiry correction and post-test documentation/verification
+metadata are distinguished in the final identity, not relabelled as88 input.
+This correction closes the named source progress defect; independent review,
+actual full rehearsal/live operation and required CI/host-gate certification
+remain pending and blocking. No remote operation or real publication occurred.

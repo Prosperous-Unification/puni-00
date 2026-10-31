@@ -68,7 +68,7 @@ async function composedFixture() {
     environment: 'dev' as const,
     sourceRevision: request.candidateRevision,
     candidateRevision: request.candidateRevision,
-    observedRevision: observer.pin.applicationRevision,
+    observedRevision: observer.initialApplicationRevision,
     adapterRevision,
     artifactSHA256: hashHistory(
       request.candidate.map((candidate) => ({
@@ -83,11 +83,7 @@ async function composedFixture() {
       context: request.context,
       controllerContext: request.controllerContext,
     }),
-    source: hashHistory({
-      containerId: observer.pin.containerId,
-      applicationRevision: observer.pin.applicationRevision,
-      observerSourceRevision: observer.pin.sourceRevision,
-    }),
+    source: hashHistory(observer.pin),
     stores: hashHistory({
       claims: request.claims,
       docker: request.docker,
@@ -110,7 +106,7 @@ async function composedFixture() {
       const identity = {
         environment: 'dev',
         service: 'be-01',
-        revision: observer.pin.applicationRevision,
+        revision: observer.initialApplicationRevision,
         observationId,
       };
       const found = { state: 'found', identity, observedAt, proof: { kind: 'record' } };
@@ -409,6 +405,7 @@ test('Task79 failed compensation stays uncertain and retains both operation rece
   try {
     await expectRefusal(
       fixture.invoke('switch', fixture.operation, async (milliseconds) => {
+        fixture.observer.advanceApplication('e'.repeat(40));
         await fixture.observer.tick(milliseconds);
         fixture.observer.faults.candidateStored = true;
         const manager = JSON.parse(readFileSync(fixture.observer.managerState, 'utf8')) as {
@@ -510,9 +507,11 @@ test('Task79 post-start binding drift cannot replace the independently accepted 
 test('Task79 failed post-switch acceptance compensates with a distinct retained-route receipt', async () => {
   const fixture = await composedFixture();
   try {
-    const oldUnit = readFileSync(fixture.observer.unit);
+    const oldUnit = readFileSync(fixture.observer.unit),
+      frozenHistory = readFileSync(fixture.observer.history.path);
     await expectRefusal(
       fixture.invoke('switch', fixture.operation, async (milliseconds) => {
+        fixture.observer.advanceApplication('e'.repeat(40));
         await fixture.observer.tick(milliseconds);
         fixture.observer.faults.candidateStored = true;
       }),
@@ -526,6 +525,17 @@ test('Task79 failed post-switch acceptance compensates with a distinct retained-
     const receipts = operations.map((name) => readdirSync(join(fixture.observer.state, name)));
     expect(receipts.some((names) => names.includes('completed.json'))).toBe(true);
     expect(receipts.some((names) => names.includes('compensated.json'))).toBe(true);
+    const completed = operations.find((name) =>
+      readdirSync(join(fixture.observer.state, name)).includes('completed.json'),
+    );
+    if (completed === undefined) throw new Error('Missing compensated completion');
+    const recovered = JSON.parse(
+      readFileSync(join(fixture.observer.state, completed, 'completed.json'), 'utf8'),
+    ) as { observations: { revision: string }[] };
+    expect(
+      recovered.observations.every((observation) => observation.revision === 'e'.repeat(40)),
+    ).toBe(true);
+    expect(readFileSync(fixture.observer.history.path)).toEqual(frozenHistory);
   } finally {
     fixture.close();
   }
@@ -644,6 +654,7 @@ for (const variant of ['lost-reload', 'failed-start'] as const) {
         afterUnit: string;
       };
       manager.reload = false;
+      fixture.observer.advanceApplication('e'.repeat(40));
       if (variant === 'failed-start') {
         manager.inactive = true;
         manager.pid = 0;
@@ -694,6 +705,12 @@ for (const variant of ['lost-reload', 'failed-start'] as const) {
         kind: 'rollback',
         phase: 'completed',
       });
+      const completion = JSON.parse(readFileSync(recovered.receipt, 'utf8')) as {
+        observations: { revision: string }[];
+      };
+      expect(
+        completion.observations.every((observation) => observation.revision === 'e'.repeat(40)),
+      ).toBe(true);
     } finally {
       fixture.close();
     }
@@ -754,6 +771,68 @@ test('Task79 composed switch rollback during Kubernetes failure and restore reta
     );
     expect(readFileSync(switched.receipt)).toEqual(switchedBytes);
     expect(readFileSync(fixture.observer.history.path)).toEqual(originalHistory);
+  } finally {
+    fixture.close();
+  }
+});
+
+test('Task79 forward settles preloaded candidate A while current observer and app progressed to B', async () => {
+  const fixture = await composedFixture();
+  try {
+    const history = readFileSync(fixture.observer.history.path);
+    fixture.observer.candidate.store(fixture.observer.initial);
+    fixture.observer.advanceApplication('e'.repeat(40));
+    await fixture.observer.tick(1000);
+    const switched = await fixture.invoke('switch');
+    const completion = JSON.parse(readFileSync(switched.receipt, 'utf8')) as {
+      observations: { revision: string }[];
+    };
+    expect(
+      completion.observations.every((observation) => observation.revision === 'e'.repeat(40)),
+    ).toBe(true);
+    expect(readFileSync(fixture.observer.history.path)).toEqual(history);
+  } finally {
+    fixture.close();
+  }
+}, 15000);
+
+test('Task79 app advancement preserves cutover and retained rollback without changing immutable pins', async () => {
+  const fixture = await composedFixture();
+  try {
+    const pins = JSON.stringify(fixture.operation.observer),
+      history = readFileSync(fixture.observer.history.path);
+    let windows = 0;
+    const switched = await fixture.invoke('switch', fixture.operation, (milliseconds) => {
+      if (++windows === 2) fixture.observer.advanceApplication('e'.repeat(40));
+      return fixture.observer.tick(milliseconds);
+    });
+    const completion = JSON.parse(readFileSync(switched.receipt, 'utf8')) as {
+      observations: { revision: string }[];
+    };
+    expect(completion.observations.map((observation) => observation.revision)).toEqual([
+      fixture.observer.initialApplicationRevision,
+      'e'.repeat(40),
+    ]);
+    expect(JSON.stringify(fixture.operation.observer)).toBe(pins);
+    fixture.snapshot.resources[1].ready = false;
+    const rolledBack = await fixture.invoke('rollback', {
+      ...fixture.operation,
+      before: fixture.observer.after,
+      after: fixture.observer.before,
+      beforeSHA256: fixture.observer.afterSHA256,
+      afterSHA256: fixture.observer.beforeSHA256,
+      parent: {
+        path: switched.receipt,
+        sha256: createHash('sha256').update(readFileSync(switched.receipt)).digest('hex'),
+      },
+    });
+    const recovered = JSON.parse(readFileSync(rolledBack.receipt, 'utf8')) as {
+      observations: { revision: string }[];
+    };
+    expect(
+      recovered.observations.every((observation) => observation.revision === 'e'.repeat(40)),
+    ).toBe(true);
+    expect(readFileSync(fixture.observer.history.path)).toEqual(history);
   } finally {
     fixture.close();
   }

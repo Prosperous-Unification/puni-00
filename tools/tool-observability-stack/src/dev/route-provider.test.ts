@@ -354,8 +354,8 @@ for (const fault of [
       }
       if (fault === 'source') {
         const script = readFileSync(fixture.context.ssh, 'utf8').replaceAll(
-          pin.applicationRevision,
-          'f'.repeat(40),
+          pin.containerId,
+          'f'.repeat(64),
         );
         writeFileSync(fixture.context.ssh, script);
         category = 'route-source';
@@ -378,3 +378,56 @@ for (const fault of [
     }
   });
 }
+
+test('Task79 app progress never admits an invalid fresh source revision', async () => {
+  const fixture = await createRouteFixture();
+  try {
+    fixture.advanceApplication('invalid-revision');
+    await expectRefusal(
+      inspectObserver(
+        fixture.pin,
+        fixture.before,
+        readFileSync(fixture.unit, 'utf8'),
+        fixture.context,
+      ),
+      'Invalid source measurement',
+    );
+    expect(readFileSync(join(fixture.state, 'probe.json'), 'utf8')).toBe(
+      JSON.stringify(fixture.initial),
+    );
+  } finally {
+    fixture.close();
+  }
+});
+
+test('Task79 canaries coexist across producer scopes and app revisions without changing observer metrics', async () => {
+  const fixture = await createRouteFixture();
+  try {
+    const checkpoint = readFileSync(join(fixture.state, 'probe.json'));
+    const first = await probeRouteHealth(
+      fixture.before,
+      fixture.context,
+      fixture.pin,
+      'd'.repeat(40),
+    );
+    expect(
+      await inspectRouteHealth(fixture.before, fixture.context, fixture.initial),
+    ).toMatchObject({ revision: fixture.initialApplicationRevision });
+    fixture.advanceApplication('e'.repeat(40));
+    const second = await probeRouteHealth(
+      fixture.before,
+      fixture.context,
+      fixture.pin,
+      'f'.repeat(40),
+    );
+    expect(first.observationId).not.toBe(second.observationId);
+    expect(second.revision).toBe('e'.repeat(40));
+    expect(readFileSync(join(fixture.state, 'probe.json'))).toEqual(checkpoint);
+    await fixture.tick(1000);
+    expect(
+      await inspectRouteHealth(fixture.before, fixture.context, join(fixture.state, 'probe.json')),
+    ).toMatchObject({ revision: 'e'.repeat(40) });
+  } finally {
+    fixture.close();
+  }
+}, 20000);

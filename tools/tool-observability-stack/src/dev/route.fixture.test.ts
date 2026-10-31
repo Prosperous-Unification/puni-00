@@ -38,6 +38,10 @@ export async function createRouteFixture() {
   };
   const clockPath = join(home, 'clock.json');
   put(clockPath, Date.now());
+  const applicationPath = join(home, 'application.json');
+  put(applicationPath, { revision: applicationRevision });
+  const readApplicationRevision = () =>
+    (JSON.parse(readFileSync(applicationPath, 'utf8')) as { revision: string }).revision;
   const observation = (observedAt = Date.now() - 5000): ProbeObservation => ({
     source: { kind: 'ssh-dev-container', containerValidated: true, containerId },
     observationId: randomUUID(),
@@ -47,7 +51,7 @@ export async function createRouteFixture() {
     environment: 'dev',
     service: 'be-01',
     producerVersion: sourceRevision,
-    revision: applicationRevision,
+    revision: readApplicationRevision(),
     success: true,
     reason: null,
     startedAt: observedAt - 20,
@@ -114,40 +118,56 @@ export async function createRouteFixture() {
     const documents: { _index: string; _id: string; _source: Record<string, unknown> }[] = [];
     const samples = new Map<
       string,
-      { metric: Record<string, string>; values: [number, string][] }
+      { metric: Record<string, string>; values: [number, string][]; updatedAt: number }
     >();
     const ingest = (kind: string, wire: unknown) => {
       const encoded = wire as ReturnType<typeof encodeOtlp>['logs'] &
         ReturnType<typeof encodeOtlp>['traces'] &
         ReturnType<typeof encodeOtlp>['metrics'];
-      if (kind === 'metrics')
+      if (kind === 'metrics') {
+        let scrape: number | null = null;
         for (const metric of encoded.resourceMetrics[0].scopeMetrics[0].metrics) {
           if (
             ![
               'puni_dev_probe_observed_timestamp_seconds',
               'puni_dev_revision_info',
               'puni_dev_probe_success',
-            ].includes(metric.name)
+            ].includes(metric.name) &&
+            !metric.name.startsWith('puni_route_canary_')
           )
             continue;
           for (const point of metric.gauge.dataPoints) {
             const labels = {
               __name__: metric.name,
+              otel_scope_name: encoded.resourceMetrics[0].scopeMetrics[0].scope.name,
+              otel_scope_version: encoded.resourceMetrics[0].scopeMetrics[0].scope.version,
               ...Object.fromEntries(
                 point.attributes.map((entry) => [entry.key, String(entry.value.stringValue)]),
               ),
             };
             const identity = JSON.stringify(labels);
-            const series: { metric: Record<string, string>; values: [number, string][] } =
-              samples.get(identity) ?? { metric: labels, values: [] };
+            const series: {
+              metric: Record<string, string>;
+              values: [number, string][];
+              updatedAt: number;
+            } = samples.get(identity) ?? { metric: labels, values: [], updatedAt: 0 };
             series.values.push([
               Number(BigInt(point.timeUnixNano) / 1000000n) / 1000,
               String(point.asDouble),
             ]);
+            scrape = Number(BigInt(point.timeUnixNano) / 1000000n) / 1000;
+            series.updatedAt = scrape;
             samples.set(identity, series);
           }
         }
-      else {
+        // Legacy exporter caches gauges for exactly2m (configuration/legacy.ts); scrapes do not refresh expiry.
+        if (scrape !== null)
+          for (const series of samples.values()) {
+            const latest = series.values.at(-1);
+            if (latest !== undefined && latest[0] !== scrape && scrape - series.updatedAt <= 120)
+              series.values.push([scrape, latest[1]]);
+          }
+      } else {
         const resource =
           kind === 'logs' ? encoded.resourceLogs[0].resource : encoded.resourceSpans[0].resource;
         const entries =
@@ -218,14 +238,24 @@ export async function createRouteFixture() {
           return new Response('', { status: 503 });
         if (url.pathname === '/api/v1/query') {
           const cutoff = Number(url.searchParams.get('time'));
+          const query = url.searchParams.get('query') ?? '';
+          const names = /__name__=~"([^"]+)"/.exec(query)?.[1].split('|');
+          const correlation = /puni_observation_id="([^"]+)"/.exec(query)?.[1];
           return Response.json({
             status: 'success',
             data: {
               resultType: 'matrix',
-              result: [...samples.values()].map((series) => ({
-                ...series,
-                values: series.values.filter(([time]) => time <= cutoff && time >= cutoff - 180),
-              })),
+              result: [...samples.values()]
+                .filter(
+                  (series) =>
+                    (names === undefined || names.includes(series.metric['__name__'])) &&
+                    (correlation === undefined ||
+                      series.metric['puni_observation_id'] === correlation),
+                )
+                .map((series) => ({
+                  ...series,
+                  values: series.values.filter(([time]) => time <= cutoff && time >= cutoff - 180),
+                })),
             },
           });
         }
@@ -257,8 +287,8 @@ export async function createRouteFixture() {
         });
       },
     });
-    const store = (previous: ProbeObservation) => {
-      const encoded = encodeOtlp(previous);
+    const store = (previous: ProbeObservation, previousRevision: string | null = null) => {
+      const encoded = encodeOtlp(previous, previousRevision);
       for (const kind of ['logs', 'metrics', 'traces'] as const) ingest(kind, encoded[kind]);
     };
     return { server, store };
@@ -330,7 +360,7 @@ else if(args.includes('restart')){if(s.restart)process.exit(8);const child=Bun.s
     `#!/usr/bin/env bun
 const args=process.argv.slice(2);const now=JSON.parse(await Bun.file(${JSON.stringify(clockPath)}).text());
 if(args.includes('inspect'))console.log(JSON.stringify([{Id:'${containerId}',Name:'/wbs-dev-src',State:{Running:true},Mounts:[{Type:'bind',Source:'/home/puni1/wbs-dev/src',Destination:'/src'}],NetworkSettings:{Networks:{'wbs-dev-net':{}}},Config:{WorkingDir:'/src',Cmd:['bun','run','dev']}}]));
-else if(args.includes('exec'))console.log(JSON.stringify({success:true,revision:'${applicationRevision}',reason:null,startedAt:now,finishedAt:now,requestDurationMs:0,transportDurationMs:null}));else process.exit(6);
+else if(args.includes('exec')){const application=JSON.parse(await Bun.file(${JSON.stringify(applicationPath)}).text());console.log(JSON.stringify({success:true,revision:application.revision,reason:null,startedAt:now,finishedAt:now,requestDurationMs:0,transportDurationMs:null}));}else process.exit(6);
 `,
     { mode: 0o700 },
   );
@@ -358,7 +388,6 @@ else if(args.includes('exec'))console.log(JSON.stringify({success:true,revision:
     manifestSHA256: manifest.sha256,
     tunnelSHA256: hash(readFileSync(tunnel)),
     containerId,
-    applicationRevision,
   };
   const history = put(
     join(home, 'history.json'),
@@ -368,9 +397,15 @@ else if(args.includes('exec'))console.log(JSON.stringify({success:true,revision:
     const now = Date.now() + milliseconds + 1;
     setSystemTime(now);
     put(clockPath, now);
+    const checkpoint = JSON.parse(
+      readFileSync(join(state, 'probe.json'), 'utf8'),
+    ) as ProbeObservation;
     const previous = observation(now - 1);
     put(join(state, 'probe.json'), previous);
-    (readFileSync(unit, 'utf8').includes(after.directory) ? candidate : old).store(previous);
+    (readFileSync(unit, 'utf8').includes(after.directory) ? candidate : old).store(
+      previous,
+      checkpoint.revision,
+    );
     return Promise.resolve();
   };
   const now = Date.now();
@@ -392,6 +427,10 @@ else if(args.includes('exec'))console.log(JSON.stringify({success:true,revision:
     candidate,
     put,
     initial,
+    initialApplicationRevision: applicationRevision,
+    advanceApplication: (revision: string) => {
+      put(applicationPath, { revision });
+    },
     tick,
     beforeSHA256: observerRouteCommitment(resolveObserverRoutes(before, context)),
     afterSHA256: observerRouteCommitment(resolveObserverRoutes(after, context)),

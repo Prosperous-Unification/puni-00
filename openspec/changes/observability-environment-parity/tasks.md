@@ -292,3 +292,7 @@ observer checkpoint unchanged. Explicit pinned recovery recognizes known partial
 unit activations only after proving its prior owner inactive. Full reviewed
 rehearsal/staged acceptance collection, actual isolated operation and live dev
 migration remain unperformed; the source task stays open until scoped review.
+The bounded progress correction removes application revision from immutable source
+authority, records actual revisions, isolates canary metrics by observation, and
+uses at least120s operational windows without changing the observer binary/default
+streams. Frozen history and reviewed cohort revisions remain historical evidence.

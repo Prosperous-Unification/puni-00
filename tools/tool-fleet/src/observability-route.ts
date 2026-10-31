@@ -105,7 +105,12 @@ const Completed = type({
   completedAt: 'number',
   beforePID: 'number.integer>=0',
   afterPID: 'number.integer>0',
-  observations: type({ '+': 'reject', observationId: 'string>0', observedAt: 'number' }).array(),
+  observations: type({
+    '+': 'reject',
+    observationId: 'string>0',
+    observedAt: 'number',
+    revision: /^[a-f0-9]{40}$/,
+  }).array(),
   historySHA256: digest,
 });
 const Prepared = type({
@@ -448,7 +453,7 @@ export async function runObservabilityRoute(
     priorTime: number,
     windowMs: number,
   ) => {
-    const observations: { observationId: string; observedAt: number }[] = [];
+    const observations: { observationId: string; observedAt: number; revision: string }[] = [];
     let afterPID = 0;
     for (let window = 0; window < 2; window++) {
       await (options.wait ?? Bun.sleep)(windowMs);
@@ -465,7 +470,11 @@ export async function runObservabilityRoute(
             health.observedAt - observations[0].observedAt < windowMs))
       )
         throw new Error('route-freshness-windows');
-      observations.push({ observationId: health.observationId, observedAt: health.observedAt });
+      observations.push({
+        observationId: health.observationId,
+        observedAt: health.observedAt,
+        revision: health.revision,
+      });
     }
     await observeRetained();
     await inspectRouteHistory(request.history, context);
@@ -515,15 +524,10 @@ export async function runObservabilityRoute(
           sha256: candidate.artifactSHA256,
         })),
       );
-      const source = hashHistory({
-        containerId: request.observer.containerId,
-        applicationRevision: request.observer.applicationRevision,
-        observerSourceRevision: request.observer.sourceRevision,
-      });
+      const source = hashHistory(request.observer);
       if (
         expected.rehearsal.sourceRevision !== preflightRequest.candidateRevision ||
         expected.rehearsal.candidateRevision !== preflightRequest.candidateRevision ||
-        expected.staged.observedRevision !== request.observer.applicationRevision ||
         expected.staged.adapterRevision !== request.adapterRevision ||
         expected.rehearsal.adapterRevision !== request.adapterRevision ||
         expected.staged.target !== target ||
@@ -598,7 +602,8 @@ export async function runObservabilityRoute(
     });
     mutationStarted = true;
     await replaceObserverUnit(context, current.unit, afterUnit);
-    const windowMs = kind === 'rollback' ? 30000 : request.acceptance?.freshnessWindowMs;
+    // Proof: retained A/current B failed recovery under30s windows with actual2m exporter caching (75-progress-recovery-green).
+    const windowMs = kind === 'rollback' ? 120000 : request.acceptance?.freshnessWindowMs;
     if (windowMs === undefined) throw new Error('route-full-acceptance-required');
     const { afterPID, observations } = await postcheck(
       request.after,
@@ -606,7 +611,8 @@ export async function runObservabilityRoute(
       afterRoutes,
       snapshot.pid,
       snapshot.observation.observedAt,
-      windowMs,
+      // Proof: staged candidate A/current B failed forward under the reviewed30s minimum (86-forward-cache-red).
+      Math.max(windowMs, 120000),
     );
     const receipt = join(reservation.directory, 'completed.json');
     publish(receipt, {
@@ -685,7 +691,7 @@ export async function runObservabilityRoute(
           beforeRoutes,
           active.pid,
           active.observation.observedAt,
-          30000,
+          120000,
         );
         const receipt = join(compensationDirectory, 'completed.json');
         publish(receipt, {

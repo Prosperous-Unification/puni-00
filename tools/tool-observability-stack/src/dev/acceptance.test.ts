@@ -495,7 +495,11 @@ function scopedDocument(kind: 'log' | 'root' | 'child') {
       : { name: kind === 'root' ? scope.logName : scope.childName }),
   };
 }
-function scopedHarness(change: Record<string, unknown> = {}, expected: AcceptanceScope = scope) {
+function scopedHarness(
+  change: Record<string, unknown> = {},
+  expected: AcceptanceScope = scope,
+  correlation: string | undefined = expected.metricObservationId,
+) {
   const queries: string[] = [];
   const server = Bun.serve({
     hostname: '127.0.0.1',
@@ -527,6 +531,7 @@ function scopedHarness(change: Record<string, unknown> = {}, expected: Acceptanc
                     __name__: name,
                     environment: 'prod',
                     service: 'example-service',
+                    ...(correlation === undefined ? {} : { puni_observation_id: correlation }),
                     ...(labels as object),
                   },
                   values: [[scrape, value]],
@@ -565,6 +570,22 @@ test('scoped component evidence is complete with its own explicit source and que
     provenance: 'component',
   });
   expect(queries.filter((url) => url.includes('.otel-prod/'))).toHaveLength(2);
+});
+test('canary metric correlation filters queries and refuses a foreign returned observation', async () => {
+  const expected = { ...scope, metricObservationId: 'canary-observation' };
+  const accepted = scopedHarness({}, expected);
+  expect(
+    (await accepted.adapter.inspect(scopedObservation, AbortSignal.timeout(1000))).health.state,
+  ).toBe('complete');
+  expect(
+    accepted.queries.some((url) =>
+      new URL(url).searchParams.get('query')?.includes('puni_observation_id="canary-observation"'),
+    ),
+  ).toBe(true);
+  const foreign = scopedHarness({}, expected, 'foreign-observation');
+  expect(
+    (await foreign.adapter.inspect(scopedObservation, AbortSignal.timeout(1000))).health.state,
+  ).toBe('incomplete');
 });
 test('scoped stored source cannot impersonate actual WBS source', async () => {
   const { adapter } = scopedHarness({ 'puni.source.kind': 'ssh-dev-container' });

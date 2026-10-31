@@ -419,9 +419,10 @@ async function metricEvidence(
 ): Promise<{ evidence: SignalEvidence; scrapeTimestamp: number | null }> {
   const url = new URL('/api/v1/query', base.url);
   // A raw range selector retains actual scrape timestamps; query_range evaluation times do not.
+  // Proof: removing the canary selector made the production query assertion fail (72-correlation-query-fault).
   url.searchParams.set(
     'query',
-    `{__name__=~"${scope.metricNames.join('|')}",environment=${JSON.stringify(scope.environment)},service=${JSON.stringify(scope.service)}}[180s]`,
+    `{__name__=~"${scope.metricNames.join('|')}",environment=${JSON.stringify(scope.environment)},service=${JSON.stringify(scope.service)}${scope.metricObservationId === undefined ? '' : `,puni_observation_id=${JSON.stringify(scope.metricObservationId)}`}}[180s]`,
   );
   url.searchParams.set('time', String(now / 1000));
   url.searchParams.set('timeout', '3s');
@@ -443,7 +444,10 @@ async function metricEvidence(
     if (
       !scope.metricNames.some((known) => known === name) ||
       series.metric['environment'] !== scope.environment ||
-      series.metric['service'] !== scope.service
+      series.metric['service'] !== scope.service ||
+      // Proof: ignoring returned correlation certified foreign canary metrics (73-correlation-response-fault).
+      (scope.metricObservationId !== undefined &&
+        series.metric['puni_observation_id'] !== scope.metricObservationId)
     )
       throw new QueryFault('metric-identity');
     for (const wire of series.values) {
@@ -633,6 +637,7 @@ const Scope = type({
   sourceIdentity: 'string',
   provenance: "'component' | 'measured'",
   metricNames: ['string', 'string', 'string'],
+  'metricObservationId?': 'string>0',
   logName: 'string',
   childName: 'string',
 });
@@ -659,13 +664,15 @@ export function createBackendAcceptance(
 } {
   return createAcceptance(configuration, legacyScope);
 }
-/** Scoped acceptance reports component evidence distinctly; the common health evaluator remains unchanged. */
+/** Mapped storage acceptance preserves inspected SSH provenance or explicit scoped provenance.
+ * Optional canary correlation filters and validates every returned metric series independently.
+ */
 export function createScopedBackendAcceptance(
   configuration: BackendConfiguration,
   expected: AcceptanceScope,
 ): {
-  inspect(previous: ScopedObservation, signal: AbortSignal): Promise<AcceptanceReport>;
-  assess(previous: ScopedObservation, signal: AbortSignal): Promise<ObservationHealth>;
+  inspect(previous: AcceptedObservation, signal: AbortSignal): Promise<AcceptanceReport>;
+  assess(previous: AcceptedObservation, signal: AbortSignal): Promise<ObservationHealth>;
 } {
   Scope.assert(expected);
   // Proof: malformed/absent scope and query-injection negatives fail with scoped configuration guard removed.

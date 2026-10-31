@@ -19,7 +19,7 @@ import { dirname, join, resolve } from 'node:path';
 
 import { type } from 'arktype';
 
-import { createBackendAcceptance } from './acceptance';
+import { createBackendAcceptance, createScopedBackendAcceptance } from './acceptance';
 import { parseCheckpoint } from './checkpoint';
 import { decode, publish, readPrivate } from './history-cli';
 import {
@@ -29,7 +29,7 @@ import {
   verifyHistory,
 } from './history-provider';
 import { assessObservation } from './observation';
-import { createOtlpPublisher } from './otlp';
+import { createOtlpSender, encodeOtlp } from './otlp';
 import { collectProbe, type ProbeObservation } from './probe';
 import {
   type AcceptanceExpectation,
@@ -195,6 +195,7 @@ export const RouteDescriptor = type({ '+': 'reject', kind: "'retained-loopback'"
   directory: 'string>0',
 });
 export type RouteDescriptor = typeof RouteDescriptor.infer;
+/** Immutable observer artifact and physical source authority. Application revisions progress per observation. */
 export const ObserverPin = type({
   '+': 'reject',
   hostname: 'string>0',
@@ -205,7 +206,6 @@ export const ObserverPin = type({
   manifestSHA256: hash,
   tunnelSHA256: hash,
   containerId: hash,
-  applicationRevision: revision,
 });
 export type ObserverPin = typeof ObserverPin.infer;
 export interface ObserverContext {
@@ -468,7 +468,8 @@ export async function inspectObserver(
   const observation = parseCheckpoint(readPrivate(checkpointPath).toString('utf8'));
   if (
     observation?.producerVersion !== pin.sourceRevision ||
-    observation.revision !== pin.applicationRevision ||
+    !observation.success ||
+    observation.revision === null ||
     observation.source.kind !== 'ssh-dev-container' ||
     !observation.source.containerValidated ||
     observation.source.containerId !== pin.containerId
@@ -478,12 +479,12 @@ export async function inspectObserver(
   const source = await createSshHealthReader(context.ssh)(AbortSignal.timeout(20000));
   if (
     !source.success ||
-    source.revision !== pin.applicationRevision ||
+    source.revision === null ||
     source.source.kind !== 'ssh-dev-container' ||
-    // Proof: Task79 fault 17 bypassed source; 'current observer refuses source' failed; bytes restored.
     !source.source.containerValidated ||
     source.source.containerId !== pin.containerId
   )
+    // Proof: removing this refusal accepted a foreign physical container (71-source-physical-fault); app progress is admitted.
     throw new Error('route-source');
   const selectedRoute =
     recovery === undefined ? route : recovery.routes[knownCommands?.[0] === loaded ? 0 : 1];
@@ -493,7 +494,7 @@ export async function inspectObserver(
     unitSHA256: digestBytes(bytes),
     loadedCommand: loaded,
     routes: observerRouteCommitment(routes),
-    observation,
+    observation: { ...observation, revision: observation.revision },
     pid,
   };
 }
@@ -508,7 +509,8 @@ export async function inspectRouteHealth(
       ? parseCheckpoint(readPrivate(checkpoint).toString('utf8'))
       : checkpoint;
   // Proof: Task79 fault 16 bypassed checkpoint; 'current observer refuses checkpoint' failed; bytes restored.
-  if (previous === undefined) throw new Error('route-checkpoint');
+  if (previous === undefined || !previous.success || previous.revision === null)
+    throw new Error('route-checkpoint');
   const routes = resolveObserverRoutes(route, context);
   const backend = createBackendAcceptance({
     elastic: routes.elastic,
@@ -531,8 +533,8 @@ export async function inspectRouteHealth(
   }
   throw new Error('route-stored-health');
 }
-/** One actual-source canary, with the operation producer identity, without touching initialized
- * checkpoints. OTLP success precedes bounded stored-query convergence; it never substitutes for it.
+/** One actual-source canary with the operation producer identity and isolated, observation-correlated
+ * metrics. It never changes observer gauges/checkpoints. OTLP acknowledgement precedes stored-query convergence.
  */
 export async function probeRouteHealth(
   route: RouteDescriptor,
@@ -543,27 +545,84 @@ export async function probeRouteHealth(
   if (!revision.test(producerRevision)) throw new Error('route-producer-revision');
   const routes = resolveObserverRoutes(route, context),
     signal = AbortSignal.timeout(75000);
+  const send = createOtlpSender(routes.otlp);
+  const metricNames = [
+    'puni_route_canary_observed_timestamp_seconds',
+    'puni_route_canary_revision_info',
+    'puni_route_canary_success',
+  ] as const;
   const previous = await collectProbe({
     readHealth: createSshHealthReader(context.ssh),
-    publication: createOtlpPublisher(routes.otlp, null),
+    publication: {
+      publish: async (observation, signal) => {
+        const encoded = encodeOtlp(observation);
+        // Proof: real OTLP scope coexistence failed stored health before namespace/correlation isolation (66-canary-coexist-red).
+        const renamed: Partial<Record<string, string>> = {
+          puni_dev_probe_observed_timestamp_seconds: metricNames[0],
+          puni_dev_revision_info: metricNames[1],
+          puni_dev_probe_success: metricNames[2],
+        };
+        encoded.metrics.resourceMetrics[0].scopeMetrics[0].metrics =
+          encoded.metrics.resourceMetrics[0].scopeMetrics[0].metrics.flatMap((metric) => {
+            const name = renamed[metric.name];
+            if (name === undefined) return [];
+            return [
+              {
+                ...metric,
+                name,
+                gauge: {
+                  dataPoints: metric.gauge.dataPoints.map((point) => ({
+                    ...point,
+                    attributes: [
+                      ...point.attributes,
+                      {
+                        key: 'puni_observation_id',
+                        value: { stringValue: observation.observationId },
+                      },
+                    ],
+                  })),
+                },
+              },
+            ];
+          });
+        for (const kind of ['logs', 'metrics', 'traces'] as const) {
+          const publication = await send(kind, encoded[kind], signal);
+          if (publication.state !== 'acknowledged') return publication;
+        }
+        return { state: 'acknowledged' };
+      },
+    },
     producerVersion: producerRevision,
-    expectedRevision: pin.applicationRevision,
     signal,
   });
   if (
     !previous.success ||
     previous.publication.state !== 'acknowledged' ||
-    previous.revision !== pin.applicationRevision ||
+    previous.revision === null ||
     previous.source.kind !== 'ssh-dev-container' ||
     !previous.source.containerValidated ||
     previous.source.containerId !== pin.containerId
   )
     throw new Error('route-canary-publication');
-  const backend = createBackendAcceptance({
-    elastic: routes.elastic,
-    prometheus: routes.prometheus,
-    freshnessMs: 120000,
-  });
+  const backend = createScopedBackendAcceptance(
+    {
+      elastic: routes.elastic,
+      prometheus: routes.prometheus,
+      freshnessMs: 120000,
+    },
+    {
+      environment: 'dev',
+      service: 'be-01',
+      producer: 'puni-dev-probe',
+      namespace: 'dev',
+      sourceIdentity: 'legacy-ssh',
+      provenance: 'measured',
+      metricNames,
+      metricObservationId: previous.observationId,
+      logName: 'dev health observation',
+      childName: 'GET be-01 /health',
+    },
+  );
   for (let attempt = 0; attempt < 15; attempt++) {
     const report = await backend.inspect(previous, signal);
     if (report.health.state === 'complete')

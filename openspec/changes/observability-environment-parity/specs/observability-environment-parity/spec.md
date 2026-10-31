@@ -117,6 +117,21 @@ A dev migration SHALL retain the Compose stores and the old telemetry path until
 - **AND** known captured BEFORE/AFTER file and loaded-command combinations may recover while arbitrary drift, active/unknown ownership or tampered pins refuse
 - **AND** the original uncertain receipt remains unchanged
 
+#### Scenario: Diagnostic canaries coexist with autonomous observer telemetry
+
+- **WHEN** a route operation publishes an actual-source canary while the retained observer continues emitting, including different producer revisions and repeated canaries across application revisions
+- **THEN** the canary uses a distinct metric namespace and exact observation correlation, and its stored acceptance excludes every other canary and the continuous observer
+- **AND** the unchanged observer metric namespace retains its existing strict uniqueness semantics, with no cross-producer zeroing, checkpoint overwrite or claimed full acceptance
+
+#### Scenario: Normal application progress preserves route recovery
+
+- **WHEN** dev watchers advance the application revision from A to B during route freshness windows while the observer binary, physical source ownership and candidate artifacts remain unchanged
+- **THEN** cutover stored queries correlate each actual observation with its own observed revision and completed receipts record those revisions
+- **AND** compensation, rollback and explicit manual recovery can restore the healthy retained route using revision B without rolling back the application or freezing delivery
+- **AND** retained-route recovery observes two bounded 120-second windows so dormant gauges can expire under the existing two-minute exporter policy, while actual stored uniqueness remains mandatory
+- **AND** forward operations honor the reviewed interval as a minimum and observe at least 120 seconds per window when the destination retains an earlier observer revision; no elapsed interval replaces actual stored acceptance
+- **AND** reviewed cohort and historical witnesses retain their original revisions while changed container identity, producer identity or invalid source still refuses
+
 #### Scenario: Reviewed acceptance does not replace current checks
 
 - **WHEN** a dev route cutover or restore is requested

@@ -637,3 +637,35 @@ original uncertain operation is never relabelled completed.
 Task79 source tests use disposable HTTP/process fixtures and remain component
 evidence. Actual shared-stack rehearsal and dev migration stay open until the
 unchanged admission, inventory and persistent-material prerequisites are met.
+
+Application revision is an observed moving value, not long-lived observer or
+physical-source authority. Dev watchers may advance it during any freshness
+window. Keep observer binary/source, container identity and candidate artifact
+pins immutable, while fresh source reads and each stored query bind the actual
+non-null application revision for that observation. Completed observations record
+their own revisions. Staged cohort `observedRevision` and frozen historical
+references remain historical evidence and do not pin later healthy app progress.
+Rollback and manual recovery must work after that progress without an application
+rollback or global delivery freeze; foreign container/producer/invalid-source
+states still refuse. Preserve the original8f component/build evidence as pre-fix
+history and verify only this bounded correction before the first source review.
+
+Route canaries retain real operation-producer provenance but map their three
+gauges to `puni_route_canary_*` and add an exact observation-ID dimension. Existing
+mapped acceptance filters that dimension and validates every returned series;
+legacy observer metric names and uniqueness stay unchanged. Disposable fixtures
+preserve OTLP producer scopes and scrape cached gauges, including coexisting
+versions. No canary zeroes another producer's metric series.
+Retained-route recovery uses two120-second observation windows, including
+compensation and explicit recovery. The existing exporter expires dormant gauges
+after2m; waiting avoids carrying stale old-revision gauges into a healthy resumed
+observer. Actual stored uniqueness is still required, and failure stays uncertain;
+neither expiry nor health is inferred merely from elapsed time.
+Forward windows also use `max(reviewed minimum,120s)`: staged candidate telemetry
+may retain an earlier observer revision when the real application advances before
+switch. The cohort interval remains historical evidence and a minimum, not an
+exact sleep promise. Existing observer binary/default streams remain unchanged.
+The pinned collector0.160.0 [Prometheus accumulator](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/v0.160.0/exporter/prometheusexporter/accumulator.go)
+keys gauges by producer scope/version and attributes, ignores older timestamps,
+and expires from last update with a strict comparison; scrape collection does not
+refresh expiry. This supports the fixture model, not actual live120s timing proof.
