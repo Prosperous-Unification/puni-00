@@ -183,7 +183,7 @@ task-scoped ledger/review packets under the unique portable-workflow-identities 
 - [x] 4.1 Complete shared identity/reference cases across all memory/SQLite key families,
       including bounded-edge and finite unbounded-key controls. Verify actual completion
       collisions and decoded attempt/numeric revision ordering. No domain narrowing.
-- [ ] 4.2 Reverify migration hashes, every new check's actual fault/restored evidence, native
+- [x] 4.2 Reverify migration hashes, every new check's actual fault/restored evidence, native
       close/cleanup outcomes, affected static checks and task review findings. Use a task
       review after each implementation task, then one whole-change review.
 - [ ] 4.3 Commit/push the reviewed feature candidate and run required CI and canonical
