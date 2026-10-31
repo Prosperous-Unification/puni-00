@@ -395,7 +395,8 @@ export async function captureHistory(
   const routesCommitment = commitments(boundRoutes);
   const report = await createBackendAcceptance({
     ...boundRoutes,
-    freshnessMs: 180000,
+    // Proof: the real CLI 150-second freshness negative accepted at180000 and refused at the live120000 bound.
+    freshnessMs: 120000,
     deadlineMs: 10000,
   }).inspect(previous, signal);
   // Proof: removing this guard made coherent stale capture publish a receipt despite the actual fresh gate reporting stale.

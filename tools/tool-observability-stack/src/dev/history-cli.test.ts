@@ -752,3 +752,9 @@ test('receipt encoding size fault refuses before publication', async () => {
   expect(execution.stderr.trim()).toBe('history-output-size');
   expect(() => readFileSync(f.receiptPath)).toThrow();
 });
+
+test('capture preserves the live 120-second freshness gate for a coherent 150-second observation', async () => {
+  const f = fixture(false, 150000);
+  expect((await f.capture()).exit).not.toBe(0);
+  expect(() => readFileSync(f.receiptPath)).toThrow();
+});
