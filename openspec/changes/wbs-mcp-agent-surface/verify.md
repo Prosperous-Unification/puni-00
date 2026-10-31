@@ -3083,6 +3083,87 @@ file (`runtime-wbs.test.ts`, 8 pass) and Dash's typecheck and lint were rerun.
   `use !== undefined &&` restored, it received `"admitted"` and failed (1 fail); with the fix,
   1 pass. Watched 2026-10-30 (`env -u CLAUDECODE bun test src/oauth.test.ts -t "of any use but consent"`).
 
+## Slice 20 — confidential DCR clients (task 3.9)
+
+- **Live failure (2026-10-31, dev):** the AS metadata lists `none`, `client_secret_basic` and
+  `client_secret_post` since #751; claude.ai's connector registered `client_secret_post` with
+  `grant_types: ['authorization_code', 'refresh_token']` and was answered
+  `400 invalid_client_metadata` (`mcp_oauth_route POST /mcp/oauth/register status 400`);
+  `client_secret_basic` was refused the same way and `none` answered 201. Probed by the
+  coordinator.
+- **Change:** design M17. `src/consent-client.ts` (`presentedClientOf`, `authenticatesClient`,
+  `issueClientSecret`); `register`, `token` and `refreshGrant` in `src/oauth.ts`;
+  `RegisteredClient.authentication` in `src/session-store.ts`; migration
+  `20261031120000_mcp_client_secret` with a rollback preflight. `basicCredentialsOf` is shared
+  with the machine parser. `/authorize`, `/revoke` and `bin/dev-mcp-probe.sh` are unchanged;
+  the metadata lists all three auth methods everywhere since the review below.
+- **Choice:** real confidential support, not answering `none` in the `201`: RFC 7591 lets a
+  client reject a replaced method, and claude.ai's handling of one is unobserved.
+
+Proofs, each watched on 2026-10-31 by applying the fault, running the named test with
+`env -u CLAUDECODE bun test --timeout=10000 <file> -t <name>`, seeing it fail, and restoring:
+
+| Fault injected                                                            | Test (file)                                                                                       | Observed                                     |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| registration accepts only `none`                                          | `registers a client_secret_post and a client_secret_basic client…` (oauth.test.ts)                | 400, expected 201                            |
+| same                                                                      | `a claude.ai-shaped confidential connector consents, calls a tool and refreshes` (boot)           | SDK `InvalidClientMetadataError`             |
+| token endpoint's code refusal skipped                                     | `refuses a confidential client's code without its secret or with a wrong one, and burns it`       | 200, expected 401                            |
+| digest compare returns `true`                                             | same                                                                                              | 200 for the wrong secret                     |
+| `authenticatesClient` ignores the method                                  | `refuses a secret sent by the method it was not registered with…`                                 | 200, expected 401                            |
+| `authenticatesClient` returns `true`                                      | `an API key never authenticates a consent grant…`                                                 | 200 for the key as the client's secret       |
+| `refreshGrant`'s refusal skipped                                          | `refreshes a confidential client only with its secret…`                                           | 200, expected 401                            |
+| `routeEvidenceOf` records the form's `client_secret`                      | `records no client secret in route evidence`                                                      | the secret appeared in the evidence          |
+| parser admits any secret on `client_credentials`                          | `a confidential consent client's secret never authenticates a machine grant` (machine-token.test) | be-01 asked, 502, expected 401               |
+| `client_assertion` refusal removed; malformed header read as `none`       | `refuses a client_assertion and a non-Basic Authorization header invalid_client` (consent-client) | a presented client, expected invalid_client  |
+| two-method, repeated-field and Basic-user refusals removed (each in turn) | `refuses two methods, a repeated field and a Basic user unlike the body client_id…`               | a presented client, expected invalid_request |
+| `CHECK (1)` on the method column, then on the digest column               | `refuses a confidential client row without its secret digest…` (store-migrations.test)            | 1, then 3 rows stored                        |
+| malformed authentication read as public                                   | `refuses a stored client whose authentication is malformed`                                       | did not throw                                |
+| rollback preflight removed                                                | `refuses to roll back the client secret migration while a confidential client is live`            | rolled back                                  |
+| down `DELETE` turned into a `SELECT`                                      | `rolls back the client secret migration once no confidential client is live`                      | expired confidential client remained         |
+
+Not a separate check: dropping the `presented.clientId === grant.clientId` guard only turns
+the API key's own id from `invalid_grant` into `invalid_client`, because the main condition
+compares it again.
+
+Existing behaviour kept: the whole public-client suite (`oauth.test.ts`, every other mcp-01
+test) passes unchanged except that hand-built `RegisteredClient` literals now carry
+`authentication: { method: 'none' }` and the migration lists name the fifth migration.
+
+Not run here: the hosted claude.ai connector on dev (needs the deploy; task 3.6), the h2puni
+gate, and be-01 (not touched).
+
+Commands, 2026-10-31, in the slice worktree (laptop):
+
+- `env -u CLAUDECODE bunx nx run-many -t test,typecheck,lint -p wbs-mcp-01 --skip-nx-cache`:
+  exit 0; 749 pass, 0 fail across 34 files.
+- `bun tools/tool-git-hooks/src/hooks/migration-lint.ts` on the new `migration.sql` and
+  `down.sql`: exit 0 (a first draft's `IS NOT NULL` inside the `ADD COLUMN` CHECK was refused
+  as a required column and rewritten with `coalesce(length(…))`).
+- `bunx prettier --check` on every changed non-SQL file: clean.
+- `bunx openspec validate --all --json`: 304 of 304 passed.
+- `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`:
+  exit 0.
+
+### Review of PR #791 (Fable, high), how each item is addressed
+
+No S1. Separation from the machine grants, secret handling and the migration were confirmed.
+
+| Item                                                                    | Change                                                                                                                                                                                                                                                                       | Proof (watched 2026-10-31)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1 refresh fails open when a confidential family's client row is gone | `mcp_family.client_auth_method` (same migration, CHECK, `down.sql`, preflight); `refreshGrant` refuses a confidential family without a live client of its method; the exchange signs first, then `createFamily` writes the family and promotes the client in one transaction | family refusal removed, or the method not recorded: `refuses a confidential family's refresh once its client row is gone` answered 200 (row deleted, and row rewritten public); promotion outside the transaction: `commits the family and the client's promotion together` found 1 family row; family `CHECK (1)`: `refuses a family client method outside the confidential two` stored it; preflight without the family count: `… while a confidential family is usable` rolled back. `keeps a public family's refresh once its client row is gone` stays 200 |
+| S3-1 RFC 7591 §2 default                                                | an absent method registers as `client_secret_basic`; spec requirement and scenario                                                                                                                                                                                           | refusing absent: `registers an absent method as client_secret_basic (RFC 7591 §2)` answered 400                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| S3-2 SHA-256 boundary                                                   | R3 comment at `secretSha256Of` (32 CSPRNG bytes, not a password; as `digestOf`)                                                                                                                                                                                              | none needed (comment only); CodeQL alert #90 is left to the owner to dismiss                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| S4 blue-green wording                                                   | migration header and M17 now say Recreate, one replica, and an older release refusing the newer ledger                                                                                                                                                                       | none (wording)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| S4 boot test order                                                      | the claude.ai-shaped test runs last, as grace, and creates and lists its own project                                                                                                                                                                                         | registration accepting only `none` again still fails it (`InvalidClientMetadataError`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| S4 public clients and `Authorization`                                   | M17 states any `Authorization` header from a public client is now `401`                                                                                                                                                                                                      | covered by `refuses a secret sent by the method …`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| S4 `Basic :secret` leniency                                             | removed: an empty Basic user is `invalid_client`                                                                                                                                                                                                                             | check removed: `refuses a client_assertion and a non-Basic Authorization header invalid_client` read `Basic :secret` as a client named `''`                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| S4 `client_secret_expires_at`                                           | M17 states it mirrors `client_id_expires_at`                                                                                                                                                                                                                                 | none (wording)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| S4 metadata                                                             | `token_endpoint_auth_methods_supported` lists all three unconditionally; `grant_types_supported` unchanged                                                                                                                                                                   | listing only `none` without machine grants: `omits them without the secret and in gateway mode` failed (machine-token.test.ts)                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+
+After the review fixes, 2026-10-31: `nx run-many -t test,typecheck,lint -p wbs-mcp-01
+--skip-nx-cache` exit 0, 756 pass, 0 fail; migration lint exit 0; prettier clean; `openspec
+validate --all` 304 of 304; `check-indexes working . HEAD` exit 0.
+
 ## Slice 21 — groups-less half of M9 (with PR #731)
 
 Lands in PR #731 (`wbs-machine-credentials` slice 4), its precondition, after that branch was
