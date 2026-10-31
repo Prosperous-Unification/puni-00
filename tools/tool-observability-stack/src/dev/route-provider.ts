@@ -31,6 +31,7 @@ import {
 import { assessObservation } from './observation';
 import { createOtlpSender, encodeOtlp } from './otlp';
 import { collectProbe, type ProbeObservation } from './probe';
+import type { routeChecks } from './route';
 import {
   type AcceptanceExpectation,
   EvidenceReference,
@@ -47,6 +48,24 @@ export { hashHistory } from './history-provider';
 
 const hash = /^[a-f0-9]{64}$/;
 const revision = /^[a-f0-9]{40}$/;
+/** Concrete reviewed projections required by this existing Flux/Kubernetes adapter. */
+export const routeProviderChecks = {
+  admission: 'admission',
+  'controller-convergence': 'flux',
+  'effective-workload-isolation': 'effective-pods-storage-network',
+  'stored-logs': 'stored-logs',
+  'stored-metrics': 'stored-metrics',
+  'stored-traces': 'stored-traces',
+  'operator-views': 'operator-views',
+  'valid-invalid-auth': 'valid-invalid-auth',
+  'cross-instance-isolation': 'cross-instance-isolation',
+  alerts: 'alerts',
+  'process-recovery': 'process-recovery',
+  'outage-loss-recovery': 'outage-loss-recovery',
+  'retained-history': 'retained-history',
+  'backup-restore': 'backup-restore',
+  'two-freshness-windows': 'two-freshness-windows',
+} satisfies Record<(typeof routeChecks)[number], string>;
 const Capture = type({
   '+': 'reject',
   version: '1',
@@ -67,6 +86,7 @@ const Projection = type({
   version: '1',
   kind: "'operator-reviewed-observation'",
   check: 'string',
+  providerCheck: 'string',
   target: hash,
   captureSHA256: hash,
   finding: "'reviewed-satisfied'",
@@ -174,6 +194,9 @@ export function readRouteEvidence(
         ) ||
         projection.target !== member.binding.target ||
         projection.check !== check.check ||
+        // Proof: removing provider projection binding admitted the neutral text instead of Flux evidence (fix1/16).
+        projection.providerCheck !==
+          Object.entries(routeProviderChecks).find(([category]) => category === check.check)?.[1] ||
         projection.captureSHA256 !== check.capture.sha256 ||
         projection.observations.length < 1 ||
         projection.observations.length > 64 ||
@@ -648,7 +671,27 @@ export async function inspectRouteHistory(history: RouteHistory, context: Observ
   await verifyHistory(routes, receipt);
   return { receiptSHA256: history.receipt.sha256, verifiedAt: Date.now() };
 }
-/** Exclusive observer lock retained on uncertainty. Its owner record is never overwritten or stolen. */
+/** Syncs the directory entry authority before a later independently synced unit mutation. */
+function syncRouteDirectory(path: string): void {
+  const descriptor = openSync(path, 'r');
+  try {
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
+}
+function archiveRouteOwner(path: string, bytes: Buffer): void {
+  const descriptor = openSync(path, 'wx', 0o600);
+  // Proof: omitting archive file sync let the faulted recovery mutate the unit (fix1/17).
+  try {
+    writeFileSync(descriptor, bytes);
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
+  syncRouteDirectory(dirname(path));
+}
+/** Exclusive observer lock retained on uncertainty. Inactive-owner replacement is confined to explicit recovery. */
 export function reserveRouteOperation(context: ObserverContext, operationId: string) {
   if (!/^[a-f0-9-]{36}$/.test(operationId)) throw new Error('route-operation-id');
   const root = statePath(context);
@@ -656,11 +699,27 @@ export function reserveRouteOperation(context: ObserverContext, operationId: str
   const lock = join(root, 'route.lock');
   mkdirSync(lock, { mode: 0o700 });
   const directory = join(root, `route-${operationId}`);
+  let created = false;
   try {
     mkdirSync(directory, { mode: 0o700 });
+    created = true;
     publish(join(lock, 'owner.json'), { operationId, pid: process.pid });
+    // Proof: reservation parent-sync omission admitted unit mutation (fix1/04b).
+    syncRouteDirectory(root);
   } catch (error) {
-    rmdirSync(lock);
+    try {
+      try {
+        unlinkSync(join(lock, 'owner.json'));
+      } catch (absent) {
+        if (!(absent instanceof Error && 'code' in absent && absent.code === 'ENOENT'))
+          throw absent;
+      }
+      rmdirSync(lock);
+      if (created) rmdirSync(directory);
+      syncRouteDirectory(root);
+    } catch (cleanup) {
+      throw new AggregateError([error, cleanup], 'route-reservation-cleanup', { cause: cleanup });
+    }
     throw error;
   }
   return {
@@ -689,11 +748,13 @@ export function reserveRouteCompensation(
     throw new Error('route-compensation-owner');
   const directory = join(root, `route-${operationId}`);
   mkdirSync(directory, { mode: 0o700 });
+  // Proof: missing compensation parent sync restored unit despite injected dependency failure (fix1/04).
+  syncRouteDirectory(root);
   return directory;
 }
-/** Explicit reconciliation proves the old command process absent, recognizes only captured unit
- * states, archives its immutable lock evidence, then competes nonwaitingly for a new ordinary lock.
- * An active, denied, reused or otherwise unknown PID never authorizes acquisition.
+/** Explicit reconciliation holds the original lock through preparation. Only durable successor
+ * preparation permits archiving exact original owner bytes and atomic inactive-owner replacement.
+ * Failed preparation retains the original runnable command; recognized inactive leases can be reconciled.
  */
 export async function reserveRouteRecovery(
   context: ObserverContext,
@@ -721,9 +782,9 @@ export async function reserveRouteRecovery(
     owner.pid !== prior.ownerPID
   )
     throw new Error('route-recovery-owner');
-  const requireInactive = () => {
+  const requireInactive = (pid: number) => {
     try {
-      process.kill(owner.pid, 0);
+      process.kill(pid, 0);
     } catch (error) {
       // Proof: Task79 fault 30b bypassed unknown-owner; 'explicit recovery refuses active' failed; bytes restored.
       if (error instanceof Error && 'code' in error && error.code === 'ESRCH') return;
@@ -732,25 +793,100 @@ export async function reserveRouteRecovery(
     // Proof: Task79 fault 29b bypassed active-owner; 'explicit recovery refuses active' failed; bytes restored.
     throw new Error('route-owner-active');
   };
-  requireInactive();
+  requireInactive(owner.pid);
+  const Lease = type({
+    '+': 'reject',
+    operationId: /^[a-f0-9-]{36}$/,
+    parentOperationId: /^[a-f0-9-]{36}$/,
+    pid: 'number.integer>0',
+  });
   const recoveryOwner = join(lock, 'recovery-owner.json');
-  publish(recoveryOwner, { operationId, pid: process.pid });
-  let archived = false;
+  let previousLease: Buffer | undefined;
+  try {
+    lstatSync(recoveryOwner);
+    previousLease = readPrivate(recoveryOwner);
+  } catch (error) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+  }
+  if (previousLease !== undefined) {
+    const lease = Lease(decode(previousLease));
+    // Proof: removing lease ancestry admitted a foreign inactive lease and changed unit bytes (fix1/21).
+    if (
+      lease instanceof type.errors ||
+      (lease.parentOperationId !== owner.operationId && lease.operationId !== owner.operationId)
+    )
+      throw new Error('route-recovery-lease');
+    // Proof: skipping this new call boundary reconciled an active lease and mutated the unit (fix1/20).
+    requireInactive(lease.pid);
+    const leaseDirectory = join(root, `route-${lease.operationId}`);
+    checkDirectory(leaseDirectory, true);
+    archiveRouteOwner(join(leaseDirectory, `reconciled-lease-${operationId}.json`), previousLease);
+    unlinkSync(recoveryOwner);
+    syncRouteDirectory(lock);
+  }
+  const directory = join(root, `route-${operationId}`);
+  mkdirSync(directory, { mode: 0o700 });
+  syncRouteDirectory(root);
+  publish(recoveryOwner, { operationId, parentOperationId: owner.operationId, pid: process.pid });
+  const leaseBytes = readPrivate(recoveryOwner);
+  let transferred = false;
+  const release = () => {
+    if (digestBytes(readPrivate(recoveryOwner)) !== digestBytes(leaseBytes))
+      throw new Error('route-recovery-lease-drift');
+    unlinkSync(recoveryOwner);
+    syncRouteDirectory(lock);
+    if (transferred) {
+      const current = Owner(decode(readPrivate(join(lock, 'owner.json'))));
+      if (
+        current instanceof type.errors ||
+        current.operationId !== operationId ||
+        current.pid !== process.pid
+      )
+        throw new Error('route-recovery-owner-drift');
+      unlinkSync(join(lock, 'owner.json'));
+      rmdirSync(lock);
+      syncRouteDirectory(root);
+    }
+  };
   try {
     await inspectObserver(pin, prior.before, prior.beforeUnit, context, {
       units: [prior.beforeUnit, prior.afterUnit],
       routes: [prior.before, prior.after],
     });
-    requireInactive();
-    if (digestBytes(readPrivate(join(lock, 'owner.json'))) !== digestBytes(bytes))
-      throw new Error('route-recovery-owner-drift');
-    const oldDirectory = join(root, `route-${prior.operationId}`);
-    checkDirectory(oldDirectory, true);
-    renameSync(lock, join(oldDirectory, `reconciled-ownership-${operationId}`));
-    archived = true;
-    return reserveRouteOperation(context, operationId);
-  } finally {
-    if (!archived) unlinkSync(recoveryOwner);
+    return {
+      directory,
+      release,
+      transferred: () => transferred,
+      activate: () => {
+        requireInactive(owner.pid);
+        // Proof: removing fresh ownership/lease binding admitted preparation-time lease drift (fix1/22).
+        if (
+          digestBytes(readPrivate(join(lock, 'owner.json'))) !== digestBytes(bytes) ||
+          digestBytes(readPrivate(recoveryOwner)) !== digestBytes(leaseBytes)
+        )
+          throw new Error('route-recovery-owner-drift');
+        const oldDirectory = join(root, `route-${prior.operationId}`);
+        checkDirectory(oldDirectory, true);
+        // Proof: source/destination sync omission allowed recovery mutation (fix1/04).
+        archiveRouteOwner(join(oldDirectory, `reconciled-owner-${operationId}.json`), bytes);
+        const pendingOwner = join(directory, 'next-owner.json');
+        publish(pendingOwner, { operationId, pid: process.pid });
+        renameSync(pendingOwner, join(lock, 'owner.json'));
+        transferred = true;
+        // Proof: omitting either rename directory sync admitted unit mutation under its injected failure (fix1/18–19).
+        syncRouteDirectory(directory);
+        syncRouteDirectory(lock);
+      },
+    };
+  } catch (error) {
+    try {
+      release();
+    } catch (cleanup) {
+      throw new AggregateError([error, cleanup], 'route-recovery-preparation-cleanup', {
+        cause: cleanup,
+      });
+    }
+    throw error;
   }
 }
 /** A prior durable mutation-started record is required by the caller. Fixed named-unit closure only. */

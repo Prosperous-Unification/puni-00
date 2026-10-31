@@ -117,6 +117,26 @@ A dev migration SHALL retain the Compose stores and the old telemetry path until
 - **AND** known captured BEFORE/AFTER file and loaded-command combinations may recover while arbitrary drift, active/unknown ownership or tampered pins refuse
 - **AND** the original uncertain receipt remains unchanged
 
+#### Scenario: Ownership and evidence are durable before mutation
+
+- **WHEN** an operation, compensation or explicitly reconciled recovery prepares to replace the observer unit
+- **THEN** the operation/lock parent entries and exact original owner archive are synced before mutation, and both source and destination directories of an owner-record transfer are synced
+- **AND** a failed required file/directory sync prevents the next unit mutation
+- **AND** the root lock stays continuously present during the sole authorized inactive-owner handoff
+
+#### Scenario: Explicit recovery remains retryable after preparation failure
+
+- **WHEN** retained source, history, canary or preparation fails before recovery invokes unit replacement
+- **THEN** original ownership and frozen prepared/uncertain evidence remain intact and output supplies a supported pinned retry
+- **AND** interrupted lease cleanup or post-transfer sync failure supports the original or durably prepared successor command after its real process exits
+- **AND** active, denied, foreign or changed ownership/leases refuse without lock stealing
+
+#### Scenario: Uncertainty diagnostics survive persistence failure
+
+- **WHEN** invocation may have changed the unit and compensation or outer uncertainty publication fails
+- **THEN** the CLI still emits actionable uncertain-operation metadata with exact cached prepared/inspection/recovery bindings and retained ownership
+- **AND** closed persistence diagnostics distinguish recording failure without private cause text or a false claim that the receipt was durable
+
 #### Scenario: Diagnostic canaries coexist with autonomous observer telemetry
 
 - **WHEN** a route operation publishes an actual-source canary while the retained observer continues emitting, including different producer revisions and repeated canaries across application revisions
@@ -135,7 +155,10 @@ A dev migration SHALL retain the Compose stores and the old telemetry path until
 #### Scenario: Reviewed acceptance does not replace current checks
 
 - **WHEN** a dev route cutover or restore is requested
-- **THEN** independently pinned reviewed evidence binds the complete common-stack rehearsal and staged candidate acceptance to their exact sources, targets, stores and routes
+- **THEN** reviewed staged evidence also binds the exact immutable selected controllers, repository source, nodes and workload replicas; fresh matching pins for recreated instances cannot reuse the older cohort
+- **AND** a fetched but unapplied repository head may advance with an independently refreshed live pin and unchanged repository identity, while applied controller revisions remain bound and require new reviewed evidence when changed
+- **AND** each member starts within the existing reviewed `maxAgeMs`, so all bounded command captures and both windows fall within that same age bound even if completion is recent
+- **AND** independently pinned reviewed evidence binds the complete common-stack rehearsal and staged candidate acceptance to their exact sources, targets, stores and routes
 - **AND** missing, failed, stale, component-only, source-only or mismatched evidence prevents mutation
 - **AND** the operation independently reruns fresh target preflight, current effective observer ownership, candidate stored-signal and retained-history checks before switching
 - **AND** reviewed evidence remains explicitly reviewed evidence, rather than an invented automated runtime certification

@@ -296,3 +296,8 @@ The bounded progress correction removes application revision from immutable sour
 authority, records actual revisions, isolates canary metrics by observation, and
 uses at least120s operational windows without changing the observer binary/default
 streams. Frozen history and reviewed cohort revisions remain historical evidence.
+Review fix1 additionally binds selected immutable identities and the age of all
+reviewed checks, requires directory durability and retryable explicit ownership
+handoff, preserves uncertainty diagnostics across persistence failures, and keeps
+concrete Flux/Pod projections in the dedicated adapter. Scoped rereview remains
+required; actual acceptance and canonical4.1/4.2 remain open.

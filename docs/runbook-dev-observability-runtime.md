@@ -38,6 +38,19 @@ password/private-key hashes.
 
 The independent full acceptance cohort has separate exact rehearsal and staged
 target/source/controller/store/claim/route/artifact bindings. All required checks
+also bind the immutable selected controller/resource and Git source pins, node
+UID/machine identity and workload replica UIDs through `selection`. A recreated
+instance needs newly reviewed evidence even when its fresh preflight is Ready.
+Only the fetched GitRepository head is excluded from `selection`; its immutable
+kind/name/namespace/UID remain bound and fresh preflight validates the independently
+refreshed live-head pin. Applied resource/controller revisions stay bound. A fetched
+unapplied main advance may reuse acceptance; an applied revision change requires
+new review even when UIDs and candidate artifacts are unchanged. Current preflight
+does not prove semantic equivalence of controller/chart/config changes.
+Each cohort member must start within the reviewed `maxAgeMs`; captures and both
+windows lie inside it, so a recent completion cannot freshen old checks. Neutral
+controller-convergence/effective-workload-isolation categories require this
+adapter's explicit Flux/effective-Pod `providerCheck` projections. The checks
 link bounded private command captures, successful command outcomes, reviewed
 projections and raw output digests. Both advancing windows link actual stored
 log/metric/trace evidence and query artifacts. Missing, changed, stale, failed,
@@ -79,7 +92,10 @@ revision while the application has already advanced; actual health must still pa
 
 Each operation reserves a new private `route-<uuid>` directory and a nonwaiting
 observer ownership lock. Prepared evidence is synced before mutation, and a
-separate mutation-started record precedes unit replacement. Only the owned
+separate mutation-started record precedes unit replacement. The owned
+state-root directory entries for receipt/lock reservation are synced before
+mutation, including compensation; recovery owner transfer syncs both directories.
+The owned
 observer unit is replaced/reloaded/restarted. Two advancing stored-health windows,
 fresh retained identities and exact original historical queries precede a
 durable completed receipt. Old services, stores, volumes, tunnel, Grafana objects
@@ -99,11 +115,24 @@ file/loaded-command combinations are recognized, including a lost reload and a
 known failed start with MainPID0 and empty control group. Arbitrary third states,
 drop-ins, foreign processes and changed source/binary pins refuse.
 
-Recovery archives the proven inactive ownership record, acquires a new exclusive
-operation and reuses fresh retained-route inspection, canary, historical checks
-and the rollback transaction. It records a new outcome; the original uncertainty
+Recovery keeps `route.lock` continuously present and holds a separate exclusive
+lease while reusing fresh retained-route inspection, canary and history checks.
+Preparation failure retains original ownership and emits the original pinned
+command for retry. After successor preparation and mutation-started evidence are
+durable, it archives exact original owner bytes and atomically replaces the owner
+record. This explicitly reconciled inactive-owner handoff is the sole owner-record
+transition. Known inactive interrupted leases may be archived; active, denied,
+foreign or changed leases refuse. Failed final sync/lease cleanup emits the
+supported original or successor command without requiring lock edits.
+It records a new rollback outcome; the original uncertainty
 is not rewritten as completed. Never remove or steal an unknown lock, run an
 unsupported inspection subcommand, or replace the unit by blindly copying bytes.
+
+If outcome persistence fails after invocation, the CLI still emits `state:uncertain`,
+exact inspection/recovery argv and fixed `persistenceFailures` codes. It reports
+`uncertaintyRecorded:false` when that receipt could not be durably written. It
+retains ownership and cached prepared authority; it neither dumps private causes
+nor claims the failed recording was durable.
 
 Live status, 2026-10-31: the owned dev observer runs reviewed source
 `047e08024b4b1bbba4cb7700400d6f37b0d0ed05`, with continuous resource history in

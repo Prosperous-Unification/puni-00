@@ -16,6 +16,7 @@ function binding(target = '1') {
     source: 'e'.repeat(64),
     stores: 'f'.repeat(64),
     routes: 'a'.repeat(64),
+    selection: 'b'.repeat(64),
   };
 }
 function cohort() {
@@ -64,6 +65,12 @@ function cohort() {
 test('reviewed cohort accepts complete separately bound rehearsal and staged evidence', () => {
   const { wire, expected, now } = cohort();
   expect(readRouteAcceptance(wire, expected, now).staged.binding.target).toBe('2'.repeat(64));
+});
+test('fix1 core acceptance names controller convergence and effective workload isolation', () => {
+  expect([...routeChecks]).toContain('controller-convergence');
+  expect([...routeChecks]).toContain('effective-workload-isolation');
+  expect([...routeChecks]).not.toContain('flux');
+  expect([...routeChecks]).not.toContain('effective-pods-storage-network');
 });
 for (const fault of [
   'source-only',

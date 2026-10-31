@@ -4,8 +4,8 @@ import { type } from 'arktype';
 
 export const routeChecks = [
   'admission',
-  'flux',
-  'effective-pods-storage-network',
+  'controller-convergence',
+  'effective-workload-isolation',
   'stored-logs',
   'stored-metrics',
   'stored-traces',
@@ -33,6 +33,7 @@ export const RouteBinding = type({
   source: digest,
   stores: digest,
   routes: digest,
+  selection: digest,
 });
 export const EvidenceReference = type({ '+': 'reject', path: 'string>0', sha256: digest });
 const Check = type({
@@ -104,6 +105,8 @@ export function readRouteAcceptance(
       member.startedAt > member.completedAt ||
       member.completedAt > now ||
       now - member.completedAt > expected.maxAgeMs ||
+      // Proof: week-old valid captures/windows with fresh completion were accepted (fix1/01-identity-freshness-red).
+      now - member.startedAt > expected.maxAgeMs ||
       member.checks.length !== routeChecks.length ||
       new Set(member.checks.map((check) => check.check)).size !== routeChecks.length ||
       member.checks.some((check) => !routeChecks.some((known) => known === check.check))

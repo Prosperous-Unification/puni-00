@@ -17,6 +17,7 @@ import {
   renderRoutedObserverUnit,
   replaceObserverUnit,
   reserveRouteOperation,
+  routeProviderChecks,
 } from './route-provider';
 
 const roots: string[] = [];
@@ -64,6 +65,7 @@ function evidence() {
     source: 'e'.repeat(64),
     stores: 'f'.repeat(64),
     routes: 'a'.repeat(64),
+    selection: 'b'.repeat(64),
   });
   const window = (
     target: ReturnType<typeof binding>,
@@ -122,6 +124,7 @@ function evidence() {
         version: 1,
         kind: 'operator-reviewed-observation',
         check,
+        providerCheck: routeProviderChecks[check],
         target: target.target,
         captureSHA256: capture.sha256,
         finding: 'reviewed-satisfied',
@@ -165,6 +168,65 @@ test('full reviewed evidence reads pinned command outputs and projections', () =
     readRouteEvidence(fixture.put('cohort', fixture.cohort), fixture.expected, fixture.now).staged
       .checks,
   ).toHaveLength(15);
+});
+test('fix1 full evidence refuses week-old valid captures and windows despite fresh completion', () => {
+  const fixture = evidence();
+  const age = 7 * 86400000;
+  for (const member of [fixture.cohort.rehearsal, fixture.cohort.staged]) {
+    member.startedAt -= age;
+    for (const check of member.checks) {
+      const capture = JSON.parse(readFileSync(check.capture.path, 'utf8')) as {
+        startedAt: number;
+        completedAt: number;
+      };
+      capture.startedAt -= age;
+      capture.completedAt -= age;
+      check.capture = fixture.put(`${check.check}-${member.binding.target}-old-capture`, capture);
+      const projection = JSON.parse(readFileSync(check.projection.path, 'utf8')) as {
+        captureSHA256: string;
+      };
+      projection.captureSHA256 = check.capture.sha256;
+      check.projection = fixture.put(
+        `${check.check}-${member.binding.target}-old-projection`,
+        projection,
+      );
+    }
+    for (const window of member.windows) {
+      const capture = JSON.parse(readFileSync(window.capture.path, 'utf8')) as {
+        observedAt: number;
+        evidence: Record<string, { observedAt: number }>;
+      };
+      window.observedAt -= age;
+      capture.observedAt -= age;
+      for (const found of Object.values(capture.evidence)) found.observedAt -= age;
+      window.capture = fixture.put(
+        `${window.observationId}-${member.binding.target}-old-window`,
+        capture,
+      );
+    }
+  }
+  expect(() =>
+    readRouteEvidence(fixture.put('old-cohort', fixture.cohort), fixture.expected, fixture.now),
+  ).toThrow('route-acceptance-closure');
+});
+test('fix1 adapter refuses a neutral category without its exact concrete provider projection', () => {
+  const fixture = evidence();
+  const check = fixture.cohort.staged.checks.find(
+    (entry) => entry.check === 'controller-convergence',
+  );
+  if (check === undefined) throw new Error('Missing controller category');
+  const projection = JSON.parse(readFileSync(check.projection.path, 'utf8')) as {
+    providerCheck: string;
+  };
+  projection.providerCheck = 'controller-convergence';
+  check.projection = fixture.put('wrong-provider-check', projection);
+  expect(() =>
+    readRouteEvidence(
+      fixture.put('wrong-provider-cohort', fixture.cohort),
+      fixture.expected,
+      fixture.now,
+    ),
+  ).toThrow('route-evidence-binding');
 });
 for (const fault of [
   'failed-command',

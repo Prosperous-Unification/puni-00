@@ -134,7 +134,14 @@ const Prepared = type({
   'parentOperationId?': /^[a-f0-9-]{36}$/,
   'recoveryHealth?': 'unknown',
 });
-/** Actionable uncertainty is public safe metadata; the original error and trusted bodies stay private. */
+type PersistenceFailure =
+  | 'uncertainty-write-failed'
+  | 'compensation-uncertainty-write-failed'
+  | 'compensation-completion-write-failed'
+  | 'ownership-release-failed';
+/** Actionable uncertainty survives recording failure. Closed persistence diagnostics and argv are
+ * public; private causes never reach CLI output. Recorded means this attempt's publication synced.
+ */
 export class UncertainRouteOperation extends Error {
   constructor(
     public readonly operationId: string,
@@ -142,6 +149,8 @@ export class UncertainRouteOperation extends Error {
     public readonly inspection: readonly string[],
     public readonly recoveryCommands: readonly (readonly string[])[],
     cause: unknown,
+    public readonly persistenceFailures: readonly PersistenceFailure[] = [],
+    public readonly uncertaintyRecorded = false,
   ) {
     super('route-mutation-uncertain', { cause });
   }
@@ -183,7 +192,7 @@ export function createRouteDiscovery(
 
 /** One observer-local operation; forward prerequisite evidence is reviewed input, never fabricated
  * runtime certification. Retained-path rollback deliberately does not call Kubernetes preflight.
- * An unresolved mutation keeps its lock and immutable uncertainty receipt for explicit inspection.
+ * Unresolved mutations retain ownership and actionable argv even if uncertainty persistence fails.
  */
 export async function runObservabilityRoute(
   arguments_: readonly string[],
@@ -196,6 +205,7 @@ export async function runObservabilityRoute(
 ): Promise<{ operationId: string; receipt: string }> {
   const context = options.context ?? localObserverContext();
   let recovery: typeof Prepared.infer | undefined;
+  let recoveryReference: typeof EvidenceReference.infer | undefined;
   let requestWire: unknown;
   if (arguments_[0] === 'recover') {
     if (
@@ -230,6 +240,7 @@ export async function runObservabilityRoute(
     )
       throw new Error('route-recovery-pins');
     recovery = prepared;
+    recoveryReference = { path: arguments_[1], sha256: arguments_[2] };
     requestWire =
       prepared.kind === 'rollback'
         ? { ...prepared.request, parent: { path: arguments_[1], sha256: arguments_[2] } }
@@ -383,9 +394,9 @@ export async function runObservabilityRoute(
           units: [recovery.beforeUnit, recovery.afterUnit] as const,
           routes: [recovery.request.before, recovery.request.after] as const,
         };
-  const reservation =
+  const recoveryReservation =
     recovery === undefined
-      ? reserveRouteOperation(context, operationId)
+      ? undefined
       : await reserveRouteRecovery(
           context,
           request.observer,
@@ -399,12 +410,62 @@ export async function runObservabilityRoute(
           },
           operationId,
         );
+  const reservation = recoveryReservation ?? reserveRouteOperation(context, operationId);
   const startedAt = Date.now();
   let prerequisiteObservedAt = startedAt;
-  let mutationStarted = false,
-    completed = false;
+  const progress = { mutationStarted: false, completed: false };
   let baseline: Awaited<ReturnType<typeof inspectObserver>> | undefined;
+  let preparedReference: typeof EvidenceReference.infer | undefined;
+  const persistenceFailures: PersistenceFailure[] = [];
+  const failureCauses: unknown[] = [];
   const inspection = `systemctl --user show puni-dev-observability.service --property=FragmentPath,DropInPaths,NeedDaemonReload,ExecStart,ActiveState,SubState,MainPID`;
+  const transferred = () => recoveryReservation?.transferred() === true;
+  const uncertainMetadata = () => {
+    const capture = recovery !== undefined && !transferred() ? recovery : undefined;
+    const reference = capture === undefined ? preparedReference : recoveryReference;
+    if (reference === undefined) throw new Error('route-prepared-reference-missing');
+    const priorUnit = capture?.beforeUnit ?? beforeUnit,
+      nextUnit = capture?.afterUnit ?? afterUnit;
+    const retainedUnit = (capture?.kind ?? kind) === 'rollback' ? nextUnit : priorUnit;
+    const sha = (bytes: string) => new Bun.CryptoHasher('sha256').update(bytes).digest('hex');
+    return {
+      operationId: capture?.operationId ?? operationId,
+      directory:
+        capture === undefined
+          ? reservation.directory
+          : join(
+              context.home,
+              '.local/state/puni-dev-observability',
+              `route-${capture.operationId}`,
+            ),
+      recoveryCommands: [...new Set([sha(priorUnit), sha(nextUnit)])].map((current) => [
+        ...routeCommandPrefix(),
+        'recover',
+        reference.path,
+        reference.sha256,
+        current,
+        sha(retainedUnit),
+        String(capture?.ownerPID ?? process.pid),
+        '--reconciled',
+      ]),
+    };
+  };
+  const recordOutcome = (
+    path: string,
+    wire: unknown,
+    failure: Exclude<PersistenceFailure, 'ownership-release-failed'>,
+  ) => {
+    // Proof: occupied/file/directory uncertainty and compensation sync lost actionable CLI output (fix1/07b–07c).
+    try {
+      publish(path, wire);
+      return true;
+    } catch (error) {
+      // Persistence is a modeled uncertain outcome: preserve private cause, expose only the closed diagnostic.
+      failureCauses.push(error);
+      persistenceFailures.push(failure);
+      return false;
+    }
+  };
   const observeRetained = async () => {
     const command = buildObservabilityDockerCommand(
       transport,
@@ -481,297 +542,379 @@ export async function runObservabilityRoute(
     parseGrafanaJournal(readJSON(request.grafana));
     return { afterPID, observations };
   };
-  try {
-    const snapshot = await inspectObserver(
-      request.observer,
-      request.before,
-      beforeUnit,
-      context,
-      recoveryPolicy,
-    );
-    baseline = snapshot;
-    if (recovery === undefined && snapshot.routes !== beforeRoutes)
-      throw new Error('route-current-binding-drift');
-    const grafanaSHA256 = request.grafana.sha256;
-    parseGrafanaJournal(readJSON(request.grafana));
-    const historyBefore = await inspectRouteHistory(request.history, context);
-    let prerequisites: unknown;
-    if (kind === 'rollback')
-      prerequisites = { scope: 'retained-path-recovery', identities: await observeRetained() };
-    else {
-      if (request.acceptance === undefined) throw new Error('route-full-acceptance-required');
-      const expected = request.acceptance;
-      readRouteEvidence(expected.receipt, expected, Date.now());
-      const target = hashHistory({
-        fleetId: preflightRequest.fleetId,
-        targetMarker: preflightRequest.targetMarker,
-        identityUID: preflightRequest.identityUID,
-        context: preflightRequest.context,
-        controllerContext: preflightRequest.controllerContext,
-      });
-      const stores = hashHistory({
-        claims: preflightRequest.claims,
-        docker: preflightRequest.docker,
-        candidateClaims: preflightRequest.candidate.map((candidate) => ({
-          namespace: candidate.namespace,
-          name: candidate.name,
-          claims: candidate.claims,
-        })),
-      });
-      const artifacts = hashHistory(
-        preflightRequest.candidate.map((candidate) => ({
-          path: candidate.artifactPath,
-          sha256: candidate.artifactSHA256,
-        })),
+  const performOperation = async () => {
+    try {
+      const snapshot = await inspectObserver(
+        request.observer,
+        request.before,
+        beforeUnit,
+        context,
+        recoveryPolicy,
       );
-      const source = hashHistory(request.observer);
-      if (
-        expected.rehearsal.sourceRevision !== preflightRequest.candidateRevision ||
-        expected.rehearsal.candidateRevision !== preflightRequest.candidateRevision ||
-        expected.staged.adapterRevision !== request.adapterRevision ||
-        expected.rehearsal.adapterRevision !== request.adapterRevision ||
-        expected.staged.target !== target ||
-        expected.staged.stores !== stores ||
-        expected.staged.routes !== afterRoutes ||
-        expected.staged.source !== source ||
-        expected.staged.artifactSHA256 !== artifacts ||
-        expected.staged.candidateRevision !== preflightRequest.candidateRevision ||
-        // Proof: Task79 fault 26 bypassed selection; 'composed operation refuses selection' failed; bytes restored.
-        expected.staged.sourceRevision !== preflightRequest.candidateRevision
-      )
-        throw new Error('route-acceptance-selection');
-      const preflight = await preflightObservability(preflightRequest, { transport, run });
-      // Proof: Task79 fault 27 bypassed candidate-ready; 'composed operation refuses unready' failed; bytes restored.
-      if (!preflight.migrationReady) throw new Error('route-candidate-unready');
-      prerequisites = preflight;
-      prerequisiteObservedAt = Date.parse(preflight.startedAt);
-    }
-    const healthBefore = await probeRouteHealth(
-      request.after,
-      context,
-      request.observer,
-      request.adapterRevision,
-    );
-    const retained = await observeRetained();
-    prerequisiteObservedAt =
-      kind === 'rollback'
-        ? retained.observedAt
-        : Math.min(prerequisiteObservedAt, retained.observedAt);
-    const preparedPath = join(reservation.directory, 'prepared.json');
-    publish(preparedPath, {
-      version: 1,
-      provider: 'dev-observer-local',
-      operationId,
-      ownerPID: process.pid,
-      kind,
-      mode: recovery === undefined ? 'normal' : 'recovery',
-      phase: 'prepared',
-      request,
-      beforeUnit,
-      afterUnit,
-      snapshot: { unitSHA256: snapshot.unitSHA256, routes: snapshot.routes, pid: snapshot.pid },
-      prerequisites,
-      healthBefore,
-      historyBefore,
-      grafanaSHA256,
-      startedAt,
-    });
-    const prepared = byteReference(preparedPath);
-    const current = await inspectObserver(
-      request.observer,
-      request.before,
-      beforeUnit,
-      context,
-      recoveryPolicy,
-    );
-    if (
-      current.pid !== snapshot.pid ||
-      current.unitSHA256 !== snapshot.unitSHA256 ||
-      current.loadedCommand !== snapshot.loadedCommand ||
-      (recovery === undefined && current.routes !== beforeRoutes) ||
-      observerRouteCommitment(resolveObserverRoutes(request.after, context)) !== afterRoutes ||
-      // Proof: Task79 fault 28 bypassed inventory-expiry; 'candidate inventory expiry' failed; bytes restored.
-      Date.now() - prerequisiteObservedAt > preflightRequest.maxAgeMs
-    )
-      throw new Error('route-preparation-expired-or-drifted');
-    publish(join(reservation.directory, 'mutation-started.json'), {
-      version: 1,
-      operationId,
-      prepared,
-      startedAt: Date.now(),
-    });
-    mutationStarted = true;
-    await replaceObserverUnit(context, current.unit, afterUnit);
-    // Proof: retained A/current B failed recovery under30s windows with actual2m exporter caching (75-progress-recovery-green).
-    const windowMs = kind === 'rollback' ? 120000 : request.acceptance?.freshnessWindowMs;
-    if (windowMs === undefined) throw new Error('route-full-acceptance-required');
-    const { afterPID, observations } = await postcheck(
-      request.after,
-      afterUnit,
-      afterRoutes,
-      snapshot.pid,
-      snapshot.observation.observedAt,
-      // Proof: staged candidate A/current B failed forward under the reviewed30s minimum (86-forward-cache-red).
-      Math.max(windowMs, 120000),
-    );
-    const receipt = join(reservation.directory, 'completed.json');
-    publish(receipt, {
-      version: 1,
-      provider: 'dev-observer-local',
-      operationId,
-      kind,
-      phase: 'completed',
-      before: beforeRoutes,
-      after: afterRoutes,
-      request,
-      prepared,
-      startedAt,
-      completedAt: Date.now(),
-      beforePID: snapshot.pid,
-      afterPID,
-      observations,
-      historySHA256: request.history.receipt.sha256,
-    });
-    completed = true;
-    return { operationId, receipt };
-  } catch (error) {
-    if (mutationStarted && kind !== 'rollback' && baseline !== undefined) {
-      let compensationDirectory: string | undefined;
-      try {
-        const active = await inspectObserver(request.observer, request.after, afterUnit, context);
-        if (active.pid === baseline.pid || active.routes !== afterRoutes)
-          throw new Error('route-compensation-ownership', { cause: error });
-        await observeRetained();
-        await inspectRouteHistory(request.history, context);
-        const compensationId = randomUUID();
-        compensationDirectory = reserveRouteCompensation(context, operationId, compensationId);
-        const compensationStartedAt = Date.now();
-        const recoveryHealth = await probeRouteHealth(
-          request.before,
-          context,
-          request.observer,
-          request.adapterRevision,
+      baseline = snapshot;
+      if (recovery === undefined && snapshot.routes !== beforeRoutes)
+        throw new Error('route-current-binding-drift');
+      const grafanaSHA256 = request.grafana.sha256;
+      parseGrafanaJournal(readJSON(request.grafana));
+      const historyBefore = await inspectRouteHistory(request.history, context);
+      let prerequisites: unknown;
+      if (kind === 'rollback')
+        prerequisites = { scope: 'retained-path-recovery', identities: await observeRetained() };
+      else {
+        if (request.acceptance === undefined) throw new Error('route-full-acceptance-required');
+        const expected = request.acceptance;
+        readRouteEvidence(expected.receipt, expected, Date.now());
+        const target = hashHistory({
+          fleetId: preflightRequest.fleetId,
+          targetMarker: preflightRequest.targetMarker,
+          identityUID: preflightRequest.identityUID,
+          context: preflightRequest.context,
+          controllerContext: preflightRequest.controllerContext,
+        });
+        const stores = hashHistory({
+          claims: preflightRequest.claims,
+          docker: preflightRequest.docker,
+          candidateClaims: preflightRequest.candidate.map((candidate) => ({
+            namespace: candidate.namespace,
+            name: candidate.name,
+            claims: candidate.claims,
+          })),
+        });
+        const artifacts = hashHistory(
+          preflightRequest.candidate.map((candidate) => ({
+            path: candidate.artifactPath,
+            sha256: candidate.artifactSHA256,
+          })),
         );
-        const compensationRequest = {
-          ...request,
-          before: request.after,
-          after: request.before,
-          beforeSHA256: afterRoutes,
-          afterSHA256: beforeRoutes,
-          parent: byteReference(join(reservation.directory, 'mutation-started.json')),
-        };
-        const preparedPath = join(compensationDirectory, 'prepared.json');
-        publish(preparedPath, {
-          version: 1,
-          provider: 'dev-observer-local',
-          operationId: compensationId,
-          ownerPID: process.pid,
-          kind: 'rollback',
-          mode: 'compensation',
-          phase: 'prepared',
-          parentOperationId: operationId,
-          request: compensationRequest,
-          beforeUnit: afterUnit,
-          afterUnit: beforeUnit,
-          snapshot: { unitSHA256: active.unitSHA256, routes: active.routes, pid: active.pid },
-          recoveryHealth,
-          startedAt: compensationStartedAt,
+        const source = hashHistory(request.observer);
+        const selection = hashHistory({
+          resources: preflightRequest.resources,
+          // Proof: binding the fetched head rejected unchanged applied recipients (fix1/33); fresh preflight still checks the head.
+          source: {
+            kind: preflightRequest.source.kind,
+            name: preflightRequest.source.name,
+            namespace: preflightRequest.source.namespace,
+            uid: preflightRequest.source.uid,
+          },
+          nodes: preflightRequest.nodes.map(({ name, uid, machineID }) => ({
+            name,
+            uid,
+            machineID,
+          })),
+          workloads: preflightRequest.candidate.map(
+            ({ kind, instance, namespace, name, node, replicaUIDs }) => ({
+              kind,
+              instance,
+              namespace,
+              name,
+              node,
+              replicaUIDs,
+            }),
+          ),
         });
-        const prepared = byteReference(preparedPath);
-        publish(join(compensationDirectory, 'mutation-started.json'), {
-          version: 1,
-          operationId: compensationId,
-          prepared,
-          startedAt: Date.now(),
-        });
-        await replaceObserverUnit(context, afterUnit, beforeUnit);
-        const { afterPID, observations } = await postcheck(
-          request.before,
-          beforeUnit,
-          beforeRoutes,
-          active.pid,
-          active.observation.observedAt,
-          120000,
-        );
-        const receipt = join(compensationDirectory, 'completed.json');
-        publish(receipt, {
-          version: 1,
-          provider: 'dev-observer-local',
-          operationId: compensationId,
-          kind: 'rollback',
-          phase: 'completed',
-          before: afterRoutes,
-          after: beforeRoutes,
-          request: compensationRequest,
-          prepared,
-          startedAt: compensationStartedAt,
-          completedAt: Date.now(),
-          beforePID: active.pid,
-          afterPID,
-          observations,
-          historySHA256: request.history.receipt.sha256,
-        });
-        publish(join(reservation.directory, 'compensated.json'), {
-          version: 1,
-          operationId,
-          phase: 'compensated',
-          compensation: byteReference(receipt),
-          observedAt: Date.now(),
-        });
-        completed = true;
-      } catch (recoveryError) {
-        if (compensationDirectory !== undefined)
-          publish(join(compensationDirectory, 'uncertain.json'), {
-            version: 1,
-            phase: 'uncertain',
-            parentOperationId: operationId,
-            observedAt: Date.now(),
-            inspection,
-            recovery: `Inspect ${compensationDirectory}/prepared.json and the effective unit; retain the original ownership lock until reconciled.`,
-          });
-        // Boundary: failed compensation is retained and the original mutation remains explicitly uncertain.
-        if (!(recoveryError instanceof Error)) throw recoveryError;
+        if (
+          expected.rehearsal.sourceRevision !== preflightRequest.candidateRevision ||
+          expected.rehearsal.candidateRevision !== preflightRequest.candidateRevision ||
+          expected.staged.adapterRevision !== request.adapterRevision ||
+          expected.rehearsal.adapterRevision !== request.adapterRevision ||
+          expected.staged.target !== target ||
+          expected.staged.stores !== stores ||
+          expected.staged.routes !== afterRoutes ||
+          expected.staged.source !== source ||
+          // Proof: all four recreated live identities with matching fresh pins mutated the unit under the old cohort (fix1/01).
+          expected.staged.selection !== selection ||
+          expected.staged.artifactSHA256 !== artifacts ||
+          expected.staged.candidateRevision !== preflightRequest.candidateRevision ||
+          // Proof: Task79 fault 26 bypassed selection; 'composed operation refuses selection' failed; bytes restored.
+          expected.staged.sourceRevision !== preflightRequest.candidateRevision
+        )
+          throw new Error('route-acceptance-selection');
+        const preflight = await preflightObservability(preflightRequest, { transport, run });
+        // Proof: Task79 fault 27 bypassed candidate-ready; 'composed operation refuses unready' failed; bytes restored.
+        if (!preflight.migrationReady) throw new Error('route-candidate-unready');
+        prerequisites = preflight;
+        prerequisiteObservedAt = Date.parse(preflight.startedAt);
       }
-      if (completed) throw new Error('route-operation-compensated', { cause: error });
-    }
-    const executable = routeCommandPrefix();
-    const preparedPath = join(reservation.directory, 'prepared.json');
-    const prepared = mutationStarted ? byteReference(preparedPath) : undefined;
-    const sha = (bytes: string) => new Bun.CryptoHasher('sha256').update(bytes).digest('hex');
-    const retained = kind === 'rollback' ? afterUnit : beforeUnit;
-    const recoveryCommands =
-      prepared === undefined
-        ? []
-        : [...new Set([sha(beforeUnit), sha(afterUnit)])].map((current) => [
-            ...executable,
-            'recover',
-            prepared.path,
-            prepared.sha256,
-            current,
-            sha(retained),
-            String(process.pid),
-            '--reconciled',
-          ]);
-    publish(join(reservation.directory, mutationStarted ? 'uncertain.json' : 'refused.json'), {
-      version: 1,
-      provider: 'dev-observer-local',
-      operationId,
-      kind,
-      phase: mutationStarted ? 'uncertain' : 'refused',
-      observedAt: Date.now(),
-      inspection,
-      recoveryCommands,
-    });
-    if (mutationStarted)
-      throw new UncertainRouteOperation(
-        operationId,
-        reservation.directory,
-        inspection.split(' '),
-        recoveryCommands,
-        error,
+      const healthBefore = await probeRouteHealth(
+        request.after,
+        context,
+        request.observer,
+        request.adapterRevision,
       );
-    throw new Error('route-operation-refused', { cause: error });
-  } finally {
-    if (!mutationStarted || completed) reservation.release();
+      const retained = await observeRetained();
+      prerequisiteObservedAt =
+        kind === 'rollback'
+          ? retained.observedAt
+          : Math.min(prerequisiteObservedAt, retained.observedAt);
+      const preparedPath = join(reservation.directory, 'prepared.json');
+      publish(preparedPath, {
+        version: 1,
+        provider: 'dev-observer-local',
+        operationId,
+        ownerPID: process.pid,
+        kind,
+        mode: recovery === undefined ? 'normal' : 'recovery',
+        phase: 'prepared',
+        request,
+        beforeUnit,
+        afterUnit,
+        snapshot: { unitSHA256: snapshot.unitSHA256, routes: snapshot.routes, pid: snapshot.pid },
+        prerequisites,
+        healthBefore,
+        historyBefore,
+        grafanaSHA256,
+        startedAt,
+      });
+      const prepared = byteReference(preparedPath);
+      // Proof: the old error-path reread lost recovery metadata on transient post-invocation denial (fix1/14).
+      preparedReference = prepared;
+      const current = await inspectObserver(
+        request.observer,
+        request.before,
+        beforeUnit,
+        context,
+        recoveryPolicy,
+      );
+      if (
+        current.pid !== snapshot.pid ||
+        current.unitSHA256 !== snapshot.unitSHA256 ||
+        current.loadedCommand !== snapshot.loadedCommand ||
+        (recovery === undefined && current.routes !== beforeRoutes) ||
+        observerRouteCommitment(resolveObserverRoutes(request.after, context)) !== afterRoutes ||
+        // Proof: Task79 fault 28 bypassed inventory-expiry; 'candidate inventory expiry' failed; bytes restored.
+        Date.now() - prerequisiteObservedAt > preflightRequest.maxAgeMs
+      )
+        throw new Error('route-preparation-expired-or-drifted');
+      publish(join(reservation.directory, 'mutation-started.json'), {
+        version: 1,
+        operationId,
+        prepared,
+        startedAt: Date.now(),
+      });
+      if (recoveryReservation !== undefined) recoveryReservation.activate();
+      progress.mutationStarted = true;
+      await replaceObserverUnit(context, current.unit, afterUnit);
+      // Proof: retained A/current B failed recovery under30s windows with actual2m exporter caching (75-progress-recovery-green).
+      const windowMs = kind === 'rollback' ? 120000 : request.acceptance?.freshnessWindowMs;
+      if (windowMs === undefined) throw new Error('route-full-acceptance-required');
+      const { afterPID, observations } = await postcheck(
+        request.after,
+        afterUnit,
+        afterRoutes,
+        snapshot.pid,
+        snapshot.observation.observedAt,
+        // Proof: staged candidate A/current B failed forward under the reviewed30s minimum (86-forward-cache-red).
+        Math.max(windowMs, 120000),
+      );
+      const receipt = join(reservation.directory, 'completed.json');
+      publish(receipt, {
+        version: 1,
+        provider: 'dev-observer-local',
+        operationId,
+        kind,
+        phase: 'completed',
+        before: beforeRoutes,
+        after: afterRoutes,
+        request,
+        prepared,
+        startedAt,
+        completedAt: Date.now(),
+        beforePID: snapshot.pid,
+        afterPID,
+        observations,
+        historySHA256: request.history.receipt.sha256,
+      });
+      progress.completed = true;
+      return { operationId, receipt };
+    } catch (error) {
+      if (progress.mutationStarted && kind !== 'rollback' && baseline !== undefined) {
+        let compensationDirectory: string | undefined;
+        try {
+          const active = await inspectObserver(request.observer, request.after, afterUnit, context);
+          if (active.pid === baseline.pid || active.routes !== afterRoutes)
+            throw new Error('route-compensation-ownership', { cause: error });
+          await observeRetained();
+          await inspectRouteHistory(request.history, context);
+          const compensationId = randomUUID();
+          compensationDirectory = reserveRouteCompensation(context, operationId, compensationId);
+          const compensationStartedAt = Date.now();
+          const recoveryHealth = await probeRouteHealth(
+            request.before,
+            context,
+            request.observer,
+            request.adapterRevision,
+          );
+          const compensationRequest = {
+            ...request,
+            before: request.after,
+            after: request.before,
+            beforeSHA256: afterRoutes,
+            afterSHA256: beforeRoutes,
+            parent: byteReference(join(reservation.directory, 'mutation-started.json')),
+          };
+          const preparedPath = join(compensationDirectory, 'prepared.json');
+          publish(preparedPath, {
+            version: 1,
+            provider: 'dev-observer-local',
+            operationId: compensationId,
+            ownerPID: process.pid,
+            kind: 'rollback',
+            mode: 'compensation',
+            phase: 'prepared',
+            parentOperationId: operationId,
+            request: compensationRequest,
+            beforeUnit: afterUnit,
+            afterUnit: beforeUnit,
+            snapshot: { unitSHA256: active.unitSHA256, routes: active.routes, pid: active.pid },
+            recoveryHealth,
+            startedAt: compensationStartedAt,
+          });
+          const prepared = byteReference(preparedPath);
+          publish(join(compensationDirectory, 'mutation-started.json'), {
+            version: 1,
+            operationId: compensationId,
+            prepared,
+            startedAt: Date.now(),
+          });
+          await replaceObserverUnit(context, afterUnit, beforeUnit);
+          const { afterPID, observations } = await postcheck(
+            request.before,
+            beforeUnit,
+            beforeRoutes,
+            active.pid,
+            active.observation.observedAt,
+            120000,
+          );
+          const receipt = join(compensationDirectory, 'completed.json');
+          publish(receipt, {
+            version: 1,
+            provider: 'dev-observer-local',
+            operationId: compensationId,
+            kind: 'rollback',
+            phase: 'completed',
+            before: afterRoutes,
+            after: beforeRoutes,
+            request: compensationRequest,
+            prepared,
+            startedAt: compensationStartedAt,
+            completedAt: Date.now(),
+            beforePID: active.pid,
+            afterPID,
+            observations,
+            historySHA256: request.history.receipt.sha256,
+          });
+          const compensationRecorded = recordOutcome(
+            join(reservation.directory, 'compensated.json'),
+            {
+              version: 1,
+              operationId,
+              phase: 'compensated',
+              compensation: byteReference(receipt),
+              observedAt: Date.now(),
+            },
+            'compensation-completion-write-failed',
+          );
+          if (!compensationRecorded)
+            throw new Error('route-compensation-recording-failed', { cause: error });
+          progress.completed = true;
+        } catch (recoveryError) {
+          if (compensationDirectory !== undefined)
+            recordOutcome(
+              join(compensationDirectory, 'uncertain.json'),
+              {
+                version: 1,
+                phase: 'uncertain',
+                parentOperationId: operationId,
+                observedAt: Date.now(),
+                inspection,
+                recovery: `Inspect ${compensationDirectory}/prepared.json and the effective unit; retain the original ownership lock until reconciled.`,
+              },
+              'compensation-uncertainty-write-failed',
+            );
+          // Boundary: failed compensation is retained and the original mutation remains explicitly uncertain.
+          failureCauses.push(recoveryError);
+        }
+        if (progress.completed) throw new Error('route-operation-compensated', { cause: error });
+      }
+      const uncertain = progress.mutationStarted || recovery !== undefined;
+      const metadata = uncertain
+        ? uncertainMetadata()
+        : { operationId, directory: reservation.directory, recoveryCommands: [] };
+      const recorded = recordOutcome(
+        join(reservation.directory, uncertain ? 'uncertain.json' : 'refused.json'),
+        {
+          version: 1,
+          provider: 'dev-observer-local',
+          operationId,
+          kind,
+          phase: uncertain ? 'uncertain' : 'refused',
+          observedAt: Date.now(),
+          inspection,
+          recoveryCommands: metadata.recoveryCommands,
+        },
+        'uncertainty-write-failed',
+      );
+      if (uncertain) {
+        const uncertainty = new UncertainRouteOperation(
+          metadata.operationId,
+          metadata.directory,
+          inspection.split(' '),
+          metadata.recoveryCommands,
+          failureCauses.length === 0
+            ? error
+            : new AggregateError([error, ...failureCauses], 'route-uncertainty-persistence'),
+          persistenceFailures,
+          recorded,
+        );
+        throw uncertainty;
+      }
+      throw new AggregateError([error, ...failureCauses], 'route-operation-refused', {
+        cause: error,
+      });
+    }
+  };
+  let outcome:
+    | { state: 'completed'; operation: { operationId: string; receipt: string } }
+    | { state: 'failed'; cause: unknown };
+  try {
+    outcome = { state: 'completed', operation: await performOperation() };
+  } catch (error) {
+    outcome = { state: 'failed', cause: error };
   }
+  if ((!progress.mutationStarted && !transferred()) || progress.completed) {
+    try {
+      reservation.release();
+    } catch (error) {
+      const uncertainty =
+        outcome.state === 'failed' && outcome.cause instanceof UncertainRouteOperation
+          ? outcome.cause
+          : undefined;
+      if (uncertainty !== undefined) {
+        persistenceFailures.push('ownership-release-failed');
+        throw new UncertainRouteOperation(
+          uncertainty.operationId,
+          uncertainty.directory,
+          uncertainty.inspection,
+          uncertainty.recoveryCommands,
+          new AggregateError([uncertainty, error], 'route-ownership-release', { cause: error }),
+          persistenceFailures,
+          uncertainty.uncertaintyRecorded,
+        );
+      }
+      if (progress.mutationStarted || recovery !== undefined) {
+        const metadata = uncertainMetadata();
+        throw new UncertainRouteOperation(
+          metadata.operationId,
+          metadata.directory,
+          inspection.split(' '),
+          metadata.recoveryCommands,
+          error,
+          ['ownership-release-failed'],
+        );
+      }
+      throw new Error('route-ownership-release-failed', { cause: error });
+    }
+  }
+  if (outcome.state === 'failed') throw outcome.cause;
+  return outcome.operation;
 }

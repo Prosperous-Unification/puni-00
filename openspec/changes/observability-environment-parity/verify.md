@@ -5417,3 +5417,96 @@ remain intact. New import paths add no unembedded asset read; reached paths stil
 require the existing reviewed private inputs and access. Final Git-blob identities,
 preserved test manifests, exact build command, raw indexed artifacts and skipped
 live/CI acceptance are linked by the handoff report. No build/deploy on h1 occurred.
+
+### Task79 independent review fix round1
+
+Fix base is `0f932d2031fb693e0d9bdc3a7eb3d7d85e9a9a68`. The root confirmed all
+six Important findings in `/tmp/puni-task79-review.md`; this round addresses only
+those findings and their necessary contract/fixture integration. New raw evidence
+lives at `/tmp/puni-task79-fix1-evidence/`; prior manifests, binaries and source
+captures remain unchanged. The previous report is preserved byte-for-byte as
+`pre-fix-report.md` before appending the new handoff.
+
+Staged acceptance now binds a neutral `selection` digest over selected controller
+resource pins, repository kind/name/namespace/UID, node identities and workload
+replica identities. Four composed01 REDs changed live UIDs and their fresh request
+pins while keeping the reviewed cohort, then observed forbidden unit mutation.
+The GitRepository fetched `requiredRevision` alone is excluded per root ruling;
+fresh preflight still validates its independently refreshed live pin. Applied
+resource revisions remain bound because current preflight cannot establish
+semantic equivalence of changed controller/chart/config source.33 genuinely
+rejected fetched-but-unapplied head progress before the narrow correction;35
+then passed both that positive and applied-revision/UID refusals. No source
+revision equivalence framework was added.
+
+The existing `maxAgeMs` conservatively bounds each member start, with all actual
+command captures and both windows inside that interval. A week-old internally
+valid cohort with fresh completion was accepted in01 and refused after the fix.
+Neutral controller-convergence/effective-workload-isolation names replace core
+Flux/Pod assumptions; the adapter requires exact explicit provider projections.
+02 exposed the old vocabulary, while16 proved bypassing provider binding accepts
+the wrong concrete projection.03 passed the first six corrected identity/age/name
+controls. The full actual cohort producer remains missing; reviewed input still
+is not automatic runtime certification.
+
+Reservation/compensation sync the state-root entries before mutation. Explicit
+recovery holds the original lock and an exclusive lease throughout preparation;
+only durable successor prepared/mutation-started evidence permits exact original
+owner archival and atomic inactive-owner replacement. Pending owner bytes stay
+inside its operation directory, keeping interrupted writes out of the lock.
+Source/destination rename directories sync before the next unit write.04b and04
+showed forbidden reservation/compensation/recovery unit mutation without those
+dependencies.05 passed the retry and initial directory controls.13 proves a real
+child's final owner-sync failure leaves its exact emitted successor command usable
+after exit.08 also proves interrupted lease cleanup leaves the original command
+usable, plus active/unknown/foreign lease refusal. No lock edit or PID pin rewrite
+is needed for either actual-child retry.
+
+Uncertainty retains the cached successful prepared reference and always emits
+safe inspection/recovery argv, closed persistence diagnostics and an honest
+`uncertaintyRecorded` flag despite occupied/write/sync failure.07b's first three
+controls and07c compensation prove actual unit/owner/prepared/mutation-started
+state before the old generic CLI failure;14 proves a transient prepared reread
+denial used to lose the actionable output. Final tests verify the new CLI emits
+uncertainty, retains ownership and never prints the injected private cause text.
+Cleanup follows an explicit modeled operation outcome, preserving both original
+and cleanup causes without an unsafe `finally` override.
+
+New guard controls16–22 each failed the intended production-path assertion:
+provider admission; archive-file sync; both rename directory syncs; active lease;
+foreign lease ancestry; preparation-time lease drift.17–22 failed unit-state
+assertions before categories. All seven exact source restorations are recorded
+in `guard-faults.json` and independently corroborated by the parent's indexed
+`parent-guard-audit.json`. The old31-control matrix was not replayed.
+
+Uncredited attempts remain retained:04's first reservation control checked only
+missing injection and was replaced by direct mutation04b;07 lacked precondition
+assertions and07b's compensation setup overwrote fresh manager state, corrected
+in07c only.08's one failed child and10–12 mixed real and frozen fixture clocks,
+so the existing source-time guard correctly refused before the intended fault;
+13 aligned that explicit fixture clock without production relaxation.15 had five
+passing assertions groups but process exit1 because the CLI test restored an
+undefined exit status; explicit controlled zero restored the test process before
+final verification.24/26 lint failures led to precise types, preserved causes and
+modeled cleanup/progress, with final31/37 lint passing.
+
+One final affected covering28 passed82 tests/312 assertions in89.61s, exit0.
+Both owning no-emit spec typechecks29/30, scoped seven-file lint31 and strict
+OpenSpec32 exited0. After the narrow root-ruled repository projection correction,
+only six affected selection cases35 ran:6 passed/11 assertions in3.80s; changed
+Fleet types36, two-file lint37 and strict OpenSpec38 exited0. The82 suite was not
+replayed. Exact argv/status records are in `checks.json`.
+The immutable12-file28 manifest SHA256 is
+`a52e501e155c521635cd68fc6e910759fb2784b000ae293a1288b977a9ab60dd`;
+the35 input is separately captured in `selection-tested-source.json` at
+`81ac648b7b66ea4bd460cce3e7b81b21ed8944cebccb6eda459c4870bc9e5994`.
+Final identity distinguishes the two corrected Fleet source/test files and
+owning selection-contract docs from unchanged28 input and later verification
+metadata; neither tested manifest is rewritten.
+
+All results remain component/source evidence. Actual full acceptance production,
+observer access/runtime, source-to-backend operations, admission and full live
+rehearsal remain unverified. Canonical4.1/4.2 stay open. Required CI/host-gate
+certification remains blocking and unverified here; parallel CI bootstrap work is
+outside this fix. No remote call, real backend publication, CI run/workflow edit,
+Secret, production, deploy, push or merge was performed by this agent.

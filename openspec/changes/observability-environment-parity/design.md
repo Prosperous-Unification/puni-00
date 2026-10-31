@@ -626,8 +626,9 @@ fresh forward acceptance, preserving every earlier receipt byte-for-byte.
 Uncertain operations emit a pinned runnable explicit recovery command for the
 same observer-local executable. Recovery requires the prepared digest, exact
 current/prior unit hashes and explicit operator reconciliation. It proves the
-original owner process inactive, reacquires exclusive recovery ownership without
-stealing an active or unknown lock, and reuses retained-route/source/history
+original owner process inactive, retains the root lock during preparation and
+transfers its owner record only after durable successor preparation, without
+stealing an active or unknown lock. It reuses retained-route/source/history
 inspection and the rollback transaction with a new receipt. Only captured BEFORE
 or AFTER file/loaded-command combinations are recognized, including a known
 NeedDaemonReload state after a lost reload/restart. Unknown third states, changed
@@ -669,3 +670,32 @@ The pinned collector0.160.0 [Prometheus accumulator](https://github.com/open-tel
 keys gauges by producer scope/version and attributes, ignores older timestamps,
 and expires from last update with a strict comparison; scrape collection does not
 refresh expiry. This supports the fixture model, not actual live120s timing proof.
+
+Task79 review correction binds a neutral `selection` commitment to concrete
+preflight controller/resource pins, repository source pins, selected node
+name/UID/machine identity and candidate workload/replica identities. Application
+revision remains moving observation evidence. The existing reviewed `maxAgeMs`
+now bounds each member's start; captures/windows must already lie inside that
+interval, conservatively bounding every actual check without a new freshness knob.
+Core check names are controller convergence and effective workload isolation;
+the dedicated adapter requires explicit Flux and effective-Pod projections.
+The repository selection binds kind/name/namespace/UID, excluding only its fetched
+`requiredRevision`. Fresh preflight still validates that live head against an
+independently refreshed pin. Applied `resources[].requiredRevision` stays bound:
+controller/chart/config changes can preserve UIDs and current preflight cannot
+prove semantic equivalence. A fetched but unapplied main advance may reuse the
+cohort; an applied controller revision change requires new reviewed evidence.
+No revision-equivalence framework or relaxed controller convergence is implied.
+
+Operation/lock creation syncs the state parent before mutation; compensation does
+the same. Explicit recovery retains its original ownership during preparation.
+Only after durable successor preparation does it archive original owner evidence
+durably, atomically transfer the owner record inside the continuously held lock,
+and sync both rename directories before unit invocation. Pending owner bytes stay
+in the successor evidence directory, so interrupted publication cannot obstruct
+later lock release. A refused preparation removes only
+its own lease, leaving the original pinned command retryable. Post-invocation
+uncertainty always emits safe inspection/recovery metadata even if recording it
+fails; fixed typed persistence diagnostics explicitly distinguish undurable
+outcomes. Prepared references are retained from successful preparation, never
+mandatorily reread while constructing an uncertainty error.

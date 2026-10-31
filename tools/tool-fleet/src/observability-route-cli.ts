@@ -5,9 +5,12 @@ import {
 } from './observability-route';
 
 /** Fixed diagnostics keep trusted credential-bearing state and subprocess bodies out of stderr. */
-export async function runObservabilityRouteCli(arguments_: readonly string[]): Promise<void> {
+export async function runObservabilityRouteCli(
+  arguments_: readonly string[],
+  options?: Parameters<typeof runObservabilityRoute>[1],
+): Promise<void> {
   try {
-    const completed = await runObservabilityRoute(arguments_);
+    const completed = await runObservabilityRoute(arguments_, options);
     console.log(JSON.stringify({ state: 'completed', ...completed, scope: 'dev-route-operation' }));
   } catch (error) {
     if (error instanceof Error && error.message === 'route-arguments') {
@@ -29,6 +32,8 @@ export async function runObservabilityRouteCli(arguments_: readonly string[]): P
           directory: error.directory,
           inspection: error.inspection,
           recoveryCommands: error.recoveryCommands,
+          uncertaintyRecorded: error.uncertaintyRecorded,
+          persistenceFailures: error.persistenceFailures,
         }),
       );
       process.exitCode = 1;
