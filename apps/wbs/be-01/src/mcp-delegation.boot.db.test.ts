@@ -468,7 +468,8 @@ describe('MCP delegation through the booted composition', () => {
   test('refuses an unlinked token, a native session and an expired upstream token', async () => {
     be = await boot();
     await activateTwoOrganizations(be);
-    // Groups-less and linked to nobody: the claims change's machine-token rule.
+    // Groups-less: a machine bearer (`wbs-mcp-agent-surface` M9, its groups-less half), which
+    // proves no human sign-in to delegate, as a foreign issuer's token does not.
     const machine = await new SignJWT({})
       .setProtectedHeader({ alg: 'RS256', kid: 'idp' })
       .setIssuer(ISSUER)
@@ -488,7 +489,7 @@ describe('MCP delegation through the booted composition', () => {
         },
         { organizationId: 'org-a', userId: 'u-ada', client: 'c', grant: 'g', scope: 'read' },
       );
-    expect(await ask(machine)).toEqual({ status: 401, body: { error: 'unknown_identity' } });
+    expect(await ask(machine)).toEqual({ status: 401, body: { error: 'unauthenticated' } });
     const expired = await upstreamToken('auth0|ada', { lifetimeSeconds: -10 });
     expect(await ask(expired)).toEqual({ status: 401, body: { error: 'unauthenticated' } });
     expect(await ask('not-a-token')).toEqual({ status: 401, body: { error: 'unauthenticated' } });

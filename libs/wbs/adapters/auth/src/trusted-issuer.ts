@@ -230,7 +230,8 @@ export class TrustedIssuerKeySets implements TrustedIssuerTokens {
     } catch (cause) {
       // Proof: with this branch rethrowing, `refuses invalid_token when the
       // key set answers 503` in `oidc-credential.controller.db.test.ts`
-      // answered 500; watched 2026-10-22.
+      // answered 500; watched 2026-10-22, and again through mcp-01's
+      // jwt-bearer grant 2026-10-29.
       if (
         cause instanceof KeySetUnavailable ||
         cause instanceof errors.JWKSInvalid ||

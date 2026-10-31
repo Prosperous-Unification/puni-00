@@ -278,11 +278,14 @@ function mcpDelegationComposition(
             consentCredentialOf,
           ),
     mcpDelegation: mcpDelegationAuthority({
-      // mcp-01 forwards a human's configured-issuer token; one the trusted-issuer
-      // path refuses `invalid_token` is no upstream sign-in at all.
+      // mcp-01 forwards a human's configured-issuer token; an invalid one, and
+      // a machine bearer (M9: a key, another issuer's JWT or a groups-less
+      // one), is no upstream sign-in at all.
       authenticate: async (token) => {
         const outcome = await services.auth.authenticateOrRefuse(token);
-        return outcome === 'invalid_token' ? null : outcome;
+        return outcome === 'invalid_token' || outcome === 'machine_bearer_not_accepted'
+          ? null
+          : outcome;
       },
       choices: new SqliteOrganizationSelection(db),
       organizations: access,
@@ -338,7 +341,8 @@ function machineGrantComposition(
       activationState: () => readOrganizationActivation(db),
       keys,
       authorizationServer: settings.authorizationServer,
-      admitProof: (presented) => services.auth.admitMachineProof(presented),
+      admitProof: (presented, audienceRoot) =>
+        services.auth.admitMachineProof(presented, audienceRoot),
       audit: new MachineTokenAuditRepository(db, services.gate),
       now,
     }),

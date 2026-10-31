@@ -170,15 +170,60 @@ signed-in checks fail with 401. Every signed-in request asks the OIDC verifier f
 outage of the provider's discovery or JWKS endpoint shows as 500 on the signed-in checks. That is
 not an application fault.
 
-## Fleet credential links
+## Fleet credentials
 
-Link or unlink a fleet's machine-to-machine credential in the live colour; the
-flags, scopes and refusals are in
-[fleet credentials](auth-integration.md#fleet-credentials):
+Fleets hold machine credentials their organization issues on the settings page
+(`/organization`, "Machine credentials"); the sources and rules are in
+[fleet credentials](auth-integration.md#fleet-credentials). There is no host
+CLI: an operator never links a credential in the live colour.
 
-```sh
-docker exec be-01-<colour> bun run src/link-credential-cli.ts --issuer=<iss> --subject=<sub> --account=<id or username> [--person=<id>]
-```
+**Swap window of the link retirement** (`wbs-machine-credentials` A18, slice 4).
+The release that retires the operator links refuses every Auth0 token without
+`wbs_groups`: as a Bearer on `/api` (`401 machine_bearer_not_accepted`, naming
+`/mcp`; `wbs-mcp-agent-surface` M9), as a browser session cookie (link start
+and callback) and as a refreshed access token. It never reads
+`external_identity.person_id`. Before swapping to it:
+
+1. An admin issues one API key per fleet agent person on the target
+   environment's organization page, and each fleet harness holds its key.
+2. Laptop Claude Code authorizes its agent person at the mcp-01 consent page.
+3. Each fleet calls through `/mcp` with its key instead of its Auth0
+   machine-to-machine token (`/api` refuses both keys and such tokens, M9). An
+   outgoing colour with machine credentials already admits the key and still
+   honours the links until it stops, so a fleet may switch before the swap and
+   must have switched by it.
+4. Evidence, on the outgoing colour: the panel shows a recent "last used" for
+   every new key. A key with none is a fleet still on its Auth0 token, which the
+   swap would cut off.
+5. Evidence that browser sessions survive a refresh: sign in on the target
+   environment, let the session refresh once, decode the refreshed access token
+   and confirm it carries `wbs_groups` (the Auth0 Action must emit it on the
+   refresh grant too). Record the result in the change's `verify.md`, never the
+   token. Without the claim every session ends at its first refresh.
+
+**No person deletions during the swap window.** The new colour deletes a
+person's pinned link rows with the person, unconfirmed, while the outgoing
+colour still honours those links; a new fe-01 talking to the outgoing be-01
+also shows an empty-looking confirmation for a pinned person. Delete persons
+only after the swap commits.
+
+After the swap, confirm every fleet writes, then delete the Auth0
+machine-to-machine applications in the Auth0 dashboard. The pinned rows the
+links left admit nothing; deleting a person removes theirs. A rollback to the
+outgoing release re-admits the links that still exist: rows removed by person
+removals on the new colour stay gone, so their fleets need their API keys (or a
+re-link on the old release) after a rollback. Delete the Auth0 applications
+only once rollback is no longer an option.
+
+**Cleanup once rollback is off the table** (describe, don't automate). Every
+row the retired CLI wrote is a machine pair, an Auth0 machine-to-machine
+subject `<client id>@clients`, pinned or not. Take a backup, list them first
+(`SELECT id, user_id, subject, person_id FROM external_identity WHERE subject
+LIKE '%@clients'`), check no human sign-in is among them, then delete exactly
+those rows. Rolling back `20261019130100_add_external_identity_person` stays
+refused while any row is pinned; its message names the retired CLI, so delete
+the pinned rows (`DELETE FROM external_identity WHERE person_id IS NOT NULL`)
+after a backup instead.
 
 ## MCP agent surface
 
@@ -192,6 +237,12 @@ three settings is [step 2c](runbook-organization-activation.md#step-2c-seed-the-
 (`readMcpExposure` in `swap.ts` answers false outside dev). On Compose prod, then, only be-01's
 half applies. No agent can reach a machine grant there until an mcp-01 serves prod's `/mcp`.
 The Kubernetes release does run mcp-01; what it needs is under [Kubernetes](#kubernetes).
+
+**Machine credentials have no working surface on Compose prod until `/mcp` is routed.** Since
+slice 7 (M9), be-01's `/api` refuses `wbs_mk_` keys and trusted issuers' tokens
+(`401 machine_bearer_not_accepted`), and that surface is not replaced until an mcp-01 serves
+prod's `/mcp`. Deploying this release to Compose prod therefore cuts off any fleet that still
+calls `/api` with a key.
 
 ### The three settings
 
@@ -256,12 +307,11 @@ The Kubernetes release does run mcp-01; what it needs is under [Kubernetes](#kub
    [team claims swap window](#team-claims-swap-window-and-rollback). While an older be-01 can
    still serve, create no pool with a near `expiresAt`. To stop a pool in the window, revoke it
    rather than let it expire.
-6. **Task 3.8 timing.** The consent path's `use === undefined` branch (`consentClaimsOf` in
-   `apps/wbs/mcp-01/src/oauth.ts`) may be removed one `MCP_ACCESS_TOKEN_TTL` (default
-   3,600 s) after the swap that brings slice 2 (PR #761) to the mcp-01 serving prod. If prod's
-   first mcp-01 already carries #761, no consent token without `token_use` was ever issued
-   there, and prod adds no wait. The owner is whoever lands that swap; record the time in the
-   change's `verify.md`.
+6. **Task 3.8 is done.** The consent path refuses a token without `token_use` (no fallback).
+   Dev was past one `MCP_ACCESS_TOKEN_TTL` since slice 2 (PR #761, live 2026-10-27), and the
+   Compose prod swap routes no `/mcp` and the Kubernetes cutover is not yet authorized, so
+   no prod mcp-01 has run: the first one already issues `token_use: consent` and needs no
+   wait. This step is a record, not an action.
 
 ### Audience preflight
 
@@ -276,10 +326,19 @@ and writes nothing. Its exit codes:
   `<n> stored audience(s) break WBS_MCP_AUTHORIZATION_SERVER and are not accepted: …`;
 - non-zero, by throwing, on arguments, a missing `DB_PATH` or a non-canonical server.
 
-Until slice 7 (task 1.5's "with slice 7") stored rows keep verifying, so a listed row breaks
-nothing yet. The listing names the work that slice 7, or any change of `MCP_PUBLIC_URL`, will
-force. Each listed registration needs its identity provider changed and the registration
-re-made.
+Since slice 7 (task 1.5 at use), a listed row is refused at use: a workload token verified
+against that audience gets `invalid_grant` at mcp-01's token endpoint. A change of
+`MCP_PUBLIC_URL` breaks rows the same way. Before deploying, re-register each listed row:
+
+1. Change the identity provider so its tokens carry an audience equal to
+   `WBS_MCP_AUTHORIZATION_SERVER` or under it after a `/` (the organization page suggests
+   `<audienceRoot>/org/<organization id>`).
+2. Delete the registration and register it again with that audience, and re-create its
+   credentials. A credential's own narrowing must meet the same rule.
+
+`--accept-breaking=<ids>` (`WBS_ACCEPT_BREAKING_AUDIENCES`) therefore no longer means "breaks
+later": it lets the swap proceed while the named rows **stop verifying at once**. Name an id
+only for a row whose workload you accept losing until it is re-registered.
 
 **Wired into both deploys.** Both run it with the candidate image, before any migration, and
 take the accepted ids from the deploy CLI:

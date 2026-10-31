@@ -191,18 +191,9 @@ export interface DirectoryUsageRows {
    */
   claims: readonly { workItemId: string; stepId: string | null; personId: string }[];
   /**
-   * How many linked credentials are pinned to the person being removed
-   * (`external_identity.person_id`, `wbs-team-claims` D6); 0 for a team. A
-   * pin names no project, so it is a count beside the trees, and it refuses an
-   * unconfirmed removal `in_use` as an assignment does. A confirmed removal
-   * revokes those credentials with the person rather than unpinning them: an
-   * unpinned fleet credential could claim as any person of its account.
-   */
-  pinnedCredentials: number;
-  /**
    * How many unrevoked machine credentials are pinned to the person being
    * removed (`machine_credential.person_id`, `wbs-machine-credentials`); 0 for
-   * a team. Like a pin it refuses an unconfirmed removal `in_use`; a confirmed
+   * a team. Like an assignment it refuses an unconfirmed removal `in_use`; a confirmed
    * removal revokes them, auditing each, and removes them with the person.
    */
   machineCredentials: number;
@@ -591,13 +582,6 @@ export interface DirectoryStore {
    */
   boundAccountOf(personId: string): Promise<string | null>;
   /**
-   * The person a linked credential `(issuer, subject)` is pinned to, or null
-   * when the credential is unpinned or is not linked through
-   * `external_identity` at all (a pre-activation login's pair lives on its
-   * user row and is unpinned) — `wbs-team-claims` D6.
-   */
-  credentialPinOf(issuer: string, subject: string): Promise<string | null>;
-  /**
    * What points at this person right now — a **fast path** for the refusal,
    * never the authority for it. Between this answer and any delete, anybody may
    * assign them. {@link DirectoryStore.removePerson} is what decides.
@@ -608,8 +592,8 @@ export interface DirectoryStore {
   /**
    * Counts what points at the person, refuses an unconfirmed removal that would
    * take any of it, and otherwise drops their assignments, their claims, the
-   * credentials pinned to them (revoked, see
-   * {@link DirectoryUsageRows.pinnedCredentials}), their memberships and the
+   * machine credentials pinned to them (revoked, see
+   * {@link DirectoryUsageRows.machineCredentials}), their memberships and the
    * person — all in **one** transaction, moving the revision of every work item
    * that lost an assignment or a claim.
    *

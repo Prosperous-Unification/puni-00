@@ -420,14 +420,9 @@ export interface DirectoryUsage {
   }[];
   members: { id: string; name: string }[];
   /**
-   * Linked credentials pinned to the person, revoked by a confirmed removal.
-   * Optional on the wire: an outgoing be-01 mid-swap counts no pins.
-   */
-  pinnedCredentials?: number;
-  /**
    * Unrevoked machine credentials of the person, revoked by a confirmed
-   * removal and refusing an unbind or rebind. Optional on the wire: an
-   * outgoing be-01 mid-swap counts none.
+   * removal and refusing an unbind or rebind; 0 for a team. Optional on the
+   * wire: a be-01 older than `wbs-machine-credentials` slice 2 omits it.
    */
   machineCredentials?: number;
 }
@@ -586,6 +581,12 @@ type BareRefusalCode =
    * fault mcp-01 reports, never a user's refusal.
    */
   | 'internal_unauthorized'
+  /**
+   * A `wbs_mk_` key or another issuer's JWT presented to `/api`
+   * (`wbs-mcp-agent-surface` M9): machines call WBS through `/mcp`, which the
+   * refusal's `endpoint` names. Refused before any read.
+   */
+  | 'machine_bearer_not_accepted'
   /** A machine grant whose `kid` names no configured grant key (M3): mcp-01 re-fetches. */
   | 'unknown_grant_key'
   /** A workload assertion whose `typ` is neither absent nor `JWT` (M2). */

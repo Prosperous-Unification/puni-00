@@ -1867,7 +1867,9 @@ await import(${JSON.stringify(productionSnapshotter)});
     // Proof (2026-10-20): run 39340424241 exposed the stale Twilight expectation.
     // Restoring its production allowance to 50 failed this focused test with
     // `Expected: 75 · Received: 50`; restoring the chosen 75 minutes passed.
-    expect(ci.jobs?.gate_workspace?.['timeout-minutes']).toBe(90);
+    // Proof (2026-10-30): the obsolete production workspace allowance of 90 failed
+    // this focused case with `Expected: 120 · Received: 90`; choosing 120 passed both assertions.
+    expect(ci.jobs?.gate_workspace?.['timeout-minutes']).toBe(120);
     expect(ci.jobs?.gate_twilight?.['timeout-minutes']).toBe(75);
   });
 

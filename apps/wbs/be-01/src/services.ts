@@ -183,9 +183,8 @@ export function buildServices(options: ServicesOptions): BeServices {
       // on its domain` in `enterprise-email-trust.controller.db.test.ts` fail.
       enterprise: new EnterpriseConnectionRepository(source.db, source.gate),
       // Proof: wiring an inert store answering every id null here made every
-      // admitting case of `machine-credential.controller.db.test.ts` fail
-      // (`routes an API key to its credential …` among them); watched
-      // 2026-10-22.
+      // admitting case of `machine-credential.controller.db.test.ts` fail;
+      // watched 2026-10-22, and every MCP-path admitting case of it 2026-10-29.
       machineCredentials: new MachineCredentialRepository(source.db, source.gate),
       ...(options.trustedIssuers === undefined ? {} : { trustedIssuers: options.trustedIssuers }),
       ...(options.oidc === undefined ? {} : { oidc: options.oidc }),

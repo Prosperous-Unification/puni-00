@@ -2,6 +2,12 @@ import { join } from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from 'bun:test';
 
+import {
+  type McpAgentSession,
+  type McpAgentStack,
+  startMcpAgentStack,
+  type ToolAnswer,
+} from './testing/mcp-agent-stack';
 import { OrganizationHarness } from './testing/organization-harness';
 
 /**
@@ -12,6 +18,11 @@ import { OrganizationHarness } from './testing/organization-harness';
  * and four agents claiming at once with `assign: true` (`wbs-team-claims`, `assignee-management`).
  * Store access is limited to setup no route offers: the organization row, its admin and its
  * activation marker. The tests share one store and run in order.
+ *
+ * The agents take the MCP path (`wbs-mcp-agent-surface` task 7.0): each exchanges its key for
+ * an access token at a real mcp-01's token endpoint and makes tool calls on `/mcp`
+ * (`startMcpAgentStack`); no agent request reaches `/api` with its key. Dany, the human
+ * admin, stays on `/api` with a browser-equivalent session.
  */
 setDefaultTimeout(60_000);
 
@@ -39,6 +50,7 @@ const LEAVES = [
 ] as const satisfies readonly { key: string; batch: 'A' | 'B'; ram: number; swarm: Agent | null }[];
 type LeafKey = (typeof LEAVES)[number]['key'];
 
+let stack: McpAgentStack;
 let h: OrganizationHarness;
 
 const ids = {
@@ -52,7 +64,7 @@ const ids = {
   batches: { A: '', B: '' },
   leaves: new Map<LeafKey, string>(),
   persons: new Map<string, string>(),
-  credentials: new Map<Agent, { id: string; key: string }>(),
+  credentials: new Map<Agent, { id: string; key: string; session: McpAgentSession }>(),
 };
 
 interface Reply {
@@ -61,13 +73,19 @@ interface Reply {
   readonly text: string;
 }
 
-/** Every answer the test read, but the credential create answers, for the key leak check. */
-const answered: Reply[] = [];
+/**
+ * Every answer the test read, tool answers and token answers included, but the credential
+ * create answers, for the key leak check.
+ */
+const answered: { readonly text: string }[] = [];
 /** Every key minted, the revoked spare's included. */
 const keys: string[] = [];
 
 beforeAll(async () => {
-  h = OrganizationHarness.openComposed();
+  stack = await startMcpAgentStack((machineGrants) =>
+    OrganizationHarness.openComposedWith({ machineGrants }),
+  );
+  h = stack.h;
   await h.register('dany');
   h.organization(ORGANIZATION);
   h.member(ORGANIZATION, 'dany', 'super_admin');
@@ -75,7 +93,9 @@ beforeAll(async () => {
   h.activate();
 });
 
-afterAll(() => {
+afterAll(async () => {
+  for (const { session } of ids.credentials.values()) await session.close();
+  await stack.stop();
   h.close();
 });
 
@@ -114,12 +134,42 @@ async function asAdmin(method: string, path: string, body?: unknown): Promise<Re
   return reply;
 }
 
-/** One agent's request: its API key only, no cookie and no organization header. */
-async function asAgent(agent: Agent, method: string, path: string, body?: unknown) {
-  const reply = await send(credentialOf(agent).key, method, path, body);
+/** One agent's tool call on its own MCP session. */
+async function asAgent(agent: Agent, tool: string, input: Record<string, unknown> = {}) {
+  const reply = await credentialOf(agent).session.call(tool, input);
   answered.push(reply);
   return reply;
 }
+
+/** A machine token for `key` at mcp-01's token endpoint, recorded for the leak check. */
+async function tokenFor(key: string) {
+  const reply = await stack.token(key);
+  answered.push({ text: JSON.stringify(reply.body) });
+  return reply;
+}
+
+/** An MCP session of the agent holding `key`, on a fresh access token. */
+async function sessionOf(key: string): Promise<McpAgentSession> {
+  const reply = await tokenFor(key);
+  const token = (reply.body as { access_token?: unknown }).access_token;
+  if (reply.status !== 200 || typeof token !== 'string')
+    throw new Error(`no token: ${JSON.stringify(reply)}\n${stack.log()}`);
+  return stack.connect(token);
+}
+
+/** Whether be-01 answered the tool call with a success. */
+function isOk(reply: ToolAnswer): boolean {
+  return reply.via === 'be-01' && reply.ok;
+}
+
+/** be-01's body of a tool call it answered. @throws when mcp-01 or `/mcp` answered instead. */
+function bodyOf(reply: ToolAnswer): unknown {
+  if (reply.via !== 'be-01') throw new Error(`be-01 did not answer: ${reply.text}`);
+  return reply.body;
+}
+
+/** A stand-in for a missing reply, read as a failure. */
+const FAILED: ToolAnswer = { via: 'http', status: 0, text: 'no reply' };
 
 function credentialOf(agent: Agent) {
   const found = ids.credentials.get(agent);
@@ -158,19 +208,12 @@ function minted(reply: Reply): string[] {
   });
 }
 
-const commands = (projectId: string, list: unknown[]) => ({
-  path: `/api/projects/${projectId}/commands`,
-  body: { commands: list },
-});
-
 function adminCommands(projectId: string, list: unknown[]) {
-  const { path, body } = commands(projectId, list);
-  return asAdmin('POST', path, body);
+  return asAdmin('POST', `/api/projects/${projectId}/commands`, { commands: list });
 }
 
 function agentCommands(agent: Agent, list: unknown[], projectId = ids.project) {
-  const { path, body } = commands(projectId, list);
-  return asAgent(agent, 'POST', path, body);
+  return asAgent(agent, 'postApiProjectsByIdCommands', { id: projectId, commands: list });
 }
 
 const claim = (agent: Agent, key: LeafKey) => ({
@@ -187,8 +230,8 @@ interface ClaimAnswer {
   assignedStepIds: string[];
 }
 
-function claimAnswerOf(reply: Reply): ClaimAnswer {
-  const first = (reply.body as { results: ClaimAnswer[] }).results.at(0);
+function claimAnswerOf(reply: ToolAnswer): ClaimAnswer {
+  const first = (bodyOf(reply) as { results: ClaimAnswer[] }).results.at(0);
   if (first === undefined) throw new Error(`no claim answer: ${reply.text}`);
   return first;
 }
@@ -298,12 +341,12 @@ function setLimits(): { exitCode: number; stdout: string; stderr: string } {
 }
 
 /**
- * Fires every agent's batch at once (`Promise.all`); the write coordinator alone orders them.
- * The composed write turn cannot be held to line them up first, as the two-fleet rehearsal does:
- * an API key's admission stamps its last use through that same turn, so every request would
- * wait behind the hold before reaching organization access.
+ * Fires every agent's batch at once (`Promise.all`), each on its own MCP session; the write
+ * coordinator alone orders them. They are not lined up behind a held write turn first, as the
+ * two-fleet rehearsal does: each crosses mcp-01's process, so the order they reach be-01 in is
+ * not the test's to choose.
  */
-function swarm(batches: { agent: Agent; list: unknown[] }[]): Promise<Reply[]> {
+function swarm(batches: { agent: Agent; list: unknown[] }[]): Promise<ToolAnswer[]> {
   return Promise.all(batches.map((each) => agentCommands(each.agent, each.list)));
 }
 
@@ -395,7 +438,8 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     });
     expect((await limits()).usage.agentPersons).toBe(CAPS.agents);
 
-    // `machine-credentials`: one API key per agent, shown once, used as Bearer.
+    // `machine-credentials`: one API key per agent, shown once, exchanged at mcp-01's token
+    // endpoint for the access token its MCP session carries.
     for (const agent of AGENTS) {
       const created = await send(
         h.token('dany'),
@@ -410,9 +454,9 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
       });
       const { id, key } = created.body as { id: string; key: string };
       expect(key.startsWith(`wbs_mk_${id}.`)).toBe(true);
-      ids.credentials.set(agent, { id, key });
       keys.push(key);
-      expect((await asAgent(agent, 'GET', '/api/projects')).status).toBe(200);
+      ids.credentials.set(agent, { id, key, session: await sessionOf(key) });
+      expect(isOk(await asAgent(agent, 'getApiProjects'))).toBe(true);
     }
     // A spare key of agent-1, revoked at once: its very next request is refused.
     const spare = await send(
@@ -424,17 +468,29 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     );
     expect(spare.status).toBe(201);
     const spareKey = (spare.body as { id: string; key: string }).key;
-    expect((await send(spareKey, 'GET', '/api/projects')).status).toBe(200);
+    keys.push(spareKey);
+    const spareSession = await sessionOf(spareKey);
+    const spareCall = async () => {
+      const reply = await spareSession.call('getApiProjects', {});
+      answered.push(reply);
+      return reply;
+    };
+    expect(isOk(await spareCall())).toBe(true);
     expect(
       await asAdmin(
         'DELETE',
         `/api/organization/machine-credentials/${(spare.body as { id: string }).id}`,
       ),
     ).toMatchObject({ status: 204 });
-    expect(await send(spareKey, 'GET', '/api/projects')).toMatchObject({
+    // M3/M5: be-01 rereads the credential on every call, so the token's very next call is
+    // refused in band; mcp-01 then refuses the token itself, and no new one is issued.
+    expect(await spareCall()).toMatchObject({ via: 'mcp-01', code: 'machine_credential_refused' });
+    expect(await spareCall()).toMatchObject({ via: 'http', status: 401 });
+    expect(await tokenFor(spareKey)).toMatchObject({
       status: 401,
-      body: { error: 'unknown_identity' },
+      body: { error: 'invalid_client' },
     });
+    await spareSession.close();
     const listed = await asAdmin('GET', '/api/organization/machine-credentials');
     expect(listed.status).toBe(200);
     expect(
@@ -442,7 +498,6 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
         .map((each) => agentOf(each.personId))
         .toSorted(),
     ).toEqual([...AGENTS]);
-    keys.push(spareKey);
   });
 
   it('4-6. declares resources and capacities, reports measured capacity and builds the plan', async () => {
@@ -584,8 +639,9 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
       ).status,
     ).toBe(200);
 
-    // `compute-providers`: an admin registers h4claw, the RAM resource names it, and an agent's
-    // key reports what it measured; the report sits beside the declared 32 and plans nothing.
+    // `compute-providers`: an admin registers h4claw, the RAM resource names it, and an agent
+    // reports what it measured through the MCP tool; the report sits beside the declared 32 and
+    // plans nothing.
     const registered = await asAdmin('POST', '/api/organization/compute-providers', {
       kind: 'ssh_host',
       name: 'h4claw',
@@ -622,15 +678,20 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     const observedAt = Date.now() - 1000;
     const reported = await asAgent(
       'agent-1',
-      'PUT',
-      `/api/compute-providers/${ids.provider}/resources/${ids.resources.ram}/capacity-report`,
+      'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
       {
+        providerId: ids.provider,
+        resourceId: ids.resources.ram,
         observedAt,
         cadenceSeconds: 300,
         outcome: { kind: 'measured', capacityUnits: 30, usageUnits: 12 },
       },
     );
-    expect(reported).toMatchObject({ status: 200, body: { reportedBy: personOf('agent-1') } });
+    expect(reported).toMatchObject({
+      via: 'be-01',
+      ok: true,
+      body: { reportedBy: personOf('agent-1') },
+    });
     const resources = await asAdmin('GET', `/api/projects/${ids.project}/resources`);
     expect(resources.status).toBe(200);
     const ram = (
@@ -673,8 +734,8 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     const replies = await swarm(
       contenders.map(({ agent, key }) => ({ agent, list: [claim(agent, key)] })),
     );
-    const won = contenders.filter((_, index) => replies[index]?.status === 200);
-    const lost = contenders.filter((_, index) => replies[index]?.status !== 200);
+    const won = contenders.filter((_, index) => isOk(replies[index] ?? FAILED));
+    const lost = contenders.filter((_, index) => !isOk(replies[index] ?? FAILED));
     expect(won).toHaveLength(SLOTS);
     expect(lost).toHaveLength(1);
     outcome.winners = won;
@@ -682,9 +743,7 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
 
     // `resource-occupancy`: every winner acquired its whole demand vector, and together they
     // never exceed a stated capacity.
-    const acquired = replies
-      .filter((reply) => reply.status === 200)
-      .flatMap((reply) => claimAnswerOf(reply).acquired);
+    const acquired = replies.filter(isOk).flatMap((reply) => claimAnswerOf(reply).acquired);
     const unitsOf = (resourceId: string) =>
       acquired
         .filter((each) => each.resourceId === resourceId)
@@ -692,6 +751,7 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     const heldRam = won.reduce((sum, each) => sum + ramOf(each.key), 0);
     // Proof: 2026-10-23, with `refuseOccupancy`'s answer ignored in `decideClaim`, only the
     // claim cap stopped the swarm: 12 + 12 + 10 were admitted and this read 34 GiB of 32.
+    // Watched again through mcp-01's tools on 2026-10-29: the same 34.
     expect(unitsOf(ids.resources.ram)).toBe(heldRam);
     expect(unitsOf(ids.resources.ram)).toBeLessThanOrEqual(RAM);
     expect(unitsOf(ids.resources.slots)).toBe(SLOTS);
@@ -702,12 +762,13 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     });
 
     // The loser is refused `resources_exhausted` naming a resource it is short of.
-    const refused = replies.find((reply) => reply.status !== 200);
+    const refused = replies.find((reply) => !isOk(reply));
     expect(refused).toMatchObject({
+      via: 'be-01',
       status: 409,
       body: { error: 'resources_exhausted', at: 0, kind: 'claimWorkItem' },
     });
-    const refusal = refused?.body as {
+    const refusal = bodyOf(refused ?? FAILED) as {
       resourceId: string;
       asked: number;
       free: number;
@@ -728,20 +789,19 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     const bothSteps = [ids.steps.dev, ids.steps.qa].toSorted();
     for (const [index, reply] of replies.entries()) {
       const contender = contenders.at(index);
-      if (contender === undefined || reply.status !== 200) continue;
+      if (contender === undefined || !isOk(reply)) continue;
       const person = personOf(contender.agent);
       expect(claimAnswerOf(reply).assignedStepIds.toSorted()).toEqual(bothSteps);
       expect(await assigneesOf(contender.key)).toEqual({
         [ids.steps.dev]: person,
         [ids.steps.qa]: person,
       });
-      const work = await asAgent(
-        contender.agent,
-        'GET',
-        `/api/projects/${ids.project}/people/${person}/work`,
-      );
-      expect(work.status).toBe(200);
-      const read = work.body as {
+      const work = await asAgent(contender.agent, 'getApiProjectsByIdPeopleByPersonIdWork', {
+        id: ids.project,
+        personId: person,
+      });
+      expect(isOk(work)).toBe(true);
+      const read = bodyOf(work) as {
         assignments: { workItemId: string; stepId: string }[];
         claims: { workItemId: string; stepId: string; runId: string }[];
       };
@@ -768,6 +828,7 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     const winner = won.at(0);
     if (winner === undefined) throw new Error('nobody won');
     expect(await agentCommands(winner.agent, [claim(loser().agent, 'B2')])).toMatchObject({
+      via: 'be-01',
       status: 403,
       body: { error: 'credential_not_for_person', at: 0, kind: 'claimWorkItem' },
     });
@@ -788,6 +849,7 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
         ids.opsProject,
       ),
     ).toMatchObject({
+      via: 'be-01',
       status: 409,
       body: {
         error: 'claim_limit',
@@ -816,7 +878,7 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
       })),
       { kind: 'releaseWorkItem', workItemId: leafOf(done.key), personId: personOf(done.agent) },
     ]);
-    expect(finished.status).toBe(200);
+    expect(isOk(finished)).toBe(true);
     const still = outcome.winners.filter((each) => each !== done);
     const stillRam = still.reduce((sum, each) => sum + ramOf(each.key), 0);
     // `resource-occupancy` "Release of the last claim frees the units"; the startable read
@@ -835,7 +897,7 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     expect((await limits()).usage.concurrentClaims).toBe(CAPS.claims - 1);
 
     const retried = await agentCommands(loser().agent, [claim(loser().agent, loser().key)]);
-    expect(retried.status).toBe(200);
+    expect(isOk(retried)).toBe(true);
     expect(
       claimAnswerOf(retried).acquired.find((each) => each.resourceId === ids.resources.ram)?.units,
     ).toBe(ramOf(loser().key));
@@ -930,14 +992,16 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
         `/api/organization/machine-credentials/${credentialOf(agent).id}`,
       );
       expect(revoked.status).toBe(204);
-      // `machine-credentials` "Revocation is immediate and audited": the next request is 401.
+      // `machine-credentials` "Revocation is immediate and audited": the token's next call is
+      // refused in band, the call after it is HTTP 401, and the key gets no new token.
       expect(await agentCommands(agent, [claim(agent, 'B3')])).toMatchObject({
-        status: 401,
-        body: { error: 'unknown_identity' },
+        via: 'mcp-01',
+        code: 'machine_credential_refused',
       });
-      expect(await asAgent(agent, 'GET', '/api/projects')).toMatchObject({
+      expect(await asAgent(agent, 'getApiProjects')).toMatchObject({ via: 'http', status: 401 });
+      expect(await tokenFor(credentialOf(agent).key)).toMatchObject({
         status: 401,
-        body: { error: 'unknown_identity' },
+        body: { error: 'invalid_client' },
       });
       await sweep.settled();
       const after = await holders();
@@ -952,8 +1016,8 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
       expect(history.text).toContain('(credential revoked)');
       // Every other agent's key still works, and their claims stand.
       for (const other of AGENTS.filter((each) => each !== agent))
-        expect((await asAgent(other, 'GET', `/api/projects/${ids.project}/startable`)).status).toBe(
-          200,
+        expect(isOk(await asAgent(other, 'getApiProjectsByIdStartable', { id: ids.project }))).toBe(
+          true,
         );
       expect([...after.values()]).not.toContain(agent);
       expect(after.size).toBeGreaterThan(0);
@@ -962,7 +1026,8 @@ describe('a swarm of four agents on a capped organization, end to end', () => {
     }
   });
 
-  // Proof: 2026-10-23, with the four create answers pushed into `answered`, this listed them.
+  // Proof: 2026-10-23, with the four create answers pushed into `answered`, this listed them;
+  // watched again with the agents on MCP, 2026-10-29.
   it('never answers a key outside its create response', () => {
     expect(answered.length).toBeGreaterThan(50);
     const secrets = keys.flatMap((key) => [key, key.slice(key.indexOf('.') + 1)]);

@@ -20,6 +20,8 @@ const MCP_MAIN = 'apps/wbs/mcp-01/src/main.ts';
 export interface WbsMcpStack {
   /** `http://127.0.0.1:<port>/mcp`, mcp-01's `MCP_PUBLIC_URL`. */
   readonly resource: string;
+  /** be-01's loopback origin, for a test that calls `/api` itself, as no fleet may. */
+  readonly backend: string;
   fixture<T>(path: string, body?: unknown): Promise<T>;
   stop(): Promise<void>;
 }
@@ -117,6 +119,7 @@ export async function startWbsMcpStack(): Promise<WbsMcpStack> {
     }
     return {
       resource,
+      backend: backendUrl,
       async fixture<T>(path: string, body: unknown = {}): Promise<T> {
         const response = await fetch(`${backendUrl}/__fixture/${path}`, {
           method: 'POST',

@@ -24,7 +24,10 @@ The provider must supply:
 - `email` and `email_verified=true` in the ID token for first-login linking.
 - A string-array groups claim (default `wbs_groups`) containing environment-
   prefixed values such as `dev:wbs:read`, `dev:wbs:write`, and
-  `dev:wbs:editor`.
+  `dev:wbs:editor`. The claim must be present on every access token,
+  refreshed ones included; an empty array is fine. A token without it is a
+  machine's, so the sign-in is refused and a refresh without it ends the
+  session.
 - Refresh tokens when `offline_access` is requested (the default scope).
 
 The registered redirect URI must match byte-for-byte and its path must be
@@ -193,7 +196,10 @@ Only the scope-guarded routes refuse them: mutations return
 `403 insufficient_scope`, and so do the routes that ask for `read` explicitly
 (the solution reader and the project export route). A wrong prefix
 therefore reads as "the app is up but nothing saves", not as a login failure —
-check the emitted group values before chasing a write bug.
+check the emitted group values before chasing a write bug. A missing claim is
+different: it is a refused session, not a scopeless one. The callback answers
+`/?auth_error=groups_claim_missing` and issues no session, because `/api`
+refuses a groups-less token as a machine bearer.
 
 Assign the WBS roles to each user and require `email_verified=true` before
 first-login linking. Real dev credentials live only in
@@ -417,59 +423,72 @@ rules are in `openspec/changes/social-sign-in/design.md`.
 
 ## Fleet credentials
 
-A fleet (an agent harness such as Claire's) calls be-01 with an Auth0
-machine-to-machine access token for the WBS audience. Such a token carries no
-`wbs_groups` claim: the groups Action runs only at login. be-01 treats any
-verified token **without** that claim as a machine credential
-(`openspec/changes/wbs-team-claims/design.md` D6, D6b):
+A fleet (an agent harness such as Claire's) calls be-01 with a machine
+credential of its organization, pinned to one agent person
+(`openspec/changes/wbs-machine-credentials`, design A13, A18, A21). An admin
+issues it on the organization page (`/organization`, the "Machine credentials"
+panel), or a member for an agent person bound to their own account; a member's
+agent persons also show their credentials on the people page:
 
-- It acts only as the account a host operator linked its `(issuer, subject)`
-  to, and it never creates or changes an account (no email refresh either).
-- Its scopes come from that account's organization roles: `viewer` reads,
-  `member` reads and writes, `admin` and `super_admin` also edit. The
-  per-organization role checks then apply as for any session of the account.
-- An unlinked token is refused `401 unknown_identity`, and no account is
-  minted. A token that carries the claim keeps the browser login path.
+- **API key** (`api_key`): the answer to create shows `wbs_mk_<id>.<secret>`
+  once. The fleet sends it as `Authorization: Bearer`; it carries its
+  organization, so the fleet selects none. Rotate keeps the old secret for
+  24 hours; revoke ends both at once.
+- **Trusted issuer** (`oidc`): a workload token (a GitHub Actions OIDC token,
+  for example) of an issuer an admin registered for the organization.
+- **MCP consent** (`mcp_consent`): laptop Claude Code signs in at the mcp-01
+  consent page and chooses the agent person (see the MCP section above).
 
-Link a credential with `link-credential-cli.ts`, inside the live be-01
-container like the other host CLIs ([prod runbook](runbook-prod-deploy.md#fleet-credential-links)):
+A credential acts as its person's bound account, capped at `member` with
+`read` and `write`, and claims only as its person or under its claims
+(`credential_not_for_person`). The HTTP shapes are `/api/organization/machine-credentials`
+in [local development](local-dev.md) and the OpenAPI document.
 
-```sh
-docker exec be-01-<colour> bun run src/link-credential-cli.ts \
-  --issuer=https://<tenant>/ --subject=<client id>@clients \
-  --account=<account id or username> [--person=<agent person id>]
-docker exec be-01-<colour> bun run src/link-credential-cli.ts --unlink \
-  --issuer=https://<tenant>/ --subject=<client id>@clients
-```
-
-- `--issuer` is the exact token issuer, trailing slash included; an Auth0
-  machine-to-machine `sub` is `<client id>@clients`.
-- `--person` pins the credential to one agent person, which must already be
-  bound to the same account (`patchPerson` with `accountId`, an organization
-  admin's act). A pinned credential claims only as that person or under its
-  claims; anything else is `credential_not_for_person`.
-- The CLI writes one `external_identity` row and prints it. It refuses before
-  organization activation (logins do not read `external_identity` yet), an
-  unknown or ambiguous account, a pair already linked, an account's own sign-in
-  pair, and a person bound to another account or to none.
-- `--unlink` deletes the row: the next token for the pair is
-  `401 unknown_identity`, and the account's other credentials keep working.
-- Removing a person a credential is pinned to is refused `in_use` naming the
-  count; the confirmed removal revokes (deletes) those credentials with the
-  person rather than unpinning them.
+A verified token of the configured issuer (Auth0) **without** the `wbs_groups`
+claim, such as an Auth0 machine-to-machine token, is a machine bearer: `/api`
+refuses it `401 machine_bearer_not_accepted` naming `/mcp`
+(`wbs-mcp-agent-surface` M9), and it proves no session as a browser cookie
+(link start and callback answer 401) or as a refreshed access token (refresh
+answers 401). No `external_identity` row admits it, including a row
+pinned by the retired operator link CLI, and no account is minted or changed.
+A token that carries the claim keeps the browser login path. Those pinned rows
+stay inert until a cleanup change drops `external_identity.person_id`;
+removing their person deletes them with it. The swap that retired the links is
+[fleet credentials](runbook-prod-deploy.md#fleet-credentials) in the prod
+runbook.
 
 ### Fleets and the MCP endpoint
 
-A headless fleet calls be-01 over HTTP, with an API key (`wbs_mk_…`, minted by
-`POST /api/organization/machine-credentials`) or with a linked OIDC credential
-as above. Neither works on mcp-01's `/mcp`: mcp-01 accepts only a JWT its own
-OAuth server issued (standalone, the deployed mode) or its trusted gateway
-verified, so a `wbs_mk_` key there is `401
-invalid_token` (observed in the 2026-10-25 swarm rehearsal). An MCP agent
-exists only through a human's consent: the human signs in to the connector and
-picks an agent bound to their account, which mints an `mcp_consent` credential
-([MCP organization delegation](#mcp-organization-delegation)). Neither local
-stack completes that consent ([local development](local-dev.md#an-activated-organization-with-api-key-agents)).
+Machines call WBS through mcp-01's `/mcp`, never be-01's `/api`
+(`openspec/changes/wbs-mcp-agent-surface` M1, M9). be-01 refuses a `wbs_mk_` API key, and any
+JWT whose issuer is not the configured sign-in issuer (trusted by an organization or not),
+presented on any `/api` route with
+`401 {"error":"machine_bearer_not_accepted","endpoint":"/mcp"}`, before any read, so the answer
+says nothing of which issuers are trusted. There is no switch. A
+groups-less token of the configured sign-in issuer keeps the linked-credential path above until
+#731 retires operator links, M9's precondition.
+
+A fleet agent takes an mcp-01 access token at `<MCP_PUBLIC_URL>/oauth/token` and calls tools with
+it:
+
+- **An API key** (`wbs_mk_…`, minted on the organization page or by
+  `POST /api/organization/machine-credentials`): `client_credentials`, the key as HTTP Basic.
+- **A workload token** of a trusted issuer (Kubernetes, GitHub Actions): the RFC 7523 JWT-bearer
+  grant. Its audience, the registration's or the credential's, must be mcp-01's issuer
+  `<MCP_PUBLIC_URL>/oauth` or sit under it after a `/`. A row stored before that rule (a
+  `wbs:org:` audience) is refused at use (`invalid_grant`); the deploy's audience preflight
+  lists those rows first ([prod runbook](runbook-prod-deploy.md)).
+
+mcp-01 asks be-01 for a machine grant at `/internal/mcp/machine-grants` under
+`MCP_BE_INTERNAL_SECRET`, the only route that verifies either source. Twilight Dash is the
+helper and client: `twilight-dash mcp token` as Claude Code's `headersHelper`,
+`WorkloadJwtBearerProvider` for MCP SDK clients, and its `report-capacity` and `resources`
+commands as MCP clients themselves
+([Dash README](../apps/twilight-structure/twilight-dash/cli/README.md#mcp-token)). A human, a
+human-consented agent and every claude.ai connector still connect through consent
+([MCP organization delegation](#mcp-organization-delegation)); claude.ai Team and Enterprise
+request headers are shared by every member and must never carry a machine credential. Both local
+stacks serve the machine path ([local development](local-dev.md#an-activated-organization-with-mcp-agents)).
 
 ## Historical Okta mapping
 
