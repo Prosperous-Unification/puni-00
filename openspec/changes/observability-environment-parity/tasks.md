@@ -283,15 +283,15 @@ Task77 source, independent review and actual existing-dev capture/aged verificat
 
 ### Task 79: Dev route cutover, rollback and restore within 4.1
 
-- [ ] Implement functional dev-only switch/rollback/restore through a small neutral operation contract, dedicated existing observer adapter and Fleet composition of fresh preflight. Consume independently pinned reviewed full acceptance evidence; independently check actual current candidate stored signals, effective observer/source ownership and retained history. Preserve frozen bootstrap and full cutover preflight semantics. Rollback reuses narrow retained Docker/volume ownership checks and old-route health without requiring the failed Kubernetes candidate to be Ready. Use distinct durable private operation receipts, exclusive nonwaiting ownership, expected-current compare before unit replacement and visible mutation uncertainty/manual recovery. Preserve credentials, tunnel, all old services/stores/Grafana objects and prior receipts. Ordered TDD covers rejected candidate/no mutation, exact identity/evidence joins, effective overrides, capture durability, switch, history survival, rollback during candidate failure, repeated restore, concurrency and uncertain/failed recovery. Watch new production-path safety faults fail and restore; run focused covering/necessary compatibility/statics, normal hooks and one independent scoped review. No live route operation, full rehearsal, persistent Secret/production change or final merge is authorized by source tests; canonical 4.1/4.2 remain open for actual acceptance.
+- [x] Implement functional dev-only switch/rollback/restore through a small neutral operation contract, dedicated existing observer adapter and Fleet composition of fresh preflight. Consume independently pinned reviewed full acceptance evidence; independently check actual current candidate stored signals, effective observer/source ownership and retained history. Preserve frozen bootstrap and full cutover preflight semantics. Rollback reuses narrow retained Docker/volume ownership checks and old-route health without requiring the failed Kubernetes candidate to be Ready. Use distinct durable private operation receipts, exclusive nonwaiting ownership, expected-current compare before unit replacement and visible mutation uncertainty/manual recovery. Preserve credentials, tunnel, all old services/stores/Grafana objects and prior receipts. Ordered TDD covers rejected candidate/no mutation, exact identity/evidence joins, effective overrides, capture durability, switch, history survival, rollback during candidate failure, repeated restore, concurrency and uncertain/failed recovery. Watch new production-path safety faults fail and restore; run focused covering/necessary compatibility/statics, normal hooks and one independent scoped review. No live route operation, full rehearsal, persistent Secret/production change or final merge is authorized by source tests; canonical 4.1/4.2 remain open for actual acceptance.
 
-Source implementation and component verification are prepared for independent
+Source implementation and component verification passed independent scoped
 review; see [Task79 verification](verify.md#task79--dev-route-operations-and-explicit-recovery--2026-10-31).
 The operation canary uses the actual operation producer revision and leaves the
 observer checkpoint unchanged. Explicit pinned recovery recognizes known partial
 unit activations only after proving its prior owner inactive. Full reviewed
 rehearsal/staged acceptance collection, actual isolated operation and live dev
-migration remain unperformed; the source task stays open until scoped review.
+migration remain unperformed; this checkbox closes only the reviewed source task.
 The bounded progress correction removes application revision from immutable source
 authority, records actual revisions, isolates canary metrics by observation, and
 uses at least120s operational windows without changing the observer binary/default
@@ -299,5 +299,7 @@ streams. Frozen history and reviewed cohort revisions remain historical evidence
 Review fix1 additionally binds selected immutable identities and the age of all
 reviewed checks, requires directory durability and retryable explicit ownership
 handoff, preserves uncertainty diagnostics across persistence failures, and keeps
-concrete Flux/Pod projections in the dedicated adapter. Scoped rereview remains
-required; actual acceptance and canonical4.1/4.2 remain open.
+concrete Flux/Pod projections in the dedicated adapter. Fix2 adds nonwaiting
+kernel recovery arbitration and truthful completed/compensated cleanup-failure
+outcomes. Independent review closed all original findings and N1/N2 without new
+findings at11e64a057. Actual acceptance and canonical4.1/4.2 remain open.

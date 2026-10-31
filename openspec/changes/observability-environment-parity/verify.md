@@ -5591,3 +5591,101 @@ real backend publication, deploy, Secret, production, push or merge occurred.
 Full actual acceptance producer, observer runtime/admission, canonical4.1/4.2
 and required CI/host-gate certification remain open/blocking. Root owns rereview
 and later publication; this packet does not certify live acceptance.
+
+### Historical fix1 packaging before the N1/N2 correction
+
+Final caller source commit `760d2a8715d17b037de7416a4307086fda42b100` completed
+normal hooks53 (lint12.25s,format2.99s,secrets0.07s,nesting0.13s,tool-wiki0.04s;
+trailer hooks0.02s/0.05s). Build54 used that exact source stamp with Bun1.4.4,
+target bun-linux-x64:217modules,33ms bundle,291ms compile. Its separate final
+artifact is109869232bytes,0755,SHA256
+`81685d4721111642ceb7964b9c428a8d82478454c4c3272ed0d710a3851b080e`.
+Smoke55 source/compiled returned expected exit1 and empty stdout, with correct
+Bun+real-source (0.754s) and binary-only (0.809s) invocation prefixes, shared with
+recovery argv. No virtual compiled path appears. This proves packaging/refusal,
+not actual systemd/backend execution. Changed reached paths introduce no
+unembedded asset read; existing private inputs/tools/access are still required.
+These were the exact fix1 build bytes; the subsequent fix2 source/build below supersedes them for current code.
+The final indexed report distinguishes82/35/47 tested snapshots and all builds;
+required rereview/live/CI certification remains open. No h1 build/deploy occurred.
+
+### Task79 fix2 final source and local packaging handoff
+
+Normal-hook source commit `11e64a0574de17b1570d6b179cf707522526ad7f` contains the N1/N2 fix, owning
+contracts and pre-build verification. Full fix2 review range is
+`bcef9daf8a8237a8fc540f1996a0c02aa879711d..11e64a0574de17b1570d6b179cf707522526ad7f`.
+Pinned Bun1.4.4 exact-source compile bundled217 modules; binary
+`/tmp/puni-task79-fix2-evidence/observability-route-fix2`,109873328bytes,0755,
+SHA256 `5a7949f47c59baf3b48caa56c86899faca541b767c5df010f8cb3fb32d524b32`. Build19 exit0.
+Source and compiled strict-arity smoke20 each exit1 with exact supported command
+argv and route-arguments refusal. Test-only compiled probe21/22 imports the
+production recovery adapter, exercises actual libc flock contention and release,
+and observes unchanged owner/stable guard inode; exit0. This is local packaging
+and kernel-component evidence, not h1/runtime/full acceptance certification.
+Raw/index/identities: `/tmp/puni-task79-fix2-evidence/manifest.json`,
+`build-identity.json`, `final-source-identity.json`, `22-compiled-native-probe.json`.
+Seven source/contract rows match the immutable tested snapshot; verification
+metadata was appended after tests and is classified separately. CIyaml unchanged.
+All owned children/tool handles terminal; no remote/live publication or deployment.
+Required actual acceptance, host access/native support, admission, CI/host gates
+and canonical4.1/4.2 remain open/blocking. Root owns scoped rereview and publication.
+
+### Task79 source review closure and CI bootstrap compatibility — 2026-11-01
+
+Task79's bounded source workflow is complete at source commit
+`11e64a0574de17b1570d6b179cf707522526ad7f`. Independent fix1 review closed all six
+original Important findings and identified N1 stale-lease arbitration and N2
+post-retirement diagnostics. Independent fix2 review found both addressed, with
+no new Critical, Important or Minor finding. Its exact scope was
+`bcef9daf8a8237a8fc540f1996a0c02aa879711d..11e64a0574de17b1570d6b179cf707522526ad7f`.
+Reports remain privately retained as `/tmp/puni-task79-fix1-review.md` and
+`/tmp/puni-task79-fix2-review.md`; no passing tests were replayed for review.
+
+The parent rehashed 80 fix1 artifacts and 12 current/Git source rows, then 36
+fix2 artifacts and eight current/Git rows, with zero mismatches. Original report
+prefixes and all historical tested snapshots/builds remain preserved. The three
+new native/platform/inode guard mutants each exited1 with their intended actual
+lease/unit-byte assertion, differed from original source, and restored identical
+source SHA. The final amended-path suite passed12 tests/90 assertions in35.61s;
+older82-case, selection/caller and guard batches remain evidence for their exact
+snapshots and were not repeated. The compiled native probe is local Linux/glibc
+component evidence, not observer-host certification.
+
+CI81 restores the existing pinned-Python bootstrap contract, using the R4
+precise-fix exception rather than a new feature/spec. Only `gate_workspace`
+`runs-on` changes from `ubuntu-latest` to `ubuntu-24.04`; Python3.14.4, other
+runners, docs-only and affected selection, checks, concurrency and timeouts remain
+unchanged. The actual prior8d workspace setup failed before tests on Ubuntu26.04.
+The retained official actions/python-versions manifest for Python3.14.4 lists
+Linux x64 builds for22.04/24.04, not26.04 (snapshot SHA256
+`fed4236f97902ffec4ba84618ad69dda292055eb0480d9441df2ae7ea8915509`).
+This describes that observed failure and captured support matrix, not a global
+claim about the moving `ubuntu-latest` label.
+
+The one-field source was independently approved at7ab2a0862 and integrated with
+normal hooks as `bcef9daf8a8237a8fc540f1996a0c02aa879711d`. Existing
+`gate-workflow.test.ts` passed14 tests/194 assertions in0.831s; official manifest
+pair, YAML/format and normal hooks passed. Root verified all15 indexed files and
+exact current/Git workflow SHA256
+`62252605466dc4b40d92c404a0faeab6b985210d2ef8dc2a06c5f60d5fc9daf5`.
+No new tests mirror the one-line repair. Unrelated lint/migration hooks correctly
+had no matching staged inputs; Tool Wiki remains inactive/certified:false because
+its external activation root is unprovisioned. No hook was bypassed.
+
+Actual new-head CI certification is still pending publication. The old8d main
+run41228912158 was cancelled after workspace setup failed, with pixels successful;
+infrastructure41228912185 failed building the controller before tests when Galaxy
+response cache lacked `results`. The runner repair does not resolve that independent
+Galaxy failure. A private cache candidate remains unapplied because changing the
+Containerfile also changes the locked OCI identity and requires a reproducible
+new digest, not bypassing the existing digest check. No manual CI retry, timeout
+increase or policy weakening occurred. Full host gates are unrun.
+
+Canonical runtime progress remains4/11. Actual full rehearsal/staged acceptance
+production, complete host/admission and observer access/native support, isolated
+route operation, operator UI/isolation/outage/backup/restore and common live dev
+migration remain open under1.3,2.2,3.1,3.2,4.1,4.2,4.3. Source review does not
+complete those criteria. No observer unit, credential, tunnel, running service,
+store, claim, Grafana object, production resource or hardware was changed by this
+source closure. Production activation, persistent Secret changes, destructive
+retirement and final implementation merge retain their separate authorization.
