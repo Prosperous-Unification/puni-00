@@ -378,7 +378,7 @@ describe('the CI gate scope', () => {
     expect(commands).toContain(
       'timeout --signal=TERM --kill-after=30s 75m \\ bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts workspace "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \\ >> nx-gate.log 2>&1',
     );
-    expect(workflow.jobs?.gate_workspace?.['timeout-minutes']).toBe(90);
+    expect(workflow.jobs?.gate_workspace?.['timeout-minutes']).toBe(120);
   });
 
   it('runs the h2puni gate with the same Twilight split as CI', async () => {

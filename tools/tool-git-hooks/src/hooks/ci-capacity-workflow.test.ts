@@ -17,6 +17,7 @@ interface Job {
   needs?: string | string[];
   if?: string;
   'timeout-minutes'?: number;
+  'runs-on'?: string;
   steps?: Step[];
   strategy?: unknown;
 }
@@ -35,6 +36,35 @@ function step(owner: Job, name: string): Step {
   if (selected === undefined) throw new Error(`Missing CI step ${name}`);
   return selected;
 }
+
+// Proof: the unchanged floating runner failed this parsed-workflow consumer with
+// expected ubuntu-24.04 / received ubuntu-latest (0 passed / 1 failed, 2026-10-31).
+test('all Python consumers use a hosted distribution available for the pinned runtime', () => {
+  const consumers = [
+    'gate_workspace',
+    'gate_backend',
+    'gate_remote',
+    'gate_remote_model',
+    'gate_frontend',
+    'gate_checks',
+  ];
+  const actual = Object.entries(workflow.jobs ?? {})
+    .filter(([, owner]) =>
+      owner.steps?.some((entry) => entry.uses?.startsWith('actions/setup-python@')),
+    )
+    .map(([name]) => name);
+  expect(actual.sort()).toEqual([...consumers].sort());
+  for (const name of consumers) {
+    const runtime = job(name);
+    expect(runtime['runs-on']).toBe('ubuntu-24.04');
+    const setups = runtime.steps?.filter((entry) =>
+      entry.uses?.startsWith('actions/setup-python@'),
+    );
+    expect(setups).toHaveLength(1);
+    expect(setups?.[0]?.uses).toBe('actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065');
+    expect(setups?.[0]?.with?.['python-version']).toBe('3.14.4');
+  }
+});
 
 test('each whole-project runtime has a finite Nx phase and whole-job limit with durable status and log', () => {
   for (const [partition, title] of [

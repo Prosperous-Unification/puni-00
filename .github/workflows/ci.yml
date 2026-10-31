@@ -317,7 +317,7 @@ jobs:
     name: gate workspace
     needs: gate_mode
     if: ${{ needs.gate_mode.outputs.mode != 'docs' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # The original 20-minute box expired after the ordinary Nx phase and during Tool Wiki.
     # Forty-five minutes then expired too: run 35337661318 (2026-09-18, every project affected and
     # the packed package suite in scope) spent 44m48s through the solver image smoke and was
@@ -453,7 +453,7 @@ jobs:
     name: gate backend
     needs: gate_mode
     if: ${{ needs.gate_mode.outputs.mode == 'full' || needs.gate_mode.outputs.backend == 'run' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and
@@ -570,7 +570,7 @@ jobs:
     name: gate remote
     needs: gate_mode
     if: ${{ needs.gate_mode.outputs.mode == 'full' || needs.gate_mode.outputs.remote == 'run' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and
@@ -687,7 +687,7 @@ jobs:
     name: gate remote isolated leaf (${{ matrix.partition }})
     needs: gate_mode
     if: ${{ needs.gate_mode.outputs.mode == 'full' || needs.gate_mode.outputs.remote == 'run' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     # Proof: deleting the continuation entry failed the exact parsed workflow matrix test (2026-10-29).
     strategy:
@@ -820,7 +820,7 @@ jobs:
     name: gate frontend
     needs: gate_mode
     if: ${{ needs.gate_mode.outputs.mode == 'full' || needs.gate_mode.outputs.frontend == 'run' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and
@@ -937,7 +937,7 @@ jobs:
     name: gate checks
     needs: gate_mode
     if: ${{ needs.gate_mode.outputs.mode != 'docs' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and

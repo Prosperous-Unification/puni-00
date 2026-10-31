@@ -345,3 +345,58 @@ The normal private checkpoint follows this factual documentation update. Task 19
 is complete; task 20 remains open for fresh published source, source-restoration,
 remainder and strict aggregate results. Exact-SHA host and native acceptance,
 architectural main adoption and deployment remain open or held.
+
+## Hosted Python runner drift repair (2026-10-31)
+
+Normal full run41224486337 targeted privatee9c22b76286da0b97784bcf7bfe03769366fd9c5
+with explicit comparison7e0c05d82175b1a374e39d26fc08d3a9349069f5. Nine expanded
+runtime jobs failed setup before their tests; directly inspected backend and
+checks logs identify Ubuntu26.04, successful Bun1.4.4 setup and unavailable
+Python3.14.4/x64. Backend raw SHA
+`cddd6096161ba03de846262686bd3f81b6f429c4fd296c4ad45ea57ab8b5d8a4`;
+checks raw SHA
+`a3967054baf5e867b2cc75fa4051a27431245ffe73a5a510788c8ceafa34fbe7`.
+The failed jobs are not test failures or repaired retrospectively. Browser jobs
+and the separate normal host gate retain their own outcomes.
+
+The official [Python build manifest](https://raw.githubusercontent.com/actions/python-versions/main/versions-manifest.json)
+was captured at SHA
+`fed4236f97902ffec4ba84618ad69dda292055eb0480d9441df2ae7ea8915509`;
+its3.14.4/Linux-x64 entries cover22.04 and24.04, not26.04. Astra decision
+`286cd26350c686c4dd9b85faaf1902f3132444875953df047635396419b9e4e4`
+selects the reversible runner correction for the six setup-python definitions
+only. Python/action pins, solver hashes, every check/command, matrix, selection,
+timeout and other job runner remain unchanged. This restores the precise pinned
+solver-toolchain contract under R4's repair exception; no new OpenSpec/ADR.
+
+The independent literal six-job roster in the parsed real-workflow test first
+failed naturally on ubuntu-latest versus ubuntu-24.04. Separately, the existing
+devsync workspace-budget consumer failed naturally on its stale90 expectation
+against the already specified120 configuration. Both original runs exited1
+before either correction; natural RED hashes
+`a1a92fb22dd983caf83852dbb77478c248ccdcf7f0f9fd48df2b62f909726166`
+and `a0fead03bb9e780f3cf7f4dc70a7a55d6697b507e75b13a276baf55f8c7cdc1f`.
+The budget test alone becomes120; the real120 and75-minute phase are unchanged.
+
+Current full capacity tests7/0/137 assertions and full toolchain tests26/0/115
+assertions passed. Four configured lib/spec compilers, scoped two-file lint,
+three-file formatting and whitespace checks recorded exit0. Root read all33
+actual pass rows and exact exit records; all three frozen source hashes match.
+Parsed workflow diff is exactly six runs-on labels to ubuntu-24.04; no other
+parsed production value changed. Frozen report
+`/tmp/puni-ci-runner-repair-20261031/report.md` and independent source review
+`50962eb1c08adb967057728bd57ecaaf89e0474c1d2c0bd66fb0bc6f92e2f150`
+support local scoped acceptance. Fresh hosted Python provisioning/full checks
+remain required before claiming hosted repair success. No Source Reader38
+intentional mutation or native-image/production action was performed.
+
+The ordinary h4 gate attempt for the olde9 candidate exited75 after its canonical
+30-minute queue, with original SSH normal75/null signal/both actual EOFs/wait.
+No requested running-SHA line was printed; candidate verification never started.
+Its private report SHA
+`8c614d59d6efb71d945a940600e8a8a0e927bf3ff2b533c7ad4f5807ee8a77cc`
+and receipt
+`ab3117cb8183a533de90653c233265cca0b8ba78b9a33ad198a6f97db6d5c653`
+retain that resource refusal. The other holder remained protected; no retry,
+checkout, dependency install, signal or cleanup followed. Exact-SHA host gate
+acceptance, Reader38 proofs, native/controller and main/deployment remain open.
