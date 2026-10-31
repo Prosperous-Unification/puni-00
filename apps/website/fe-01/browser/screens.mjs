@@ -671,6 +671,7 @@ async function auditMasthead(page) {
     // Proof: removing Blog from SiteHeader failed all four operator captures with the three remaining labels.
     if (labels.join(',') !== 'Home,Build,Services,Blog')
       problems.push(`masthead labels ${labels.join(',')}`);
+    // Proof: injecting a real .nav-index into SiteHeader failed all four operator widths with obsolete masthead rail.
     if (globalThis.document.querySelector('header .nav-rail-label, header .nav-index'))
       problems.push('obsolete masthead rail');
     if (texts.length === 0) throw new Error('Masthead audit found no visible text');
