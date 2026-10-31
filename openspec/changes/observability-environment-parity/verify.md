@@ -5249,3 +5249,79 @@ views/isolation/backup/restore and final handoff remain unverified. Full host ga
 new full Nx/CI execution, production activation, persistent Secret changes and final
 merge were not performed. The original full goal remains active at 4/11 canonical
 runtime milestones; the 16 GiB floor and withdrawn hardware advice are unchanged.
+
+## Task79 — dev route operations and explicit recovery — 2026-10-31
+
+The source adds a small neutral route/evidence contract, an observer-local adapter
+and Fleet composition of its existing real preflight. Forward operations require
+independently pinned reviewed full rehearsal and staged acceptance, actual fresh
+target preflight, source/unit/binary ownership, one real-source stored-signal
+canary and original historical readback. Rollback reuses narrowly extracted
+retained Docker/volume checks without requiring failed Kubernetes readiness.
+The operation producer revision/bundle and unchanged observer binary remain
+separate identities. No existing checkpoint is initialized or overwritten.
+
+The component cycle covers failed-candidate preservation, switch, rollback while
+Kubernetes readiness fails, fresh restore, immutable earlier receipts/history,
+exclusive concurrent ownership, file/directory capture-sync faults, successful
+compensation and failed compensation. Explicit recovery uses a pinned runnable
+command for the same executable, proves prior process absence and recognizes
+only captured file/loaded-command states, including lost reload and MainPID0
+failed start. Original uncertainty remains unchanged. Default unit rendering,
+bootstrap adoption, old Grafana semantics and full preflight behavior remain
+unchanged; Grafana journal validation reuses its existing reader.
+
+Genuine behavioral controls retain exact initial failures: incomplete window
+evidence21→22, scrape-settlement convergence23→24, compensation25→26,
+restart-time route commitment36→37 and forged completed/prepared join45→46.
+The later route commitment remains frozen to independently accepted input;
+post-restart inspection cannot rebaseline it. The forged-parent fix joins exact
+operation/request/unit/prepared paths before rollback and binds the retained
+destination to its original history route. Initial missing-module controls are
+feature-absence evidence, not safety proofs. EPERM listening attempts, fixture
+clock/timestamp/lifecycle errors and initial diagnostic expectations remain
+uncredited and retained.
+
+The bounded new-guard fault batch has31 intended failing projections and31
+byte-identical source restorations. Controls01–28 break production component
+contracts. Original29–31 prove diagnostics/ordering only; strengthened29b–31b
+instead fail actual unit-byte equality before error-category assertions for
+active owner, denied/unknown ownership and invalid pins after owner death. All
+three were restored exactly;01–28 were not replayed. Raw records, source hashes
+and classification are in `/tmp/puni-task79-evidence/guard-faults.json` and the
+indexed evidence/report described below. The source has adjacent `Proof:` links
+to the actual controls. Existing unchanged Task77 IO/transport proofs are retained.
+
+All Task79 outcomes are source/component evidence. TLS HTTP and actual fixture
+subprocess boundaries execute, while manager/process facts, reviewed evidence
+and window clocks are explicit disposable fixtures. They cannot certify actual
+systemd, mTLS/CNI/Pods/storage enforcement, full admission, UI/isolation/outage or
+Velero/Kopia acceptance. The complete actual acceptance collector remains pending
+in the existing rehearsal path; a private JSON boolean cannot supply it.
+
+No remote call, route activation, persistent credential change, production
+operation, full Nx/host gate, push or merge was performed by this source unit.
+The unchanged full16GiB floor and always-refusing rehearsal admission remain.
+Recorded target stages were suspended/not Ready and CRDs absent; those were not
+refreshed here. Existing-agent/known-host transport availability on the observer
+remains unverified, despite the parent's successful basic existing-alias read.
+
+Required CI certification is blocking, not optional: published8d workspace setup
+failed before tests because pinned Python3.14.4 x64 was unavailable on Ubuntu26.04;
+pixels succeeded and the obsolete already-failed main run41228912158 finished
+cancelled with twilight cancelled. Infrastructure41228912185 failed before tests
+while building its existing controller image (community.general response/cache
+missing `results`). These outcomes do not test Task79. No CI fix/rerun or current
+head certification is claimed. Independent source review, full rehearsal/live
+acceptance and separately authorized final merge remain required.
+
+Final focused source verification passed54 tests/159 assertions in44.52seconds.
+Necessary extracted-preflight compatibility passed2 tests/12 assertions in
+3.20seconds, with203 unrelated existing cases filtered rather than replayed.
+Both owning spec-project no-emit typechecks and scoped lint exited0. Strict
+OpenSpec validation reported1 valid change and no issues. Raw final outputs are
+`50-final-covering.txt` through `55-openspec.txt` under the Task79 evidence root.
+The pre-commit input manifest records19 files at SHA256
+`b5f5104fe6e87ebb613321e322339a18343780360aef326b9a24aaa94b801f13`.
+Final verification metadata and compiled-entry smoke are recorded separately;
+they do not upgrade component results to actual migration or CI certification.

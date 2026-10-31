@@ -109,7 +109,7 @@ export function hashHistory(wire: unknown): string {
     .update(JSON.stringify(canonical(wire)))
     .digest('hex');
 }
-function routeCommitment(endpoint: TransportEndpoint): string {
+export function routeCommitment(endpoint: TransportEndpoint): string {
   const bound = bindTransport(endpoint);
   return hashHistory(
     typeof endpoint === 'string'

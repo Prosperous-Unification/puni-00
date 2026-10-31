@@ -36,7 +36,7 @@ const Request = type({
   prometheus: Route,
 });
 /** Regular private trusted input; bounded reads distinguish missing, unreadable, oversized and malformed state. */
-function readPrivate(path: string): Buffer {
+export function readPrivate(path: string): Buffer {
   let descriptor: number;
   try {
     // Proof: removing O_NOFOLLOW made trusted request symlink follow another file and successfully capture.
@@ -81,7 +81,7 @@ function readPrivate(path: string): Buffer {
     closeSync(descriptor);
   }
 }
-function decode(bytes: Buffer): unknown {
+export function decode(bytes: Buffer): unknown {
   try {
     return JSON.parse(bytes.toString('utf8'));
   } catch (error) {
@@ -99,7 +99,7 @@ function resolveRoute(route: typeof Route.infer): TransportEndpoint {
   return parseTransportBinding(decode(readPrivate(route.path)));
 }
 /** Publishes a new owner-private receipt exclusively, syncing both file and containing directory. */
-function publish(path: string, wire: unknown): void {
+export function publish(path: string, wire: unknown): void {
   const bytes = `${JSON.stringify(wire)}\n`;
   // Proof: removing this guard made receipt encoding size publish an oversized receipt under the injected serializer fault.
   if (Buffer.byteLength(bytes) > 262144) throw new Error('history-output-size');

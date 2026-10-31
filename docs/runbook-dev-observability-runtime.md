@@ -1,5 +1,95 @@
 # Dev observer operation and retained-store rollback
 
+## Source contract for common-stack route operations
+
+Task79 adds an observer-local one-shot route operation. Its source fixtures do
+not establish full common-stack rehearsal, candidate acceptance or permission to
+activate a live route. The full reviewed acceptance cohort is currently absent;
+the canonical4.1/4.2 tasks remain open. Existing h1→h4 alias access does not prove
+that Fleet's separately required pinned known-hosts and existing agent socket are
+configured on h1. No kubeconfig, key, binding or credential is installed by this
+command. Inventory that existing access before planning actual use.
+
+Build the exact reviewed Fleet `observability-route-cli.ts` locally with pinned
+Bun1.4.4, `--compile --target=bun-linux-x64` and
+`--define 'PUNI_ROUTE_SOURCE_REVISION="<full-reviewed-source-sha>"'`. Hash the
+compiled executable and independently review that source/bundle mapping. The
+request's `adapterRevision` and `adapterBundleSHA256` must match the actual
+operation executable. Its canary identifies that operation producer revision,
+separately from the unchanged observer binary/manifest revision. Never build on
+h1claw. Strict-arity smoke verifies packaging only, not a working live operation.
+
+The compiled executable runs as the existing observer user on the observed
+observer host. The reviewed private request pins the actual hostname/user/home,
+observer source/binary/manifest/tunnel hashes, source container/application
+revision, current/target routes, original history receipt/digest, preserved
+Grafana journal and preflight inputs. The local unit fragment, loaded ExecStart,
+drop-ins, reload state, process executable/argv, initialized checkpoint and actual
+source are inspected rather than inferred from those pins. Frozen bootstrap
+preflight and default unit rendering remain unchanged.
+
+Candidate bindings must already exist, owner-private, under the owned
+`.local/state/puni-dev-observability/bindings/` directory. The three files are
+`otlp.json`, `elastic.json` and `prometheus.json`; ingest uses verified mTLS and
+queries use verified TLS/basic identity. Retained legacy loopback routes are
+explicitly supported only as the old/recovery path. Receipts bind credential-free
+route/principal/trust identities; they never contain Secret bodies or
+password/private-key hashes.
+
+The independent full acceptance cohort has separate exact rehearsal and staged
+target/source/controller/store/claim/route/artifact bindings. All required checks
+link bounded private command captures, successful command outcomes, reviewed
+projections and raw output digests. Both advancing windows link actual stored
+log/metric/trace evidence and query artifacts. Missing, changed, stale, failed,
+source-only or component-class captures cannot replace that cohort. This is
+explicitly operator-reviewed evidence: hashes and private permissions protect
+against drift, not an authorized operator inventing evidence. Full acceptance
+collection in the existing rehearsal path remains pending.
+
+After independently reviewing those exact inputs, the executable's operation
+forms are `switch <private-request>`, `rollback <private-request>` and
+`restore <private-request>`. Forward operations rerun full fresh cutover
+preflight. Rollback instead checks the captured retained Docker/container/volume
+identities and real old-route/source health, so candidate/Kubernetes failure does
+not prevent recovery. Neither inventory mode nor a whitelist of readiness
+blockers authorizes rollback.
+
+The current observer checkpoint may never have existed in candidate or retained
+stores. Each requested operation can therefore publish one bounded actual-source
+canary through the existing probe/publisher to its destination OTLP route, then
+await bounded stored-query convergence. It never initializes or overwrites an
+existing checkpoint. The canary is distinct from the original frozen historical
+witness and from post-restart observer progression. It cannot replace UI,
+isolation, auth, alert, recovery or backup acceptance.
+
+Each operation reserves a new private `route-<uuid>` directory and a nonwaiting
+observer ownership lock. Prepared evidence is synced before mutation, and a
+separate mutation-started record precedes unit replacement. Only the owned
+observer unit is replaced/reloaded/restarted. Two advancing stored-health windows,
+fresh retained identities and exact original historical queries precede a
+durable completed receipt. Old services, stores, volumes, tunnel, Grafana objects
+and previous receipts are preserved. A failed forward activation may compensate
+only after its current ownership and healthy retained path are established;
+that rollback has a distinct receipt and never turns the failed cutover into a
+successful cutover.
+
+Timeout, nonzero activation or lost outcome retains uncertainty and its lock.
+The error and uncertainty receipt provide exact inspection argv and pinned
+`recover` commands for the same executable. Inspect the actual unit and choose
+only the command matching its recorded BEFORE or AFTER hash; independently
+reconcile ownership before passing the explicit `--reconciled` operand. Recovery
+pins the prepared receipt digest, current/prior unit hashes and original owner
+PID. Active, denied, reused or unknown owner PIDs refuse. Only known captured
+file/loaded-command combinations are recognized, including a lost reload and a
+known failed start with MainPID0 and empty control group. Arbitrary third states,
+drop-ins, foreign processes and changed source/binary pins refuse.
+
+Recovery archives the proven inactive ownership record, acquires a new exclusive
+operation and reuses fresh retained-route inspection, canary, historical checks
+and the rollback transaction. It records a new outcome; the original uncertainty
+is not rewritten as completed. Never remove or steal an unknown lock, run an
+unsupported inspection subcommand, or replace the unit by blindly copying bytes.
+
 Live status, 2026-10-31: the owned dev observer runs reviewed source
 `047e08024b4b1bbba4cb7700400d6f37b0d0ed05`, with continuous resource history in
 the existing Prometheus. The initial install/preflight sections below describe

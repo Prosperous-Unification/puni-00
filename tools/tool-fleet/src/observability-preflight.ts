@@ -275,6 +275,66 @@ const Rollback = type({
 /** Reviewed expectations are never substituted for observed target facts. Inventory may leave pins empty. */
 export type ObservabilityPreflightRequest = typeof Request.infer;
 
+/** Closed safe Docker projection shared with retained-route recovery. */
+export function readObservabilityDocker(wire: unknown) {
+  return decodeProjection(Docker, wire);
+}
+
+/** Exact retained identities shared with recovery; this grants no candidate readiness or capacity. */
+export function assertRetainedObservabilityDocker(
+  request: Pick<ObservabilityPreflightRequest, 'docker'>,
+  docker: typeof Docker.infer,
+): void {
+  if (
+    request.docker.retainedContainers.some(
+      (container) => !docker.containers.some((entry) => entry.name === container),
+    ) ||
+    request.docker.retainedVolumes.some(
+      (volume) => !docker.volumes.some((entry) => entry.name === volume),
+    )
+  )
+    // Proof: removing this refusal failed `missing retained Docker volume refuses` with its named fault.
+    refusePreflight('docker-retention-mismatch');
+  for (const retainedName of request.docker.retainedContainers) {
+    const pin = request.docker.pins.find((entry) => entry.name === retainedName);
+    const container = docker.containers.find((entry) => entry.name === retainedName);
+    if (
+      pin === undefined ||
+      pin.project === '' ||
+      container?.id !== pin.id ||
+      container.imageID !== pin.imageID ||
+      container.project !== pin.project
+    )
+      // Proof: removing this refusal failed `unknown retained Docker ownership refuses` with its named fault.
+      refusePreflight('docker-ownership-mismatch');
+  }
+  if (
+    request.docker.retainedVolumes.some(
+      (volume) =>
+        !docker.containers.some(
+          (container) =>
+            request.docker.retainedContainers.includes(container.name) &&
+            container.volumes.includes(volume),
+        ),
+    )
+  )
+    // Proof: removing this refusal failed `missing retained volume attachment refuses` with its named fault.
+    refusePreflight('docker-retention-mismatch');
+  for (const retainedName of request.docker.retainedVolumes) {
+    const pin = request.docker.volumePins.find((entry) => entry.name === retainedName);
+    const volume = docker.volumes.find((entry) => entry.name === retainedName);
+    if (
+      pin === undefined ||
+      pin.project === '' ||
+      volume?.createdAt !== pin.createdAt ||
+      volume.mountpoint !== pin.mountpoint ||
+      volume.project !== pin.project
+    )
+      // Proof: removing this refusal failed `recreated retained Docker volume refuses its changed immutable receipt identity` with its named fault.
+      refusePreflight('docker-volume-ownership-mismatch');
+  }
+}
+
 /** Safe refusal intentionally has no subprocess body, parser cause, or credential-bearing input. */
 export class ObservabilityPreflightRefusal extends Error {
   public constructor(
@@ -1218,54 +1278,7 @@ export async function preflightObservability(
   const dockerNode = nodes.find((entry) => entry.name === request.docker.node);
   // Proof: removing this refusal failed `wrong Docker machine identity refuses` with its named fault.
   if (dockerNode?.machineID !== docker.machineID) refusePreflight('docker-node-mismatch');
-  if (
-    request.docker.retainedContainers.some(
-      (container) => !docker.containers.some((entry) => entry.name === container),
-    ) ||
-    request.docker.retainedVolumes.some(
-      (volume) => !docker.volumes.some((entry) => entry.name === volume),
-    )
-  )
-    // Proof: removing this refusal failed `missing retained Docker volume refuses` with its named fault.
-    refusePreflight('docker-retention-mismatch');
-  for (const retainedName of request.docker.retainedContainers) {
-    const pin = request.docker.pins.find((entry) => entry.name === retainedName);
-    const container = docker.containers.find((entry) => entry.name === retainedName);
-    if (
-      pin === undefined ||
-      pin.project === '' ||
-      container?.id !== pin.id ||
-      container.imageID !== pin.imageID ||
-      container.project !== pin.project
-    )
-      // Proof: removing this refusal failed `unknown retained Docker ownership refuses` with its named fault.
-      refusePreflight('docker-ownership-mismatch');
-  }
-  if (
-    request.docker.retainedVolumes.some(
-      (volume) =>
-        !docker.containers.some(
-          (container) =>
-            request.docker.retainedContainers.includes(container.name) &&
-            container.volumes.includes(volume),
-        ),
-    )
-  )
-    // Proof: removing this refusal failed `missing retained volume attachment refuses` with its named fault.
-    refusePreflight('docker-retention-mismatch');
-  for (const retainedName of request.docker.retainedVolumes) {
-    const pin = request.docker.volumePins.find((entry) => entry.name === retainedName);
-    const volume = docker.volumes.find((entry) => entry.name === retainedName);
-    if (
-      pin === undefined ||
-      pin.project === '' ||
-      volume?.createdAt !== pin.createdAt ||
-      volume.mountpoint !== pin.mountpoint ||
-      volume.project !== pin.project
-    )
-      // Proof: removing this refusal failed `recreated retained Docker volume refuses its changed immutable receipt identity` with its named fault.
-      refusePreflight('docker-volume-ownership-mismatch');
-  }
+  assertRetainedObservabilityDocker(request, docker);
   const rollback = await readRollback(request, now().getTime());
   const capacity = request.nodes.map((pin) => {
     const node = nodes.find((entry) => entry.name === pin.name);

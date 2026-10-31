@@ -102,6 +102,21 @@ A dev migration SHALL retain the Compose stores and the old telemetry path until
 - **THEN** each operation has a distinct immutable receipt and prior receipts are not overwritten
 - **AND** known historical Elastic and Prometheus evidence remains queryable at its recorded location
 
+#### Scenario: Recovery proves the retained route without changing checkpoints
+
+- **WHEN** rollback needs fresh stored health in the retained backend after the candidate route has collected newer observations
+- **THEN** it may send one bounded observation from the validated actual source through the existing retained OTLP route and verify stored-query convergence
+- **AND** it does not initialize or overwrite any existing checkpoint or treat frozen historical evidence as fresh health
+- **AND** failed publication, transport or bounded stored-query acceptance prevents the unit rollback
+
+#### Scenario: Explicit recovery reconciles a lost unit activation
+
+- **WHEN** an operation recorded mutation-started but reload or restart completion is uncertain
+- **THEN** its output provides a runnable explicit recovery command pinned to its prepared receipt and exact current/prior unit hashes
+- **AND** recovery requires operator reconciliation, proves the prior process inactive and exclusively records a new retained-route rollback
+- **AND** known captured BEFORE/AFTER file and loaded-command combinations may recover while arbitrary drift, active/unknown ownership or tampered pins refuse
+- **AND** the original uncertain receipt remains unchanged
+
 #### Scenario: Reviewed acceptance does not replace current checks
 
 - **WHEN** a dev route cutover or restore is requested

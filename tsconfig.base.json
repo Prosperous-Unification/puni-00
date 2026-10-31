@@ -134,6 +134,11 @@
       "@website/store-sqlite": ["./libs/website/adapters/store-sqlite/src/store.ts"],
       "@tools/observability-transport": ["./tools/tool-observability-stack/src/dev/transport.ts"],
       "@tools/observability-acceptance": ["./tools/tool-observability-stack/src/dev/acceptance.ts"],
+      "@tools/observability-route": ["./tools/tool-observability-stack/src/dev/route-provider.ts"],
+      "@tools/observability-route-contract": ["./tools/tool-observability-stack/src/dev/route.ts"],
+      "@tools/observability-route-fixture": [
+        "./tools/tool-observability-stack/src/dev/route.fixture.test.ts"
+      ],
       "@tools/observability-parity": [
         "./tools/tool-observability-stack/src/configuration/parity.ts"
       ],

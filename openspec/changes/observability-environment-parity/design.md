@@ -592,6 +592,18 @@ source, old-route health and historical queries. Do not reinterpret inventory as
 readiness or whitelist general preflight blockers. Existing full cutover and
 bootstrap-adoption preflight behavior remains unchanged.
 
+The candidate's current checkpoint is not evidence stored in the old backend.
+Explicit rollback may publish one bounded real-source observation through the
+existing probe/publisher to retained OTLP, without initializing or overwriting
+any checkpoint. Bind its current container/application identity and await bounded
+actual stored-query convergence before changing the unit. Publication, transport,
+capture or stored-query failure blocks rollback. Keep this fresh recovery witness
+distinct from the frozen historical witnesses and their original coordinates.
+Forward checks likewise use one bounded candidate-route canary when its stores
+cannot contain the retained observer's checkpoint. Both canaries identify the
+reviewed operation producer revision separately from the unchanged observer
+executable revision. They are stored-signal checks, not full reviewed acceptance.
+
 Each operation reserves an exclusive private receipt location and nonwaiting
 observer ownership lock. Capture and sync exact reversible prior unit ownership,
 credential-free route commitments and linked evidence before mutation; record
@@ -610,6 +622,17 @@ A compensating rollback is a separate recorded operation; uncertain ownership or
 failed recovery requires a precise manual inspection/recovery instruction.
 Subsequent restore links a new receipt to its completed rollback and requires
 fresh forward acceptance, preserving every earlier receipt byte-for-byte.
+
+Uncertain operations emit a pinned runnable explicit recovery command for the
+same observer-local executable. Recovery requires the prepared digest, exact
+current/prior unit hashes and explicit operator reconciliation. It proves the
+original owner process inactive, reacquires exclusive recovery ownership without
+stealing an active or unknown lock, and reuses retained-route/source/history
+inspection and the rollback transaction with a new receipt. Only captured BEFORE
+or AFTER file/loaded-command combinations are recognized, including a known
+NeedDaemonReload state after a lost reload/restart. Unknown third states, changed
+drop-ins/binary/source, tampered pins and active/unknown ownership refuse. The
+original uncertain operation is never relabelled completed.
 
 Task79 source tests use disposable HTTP/process fixtures and remain component
 evidence. Actual shared-stack rehearsal and dev migration stay open until the

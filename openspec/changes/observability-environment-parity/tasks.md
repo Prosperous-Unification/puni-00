@@ -284,3 +284,11 @@ Task77 source, independent review and actual existing-dev capture/aged verificat
 ### Task 79: Dev route cutover, rollback and restore within 4.1
 
 - [ ] Implement functional dev-only switch/rollback/restore through a small neutral operation contract, dedicated existing observer adapter and Fleet composition of fresh preflight. Consume independently pinned reviewed full acceptance evidence; independently check actual current candidate stored signals, effective observer/source ownership and retained history. Preserve frozen bootstrap and full cutover preflight semantics. Rollback reuses narrow retained Docker/volume ownership checks and old-route health without requiring the failed Kubernetes candidate to be Ready. Use distinct durable private operation receipts, exclusive nonwaiting ownership, expected-current compare before unit replacement and visible mutation uncertainty/manual recovery. Preserve credentials, tunnel, all old services/stores/Grafana objects and prior receipts. Ordered TDD covers rejected candidate/no mutation, exact identity/evidence joins, effective overrides, capture durability, switch, history survival, rollback during candidate failure, repeated restore, concurrency and uncertain/failed recovery. Watch new production-path safety faults fail and restore; run focused covering/necessary compatibility/statics, normal hooks and one independent scoped review. No live route operation, full rehearsal, persistent Secret/production change or final merge is authorized by source tests; canonical 4.1/4.2 remain open for actual acceptance.
+
+Source implementation and component verification are prepared for independent
+review; see [Task79 verification](verify.md#task79--dev-route-operations-and-explicit-recovery--2026-10-31).
+The operation canary uses the actual operation producer revision and leaves the
+observer checkpoint unchanged. Explicit pinned recovery recognizes known partial
+unit activations only after proving its prior owner inactive. Full reviewed
+rehearsal/staged acceptance collection, actual isolated operation and live dev
+migration remain unperformed; the source task stays open until scoped review.
