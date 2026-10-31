@@ -1,0 +1,180 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: elasticsearch
+  namespace: observability
+spec:
+  interval: 30m
+  dependsOn:
+    - name: eck-operator
+      namespace: observability
+  chart:
+    spec:
+      chart: ./infra/platform/charts/eck-elasticsearch-0.20.0.tgz
+      version: 0.20.0
+      sourceRef:
+        kind: GitRepository
+        name: puni-platform
+        namespace: flux-system
+  values:
+    fullnameOverride: elasticsearch
+    version: 9.3.8
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540
+    secureSettings:
+      - secretName: elastic-s3-credentials
+        entries:
+          - { key: s3.client.default.access_key }
+          - { key: s3.client.default.secret_key }
+    volumeClaimDeletePolicy: DeleteOnScaledownOnly
+    nodeSets:
+      - name: default
+        count: 1
+        config:
+          node.store.allow_mmap: false
+          s3.client.default.endpoint: object-store.puni-backup.svc:9000
+          s3.client.default.protocol: https
+          s3.client.default.path_style_access: true
+        podTemplate:
+          spec:
+            nodeSelector:
+              puni.dev/capability-observability: 'true'
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1000
+              runAsGroup: 1000
+              fsGroup: 1000
+              seccompProfile:
+                type: RuntimeDefault
+            initContainers:
+              - name: prepare-s3-trust
+                image: docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540
+                # Pinned init peak observed 87.4 MiB; both trust modes completed at 500m/256Mi as UID 1000.
+                resources:
+                  requests: { cpu: 100m, memory: 128Mi, ephemeral-storage: 64Mi }
+                  limits: { cpu: 500m, memory: 256Mi, ephemeral-storage: 64Mi }
+                command:
+                  - bash
+                  - -ec
+                  - |
+                    # Proof: replacing this copy with touch accepted missing/unreadable bundled roots (backup-tls.test.ts).
+                    cp "/usr/share/elasticsearch/jdk/lib/security/cacerts" /usr/share/elasticsearch/config/s3-trust/cacerts
+                    chmod u+w /usr/share/elasticsearch/config/s3-trust/cacerts
+                    case "$S3_TRUST_MODE" in
+                      system-roots) ;;
+                      system-roots-plus-ca)
+                        # Proof: each removed file guard lost its distinct CA refusal (backup-tls.test.ts).
+                        path=/s3-credentials/ca.crt
+                        [ -e "$path" ] || { echo "missing TLS input: $path" >&2; exit 1; }
+                        [ -r "$path" ] || { echo "unreadable TLS input: $path" >&2; exit 1; }
+                        [ -s "$path" ] || { echo "empty TLS input: $path" >&2; exit 1; }
+                        # Proof: removing the parse refusal lost the malformed-CA diagnostic (backup-tls.test.ts).
+                        "/usr/share/elasticsearch/jdk/bin/keytool" -printcert -file "$path" >/dev/null || { echo "malformed TLS input: $path" >&2; exit 1; }
+                        "/usr/share/elasticsearch/jdk/bin/keytool" -importcert -noprompt -alias puni-s3-ca -file "$path" -keystore /usr/share/elasticsearch/config/s3-trust/cacerts -storepass changeit
+                        ;;
+                      # Proof: removing this branch accepted the unknown trust mode (backup-tls.test.ts).
+                      *) echo "invalid S3_TRUST_MODE" >&2; exit 1 ;;
+                    esac
+                    printf '%s\n' '-Djavax.net.ssl.trustStore=/usr/share/elasticsearch/config/s3-trust/cacerts' '-Djavax.net.ssl.trustStorePassword=changeit' > /usr/share/elasticsearch/config/s3-trust/s3.options
+                env:
+                  - { name: S3_TRUST_MODE, value: system-roots-plus-ca }
+                volumeMounts:
+                  - { name: s3-trust, mountPath: /usr/share/elasticsearch/config/s3-trust }
+                  - { name: s3-credentials, mountPath: /s3-credentials, readOnly: true }
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop:
+                      - ALL
+                  readOnlyRootFilesystem: true
+              - name: elastic-internal-init-filesystem
+                resources:
+                  requests:
+                    cpu: 100m
+                    memory: 50Mi
+                    ephemeral-storage: 64Mi
+                  limits:
+                    cpu: 100m
+                    memory: 50Mi
+                    ephemeral-storage: 64Mi
+              - name: elastic-internal-init-keystore
+                resources:
+                  requests:
+                    cpu: 500m
+                    memory: 196Mi
+                    ephemeral-storage: 64Mi
+                  limits:
+                    cpu: 500m
+                    memory: 196Mi
+                    ephemeral-storage: 64Mi
+              - name: elastic-internal-suspend
+                resources:
+                  requests:
+                    cpu: 500m
+                    memory: 2Gi
+                    ephemeral-storage: 1Gi
+                  limits:
+                    cpu: "2"
+                    memory: 2Gi
+                    ephemeral-storage: 1Gi
+            volumes:
+              - { name: s3-trust, emptyDir: { sizeLimit: 16Mi } }
+              - name: s3-credentials
+                secret: { secretName: elastic-s3-credentials, defaultMode: 292 }
+              - name: elastic-internal-elasticsearch-bin-local
+                emptyDir:
+                  sizeLimit: 16Mi
+              - name: elastic-internal-elasticsearch-config-local
+                emptyDir:
+                  sizeLimit: 16Mi
+              - name: elastic-internal-elasticsearch-plugins-local
+                emptyDir:
+                  sizeLimit: 16Mi
+              - name: elasticsearch-logs
+                emptyDir:
+                  sizeLimit: 256Mi
+              - name: tmp-volume
+                emptyDir:
+                  sizeLimit: 256Mi
+            containers:
+              - name: elasticsearch
+                env:
+                  - name: ES_JAVA_OPTS
+                    value: -Xms1g -Xmx1g
+                volumeMounts:
+                  - {
+                      name: s3-trust,
+                      mountPath: /usr/share/elasticsearch/config/s3-trust,
+                      readOnly: true
+                    }
+                  - {
+                      name: s3-trust,
+                      mountPath: /usr/share/elasticsearch/config/jvm.options.d/s3.options,
+                      subPath: s3.options,
+                      readOnly: true
+                    }
+                resources:
+                  requests: { cpu: 500m, memory: 2Gi, ephemeral-storage: 1Gi }
+                  limits: { cpu: '2', memory: 2Gi, ephemeral-storage: 1Gi }
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop:
+                      - ALL
+        volumeClaimTemplates:
+          - metadata:
+              name: elasticsearch-data
+            spec:
+              storageClassName: puni-retain
+              accessModes: [ ReadWriteOnce ]
+              resources:
+                requests:
+                  storage: 10Gi
+    auth:
+      fileRealm:
+        - secretName: signal-health-users
+        - secretName: signal-ingest-users
+        - secretName: platform-ingest-users
+      roles:
+        - secretName: signal-health-roles
+        - secretName: signal-ingest-roles
+        - secretName: platform-ingest-roles

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "base": "docker.io/library/busybox:1.36.1@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662",
+  "builder": {
+    "name": "docker.io/moby/buildkit:v0.33.0",
+    "digest": "sha256:6c2fa84a6b61ccd72899dde4239f8d5717f05f9a8ca6f3cad185fb1a95a94de3"
+  },
+  "publicKey": "RWTx5Zr1tiHQLwG9keckT0c45M3AGeHD6IvimQHpyRywVWGbP1aVSGav",
+  "publicKeySource": "https://raw.githubusercontent.com/minio/minio/07c3a429bfed433e49018cb0f78a52145d4bedeb/Dockerfile.release",
+  "minio": {
+    "version": "RELEASE.2025-09-07T16-13-09Z",
+    "url": "https://github.com/minio/minio/releases/download/RELEASE.2025-09-07T16-13-09Z/minio.linux-amd64.RELEASE.2025-09-07T16-13-09Z",
+    "signatureUrl": "https://github.com/minio/minio/releases/download/RELEASE.2025-09-07T16-13-09Z/minio.linux-amd64.RELEASE.2025-09-07T16-13-09Z.minisig",
+    "sha256": "7c5bd8512c6e966455b1d198209358b2d191c77a83ab377c4073281065fb855f"
+  },
+  "mc": {
+    "version": "RELEASE.2025-08-13T08-35-41Z",
+    "url": "https://github.com/minio/mc/releases/download/RELEASE.2025-08-13T08-35-41Z/mc.linux-amd64.RELEASE.2025-08-13T08-35-41Z",
+    "signatureUrl": "https://github.com/minio/mc/releases/download/RELEASE.2025-08-13T08-35-41Z/mc.linux-amd64.RELEASE.2025-08-13T08-35-41Z.minisig",
+    "sha256": "01f866e9c5f9b87c2b09116fa5d7c06695b106242d829a8bb32990c00312e891"
+  },
+  "buildx": {
+    "version": "v0.38.0",
+    "url": "https://github.com/docker/buildx/releases/download/v0.38.0/buildx-v0.38.0.linux-amd64",
+    "sha256": "4fe4cc38adf48169132749b6ca22a990928db0118e3407584ee553723115d287"
+  }
+}

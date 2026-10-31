@@ -1,0 +1,575 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: signal-discovery
+  namespace: observability-dev
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - services
+      - endpoints
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - discovery.k8s.io
+    resources:
+      - endpointslices
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: signal-discovery
+  namespace: observability-dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: signal-discovery
+subjects:
+  - kind: ServiceAccount
+    name: kps-prometheus
+    namespace: observability-dev
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: observability-dev
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: observability-dev
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-alertmanager
+  namespace: observability-dev
+spec:
+  podSelector:
+    matchLabels: &a1
+      alertmanager: kps-alertmanager
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels: &a2
+              operator.prometheus.io/name: kps-prometheus
+      ports:
+        - protocol: TCP
+          port: 9093
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels: *a1
+      ports: &a3
+        - protocol: TCP
+          port: 9094
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels: *a1
+      ports: &a4
+        - protocol: UDP
+          port: 9094
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels: *a2
+      ports:
+        - protocol: TCP
+          port: 9093
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels: *a1
+      ports: *a3
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels: *a1
+      ports: *a4
+    - to:
+        - ipBlock:
+            cidr: 172.31.100.5/32
+      ports:
+        - protocol: TCP
+          port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-collector
+  namespace: observability-dev
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: signal-collector
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels:
+              operator.prometheus.io/name: kps-prometheus
+      ports:
+        - protocol: TCP
+          port: 8888
+        - protocol: TCP
+          port: 8889
+    - from:
+        - ipBlock:
+            cidr: 172.31.100.2/32
+      ports:
+        - protocol: TCP
+          port: 4318
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: signal-gateway
+      ports:
+        - protocol: TCP
+          port: 4317
+        - protocol: TCP
+          port: 14317
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: signal-metrics
+      ports:
+        - protocol: TCP
+          port: 8443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-elastic
+  namespace: observability-dev
+spec:
+  podSelector:
+    matchLabels: &a1
+      elasticsearch.k8s.elastic.co/cluster-name: elasticsearch
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: signal-gateway
+      ports:
+        - protocol: TCP
+          port: 9200
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels:
+              kibana.k8s.elastic.co/name: kibana
+      ports:
+        - protocol: TCP
+          port: 9200
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels:
+              job-name: elastic-settings
+      ports:
+        - protocol: TCP
+          port: 9200
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels: *a1
+      ports: &a2
+        - protocol: TCP
+          port: 9300
+    - from:
+        - ipBlock:
+            cidr: 172.31.100.2/32
+      ports:
+        - protocol: TCP
+          port: 9200
+    - from:
+        - ipBlock:
+            cidr: 172.31.100.3/32
+      ports:
+        - protocol: TCP
+          port: 9200
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+          podSelector:
+            matchLabels:
+              control-plane: elastic-operator
+      ports:
+        - protocol: TCP
+          port: 9200
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels: *a1
+      ports: *a2
+    - to:
+        - ipBlock:
+            cidr: 172.31.100.4/32
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 9000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway
+  namespace: observability-dev
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: signal-gateway
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: signal-collector
+      ports:
+        - protocol: TCP
+          port: 4317
+        - protocol: TCP
+          port: 14317
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels:
+              operator.prometheus.io/name: kps-prometheus
+      ports:
+        - protocol: TCP
+          port: 8888
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels:
+              elasticsearch.k8s.elastic.co/cluster-name: elasticsearch
+      ports:
+        - protocol: TCP
+          port: 9200
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kibana
+  namespace: observability-dev
+spec:
+  podSelector:
+    matchLabels:
+      kibana.k8s.elastic.co/name: kibana
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels:
+              job-name: kibana-objects
+      ports:
+        - protocol: TCP
+          port: 5601
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+          podSelector:
+            matchLabels:
+              control-plane: elastic-operator
+      ports:
+        - protocol: TCP
+          port: 5601
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels:
+              elasticsearch.k8s.elastic.co/cluster-name: elasticsearch
+      ports:
+        - protocol: TCP
+          port: 9200
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-metrics
+  namespace: observability-dev
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: signal-metrics
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: signal-collector
+      ports:
+        - protocol: TCP
+          port: 8443
+    - from:
+        - ipBlock:
+            cidr: 172.31.100.2/32
+      ports:
+        - protocol: TCP
+          port: 8443
+    - from:
+        - ipBlock:
+            cidr: 172.31.100.3/32
+      ports:
+        - protocol: TCP
+          port: 8443
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels:
+              operator.prometheus.io/name: kps-prometheus
+      ports:
+        - protocol: TCP
+          port: 9090
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-objects
+  namespace: observability-dev
+spec:
+  podSelector:
+    matchLabels:
+      job-name: kibana-objects
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels:
+              kibana.k8s.elastic.co/name: kibana
+      ports:
+        - protocol: TCP
+          port: 5601
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus
+  namespace: observability-dev
+spec:
+  podSelector:
+    matchLabels: &a1
+      operator.prometheus.io/name: kps-prometheus
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: signal-metrics
+      ports:
+        - protocol: TCP
+          port: 9090
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels: *a1
+      ports: &a2
+        - protocol: TCP
+          port: 9090
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels: &a3
+              alertmanager: kps-alertmanager
+      ports:
+        - protocol: TCP
+          port: 9093
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: signal-collector
+      ports:
+        - protocol: TCP
+          port: 8888
+        - protocol: TCP
+          port: 8889
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: signal-gateway
+      ports:
+        - protocol: TCP
+          port: 8888
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels: *a1
+      ports: *a2
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels: *a3
+      ports:
+        - protocol: TCP
+          port: 9093
+        - protocol: TCP
+          port: 8080
+    - to:
+        - ipBlock:
+            cidr: 172.31.100.1/32
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 6443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-settings
+  namespace: observability-dev
+spec:
+  podSelector:
+    matchLabels:
+      job-name: elastic-settings
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability-dev
+          podSelector:
+            matchLabels:
+              elasticsearch.k8s.elastic.co/cluster-name: elasticsearch
+      ports:
+        - protocol: TCP
+          port: 9200

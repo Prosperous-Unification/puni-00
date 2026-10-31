@@ -1,0 +1,77 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kibana
+  namespace: observability
+spec:
+  interval: 30m
+  dependsOn:
+    - name: elasticsearch
+  chart:
+    spec:
+      chart: ./infra/platform/charts/eck-kibana-0.20.0.tgz
+      version: 0.20.0
+      sourceRef:
+        kind: GitRepository
+        name: puni-platform
+        namespace: flux-system
+  # No Ingress: Kibana is reached through the private network or a port-forward only.
+  values:
+    fullnameOverride: kibana
+    version: 9.3.8
+    image: docker.elastic.co/kibana/kibana:9.3.8@sha256:a9f4af21536422d9a3bb924bad5990b24859db0c9a0474558f283244a2bcd481
+    count: 1
+    elasticsearchRef:
+      name: elasticsearch
+      namespace: observability
+    podTemplate:
+      spec:
+        nodeSelector:
+          puni.dev/capability-observability: 'true'
+        containers:
+          - name: kibana
+            env:
+              - name: NODE_OPTIONS
+                value: --max-old-space-size=512
+            resources:
+              requests: { cpu: 200m, memory: 512Mi, ephemeral-storage: 1Gi }
+              limits: { cpu: '1', memory: 1Gi, ephemeral-storage: 1Gi }
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                  - ALL
+        initContainers:
+          - name: elastic-internal-init
+            resources:
+              requests:
+                cpu: 100m
+                memory: 50Mi
+                ephemeral-storage: 64Mi
+              limits:
+                cpu: 100m
+                memory: 50Mi
+                ephemeral-storage: 64Mi
+        volumes:
+          - name: kibana-data
+            emptyDir:
+              sizeLimit: 256Mi
+          - name: kibana-plugins
+            emptyDir:
+              sizeLimit: 16Mi
+          - name: elastic-internal-kibana-config-local
+            emptyDir:
+              sizeLimit: 16Mi
+          - name: kibana-logs
+            emptyDir:
+              sizeLimit: 256Mi
+          - name: temp-volume
+            emptyDir:
+              sizeLimit: 256Mi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault

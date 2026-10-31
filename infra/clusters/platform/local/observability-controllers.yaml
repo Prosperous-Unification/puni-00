@@ -1,0 +1,24 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: observability-controllers
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./infra/platform/observability/rehearsal-controllers
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: puni-platform
+  kubeConfig:
+    secretRef:
+      name: platform-local-kubeconfig
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  dependsOn:
+    - name: platform
+    - name: certificates
+  wait: true
+  timeout: 20m
