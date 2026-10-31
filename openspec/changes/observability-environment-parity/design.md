@@ -456,3 +456,42 @@ Use pinned provider fields already present: OTel chart0.173.1 copies values.reso
 Ordered TDD: actual current validation accepts missing disk/scratch policy RED; malformed/zero/contradictory/absence controls; shared source values and narrow validation; ignored/changed Helm values and wrong/extra roles; real pinned renders for both placement profiles; exact correspondence/parity and selected existing reader regressions. Watch only new changed safety boundaries fail on their production path with intended faults, restore exact bytes, and add adjacent Proof comments. Keep setup/structural/masked experiments uncredited. One focused covering run and scoped statics suffice; no old proof matrix or unchanged canonical capture/control replay. A real selected-chart render is justified; identify any inseparable full-capture dependency before invoking it. Do not rerender the whole canonical packet solely for status. Normal source commits, independent task review and reviewable evidence precede publication.
 
 Persistent path enforcement is separate. Pinned collector file_storage max_size is per database and cannot certify a directory with multiple identities, old files or independent writers. Do not add it in this slice, move checkpoints into ephemeral scratch, discard history, guess host quotas, lower capacity floors or mutate any host/Secret. Current combined ledger stays an incomplete conditional full-rehearsal budget, not steady monitoring sizing. Full3.1/runtime/live acceptance remains open.
+
+### Resource history through the existing observer — Task74
+
+Read-only inspection on2026-10-31 found complete configured scrape counts for current
+Prometheus/collector/gateway self-metrics over24hours, but no host/container resource
+history in either current dev Prometheus or preserved VictoriaMetrics. Current dev
+memory is about2.83GiB, not the withdrawn64/128GiB hardware recommendation. Retained
+attempt/replacement allocations cannot be treated as observed simultaneous RAM.
+
+Use the existing observer's SSH/OTLP cycle, checkpoint and metric sender. A small
+provider-neutral reading type represents measured host availability and selected
+workload memory charges plus cumulative CPU, observation time and execution generation.
+Keep fixed host/machine/daemon/Compose identity checks and Linux cgroup-v2 reads in
+one dedicated SSH provider adapter/program; no provider assumptions enter the reading
+or encoding. Reuse executeBounded and existing deadline/cancellation semantics. Select
+only existing dev and preserved observability roles, reject a missing/changed selected
+identity, bound counts/output, bind actual startedAt/PID/cgroup paths before and after
+reading, and distinguish current memory charge from process RSS or configured limits.
+Do not sum lifetime peaks. Cumulative CPU carries generation/start provenance so restarts
+do not masquerade as continuous use; stable metric labels contain only bounded roles,
+not raw IDs, environment contents, private keys or diagnostics.
+
+One explicitly optional resource member in the existing health checkpoint keeps old
+checkpoint/readers compatible; new CLI cycles always provide an observation, including
+unavailable in local mode. Publish finite state/checked/observed gauges and measured
+samples only when complete. Preserve current application health/progress acceptance.
+Reuse the current host/probe resource identity while distinguishing measured target
+host/workload group, without relabelling preserved application telemetry as dev.
+
+Alternatives considered: a new exporter/daemon would add lifecycle and access work;
+mounting a Docker socket into OTel expands authority. The existing bounded SSH reader
+already has the needed inspection route and avoids those additions. No new glossary
+term or ADR is needed for this reversible adapter addition. Full runtime admission,
+provider caps, phase concurrency and actual dev deployment remain separate evidence.
+
+Implement with production-boundary TDD, real Python fixture reads and subprocess/OTLP
+integration, new guard-removal negatives/restoration and scoped checks. Do not replay
+old source/chart/component/fault suites. The code slice stops for independent review;
+a live compiled observer rollout needs fresh source-bound preflight and preservation.

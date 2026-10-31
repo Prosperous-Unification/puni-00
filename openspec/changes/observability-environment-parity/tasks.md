@@ -253,3 +253,7 @@ The source-component execution completed in 19.33 seconds, with successful final
 cleanup and no live owned client remaining. This is source 765 evidence; full
 current-source Kubernetes, capacity, signals/history/recovery and live convergence
 remain required under the original objective.
+
+### Task74 autonomous resource history within3.1
+
+- [ ] Extend the existing observer with provider-neutral host/workload current-memory and cumulative-CPU readings, a bounded fixed SSH/Linux-cgroup provider adapter, resource state/time metrics and existing-cycle/checkpoint publication. Ordered TDD: observed current CLI missing-resource-state RED; valid host/owned workloads and generation-bound counters; denied/missing/malformed/stale/future/changed identity and escaped cgroup negatives; bounded capture/deadline/cancellation; unavailable local mode without fabricated samples; actual Python fixture and OTLP subprocess controls; watched new production safety guard faults/restoration with adjacent Proof. Preserve old checkpoint compatibility, signal/progress semantics, secrets/redaction, roles, limits, stores and admission floors. Run one focused covering set plus affected statics, normal commits, record exact evidence, obtain independent specification/quality review, then perform separately bounded real adapter and existing-pipeline corroboration if prerequisites permit. No new daemon/backend, Docker socket exposure, source/chart rerender, old proof replay or hardware sizing/runtime-completion claim.

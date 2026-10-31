@@ -959,3 +959,29 @@ Current platform candidates MUST give the retained OTel collector and Velero nod
 - **THEN** persistent collector queue/checkpoints, Velero writable host paths, physical writers, retained allocations and runtime enforcement remain independent unresolved obligations
 - **AND** no whole-path quota, measured functional sufficiency, full-host admission, creation authority, runtime acceptance or live convergence is inferred
 - **AND** earlier saved source captures and proof artifacts remain unchanged
+
+### Requirement: Autonomous resource history precedes measured sizing
+
+The existing observer SHALL collect fresh host/workload memory and cumulative CPU
+through a bounded read-only provider adapter, retaining identity/generation provenance.
+Shared reading/metric concepts MUST remain provider-independent and reuse existing
+OTel publication and Prometheus storage with explicit unavailable states.
+
+#### Scenario: Valid measurements enter the existing pipeline
+
+- **WHEN** the existing autonomous cycle obtains fresh identity-bound resource readings
+- **THEN** host availability, per-workload current memory and generation-bound CPU counters are published through its existing metric sender
+- **AND** resource state and observation time are explicit while existing signal/progress semantics remain unchanged
+- **AND** this adds no daemon, backend, Docker socket exposure, credentials, resource-limit change or admission bypass
+
+#### Scenario: Incomplete resource evidence cannot become zero usage
+
+- **WHEN** SSH is denied, a selected workload is absent, identity or generation changes during reading, a cgroup path escapes, counters are invalid, or the observation is stale/future
+- **THEN** the resource observation is explicitly unavailable with a finite reason and no fabricated usage samples
+- **AND** local protocol rehearsal cannot claim actual host measurements, raw diagnostics/credential material never become metric labels, and configured limits are not reported as measured peaks
+
+#### Scenario: Lifetime maxima do not certify concurrent capacity
+
+- **WHEN** resource history or lifetime peaks are inspected for sizing
+- **THEN** distinct workloads' maxima and terminated attempts are not asserted to coexist without phase and identity evidence
+- **AND** source component success does not certify full Kubernetes/Flux, history/recovery or live migration readiness
