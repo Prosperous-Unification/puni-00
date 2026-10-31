@@ -215,3 +215,35 @@ export function assertInheritedLock(lockPath: string, descriptor: number): void 
     throw new Error(`shared edge lock held: ${lockPath}`);
   }
 }
+
+/** Reacquires an existing canonical inode without creation or holder-record mutation. */
+export async function withExistingCanonicalLock<T>(
+  lockPath: string,
+  action: (descriptor: number) => Promise<T>,
+): Promise<T> {
+  const descriptor = openSync(
+    lockPath,
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+  );
+  const assertExistingName = () => {
+    const opened = fstatSync(descriptor, { bigint: true });
+    const named = lstatSync(lockPath, { bigint: true });
+    if (
+      !opened.isFile() ||
+      !named.isFile() ||
+      realpathSync(lockPath) !== lockPath ||
+      opened.dev !== named.dev ||
+      opened.ino !== named.ino
+    )
+      throw new Error(`invalid existing canonical lock: ${lockPath}`);
+  };
+  try {
+    assertExistingName();
+    if (symbols.flock(descriptor, LOCK_EX | LOCK_NB) !== 0)
+      throw new Error(`existing canonical lock held: ${lockPath}`);
+    assertExistingName();
+    return await action(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
+}

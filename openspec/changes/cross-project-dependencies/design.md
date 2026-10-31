@@ -1719,3 +1719,85 @@ Lock-holder bytes and mutable timestamps are deliberately outside continuity.
 No later pathname baseline may replace missing origin evidence. That publisher,
 guarded callers, full initial handoff and host execution are unimplemented here.
 See [origin-receipt evidence](verify-origin-receipt.md).
+
+### Local first-reader preparation
+
+The separately selected first-reader branch reuses the existing installer and
+transport. It requires an explicit independently selected target/account,
+independently designated fresh rather than inferred from missing files, and
+exact approved Bun, reader and transient initializer artifacts. The production state
+and two installed destinations remain fixed by the install contract; isolated
+roots are a test-construction seam, never a production environment redirect.
+No normal missing-reader fallback selects this branch, and operation selection
+does not confer host execution authority.
+
+The operation verifies the closed fresh-state matrix, launches the actual
+initializer once with its fixed receipt request and joins normal exit plus both
+actual streams. It consumes that bounded closed receipt and compares the exact
+original identities and ordinary policy bytes after nonblocking reacquisition
+of the existing canonical lock. An additive withExistingCanonicalLock must not
+create a missing lock, rewrite holder records or recapture a replacement origin.
+Current withCanonicalLock behavior and callers remain unchanged. Before either
+publication, the operation must run and join the approved staged pair's strict
+`--check-edge-policy` check under the reacquired lock. This required staged
+precondition does not substitute for the installed consumer.
+
+While retaining the same open lock description, the operation rechecks markers
+and destination absence, validates approved stage bytes, creates validated
+regular destination-local siblings and publishes Bun then reader using exclusive
+hard links and directory synchronization. It never uses replacement rename or
+an EXDEV copy fallback. Partial publication/policy remain on failure; only
+positively owned unpublished staging may be removed. No two-file atomicity or
+physical crash durability is claimed.
+
+Success additionally requires independent canonical installed readback and the
+actual installed Bun/reader's refusal-only required-policy inherited-lock mode.
+That entry validates the inherited description and ordinary-policy/marker matrix
+before service configuration or supervisor effects. Original normal exit and
+both streams, followed by closing state/identity checks, precede lock release.
+Staged success or a ready callback cannot substitute for installed execution.
+The solver runtime lifetime lock is not acquired and no solver starts.
+
+This source slice is local preparation only. Actual authenticated target/account
+identity, concrete artifact/build closure and execution commands require the
+later attended host packet. Existing ordinary/restoring/active state, partial
+reader state, malformed/unreadable/unknown observations and non-ENOENT failures
+refuse. No reset, recovery, automatic retry, guessed inverse or durable resume
+permit is introduced. Lost original process settlement holds partial state.
+
+Three ordered TDD slices deliver actual receipt/reacquisition, real exclusive
+publication, and the installed consumer. All use the genuine operation, real
+files/locks/children and independently pinned artifacts. New R5 omissions require
+separate reviewed exact recipes; the prior Origin24 approval grants none. Actual
+bootstrap/configure/ordinary installer callers, H0–H8, controller/ingress/native
+acceptance and parent10.2 remain open. See
+[first-reader verification](verify-first-reader-preparation.md).
+
+### First-reader local observation profile
+
+The fixed local engineering profile captures one180000ms monotonic preparation
+deadline at entry and never renews it. Each initializer, staged check and installed
+check has30000ms execution plus15000ms settlement observation, starting at exit
+or execution cutoff, whichever comes first. A new child needs45000ms remaining
+on the original operation deadline. This allocates three45s envelopes plus45s
+for nonchild work, not a measured native worst case.
+
+Retain at most1048576bytes per stream and render at most8192bytes per diagnostic
+excerpt, preserving counts/truncation. Continue capped draining after overflow.
+Track original wait and both readers independently; fail-fast rejection or a
+timeout race must not abandon them or unwind a held lock. Known expired,
+signaled, nonzero or overflowed children refuse after actual settlement. Pending
+or permanently failed EOF observation retains the original operation/lock in
+live HOLD without cleanup, next child, guessed inverse or automatic release.
+Later ORIGINAL settlement can retire as refusal only, never resume publication.
+A pending filesystem effect likewise cannot race cleanup or release.
+
+First-reader transport stage commands have60000ms execution plus15000ms
+observation; final operation SSH has210000ms plus15000ms. Local transport
+expiry/nonzero/lost observation does not prove remote settlement. Preserve the
+target partial-state context and stop subsequent commands without retry/inverse.
+Normal four-file installer observation remains unchanged. Tests may control a
+construction-time clock while real owned processes/files/locks remain genuine;
+production has no profile/environment override and owning tests retain10000ms.
+The engineering allowances require later target-specific qualification and may
+refuse slow targets; they grant neither host authority nor capacity acceptance.

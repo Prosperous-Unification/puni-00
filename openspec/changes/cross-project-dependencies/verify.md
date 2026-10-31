@@ -7806,3 +7806,5 @@ Private main508 MCP preflight reconciliation: [actual owning checks and composit
 [Original gateway-to-source continuation and dev-backend-only admission](verify-source-start.md) records genuine context/start composition, separately scoped ordinary epochs and exact20 new dependency proof pairs. Native/controller/exposure and parent10.2 remain open.
 
 [Initializer origin-receipt prerequisite](verify-origin-receipt.md) records the completed bounded OR1–OR3 local producer:24 independently reviewed fault/restored pairs, current75 owning tests and scoped static checks. It does not establish first-reader publication, host activation or parent10.2 completion.
+
+[Local first-reader preparation](verify-first-reader-preparation.md) records the reviewed FR1–FR3 implementation lease. It remains unimplemented and unqualified; target/account designation, joined staged strict check, original-lock continuity and actual installed execution are required before any preparation completion claim.

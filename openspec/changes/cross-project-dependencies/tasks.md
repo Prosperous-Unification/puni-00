@@ -1127,3 +1127,14 @@ These are local evidence-producer prerequisites. Reader publication, the actual
 reacquisition consumer, ordinary guarded callers, service/controller/exposure,
 initial H0–H8, native acceptance and parent10.2 remain open. No host action or
 architectural main/deployment adoption follows from this slice.
+
+### Local first-reader preparation (bounded part of10.2)
+
+- [ ] FR1 Reach genuine consumer RED after a real initializer joins and its policy is replaced with identical bytes before reacquisition. Add the receipt-bound operation/decoder and additive existing-only canonical-lock API; require independent fresh target/account designation, then ordinary positive and missing/abnormal receipt, parent/lock replacement, contention and missing original lock must use that operation and refuse without recreating state or publishing readers. Keep producer code and existing lock callers unchanged. Prepare exact original-identity/required-custody/lock omissions for independent review before any mutation execution.
+- [ ] FR2 Wire the explicitly selected installer branch and actual generated operation to the real locked two-file publisher. Require independently pinned local artifacts, closed fresh state, the joined staged strict policy check under the reacquired lock before either publication, destination-local regular siblings, exclusive hard links, directory sync and retained partial state. Exercise real destination races, corrupt stages/siblings and first-publication interruption; preserve existing bytes and never replace or copy on EXDEV. Prepare exact no-replace/readback/interval dependency proofs before execution; no host/systemd/config effects.
+- [ ] FR3 Add and exercise the actual fixed installed reader's inherited-description required-policy refusal mode before configuration/service effects. Run installed Bun/reader, corrupt installed bytes after staged success, reject absent/foreign descriptors and invalid required policy/markers, and witness the held interval with a real contender. Finish finite new proof recipes, scoped current checks and independent source/evidence review in verify-first-reader-preparation.md; do not credit a decoder, fake ready callback, staged check, unrun omission or source hash as full preparation/host/handoff acceptance.
+
+Parent10.2, actual bootstrap/configure/ordinary caller coverage, H0–H8,
+controller/ingress, native acceptance and architectural main/deployment adoption
+remain open. The completed Origin24 batch does not authorize these new
+counterfactuals or the separate frozen43 proof cases.

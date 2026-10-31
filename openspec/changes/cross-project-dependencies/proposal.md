@@ -17,7 +17,7 @@ Cross-organization dependencies, project-level ordering restrictions, whole-proj
 
 ## Constraints
 
-Preserve local behavior and access boundaries; require successor edit and predecessor read access. Use additive migrations with rollback and explicit compatibility for older writers. Never omit unresolved prerequisites or fabricate dates. Preserve API/MCP contracts through explicit versioning, and prove new safety guards with watched production-path negatives. Retain under-lock initialization origin evidence. CI and the isolated host gate remain release gates.
+Preserve local behavior and access boundaries; require successor edit and predecessor read access. Use additive migrations with rollback and explicit compatibility for older writers. Never omit unresolved prerequisites or fabricate dates. Preserve API/MCP contracts through explicit versioning, and prove new safety guards with watched production-path negatives. Bind first-reader preparation to under-lock initializer evidence. CI and the isolated host gate remain release gates.
 
 ## Capabilities
 

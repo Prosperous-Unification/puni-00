@@ -1,9 +1,12 @@
+import { rejects } from 'node:assert/strict';
+
 import { describe, expect, it } from 'bun:test';
 
 import {
   buildSolverSupervisorInstallPlan,
   installSolverSupervisor,
   parseSolverSupervisorInstallArgs,
+  prepareSolverReaderInstallation,
   type SolverSupervisorInstallerDependencies,
 } from './install-solver-supervisor';
 import {
@@ -200,3 +203,14 @@ for (const version of ['1.4.2', '1.4.4'])
     );
     expect(seen.length).toBeGreaterThan(1);
   });
+
+it('first-reader installation requires independent selected target and never borrows the default host', async () => {
+  await rejects(
+    prepareSolverReaderInstallation({
+      host: '',
+      execute: false,
+      selection: undefined,
+    }),
+    /selected/,
+  );
+});

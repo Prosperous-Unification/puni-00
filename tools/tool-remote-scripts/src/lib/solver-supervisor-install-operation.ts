@@ -1,6 +1,15 @@
-import { basename, dirname } from 'node:path';
+import { builtinModules } from 'node:module';
+import { basename, dirname, extname } from 'node:path';
 
 import type { BundleFile } from './deploy-contract';
+import {
+  captureSolverReaderArtifact,
+  readSolverReaderBuildInput,
+  type SolverReaderArtifact,
+  type SolverReaderArtifactObservation,
+  type SolverReaderLayout,
+  type SolverReaderSelection,
+} from './solver-reader-preparation';
 import {
   SOLVER_SUPERVISOR_BUN_VERSIONS,
   SOLVER_SUPERVISOR_SERVICE,
@@ -137,4 +146,120 @@ until systemctl --user is-active --quiet ${SOLVER_SUPERVISOR_SERVICE} && test -S
   sleep 0.25
 done
 publishing=0`;
+}
+
+export interface SolverReaderOperationBuild {
+  readonly bytes: Uint8Array;
+  readonly inputs: readonly SolverReaderArtifactObservation[];
+  readonly compiler: SolverReaderArtifactObservation;
+  readonly virtualEntry: { readonly sha256: string; readonly byteLength: number };
+  readonly externals: readonly string[];
+  readonly bunVersion: string;
+}
+
+/** Seals actual compiler bytes, virtual entry and the exact file bytes consumed by Bun. */
+export async function buildSolverReaderPreparationBundle(
+  selection: SolverReaderSelection,
+  layout: SolverReaderLayout,
+): Promise<SolverReaderOperationBuild> {
+  const compiler = await captureSolverReaderArtifact(process.execPath);
+  const entrypoint = 'solver-reader-preparation-entry';
+  const source = new URL('./solver-reader-preparation.ts', import.meta.url).pathname;
+  const contents = `import { prepareSolverReader } from ${JSON.stringify(source)}; await prepareSolverReader(${JSON.stringify(selection)}, ${JSON.stringify(layout)});`;
+  const virtualEntry = {
+    sha256: new Bun.CryptoHasher('sha256').update(contents).digest('hex'),
+    byteLength: Buffer.byteLength(contents),
+  };
+  const inputs: SolverReaderArtifactObservation[] = [];
+  const externals = new Set<string>();
+  const compilation = await Bun.build({
+    entrypoints: [entrypoint],
+    target: 'bun',
+    packages: 'bundle',
+    plugins: [
+      {
+        name: 'solver-reader-preparation',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, (file) => {
+            if (file.path === entrypoint) return { path: entrypoint, namespace: 'preparation' };
+            if (
+              file.path.startsWith('bun:') ||
+              file.path.startsWith('node:') ||
+              builtinModules.includes(file.path)
+            ) {
+              const name =
+                file.path.startsWith('bun:') || file.path.startsWith('node:')
+                  ? file.path
+                  : `node:${file.path}`;
+              if (name.startsWith('bun:') && !['bun:ffi', 'bun'].includes(name))
+                throw new Error(`unsupported first-reader external: ${name}`);
+              if (
+                name.startsWith('node:') &&
+                !builtinModules.includes(name) &&
+                !builtinModules.includes(name.slice(5))
+              )
+                throw new Error(`unsupported first-reader external: ${name}`);
+              externals.add(name);
+              return { path: name, external: true };
+            }
+            return undefined;
+          });
+          build.onLoad({ filter: /.*/, namespace: 'file' }, async (file) => {
+            const loaded = await readSolverReaderBuildInput(file.path);
+            inputs.push(loaded.observation);
+            const extension = extname(file.path);
+            const loader =
+              extension === '.ts'
+                ? 'ts'
+                : extension === '.tsx'
+                  ? 'tsx'
+                  : extension === '.json'
+                    ? 'json'
+                    : ['.js', '.mjs', '.cjs'].includes(extension)
+                      ? 'js'
+                      : undefined;
+            if (loader === undefined)
+              throw new Error(`unsupported first-reader build file: ${file.path}`);
+            return { contents: loaded.bytes, loader };
+          });
+          build.onLoad({ filter: /.*/, namespace: 'preparation' }, () => ({
+            contents,
+            loader: 'ts',
+          }));
+        },
+      },
+    ],
+  });
+  const output = compilation.outputs.at(0);
+  if (!compilation.success || compilation.outputs.length !== 1 || output === undefined)
+    throw new Error(
+      `first-reader operation build failed: ${compilation.logs.map(String).join('; ')}`,
+    );
+  if (inputs.length === 0 || !inputs.some((input) => input.artifact.path === source))
+    throw new Error('first-reader operation source closure was not observed');
+  for (const observed of [compiler, ...inputs]) {
+    const current = await captureSolverReaderArtifact(observed.artifact.path);
+    if (JSON.stringify(current) !== JSON.stringify(observed))
+      throw new Error(`first-reader compiler/build input changed: ${observed.artifact.path}`);
+  }
+  return {
+    bytes: new Uint8Array(await output.arrayBuffer()),
+    inputs: inputs.sort((left, right) => left.artifact.path.localeCompare(right.artifact.path)),
+    compiler,
+    virtualEntry,
+    externals: [...externals].sort(),
+    bunVersion: Bun.version,
+  };
+}
+
+/** Required transport hashes precede executing the sealed operation; expectations never come from the target. */
+export function buildSolverReaderPreparationExecution(
+  selection: SolverReaderSelection,
+  operation: SolverReaderArtifact,
+): string {
+  const artifacts = [selection.bun, selection.reader, selection.initializer, operation];
+  return `set -eu
+${artifacts.map((artifact) => `printf '%s  %s\\n' ${quoteInstallShell(artifact.sha256)} ${quoteInstallShell(artifact.path)} | sha256sum -c -`).join('\n')}
+chmod 0755 -- ${[selection.bun, selection.reader, selection.initializer].map((artifact) => quoteInstallShell(artifact.path)).join(' ')}
+exec ${quoteInstallShell(selection.bun.path)} ${quoteInstallShell(operation.path)}`;
 }

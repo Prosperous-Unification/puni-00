@@ -1,3 +1,4 @@
+import { rejects } from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 
 import { scratchSync } from '@tools/test-scratch';
@@ -66,4 +67,24 @@ test('strict lock rejects symlink at kernel open before record validation', asyn
     throw new Error('kernel open refusal missing');
   expect('code' in refusal.cause ? refusal.cause.code : undefined).toBe('ELOOP');
   expect(await readFile(target, 'utf8')).toBe('retained evidence');
+});
+
+test('existing-only canonical acquisition never creates an absent lock and never rewrites retained bytes', async () => {
+  const directory = scratchSync('existing-canonical-lock-');
+  const path = `${directory}/edge.lock`;
+  const { withExistingCanonicalLock } = await import('./lock');
+  await rejects(withExistingCanonicalLock(path, () => Promise.resolve(undefined)));
+  expect(await Bun.file(path).exists()).toBe(false);
+  await writeFile(path, 'retained original holder record');
+  await withExistingCanonicalLock(path, async () => {
+    expect(await readFile(path, 'utf8')).toBe('retained original holder record');
+    const contender = Bun.spawn(['flock', '-n', path, 'true'], { stdout: 'pipe', stderr: 'pipe' });
+    const [code] = await Promise.all([
+      contender.exited,
+      new Response(contender.stdout).text(),
+      new Response(contender.stderr).text(),
+    ]);
+    expect(code).toBe(1);
+  });
+  expect(await readFile(path, 'utf8')).toBe('retained original holder record');
 });
