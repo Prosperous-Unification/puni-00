@@ -22,6 +22,7 @@ const channel = env['PUNI_BROWSER_CHANNEL'] ?? 'chrome';
 const outDir = env['PUNI_SCREENS_DIR'];
 if (!outDir) throw new Error('PUNI_SCREENS_DIR is required');
 const strict = env['PUNI_SCREENS_STRICT'] === '1';
+const classicScrollbars = env['PUNI_SCREENS_CLASSIC_SCROLLBARS'] === '1';
 const operatorPassword = env['PUNI_OPERATOR_PASSWORD'];
 mkdirSync(outDir, { recursive: true });
 
@@ -884,7 +885,8 @@ const browser = await chromium.launch({
     ? { executablePath: env['PUNI_BROWSER_EXECUTABLE'] }
     : { channel }),
   headless: true,
-  args: ['--no-sandbox'],
+  ...(classicScrollbars ? { ignoreDefaultArgs: ['--hide-scrollbars'] } : {}),
+  args: ['--no-sandbox', ...(classicScrollbars ? ['--disable-features=OverlayScrollbar'] : [])],
 });
 try {
   for (const state of selected) {
@@ -1054,6 +1056,17 @@ try {
       await sitePage.goto(`${parityOrigin}/`, { waitUntil: 'load', timeout: 30_000 });
       await sitePage.evaluate(() => globalThis.document.fonts.ready);
       await sitePage.waitForTimeout(800);
+      const siteViewport = await sitePage.evaluate(() => ({
+        inner: globalThis.innerWidth,
+        client: globalThis.document.documentElement.clientWidth,
+        body: globalThis.document.body.clientWidth,
+      }));
+      // Proof: retaining Playwright's --hide-scrollbars made classic mode throw this error.
+      if (classicScrollbars && siteViewport.client >= siteViewport.inner)
+        throw new Error('Classic scrollbar fixture did not reserve a visible gutter');
+      globalThis.console.log(
+        `parity viewport site ${String(viewport.width)}: ${JSON.stringify(siteViewport)}`,
+      );
       const site = await sitePage.evaluate(measureHeaderParts, [siteHeaderParts, 'closed']);
       const isNarrow = viewport.width < 992;
       let siteOpen = null;
@@ -1088,6 +1101,15 @@ try {
         await page.locator('h1').first().waitFor();
         await page.evaluate(() => globalThis.document.fonts.ready);
         await page.waitForTimeout(800);
+        const appViewport = await page.evaluate(() => ({
+          inner: globalThis.innerWidth,
+          client: globalThis.document.documentElement.clientWidth,
+          body: globalThis.document.body.clientWidth,
+          header: globalThis.document.querySelector('header').clientWidth,
+        }));
+        globalThis.console.log(
+          `parity viewport app ${route} ${String(viewport.width)}: ${JSON.stringify(appViewport)}`,
+        );
         const problems = compareHeaderParts(
           site,
           await page.evaluate(measureHeaderParts, [appHeaderParts, 'closed']),

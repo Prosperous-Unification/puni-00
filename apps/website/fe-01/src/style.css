@@ -406,7 +406,9 @@ p {
   top: calc(var(--header-top) + var(--header-row) / 2 + 30px);
   right: var(--header-inline);
   display: block;
-  width: min(320px, 100% - 40px);
+  /* The landing panel is measured against the viewport, including a classic scrollbar.
+     Proof: the percentage width failed all three 320px open-panel parity cases by 15px. */
+  width: min(320px, 100vw - 40px);
   padding: 12px 24px 16px;
   border: 1px solid var(--header-panel-line);
   border-radius: 16px;
@@ -1051,6 +1053,9 @@ body:has(.night-shell) {
   height: calc(100dvh - var(--keyboard-inset, 0px));
   min-height: 0;
   overflow: hidden;
+  /* Keep the landing's physical scrollbar width while the thread scrolls independently.
+     Proof: without this shell scrollbar, classic header-parity failed Build at all five widths. */
+  overflow-y: scroll;
   color: var(--on-night);
   background-color: var(--night);
   background-image:
