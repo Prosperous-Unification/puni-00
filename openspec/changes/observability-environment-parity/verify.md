@@ -5752,3 +5752,47 @@ operator views, isolation, outage/history/backup recovery and live dev migration
 remain unverified. No runtime, Secret, production, hardware, merge or storage
 mutation occurred. Canonical completion remains 4/11 with all seven main pending
 tasks open; this source capture closes no runtime milestone.
+
+## Task 83 — forced-color route fixture repair (2026-11-01)
+
+This test-only repair restores machine-readable fixture output under inherited forced color. Two
+real child fixtures wrote numeric PIDs with `console.log`, which Bun colorized; the missing-request
+CLI and recovery-child JSON diagnostics also inherited color and violated exact machine-output
+assertions. The exact PID and child ownership/durable prepared writes remain unchanged.
+
+- RED, before edits: the missing-request diagnostic and completed `lost-reload` recovery under
+  `env -u NO_COLOR FORCE_COLOR=1` failed (0 pass, 2 fail, 53 filtered; 2.92s). The former differed
+  only by ANSI around the exact diagnostic; the latter passed a colored PID into route argument
+  validation.
+- First covering attempt after the PID and missing-request fixture edits: the selected eleven cases
+  ran with preload and the existing 30s timeout (9 pass, 2 fail, 44 filtered; 26.60s). The two
+  remaining `handoff-sync`/`lease-cleanup` cases showed that their JSON-producing recovery child
+  also inherited forced color. Root approved applying the existing `cliEnvironment` at that fixture
+  boundary; both exact JSON parses and injected-fault/receipt assertions remain intact.
+- Final two-case forced-color rerun: 2 pass, 0 fail, 53 filtered, 19 expect calls; 9.10s. Combined
+  with the nine unaffected cases that passed in the first covering attempt, the requested eleven
+  cases are covered without replaying those nine.
+
+Commands (all from repository root):
+
+```sh
+env -u NO_COLOR FORCE_COLOR=1 bun test --preload ./tools/test/scratch/preload.ts --timeout 30000 tools/tool-fleet/src/observability-route.test.ts --test-name-pattern='route CLI refuses missing reviewed request|Task79 explicit recovery completes after inactive owner with lost-reload'
+# exit 1 — RED, 0 pass / 2 fail; 2.92s
+
+env -u NO_COLOR FORCE_COLOR=1 bun test --preload ./tools/test/scratch/preload.ts --timeout 30000 tools/tool-fleet/src/observability-route.test.ts --test-name-pattern='route CLI refuses missing reviewed request|fix2 completed cleanup failure reports durable outcome without retired-owner recovery|fix1 handoff-sync leaves a supported exact command after the recovery process exits|fix1 lease-cleanup leaves a supported exact command after the recovery process exits|fix1 recovery lease drift during preparation prevents ownership transfer and unit mutation|fix1 recovery history refusal retains original ownership and an emitted retry succeeds|fix1 recovery-source directory entry sync failure prevents the next unit mutation|fix1 recovery-destination directory entry sync failure prevents the next unit mutation|fix1 recovery-archive-file directory entry sync failure prevents the next unit mutation|Task79 explicit recovery completes after inactive owner'
+# exit 1 — 9 pass / 2 fail; 26.60s
+
+env -u NO_COLOR FORCE_COLOR=1 bun test --preload ./tools/test/scratch/preload.ts --timeout 30000 tools/tool-fleet/src/observability-route.test.ts --test-name-pattern='fix1 handoff-sync leaves a supported exact command after the recovery process exits|fix1 lease-cleanup leaves a supported exact command after the recovery process exits'
+# exit 0 — 2 pass / 0 fail; 9.10s
+
+bunx eslint tools/tool-fleet/src/observability-route.test.ts
+# exit 0
+bunx prettier --check tools/tool-fleet/src/observability-route.test.ts
+# exit 0
+```
+
+The complete `tool-fleet` suite, typecheck, build, CI, remote/runtime checks, production work and
+full host gate were not run. No new safety check or production behavior was introduced, so no new
+production-path mutant matrix was required. This verifies fixture behavior only and does not
+certify runtime/live observability acceptance (still 4/11). Command receipts and source hashes are
+in `/tmp/puni-task83-evidence/index.md`.

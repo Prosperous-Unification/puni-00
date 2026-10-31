@@ -9,6 +9,7 @@ import { createRouteFixture } from '@tools/observability-route-fixture';
 import * as native from 'bun:ffi';
 import { expect, spyOn, test } from 'bun:test';
 
+import { cliEnvironment } from './cli.fixture';
 import { type DiscoveryCommand, runDiscoveryCommand } from './discover';
 import { fixture as createPreflightFixture } from './observability-preflight.fixture';
 import { runObservabilityRoute, UncertainRouteOperation } from './observability-route';
@@ -25,12 +26,17 @@ async function expectRefusal(operation: Promise<unknown>, category: string) {
 }
 
 test('route CLI refuses missing reviewed request before mutation with a fixed diagnostic', () => {
-  const invocation = Bun.spawnSync([
-    process.execPath,
-    new URL('./observability-route-cli.ts', import.meta.url).pathname,
-    'switch',
-    '/tmp/puni-task79-deliberately-absent-request.json',
-  ]);
+  const invocation = Bun.spawnSync(
+    [
+      process.execPath,
+      new URL('./observability-route-cli.ts', import.meta.url).pathname,
+      'switch',
+      '/tmp/puni-task79-deliberately-absent-request.json',
+    ],
+    {
+      env: cliEnvironment({ ...process.env, FORCE_COLOR: '1', NO_COLOR: '0' }),
+    },
+  );
   expect(invocation.exitCode).toBe(1);
   expect(invocation.stdout.toString()).toBe('');
   expect(invocation.stderr.toString().trim()).toBe('route-file-absent');
@@ -285,11 +291,12 @@ async function recoveryFixture() {
     throw new Error('Expected fixture uncertainty');
   }
   const preparedPath = join(failed.directory, 'prepared.json');
+  // PID stdout is a machine protocol; console.log colorizes numbers under forced color.
   const child = Bun.spawnSync(
     [
       process.execPath,
       '--eval',
-      `const fs=await import('node:fs');const p=process.env.PUNI_PREPARED;const prepared=JSON.parse(fs.readFileSync(p));prepared.ownerPID=process.pid;fs.writeFileSync(p,JSON.stringify(prepared));fs.writeFileSync(process.env.PUNI_OWNER,JSON.stringify({operationId:prepared.operationId,pid:process.pid}));console.log(process.pid);`,
+      `const fs=await import('node:fs');const p=process.env.PUNI_PREPARED;const prepared=JSON.parse(fs.readFileSync(p));prepared.ownerPID=process.pid;fs.writeFileSync(p,JSON.stringify(prepared));fs.writeFileSync(process.env.PUNI_OWNER,JSON.stringify({operationId:prepared.operationId,pid:process.pid}));process.stdout.write(String(process.pid));`,
     ],
     {
       env: {
@@ -374,7 +381,7 @@ async function recoveryChild(
   const child = Bun.spawn([process.execPath, script], {
     stdout: 'pipe',
     stderr: 'pipe',
-    env: process.env,
+    env: cliEnvironment(),
   });
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(child.stdout).text(),
@@ -1528,11 +1535,12 @@ for (const variant of ['lost-reload', 'failed-start'] as const) {
       const uncertain = readFileSync(join(directory, 'uncertain.json'));
       // Component crash fixture: a real child durably owns the modeled capture, then exits.
       // These synthetic ownership bytes are not actual-host evidence or runtime certification.
+      // PID stdout is a machine protocol; console.log colorizes numbers under forced color.
       const child = Bun.spawnSync(
         [
           process.execPath,
           '--eval',
-          `const fs=await import('node:fs');const path=process.env.PUNI_ROUTE_TEST_PREPARED;const owner=process.env.PUNI_ROUTE_TEST_OWNER;const prepared=JSON.parse(fs.readFileSync(path));prepared.ownerPID=process.pid;fs.writeFileSync(path,JSON.stringify(prepared));fs.writeFileSync(owner,JSON.stringify({operationId:prepared.operationId,pid:process.pid}));console.log(process.pid);`,
+          `const fs=await import('node:fs');const path=process.env.PUNI_ROUTE_TEST_PREPARED;const owner=process.env.PUNI_ROUTE_TEST_OWNER;const prepared=JSON.parse(fs.readFileSync(path));prepared.ownerPID=process.pid;fs.writeFileSync(path,JSON.stringify(prepared));fs.writeFileSync(owner,JSON.stringify({operationId:prepared.operationId,pid:process.pid}));process.stdout.write(String(process.pid));`,
         ],
         {
           env: {
