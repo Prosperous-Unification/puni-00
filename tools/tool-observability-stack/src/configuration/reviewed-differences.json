@@ -1,0 +1,422 @@
+[
+  {
+    "path": "/rendered/ConfigMap:observability:puni-telemetry/data/environment",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "local",
+      "production": "production"
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/collector.yaml/processors/filter~1source/logs/log_record/0",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "(resource.attributes[\"deployment.environment.name\"] != \"dev\") or resource.attributes[\"service.name\"] == nil or resource.attributes[\"service.name\"] == \"\"",
+      "production": "(resource.attributes[\"deployment.environment.name\"] != \"prod\") or resource.attributes[\"service.name\"] == nil or resource.attributes[\"service.name\"] == \"\""
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/collector.yaml/processors/filter~1source/traces/span/0",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "(resource.attributes[\"deployment.environment.name\"] != \"dev\") or resource.attributes[\"service.name\"] == nil or resource.attributes[\"service.name\"] == \"\"",
+      "production": "(resource.attributes[\"deployment.environment.name\"] != \"prod\") or resource.attributes[\"service.name\"] == nil or resource.attributes[\"service.name\"] == \"\""
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/collector.yaml/processors/filter~1source/metrics/datapoint/0",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "(resource.attributes[\"deployment.environment.name\"] != \"dev\") or resource.attributes[\"service.name\"] == nil or resource.attributes[\"service.name\"] == \"\"",
+      "production": "(resource.attributes[\"deployment.environment.name\"] != \"prod\") or resource.attributes[\"service.name\"] == nil or resource.attributes[\"service.name\"] == \"\""
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/collector.yaml/processors/filter~1platform/logs/log_record/0",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "(resource.attributes[\"puni.cluster\"] != \"platform-local\" and resource.attributes[\"puni.cluster\"] != \"workers-local\") or resource.attributes[\"deployment.environment.name\"] != nil",
+      "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil"
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/collector.yaml/processors/filter~1platform/traces/span/0",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "(resource.attributes[\"puni.cluster\"] != \"platform-local\" and resource.attributes[\"puni.cluster\"] != \"workers-local\") or resource.attributes[\"deployment.environment.name\"] != nil",
+      "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil"
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/collector.yaml/processors/filter~1platform/metrics/datapoint/0",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "(resource.attributes[\"puni.cluster\"] != \"platform-local\" and resource.attributes[\"puni.cluster\"] != \"workers-local\") or resource.attributes[\"deployment.environment.name\"] != nil",
+      "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil"
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/gateway.yaml/processors/filter~1source/logs/log_record/0",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "(resource.attributes[\"deployment.environment.name\"] != \"dev\") or resource.attributes[\"service.name\"] == nil or resource.attributes[\"service.name\"] == \"\"",
+      "production": "(resource.attributes[\"deployment.environment.name\"] != \"prod\") or resource.attributes[\"service.name\"] == nil or resource.attributes[\"service.name\"] == \"\""
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/gateway.yaml/processors/filter~1source/traces/span/0",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "(resource.attributes[\"deployment.environment.name\"] != \"dev\") or resource.attributes[\"service.name\"] == nil or resource.attributes[\"service.name\"] == \"\"",
+      "production": "(resource.attributes[\"deployment.environment.name\"] != \"prod\") or resource.attributes[\"service.name\"] == nil or resource.attributes[\"service.name\"] == \"\""
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/gateway.yaml/processors/filter~1source/metrics/datapoint/0",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "(resource.attributes[\"deployment.environment.name\"] != \"dev\") or resource.attributes[\"service.name\"] == nil or resource.attributes[\"service.name\"] == \"\"",
+      "production": "(resource.attributes[\"deployment.environment.name\"] != \"prod\") or resource.attributes[\"service.name\"] == nil or resource.attributes[\"service.name\"] == \"\""
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/gateway.yaml/processors/filter~1platform/logs/log_record/0",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "(resource.attributes[\"puni.cluster\"] != \"platform-local\" and resource.attributes[\"puni.cluster\"] != \"workers-local\") or resource.attributes[\"deployment.environment.name\"] != nil",
+      "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil"
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/gateway.yaml/processors/filter~1platform/traces/span/0",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "(resource.attributes[\"puni.cluster\"] != \"platform-local\" and resource.attributes[\"puni.cluster\"] != \"workers-local\") or resource.attributes[\"deployment.environment.name\"] != nil",
+      "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil"
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/gateway.yaml/processors/filter~1platform/metrics/datapoint/0",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "(resource.attributes[\"puni.cluster\"] != \"platform-local\" and resource.attributes[\"puni.cluster\"] != \"workers-local\") or resource.attributes[\"deployment.environment.name\"] != nil",
+      "production": "(resource.attributes[\"puni.cluster\"] != \"platform-production\" and resource.attributes[\"puni.cluster\"] != \"workers-production\") or resource.attributes[\"deployment.environment.name\"] != nil"
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/gateway.yaml/processors/resource~1stream/attributes/0/value",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "dev",
+      "production": "prod"
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/logs-template.json/template/settings/index.lifecycle.name",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "puni-dev-logs",
+      "production": "puni-prod-logs"
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/metrics-template.json/template/settings/index.lifecycle.name",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "puni-dev-metrics",
+      "production": "puni-prod-metrics"
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/retention.json/elastic/logs/policyName",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "puni-dev-logs",
+      "production": "puni-prod-logs"
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/retention.json/elastic/logs/template/template/settings/index.lifecycle.name",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "puni-dev-logs",
+      "production": "puni-prod-logs"
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/retention.json/elastic/traces/policyName",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "puni-dev-traces",
+      "production": "puni-prod-traces"
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/retention.json/elastic/traces/template/template/settings/index.lifecycle.name",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "puni-dev-traces",
+      "production": "puni-prod-traces"
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/retention.json/elastic/metrics/policyName",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "puni-dev-metrics",
+      "production": "puni-prod-metrics"
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/retention.json/elastic/metrics/template/template/settings/index.lifecycle.name",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "puni-dev-metrics",
+      "production": "puni-prod-metrics"
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/data/traces-template.json/template/settings/index.lifecycle.name",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "puni-dev-traces",
+      "production": "puni-prod-traces"
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/ConfigMap:observability:signal-configuration/metadata/name",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "signal-configuration-fgk7c2k7ht",
+      "production": "signal-configuration-8gm59h4895"
+    },
+    "reason": "Exact Kustomize content-addressed configuration identity; complete payload and workload siblings remain compared.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/StatefulSet:observability:signal-collector/spec/template/spec/volumes/0/configMap/name",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "signal-configuration-fgk7c2k7ht",
+      "production": "signal-configuration-8gm59h4895"
+    },
+    "reason": "Exact Kustomize content-addressed configuration identity; complete payload and workload siblings remain compared.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/StatefulSet:observability:signal-gateway/spec/template/spec/volumes/0/configMap/name",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "signal-configuration-fgk7c2k7ht",
+      "production": "signal-configuration-8gm59h4895"
+    },
+    "reason": "Exact Kustomize content-addressed configuration identity; complete payload and workload siblings remain compared.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/Job:observability:elastic-settings/spec/template/spec/volumes/0/configMap/name",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "signal-configuration-fgk7c2k7ht",
+      "production": "signal-configuration-8gm59h4895"
+    },
+    "reason": "Exact Kustomize content-addressed configuration identity; complete payload and workload siblings remain compared.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/HelmRelease:observability:elasticsearch/spec/values/nodeSets/0/config/s3.client.default.endpoint",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "object-store.puni-backup.svc:9000",
+      "production": "hel1.your-objectstorage.com"
+    },
+    "reason": "Disposable local object-store endpoint versus production backup destination; transport protocol remains mandatory.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/HelmRelease:observability:elasticsearch/spec/values/nodeSets/0/podTemplate/spec/containers/0/env/0/value",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "-Xms1g -Xmx1g",
+      "production": "-Xms2g -Xmx2g"
+    },
+    "reason": "Local disposable Elasticsearch capacity: 2Gi memory, 1Gi heap, 10Gi retained storage; production keeps 4Gi, 2Gi, 100Gi. Recovery and security siblings remain compared.",
+    "verification": "tools/tool-fleet/src/observability-budget.test.ts"
+  },
+  {
+    "path": "/rendered/HelmRelease:observability:elasticsearch/spec/values/nodeSets/0/podTemplate/spec/containers/0/resources/limits/memory",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "2Gi",
+      "production": "4Gi"
+    },
+    "reason": "Local disposable Elasticsearch capacity: 2Gi memory, 1Gi heap, 10Gi retained storage; production keeps 4Gi, 2Gi, 100Gi. Recovery and security siblings remain compared.",
+    "verification": "tools/tool-fleet/src/observability-budget.test.ts"
+  },
+  {
+    "path": "/rendered/HelmRelease:observability:elasticsearch/spec/values/nodeSets/0/podTemplate/spec/containers/0/resources/requests/memory",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "2Gi",
+      "production": "4Gi"
+    },
+    "reason": "Local disposable Elasticsearch capacity: 2Gi memory, 1Gi heap, 10Gi retained storage; production keeps 4Gi, 2Gi, 100Gi. Recovery and security siblings remain compared.",
+    "verification": "tools/tool-fleet/src/observability-budget.test.ts"
+  },
+  {
+    "path": "/rendered/HelmRelease:observability:elasticsearch/spec/values/nodeSets/0/volumeClaimTemplates/0/spec/resources/requests/storage",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "10Gi",
+      "production": "100Gi"
+    },
+    "reason": "Local disposable Elasticsearch capacity: 2Gi memory, 1Gi heap, 10Gi retained storage; production keeps 4Gi, 2Gi, 100Gi. Recovery and security siblings remain compared.",
+    "verification": "tools/tool-fleet/src/observability-budget.test.ts"
+  },
+  {
+    "path": "/rendered/HelmRelease:observability:kube-prometheus-stack/spec/values/kube-state-metrics/prometheus/monitor/metricRelabelings/0/replacement",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "platform-local",
+      "production": "platform-production"
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/NetworkPolicy:observability:otlp-ingress/spec/ingress/1/from/0/ipBlock/cidr",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "172.16.0.0/12",
+      "production": "10.1.0.0/16"
+    },
+    "reason": "Local Docker rehearsal network versus production enrolled worker network; every other ingress rule remains compared.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/effective/elasticsearch/Elasticsearch:_:elasticsearch/spec/nodeSets/0/config/s3.client.default.endpoint",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "object-store.puni-backup.svc:9000",
+      "production": "hel1.your-objectstorage.com"
+    },
+    "reason": "Disposable local object-store endpoint versus production backup destination; transport protocol remains mandatory.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/effective/elasticsearch/Elasticsearch:_:elasticsearch/spec/nodeSets/0/podTemplate/spec/containers/0/env/0/value",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "-Xms1g -Xmx1g",
+      "production": "-Xms2g -Xmx2g"
+    },
+    "reason": "Local disposable Elasticsearch capacity: 2Gi memory, 1Gi heap, 10Gi retained storage; production keeps 4Gi, 2Gi, 100Gi. Recovery and security siblings remain compared.",
+    "verification": "tools/tool-fleet/src/observability-budget.test.ts"
+  },
+  {
+    "path": "/effective/elasticsearch/Elasticsearch:_:elasticsearch/spec/nodeSets/0/podTemplate/spec/containers/0/resources/limits/memory",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "2Gi",
+      "production": "4Gi"
+    },
+    "reason": "Local disposable Elasticsearch capacity: 2Gi memory, 1Gi heap, 10Gi retained storage; production keeps 4Gi, 2Gi, 100Gi. Recovery and security siblings remain compared.",
+    "verification": "tools/tool-fleet/src/observability-budget.test.ts"
+  },
+  {
+    "path": "/effective/elasticsearch/Elasticsearch:_:elasticsearch/spec/nodeSets/0/podTemplate/spec/containers/0/resources/requests/memory",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "2Gi",
+      "production": "4Gi"
+    },
+    "reason": "Local disposable Elasticsearch capacity: 2Gi memory, 1Gi heap, 10Gi retained storage; production keeps 4Gi, 2Gi, 100Gi. Recovery and security siblings remain compared.",
+    "verification": "tools/tool-fleet/src/observability-budget.test.ts"
+  },
+  {
+    "path": "/effective/elasticsearch/Elasticsearch:_:elasticsearch/spec/nodeSets/0/volumeClaimTemplates/0/spec/resources/requests/storage",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "10Gi",
+      "production": "100Gi"
+    },
+    "reason": "Local disposable Elasticsearch capacity: 2Gi memory, 1Gi heap, 10Gi retained storage; production keeps 4Gi, 2Gi, 100Gi. Recovery and security siblings remain compared.",
+    "verification": "tools/tool-fleet/src/observability-budget.test.ts"
+  },
+  {
+    "path": "/effective/kube-prometheus-stack/ServiceMonitor:observability:kube-prometheus-stack-kube-state-metrics/spec/endpoints/0/metricRelabelings/0/replacement",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "platform-local",
+      "production": "platform-production"
+    },
+    "reason": "Distinct actual producer environment identity; source admission and siblings remain checked.",
+    "verification": "tools/tool-observability-stack/src/configuration/parity.test.ts"
+  },
+  {
+    "path": "/rendered/HelmRelease:observability:elasticsearch/spec/values/nodeSets/0/podTemplate/spec/initContainers/0/env/0/value",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "system-roots-plus-ca",
+      "production": "system-roots"
+    },
+    "reason": "The disposable local object store adds its CA to bundled system roots; production uses bundled system roots. Both retain the same certificate-verifying JVM executable, mounts and resource bounds.",
+    "verification": "tools/tool-fleet/src/backup-tls.test.ts"
+  },
+  {
+    "path": "/effective/elasticsearch/Elasticsearch:_:elasticsearch/spec/nodeSets/0/podTemplate/spec/initContainers/0/env/0/value",
+    "candidates": ["local", "production"],
+    "expected": {
+      "local": "system-roots-plus-ca",
+      "production": "system-roots"
+    },
+    "reason": "The disposable local object store adds its CA to bundled system roots; production uses bundled system roots. Both retain the same certificate-verifying JVM executable, mounts and resource bounds.",
+    "verification": "tools/tool-fleet/src/backup-tls.test.ts"
+  }
+]

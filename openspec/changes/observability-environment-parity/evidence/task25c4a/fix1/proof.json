@@ -1,0 +1,16 @@
+{
+  "base": "9f4bb094d2430440d3007da06d6ac24fc22828b2",
+  "fault": "remove historical effective-only observation refusal",
+  "command": [
+    "bun",
+    "test",
+    "--preload",
+    "./tools/test/scratch/preload.ts",
+    "tools/tool-fleet/src/k3d-resource-caller.test.ts",
+    "--test-name-pattern",
+    "Task37 historical cohort rejects effective"
+  ],
+  "exit": 1,
+  "seconds": 1.398,
+  "restoredSha256": "5f97491ca370e7a069cf0eaa7bd4ff203693dfc13985ff379d445a2f841744f5"
+}

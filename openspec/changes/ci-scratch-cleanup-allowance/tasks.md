@@ -5,3 +5,12 @@
 - [x] Verify success, inherited/reduced hook failures, ordinary hangs and physical removal; observe allowance omission fail.
 - [x] Run focused lint, typecheck, classification and OpenSpec validation.
 - [x] Obtain peer review and complete normal commit hooks.
+
+## Hosted overrun follow-up
+
+- [x] Update the fast exact-budget regression for 60 seconds and observe it fail against the unchanged 30-second hook. Preserve the existing actual callback, inherited/reduced deadline failures and ordinary 20ms hangs.
+- [x] Give only the global scratch cleanup hook 60 seconds and update its budget documentation/adjacent proof. Keep remover behavior, named-test, job and phase limits unchanged.
+- [x] Reuse the independently captured 31-second old-hook failure; run the actual revised preload/remover with the same finite latency once, verify physical absence, and retain commands/identities/output/timings outside the default fast suite. Watch a directly covering changed-budget/dependency fault fail and restore it; do not replay unrelated tests.
+- [x] Run focused scratch tests, configured lint/typecheck/classification and strict OpenSpec/format checks.
+- [x] Obtain scoped independent review and complete normal commit hooks.
+- [x] Observe the new published revision's required hosted CI checks and record their actual conclusion separately; earlier-head and controlled-latency results do not prove hosted success.

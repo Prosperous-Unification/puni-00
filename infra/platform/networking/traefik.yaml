@@ -20,7 +20,23 @@ spec:
       tag: v3.7.13
       digest: sha256:f86a2cab1b5c649070c49f883c743dd32d8485a56e3368c5f93b9e91f1e91259
     versionOverride: v3.7.13
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+        ephemeral-storage: 64Mi
+      limits:
+        cpu: '2'
+        memory: 512Mi
+        ephemeral-storage: 256Mi
+    persistence:
+      enabled: false
+      emptyDir:
+        sizeLimit: 64Mi
     deployment:
+      tmpVolume:
+        emptyDir:
+          sizeLimit: 64Mi
       kind: DaemonSet
       dnsPolicy: ClusterFirstWithHostNet
     hostNetwork: true

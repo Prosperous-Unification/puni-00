@@ -1,0 +1,52 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-creation.test.ts:
+555 |     if (fault === 'mount-set') input.transients[0].mounts = [];
+556 |     if (fault === 'overlap')
+557 |       input.events.find(
+558 |         (event) => event.action === 'destroy' && event.id === '1'.repeat(64),
+559 |       )!.time = '21';
+560 |     expect(() => closeCreation(input, 'forward')).toThrow();
+                                                        ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  containers: [
+    {
+      id: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      name: "registry",
+      image: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      configuredImage: "registry@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      networkIds: [ "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" ],
+      mounts: [
+        {
+          kind: "volume",
+          name: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          driver: "local",
+          source: "/var/lib/docker/volumes/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/_data",
+          destination: "/var/lib/registry",
+          rw: true,
+        }
+      ],
+    }
+  ],
+  volumes: [
+    {
+      name: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      driver: "local",
+      mountpoint: "/var/lib/docker/volumes/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/_data",
+      createdAt: "2026-10-27T00:00:00Z",
+      consumers: [ "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" ],
+    }
+  ],
+}
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.test.ts:560:51)
+(fail) Task37 transient closure rejects selection [3.31ms]
+
+ 0 pass
+ 46 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [170.00ms]

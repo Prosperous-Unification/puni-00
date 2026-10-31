@@ -1,13 +1,48 @@
-import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { rejects } from 'node:assert/strict';
+import { chmod, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
+import { type } from 'arktype';
 import { describe, expect, it } from 'bun:test';
-import { parse } from 'yaml';
+import { parse, parseDocument, stringify } from 'yaml';
 
+import { readToolchain } from './contracts';
+import { assessObservabilityBudget } from './observability-budget';
 import { validatePlatform } from './platform';
+import { assertLockedWorkloadImages, readPlatformManifests } from './platform-manifests';
+import { platformReleases } from './platform-releases';
+import {
+  veleroPatch,
+  veleroPostRenderers,
+  writeVeleroCandidates,
+} from './platform-velero-fixture.test';
+import { readVeleroPatch } from './platform-velero-patch';
 
 const repositoryRoot = join(import.meta.dir, '../../..');
+const FluxOverlayFixture = type({
+  apiVersion: 'string',
+  kind: 'string',
+  resources: 'string[]',
+  'namePrefix?': 'string',
+  patches: type({
+    target: {
+      group: 'string',
+      version: 'string',
+      kind: 'string',
+      name: 'string',
+      namespace: 'string',
+      'labelSelector?': 'string',
+    },
+    patch: 'string',
+    'path?': 'string',
+  }).array(),
+});
+function fluxOperations(overlay: typeof FluxOverlayFixture.infer) {
+  return type({ op: 'string', path: 'string', 'value?': 'unknown', 'from?': 'string' })
+    .array()
+    .assert(parse(overlay.patches[0].patch));
+}
 
 async function mutablePlatform(): Promise<string> {
   const root = await scratchAsync('tool-fleet-platform-');
@@ -59,6 +94,12 @@ async function removeExternalSecret(root: string, cluster: string, name: string)
 }
 
 describe('validatePlatform', () => {
+  it('rejects missing required Flux scratch overlay', async () => {
+    const root = await mutablePlatform();
+    await rm(join(root, 'infra/platform/flux/kustomization.yaml'), { force: true });
+    await rejects(validatePlatform(root), { code: 'ENOENT' });
+  });
+
   it('accepts the locked ordered platform graph for every cluster overlay', async () => {
     const platform = await validatePlatform(repositoryRoot);
     expect(platform).toEqual({
@@ -76,9 +117,205 @@ describe('validatePlatform', () => {
         'otel-agent',
         'velero',
       ],
-      workloadImages: 10,
+      workloadImages: 13,
       secrets: 0,
     });
+  });
+
+  it.each([
+    [
+      'foreign root',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        overlay.namePrefix = 'foreign-';
+      },
+    ],
+    [
+      'wrong resource',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        overlay.resources = ['../foreign.yaml'];
+      },
+    ],
+    [
+      'duplicate role',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        overlay.patches[3] = overlay.patches[0];
+      },
+    ],
+    [
+      'missing role',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        overlay.patches.pop();
+      },
+    ],
+    [
+      'wrong target',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        overlay.patches[0].target.namespace = 'foreign';
+      },
+    ],
+    [
+      'foreign selector',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        overlay.patches[0].target.labelSelector = 'foreign';
+      },
+    ],
+    [
+      'external patch',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        overlay.patches[0].path = 'foreign.yaml';
+      },
+    ],
+    [
+      'late identity',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        ops.push(...ops.splice(0, 1));
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    [
+      'wrong manager',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        ops[4].value = 'foreign';
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    [
+      'wrong volume',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        type({ name: 'string', emptyDir: 'object' }).array().assert(ops[5].value)[0].name =
+          'foreign';
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    [
+      'foreign operation',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        ops.push({ op: 'remove', path: '/spec/replicas', value: null });
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    [
+      'wrong addition',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        ops[6].path = '/spec/replicas';
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    [
+      'replace addition',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        ops[6].op = 'replace';
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    [
+      'extra operation field',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        ops[6].from = '/foreign';
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    [
+      'missing ephemeral',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        ops.splice(6, 1);
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    [
+      'duplicate addition',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        ops[7] = ops[6];
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    ...['0', '-1Mi', 'unknown', '9'.repeat(400) + 'Gi', 42].map(
+      (value) =>
+        [
+          'invalid quantity ' + String(value).slice(0, 12),
+          (overlay: typeof FluxOverlayFixture.infer) => {
+            const ops = fluxOperations(overlay);
+            ops[6].value = value;
+            overlay.patches[0].patch = stringify(ops);
+          },
+        ] as const,
+    ),
+    [
+      'zero scratch',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        ops[8].value = '0';
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    [
+      'contradictory limits',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        const ops = fluxOperations(overlay);
+        ops[7].value = '1Mi';
+        overlay.patches[0].patch = stringify(ops);
+      },
+    ],
+    [
+      'malformed patch',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        overlay.patches[0].patch = '[invalid';
+      },
+    ],
+    [
+      'duplicate patch key',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        overlay.patches[0].patch = overlay.patches[0].patch.replace(
+          '"op": "test"',
+          '"op": "add", "op": "test"',
+        );
+      },
+    ],
+    [
+      'multiple patch documents',
+      (overlay: typeof FluxOverlayFixture.infer) => {
+        overlay.patches[0].patch += '\n---\n[]\n';
+      },
+    ],
+  ])('rejects Flux scratch policy %s', async (_name, corrupt) => {
+    const root = await mutablePlatform();
+    const path = join(root, 'infra/platform/flux/kustomization.yaml');
+    const overlay = FluxOverlayFixture.assert(parse(await readFile(path, 'utf8')));
+    corrupt(overlay);
+    await writeFile(path, stringify(overlay));
+    await rejects(validatePlatform(root));
+  });
+  it('rejects unreadable Flux scratch policy', async () => {
+    const root = await mutablePlatform();
+    const path = join(root, 'infra/platform/flux/kustomization.yaml');
+    await chmod(path, 0);
+    try {
+      await rejects(validatePlatform(root), { code: 'EACCES' });
+    } finally {
+      await chmod(path, 0o600);
+    }
+  });
+  it('rejects coherent duplicate Flux overlay keys', async () => {
+    const root = await mutablePlatform();
+    const path = join(root, 'infra/platform/flux/kustomization.yaml');
+    await writeFile(path, (await readFile(path, 'utf8')) + '\nresources: [install.yaml]\n');
+    await rejects(validatePlatform(root), /malformed or ambiguous YAML/);
+  });
+  it('rejects malformed or ambiguous Flux overlay YAML', async () => {
+    for (const bytes of ['kind: [invalid', 'resources: []\nresources: []\n', '---\n{}\n---\n{}']) {
+      const root = await mutablePlatform();
+      await writeFile(join(root, 'infra/platform/flux/kustomization.yaml'), bytes);
+      await rejects(validatePlatform(root));
+    }
   });
 
   it('rejects a platform claim outside the retained class', async () => {
@@ -106,7 +343,7 @@ describe('validatePlatform', () => {
   it('rejects chart-rendered platform claims outside the retained class', async () => {
     for (const [path, before] of [
       [
-        'infra/platform/observability/elastic/local/elasticsearch.yaml',
+        'infra/platform/observability/elastic/base/elasticsearch.yaml',
         '              storageClassName: puni-retain\n',
       ],
       [
@@ -527,7 +764,7 @@ describe('validatePlatform', () => {
     );
   });
 
-  it('rejects an unlocked init container in a backup job', async () => {
+  it('rejects an unregistered backup init role before its unlocked image', async () => {
     const root = await mutablePlatform();
     await replaceManifestText(
       root,
@@ -535,7 +772,14 @@ describe('validatePlatform', () => {
       '      automountServiceAccountToken: false\n      securityContext:\n        runAsNonRoot: true\n        runAsUser: 1000\n        seccompProfile: { type: RuntimeDefault }\n      containers:\n',
       '      automountServiceAccountToken: false\n      securityContext:\n        runAsNonRoot: true\n        runAsUser: 1000\n        seccompProfile: { type: RuntimeDefault }\n      initContainers:\n        - { name: fetch, image: docker.io/library/alpine:3 }\n      containers:\n',
     );
-    expect(validatePlatform(root)).rejects.toThrow(/Job\/object-store-buckets container fetch/);
+    expect(validatePlatform(root)).rejects.toThrow(
+      'common candidate native role or scratch differs',
+    );
+    const manifests = await readPlatformManifests(root);
+    const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
+    expect(() => assertLockedWorkloadImages(manifests, toolchain)).toThrow(
+      'backup/local/object-store.yaml Job/object-store-buckets container fetch image differs from the toolchain lock',
+    );
   });
 
   it('rejects a changed Velero plugin image', async () => {
@@ -566,7 +810,7 @@ describe('validatePlatform', () => {
     const root = await mutablePlatform();
     await replaceManifestText(
       root,
-      'infra/platform/observability/elastic/local/elasticsearch.yaml',
+      'infra/platform/observability/elastic/base/elasticsearch.yaml',
       'version: 9.3.8',
       'version: 9.5.0',
     );
@@ -577,7 +821,7 @@ describe('validatePlatform', () => {
     const root = await mutablePlatform();
     await replaceManifestText(
       root,
-      'infra/platform/observability/elastic/production/elasticsearch.yaml',
+      'infra/platform/observability/elastic/base/elasticsearch.yaml',
       '              - name: elasticsearch\n',
       '              - name: elasticsearch\n                image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0\n',
     );
@@ -1053,4 +1297,659 @@ describe('OTLP effective queue and destination', () => {
       expect(validatePlatform(root)).rejects.toThrow(/OTLP/);
     });
   }
+});
+
+describe('backup TLS platform boundary', () => {
+  for (const [path, before, after, diagnostic] of [
+    [
+      'infra/platform/observability/elastic/base/elasticsearch.yaml',
+      's3.client.default.protocol: https',
+      's3.client.default.protocol: http',
+      /elasticsearch values are invalid/,
+    ],
+    [
+      'infra/platform/observability/elastic/base/elasticsearch.yaml',
+      'name: prepare-s3-trust\n                image: docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540',
+      'name: prepare-s3-trust\n                image: unknown:latest',
+      /trust init image/,
+    ],
+    [
+      'infra/platform/backup/velero/local/velero.yaml',
+      's3Url: https://',
+      's3Url: http://',
+      /velero values are invalid/,
+    ],
+    [
+      'infra/platform/backup/velero/local/velero.yaml',
+      'kind: BackupStorageLocation',
+      'kind: Deployment',
+      /velero values are invalid/,
+    ],
+    [
+      'infra/platform/backup/velero/local/velero.yaml',
+      "s3ForcePathStyle: 'true'",
+      "s3ForcePathStyle: 'true'\n            insecureSkipTLSVerify: 'true'",
+      /velero values are invalid/,
+    ],
+  ] as const) {
+    it(`refuses backup transport mutation ${before}`, async () => {
+      const root = await mutablePlatform();
+      await replaceManifestText(root, path, before, after);
+      expect(validatePlatform(root)).rejects.toThrow(diagnostic);
+    });
+  }
+  for (const [before, after] of [
+    ['mc alias set store https://', 'mc alias set store http://'],
+    ['          command:', '          missingCommand:'],
+    ['exec minio server --certs-dir /object-store-tls /data', 'exec minio server /data'],
+    ['mc ready store', 'mc --insecure ready store'],
+    ['name: MC_CONFIG_DIR, value: /tmp/mc', 'name: MC_INSECURE, value: true'],
+    [
+      'secretName: object-store-ca, defaultMode: 292',
+      'secretName: object-store-ca, defaultMode: 292, optional: true',
+    ],
+  ]) {
+    it(`refuses object-store TLS mutation ${before}`, async () => {
+      const root = await mutablePlatform();
+      await replaceManifestText(
+        root,
+        'infra/platform/backup/local/object-store.yaml',
+        before,
+        after,
+      );
+      expect(validatePlatform(root)).rejects.toThrow(/object-store TLS contract/);
+    });
+  }
+  it('refuses an Elasticsearch init that omits private CA validation', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/observability/elastic/base/elasticsearch.yaml',
+      'system-roots-plus-ca)',
+      'system-roots-plus-ca-disabled)',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/Elasticsearch trust executable/);
+  });
+  it('refuses two effective default Velero backup locations', async () => {
+    const root = await mutablePlatform();
+    const path = join(root, 'infra/platform/backup/velero/local/velero.yaml');
+    const release = parse(await readFile(path, 'utf8')) as {
+      spec: { values: { configuration: { backupStorageLocation: object[] } } };
+    };
+    release.spec.values.configuration.backupStorageLocation = [
+      {
+        name: 'default',
+        provider: 'aws',
+        bucket: 'puni-velero',
+        default: true,
+        config: {
+          region: 'local',
+          s3ForcePathStyle: 'true',
+          s3Url: 'https://object-store.puni-backup.svc:9000',
+        },
+      },
+    ];
+    await writeFile(path, stringify(release));
+    expect(validatePlatform(root)).rejects.toThrow(/exactly one default backup storage location/);
+  });
+  it('refuses adding the private CA to Elasticsearch secure settings', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/observability/elastic/base/elasticsearch.yaml',
+      'key: s3.client.default.access_key',
+      'key: ca.crt',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/elasticsearch values are invalid/);
+  });
+  it('requires the Velero CA Secret in local closure', async () => {
+    const root = await mutablePlatform();
+    await removeExternalSecret(root, 'platform-local', 'object-store-ca');
+    expect(validatePlatform(root)).rejects.toThrow(/consumes Secret puni-backup\/object-store-ca/);
+  });
+});
+
+describe('bounded Elasticsearch trust init', () => {
+  for (const fault of [
+    'absent',
+    'missing-cpu-request',
+    'missing-memory-limit',
+    'zero-cpu-request',
+    'zero-memory-request',
+    'invalid-cpu-limit',
+    'invalid-memory-limit',
+  ]) {
+    it(`refuses ${fault} Java init bounds`, async () => {
+      const root = await mutablePlatform();
+      const path = join(root, 'infra/platform/observability/elastic/base/elasticsearch.yaml');
+      const release = parse(await readFile(path, 'utf8')) as {
+        spec: {
+          values: {
+            nodeSets: [
+              {
+                podTemplate: {
+                  spec: {
+                    initContainers: [
+                      {
+                        resources?: {
+                          requests: { cpu?: string; memory: string };
+                          limits: { cpu: string; memory?: string };
+                        };
+                      },
+                    ];
+                  };
+                };
+              },
+            ];
+          };
+        };
+      };
+      const init = release.spec.values.nodeSets[0].podTemplate.spec.initContainers[0];
+      if (fault === 'absent') delete init.resources;
+      else {
+        init.resources = {
+          requests: { cpu: '100m', memory: '128Mi' },
+          limits: { cpu: '500m', memory: '256Mi' },
+        };
+        if (fault === 'missing-cpu-request') delete init.resources.requests.cpu;
+        if (fault === 'missing-memory-limit') delete init.resources.limits.memory;
+        if (fault === 'zero-cpu-request') init.resources.requests.cpu = '0';
+        if (fault === 'zero-memory-request') init.resources.requests.memory = '0Mi';
+        if (fault === 'invalid-cpu-limit') init.resources.limits.cpu = '-1';
+        if (fault === 'invalid-memory-limit') init.resources.limits.memory = '-1Mi';
+      }
+      await writeFile(path, stringify(release));
+      // Keep derived bytes current so this negative reaches the actual resource schema.
+      await writeFile(
+        join(root, 'infra/platform/observability/base/coexistence.json'),
+        JSON.stringify(await assessObservabilityBudget(root)),
+      );
+      expect(validatePlatform(root)).rejects.toThrow(/elasticsearch values are invalid/);
+    });
+  }
+});
+
+const selectedInputs: [string, string[], string][] = [
+  ['eck/eck-operator.yaml', ['resources', 'requests', 'ephemeral-storage'], 'ephemeral-storage'],
+  [
+    'prometheus/kube-prometheus-stack.yaml',
+    ['prometheusOperator', 'resources', 'limits', 'ephemeral-storage'],
+    'ephemeral-storage',
+  ],
+  [
+    'prometheus/kube-prometheus-stack.yaml',
+    ['prometheusOperator', 'prometheusConfigReloader', 'resources'],
+    'resources',
+  ],
+  [
+    'prometheus/kube-prometheus-stack.yaml',
+    ['prometheusOperator', 'admissionWebhooks', 'patch', 'resources'],
+    'resources',
+  ],
+];
+it.each(selectedInputs)(
+  'selected provider input refuses missing %s %j',
+  async (relativePath, path, field) => {
+    const root = await mutablePlatform();
+    const target = join(root, 'infra/platform/observability', relativePath);
+    const document = parseDocument(await readFile(target, 'utf8'));
+    document.deleteIn(['spec', 'values', ...path]);
+    await writeFile(target, document.toString());
+    await writeFile(
+      join(root, 'infra/platform/observability/base/coexistence.json'),
+      JSON.stringify(await assessObservabilityBudget(root)),
+    );
+    expect(validatePlatform(root)).rejects.toThrow(new RegExp(`values are invalid:.*${field}`));
+  },
+);
+
+const networkingBounds = [
+  ['controller', 'networking/cert-manager/release.yaml', ['resources']],
+  ['cainjector', 'networking/cert-manager/release.yaml', ['cainjector', 'resources']],
+  ['webhook', 'networking/cert-manager/release.yaml', ['webhook', 'resources']],
+  ['startupapicheck', 'networking/cert-manager/release.yaml', ['startupapicheck', 'resources']],
+  ['traefik', 'networking/traefik.yaml', ['resources']],
+  ['data scratch', 'networking/traefik.yaml', ['persistence', 'emptyDir', 'sizeLimit']],
+  ['tmp scratch', 'networking/traefik.yaml', ['deployment', 'tmpVolume', 'emptyDir', 'sizeLimit']],
+] as const;
+
+for (const [name, relativePath, path] of networkingBounds) {
+  it(`Task25c3c current candidate refuses missing ${name} bound`, async () => {
+    const root = await mutablePlatform();
+    const file = join(root, 'infra/platform', relativePath);
+    const document = parseDocument(await readFile(file, 'utf8'));
+    if (document.hasIn(['spec', 'values', ...path])) document.deleteIn(['spec', 'values', ...path]);
+    await writeFile(file, document.toString());
+    expect(validatePlatform(root)).rejects.toThrow(/networking candidate/);
+  });
+}
+
+for (const [name, relativePath, path] of networkingBounds) {
+  for (const [fault, value] of [
+    ['null', null],
+    ['zero', 0],
+    ['negative', '-1'],
+    ['malformed', 'broken'],
+  ] as const) {
+    it(`Task25c3c current candidate refuses ${name} ${fault}`, async () => {
+      const root = await mutablePlatform();
+      const file = join(root, 'infra/platform', relativePath);
+      const document = parseDocument(await readFile(file, 'utf8'));
+      document.setIn(['spec', 'values', ...path], value);
+      await writeFile(file, document.toString());
+      expect(validatePlatform(root)).rejects.toThrow(/values|networking candidate/);
+    });
+  }
+}
+for (const dimension of ['cpu', 'memory', 'ephemeral-storage'] as const) {
+  for (const [fault, side, value] of [
+    ['missing request', 'requests', undefined],
+    ['missing limit', 'limits', undefined],
+    ['null request', 'requests', null],
+    ['null limit', 'limits', null],
+    ['negative request', 'requests', '-1'],
+    ['malformed request', 'requests', 'invalid'],
+    ['zero limit', 'limits', 0],
+    ['above limit', 'requests', dimension === 'cpu' ? '3' : '1Gi'],
+  ] as const) {
+    it(`Task25c3c ${dimension} ${fault} refuses`, async () => {
+      const root = await mutablePlatform();
+      const file = join(root, 'infra/platform/networking/traefik.yaml');
+      const document = parseDocument(await readFile(file, 'utf8'));
+      const path = ['spec', 'values', 'resources', side, dimension];
+      if (value === undefined) document.deleteIn(path);
+      else document.setIn(path, value);
+      if (fault === 'zero limit')
+        document.setIn(['spec', 'values', 'resources', 'requests', dimension], 0);
+      await writeFile(file, document.toString());
+      expect(validatePlatform(root)).rejects.toThrow(
+        /values|networking candidate|Generated capacity/,
+      );
+    });
+  }
+}
+it('Task25c3c explicit zero requests are valid current bounds', async () => {
+  const root = await mutablePlatform();
+  const file = join(root, 'infra/platform/networking/traefik.yaml');
+  const document = parseDocument(await readFile(file, 'utf8'));
+  document.setIn(['spec', 'values', 'resources', 'requests'], {
+    cpu: 0,
+    memory: '0',
+    'ephemeral-storage': 0,
+  });
+  await writeFile(file, document.toString());
+  expect(validatePlatform(root)).resolves.toHaveProperty('releases');
+});
+it('Task25c3c persistence cannot replace bounded scratch', async () => {
+  const root = await mutablePlatform();
+  const file = join(root, 'infra/platform/networking/traefik.yaml');
+  const document = parseDocument(await readFile(file, 'utf8'));
+  document.setIn(['spec', 'values', 'persistence', 'enabled'], true);
+  await writeFile(file, document.toString());
+  expect(validatePlatform(root)).rejects.toThrow(/values/);
+});
+for (const release of platformReleases.filter((release) =>
+  ['cert-manager', 'traefik'].includes(release.name),
+)) {
+  it(`Task25c3c historical ${release.name} absent and null maps preserve locked image decoding`, async () => {
+    const document = parseDocument(
+      await readFile(join(repositoryRoot, 'infra/platform', release.path), 'utf8'),
+    );
+    const references = release.imageReferences(
+      type({ spec: { values: 'unknown' } }).assert(document.toJSON()).spec.values,
+    );
+    for (const [, relativePath, path] of networkingBounds) {
+      if (relativePath !== release.path) continue;
+      document.deleteIn(['spec', 'values', ...path]);
+    }
+    document.deleteIn(['spec', 'values', 'persistence']);
+    if (document.hasIn(['spec', 'values', 'deployment', 'tmpVolume']))
+      document.deleteIn(['spec', 'values', 'deployment', 'tmpVolume']);
+    expect(
+      release.imageReferences(
+        type({ spec: { values: 'unknown' } }).assert(document.toJSON()).spec.values,
+      ),
+    ).toEqual(references);
+    for (const [, relativePath, path] of networkingBounds) {
+      if (relativePath === release.path && path.at(-1) === 'resources')
+        document.setIn(['spec', 'values', ...path], null);
+    }
+    expect(
+      release.imageReferences(
+        type({ spec: { values: 'unknown' } }).assert(document.toJSON()).spec.values,
+      ),
+    ).toEqual(references);
+    document.setIn(['spec', 'values', 'resources'], { requests: null, limits: { cpu: '1' } });
+    expect(
+      release.imageReferences(
+        type({ spec: { values: 'unknown' } }).assert(document.toJSON()).spec.values,
+      ),
+    ).toEqual(references);
+  });
+  for (const [fault, resources] of [
+    ['array', []],
+    ['request array', { requests: [] }],
+    ['limit array', { limits: [] }],
+    ['malformed quantity', { requests: { cpu: '1Mi' } }],
+    ['negative quantity', { limits: { memory: '-1' } }],
+    ['contradiction', { requests: { memory: '1Gi' }, limits: { memory: '1Mi' } }],
+    ['foreign branch', { image: 'untrusted' }],
+  ] as const) {
+    it(`Task25c3c structural ${release.name} supplied ${fault} refuses`, async () => {
+      const document = parseDocument(
+        await readFile(join(repositoryRoot, 'infra/platform', release.path), 'utf8'),
+      );
+      document.setIn(['spec', 'values', 'resources'], resources);
+      expect(() =>
+        release.imageReferences(
+          type({ spec: { values: 'unknown' } }).assert(document.toJSON()).spec.values,
+        ),
+      ).toThrow();
+    });
+  }
+}
+
+for (const [name, path, value] of [
+  ['persistence array', ['persistence'], []],
+  ['data emptyDir array', ['persistence', 'emptyDir'], []],
+  ['tmpVolume array', ['deployment', 'tmpVolume'], []],
+  ['tmp emptyDir array', ['deployment', 'tmpVolume', 'emptyDir'], []],
+  ['scratch quantity', ['persistence', 'emptyDir', 'sizeLimit'], 'invalid'],
+  ['scratch negative', ['deployment', 'tmpVolume', 'emptyDir', 'sizeLimit'], '-1'],
+  ['foreign scratch field', ['persistence', 'emptyDir', 'medium'], 'Memory'],
+] as const) {
+  it(`Task25c3c structural Traefik ${name} refuses`, async () => {
+    const release = platformReleases.find((release) => release.name === 'traefik');
+    if (release === undefined) throw new Error('Missing Traefik release');
+    const document = parseDocument(
+      await readFile(join(repositoryRoot, 'infra/platform', release.path), 'utf8'),
+    );
+    document.setIn(['spec', 'values', ...path], value);
+    expect(() =>
+      release.imageReferences(
+        type({ spec: { values: 'unknown' } }).assert(document.toJSON()).spec.values,
+      ),
+    ).toThrow();
+  });
+}
+for (const side of ['requests', 'limits']) {
+  for (const [fault, value] of [
+    ['missing', undefined],
+    ['null', null],
+  ] as const) {
+    it(`Task25c3c current ${fault} ${side} map refuses`, async () => {
+      const root = await mutablePlatform();
+      const file = join(root, 'infra/platform/networking/traefik.yaml');
+      const document = parseDocument(await readFile(file, 'utf8'));
+      const path = ['spec', 'values', 'resources', side];
+      if (value === undefined) document.deleteIn(path);
+      else document.setIn(path, value);
+      await writeFile(file, document.toString());
+      expect(validatePlatform(root)).rejects.toThrow(/networking candidate/);
+    });
+  }
+}
+
+for (const environment of ['local', 'production']) {
+  it(`Task25c3d current ${environment} candidate refuses missing Velero patch`, async () => {
+    const root = await mutablePlatform();
+    await writeVeleroCandidates(root);
+    const file = join(root, `infra/platform/backup/velero/${environment}/velero.yaml`);
+    const document = parseDocument(await readFile(file, 'utf8'));
+    if (document.hasIn(['spec', 'postRenderers'])) document.deleteIn(['spec', 'postRenderers']);
+    await writeFile(file, document.toString());
+    expect(validatePlatform(root)).rejects.toThrow(/Velero patch/);
+  });
+}
+for (const [name, path] of [
+  ['server', ['resources']],
+  ['plugin', ['initContainers', 0, 'resources']],
+] as const) {
+  it(`Task25c3d current candidate refuses missing ${name} resources`, async () => {
+    const root = await mutablePlatform();
+    await writeVeleroCandidates(root);
+    const file = join(root, 'infra/platform/backup/velero/local/velero.yaml');
+    const document = parseDocument(await readFile(file, 'utf8'));
+    if (document.hasIn(['spec', 'values', ...path])) document.deleteIn(['spec', 'values', ...path]);
+    await writeFile(file, document.toString());
+    expect(validatePlatform(root)).rejects.toThrow(/Velero candidate/);
+  });
+}
+it('Task25c3d historical incomplete server and plugin resources preserve image inventory', async () => {
+  const release = platformReleases.find(
+    (release) => release.path === 'backup/velero/local/velero.yaml',
+  );
+  if (release === undefined) throw new Error('Velero fixture absent');
+  const document = parseDocument(
+    await readFile(join(repositoryRoot, 'infra/platform', release.path), 'utf8'),
+  );
+  const references = release.imageReferences(
+    type({ spec: { values: 'unknown' } }).assert(document.toJSON()).spec.values,
+  );
+  for (const resources of [undefined, null, {}, { requests: null, limits: { cpu: '1' } }]) {
+    for (const path of [['resources'], ['initContainers', 0, 'resources']]) {
+      if (resources === undefined) {
+        if (document.hasIn(['spec', 'values', ...path]))
+          document.deleteIn(['spec', 'values', ...path]);
+      } else document.setIn(['spec', 'values', ...path], resources);
+    }
+    expect(
+      release.imageReferences(
+        type({ spec: { values: 'unknown' } }).assert(document.toJSON()).spec.values,
+      ),
+    ).toEqual(references);
+  }
+});
+it('Task25c3d accepts bounded Velero source policy', async () => {
+  const root = await mutablePlatform();
+  await writeVeleroCandidates(root);
+  expect(validatePlatform(root)).resolves.toHaveProperty('releases');
+});
+for (const [fault, policy] of [
+  ['empty', []],
+  ['null', null],
+  ['extra renderer', [...veleroPostRenderers(), ...veleroPostRenderers()]],
+  ['external renderer', [{ executable: 'foreign' }]],
+  [
+    'unknown kustomize option',
+    [{ kustomize: { ...veleroPostRenderers()[0].kustomize, images: [] } }],
+  ],
+  [
+    'extra patch',
+    [
+      {
+        kustomize: {
+          patches: [
+            ...veleroPostRenderers()[0].kustomize.patches,
+            ...veleroPostRenderers()[0].kustomize.patches,
+          ],
+        },
+      },
+    ],
+  ],
+  ...['group', 'version', 'kind', 'name', 'namespace', 'labelSelector', 'annotationSelector'].map(
+    (field) => [
+      `target ${field}`,
+      [
+        {
+          kustomize: {
+            patches: [
+              {
+                target: {
+                  ...veleroPostRenderers()[0].kustomize.patches[0].target,
+                  [field]: 'foreign',
+                },
+                patch: veleroPatch,
+              },
+            ],
+          },
+        },
+      ],
+    ],
+  ),
+  ...[
+    ['empty patch', ''],
+    ['malformed', '['],
+    ['multiple documents', veleroPatch + '---\n[]'],
+    ['duplicate key', veleroPatch.replace('- op: test', '- op: test\n  op: test')],
+    ['extra operation', veleroPatch + '- op: remove\n  path: /metadata/labels\n'],
+    ['reordered operation', veleroPatch.replace('- op: test', '- op: add')],
+    ['wrong path', veleroPatch.replace('/volumes/1/', '/volumes/0/')],
+    ['extra operation field', veleroPatch.replace('- op: test', '- op: test\n  from: /foreign')],
+    [
+      'wrong precondition',
+      veleroPatch.replace('secretName: velero-credentials', 'secretName: foreign'),
+    ],
+    ['zero quantity', veleroPatch.replace('256Mi', "'0'")],
+    ['numeric quantity', veleroPatch.replace('256Mi', '256')],
+    ['invalid quantity', veleroPatch.replace('256Mi', 'NaN')],
+    ['negative quantity', veleroPatch.replace('256Mi', '-1Mi')],
+    ['overflow quantity', veleroPatch.replace('256Mi', '9'.repeat(400) + 'Gi')],
+  ].map(([fault, patch]) => [
+    fault,
+    [{ kustomize: { patches: [{ ...veleroPostRenderers()[0].kustomize.patches[0], patch }] } }],
+  ]),
+] as const) {
+  it(`Task25c3d patch ${type('string').assert(fault)} refuses through platform`, async () => {
+    const root = await mutablePlatform();
+    await writeVeleroCandidates(root);
+    const file = join(root, 'infra/platform/backup/velero/local/velero.yaml');
+    const document = parseDocument(await readFile(file, 'utf8'));
+    document.setIn(['spec', 'postRenderers'], policy);
+    await writeFile(file, document.toString());
+    expect(validatePlatform(root)).rejects.toThrow(/Velero patch/);
+  });
+}
+
+for (const [name, path] of [
+  ['server', ['resources']],
+  ['plugin', ['initContainers', 0, 'resources']],
+] as const) {
+  for (const [fault, suffix, value] of [
+    ['null map', [], null],
+    ['array map', [], []],
+    ['foreign field', ['foreign'], 'x'],
+    ['missing requests', ['requests'], undefined],
+    ['null requests', ['requests'], null],
+    ['missing limits', ['limits'], undefined],
+    ['null limits', ['limits'], null],
+    ['missing cpu', ['requests', 'cpu'], undefined],
+    ['missing memory', ['limits', 'memory'], undefined],
+    ['missing disk', ['limits', 'ephemeral-storage'], undefined],
+    ['bad cpu', ['requests', 'cpu'], '1Mi'],
+    ['negative memory', ['requests', 'memory'], '-1Mi'],
+    ['nonfinite disk', ['requests', 'ephemeral-storage'], '9'.repeat(400) + 'Gi'],
+    ['zero disk request', ['requests', 'ephemeral-storage'], '0Mi'],
+    ['above cpu limit', ['requests', 'cpu'], '2'],
+    ['above memory limit', ['requests', 'memory'], '2Gi'],
+    ['above disk limit', ['requests', 'ephemeral-storage'], '2Gi'],
+  ] as const) {
+    it(`Task25c3d ${name} ${fault} refuses`, async () => {
+      const root = await mutablePlatform();
+      await writeVeleroCandidates(root);
+      const file = join(root, 'infra/platform/backup/velero/local/velero.yaml');
+      const document = parseDocument(await readFile(file, 'utf8'));
+      const target = ['spec', 'values', ...path, ...suffix];
+      if (value === undefined) document.deleteIn(target);
+      else document.setIn(target, value);
+      await writeFile(file, document.toString());
+      expect(validatePlatform(root)).rejects.toThrow(/Velero candidate|values|Generated capacity/);
+    });
+  }
+  for (const dimension of ['cpu', 'memory', 'ephemeral-storage']) {
+    it(`Task25c3d ${name} positive ${dimension} limit required`, async () => {
+      const root = await mutablePlatform();
+      await writeVeleroCandidates(root);
+      const file = join(root, 'infra/platform/backup/velero/local/velero.yaml');
+      const document = parseDocument(await readFile(file, 'utf8'));
+      for (const side of ['requests', 'limits'])
+        document.setIn(['spec', 'values', ...path, side, dimension], '0');
+      await writeFile(file, document.toString());
+      expect(validatePlatform(root)).rejects.toThrow(/Velero candidate/);
+    });
+  }
+}
+it('Task25c3d zero CPU and memory requests remain valid', async () => {
+  const root = await mutablePlatform();
+  await writeVeleroCandidates(root);
+  const file = join(root, 'infra/platform/backup/velero/local/velero.yaml');
+  const document = parseDocument(await readFile(file, 'utf8'));
+  for (const path of [['resources'], ['initContainers', 0, 'resources']])
+    for (const dimension of ['cpu', 'memory'])
+      document.setIn(['spec', 'values', ...path, 'requests', dimension], '0');
+  await writeFile(file, document.toString());
+  expect(validatePlatform(root)).resolves.toHaveProperty('releases');
+});
+it('Task25c3d decoded patch snapshots caller authority and preserves original inline bytes', () => {
+  const policy = veleroPostRenderers();
+  const decoded = readVeleroPatch(policy);
+  policy[0].kustomize.patches[0].patch = 'foreign';
+  policy[0].kustomize.patches[0].target.name = 'foreign';
+  expect(decoded.patch).toBe(veleroPatch);
+  expect(decoded.pluginsSizeLimit).toBe('256Mi');
+  expect(decoded.scratchSizeLimit).toBe('1Gi');
+  expect(Object.isFrozen(decoded)).toBe(true);
+});
+
+it('Task25c3d owning declarations carry the candidate bounds and original patch', async () => {
+  for (const environment of ['local', 'production']) {
+    const file = join(repositoryRoot, `infra/platform/backup/velero/${environment}/velero.yaml`);
+    const document = parseDocument(await readFile(file, 'utf8'));
+    const decoded = readVeleroPatch(
+      type({ spec: { postRenderers: 'unknown' } }).assert(document.toJSON()).spec.postRenderers,
+    );
+    expect(decoded.pluginsSizeLimit).toBe('256Mi');
+    expect(decoded.scratchSizeLimit).toBe('1Gi');
+    expect(document.getIn(['spec', 'values', 'resources', 'requests', 'ephemeral-storage'])).toBe(
+      '128Mi',
+    );
+    expect(document.getIn(['spec', 'values', 'resources', 'limits', 'ephemeral-storage'])).toBe(
+      '1Gi',
+    );
+    expect(
+      type({ spec: { values: { initContainers: type({ resources: 'unknown' }).array() } } }).assert(
+        document.toJSON(),
+      ).spec.values.initContainers[0].resources,
+    ).toEqual({
+      requests: { cpu: '50m', memory: '64Mi', 'ephemeral-storage': '16Mi' },
+      limits: { cpu: '1', memory: '256Mi', 'ephemeral-storage': '128Mi' },
+    });
+  }
+});
+
+it('Ansible Flux caller copies both inputs and authenticates vendor before applying overlay', async () => {
+  const playbook = type({
+    tasks: type({
+      'ansible.builtin.copy?': { dest: 'string' },
+      'ansible.builtin.command?': { 'argv?': 'unknown[]' },
+    }).array(),
+  })
+    .array()
+    .assert(
+      parse(await readFile(join(repositoryRoot, 'infra/ansible/playbooks/platform.yml'), 'utf8')),
+    );
+  const tasks = playbook.flatMap((play) => play.tasks);
+  const copies = tasks.flatMap((task) => {
+    const destination = task['ansible.builtin.copy']?.dest;
+    return destination !== undefined &&
+      ['/var/cache/puni/flux/install.yaml', '/var/cache/puni/flux/kustomization.yaml'].includes(
+        destination,
+      )
+      ? [destination]
+      : [];
+  });
+  expect(copies.sort()).toEqual([
+    '/var/cache/puni/flux/install.yaml',
+    '/var/cache/puni/flux/kustomization.yaml',
+  ]);
+  const commands = tasks.flatMap((task) => {
+    const arguments_ = task['ansible.builtin.command']?.argv;
+    return arguments_ === undefined ? [] : [arguments_];
+  });
+  expect(commands).toContainEqual(['sha256sum', '/var/cache/puni/flux/install.yaml']);
+  const apply = ['k3s', 'kubectl', 'apply', '-k', '/var/cache/puni/flux'];
+  expect(commands).toContainEqual(apply);
+  expect(commands.findIndex((arguments_) => arguments_[0] === 'sha256sum')).toBeLessThan(
+    commands.findIndex((arguments_) => JSON.stringify(arguments_) === JSON.stringify(apply)),
+  );
 });

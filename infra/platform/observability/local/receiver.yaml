@@ -1,4 +1,4 @@
-# Local rehearsal receiver: records every Alertmanager webhook body to its log. Production routes
+# Local rehearsal receiver: retains accepted Alertmanager bodies until its finite history is full. Production routes
 # come from the alertmanager-puni secret and never point here.
 apiVersion: apps/v1
 kind: Deployment
@@ -25,26 +25,130 @@ spec:
             - sh
             - -c
             - |
-              mkdir -p /tmp/www/cgi-bin
-              cat > /tmp/www/cgi-bin/alert <<'SCRIPT'
+              # Proof: Task40 bootstrap-failure removal let failed CGI publication start the server.
+              set -eu
+              umask 077
+              cd /tmp
+              # Proof: Task40 startup-policy removals accepted changed body/history/deadline inputs.
+              [ "${RECEIVER_BODY_BYTES-}" = 65536 ]
+              [ "${RECEIVER_HISTORY_BYTES-}" = 8388608 ]
+              [ "${RECEIVER_READ_SECONDS-}" = 10 ]
+              if [ ! -e receiver-state ]; then
+                # Proof: Task40 initialization-origin removal manufactured state beside retained history.
+                [ ! -e alerts.log ] && [ ! -e receiver.lock ] || exit 1
+                mkdir receiver-state
+                (set -C; : > alerts.log)
+              fi
+              # Proof: Task40 startup-state removal admitted a malformed established-state marker.
+              [ -d receiver-state ] && [ -f alerts.log ] && [ -r alerts.log ] || exit 1
+              # Proof: Task40 startup-lock removal accepted an interrupted receiver restart.
+              [ ! -e receiver.lock ]
+              history_bytes=$(wc -c < alerts.log)
+              # Proof: Task40 startup-history removal admitted oversized retained history.
+              [ "$history_bytes" -le "$RECEIVER_HISTORY_BYTES" ]
+              mkdir -p www/cgi-bin
+              cat > www/cgi-bin/alert <<'CGI'
               #!/bin/sh
-              body=$(head -c "${CONTENT_LENGTH:-0}")
-              echo "alert-received $(date -u +%Y-%m-%dT%H:%M:%SZ) $body" >> /tmp/alerts.log
-              echo "alert-received $body" > /proc/1/fd/1
-              printf 'Content-Type: text/plain\r\n\r\nok\n'
-              SCRIPT
-              chmod 0755 /tmp/www/cgi-bin/alert
+              umask 077
+              respond() {
+                printf 'Status: %s\r\nContent-Type: text/plain\r\n\r\n%s\n' "$1" "$2"
+                exit
+              }
+              fail() { respond '500 Internal Server Error' 'receiver state requires inspection'; }
+              cd /tmp || fail
+              # Proof: Task40 runtime-policy removal accepted changed candidate inputs.
+              [ "${RECEIVER_BODY_BYTES-}" = 65536 ] &&
+                [ "${RECEIVER_HISTORY_BYTES-}" = 8388608 ] &&
+                [ "${RECEIVER_READ_SECONDS-}" = 10 ] || fail
+              # Proof: Task40 writer-lock mkdir-p substitution accepted a second writer.
+              if ! mkdir receiver.lock 2>/dev/null; then
+                # Proof: Task40 lock-storage-status removal mislabeled failed lock creation as busy.
+                [ -d receiver.lock ] || fail
+                respond '503 Service Unavailable' 'receiver busy or interrupted'
+              fi
+              reject() {
+                # Proof: Task40 reject-cleanup removal hid failed rejection cleanup.
+                rm -f receiver.lock/body receiver.lock/record && rmdir receiver.lock || fail
+                respond "$1" "$2"
+              }
+              # Proof: Task40 runtime-state removal admitted the malformed initialization marker.
+              [ -d receiver-state ] && [ -f alerts.log ] && [ -r alerts.log ] || fail
+              # Proof: Task40 length-syntax removal lost the fractional-length 400 refusal.
+              case "${CONTENT_LENGTH-}" in
+                ''|*[!0-9]*) reject '400 Bad Request' 'invalid content length' ;;
+              esac
+              # Proof: Task40 length-width removal accepted an overlong zero representation.
+              [ "${#CONTENT_LENGTH}" -le 5 ] || reject '413 Content Too Large' 'body exceeds policy'
+              length=$CONTENT_LENGTH
+              while [ "${length#0}" != "$length" ]; do length=${length#0}; done
+              [ -n "$length" ] || length=0
+              # Proof: Task40 body-cap removal read oversize input instead of refusing 413.
+              [ "$length" -le "$RECEIVER_BODY_BYTES" ] || reject '413 Content Too Large' 'body exceeds policy'
+              # Proof: Task40 deadline-policy substitution ended the admitted read before ten seconds.
+              timeout "$RECEIVER_READ_SECONDS" head -c "$length" > receiver.lock/body
+              read_status=$?
+              # Proof: Task40 deadline-status/body-read-status removals lost timeout/dependency refusals.
+              case "$read_status" in
+                0) ;;
+                124|137|143) reject '408 Request Timeout' 'body deadline exceeded' ;;
+                *) fail ;;
+              esac
+              # Proof: Task40 body-count-status removal trusted a failed byte-count read with plausible output.
+              body_bytes=$(wc -c < receiver.lock/body) || fail
+              # Proof: Task40 body-length removal lost the short-input 400 refusal.
+              [ "$body_bytes" -eq "$length" ] || reject '400 Bad Request' 'short body'
+              # Proof: Task40 history-count-status removal trusted a failed byte-count read with plausible output.
+              history_bytes=$(wc -c < alerts.log) || fail
+              # Proof: Task40 runtime-history removal mislabeled oversized established state as full.
+              [ "$history_bytes" -le "$RECEIVER_HISTORY_BYTES" ] || fail
+              # Proof: Task40 timestamp-status removal acknowledged a failed timestamp command.
+              stamp=$(date -u +%Y-%m-%dT%H:%M:%SZ) || fail
+              # Proof: Task40 raw-body shell substitution lost trailing bytes; record-write removal acknowledged failed output.
+              (printf 'alert-received %s ' "$stamp" && cat receiver.lock/body && printf '\n') > receiver.lock/record || fail
+              # Proof: Task40 record-count-status removal trusted a failed byte-count read with plausible output.
+              record_bytes=$(wc -c < receiver.lock/record) || fail
+              # Proof: Task40 record-length removal accepted a silently shortened record.
+              [ "$record_bytes" -eq "$((length + 37))" ] || fail
+              # Proof: Task40 history-cap removal acknowledged a record beyond the finite horizon.
+              [ "$history_bytes" -le "$((RECEIVER_HISTORY_BYTES - record_bytes))" ] || reject '507 Insufficient Storage' 'receiver history full'
+              # Proof: Task40 history-write removal acknowledged a completed-but-failed write.
+              cat alerts.log receiver.lock/record > receiver.lock/next || fail
+              # Proof: Task40 next-count-status removal trusted a failed byte-count read with plausible output.
+              next_bytes=$(wc -c < receiver.lock/next) || fail
+              # Proof: Task40 replacement-length removal replaced accepted history with a short write.
+              [ "$next_bytes" -eq "$((history_bytes + record_bytes))" ] || fail
+              # Proof: Task40 rename-status removal acknowledged an uncertain completed rename.
+              mv receiver.lock/next alerts.log || fail
+              # Proof: Task40 retained-count-status removal trusted a failed byte-count read with plausible output.
+              retained_bytes=$(wc -c < alerts.log) || fail
+              # Proof: Task40 retained-length removal accepted unexpected bytes preceding the record.
+              [ "$retained_bytes" -eq "$next_bytes" ] || fail
+              # Proof: Task40 readback-status removal acknowledged failed readback with complete output.
+              tail -c "$record_bytes" alerts.log > receiver.lock/recorded || fail
+              # Proof: Task40 readback-equality removal accepted changed retained record bytes.
+              cmp -s receiver.lock/record receiver.lock/recorded || fail
+              # Proof: Task40 mirror-status removal acknowledged failed stdout after recording.
+              (printf 'alert-received ' && cat receiver.lock/body && printf '\n') > /proc/1/fd/1 || fail
+              # Proof: Task40 cleanup-status removal acknowledged unreleased interrupted state.
+              rm receiver.lock/body receiver.lock/record receiver.lock/recorded && rmdir receiver.lock || fail
+              respond '200 OK' 'ok'
+              CGI
+              chmod 0755 www/cgi-bin/alert
               exec httpd -f -p 8080 -h /tmp/www
+          env:
+            - { name: RECEIVER_BODY_BYTES, value: '65536' }
+            - { name: RECEIVER_HISTORY_BYTES, value: '8388608' }
+            - { name: RECEIVER_READ_SECONDS, value: '10' }
           ports: [{ name: http, containerPort: 8080 }]
           resources:
-            requests: { cpu: 5m, memory: 8Mi }
-            limits: { cpu: 100m, memory: 32Mi }
+            requests: { cpu: 5m, memory: 8Mi, ephemeral-storage: 32Mi }
+            limits: { cpu: 100m, memory: 32Mi, ephemeral-storage: 64Mi }
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities: { drop: [ALL] }
           volumeMounts: [{ name: scratch, mountPath: /tmp }]
-      volumes: [{ name: scratch, emptyDir: {} }]
+      volumes: [{ name: scratch, emptyDir: { sizeLimit: 32Mi } }]
 ---
 apiVersion: v1
 kind: Service

@@ -6,6 +6,11 @@ import { type } from 'arktype';
 import { parse, parseDocument, stringify } from 'yaml';
 
 import { purposeCapabilities, readToolchain } from './contracts';
+import { assertFluxPolicy } from './flux-policy';
+import { assertObservability } from './observability';
+import { assertReceiverCandidate } from './observability-receiver';
+import { assertBackupTransport } from './platform-backup-tls';
+import { assertCommonNativeResources } from './platform-common-resources';
 import {
   assertEncryptedSecrets,
   assertLockedWorkloadImages,
@@ -21,7 +26,14 @@ import {
   referencedSecrets,
 } from './platform-manifests';
 import { assertOtlpTransport } from './platform-otlp';
-import { platformReleases } from './platform-releases';
+import {
+  assertCommonHelmResources,
+  assertNetworkingCandidate,
+  assertVeleroCandidate,
+  PlatformHelmRelease,
+  platformReleases,
+} from './platform-releases';
+import { readVeleroPatch } from './platform-velero-patch';
 
 const PlatformIdentity = type({
   apiVersion: "'v1'",
@@ -75,35 +87,6 @@ const FluxStage = type({
   '+': 'reject',
 });
 
-// Proof: changing the HelmRelease spec's unknown-key policy to delete admitted a post-renderer
-// that replaced Traefik's locked image in the production validator on 2026-09-17.
-const HelmRelease = type({
-  apiVersion: "'helm.toolkit.fluxcd.io/v2'",
-  kind: "'HelmRelease'",
-  metadata: { name: 'string>0', namespace: 'string>0', '+': 'reject' },
-  spec: {
-    interval: 'string>0',
-    'dependsOn?': type({ name: 'string>0', '+': 'reject' }).array().atLeastLength(1),
-    chart: {
-      spec: {
-        chart: 'string>0',
-        version: 'string>0',
-        sourceRef: {
-          kind: "'GitRepository'",
-          name: "'puni-platform'",
-          namespace: "'flux-system'",
-          '+': 'reject',
-        },
-        '+': 'reject',
-      },
-      '+': 'reject',
-    },
-    values: 'unknown',
-    '+': 'reject',
-  },
-  '+': 'reject',
-});
-
 // Proof: changing the native Kustomization's unknown-key policy to delete admitted a patch that
 // removed Traefik's locked digest in the production validator on 2026-09-17.
 const NativeKustomization = type({
@@ -147,15 +130,28 @@ const clusterPaths = [
   ['workers', 'production'],
 ] as const;
 
-const observabilityResources = (environment: string) => [
-  '../eck',
-  `../elastic/${environment}`,
-  '../elastic/settings',
-  '../kibana',
-  '../prometheus',
-  '../otel',
+const observabilityResources = (_environment: string) => [
+  '../base',
   'telemetry.yaml',
   'otlp-ingress.yaml',
+];
+const signalGenerators = [
+  {
+    name: 'signal-configuration',
+    namespace: 'observability',
+    files: [
+      'collector.yaml',
+      'gateway.yaml',
+      'retention.json',
+      'logs-policy.json',
+      'logs-template.json',
+      'traces-policy.json',
+      'traces-template.json',
+      'metrics-policy.json',
+      'metrics-template.json',
+      'apply.js',
+    ],
+  },
 ];
 
 const platformKustomizations: readonly (readonly [
@@ -199,8 +195,20 @@ const platformKustomizations: readonly (readonly [
   // platform.test.ts resolve instead of reject on 2026-10-07.
   ['storage/production-existing-hosts/kustomization.yaml', ['../local']],
   ['observability/eck/kustomization.yaml', ['eck-operator.yaml']],
-  ['observability/elastic/local/kustomization.yaml', ['elasticsearch.yaml']],
-  ['observability/elastic/production/kustomization.yaml', ['elasticsearch.yaml']],
+  ['observability/elastic/base/kustomization.yaml', ['elasticsearch.yaml']],
+  [
+    'observability/base/kustomization.yaml',
+    [
+      '../eck',
+      '../elastic/base',
+      '../elastic/settings',
+      '../kibana',
+      '../prometheus',
+      '../otel',
+      'signals.yaml',
+      'metrics.yaml',
+    ],
+  ],
   [
     'observability/elastic/settings/kustomization.yaml',
     ['settings.yaml'],
@@ -223,8 +231,16 @@ const platformKustomizations: readonly (readonly [
     ['kube-prometheus-stack.yaml', 'blackbox-exporter.yaml'],
   ],
   ['observability/otel/kustomization.yaml', ['collector.yaml']],
-  ['observability/local/kustomization.yaml', [...observabilityResources('local'), 'receiver.yaml']],
-  ['observability/production/kustomization.yaml', observabilityResources('production')],
+  [
+    'observability/local/kustomization.yaml',
+    [...observabilityResources('local'), 'receiver.yaml'],
+    signalGenerators,
+  ],
+  [
+    'observability/production/kustomization.yaml',
+    observabilityResources('production'),
+    signalGenerators,
+  ],
   ['telemetry/agent/kustomization.yaml', ['agent.yaml']],
   ['telemetry/local/kustomization.yaml', ['../agent', 'upstream.yaml']],
   ['telemetry/production/kustomization.yaml', ['../agent', 'upstream.yaml']],
@@ -364,6 +380,7 @@ export async function validatePlatform(root: string): Promise<{
   readonly secrets: number;
 }> {
   await assertOtlpTransport(root);
+  await assertObservability(root);
   const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
   for (const [index, [cluster, environment]] of clusterPaths.entries()) {
     const expectedCluster = clusters[index];
@@ -447,6 +464,42 @@ export async function validatePlatform(root: string): Promise<{
         },
       ];
     }
+    if (relativePath === 'observability/local/kustomization.yaml') {
+      expectedPatches = [
+        {
+          target: { kind: 'HelmRelease', name: 'elasticsearch' },
+          patch: stringify(
+            [
+              [
+                '/spec/values/nodeSets/0/config/s3.client.default.endpoint',
+                'object-store.puni-backup.svc:9000',
+              ],
+              ['/spec/values/nodeSets/0/config/s3.client.default.protocol', 'https'],
+              [
+                '/spec/values/nodeSets/0/podTemplate/spec/initContainers/0/env/0/value',
+                'system-roots-plus-ca',
+              ],
+              [
+                '/spec/values/nodeSets/0/podTemplate/spec/containers/0/env/0/value',
+                '-Xms1g -Xmx1g',
+              ],
+              [
+                '/spec/values/nodeSets/0/podTemplate/spec/containers/0/resources/requests/memory',
+                '2Gi',
+              ],
+              [
+                '/spec/values/nodeSets/0/podTemplate/spec/containers/0/resources/limits/memory',
+                '2Gi',
+              ],
+              [
+                '/spec/values/nodeSets/0/volumeClaimTemplates/0/spec/resources/requests/storage',
+                '10Gi',
+              ],
+            ].map(([path, value]) => ({ op: 'replace', path, value })),
+          ),
+        },
+      ];
+    }
     if (relativePath === 'alerts/production/kustomization.yaml') {
       const rules = parseDocument(
         await readFile(join(root, 'infra/platform/alerts/base/rules.yaml'), 'utf8'),
@@ -500,7 +553,7 @@ export async function validatePlatform(root: string): Promise<{
   const releaseNames: string[] = [];
   for (const release of platformReleases) {
     const releasePath = join(root, 'infra/platform', release.path);
-    const parsed = HelmRelease(await readYaml(releasePath));
+    const parsed = PlatformHelmRelease(await readYaml(releasePath));
     if (parsed instanceof type.errors) {
       throw new Error(`${release.name} HelmRelease is invalid: ${parsed.summary}`);
     }
@@ -523,6 +576,19 @@ export async function validatePlatform(root: string): Promise<{
       throw new Error(`${release.name} chart archive differs from the toolchain lock`);
     }
     const configuredReferences = release.imageReferences(parsed.spec.values);
+    // Proof: Task25c3c candidate-call removal made all five missing maps and both missing scratch bounds pass validatePlatform.
+    assertNetworkingCandidate(release.name, parsed.spec.values);
+    // Proof: Task25c3f helm-call omission admitted both missing current exporter maps.
+    assertCommonHelmResources(release.name, parsed.spec.values);
+    if (release.name === 'velero') {
+      // Proof: Task25c3d candidate-call omission admitted both missing current maps.
+      assertVeleroCandidate(parsed.spec.values);
+      // Proof: Task25c3d platform-patch-call omission admitted the foreign volume precondition.
+      readVeleroPatch(parsed.spec.postRenderers);
+      // Proof: Task25c3d postrenderer-context removal admitted the existing Traefik image-replacement policy.
+    } else if (Object.hasOwn(parsed.spec, 'postRenderers')) {
+      throw new Error(`${release.name} HelmRelease postRenderers must be removed`);
+    }
     for (const image of lock.images) {
       if (configuredReferences[image.role] !== `${image.name}@${image.digest}`) {
         // Proof: moving the Traefik digest to ignored `image.unusedDigest` made the production
@@ -538,9 +604,14 @@ export async function validatePlatform(root: string): Promise<{
   }
 
   const manifests = await readPlatformManifests(root);
+  // Proof: Task25c3f native-call omission admitted missing registry maps through validatePlatform.
+  assertCommonNativeResources(manifests);
+  // Proof: Task40 current-caller omission accepted absent receiver ephemeral policy through validatePlatform.
+  assertReceiverCandidate(manifests);
   const workloadImages = assertLockedWorkloadImages(manifests, toolchain);
   const secrets = assertEncryptedSecrets(manifests);
   assertRegistryTransport(manifests);
+  assertBackupTransport(manifests);
   assertRetainedClaims(manifests);
   assertTrustedWorkloadImages(manifests);
   assertTrustedPolicyScope(manifests);
@@ -553,6 +624,12 @@ export async function validatePlatform(root: string): Promise<{
     // of reject on 2026-09-17.
     throw new Error('Flux install manifest differs from the toolchain lock');
   }
+
+  // Proof: Task62 platform-policy-call removal let the missing required overlay production negative resolve.
+  assertFluxPolicy(
+    await readFile(join(root, 'infra/platform/flux/kustomization.yaml'), 'utf8'),
+    fluxInstall.toString(),
+  );
 
   const platformPlaybook = await readFile(
     join(root, 'infra/ansible/playbooks/platform.yml'),

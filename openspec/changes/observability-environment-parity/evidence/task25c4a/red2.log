@@ -1,0 +1,161 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-resource-caller.test.ts:
+524 |
+525 | import { selectedHelpers } from './k3d-helper-images.test';
+526 | it('Task37 real up persists selection, process environment and every serial effective observation', async () => {
+527 |   const lab = await fixture('serial-tools');
+528 |   const execution = await lab.up();
+529 |   expect(execution).toMatchObject({ exit: 0, stderr: '' });
+                          ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "exit": 0,
+-   "stderr": "",
++   "exit": 1,
++   "stderr":
++ " 7 |   { role: 'tools', temporary: true },
++  8 | ] as const;
++  9 | /** Preserve the existing k3d helper names and order in each cluster's creation plan. */
++ 10 | export function nameLabHelpers(cluster: string, selection: K3dHelpers) {
++ 11 |   // Proof: Task25c2b helper-name substitution failed independent platform/workers expected-name controls.
++ 12 |   return labHelperRoles.map((helper) => ({ name: `k3d-${cluster}-${helper.role}`, image: referenceHelper(selection[helper.role]), ...helper }));
++                                                                                                               ^
++ TypeError: undefined is not an object (evaluating 'selection[helper.role]')
++       at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.ts:12:106)
++       at map (1:11)
++       at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:881:16)
++       at upLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:874:22)
++       at async executeLabRequest (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1286:13)
++       at async runLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1270:29)
++
++ Bun v1.4.4 (Linux x64)
++ "
++ ,
++   "stdout": "",
+  }
+
+- Expected  - 2
++ Received  + 21
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:529:21)
+(fail) Task37 real up persists selection, process environment and every serial effective observation [580.41ms]
+548 | for (const fault of ['preimage-config', 'preimage-arch', 'preimage-reference', 'effective-permanent', 'effective-transient', 'reference-transient', 'inspection-race', 'inherited-override']) {
+549 |   it(`Task37 real up refuses ${fault} without ready evidence or cleanup`, async () => {
+550 |     const lab = await fixture(fault);
+551 |     const execution = await lab.up();
+552 |     expect(execution.exit).not.toBe(0);
+553 |     expect(execution.stderr).toContain(fault.startsWith('preimage') ? 'Selected helper image identity differs' : fault === 'inherited-override' ? 'environment overrides' : 'resource state is unknown');
+                                   ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "Selected helper image identity differs"
+Received: " 7 |   { role: 'tools', temporary: true },\n 8 | ] as const;\n 9 | /** Preserve the existing k3d helper names and order in each cluster's creation plan. */\n10 | export function nameLabHelpers(cluster: string, selection: K3dHelpers) {\n11 |   // Proof: Task25c2b helper-name substitution failed independent platform/workers expected-name controls.\n12 |   return labHelperRoles.map((helper) => ({ name: `k3d-${cluster}-${helper.role}`, image: referenceHelper(selection[helper.role]), ...helper }));\n                                                                                                              ^\nTypeError: undefined is not an object (evaluating 'selection[helper.role]')\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.ts:12:106)\n      at map (1:11)\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:881:16)\n      at upLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:874:22)\n      at async executeLabRequest (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1286:13)\n      at async runLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1270:29)\n\nBun v1.4.4 (Linux x64)\n"
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:553:30)
+(fail) Task37 real up refuses preimage-config without ready evidence or cleanup [537.87ms]
+548 | for (const fault of ['preimage-config', 'preimage-arch', 'preimage-reference', 'effective-permanent', 'effective-transient', 'reference-transient', 'inspection-race', 'inherited-override']) {
+549 |   it(`Task37 real up refuses ${fault} without ready evidence or cleanup`, async () => {
+550 |     const lab = await fixture(fault);
+551 |     const execution = await lab.up();
+552 |     expect(execution.exit).not.toBe(0);
+553 |     expect(execution.stderr).toContain(fault.startsWith('preimage') ? 'Selected helper image identity differs' : fault === 'inherited-override' ? 'environment overrides' : 'resource state is unknown');
+                                   ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "Selected helper image identity differs"
+Received: " 7 |   { role: 'tools', temporary: true },\n 8 | ] as const;\n 9 | /** Preserve the existing k3d helper names and order in each cluster's creation plan. */\n10 | export function nameLabHelpers(cluster: string, selection: K3dHelpers) {\n11 |   // Proof: Task25c2b helper-name substitution failed independent platform/workers expected-name controls.\n12 |   return labHelperRoles.map((helper) => ({ name: `k3d-${cluster}-${helper.role}`, image: referenceHelper(selection[helper.role]), ...helper }));\n                                                                                                              ^\nTypeError: undefined is not an object (evaluating 'selection[helper.role]')\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.ts:12:106)\n      at map (1:11)\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:881:16)\n      at upLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:874:22)\n      at async executeLabRequest (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1286:13)\n      at async runLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1270:29)\n\nBun v1.4.4 (Linux x64)\n"
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:553:30)
+(fail) Task37 real up refuses preimage-arch without ready evidence or cleanup [555.68ms]
+548 | for (const fault of ['preimage-config', 'preimage-arch', 'preimage-reference', 'effective-permanent', 'effective-transient', 'reference-transient', 'inspection-race', 'inherited-override']) {
+549 |   it(`Task37 real up refuses ${fault} without ready evidence or cleanup`, async () => {
+550 |     const lab = await fixture(fault);
+551 |     const execution = await lab.up();
+552 |     expect(execution.exit).not.toBe(0);
+553 |     expect(execution.stderr).toContain(fault.startsWith('preimage') ? 'Selected helper image identity differs' : fault === 'inherited-override' ? 'environment overrides' : 'resource state is unknown');
+                                   ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "Selected helper image identity differs"
+Received: " 7 |   { role: 'tools', temporary: true },\n 8 | ] as const;\n 9 | /** Preserve the existing k3d helper names and order in each cluster's creation plan. */\n10 | export function nameLabHelpers(cluster: string, selection: K3dHelpers) {\n11 |   // Proof: Task25c2b helper-name substitution failed independent platform/workers expected-name controls.\n12 |   return labHelperRoles.map((helper) => ({ name: `k3d-${cluster}-${helper.role}`, image: referenceHelper(selection[helper.role]), ...helper }));\n                                                                                                              ^\nTypeError: undefined is not an object (evaluating 'selection[helper.role]')\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.ts:12:106)\n      at map (1:11)\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:881:16)\n      at upLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:874:22)\n      at async executeLabRequest (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1286:13)\n      at async runLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1270:29)\n\nBun v1.4.4 (Linux x64)\n"
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:553:30)
+(fail) Task37 real up refuses preimage-reference without ready evidence or cleanup [549.86ms]
+548 | for (const fault of ['preimage-config', 'preimage-arch', 'preimage-reference', 'effective-permanent', 'effective-transient', 'reference-transient', 'inspection-race', 'inherited-override']) {
+549 |   it(`Task37 real up refuses ${fault} without ready evidence or cleanup`, async () => {
+550 |     const lab = await fixture(fault);
+551 |     const execution = await lab.up();
+552 |     expect(execution.exit).not.toBe(0);
+553 |     expect(execution.stderr).toContain(fault.startsWith('preimage') ? 'Selected helper image identity differs' : fault === 'inherited-override' ? 'environment overrides' : 'resource state is unknown');
+                                   ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "resource state is unknown"
+Received: " 7 |   { role: 'tools', temporary: true },\n 8 | ] as const;\n 9 | /** Preserve the existing k3d helper names and order in each cluster's creation plan. */\n10 | export function nameLabHelpers(cluster: string, selection: K3dHelpers) {\n11 |   // Proof: Task25c2b helper-name substitution failed independent platform/workers expected-name controls.\n12 |   return labHelperRoles.map((helper) => ({ name: `k3d-${cluster}-${helper.role}`, image: referenceHelper(selection[helper.role]), ...helper }));\n                                                                                                              ^\nTypeError: undefined is not an object (evaluating 'selection[helper.role]')\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.ts:12:106)\n      at map (1:11)\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:881:16)\n      at upLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:874:22)\n      at async executeLabRequest (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1286:13)\n      at async runLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1270:29)\n\nBun v1.4.4 (Linux x64)\n"
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:553:30)
+(fail) Task37 real up refuses effective-permanent without ready evidence or cleanup [547.59ms]
+548 | for (const fault of ['preimage-config', 'preimage-arch', 'preimage-reference', 'effective-permanent', 'effective-transient', 'reference-transient', 'inspection-race', 'inherited-override']) {
+549 |   it(`Task37 real up refuses ${fault} without ready evidence or cleanup`, async () => {
+550 |     const lab = await fixture(fault);
+551 |     const execution = await lab.up();
+552 |     expect(execution.exit).not.toBe(0);
+553 |     expect(execution.stderr).toContain(fault.startsWith('preimage') ? 'Selected helper image identity differs' : fault === 'inherited-override' ? 'environment overrides' : 'resource state is unknown');
+                                   ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "resource state is unknown"
+Received: " 7 |   { role: 'tools', temporary: true },\n 8 | ] as const;\n 9 | /** Preserve the existing k3d helper names and order in each cluster's creation plan. */\n10 | export function nameLabHelpers(cluster: string, selection: K3dHelpers) {\n11 |   // Proof: Task25c2b helper-name substitution failed independent platform/workers expected-name controls.\n12 |   return labHelperRoles.map((helper) => ({ name: `k3d-${cluster}-${helper.role}`, image: referenceHelper(selection[helper.role]), ...helper }));\n                                                                                                              ^\nTypeError: undefined is not an object (evaluating 'selection[helper.role]')\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.ts:12:106)\n      at map (1:11)\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:881:16)\n      at upLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:874:22)\n      at async executeLabRequest (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1286:13)\n      at async runLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1270:29)\n\nBun v1.4.4 (Linux x64)\n"
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:553:30)
+(fail) Task37 real up refuses effective-transient without ready evidence or cleanup [540.73ms]
+548 | for (const fault of ['preimage-config', 'preimage-arch', 'preimage-reference', 'effective-permanent', 'effective-transient', 'reference-transient', 'inspection-race', 'inherited-override']) {
+549 |   it(`Task37 real up refuses ${fault} without ready evidence or cleanup`, async () => {
+550 |     const lab = await fixture(fault);
+551 |     const execution = await lab.up();
+552 |     expect(execution.exit).not.toBe(0);
+553 |     expect(execution.stderr).toContain(fault.startsWith('preimage') ? 'Selected helper image identity differs' : fault === 'inherited-override' ? 'environment overrides' : 'resource state is unknown');
+                                   ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "resource state is unknown"
+Received: " 7 |   { role: 'tools', temporary: true },\n 8 | ] as const;\n 9 | /** Preserve the existing k3d helper names and order in each cluster's creation plan. */\n10 | export function nameLabHelpers(cluster: string, selection: K3dHelpers) {\n11 |   // Proof: Task25c2b helper-name substitution failed independent platform/workers expected-name controls.\n12 |   return labHelperRoles.map((helper) => ({ name: `k3d-${cluster}-${helper.role}`, image: referenceHelper(selection[helper.role]), ...helper }));\n                                                                                                              ^\nTypeError: undefined is not an object (evaluating 'selection[helper.role]')\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.ts:12:106)\n      at map (1:11)\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:881:16)\n      at upLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:874:22)\n      at async executeLabRequest (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1286:13)\n      at async runLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1270:29)\n\nBun v1.4.4 (Linux x64)\n"
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:553:30)
+(fail) Task37 real up refuses reference-transient without ready evidence or cleanup [557.40ms]
+548 | for (const fault of ['preimage-config', 'preimage-arch', 'preimage-reference', 'effective-permanent', 'effective-transient', 'reference-transient', 'inspection-race', 'inherited-override']) {
+549 |   it(`Task37 real up refuses ${fault} without ready evidence or cleanup`, async () => {
+550 |     const lab = await fixture(fault);
+551 |     const execution = await lab.up();
+552 |     expect(execution.exit).not.toBe(0);
+553 |     expect(execution.stderr).toContain(fault.startsWith('preimage') ? 'Selected helper image identity differs' : fault === 'inherited-override' ? 'environment overrides' : 'resource state is unknown');
+                                   ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "resource state is unknown"
+Received: " 7 |   { role: 'tools', temporary: true },\n 8 | ] as const;\n 9 | /** Preserve the existing k3d helper names and order in each cluster's creation plan. */\n10 | export function nameLabHelpers(cluster: string, selection: K3dHelpers) {\n11 |   // Proof: Task25c2b helper-name substitution failed independent platform/workers expected-name controls.\n12 |   return labHelperRoles.map((helper) => ({ name: `k3d-${cluster}-${helper.role}`, image: referenceHelper(selection[helper.role]), ...helper }));\n                                                                                                              ^\nTypeError: undefined is not an object (evaluating 'selection[helper.role]')\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.ts:12:106)\n      at map (1:11)\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:881:16)\n      at upLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:874:22)\n      at async executeLabRequest (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1286:13)\n      at async runLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1270:29)\n\nBun v1.4.4 (Linux x64)\n"
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:553:30)
+(fail) Task37 real up refuses inspection-race without ready evidence or cleanup [544.08ms]
+548 | for (const fault of ['preimage-config', 'preimage-arch', 'preimage-reference', 'effective-permanent', 'effective-transient', 'reference-transient', 'inspection-race', 'inherited-override']) {
+549 |   it(`Task37 real up refuses ${fault} without ready evidence or cleanup`, async () => {
+550 |     const lab = await fixture(fault);
+551 |     const execution = await lab.up();
+552 |     expect(execution.exit).not.toBe(0);
+553 |     expect(execution.stderr).toContain(fault.startsWith('preimage') ? 'Selected helper image identity differs' : fault === 'inherited-override' ? 'environment overrides' : 'resource state is unknown');
+                                   ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "environment overrides"
+Received: " 7 |   { role: 'tools', temporary: true },\n 8 | ] as const;\n 9 | /** Preserve the existing k3d helper names and order in each cluster's creation plan. */\n10 | export function nameLabHelpers(cluster: string, selection: K3dHelpers) {\n11 |   // Proof: Task25c2b helper-name substitution failed independent platform/workers expected-name controls.\n12 |   return labHelperRoles.map((helper) => ({ name: `k3d-${cluster}-${helper.role}`, image: referenceHelper(selection[helper.role]), ...helper }));\n                                                                                                              ^\nTypeError: undefined is not an object (evaluating 'selection[helper.role]')\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.ts:12:106)\n      at map (1:11)\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:881:16)\n      at upLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:874:22)\n      at async executeLabRequest (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1286:13)\n      at async runLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1270:29)\n\nBun v1.4.4 (Linux x64)\n"
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:553:30)
+(fail) Task37 real up refuses inherited-override without ready evidence or cleanup [553.65ms]
+
+ 0 pass
+ 60 filtered out
+ 9 fail
+ 44 expect() calls
+Ran 9 tests across 1 file. [5.17s]

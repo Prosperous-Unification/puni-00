@@ -1,8 +1,14 @@
 # Dev observer operation and retained-store rollback
 
+Live status, 2026-10-31: the owned dev observer runs reviewed source
+`047e08024b4b1bbba4cb7700400d6f37b0d0ed05`, with continuous resource history in
+the existing Prometheus. The initial install/preflight sections below describe
+the retained ab4f bootstrap contract. Use the resource-history status below for
+the current release; do not apply the frozen bootstrap preflight to an upgrade.
+
 This package adopts the already staged dev releases; it does not bootstrap arbitrary hosts.
 Use the reviewed implementation commit from a clean checkout. Builds run locally with Bun
-1.4.4, never on h1claw. Existing binary `/home/claw/.local/lib/puni-dev-observability/ab4f7cf6e/observer`
+1.4.4, never on h1claw. Retained bootstrap binary `/home/claw/.local/lib/puni-dev-observability/ab4f7cf6e/observer`
 has SHA256 `281c51a2542784f8b46df5ad8f7a22ab4f29b738a90b15a7bd1c9937a743374c`.
 Its adjacent manifest records the full source revision and local build. Keep that immutable
 release, both initialized checkpoints, h1 `baseline.json`, original h3 release `a1ffe27e7`,
@@ -150,10 +156,11 @@ Grafana container, and never prints environment values. No Bun installation on h
 ```sh
 operate_grafana() {
 ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=5 h3mon python3 - "$1" "$2" <<'PYGRAFANA'
-import base64,hashlib,json,os,pathlib,subprocess,sys
+import base64,hashlib,json,os,pathlib,re,subprocess,sys
 operation,receipt=sys.argv[1:]
 assert operation in ['capture','apply','rollback']
-assert receipt in ['grafana-integration.json','grafana-integration-restored.json']
+# Proof: grafana-receipt.test.ts rejects traversal/absolute/unknown/oversized names; disabling this assertion admits them.
+assert receipt in ['grafana-integration.json','grafana-integration-restored.json'] or re.fullmatch(r'grafana-operation-[a-z0-9][a-z0-9-]{0,63}\.json',receipt)
 root=pathlib.Path('/home/monitor/puni-dev-observability/evidence')
 binary=root/'grafana-cli-c811f34bf'
 assert hashlib.sha256(binary.read_bytes()).hexdigest()=='25c895a70a933ff3003b1fd6fa835241798fab5a538de903fda4c8302425d470'
@@ -257,3 +264,162 @@ stored observations and UI queries again. No checkpoint initialization on restor
 Actual rollout/drill evidence belongs in OpenSpec `verify.md`. This package alone proves no live
 installation, cgroup enforcement, autonomous recovery, UI rendering, history preservation drill
 or retention deletion. Retention deletion is asynchronous and cannot be proved by a short drill.
+
+Each subsequent Grafana operation chooses a fresh basename matching
+`grafana-operation-[a-z0-9][a-z0-9-]{0,63}.json`, for example
+`grafana-operation-20261026-restore-2.json`. Capture, apply and rollback reuse that
+operation's path beneath the fixed evidence root. Capture exclusively creates the
+receipt; a removed receipt remains immutable historical evidence. Both
+`grafana-integration.json` and `grafana-integration-restored.json` remain valid and
+must be retained. No absolute path, directory separator or traversal is accepted.
+
+The source adapter additionally checks the initial Victoria datasource type and URL.
+The pinned compiled helper above remains unchanged; using that new source validation
+on a host requires a separately reviewed compiled helper and hash update. This
+runbook edit does not activate that source or modify either existing receipt.
+
+## Resource-history observer update status
+
+Task74 adds a bounded read-only host/workload resource reader to the source observer.
+Its one-shot actual h3mon inspection, existing OTLP sender and 74 stored resource series
+are verified in the [owning evidence](../openspec/changes/observability-environment-parity/verify.md).
+That component proof alone did not activate collection. Task75 subsequently activated
+the locally compiled, reviewed immutable release `047e08024` on the existing h1claw
+observer. Its binary SHA256 is
+`e1d93c75b3a1b1e492c9c83183cd021d24b8b189bf3fd631a59b12f5634a2e5e`;
+the adjacent manifest binds the full source revision, Bun 1.4.4 and bun-linux-x64.
+The running `/proc` executable and unit hash were verified. Both tunnel definitions,
+effective limits of 256 MiB, 25% CPU and 32 tasks, and the restart policy remain unchanged.
+
+Continuous collection is now **active for the existing dev stack**: all 74 latest stored
+resource values matched the actual checkpoint. After a bounded owned-Alertmanager
+drill, ten distinct readings spanned 270.408 seconds, with a maximum gap of 30.643 seconds.
+The observer and tunnel had zero automatic restarts. Stored log/metric/trace,
+application and storage acceptance were complete. This does not establish common
+Kubernetes/Flux parity, full rehearsal admission, production activation or migration.
+
+During the drill, collection became explicitly unavailable; a historical evaluation
+of actual stored samples before timed recovery showed the last observation was
+125.963 seconds old. The live stale-query attempt occurred after recovery and is not
+credited as an instantaneous stale observation. Existing measurements were not
+replaced by zero. The independent bounded recovery started the same container;
+Prometheus recorded one CPU reset and one start-timestamp change. All other twelve
+container starts, all thirteen IDs, volumes and 28 configuration hashes were preserved.
+The original retained log, two trace spans and eighteen metric samples still matched.
+
+The exact prior owned unit remains at
+`/home/claw/.local/lib/puni-dev-observability/047e08024/previous.service` with SHA256
+`567f1478386132995920772ab592c266919c680654cd1369606539f59658bf88`.
+The original ab4f executable remains immutable. To roll back, verify those hashes,
+compare the current unit with the retained candidate, hardlink previous.service to
+an exclusive sibling of the owned unit, atomically rename it over that unit, then
+daemon-reload and restart only puni-dev-observability.service. Retain newer active
+checkpoints; never initialize them or copy old checkpoint evidence over them.
+
+Observer updates can briefly report incomplete stored-signal health while old and new
+producer-scope metrics coexist. This rollout converged without another restart;
+the raw historical matrix records the overlap. Do not treat that interval as
+complete or weaken the unique-active-revision acceptance check to hide it.
+
+Task75 supports rendering a candidate observer unit from a reviewed clean source checkout:
+
+```sh
+observer_revision="$(git rev-parse HEAD)"
+bun tools/tool-observability-stack/src/dev/runtime-cli.ts units "$observer_revision"
+```
+
+The optional revision must be exactly 40 lowercase hexadecimal characters. Its first nine
+characters select the immutable executable directory; the full revision becomes `--version`.
+Omission still renders the original ab4f unit bytes. The tunnel, checkpoints, service bounds
+and restart policy remain identical. Empty, abbreviated, uppercase, path, whitespace/control
+inputs and extra CLI arguments refuse, including a revision with a trailing newline.
+
+This command only renders text. The actual activation of `047e08024` is recorded above;
+any later selected revision must separately be built and hashed, have its manifest verified, preserve
+the exact prior owned unit/binary/checkpoints and rollback path, and validate candidate unit
+syntax before reversible activation. A release-directory collision refuses rather than
+replacing a retained binary. Do not initialize checkpoints or restart the tunnel. The read-only
+preflight above is the pinned ab4f **bootstrap preflight**, not an upgrade preflight: it cannot
+certify a selected later observer release. Fresh existing-account access, target and checkpoint
+identity, effective service bounds and sustained stored cycles still require separate proof.
+
+The new `puni_resource_collection_state` and checked/observed timestamps expose resource
+collection independently of application health. Host memory total/available, per-role
+current cgroup memory, configured memory limits and cumulative CPU use the existing
+Prometheus store. Stable `target_host`, `workload_group` and `workload_role` labels identify
+the measured target; source IDs stay in checkpoint provenance. CPU counters use `_total`
+in Prometheus, with separate host/workload started timestamp gauges. Verify generation
+changes and sufficient samples before interpreting a CPU rate; missing rate/history is
+not zero usage. Treat unavailable collection or stale observation timestamps as missing
+capacity evidence. Do not sum independent lifetime maxima or turn configured limits into
+measured concurrent demand.
+
+## Retain one observation before route work
+
+From a reviewed source checkout, the existing runtime CLI can capture a fresh, complete
+stored observation and later verify those exact historical witnesses. These commands
+only read the existing backends. They do not switch routes, update the observer, admit
+a migration or replace the separate candidate/preflight/ownership checks.
+
+Create a private request file (`chmod 600`) with the existing observation checkpoint
+path and explicit read routes. Legacy loopback routes use this shape:
+
+```json
+{
+  "version": 1,
+  "checkpointPath": "/absolute/path/to/existing-observation-checkpoint.json",
+  "elastic": { "kind": "loopback", "url": "http://127.0.0.1:19200" },
+  "prometheus": { "kind": "loopback", "url": "http://127.0.0.1:19090" }
+}
+```
+
+For an authenticated route, replace its descriptor with
+`{"kind":"binding-file","path":"/absolute/private/transport-binding.json"}`.
+That file uses the existing verified transport format. Request files contain paths,
+never resolved credentials. The actual authenticated Elasticsearch query principal
+must retain exactly the existing read-only scopes. Route commitments bind endpoint,
+service, CA and principal identity; password/private-key bytes or hashes are excluded.
+Credential rotation alone therefore does not make old history a different route.
+
+```sh
+bun tools/tool-observability-stack/src/dev/runtime-cli.ts history-capture request.json new-history.json
+sha256sum new-history.json
+bun tools/tool-observability-stack/src/dev/runtime-cli.ts history-verify request.json new-history.json EXPECTED_SHA256 new-verification.json
+```
+
+Use the independently retained complete SHA256 printed for the original receipt in
+place of `EXPECTED_SHA256`. Both output paths must be new; publication uses exclusive
+owner-private files and syncs the file and directory. Retain the original bytes and
+digest. A later verify writes a distinct outcome linked to that digest. It does not
+read a newer checkpoint or classify the old observation as fresh application health.
+
+The history command parses the same descriptor-checked bytes it reads for each request,
+receipt, checkpoint and transport binding. It does not reopen checkpoint or binding
+pathnames after the private-file check; concurrent pathname replacement cannot substitute
+an unchecked identity or credential binding. Nonblocking open lets descriptor validation
+reject FIFOs without waiting for a writer. Capture's second metric read uses the accepted
+scrape coordinate, preserving a legitimate scrape selected after query setup began.
+Existing observer file loaders retain their
+original behavior.
+
+Inputs must be readable owner-private regular files; trusted request/receipt/outcome
+bytes are capped at 262144. Missing, unreadable, malformed, occupied or changed-route
+inputs refuse with fixed redacted diagnostic categories. Checkpoints retain their
+existing 8192-byte bound and are never initialized here. Backend reads are capped at
+1 MiB under one 10-second operation deadline, at most 16 Elasticsearch records per signal,
+and at most 512 stored metric samples. Historical metric reads use original stored
+scrape coordinates, not query-range evaluation times or current values. Receipts keep
+bounded references and canonical fingerprints, excluding raw bodies and metric labels.
+A noncomplete verification publishes an explicit unavailable outcome and exits nonzero;
+malformed trusted state refuses before publication. Earlier history and Grafana receipts
+are never overwritten. An interrupted partial output requires inspection and a new path.
+
+Source and independent review are recorded in the owning OpenSpec evidence. The new
+commands were also exercised once against the existing dev stores: capture retained one
+log, two trace spans and three correlated stored metric samples. Historical verification
+succeeded at 126.467 seconds of age with the local checkpoint copy absent and the original
+receipt unchanged. Capture took 1.599 seconds and verification 1.467 seconds. Temporary
+local query forwards were terminated and reaped; no backend, route, observer or Secret
+changed. This proves the retained-reference reader, not migration or backup durability.
+Main 4.1 still requires route cutover/rollback/restore and isolated rehearsal; 4.2 still
+requires actual common-stack live acceptance.

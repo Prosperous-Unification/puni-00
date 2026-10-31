@@ -439,12 +439,20 @@ export async function preflightRuntime(configDirectory: string, sshExecutable = 
   };
 }
 
-/** Fixed h1claw user units for the already verified immutable observer release.
+/** Renders h1claw user units for an immutable observer source revision.
+ * Omission preserves the verified bootstrap release; malformed explicit revisions throw.
+ * Only the executable directory and producer version vary; rendering performs no installation.
  * Missing checkpoints fail in the observer; initialization is deliberately a separate operation.
  * Three failures within five minutes leave a visible failed service requiring operator inspection.
  * Resource controls require the user manager's delegated cgroup controllers; inspect effective properties after start.
  */
-export function renderObserverUnits(): Record<string, string> {
+export function renderObserverUnits(
+  sourceRevision = 'ab4f7cf6e3023f2f2851bbf85dfb920c7de0859d',
+): Record<string, string> {
+  // Proof: removing length/alphabet checks admitted short/uppercase revisions in Task75 negatives.
+  // Exact length and a forbidden-character scan avoid regex end-anchor newline semantics.
+  if (sourceRevision.length !== 40 || /[^0-9a-f]/.test(sourceRevision))
+    throw new Error('Observer source revision must be exactly 40 lowercase hexadecimal characters');
   const bounds = `StartLimitIntervalSec=300s
 StartLimitBurst=3
 
@@ -479,7 +487,7 @@ Description=Puni dev bounded autonomous observation
 After=puni-dev-observability-tunnel.service
 Wants=puni-dev-observability-tunnel.service
 ${bounds}WorkingDirectory=/home/claw
-ExecStart=/home/claw/.local/lib/puni-dev-observability/ab4f7cf6e/observer --otlp http://127.0.0.1:14318 --elastic http://127.0.0.1:19200 --prometheus http://127.0.0.1:19090 --version ab4f7cf6e3023f2f2851bbf85dfb920c7de0859d --checkpoint /home/claw/.local/state/puni-dev-observability/probe.json --health-checkpoint /home/claw/.local/state/puni-dev-observability/health.json
+ExecStart=/home/claw/.local/lib/puni-dev-observability/${sourceRevision.slice(0, 9)}/observer --otlp http://127.0.0.1:14318 --elastic http://127.0.0.1:19200 --prometheus http://127.0.0.1:19090 --version ${sourceRevision} --checkpoint /home/claw/.local/state/puni-dev-observability/probe.json --health-checkpoint /home/claw/.local/state/puni-dev-observability/health.json
 
 [Install]
 WantedBy=default.target

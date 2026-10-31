@@ -86,10 +86,18 @@ test('actual storage reading publishes measured bytes/time and rejects malformed
 });
 
 test('actual CLI once publishes shared health checkpoint and explicit collection states without rehearsal live claims', async () => {
-  const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
+  const { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } =
+    await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const directory = mkdtempSync(join(tmpdir(), 'puni-autonomous-cli-'));
+  const executablePath = process.env['PATH'];
+  if (executablePath === undefined) throw new Error('PATH is required for subprocess fixtures');
+  writeFileSync(
+    join(directory, 'ssh'),
+    `#!${process.execPath}\nimport {writeFileSync} from 'node:fs';writeFileSync(${JSON.stringify(join(directory, 'ssh-called'))},'called');process.exit(91);`,
+  );
+  chmodSync(join(directory, 'ssh'), 0o700);
   const batches: string[] = [];
   const server = Bun.serve({
     hostname: '127.0.0.1',
@@ -118,7 +126,11 @@ test('actual CLI once publishes shared health checkpoint and explicit collection
         '--initialize',
         '--once',
       ],
-      { stdout: 'pipe', stderr: 'pipe' },
+      {
+        stdout: 'pipe',
+        stderr: 'pipe',
+        env: { ...process.env, PATH: `${directory}:${executablePath}` },
+      },
     );
     const [code, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
     expect(stderr).toBe('');
@@ -126,9 +138,19 @@ test('actual CLI once publishes shared health checkpoint and explicit collection
     const checkpoint = JSON.parse(
       readFileSync(join(directory, 'observation.json.health'), 'utf8'),
     ) as HealthCheckpoint;
+    expect(existsSync(join(directory, 'ssh-called'))).toBe(false);
+    expect(
+      batches
+        .filter((batch) => batch.includes('puni_resource_collection_state'))
+        .every((batch) => !batch.includes('puni_resource_host_memory')),
+    ).toBe(true);
     expect(checkpoint.health.state).toBe('incomplete');
     expect(checkpoint.application.state).toBe('unavailable');
     expect(checkpoint.storage.state).toBe('unavailable');
+    expect(checkpoint).toMatchObject({
+      resources: { state: 'unavailable', reason: 'source-unavailable' },
+    });
+    expect(batches.some((batch) => batch.includes('puni_resource_collection_state'))).toBe(true);
     expect(batches.some((batch) => batch.includes('puni_dev_observation_health'))).toBe(true);
   } finally {
     await server.stop(true);

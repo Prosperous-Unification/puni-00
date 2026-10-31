@@ -1,0 +1,49 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-resource-caller.test.ts:
+570 | ]) {
+571 |   it(`Task37 real up refuses ${fault} without ready evidence or cleanup`, async () => {
+572 |     const lab = await fixture(fault);
+573 |     const execution = await lab.up();
+574 |     expect(execution.exit).not.toBe(0);
+575 |     expect(execution.stderr).toContain(
+                                   ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "Selected helper image identity differs"
+Received: "1179 |         if (witness !== undefined) await witness.stop();\n1180 |       }\n1181 |     });\n1182 |     console.log(announcement);\n1183 |   } catch (cause) {\n1184 |     throw new Error(\n                     ^\nerror: k3d lab c75c7349d7e8ec16 attempt eb739afe-d59a-4ae9-8ecf-f6fbf402692e failed; resource state is unknown and requires manual inspection. Journal /tmp/wbs-test-3482725-jRg80q/k3d-resource-caller-YEjGDm/.puni/fleet-labs/k3d/.attempts/c75c7349d7e8ec16/eb739afe-d59a-4ae9-8ecf-f6fbf402692e.json is not cleanup authority; inspect exact resource identities manually (docs/infra/local.md).\n      at upLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1184:15)\n      at async executeLabRequest (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1327:13)\n      at async runLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1311:29)\n\n248 |       if (\n249 |         observation.name !== expected.name ||\n250 |         observation.configuredImage !== expected.image ||\n251 |         observation.image !== expected.configId\n252 |       )\n253 |         throw new Error('Effective transient image identity differs');\n                        ^\nerror: Effective transient image identity differs\n      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-runtime.ts:253:19)\n      at async <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.ts:486:11)\n      at async consumeLines (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.ts:447:13)\n      at async <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.ts:495:17)\n      at async captureCreator (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.ts:489:33)\n      at async capture (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-runtime.ts:287:13)\n      at async <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1112:27)\n      at async executeCreationAttempt (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/creation-journal.ts:212:21)\n      at async upLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1006:32)\n      at async executeLabRequest (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1327:13)\n      at async runLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1311:29)\n\nBun v1.4.4 (Linux x64)\n"
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:575:30)
+(fail) Task37 real up refuses preimage-config without ready evidence or cleanup [1170.13ms]
+569 |   'inherited-override',
+570 | ]) {
+571 |   it(`Task37 real up refuses ${fault} without ready evidence or cleanup`, async () => {
+572 |     const lab = await fixture(fault);
+573 |     const execution = await lab.up();
+574 |     expect(execution.exit).not.toBe(0);
+                                     ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:574:32)
+(fail) Task37 real up refuses preimage-arch without ready evidence or cleanup [1715.11ms]
+569 |   'inherited-override',
+570 | ]) {
+571 |   it(`Task37 real up refuses ${fault} without ready evidence or cleanup`, async () => {
+572 |     const lab = await fixture(fault);
+573 |     const execution = await lab.up();
+574 |     expect(execution.exit).not.toBe(0);
+                                     ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:574:32)
+(fail) Task37 real up refuses preimage-reference without ready evidence or cleanup [1728.64ms]
+
+ 0 pass
+ 66 filtered out
+ 3 fail
+ 13 expect() calls
+Ran 3 tests across 1 file. [4.82s]

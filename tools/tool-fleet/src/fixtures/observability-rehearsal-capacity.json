@@ -1,0 +1,2241 @@
+{
+  "origin": {
+    "sourceRevision": "ff0b0208bc426ad8bc2a4896f15a90f34eb97b89",
+    "artifactSHA256": "d96afb33eb6732c20b5f2ef6831c2dfbefa55d1c79ba7fc233824a9923442086",
+    "frames": [
+      {
+        "owner": "observability/eck-operator",
+        "sha256": "c8e406667a523434900450f0138a5a80ea709fbc7135c6b60c6713a8260f9d97"
+      },
+      {
+        "owner": "observability/prometheus-controller",
+        "sha256": "5e6a28f12a6a6fe6921c5408dc17bf4aa895dc47ec1bd33be6511cc86f1923ab"
+      },
+      {
+        "owner": "observability-dev/elasticsearch",
+        "sha256": "c3fa904255953259bf0cf2514aa58d661a896f98b445c35430f575da1c229735"
+      },
+      {
+        "owner": "observability-dev/kibana",
+        "sha256": "8947082188b739152c79cf646c015c90e78ff4bce6c578c1f8665e5a9309f1d4"
+      },
+      {
+        "owner": "observability-dev/kube-prometheus-stack",
+        "sha256": "a5cdee1c997eae3968dfce3b5ca34b35f03dd8961546fa07e8cf086cca557ed1"
+      },
+      {
+        "owner": "observability/elasticsearch",
+        "sha256": "2d6efda11dd5ab9afc58b039fa1ebb23c27c4ff029bd2d272e7d22764b5913fe"
+      },
+      {
+        "owner": "observability/kibana",
+        "sha256": "7e7768e83ad317233cc4c6916a24606813d68c20880910f6279b288fdf0ca111"
+      },
+      {
+        "owner": "observability/kube-prometheus-stack",
+        "sha256": "2b382432adbe7bf2a3790feecfda18a1eb23d10c5e7f5b9aaf82f3dcb5f7b0f0"
+      }
+    ],
+    "projectionSHA256": "74758bf9cb65990471d23550a3d98ce746b602096a1be1e80a95867302ffa7ef"
+  },
+  "releases": [
+    {
+      "owner": "observability/prometheus-controller",
+      "chart": "kubePrometheusStack",
+      "manifest": "apiVersion: helm.toolkit.fluxcd.io/v2\nkind: HelmRelease\nmetadata:\n  name: prometheus-controller\n  namespace: observability\nspec:\n  chart:\n    spec:\n      chart: ./infra/platform/charts/kube-prometheus-stack-91.4.1.tgz\n      sourceRef:\n        kind: GitRepository\n        name: puni-platform\n        namespace: flux-system\n      version: 91.4.1\n  interval: 30m\n  values:\n    alertmanager:\n      alertmanagerSpec:\n        configSecret: alertmanager-puni\n        image:\n          registry: quay.io\n          repository: prometheus/alertmanager\n          sha: 690c7b525f4367aa91f73e2f91c632206d32e97c6384bdbf2fb7a861b420340d\n          tag: v0.34.0\n        nodeSelector:\n          puni.dev/capability-observability: \"true\"\n        resources:\n          limits:\n            cpu: 200m\n            memory: 128Mi\n          requests:\n            cpu: 10m\n            memory: 64Mi\n      enabled: false\n    coreDns:\n      enabled: false\n    crds:\n      enabled: true\n    defaultRules:\n      create: false\n      rules:\n        etcd: false\n        kubeControllerManager: false\n        kubeProxy: false\n        kubeSchedulerAlerting: false\n        kubeSchedulerRecording: false\n        windows: false\n    fullnameOverride: kps\n    grafana:\n      enabled: false\n    kube-state-metrics:\n      image:\n        registry: registry.k8s.io\n        repository: kube-state-metrics/kube-state-metrics\n        sha: sha256:42cfe3723a5f058171c627537fb57a3ea0f26e4380fa18555a95cb1a1b4cfc5b\n        tag: v2.20.0\n      prometheus:\n        monitor:\n          metricRelabelings:\n            - action: replace\n              replacement: platform-local\n              targetLabel: puni_cluster\n      resources:\n        limits:\n          cpu: 200m\n          ephemeral-storage: 64Mi\n          memory: 256Mi\n        requests:\n          cpu: 10m\n          ephemeral-storage: 16Mi\n          memory: 64Mi\n    kubeApiServer:\n      enabled: false\n    kubeControllerManager:\n      enabled: false\n    kubeDns:\n      enabled: false\n    kubeEtcd:\n      enabled: false\n    kubeProxy:\n      enabled: false\n    kubeScheduler:\n      enabled: false\n    kubeStateMetrics:\n      enabled: false\n    kubelet:\n      enabled: false\n    kubernetesServiceMonitors:\n      enabled: false\n    nodeExporter:\n      enabled: false\n    prometheus:\n      enabled: false\n      prometheusSpec:\n        enableRemoteWriteReceiver: true\n        image:\n          registry: quay.io\n          repository: prometheus/prometheus\n          sha: 50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a\n          tag: v3.14.0-distroless\n        nodeSelector:\n          puni.dev/capability-observability: \"true\"\n        podMonitorSelectorNilUsesHelmValues: false\n        probeSelectorNilUsesHelmValues: false\n        resources:\n          limits:\n            cpu: \"1\"\n            memory: 1Gi\n          requests:\n            cpu: 200m\n            memory: 512Mi\n        retention: 15d\n        retentionSize: 8GB\n        ruleSelectorNilUsesHelmValues: false\n        serviceMonitorSelectorNilUsesHelmValues: false\n        storageSpec:\n          volumeClaimTemplate:\n            spec:\n              accessModes:\n                - ReadWriteOnce\n              resources:\n                requests:\n                  storage: 10Gi\n              storageClassName: puni-retain\n    prometheus-node-exporter:\n      image:\n        digest: sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0\n        distroless: false\n        registry: quay.io\n        repository: prometheus/node-exporter\n        tag: v1.12.1\n      resources:\n        limits:\n          cpu: 200m\n          ephemeral-storage: 64Mi\n          memory: 64Mi\n        requests:\n          cpu: 10m\n          ephemeral-storage: 16Mi\n          memory: 32Mi\n      service:\n        port: 9101\n        targetPort: 9101\n      tolerations:\n        - operator: Exists\n    prometheusOperator:\n      admissionWebhooks:\n        deployment:\n          image:\n            registry: quay.io\n            repository: prometheus-operator/admission-webhook\n            sha: 83ee9756c83af92060b45254bd3734da6dab14163cdbc45ca32674359e69906b\n            tag: v0.94.0\n        patch:\n          image:\n            registry: ghcr.io\n            repository: jkroepke/kube-webhook-certgen\n            sha: cd85a621724cd9043a5b46a784578fa159437712f920166389fce830554e1c44\n            tag: 1.8.8\n          resources:\n            limits:\n              cpu: 500m\n              ephemeral-storage: 64Mi\n              memory: 128Mi\n            requests:\n              cpu: 100m\n              ephemeral-storage: 64Mi\n              memory: 64Mi\n      alertmanagerInstanceNamespaces:\n        - observability\n        - observability-dev\n      image:\n        registry: quay.io\n        repository: prometheus-operator/prometheus-operator\n        sha: cf153f64d6c38113fceb2cda7642365ea887f71edd7888f054e43e54cf177e55\n        tag: v0.94.0\n      namespaces:\n        additional:\n          - observability-dev\n        releaseNamespace: true\n      nodeSelector:\n        puni.dev/capability-observability: \"true\"\n      prometheusConfigReloader:\n        image:\n          registry: quay.io\n          repository: prometheus-operator/prometheus-config-reloader\n          sha: 142a1f11df8dd165f00375b0b1826aecb9c9adeb05c39855893138d7c7575ff7\n          tag: v0.94.0\n        resources:\n          limits:\n            cpu: 100m\n            memory: 64Mi\n          requests:\n            cpu: 10m\n            memory: 32Mi\n      prometheusInstanceNamespaces:\n        - observability\n        - observability-dev\n      resources:\n        limits:\n          cpu: 500m\n          ephemeral-storage: 256Mi\n          memory: 256Mi\n        requests:\n          cpu: 50m\n          ephemeral-storage: 256Mi\n          memory: 64Mi\n      serviceMonitor:\n        selfMonitor: false\n    thanosRuler:\n      enabled: false\n    windowsMonitoring:\n      enabled: false\n"
+    },
+    {
+      "owner": "observability-dev/elasticsearch",
+      "chart": "elasticsearch",
+      "manifest": "---\napiVersion: helm.toolkit.fluxcd.io/v2\nkind: HelmRelease\nmetadata:\n  name: elasticsearch\n  namespace: observability-dev\nspec:\n  chart:\n    spec:\n      chart: ./infra/platform/charts/eck-elasticsearch-0.20.0.tgz\n      sourceRef:\n        kind: GitRepository\n        name: puni-platform\n        namespace: flux-system\n      version: 0.20.0\n  dependsOn:\n    - name: eck-operator\n      namespace: observability\n  interval: 30m\n  values:\n    auth:\n      fileRealm:\n        - secretName: signal-health-users\n        - secretName: signal-ingest-users\n      roles:\n        - secretName: signal-health-roles\n        - secretName: signal-ingest-roles\n    fullnameOverride: elasticsearch\n    image: docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540\n    nodeSets:\n      - config:\n          node.store.allow_mmap: false\n          s3.client.default.endpoint: object-store.puni-backup.svc:9000\n          s3.client.default.path_style_access: true\n          s3.client.default.protocol: https\n        count: 1\n        name: default\n        podTemplate:\n          spec:\n            containers:\n              - env:\n                  - name: ES_JAVA_OPTS\n                    value: -Xms1g -Xmx1g\n                name: elasticsearch\n                resources:\n                  limits:\n                    cpu: \"2\"\n                    ephemeral-storage: 1Gi\n                    memory: 2Gi\n                  requests:\n                    cpu: 500m\n                    ephemeral-storage: 1Gi\n                    memory: 2Gi\n                securityContext:\n                  allowPrivilegeEscalation: false\n                  capabilities:\n                    drop:\n                      - ALL\n                volumeMounts:\n                  - mountPath: /usr/share/elasticsearch/config/s3-trust\n                    name: s3-trust\n                    readOnly: true\n                  - mountPath: /usr/share/elasticsearch/config/jvm.options.d/s3.options\n                    name: s3-trust\n                    readOnly: true\n                    subPath: s3.options\n            initContainers:\n              - command:\n                  - bash\n                  - -ec\n                  - |\n                    # Proof: replacing this copy with touch accepted missing/unreadable bundled roots (backup-tls.test.ts).\n                    cp \"/usr/share/elasticsearch/jdk/lib/security/cacerts\" /usr/share/elasticsearch/config/s3-trust/cacerts\n                    chmod u+w /usr/share/elasticsearch/config/s3-trust/cacerts\n                    case \"$S3_TRUST_MODE\" in\n                      system-roots) ;;\n                      system-roots-plus-ca)\n                        # Proof: each removed file guard lost its distinct CA refusal (backup-tls.test.ts).\n                        path=/s3-credentials/ca.crt\n                        [ -e \"$path\" ] || { echo \"missing TLS input: $path\" >&2; exit 1; }\n                        [ -r \"$path\" ] || { echo \"unreadable TLS input: $path\" >&2; exit 1; }\n                        [ -s \"$path\" ] || { echo \"empty TLS input: $path\" >&2; exit 1; }\n                        # Proof: removing the parse refusal lost the malformed-CA diagnostic (backup-tls.test.ts).\n                        \"/usr/share/elasticsearch/jdk/bin/keytool\" -printcert -file \"$path\" >/dev/null || { echo \"malformed TLS input: $path\" >&2; exit 1; }\n                        \"/usr/share/elasticsearch/jdk/bin/keytool\" -importcert -noprompt -alias puni-s3-ca -file \"$path\" -keystore /usr/share/elasticsearch/config/s3-trust/cacerts -storepass changeit\n                        ;;\n                      # Proof: removing this branch accepted the unknown trust mode (backup-tls.test.ts).\n                      *) echo \"invalid S3_TRUST_MODE\" >&2; exit 1 ;;\n                    esac\n                    printf '%s\\n' '-Djavax.net.ssl.trustStore=/usr/share/elasticsearch/config/s3-trust/cacerts' '-Djavax.net.ssl.trustStorePassword=changeit' > /usr/share/elasticsearch/config/s3-trust/s3.options\n                env:\n                  - name: S3_TRUST_MODE\n                    value: system-roots-plus-ca\n                image: docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540\n                name: prepare-s3-trust\n                resources:\n                  limits:\n                    cpu: 500m\n                    ephemeral-storage: 64Mi\n                    memory: 256Mi\n                  requests:\n                    cpu: 100m\n                    ephemeral-storage: 64Mi\n                    memory: 128Mi\n                securityContext:\n                  allowPrivilegeEscalation: false\n                  capabilities:\n                    drop:\n                      - ALL\n                  readOnlyRootFilesystem: true\n                volumeMounts:\n                  - mountPath: /usr/share/elasticsearch/config/s3-trust\n                    name: s3-trust\n                  - mountPath: /s3-credentials\n                    name: s3-credentials\n                    readOnly: true\n              - name: elastic-internal-init-filesystem\n                resources:\n                  limits:\n                    cpu: 100m\n                    ephemeral-storage: 64Mi\n                    memory: 50Mi\n                  requests:\n                    cpu: 100m\n                    ephemeral-storage: 64Mi\n                    memory: 50Mi\n              - name: elastic-internal-init-keystore\n                resources:\n                  limits:\n                    cpu: 500m\n                    ephemeral-storage: 64Mi\n                    memory: 196Mi\n                  requests:\n                    cpu: 500m\n                    ephemeral-storage: 64Mi\n                    memory: 196Mi\n              - name: elastic-internal-suspend\n                resources:\n                  limits:\n                    cpu: \"2\"\n                    ephemeral-storage: 1Gi\n                    memory: 2Gi\n                  requests:\n                    cpu: 500m\n                    ephemeral-storage: 1Gi\n                    memory: 2Gi\n            nodeSelector:\n              puni.dev/capability-observability: \"true\"\n            securityContext:\n              fsGroup: 1000\n              runAsGroup: 1000\n              runAsNonRoot: true\n              runAsUser: 1000\n              seccompProfile:\n                type: RuntimeDefault\n            volumes:\n              - emptyDir:\n                  sizeLimit: 16Mi\n                name: s3-trust\n              - name: s3-credentials\n                secret:\n                  defaultMode: 292\n                  secretName: elastic-s3-credentials\n              - emptyDir:\n                  sizeLimit: 16Mi\n                name: elastic-internal-elasticsearch-bin-local\n              - emptyDir:\n                  sizeLimit: 16Mi\n                name: elastic-internal-elasticsearch-config-local\n              - emptyDir:\n                  sizeLimit: 16Mi\n                name: elastic-internal-elasticsearch-plugins-local\n              - emptyDir:\n                  sizeLimit: 256Mi\n                name: elasticsearch-logs\n              - emptyDir:\n                  sizeLimit: 256Mi\n                name: tmp-volume\n        volumeClaimTemplates:\n          - metadata:\n              name: elasticsearch-data\n            spec:\n              accessModes:\n                - ReadWriteOnce\n              resources:\n                requests:\n                  storage: 10Gi\n              storageClassName: puni-retain\n    secureSettings:\n      - entries:\n          - key: s3.client.default.access_key\n          - key: s3.client.default.secret_key\n        secretName: elastic-s3-credentials\n    version: 9.3.8\n    volumeClaimDeletePolicy: DeleteOnScaledownOnly\n"
+    },
+    {
+      "owner": "observability-dev/kibana",
+      "chart": "kibana",
+      "manifest": "---\napiVersion: helm.toolkit.fluxcd.io/v2\nkind: HelmRelease\nmetadata:\n  name: kibana\n  namespace: observability-dev\nspec:\n  chart:\n    spec:\n      chart: ./infra/platform/charts/eck-kibana-0.20.0.tgz\n      sourceRef:\n        kind: GitRepository\n        name: puni-platform\n        namespace: flux-system\n      version: 0.20.0\n  dependsOn:\n    - name: elasticsearch\n  interval: 30m\n  values:\n    count: 1\n    elasticsearchRef:\n      name: elasticsearch\n      namespace: observability-dev\n    fullnameOverride: kibana\n    image: docker.elastic.co/kibana/kibana:9.3.8@sha256:a9f4af21536422d9a3bb924bad5990b24859db0c9a0474558f283244a2bcd481\n    podTemplate:\n      spec:\n        containers:\n          - env:\n              - name: NODE_OPTIONS\n                value: --max-old-space-size=512\n            name: kibana\n            resources:\n              limits:\n                cpu: \"1\"\n                ephemeral-storage: 1Gi\n                memory: 1Gi\n              requests:\n                cpu: 200m\n                ephemeral-storage: 1Gi\n                memory: 512Mi\n            securityContext:\n              allowPrivilegeEscalation: false\n              capabilities:\n                drop:\n                  - ALL\n        initContainers:\n          - name: elastic-internal-init\n            resources:\n              limits:\n                cpu: 100m\n                ephemeral-storage: 64Mi\n                memory: 50Mi\n              requests:\n                cpu: 100m\n                ephemeral-storage: 64Mi\n                memory: 50Mi\n        nodeSelector:\n          puni.dev/capability-observability: \"true\"\n        securityContext:\n          fsGroup: 1000\n          runAsGroup: 1000\n          runAsNonRoot: true\n          runAsUser: 1000\n          seccompProfile:\n            type: RuntimeDefault\n        volumes:\n          - emptyDir:\n              sizeLimit: 256Mi\n            name: kibana-data\n          - emptyDir:\n              sizeLimit: 16Mi\n            name: kibana-plugins\n          - emptyDir:\n              sizeLimit: 16Mi\n            name: elastic-internal-kibana-config-local\n          - emptyDir:\n              sizeLimit: 256Mi\n            name: kibana-logs\n          - emptyDir:\n              sizeLimit: 256Mi\n            name: temp-volume\n    version: 9.3.8\n"
+    },
+    {
+      "owner": "observability-dev/kube-prometheus-stack",
+      "chart": "kubePrometheusStack",
+      "manifest": "---\napiVersion: helm.toolkit.fluxcd.io/v2\nkind: HelmRelease\nmetadata:\n  name: kube-prometheus-stack\n  namespace: observability-dev\nspec:\n  chart:\n    spec:\n      chart: ./infra/platform/charts/kube-prometheus-stack-91.4.1.tgz\n      sourceRef:\n        kind: GitRepository\n        name: puni-platform\n        namespace: flux-system\n      version: 91.4.1\n  dependsOn:\n    - name: prometheus-controller\n      namespace: observability\n  interval: 30m\n  values:\n    alertmanager:\n      alertmanagerSpec:\n        configSecret: alertmanager-puni\n        containers:\n          - name: alertmanager\n            resources:\n              limits:\n                cpu: 200m\n                ephemeral-storage: 256Mi\n                memory: 128Mi\n              requests:\n                cpu: 10m\n                ephemeral-storage: 256Mi\n                memory: 64Mi\n          - name: config-reloader\n            resources:\n              limits:\n                cpu: 100m\n                ephemeral-storage: 64Mi\n                memory: 64Mi\n              requests:\n                cpu: 10m\n                ephemeral-storage: 64Mi\n                memory: 32Mi\n        image:\n          registry: quay.io\n          repository: prometheus/alertmanager\n          sha: 690c7b525f4367aa91f73e2f91c632206d32e97c6384bdbf2fb7a861b420340d\n          tag: v0.34.0\n        initContainers:\n          - name: init-config-reloader\n            resources:\n              limits:\n                cpu: 100m\n                ephemeral-storage: 64Mi\n                memory: 64Mi\n              requests:\n                cpu: 10m\n                ephemeral-storage: 64Mi\n                memory: 32Mi\n        nodeSelector:\n          puni.dev/capability-observability: \"true\"\n        persistentVolumeClaimRetentionPolicy:\n          whenDeleted: Retain\n          whenScaled: Retain\n        resources:\n          limits:\n            cpu: 200m\n            ephemeral-storage: 256Mi\n            memory: 128Mi\n          requests:\n            cpu: 10m\n            ephemeral-storage: 256Mi\n            memory: 64Mi\n        storage:\n          volumeClaimTemplate:\n            spec:\n              accessModes:\n                - ReadWriteOnce\n              resources:\n                requests:\n                  storage: 1Gi\n              storageClassName: puni-retain\n    commonLabels:\n      puni.dev/telemetry-instance: dev\n    coreDns:\n      enabled: false\n    crds:\n      enabled: false\n    defaultRules:\n      create: false\n      rules:\n        etcd: false\n        kubeControllerManager: false\n        kubeProxy: false\n        kubeSchedulerAlerting: false\n        kubeSchedulerRecording: false\n        windows: false\n    fullnameOverride: kps\n    global:\n      rbac:\n        create: false\n    grafana:\n      enabled: false\n    kube-state-metrics:\n      image:\n        registry: registry.k8s.io\n        repository: kube-state-metrics/kube-state-metrics\n        sha: sha256:42cfe3723a5f058171c627537fb57a3ea0f26e4380fa18555a95cb1a1b4cfc5b\n        tag: v2.20.0\n      prometheus:\n        monitor:\n          metricRelabelings:\n            - action: replace\n              replacement: platform-local\n              targetLabel: puni_cluster\n      resources:\n        limits:\n          cpu: 200m\n          ephemeral-storage: 64Mi\n          memory: 256Mi\n        requests:\n          cpu: 10m\n          ephemeral-storage: 16Mi\n          memory: 64Mi\n    kubeApiServer:\n      enabled: false\n    kubeControllerManager:\n      enabled: false\n    kubeDns:\n      enabled: false\n    kubeEtcd:\n      enabled: false\n    kubeProxy:\n      enabled: false\n    kubeScheduler:\n      enabled: false\n    kubeStateMetrics:\n      enabled: false\n    kubelet:\n      enabled: false\n    nodeExporter:\n      enabled: false\n    prometheus:\n      prometheusSpec:\n        containers:\n          - name: prometheus\n            resources:\n              limits:\n                cpu: \"1\"\n                ephemeral-storage: 1Gi\n                memory: 1Gi\n              requests:\n                cpu: 200m\n                ephemeral-storage: 1Gi\n                memory: 512Mi\n          - name: config-reloader\n            resources:\n              limits:\n                cpu: 100m\n                ephemeral-storage: 64Mi\n                memory: 64Mi\n              requests:\n                cpu: 10m\n                ephemeral-storage: 64Mi\n                memory: 32Mi\n        enableRemoteWriteReceiver: true\n        ignoreNamespaceSelectors: true\n        image:\n          registry: quay.io\n          repository: prometheus/prometheus\n          sha: 50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a\n          tag: v3.14.0-distroless\n        initContainers:\n          - name: init-config-reloader\n            resources:\n              limits:\n                cpu: 100m\n                ephemeral-storage: 64Mi\n                memory: 64Mi\n              requests:\n                cpu: 10m\n                ephemeral-storage: 64Mi\n                memory: 32Mi\n        nodeSelector:\n          puni.dev/capability-observability: \"true\"\n        podMonitorNamespaceSelector:\n          matchLabels:\n            kubernetes.io/metadata.name: observability-dev\n        podMonitorSelector:\n          matchLabels:\n            puni.dev/telemetry-instance: dev\n        podMonitorSelectorNilUsesHelmValues: false\n        probeNamespaceSelector:\n          matchLabels:\n            kubernetes.io/metadata.name: observability-dev\n        probeSelector:\n          matchLabels:\n            puni.dev/telemetry-instance: dev\n        probeSelectorNilUsesHelmValues: false\n        resources:\n          limits:\n            cpu: \"1\"\n            ephemeral-storage: 1Gi\n            memory: 1Gi\n          requests:\n            cpu: 200m\n            ephemeral-storage: 1Gi\n            memory: 512Mi\n        retention: 15d\n        retentionSize: 8GB\n        ruleNamespaceSelector:\n          matchLabels:\n            kubernetes.io/metadata.name: observability-dev\n        ruleSelector:\n          matchLabels:\n            puni.dev/telemetry-instance: dev\n        ruleSelectorNilUsesHelmValues: false\n        scrapeConfigNamespaceSelector:\n          matchLabels:\n            kubernetes.io/metadata.name: observability-dev\n        scrapeConfigSelector:\n          matchLabels:\n            puni.dev/telemetry-instance: dev\n        scrapeConfigSelectorNilUsesHelmValues: false\n        serviceMonitorNamespaceSelector:\n          matchLabels:\n            kubernetes.io/metadata.name: observability-dev\n        serviceMonitorSelector:\n          matchLabels:\n            puni.dev/telemetry-instance: dev\n        serviceMonitorSelectorNilUsesHelmValues: false\n        storageSpec:\n          volumeClaimTemplate:\n            spec:\n              accessModes:\n                - ReadWriteOnce\n              resources:\n                requests:\n                  storage: 10Gi\n              storageClassName: puni-retain\n    prometheus-node-exporter:\n      image:\n        digest: sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0\n        distroless: false\n        registry: quay.io\n        repository: prometheus/node-exporter\n        tag: v1.12.1\n      resources:\n        limits:\n          cpu: 200m\n          ephemeral-storage: 64Mi\n          memory: 64Mi\n        requests:\n          cpu: 10m\n          ephemeral-storage: 16Mi\n          memory: 32Mi\n      service:\n        port: 9101\n        targetPort: 9101\n      tolerations:\n        - operator: Exists\n    prometheusOperator:\n      admissionWebhooks:\n        deployment:\n          image:\n            registry: quay.io\n            repository: prometheus-operator/admission-webhook\n            sha: 83ee9756c83af92060b45254bd3734da6dab14163cdbc45ca32674359e69906b\n            tag: v0.94.0\n        enabled: false\n        patch:\n          enabled: false\n          image:\n            registry: ghcr.io\n            repository: jkroepke/kube-webhook-certgen\n            sha: cd85a621724cd9043a5b46a784578fa159437712f920166389fce830554e1c44\n            tag: 1.8.8\n          resources:\n            limits:\n              cpu: 500m\n              ephemeral-storage: 64Mi\n              memory: 128Mi\n            requests:\n              cpu: 100m\n              ephemeral-storage: 64Mi\n              memory: 64Mi\n      enabled: false\n      image:\n        registry: quay.io\n        repository: prometheus-operator/prometheus-operator\n        sha: cf153f64d6c38113fceb2cda7642365ea887f71edd7888f054e43e54cf177e55\n        tag: v0.94.0\n      nodeSelector:\n        puni.dev/capability-observability: \"true\"\n      prometheusConfigReloader:\n        image:\n          registry: quay.io\n          repository: prometheus-operator/prometheus-config-reloader\n          sha: 142a1f11df8dd165f00375b0b1826aecb9c9adeb05c39855893138d7c7575ff7\n          tag: v0.94.0\n        resources:\n          limits:\n            cpu: 100m\n            memory: 64Mi\n          requests:\n            cpu: 10m\n            memory: 32Mi\n      resources:\n        limits:\n          cpu: 500m\n          ephemeral-storage: 256Mi\n          memory: 256Mi\n        requests:\n          cpu: 50m\n          ephemeral-storage: 256Mi\n          memory: 64Mi\n    thanosRuler:\n      enabled: false\n    windowsMonitoring:\n      enabled: false\n"
+    },
+    {
+      "owner": "observability/eck-operator",
+      "chart": "eckOperator",
+      "manifest": "---\napiVersion: helm.toolkit.fluxcd.io/v2\nkind: HelmRelease\nmetadata:\n  name: eck-operator\n  namespace: observability\nspec:\n  chart:\n    spec:\n      chart: ./infra/platform/charts/eck-operator-3.5.0.tgz\n      sourceRef:\n        kind: GitRepository\n        name: puni-platform\n        namespace: flux-system\n      version: 3.5.0\n  interval: 30m\n  values:\n    config:\n      containerRegistry: docker.elastic.co\n    image:\n      digest: sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314\n      repository: docker.elastic.co/eck/eck-operator\n      tag: 3.5.0\n    managedNamespaces:\n      - observability\n      - observability-dev\n    nodeSelector:\n      puni.dev/capability-observability: \"true\"\n    resources:\n      limits:\n        cpu: \"1\"\n        ephemeral-storage: 256Mi\n        memory: 512Mi\n      requests:\n        cpu: 100m\n        ephemeral-storage: 256Mi\n        memory: 150Mi\n"
+    },
+    {
+      "owner": "observability/elasticsearch",
+      "chart": "elasticsearch",
+      "manifest": "---\napiVersion: helm.toolkit.fluxcd.io/v2\nkind: HelmRelease\nmetadata:\n  name: elasticsearch\n  namespace: observability\nspec:\n  chart:\n    spec:\n      chart: ./infra/platform/charts/eck-elasticsearch-0.20.0.tgz\n      sourceRef:\n        kind: GitRepository\n        name: puni-platform\n        namespace: flux-system\n      version: 0.20.0\n  dependsOn:\n    - name: eck-operator\n      namespace: observability\n  interval: 30m\n  values:\n    auth:\n      fileRealm:\n        - secretName: signal-health-users\n        - secretName: signal-ingest-users\n        - secretName: platform-ingest-users\n      roles:\n        - secretName: signal-health-roles\n        - secretName: signal-ingest-roles\n        - secretName: platform-ingest-roles\n    fullnameOverride: elasticsearch\n    image: docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540\n    nodeSets:\n      - config:\n          node.store.allow_mmap: false\n          s3.client.default.endpoint: object-store.puni-backup.svc:9000\n          s3.client.default.path_style_access: true\n          s3.client.default.protocol: https\n        count: 1\n        name: default\n        podTemplate:\n          spec:\n            containers:\n              - env:\n                  - name: ES_JAVA_OPTS\n                    value: -Xms1g -Xmx1g\n                name: elasticsearch\n                resources:\n                  limits:\n                    cpu: \"2\"\n                    ephemeral-storage: 1Gi\n                    memory: 2Gi\n                  requests:\n                    cpu: 500m\n                    ephemeral-storage: 1Gi\n                    memory: 2Gi\n                securityContext:\n                  allowPrivilegeEscalation: false\n                  capabilities:\n                    drop:\n                      - ALL\n                volumeMounts:\n                  - mountPath: /usr/share/elasticsearch/config/s3-trust\n                    name: s3-trust\n                    readOnly: true\n                  - mountPath: /usr/share/elasticsearch/config/jvm.options.d/s3.options\n                    name: s3-trust\n                    readOnly: true\n                    subPath: s3.options\n            initContainers:\n              - command:\n                  - bash\n                  - -ec\n                  - |\n                    # Proof: replacing this copy with touch accepted missing/unreadable bundled roots (backup-tls.test.ts).\n                    cp \"/usr/share/elasticsearch/jdk/lib/security/cacerts\" /usr/share/elasticsearch/config/s3-trust/cacerts\n                    chmod u+w /usr/share/elasticsearch/config/s3-trust/cacerts\n                    case \"$S3_TRUST_MODE\" in\n                      system-roots) ;;\n                      system-roots-plus-ca)\n                        # Proof: each removed file guard lost its distinct CA refusal (backup-tls.test.ts).\n                        path=/s3-credentials/ca.crt\n                        [ -e \"$path\" ] || { echo \"missing TLS input: $path\" >&2; exit 1; }\n                        [ -r \"$path\" ] || { echo \"unreadable TLS input: $path\" >&2; exit 1; }\n                        [ -s \"$path\" ] || { echo \"empty TLS input: $path\" >&2; exit 1; }\n                        # Proof: removing the parse refusal lost the malformed-CA diagnostic (backup-tls.test.ts).\n                        \"/usr/share/elasticsearch/jdk/bin/keytool\" -printcert -file \"$path\" >/dev/null || { echo \"malformed TLS input: $path\" >&2; exit 1; }\n                        \"/usr/share/elasticsearch/jdk/bin/keytool\" -importcert -noprompt -alias puni-s3-ca -file \"$path\" -keystore /usr/share/elasticsearch/config/s3-trust/cacerts -storepass changeit\n                        ;;\n                      # Proof: removing this branch accepted the unknown trust mode (backup-tls.test.ts).\n                      *) echo \"invalid S3_TRUST_MODE\" >&2; exit 1 ;;\n                    esac\n                    printf '%s\\n' '-Djavax.net.ssl.trustStore=/usr/share/elasticsearch/config/s3-trust/cacerts' '-Djavax.net.ssl.trustStorePassword=changeit' > /usr/share/elasticsearch/config/s3-trust/s3.options\n                env:\n                  - name: S3_TRUST_MODE\n                    value: system-roots-plus-ca\n                image: docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540\n                name: prepare-s3-trust\n                resources:\n                  limits:\n                    cpu: 500m\n                    ephemeral-storage: 64Mi\n                    memory: 256Mi\n                  requests:\n                    cpu: 100m\n                    ephemeral-storage: 64Mi\n                    memory: 128Mi\n                securityContext:\n                  allowPrivilegeEscalation: false\n                  capabilities:\n                    drop:\n                      - ALL\n                  readOnlyRootFilesystem: true\n                volumeMounts:\n                  - mountPath: /usr/share/elasticsearch/config/s3-trust\n                    name: s3-trust\n                  - mountPath: /s3-credentials\n                    name: s3-credentials\n                    readOnly: true\n              - name: elastic-internal-init-filesystem\n                resources:\n                  limits:\n                    cpu: 100m\n                    ephemeral-storage: 64Mi\n                    memory: 50Mi\n                  requests:\n                    cpu: 100m\n                    ephemeral-storage: 64Mi\n                    memory: 50Mi\n              - name: elastic-internal-init-keystore\n                resources:\n                  limits:\n                    cpu: 500m\n                    ephemeral-storage: 64Mi\n                    memory: 196Mi\n                  requests:\n                    cpu: 500m\n                    ephemeral-storage: 64Mi\n                    memory: 196Mi\n              - name: elastic-internal-suspend\n                resources:\n                  limits:\n                    cpu: \"2\"\n                    ephemeral-storage: 1Gi\n                    memory: 2Gi\n                  requests:\n                    cpu: 500m\n                    ephemeral-storage: 1Gi\n                    memory: 2Gi\n            nodeSelector:\n              puni.dev/capability-observability: \"true\"\n            securityContext:\n              fsGroup: 1000\n              runAsGroup: 1000\n              runAsNonRoot: true\n              runAsUser: 1000\n              seccompProfile:\n                type: RuntimeDefault\n            volumes:\n              - emptyDir:\n                  sizeLimit: 16Mi\n                name: s3-trust\n              - name: s3-credentials\n                secret:\n                  defaultMode: 292\n                  secretName: elastic-s3-credentials\n              - emptyDir:\n                  sizeLimit: 16Mi\n                name: elastic-internal-elasticsearch-bin-local\n              - emptyDir:\n                  sizeLimit: 16Mi\n                name: elastic-internal-elasticsearch-config-local\n              - emptyDir:\n                  sizeLimit: 16Mi\n                name: elastic-internal-elasticsearch-plugins-local\n              - emptyDir:\n                  sizeLimit: 256Mi\n                name: elasticsearch-logs\n              - emptyDir:\n                  sizeLimit: 256Mi\n                name: tmp-volume\n        volumeClaimTemplates:\n          - metadata:\n              name: elasticsearch-data\n            spec:\n              accessModes:\n                - ReadWriteOnce\n              resources:\n                requests:\n                  storage: 10Gi\n              storageClassName: puni-retain\n    secureSettings:\n      - entries:\n          - key: s3.client.default.access_key\n          - key: s3.client.default.secret_key\n        secretName: elastic-s3-credentials\n    version: 9.3.8\n    volumeClaimDeletePolicy: DeleteOnScaledownOnly\n"
+    },
+    {
+      "owner": "observability/kibana",
+      "chart": "kibana",
+      "manifest": "---\napiVersion: helm.toolkit.fluxcd.io/v2\nkind: HelmRelease\nmetadata:\n  name: kibana\n  namespace: observability\nspec:\n  chart:\n    spec:\n      chart: ./infra/platform/charts/eck-kibana-0.20.0.tgz\n      sourceRef:\n        kind: GitRepository\n        name: puni-platform\n        namespace: flux-system\n      version: 0.20.0\n  dependsOn:\n    - name: elasticsearch\n  interval: 30m\n  values:\n    count: 1\n    elasticsearchRef:\n      name: elasticsearch\n      namespace: observability\n    fullnameOverride: kibana\n    image: docker.elastic.co/kibana/kibana:9.3.8@sha256:a9f4af21536422d9a3bb924bad5990b24859db0c9a0474558f283244a2bcd481\n    podTemplate:\n      spec:\n        containers:\n          - env:\n              - name: NODE_OPTIONS\n                value: --max-old-space-size=512\n            name: kibana\n            resources:\n              limits:\n                cpu: \"1\"\n                ephemeral-storage: 1Gi\n                memory: 1Gi\n              requests:\n                cpu: 200m\n                ephemeral-storage: 1Gi\n                memory: 512Mi\n            securityContext:\n              allowPrivilegeEscalation: false\n              capabilities:\n                drop:\n                  - ALL\n        initContainers:\n          - name: elastic-internal-init\n            resources:\n              limits:\n                cpu: 100m\n                ephemeral-storage: 64Mi\n                memory: 50Mi\n              requests:\n                cpu: 100m\n                ephemeral-storage: 64Mi\n                memory: 50Mi\n        nodeSelector:\n          puni.dev/capability-observability: \"true\"\n        securityContext:\n          fsGroup: 1000\n          runAsGroup: 1000\n          runAsNonRoot: true\n          runAsUser: 1000\n          seccompProfile:\n            type: RuntimeDefault\n        volumes:\n          - emptyDir:\n              sizeLimit: 256Mi\n            name: kibana-data\n          - emptyDir:\n              sizeLimit: 16Mi\n            name: kibana-plugins\n          - emptyDir:\n              sizeLimit: 16Mi\n            name: elastic-internal-kibana-config-local\n          - emptyDir:\n              sizeLimit: 256Mi\n            name: kibana-logs\n          - emptyDir:\n              sizeLimit: 256Mi\n            name: temp-volume\n    version: 9.3.8\n"
+    },
+    {
+      "owner": "observability/kube-prometheus-stack",
+      "chart": "kubePrometheusStack",
+      "manifest": "---\napiVersion: helm.toolkit.fluxcd.io/v2\nkind: HelmRelease\nmetadata:\n  name: kube-prometheus-stack\n  namespace: observability\nspec:\n  chart:\n    spec:\n      chart: ./infra/platform/charts/kube-prometheus-stack-91.4.1.tgz\n      sourceRef:\n        kind: GitRepository\n        name: puni-platform\n        namespace: flux-system\n      version: 91.4.1\n  dependsOn:\n    - name: prometheus-controller\n  interval: 30m\n  values:\n    alertmanager:\n      alertmanagerSpec:\n        configSecret: alertmanager-puni\n        containers:\n          - name: alertmanager\n            resources:\n              limits:\n                cpu: 200m\n                ephemeral-storage: 256Mi\n                memory: 128Mi\n              requests:\n                cpu: 10m\n                ephemeral-storage: 256Mi\n                memory: 64Mi\n          - name: config-reloader\n            resources:\n              limits:\n                cpu: 100m\n                ephemeral-storage: 64Mi\n                memory: 64Mi\n              requests:\n                cpu: 10m\n                ephemeral-storage: 64Mi\n                memory: 32Mi\n        image:\n          registry: quay.io\n          repository: prometheus/alertmanager\n          sha: 690c7b525f4367aa91f73e2f91c632206d32e97c6384bdbf2fb7a861b420340d\n          tag: v0.34.0\n        initContainers:\n          - name: init-config-reloader\n            resources:\n              limits:\n                cpu: 100m\n                ephemeral-storage: 64Mi\n                memory: 64Mi\n              requests:\n                cpu: 10m\n                ephemeral-storage: 64Mi\n                memory: 32Mi\n        nodeSelector:\n          puni.dev/capability-observability: \"true\"\n        persistentVolumeClaimRetentionPolicy:\n          whenDeleted: Retain\n          whenScaled: Retain\n        resources:\n          limits:\n            cpu: 200m\n            ephemeral-storage: 256Mi\n            memory: 128Mi\n          requests:\n            cpu: 10m\n            ephemeral-storage: 256Mi\n            memory: 64Mi\n        storage:\n          volumeClaimTemplate:\n            spec:\n              accessModes:\n                - ReadWriteOnce\n              resources:\n                requests:\n                  storage: 1Gi\n              storageClassName: puni-retain\n    commonLabels:\n      puni.dev/telemetry-instance: prod\n    crds:\n      enabled: false\n    defaultRules:\n      create: true\n      rules:\n        etcd: false\n        kubeControllerManager: false\n        kubeProxy: false\n        kubeSchedulerAlerting: false\n        kubeSchedulerRecording: false\n        windows: false\n    fullnameOverride: kps\n    global:\n      rbac:\n        create: false\n    grafana:\n      enabled: false\n    kube-state-metrics:\n      image:\n        registry: registry.k8s.io\n        repository: kube-state-metrics/kube-state-metrics\n        sha: sha256:42cfe3723a5f058171c627537fb57a3ea0f26e4380fa18555a95cb1a1b4cfc5b\n        tag: v2.20.0\n      prometheus:\n        monitor:\n          additionalLabels:\n            puni.dev/telemetry-instance: prod\n          metricRelabelings:\n            - action: replace\n              replacement: platform-local\n              targetLabel: puni_cluster\n          namespaceSelector:\n            - observability\n      resources:\n        limits:\n          cpu: 200m\n          ephemeral-storage: 64Mi\n          memory: 256Mi\n        requests:\n          cpu: 10m\n          ephemeral-storage: 16Mi\n          memory: 64Mi\n    kubeControllerManager:\n      enabled: false\n    kubeEtcd:\n      enabled: false\n    kubeProxy:\n      enabled: false\n    kubeScheduler:\n      enabled: false\n    prometheus:\n      additionalServiceMonitors:\n        - endpoints:\n            - honorLabels: true\n              port: https\n              scheme: https\n              tlsConfig:\n                ca:\n                  secret:\n                    key: ca\n                    name: kps-admission\n                    optional: false\n                serverName: kps-operator\n          name: kps-operator\n          namespaceSelector:\n            matchNames:\n              - observability\n          selector:\n            matchLabels:\n              app: kube-prometheus-stack-operator\n              release: prometheus-controller\n      prometheusSpec:\n        containers:\n          - name: prometheus\n            resources:\n              limits:\n                cpu: \"1\"\n                ephemeral-storage: 1Gi\n                memory: 1Gi\n              requests:\n                cpu: 200m\n                ephemeral-storage: 1Gi\n                memory: 512Mi\n          - name: config-reloader\n            resources:\n              limits:\n                cpu: 100m\n                ephemeral-storage: 64Mi\n                memory: 64Mi\n              requests:\n                cpu: 10m\n                ephemeral-storage: 64Mi\n                memory: 32Mi\n        enableRemoteWriteReceiver: true\n        ignoreNamespaceSelectors: false\n        image:\n          registry: quay.io\n          repository: prometheus/prometheus\n          sha: 50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a\n          tag: v3.14.0-distroless\n        initContainers:\n          - name: init-config-reloader\n            resources:\n              limits:\n                cpu: 100m\n                ephemeral-storage: 64Mi\n                memory: 64Mi\n              requests:\n                cpu: 10m\n                ephemeral-storage: 64Mi\n                memory: 32Mi\n        nodeSelector:\n          puni.dev/capability-observability: \"true\"\n        podMonitorNamespaceSelector:\n          matchLabels:\n            kubernetes.io/metadata.name: observability\n        podMonitorSelector:\n          matchLabels:\n            puni.dev/telemetry-instance: prod\n        podMonitorSelectorNilUsesHelmValues: false\n        probeNamespaceSelector:\n          matchLabels:\n            kubernetes.io/metadata.name: observability\n        probeSelector:\n          matchLabels:\n            puni.dev/telemetry-instance: prod\n        probeSelectorNilUsesHelmValues: false\n        resources:\n          limits:\n            cpu: \"1\"\n            ephemeral-storage: 1Gi\n            memory: 1Gi\n          requests:\n            cpu: 200m\n            ephemeral-storage: 1Gi\n            memory: 512Mi\n        retention: 15d\n        retentionSize: 8GB\n        ruleNamespaceSelector:\n          matchLabels:\n            kubernetes.io/metadata.name: observability\n        ruleSelector:\n          matchLabels:\n            puni.dev/telemetry-instance: prod\n        ruleSelectorNilUsesHelmValues: false\n        scrapeConfigNamespaceSelector:\n          matchLabels:\n            kubernetes.io/metadata.name: observability\n        scrapeConfigSelector:\n          matchLabels:\n            puni.dev/telemetry-instance: prod\n        serviceMonitorNamespaceSelector:\n          matchLabels:\n            kubernetes.io/metadata.name: observability\n        serviceMonitorSelector:\n          matchLabels:\n            puni.dev/telemetry-instance: prod\n        serviceMonitorSelectorNilUsesHelmValues: false\n        storageSpec:\n          volumeClaimTemplate:\n            spec:\n              accessModes:\n                - ReadWriteOnce\n              resources:\n                requests:\n                  storage: 10Gi\n              storageClassName: puni-retain\n    prometheus-node-exporter:\n      image:\n        digest: sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0\n        distroless: false\n        registry: quay.io\n        repository: prometheus/node-exporter\n        tag: v1.12.1\n      prometheus:\n        monitor:\n          additionalLabels:\n            puni.dev/telemetry-instance: prod\n      resources:\n        limits:\n          cpu: 200m\n          ephemeral-storage: 64Mi\n          memory: 64Mi\n        requests:\n          cpu: 10m\n          ephemeral-storage: 16Mi\n          memory: 32Mi\n      service:\n        port: 9101\n        targetPort: 9101\n      tolerations:\n        - operator: Exists\n    prometheusOperator:\n      admissionWebhooks:\n        deployment:\n          image:\n            registry: quay.io\n            repository: prometheus-operator/admission-webhook\n            sha: 83ee9756c83af92060b45254bd3734da6dab14163cdbc45ca32674359e69906b\n            tag: v0.94.0\n        enabled: false\n        patch:\n          enabled: false\n          image:\n            registry: ghcr.io\n            repository: jkroepke/kube-webhook-certgen\n            sha: cd85a621724cd9043a5b46a784578fa159437712f920166389fce830554e1c44\n            tag: 1.8.8\n          resources:\n            limits:\n              cpu: 500m\n              ephemeral-storage: 64Mi\n              memory: 128Mi\n            requests:\n              cpu: 100m\n              ephemeral-storage: 64Mi\n              memory: 64Mi\n      enabled: false\n      image:\n        registry: quay.io\n        repository: prometheus-operator/prometheus-operator\n        sha: cf153f64d6c38113fceb2cda7642365ea887f71edd7888f054e43e54cf177e55\n        tag: v0.94.0\n      nodeSelector:\n        puni.dev/capability-observability: \"true\"\n      prometheusConfigReloader:\n        image:\n          registry: quay.io\n          repository: prometheus-operator/prometheus-config-reloader\n          sha: 142a1f11df8dd165f00375b0b1826aecb9c9adeb05c39855893138d7c7575ff7\n          tag: v0.94.0\n        resources:\n          limits:\n            cpu: 100m\n            memory: 64Mi\n          requests:\n            cpu: 10m\n            memory: 32Mi\n      resources:\n        limits:\n          cpu: 500m\n          ephemeral-storage: 256Mi\n          memory: 256Mi\n        requests:\n          cpu: 50m\n          ephemeral-storage: 256Mi\n          memory: 64Mi\n    thanosRuler:\n      enabled: false\n    windowsMonitoring:\n      enabled: false\n"
+    }
+  ],
+  "manifests": {
+    "observability/eck-operator": [
+      {
+        "apiVersion": "apps/v1",
+        "kind": "StatefulSet",
+        "metadata": {
+          "name": "elastic-operator",
+          "namespace": "observability",
+          "labels": {
+            "app.kubernetes.io/name": "elastic-operator",
+            "app.kubernetes.io/instance": "eck-operator",
+            "app.kubernetes.io/version": "3.5.0",
+            "helm.sh/chart": "eck-operator-3.5.0",
+            "app.kubernetes.io/managed-by": "Helm"
+          }
+        },
+        "spec": {
+          "selector": {
+            "matchLabels": {
+              "app.kubernetes.io/name": "elastic-operator",
+              "app.kubernetes.io/instance": "eck-operator"
+            }
+          },
+          "serviceName": "elastic-operator",
+          "replicas": 1,
+          "template": {
+            "metadata": {
+              "annotations": {
+                "co.elastic.logs/raw": "[{\"type\":\"filestream\",\"enabled\":true,\"id\":\"eck-container-logs-${data.kubernetes.container.id}\",\"paths\":[\"/var/log/containers/*${data.kubernetes.container.id}.log\"],\"parsers\":[{\"container\":{}},{\"ndjson\":{\"keys_under_root\":true}}],\"prospector.scanner.symlinks\":true,\"processors\":[{\"convert\":{\"mode\":\"rename\",\"ignore_missing\":true,\"fields\":[{\"from\":\"error\",\"to\":\"_error\"}]}},{\"convert\":{\"mode\":\"rename\",\"ignore_missing\":true,\"fields\":[{\"from\":\"_error\",\"to\":\"error.message\"}]}},{\"convert\":{\"mode\":\"rename\",\"ignore_missing\":true,\"fields\":[{\"from\":\"source\",\"to\":\"_source\"}]}},{\"convert\":{\"mode\":\"rename\",\"ignore_missing\":true,\"fields\":[{\"from\":\"_source\",\"to\":\"event.source\"}]}}]}]",
+                "checksum/config": "9bdaea293f47a63de61a699e48d6b9c1a1d38ed74280b7173087c79e03298b07"
+              },
+              "labels": {
+                "app.kubernetes.io/name": "elastic-operator",
+                "app.kubernetes.io/instance": "eck-operator",
+                "app.kubernetes.io/version": "3.5.0",
+                "helm.sh/chart": "eck-operator-3.5.0",
+                "app.kubernetes.io/managed-by": "Helm"
+              }
+            },
+            "spec": {
+              "terminationGracePeriodSeconds": 10,
+              "serviceAccountName": "elastic-operator",
+              "automountServiceAccountToken": true,
+              "securityContext": {
+                "runAsNonRoot": true
+              },
+              "containers": [
+                {
+                  "image": "docker.elastic.co/eck/eck-operator:3.5.0@sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314",
+                  "imagePullPolicy": "IfNotPresent",
+                  "name": "manager",
+                  "args": ["manager", "--config=/conf/eck.yaml"],
+                  "securityContext": {
+                    "allowPrivilegeEscalation": false,
+                    "capabilities": {
+                      "drop": ["ALL"]
+                    },
+                    "readOnlyRootFilesystem": true,
+                    "runAsNonRoot": true
+                  },
+                  "env": [
+                    {
+                      "name": "OPERATOR_NAMESPACE",
+                      "valueFrom": {
+                        "fieldRef": {
+                          "fieldPath": "metadata.namespace"
+                        }
+                      }
+                    },
+                    {
+                      "name": "POD_IP",
+                      "valueFrom": {
+                        "fieldRef": {
+                          "fieldPath": "status.podIP"
+                        }
+                      }
+                    },
+                    {
+                      "name": "WEBHOOK_SECRET",
+                      "value": "elastic-operator-webhook-cert"
+                    }
+                  ],
+                  "resources": {
+                    "limits": {
+                      "cpu": "1",
+                      "ephemeral-storage": "256Mi",
+                      "memory": "512Mi"
+                    },
+                    "requests": {
+                      "cpu": "100m",
+                      "ephemeral-storage": "256Mi",
+                      "memory": "150Mi"
+                    }
+                  },
+                  "ports": [
+                    {
+                      "containerPort": 9443,
+                      "name": "https-webhook",
+                      "protocol": "TCP"
+                    }
+                  ],
+                  "volumeMounts": [
+                    {
+                      "mountPath": "/conf",
+                      "name": "conf",
+                      "readOnly": true
+                    },
+                    {
+                      "mountPath": "/tmp/k8s-webhook-server/serving-certs",
+                      "name": "cert",
+                      "readOnly": true
+                    }
+                  ]
+                }
+              ],
+              "volumes": [
+                {
+                  "name": "conf",
+                  "configMap": {
+                    "name": "elastic-operator"
+                  }
+                },
+                {
+                  "name": "cert",
+                  "secret": {
+                    "defaultMode": 420,
+                    "secretName": "elastic-operator-webhook-cert"
+                  }
+                }
+              ],
+              "nodeSelector": {
+                "puni.dev/capability-observability": "true"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "observability/prometheus-controller": [
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "kps-operator",
+          "namespace": "observability",
+          "labels": {
+            "app.kubernetes.io/managed-by": "Helm",
+            "app.kubernetes.io/instance": "prometheus-controller",
+            "app.kubernetes.io/version": "91.4.1",
+            "app.kubernetes.io/part-of": "kube-prometheus-stack",
+            "chart": "kube-prometheus-stack-91.4.1",
+            "release": "prometheus-controller",
+            "heritage": "Helm",
+            "app": "kube-prometheus-stack-operator",
+            "app.kubernetes.io/name": "kube-prometheus-stack-prometheus-operator",
+            "app.kubernetes.io/component": "prometheus-operator"
+          }
+        },
+        "spec": {
+          "replicas": 1,
+          "revisionHistoryLimit": 10,
+          "selector": {
+            "matchLabels": {
+              "app": "kube-prometheus-stack-operator",
+              "release": "prometheus-controller"
+            }
+          },
+          "template": {
+            "metadata": {
+              "labels": {
+                "app.kubernetes.io/managed-by": "Helm",
+                "app.kubernetes.io/instance": "prometheus-controller",
+                "app.kubernetes.io/version": "91.4.1",
+                "app.kubernetes.io/part-of": "kube-prometheus-stack",
+                "chart": "kube-prometheus-stack-91.4.1",
+                "release": "prometheus-controller",
+                "heritage": "Helm",
+                "app": "kube-prometheus-stack-operator",
+                "app.kubernetes.io/name": "kube-prometheus-stack-prometheus-operator",
+                "app.kubernetes.io/component": "prometheus-operator"
+              }
+            },
+            "spec": {
+              "containers": [
+                {
+                  "name": "kube-prometheus-stack",
+                  "image": "quay.io/prometheus-operator/prometheus-operator:v0.94.0@sha256:cf153f64d6c38113fceb2cda7642365ea887f71edd7888f054e43e54cf177e55",
+                  "imagePullPolicy": "IfNotPresent",
+                  "args": [
+                    "--kubelet-service=kube-system/kps-kubelet",
+                    "--kubelet-endpoints=true",
+                    "--kubelet-endpointslice=false",
+                    "--namespaces=observability,observability-dev",
+                    "--localhost=127.0.0.1",
+                    "--prometheus-config-reloader=quay.io/prometheus-operator/prometheus-config-reloader:v0.94.0@sha256:142a1f11df8dd165f00375b0b1826aecb9c9adeb05c39855893138d7c7575ff7",
+                    "--config-reloader-cpu-request=10m",
+                    "--config-reloader-cpu-limit=100m",
+                    "--config-reloader-memory-request=32Mi",
+                    "--config-reloader-memory-limit=64Mi",
+                    "--alertmanager-instance-namespaces=observability,observability-dev",
+                    "--prometheus-instance-namespaces=observability,observability-dev",
+                    "--thanos-default-base-image=quay.io/thanos/thanos:v0.42.4",
+                    "--secret-field-selector=type!=kubernetes.io/dockercfg,type!=helm.sh/release.v1",
+                    "--web.enable-tls=true",
+                    "--web.cert-file=/cert/cert",
+                    "--web.key-file=/cert/key",
+                    "--web.listen-address=:10250",
+                    "--web.tls-min-version=VersionTLS13"
+                  ],
+                  "ports": [
+                    {
+                      "containerPort": 10250,
+                      "name": "https"
+                    }
+                  ],
+                  "env": [
+                    {
+                      "name": "GOGC",
+                      "value": "30"
+                    }
+                  ],
+                  "resources": {
+                    "limits": {
+                      "cpu": "500m",
+                      "ephemeral-storage": "256Mi",
+                      "memory": "256Mi"
+                    },
+                    "requests": {
+                      "cpu": "50m",
+                      "ephemeral-storage": "256Mi",
+                      "memory": "64Mi"
+                    }
+                  },
+                  "securityContext": {
+                    "allowPrivilegeEscalation": false,
+                    "capabilities": {
+                      "drop": ["ALL"]
+                    },
+                    "readOnlyRootFilesystem": true
+                  },
+                  "volumeMounts": [
+                    {
+                      "name": "tls-secret",
+                      "mountPath": "/cert",
+                      "readOnly": true
+                    }
+                  ],
+                  "readinessProbe": {
+                    "httpGet": {
+                      "path": "/healthz",
+                      "port": "https",
+                      "scheme": "HTTPS"
+                    },
+                    "initialDelaySeconds": 0,
+                    "periodSeconds": 10,
+                    "timeoutSeconds": 1,
+                    "successThreshold": 1,
+                    "failureThreshold": 3
+                  },
+                  "livenessProbe": {
+                    "httpGet": {
+                      "path": "/healthz",
+                      "port": "https",
+                      "scheme": "HTTPS"
+                    },
+                    "initialDelaySeconds": 0,
+                    "periodSeconds": 10,
+                    "timeoutSeconds": 1,
+                    "successThreshold": 1,
+                    "failureThreshold": 3
+                  }
+                }
+              ],
+              "volumes": [
+                {
+                  "name": "tls-secret",
+                  "secret": {
+                    "defaultMode": 420,
+                    "secretName": "kps-admission"
+                  }
+                }
+              ],
+              "securityContext": {
+                "fsGroup": 65534,
+                "runAsGroup": 65534,
+                "runAsNonRoot": true,
+                "runAsUser": 65534,
+                "seccompProfile": {
+                  "type": "RuntimeDefault"
+                }
+              },
+              "serviceAccountName": "kps-operator",
+              "automountServiceAccountToken": true,
+              "nodeSelector": {
+                "puni.dev/capability-observability": "true"
+              },
+              "terminationGracePeriodSeconds": 30
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "batch/v1",
+        "kind": "Job",
+        "metadata": {
+          "name": "kps-admission-create",
+          "namespace": "observability",
+          "annotations": {
+            "helm.sh/hook": "pre-install,pre-upgrade",
+            "helm.sh/hook-delete-policy": "before-hook-creation,hook-succeeded"
+          },
+          "labels": {
+            "app": "kube-prometheus-stack-admission-create",
+            "app.kubernetes.io/managed-by": "Helm",
+            "app.kubernetes.io/instance": "prometheus-controller",
+            "app.kubernetes.io/version": "91.4.1",
+            "app.kubernetes.io/part-of": "kube-prometheus-stack",
+            "chart": "kube-prometheus-stack-91.4.1",
+            "release": "prometheus-controller",
+            "heritage": "Helm",
+            "app.kubernetes.io/name": "kube-prometheus-stack-prometheus-operator",
+            "app.kubernetes.io/component": "prometheus-operator-webhook"
+          }
+        },
+        "spec": {
+          "ttlSecondsAfterFinished": 60,
+          "template": {
+            "metadata": {
+              "name": "kps-admission-create",
+              "labels": {
+                "app": "kube-prometheus-stack-admission-create",
+                "app.kubernetes.io/managed-by": "Helm",
+                "app.kubernetes.io/instance": "prometheus-controller",
+                "app.kubernetes.io/version": "91.4.1",
+                "app.kubernetes.io/part-of": "kube-prometheus-stack",
+                "chart": "kube-prometheus-stack-91.4.1",
+                "release": "prometheus-controller",
+                "heritage": "Helm",
+                "app.kubernetes.io/name": "kube-prometheus-stack-prometheus-operator",
+                "app.kubernetes.io/component": "prometheus-operator-webhook"
+              }
+            },
+            "spec": {
+              "containers": [
+                {
+                  "name": "create",
+                  "image": "ghcr.io/jkroepke/kube-webhook-certgen:1.8.8@sha256:cd85a621724cd9043a5b46a784578fa159437712f920166389fce830554e1c44",
+                  "imagePullPolicy": "IfNotPresent",
+                  "args": [
+                    "create",
+                    "--host=kps-operator,kps-operator.observability.svc",
+                    "--namespace=observability",
+                    "--secret-name=kps-admission"
+                  ],
+                  "securityContext": {
+                    "allowPrivilegeEscalation": false,
+                    "capabilities": {
+                      "drop": ["ALL"]
+                    },
+                    "readOnlyRootFilesystem": true
+                  },
+                  "resources": {
+                    "limits": {
+                      "cpu": "500m",
+                      "ephemeral-storage": "64Mi",
+                      "memory": "128Mi"
+                    },
+                    "requests": {
+                      "cpu": "100m",
+                      "ephemeral-storage": "64Mi",
+                      "memory": "64Mi"
+                    }
+                  }
+                }
+              ],
+              "restartPolicy": "OnFailure",
+              "serviceAccountName": "kps-admission",
+              "securityContext": {
+                "runAsGroup": 2000,
+                "runAsNonRoot": true,
+                "runAsUser": 2000,
+                "seccompProfile": {
+                  "type": "RuntimeDefault"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "batch/v1",
+        "kind": "Job",
+        "metadata": {
+          "name": "kps-admission-patch",
+          "namespace": "observability",
+          "annotations": {
+            "helm.sh/hook": "post-install,post-upgrade",
+            "helm.sh/hook-delete-policy": "before-hook-creation,hook-succeeded"
+          },
+          "labels": {
+            "app": "kube-prometheus-stack-admission-patch",
+            "app.kubernetes.io/managed-by": "Helm",
+            "app.kubernetes.io/instance": "prometheus-controller",
+            "app.kubernetes.io/version": "91.4.1",
+            "app.kubernetes.io/part-of": "kube-prometheus-stack",
+            "chart": "kube-prometheus-stack-91.4.1",
+            "release": "prometheus-controller",
+            "heritage": "Helm",
+            "app.kubernetes.io/name": "kube-prometheus-stack-prometheus-operator",
+            "app.kubernetes.io/component": "prometheus-operator-webhook"
+          }
+        },
+        "spec": {
+          "ttlSecondsAfterFinished": 60,
+          "template": {
+            "metadata": {
+              "name": "kps-admission-patch",
+              "labels": {
+                "app": "kube-prometheus-stack-admission-patch",
+                "app.kubernetes.io/managed-by": "Helm",
+                "app.kubernetes.io/instance": "prometheus-controller",
+                "app.kubernetes.io/version": "91.4.1",
+                "app.kubernetes.io/part-of": "kube-prometheus-stack",
+                "chart": "kube-prometheus-stack-91.4.1",
+                "release": "prometheus-controller",
+                "heritage": "Helm",
+                "app.kubernetes.io/name": "kube-prometheus-stack-prometheus-operator",
+                "app.kubernetes.io/component": "prometheus-operator-webhook"
+              }
+            },
+            "spec": {
+              "containers": [
+                {
+                  "name": "patch",
+                  "image": "ghcr.io/jkroepke/kube-webhook-certgen:1.8.8@sha256:cd85a621724cd9043a5b46a784578fa159437712f920166389fce830554e1c44",
+                  "imagePullPolicy": "IfNotPresent",
+                  "args": [
+                    "patch",
+                    "--webhook-name=kps-admission",
+                    "--namespace=observability",
+                    "--secret-name=kps-admission",
+                    "--patch-failure-policy="
+                  ],
+                  "securityContext": {
+                    "allowPrivilegeEscalation": false,
+                    "capabilities": {
+                      "drop": ["ALL"]
+                    },
+                    "readOnlyRootFilesystem": true
+                  },
+                  "resources": {
+                    "limits": {
+                      "cpu": "500m",
+                      "ephemeral-storage": "64Mi",
+                      "memory": "128Mi"
+                    },
+                    "requests": {
+                      "cpu": "100m",
+                      "ephemeral-storage": "64Mi",
+                      "memory": "64Mi"
+                    }
+                  }
+                }
+              ],
+              "restartPolicy": "OnFailure",
+              "serviceAccountName": "kps-admission",
+              "securityContext": {
+                "runAsGroup": 2000,
+                "runAsNonRoot": true,
+                "runAsUser": 2000,
+                "seccompProfile": {
+                  "type": "RuntimeDefault"
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "observability-dev/elasticsearch": [
+      {
+        "apiVersion": "elasticsearch.k8s.elastic.co/v1",
+        "kind": "Elasticsearch",
+        "metadata": {
+          "name": "elasticsearch",
+          "labels": {
+            "helm.sh/chart": "eck-elasticsearch-0.20.0",
+            "app.kubernetes.io/name": "eck-elasticsearch",
+            "app.kubernetes.io/instance": "elasticsearch",
+            "app.kubernetes.io/managed-by": "Helm"
+          },
+          "annotations": {
+            "eck.k8s.elastic.co/license": "basic"
+          }
+        },
+        "spec": {
+          "auth": {
+            "fileRealm": [
+              {
+                "secretName": "signal-health-users"
+              },
+              {
+                "secretName": "signal-ingest-users"
+              }
+            ],
+            "roles": [
+              {
+                "secretName": "signal-health-roles"
+              },
+              {
+                "secretName": "signal-ingest-roles"
+              }
+            ]
+          },
+          "secureSettings": [
+            {
+              "entries": [
+                {
+                  "key": "s3.client.default.access_key"
+                },
+                {
+                  "key": "s3.client.default.secret_key"
+                }
+              ],
+              "secretName": "elastic-s3-credentials"
+            }
+          ],
+          "version": "9.3.8",
+          "volumeClaimDeletePolicy": "DeleteOnScaledownOnly",
+          "nodeSets": [
+            {
+              "config": {
+                "node.store.allow_mmap": false,
+                "s3.client.default.endpoint": "object-store.puni-backup.svc:9000",
+                "s3.client.default.path_style_access": true,
+                "s3.client.default.protocol": "https"
+              },
+              "count": 1,
+              "name": "default",
+              "podTemplate": {
+                "spec": {
+                  "containers": [
+                    {
+                      "env": [
+                        {
+                          "name": "ES_JAVA_OPTS",
+                          "value": "-Xms1g -Xmx1g"
+                        }
+                      ],
+                      "name": "elasticsearch",
+                      "resources": {
+                        "limits": {
+                          "cpu": "2",
+                          "ephemeral-storage": "1Gi",
+                          "memory": "2Gi"
+                        },
+                        "requests": {
+                          "cpu": "500m",
+                          "ephemeral-storage": "1Gi",
+                          "memory": "2Gi"
+                        }
+                      },
+                      "securityContext": {
+                        "allowPrivilegeEscalation": false,
+                        "capabilities": {
+                          "drop": ["ALL"]
+                        }
+                      },
+                      "volumeMounts": [
+                        {
+                          "mountPath": "/usr/share/elasticsearch/config/s3-trust",
+                          "name": "s3-trust",
+                          "readOnly": true
+                        },
+                        {
+                          "mountPath": "/usr/share/elasticsearch/config/jvm.options.d/s3.options",
+                          "name": "s3-trust",
+                          "readOnly": true,
+                          "subPath": "s3.options"
+                        }
+                      ]
+                    }
+                  ],
+                  "initContainers": [
+                    {
+                      "command": [
+                        "bash",
+                        "-ec",
+                        "# Proof: replacing this copy with touch accepted missing/unreadable bundled roots (backup-tls.test.ts).\ncp \"/usr/share/elasticsearch/jdk/lib/security/cacerts\" /usr/share/elasticsearch/config/s3-trust/cacerts\nchmod u+w /usr/share/elasticsearch/config/s3-trust/cacerts\ncase \"$S3_TRUST_MODE\" in\n  system-roots) ;;\n  system-roots-plus-ca)\n    # Proof: each removed file guard lost its distinct CA refusal (backup-tls.test.ts).\n    path=/s3-credentials/ca.crt\n    [ -e \"$path\" ] || { echo \"missing TLS input: $path\" >&2; exit 1; }\n    [ -r \"$path\" ] || { echo \"unreadable TLS input: $path\" >&2; exit 1; }\n    [ -s \"$path\" ] || { echo \"empty TLS input: $path\" >&2; exit 1; }\n    # Proof: removing the parse refusal lost the malformed-CA diagnostic (backup-tls.test.ts).\n    \"/usr/share/elasticsearch/jdk/bin/keytool\" -printcert -file \"$path\" >/dev/null || { echo \"malformed TLS input: $path\" >&2; exit 1; }\n    \"/usr/share/elasticsearch/jdk/bin/keytool\" -importcert -noprompt -alias puni-s3-ca -file \"$path\" -keystore /usr/share/elasticsearch/config/s3-trust/cacerts -storepass changeit\n    ;;\n  # Proof: removing this branch accepted the unknown trust mode (backup-tls.test.ts).\n  *) echo \"invalid S3_TRUST_MODE\" >&2; exit 1 ;;\nesac\nprintf '%s\\n' '-Djavax.net.ssl.trustStore=/usr/share/elasticsearch/config/s3-trust/cacerts' '-Djavax.net.ssl.trustStorePassword=changeit' > /usr/share/elasticsearch/config/s3-trust/s3.options\n"
+                      ],
+                      "env": [
+                        {
+                          "name": "S3_TRUST_MODE",
+                          "value": "system-roots-plus-ca"
+                        }
+                      ],
+                      "image": "docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540",
+                      "name": "prepare-s3-trust",
+                      "resources": {
+                        "limits": {
+                          "cpu": "500m",
+                          "ephemeral-storage": "64Mi",
+                          "memory": "256Mi"
+                        },
+                        "requests": {
+                          "cpu": "100m",
+                          "ephemeral-storage": "64Mi",
+                          "memory": "128Mi"
+                        }
+                      },
+                      "securityContext": {
+                        "allowPrivilegeEscalation": false,
+                        "capabilities": {
+                          "drop": ["ALL"]
+                        },
+                        "readOnlyRootFilesystem": true
+                      },
+                      "volumeMounts": [
+                        {
+                          "mountPath": "/usr/share/elasticsearch/config/s3-trust",
+                          "name": "s3-trust"
+                        },
+                        {
+                          "mountPath": "/s3-credentials",
+                          "name": "s3-credentials",
+                          "readOnly": true
+                        }
+                      ]
+                    },
+                    {
+                      "name": "elastic-internal-init-filesystem",
+                      "resources": {
+                        "limits": {
+                          "cpu": "100m",
+                          "ephemeral-storage": "64Mi",
+                          "memory": "50Mi"
+                        },
+                        "requests": {
+                          "cpu": "100m",
+                          "ephemeral-storage": "64Mi",
+                          "memory": "50Mi"
+                        }
+                      }
+                    },
+                    {
+                      "name": "elastic-internal-init-keystore",
+                      "resources": {
+                        "limits": {
+                          "cpu": "500m",
+                          "ephemeral-storage": "64Mi",
+                          "memory": "196Mi"
+                        },
+                        "requests": {
+                          "cpu": "500m",
+                          "ephemeral-storage": "64Mi",
+                          "memory": "196Mi"
+                        }
+                      }
+                    },
+                    {
+                      "name": "elastic-internal-suspend",
+                      "resources": {
+                        "limits": {
+                          "cpu": "2",
+                          "ephemeral-storage": "1Gi",
+                          "memory": "2Gi"
+                        },
+                        "requests": {
+                          "cpu": "500m",
+                          "ephemeral-storage": "1Gi",
+                          "memory": "2Gi"
+                        }
+                      }
+                    }
+                  ],
+                  "nodeSelector": {
+                    "puni.dev/capability-observability": "true"
+                  },
+                  "securityContext": {
+                    "fsGroup": 1000,
+                    "runAsGroup": 1000,
+                    "runAsNonRoot": true,
+                    "runAsUser": 1000,
+                    "seccompProfile": {
+                      "type": "RuntimeDefault"
+                    }
+                  },
+                  "volumes": [
+                    {
+                      "emptyDir": {
+                        "sizeLimit": "16Mi"
+                      },
+                      "name": "s3-trust"
+                    },
+                    {
+                      "name": "s3-credentials",
+                      "secret": {
+                        "defaultMode": 292,
+                        "secretName": "elastic-s3-credentials"
+                      }
+                    },
+                    {
+                      "emptyDir": {
+                        "sizeLimit": "16Mi"
+                      },
+                      "name": "elastic-internal-elasticsearch-bin-local"
+                    },
+                    {
+                      "emptyDir": {
+                        "sizeLimit": "16Mi"
+                      },
+                      "name": "elastic-internal-elasticsearch-config-local"
+                    },
+                    {
+                      "emptyDir": {
+                        "sizeLimit": "16Mi"
+                      },
+                      "name": "elastic-internal-elasticsearch-plugins-local"
+                    },
+                    {
+                      "emptyDir": {
+                        "sizeLimit": "256Mi"
+                      },
+                      "name": "elasticsearch-logs"
+                    },
+                    {
+                      "emptyDir": {
+                        "sizeLimit": "256Mi"
+                      },
+                      "name": "tmp-volume"
+                    }
+                  ]
+                }
+              },
+              "volumeClaimTemplates": [
+                {
+                  "metadata": {
+                    "name": "elasticsearch-data"
+                  },
+                  "spec": {
+                    "accessModes": ["ReadWriteOnce"],
+                    "resources": {
+                      "requests": {
+                        "storage": "10Gi"
+                      }
+                    },
+                    "storageClassName": "puni-retain"
+                  }
+                }
+              ]
+            }
+          ],
+          "image": "docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540"
+        }
+      }
+    ],
+    "observability-dev/kibana": [
+      {
+        "apiVersion": "kibana.k8s.elastic.co/v1",
+        "kind": "Kibana",
+        "metadata": {
+          "name": "kibana",
+          "labels": {
+            "helm.sh/chart": "eck-kibana-0.20.0",
+            "app.kubernetes.io/name": "eck-kibana",
+            "app.kubernetes.io/instance": "kibana",
+            "app.kubernetes.io/managed-by": "Helm"
+          },
+          "annotations": {
+            "eck.k8s.elastic.co/license": "basic"
+          }
+        },
+        "spec": {
+          "version": "9.3.8",
+          "image": "docker.elastic.co/kibana/kibana:9.3.8@sha256:a9f4af21536422d9a3bb924bad5990b24859db0c9a0474558f283244a2bcd481",
+          "count": 1,
+          "elasticsearchRef": {
+            "name": "elasticsearch",
+            "namespace": "observability-dev"
+          },
+          "podTemplate": {
+            "spec": {
+              "containers": [
+                {
+                  "env": [
+                    {
+                      "name": "NODE_OPTIONS",
+                      "value": "--max-old-space-size=512"
+                    }
+                  ],
+                  "name": "kibana",
+                  "resources": {
+                    "limits": {
+                      "cpu": "1",
+                      "ephemeral-storage": "1Gi",
+                      "memory": "1Gi"
+                    },
+                    "requests": {
+                      "cpu": "200m",
+                      "ephemeral-storage": "1Gi",
+                      "memory": "512Mi"
+                    }
+                  },
+                  "securityContext": {
+                    "allowPrivilegeEscalation": false,
+                    "capabilities": {
+                      "drop": ["ALL"]
+                    }
+                  }
+                }
+              ],
+              "initContainers": [
+                {
+                  "name": "elastic-internal-init",
+                  "resources": {
+                    "limits": {
+                      "cpu": "100m",
+                      "ephemeral-storage": "64Mi",
+                      "memory": "50Mi"
+                    },
+                    "requests": {
+                      "cpu": "100m",
+                      "ephemeral-storage": "64Mi",
+                      "memory": "50Mi"
+                    }
+                  }
+                }
+              ],
+              "nodeSelector": {
+                "puni.dev/capability-observability": "true"
+              },
+              "securityContext": {
+                "fsGroup": 1000,
+                "runAsGroup": 1000,
+                "runAsNonRoot": true,
+                "runAsUser": 1000,
+                "seccompProfile": {
+                  "type": "RuntimeDefault"
+                }
+              },
+              "volumes": [
+                {
+                  "emptyDir": {
+                    "sizeLimit": "256Mi"
+                  },
+                  "name": "kibana-data"
+                },
+                {
+                  "emptyDir": {
+                    "sizeLimit": "16Mi"
+                  },
+                  "name": "kibana-plugins"
+                },
+                {
+                  "emptyDir": {
+                    "sizeLimit": "16Mi"
+                  },
+                  "name": "elastic-internal-kibana-config-local"
+                },
+                {
+                  "emptyDir": {
+                    "sizeLimit": "256Mi"
+                  },
+                  "name": "kibana-logs"
+                },
+                {
+                  "emptyDir": {
+                    "sizeLimit": "256Mi"
+                  },
+                  "name": "temp-volume"
+                }
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "observability-dev/kube-prometheus-stack": [
+      {
+        "apiVersion": "monitoring.coreos.com/v1",
+        "kind": "Alertmanager",
+        "metadata": {
+          "name": "kps-alertmanager",
+          "namespace": "observability-dev",
+          "labels": {
+            "app": "kube-prometheus-stack-alertmanager",
+            "app.kubernetes.io/managed-by": "Helm",
+            "app.kubernetes.io/instance": "kube-prometheus-stack",
+            "app.kubernetes.io/version": "91.4.1",
+            "app.kubernetes.io/part-of": "kube-prometheus-stack",
+            "chart": "kube-prometheus-stack-91.4.1",
+            "release": "kube-prometheus-stack",
+            "heritage": "Helm",
+            "puni.dev/telemetry-instance": "dev"
+          }
+        },
+        "spec": {
+          "image": "quay.io/prometheus/alertmanager:v0.34.0@sha256:690c7b525f4367aa91f73e2f91c632206d32e97c6384bdbf2fb7a861b420340d",
+          "imagePullPolicy": "IfNotPresent",
+          "version": "v0.34.0",
+          "sha": "690c7b525f4367aa91f73e2f91c632206d32e97c6384bdbf2fb7a861b420340d",
+          "replicas": 1,
+          "listenLocal": false,
+          "serviceAccountName": "kps-alertmanager",
+          "automountServiceAccountToken": true,
+          "externalUrl": "http://kps-alertmanager.observability-dev:9093",
+          "nodeSelector": {
+            "puni.dev/capability-observability": "true"
+          },
+          "paused": false,
+          "logFormat": "logfmt",
+          "logLevel": "info",
+          "retention": "120h",
+          "configSecret": "alertmanager-puni",
+          "alertmanagerConfigSelector": {},
+          "alertmanagerConfigNamespaceSelector": {},
+          "resources": {
+            "limits": {
+              "cpu": "200m",
+              "ephemeral-storage": "256Mi",
+              "memory": "128Mi"
+            },
+            "requests": {
+              "cpu": "10m",
+              "ephemeral-storage": "256Mi",
+              "memory": "64Mi"
+            }
+          },
+          "routePrefix": "/",
+          "securityContext": {
+            "fsGroup": 2000,
+            "runAsGroup": 2000,
+            "runAsNonRoot": true,
+            "runAsUser": 1000,
+            "seccompProfile": {
+              "type": "RuntimeDefault"
+            }
+          },
+          "storage": {
+            "volumeClaimTemplate": {
+              "spec": {
+                "accessModes": ["ReadWriteOnce"],
+                "resources": {
+                  "requests": {
+                    "storage": "1Gi"
+                  }
+                },
+                "storageClassName": "puni-retain"
+              }
+            }
+          },
+          "persistentVolumeClaimRetentionPolicy": {
+            "whenDeleted": "Retain",
+            "whenScaled": "Retain"
+          },
+          "affinity": {
+            "podAntiAffinity": {
+              "preferredDuringSchedulingIgnoredDuringExecution": [
+                {
+                  "weight": 100,
+                  "podAffinityTerm": {
+                    "topologyKey": "kubernetes.io/hostname",
+                    "labelSelector": {
+                      "matchExpressions": [
+                        {
+                          "key": "app.kubernetes.io/name",
+                          "operator": "In",
+                          "values": ["alertmanager"]
+                        },
+                        {
+                          "key": "alertmanager",
+                          "operator": "In",
+                          "values": ["kps-alertmanager"]
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "containers": [
+            {
+              "name": "alertmanager",
+              "resources": {
+                "limits": {
+                  "cpu": "200m",
+                  "ephemeral-storage": "256Mi",
+                  "memory": "128Mi"
+                },
+                "requests": {
+                  "cpu": "10m",
+                  "ephemeral-storage": "256Mi",
+                  "memory": "64Mi"
+                }
+              }
+            },
+            {
+              "name": "config-reloader",
+              "resources": {
+                "limits": {
+                  "cpu": "100m",
+                  "ephemeral-storage": "64Mi",
+                  "memory": "64Mi"
+                },
+                "requests": {
+                  "cpu": "10m",
+                  "ephemeral-storage": "64Mi",
+                  "memory": "32Mi"
+                }
+              }
+            }
+          ],
+          "initContainers": [
+            {
+              "name": "init-config-reloader",
+              "resources": {
+                "limits": {
+                  "cpu": "100m",
+                  "ephemeral-storage": "64Mi",
+                  "memory": "64Mi"
+                },
+                "requests": {
+                  "cpu": "10m",
+                  "ephemeral-storage": "64Mi",
+                  "memory": "32Mi"
+                }
+              }
+            }
+          ],
+          "portName": "http-web",
+          "hostNetwork": false
+        }
+      },
+      {
+        "apiVersion": "monitoring.coreos.com/v1",
+        "kind": "Prometheus",
+        "metadata": {
+          "name": "kps-prometheus",
+          "namespace": "observability-dev",
+          "labels": {
+            "app": "kube-prometheus-stack-prometheus",
+            "app.kubernetes.io/managed-by": "Helm",
+            "app.kubernetes.io/instance": "kube-prometheus-stack",
+            "app.kubernetes.io/version": "91.4.1",
+            "app.kubernetes.io/part-of": "kube-prometheus-stack",
+            "chart": "kube-prometheus-stack-91.4.1",
+            "release": "kube-prometheus-stack",
+            "heritage": "Helm",
+            "puni.dev/telemetry-instance": "dev"
+          }
+        },
+        "spec": {
+          "automountServiceAccountToken": true,
+          "alerting": {
+            "alertmanagers": [
+              {
+                "namespace": "observability-dev",
+                "name": "kps-alertmanager",
+                "port": "http-web",
+                "pathPrefix": "/",
+                "apiVersion": "v2"
+              }
+            ]
+          },
+          "image": "quay.io/prometheus/prometheus:v3.14.0-distroless@sha256:50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a",
+          "imagePullPolicy": "IfNotPresent",
+          "version": "v3.14.0-distroless",
+          "enableRemoteWriteReceiver": true,
+          "externalUrl": "http://kps-prometheus.observability-dev:9090",
+          "nodeSelector": {
+            "puni.dev/capability-observability": "true"
+          },
+          "paused": false,
+          "replicas": 1,
+          "shards": 1,
+          "logLevel": "info",
+          "logFormat": "logfmt",
+          "listenLocal": false,
+          "enableOTLPReceiver": false,
+          "enableAdminAPI": false,
+          "resources": {
+            "limits": {
+              "cpu": "1",
+              "ephemeral-storage": "1Gi",
+              "memory": "1Gi"
+            },
+            "requests": {
+              "cpu": "200m",
+              "ephemeral-storage": "1Gi",
+              "memory": "512Mi"
+            }
+          },
+          "retention": "15d",
+          "retentionSize": "8GB",
+          "tsdb": {
+            "outOfOrderTimeWindow": "0s"
+          },
+          "walCompression": true,
+          "routePrefix": "/",
+          "serviceAccountName": "kps-prometheus",
+          "serviceMonitorSelector": {
+            "matchLabels": {
+              "puni.dev/telemetry-instance": "dev"
+            }
+          },
+          "serviceMonitorNamespaceSelector": {
+            "matchLabels": {
+              "kubernetes.io/metadata.name": "observability-dev"
+            }
+          },
+          "podMonitorSelector": {
+            "matchLabels": {
+              "puni.dev/telemetry-instance": "dev"
+            }
+          },
+          "podMonitorNamespaceSelector": {
+            "matchLabels": {
+              "kubernetes.io/metadata.name": "observability-dev"
+            }
+          },
+          "probeSelector": {
+            "matchLabels": {
+              "puni.dev/telemetry-instance": "dev"
+            }
+          },
+          "probeNamespaceSelector": {
+            "matchLabels": {
+              "kubernetes.io/metadata.name": "observability-dev"
+            }
+          },
+          "securityContext": {
+            "fsGroup": 2000,
+            "runAsGroup": 2000,
+            "runAsNonRoot": true,
+            "runAsUser": 1000,
+            "seccompProfile": {
+              "type": "RuntimeDefault"
+            }
+          },
+          "ruleNamespaceSelector": {
+            "matchLabels": {
+              "kubernetes.io/metadata.name": "observability-dev"
+            }
+          },
+          "ruleSelector": {
+            "matchLabels": {
+              "puni.dev/telemetry-instance": "dev"
+            }
+          },
+          "scrapeConfigSelector": {
+            "matchLabels": {
+              "puni.dev/telemetry-instance": "dev"
+            }
+          },
+          "scrapeConfigNamespaceSelector": {
+            "matchLabels": {
+              "kubernetes.io/metadata.name": "observability-dev"
+            }
+          },
+          "storage": {
+            "volumeClaimTemplate": {
+              "spec": {
+                "accessModes": ["ReadWriteOnce"],
+                "resources": {
+                  "requests": {
+                    "storage": "10Gi"
+                  }
+                },
+                "storageClassName": "puni-retain"
+              }
+            }
+          },
+          "affinity": {
+            "podAntiAffinity": {
+              "preferredDuringSchedulingIgnoredDuringExecution": [
+                {
+                  "weight": 100,
+                  "podAffinityTerm": {
+                    "topologyKey": "kubernetes.io/hostname",
+                    "labelSelector": {
+                      "matchExpressions": [
+                        {
+                          "key": "app.kubernetes.io/name",
+                          "operator": "In",
+                          "values": ["prometheus"]
+                        },
+                        {
+                          "key": "app.kubernetes.io/instance",
+                          "operator": "In",
+                          "values": ["kps-prometheus"]
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "containers": [
+            {
+              "name": "prometheus",
+              "resources": {
+                "limits": {
+                  "cpu": "1",
+                  "ephemeral-storage": "1Gi",
+                  "memory": "1Gi"
+                },
+                "requests": {
+                  "cpu": "200m",
+                  "ephemeral-storage": "1Gi",
+                  "memory": "512Mi"
+                }
+              }
+            },
+            {
+              "name": "config-reloader",
+              "resources": {
+                "limits": {
+                  "cpu": "100m",
+                  "ephemeral-storage": "64Mi",
+                  "memory": "64Mi"
+                },
+                "requests": {
+                  "cpu": "10m",
+                  "ephemeral-storage": "64Mi",
+                  "memory": "32Mi"
+                }
+              }
+            }
+          ],
+          "initContainers": [
+            {
+              "name": "init-config-reloader",
+              "resources": {
+                "limits": {
+                  "cpu": "100m",
+                  "ephemeral-storage": "64Mi",
+                  "memory": "64Mi"
+                },
+                "requests": {
+                  "cpu": "10m",
+                  "ephemeral-storage": "64Mi",
+                  "memory": "32Mi"
+                }
+              }
+            }
+          ],
+          "portName": "http-web",
+          "ignoreNamespaceSelectors": true,
+          "hostNetwork": false
+        }
+      }
+    ],
+    "observability/elasticsearch": [
+      {
+        "apiVersion": "elasticsearch.k8s.elastic.co/v1",
+        "kind": "Elasticsearch",
+        "metadata": {
+          "name": "elasticsearch",
+          "labels": {
+            "helm.sh/chart": "eck-elasticsearch-0.20.0",
+            "app.kubernetes.io/name": "eck-elasticsearch",
+            "app.kubernetes.io/instance": "elasticsearch",
+            "app.kubernetes.io/managed-by": "Helm"
+          },
+          "annotations": {
+            "eck.k8s.elastic.co/license": "basic"
+          }
+        },
+        "spec": {
+          "auth": {
+            "fileRealm": [
+              {
+                "secretName": "signal-health-users"
+              },
+              {
+                "secretName": "signal-ingest-users"
+              },
+              {
+                "secretName": "platform-ingest-users"
+              }
+            ],
+            "roles": [
+              {
+                "secretName": "signal-health-roles"
+              },
+              {
+                "secretName": "signal-ingest-roles"
+              },
+              {
+                "secretName": "platform-ingest-roles"
+              }
+            ]
+          },
+          "secureSettings": [
+            {
+              "entries": [
+                {
+                  "key": "s3.client.default.access_key"
+                },
+                {
+                  "key": "s3.client.default.secret_key"
+                }
+              ],
+              "secretName": "elastic-s3-credentials"
+            }
+          ],
+          "version": "9.3.8",
+          "volumeClaimDeletePolicy": "DeleteOnScaledownOnly",
+          "nodeSets": [
+            {
+              "config": {
+                "node.store.allow_mmap": false,
+                "s3.client.default.endpoint": "object-store.puni-backup.svc:9000",
+                "s3.client.default.path_style_access": true,
+                "s3.client.default.protocol": "https"
+              },
+              "count": 1,
+              "name": "default",
+              "podTemplate": {
+                "spec": {
+                  "containers": [
+                    {
+                      "env": [
+                        {
+                          "name": "ES_JAVA_OPTS",
+                          "value": "-Xms1g -Xmx1g"
+                        }
+                      ],
+                      "name": "elasticsearch",
+                      "resources": {
+                        "limits": {
+                          "cpu": "2",
+                          "ephemeral-storage": "1Gi",
+                          "memory": "2Gi"
+                        },
+                        "requests": {
+                          "cpu": "500m",
+                          "ephemeral-storage": "1Gi",
+                          "memory": "2Gi"
+                        }
+                      },
+                      "securityContext": {
+                        "allowPrivilegeEscalation": false,
+                        "capabilities": {
+                          "drop": ["ALL"]
+                        }
+                      },
+                      "volumeMounts": [
+                        {
+                          "mountPath": "/usr/share/elasticsearch/config/s3-trust",
+                          "name": "s3-trust",
+                          "readOnly": true
+                        },
+                        {
+                          "mountPath": "/usr/share/elasticsearch/config/jvm.options.d/s3.options",
+                          "name": "s3-trust",
+                          "readOnly": true,
+                          "subPath": "s3.options"
+                        }
+                      ]
+                    }
+                  ],
+                  "initContainers": [
+                    {
+                      "command": [
+                        "bash",
+                        "-ec",
+                        "# Proof: replacing this copy with touch accepted missing/unreadable bundled roots (backup-tls.test.ts).\ncp \"/usr/share/elasticsearch/jdk/lib/security/cacerts\" /usr/share/elasticsearch/config/s3-trust/cacerts\nchmod u+w /usr/share/elasticsearch/config/s3-trust/cacerts\ncase \"$S3_TRUST_MODE\" in\n  system-roots) ;;\n  system-roots-plus-ca)\n    # Proof: each removed file guard lost its distinct CA refusal (backup-tls.test.ts).\n    path=/s3-credentials/ca.crt\n    [ -e \"$path\" ] || { echo \"missing TLS input: $path\" >&2; exit 1; }\n    [ -r \"$path\" ] || { echo \"unreadable TLS input: $path\" >&2; exit 1; }\n    [ -s \"$path\" ] || { echo \"empty TLS input: $path\" >&2; exit 1; }\n    # Proof: removing the parse refusal lost the malformed-CA diagnostic (backup-tls.test.ts).\n    \"/usr/share/elasticsearch/jdk/bin/keytool\" -printcert -file \"$path\" >/dev/null || { echo \"malformed TLS input: $path\" >&2; exit 1; }\n    \"/usr/share/elasticsearch/jdk/bin/keytool\" -importcert -noprompt -alias puni-s3-ca -file \"$path\" -keystore /usr/share/elasticsearch/config/s3-trust/cacerts -storepass changeit\n    ;;\n  # Proof: removing this branch accepted the unknown trust mode (backup-tls.test.ts).\n  *) echo \"invalid S3_TRUST_MODE\" >&2; exit 1 ;;\nesac\nprintf '%s\\n' '-Djavax.net.ssl.trustStore=/usr/share/elasticsearch/config/s3-trust/cacerts' '-Djavax.net.ssl.trustStorePassword=changeit' > /usr/share/elasticsearch/config/s3-trust/s3.options\n"
+                      ],
+                      "env": [
+                        {
+                          "name": "S3_TRUST_MODE",
+                          "value": "system-roots-plus-ca"
+                        }
+                      ],
+                      "image": "docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540",
+                      "name": "prepare-s3-trust",
+                      "resources": {
+                        "limits": {
+                          "cpu": "500m",
+                          "ephemeral-storage": "64Mi",
+                          "memory": "256Mi"
+                        },
+                        "requests": {
+                          "cpu": "100m",
+                          "ephemeral-storage": "64Mi",
+                          "memory": "128Mi"
+                        }
+                      },
+                      "securityContext": {
+                        "allowPrivilegeEscalation": false,
+                        "capabilities": {
+                          "drop": ["ALL"]
+                        },
+                        "readOnlyRootFilesystem": true
+                      },
+                      "volumeMounts": [
+                        {
+                          "mountPath": "/usr/share/elasticsearch/config/s3-trust",
+                          "name": "s3-trust"
+                        },
+                        {
+                          "mountPath": "/s3-credentials",
+                          "name": "s3-credentials",
+                          "readOnly": true
+                        }
+                      ]
+                    },
+                    {
+                      "name": "elastic-internal-init-filesystem",
+                      "resources": {
+                        "limits": {
+                          "cpu": "100m",
+                          "ephemeral-storage": "64Mi",
+                          "memory": "50Mi"
+                        },
+                        "requests": {
+                          "cpu": "100m",
+                          "ephemeral-storage": "64Mi",
+                          "memory": "50Mi"
+                        }
+                      }
+                    },
+                    {
+                      "name": "elastic-internal-init-keystore",
+                      "resources": {
+                        "limits": {
+                          "cpu": "500m",
+                          "ephemeral-storage": "64Mi",
+                          "memory": "196Mi"
+                        },
+                        "requests": {
+                          "cpu": "500m",
+                          "ephemeral-storage": "64Mi",
+                          "memory": "196Mi"
+                        }
+                      }
+                    },
+                    {
+                      "name": "elastic-internal-suspend",
+                      "resources": {
+                        "limits": {
+                          "cpu": "2",
+                          "ephemeral-storage": "1Gi",
+                          "memory": "2Gi"
+                        },
+                        "requests": {
+                          "cpu": "500m",
+                          "ephemeral-storage": "1Gi",
+                          "memory": "2Gi"
+                        }
+                      }
+                    }
+                  ],
+                  "nodeSelector": {
+                    "puni.dev/capability-observability": "true"
+                  },
+                  "securityContext": {
+                    "fsGroup": 1000,
+                    "runAsGroup": 1000,
+                    "runAsNonRoot": true,
+                    "runAsUser": 1000,
+                    "seccompProfile": {
+                      "type": "RuntimeDefault"
+                    }
+                  },
+                  "volumes": [
+                    {
+                      "emptyDir": {
+                        "sizeLimit": "16Mi"
+                      },
+                      "name": "s3-trust"
+                    },
+                    {
+                      "name": "s3-credentials",
+                      "secret": {
+                        "defaultMode": 292,
+                        "secretName": "elastic-s3-credentials"
+                      }
+                    },
+                    {
+                      "emptyDir": {
+                        "sizeLimit": "16Mi"
+                      },
+                      "name": "elastic-internal-elasticsearch-bin-local"
+                    },
+                    {
+                      "emptyDir": {
+                        "sizeLimit": "16Mi"
+                      },
+                      "name": "elastic-internal-elasticsearch-config-local"
+                    },
+                    {
+                      "emptyDir": {
+                        "sizeLimit": "16Mi"
+                      },
+                      "name": "elastic-internal-elasticsearch-plugins-local"
+                    },
+                    {
+                      "emptyDir": {
+                        "sizeLimit": "256Mi"
+                      },
+                      "name": "elasticsearch-logs"
+                    },
+                    {
+                      "emptyDir": {
+                        "sizeLimit": "256Mi"
+                      },
+                      "name": "tmp-volume"
+                    }
+                  ]
+                }
+              },
+              "volumeClaimTemplates": [
+                {
+                  "metadata": {
+                    "name": "elasticsearch-data"
+                  },
+                  "spec": {
+                    "accessModes": ["ReadWriteOnce"],
+                    "resources": {
+                      "requests": {
+                        "storage": "10Gi"
+                      }
+                    },
+                    "storageClassName": "puni-retain"
+                  }
+                }
+              ]
+            }
+          ],
+          "image": "docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540"
+        }
+      }
+    ],
+    "observability/kibana": [
+      {
+        "apiVersion": "kibana.k8s.elastic.co/v1",
+        "kind": "Kibana",
+        "metadata": {
+          "name": "kibana",
+          "labels": {
+            "helm.sh/chart": "eck-kibana-0.20.0",
+            "app.kubernetes.io/name": "eck-kibana",
+            "app.kubernetes.io/instance": "kibana",
+            "app.kubernetes.io/managed-by": "Helm"
+          },
+          "annotations": {
+            "eck.k8s.elastic.co/license": "basic"
+          }
+        },
+        "spec": {
+          "version": "9.3.8",
+          "image": "docker.elastic.co/kibana/kibana:9.3.8@sha256:a9f4af21536422d9a3bb924bad5990b24859db0c9a0474558f283244a2bcd481",
+          "count": 1,
+          "elasticsearchRef": {
+            "name": "elasticsearch",
+            "namespace": "observability"
+          },
+          "podTemplate": {
+            "spec": {
+              "containers": [
+                {
+                  "env": [
+                    {
+                      "name": "NODE_OPTIONS",
+                      "value": "--max-old-space-size=512"
+                    }
+                  ],
+                  "name": "kibana",
+                  "resources": {
+                    "limits": {
+                      "cpu": "1",
+                      "ephemeral-storage": "1Gi",
+                      "memory": "1Gi"
+                    },
+                    "requests": {
+                      "cpu": "200m",
+                      "ephemeral-storage": "1Gi",
+                      "memory": "512Mi"
+                    }
+                  },
+                  "securityContext": {
+                    "allowPrivilegeEscalation": false,
+                    "capabilities": {
+                      "drop": ["ALL"]
+                    }
+                  }
+                }
+              ],
+              "initContainers": [
+                {
+                  "name": "elastic-internal-init",
+                  "resources": {
+                    "limits": {
+                      "cpu": "100m",
+                      "ephemeral-storage": "64Mi",
+                      "memory": "50Mi"
+                    },
+                    "requests": {
+                      "cpu": "100m",
+                      "ephemeral-storage": "64Mi",
+                      "memory": "50Mi"
+                    }
+                  }
+                }
+              ],
+              "nodeSelector": {
+                "puni.dev/capability-observability": "true"
+              },
+              "securityContext": {
+                "fsGroup": 1000,
+                "runAsGroup": 1000,
+                "runAsNonRoot": true,
+                "runAsUser": 1000,
+                "seccompProfile": {
+                  "type": "RuntimeDefault"
+                }
+              },
+              "volumes": [
+                {
+                  "emptyDir": {
+                    "sizeLimit": "256Mi"
+                  },
+                  "name": "kibana-data"
+                },
+                {
+                  "emptyDir": {
+                    "sizeLimit": "16Mi"
+                  },
+                  "name": "kibana-plugins"
+                },
+                {
+                  "emptyDir": {
+                    "sizeLimit": "16Mi"
+                  },
+                  "name": "elastic-internal-kibana-config-local"
+                },
+                {
+                  "emptyDir": {
+                    "sizeLimit": "256Mi"
+                  },
+                  "name": "kibana-logs"
+                },
+                {
+                  "emptyDir": {
+                    "sizeLimit": "256Mi"
+                  },
+                  "name": "temp-volume"
+                }
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "observability/kube-prometheus-stack": [
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "kube-prometheus-stack-kube-state-metrics",
+          "namespace": "observability",
+          "labels": {
+            "helm.sh/chart": "kube-state-metrics-8.5.0",
+            "app.kubernetes.io/managed-by": "Helm",
+            "app.kubernetes.io/component": "metrics",
+            "app.kubernetes.io/part-of": "kube-state-metrics",
+            "app.kubernetes.io/name": "kube-state-metrics",
+            "app.kubernetes.io/instance": "kube-prometheus-stack",
+            "app.kubernetes.io/version": "2.20.0",
+            "release": "kube-prometheus-stack"
+          }
+        },
+        "spec": {
+          "selector": {
+            "matchLabels": {
+              "app.kubernetes.io/name": "kube-state-metrics",
+              "app.kubernetes.io/instance": "kube-prometheus-stack"
+            }
+          },
+          "replicas": 1,
+          "strategy": {
+            "type": "RollingUpdate"
+          },
+          "revisionHistoryLimit": 10,
+          "template": {
+            "metadata": {
+              "labels": {
+                "app.kubernetes.io/component": "metrics",
+                "app.kubernetes.io/instance": "kube-prometheus-stack",
+                "app.kubernetes.io/managed-by": "Helm",
+                "app.kubernetes.io/name": "kube-state-metrics",
+                "app.kubernetes.io/part-of": "kube-state-metrics",
+                "app.kubernetes.io/version": "2.20.0",
+                "release": "kube-prometheus-stack"
+              }
+            },
+            "spec": {
+              "automountServiceAccountToken": true,
+              "hostNetwork": false,
+              "serviceAccountName": "kube-prometheus-stack-kube-state-metrics",
+              "securityContext": {
+                "fsGroup": 65534,
+                "runAsGroup": 65534,
+                "runAsNonRoot": true,
+                "runAsUser": 65534,
+                "seccompProfile": {
+                  "type": "RuntimeDefault"
+                }
+              },
+              "dnsPolicy": "ClusterFirst",
+              "containers": [
+                {
+                  "name": "kube-state-metrics",
+                  "args": [
+                    "--port=8080",
+                    "--resources=certificatesigningrequests,configmaps,cronjobs,daemonsets,deployments,endpointslices,horizontalpodautoscalers,ingresses,jobs,leases,limitranges,mutatingwebhookconfigurations,namespaces,networkpolicies,nodes,persistentvolumeclaims,persistentvolumes,poddisruptionbudgets,pods,replicasets,replicationcontrollers,resourcequotas,secrets,services,statefulsets,storageclasses,validatingwebhookconfigurations,volumeattachments"
+                  ],
+                  "imagePullPolicy": "IfNotPresent",
+                  "image": "registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.20.0@sha256:42cfe3723a5f058171c627537fb57a3ea0f26e4380fa18555a95cb1a1b4cfc5b",
+                  "ports": [
+                    {
+                      "containerPort": 8080,
+                      "name": "http"
+                    },
+                    {
+                      "containerPort": 8081,
+                      "name": "metrics"
+                    }
+                  ],
+                  "livenessProbe": {
+                    "failureThreshold": 3,
+                    "httpGet": {
+                      "path": "/livez",
+                      "port": "http",
+                      "scheme": "HTTP"
+                    },
+                    "initialDelaySeconds": 5,
+                    "periodSeconds": 10,
+                    "successThreshold": 1,
+                    "timeoutSeconds": 5
+                  },
+                  "readinessProbe": {
+                    "failureThreshold": 3,
+                    "httpGet": {
+                      "path": "/readyz",
+                      "port": "metrics",
+                      "scheme": "HTTP"
+                    },
+                    "initialDelaySeconds": 5,
+                    "periodSeconds": 10,
+                    "successThreshold": 1,
+                    "timeoutSeconds": 5
+                  },
+                  "resources": {
+                    "limits": {
+                      "cpu": "200m",
+                      "ephemeral-storage": "64Mi",
+                      "memory": "256Mi"
+                    },
+                    "requests": {
+                      "cpu": "10m",
+                      "ephemeral-storage": "16Mi",
+                      "memory": "64Mi"
+                    }
+                  },
+                  "securityContext": {
+                    "allowPrivilegeEscalation": false,
+                    "capabilities": {
+                      "drop": ["ALL"]
+                    },
+                    "readOnlyRootFilesystem": true
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "monitoring.coreos.com/v1",
+        "kind": "Alertmanager",
+        "metadata": {
+          "name": "kps-alertmanager",
+          "namespace": "observability",
+          "labels": {
+            "app": "kube-prometheus-stack-alertmanager",
+            "app.kubernetes.io/managed-by": "Helm",
+            "app.kubernetes.io/instance": "kube-prometheus-stack",
+            "app.kubernetes.io/version": "91.4.1",
+            "app.kubernetes.io/part-of": "kube-prometheus-stack",
+            "chart": "kube-prometheus-stack-91.4.1",
+            "release": "kube-prometheus-stack",
+            "heritage": "Helm",
+            "puni.dev/telemetry-instance": "prod"
+          }
+        },
+        "spec": {
+          "image": "quay.io/prometheus/alertmanager:v0.34.0@sha256:690c7b525f4367aa91f73e2f91c632206d32e97c6384bdbf2fb7a861b420340d",
+          "imagePullPolicy": "IfNotPresent",
+          "version": "v0.34.0",
+          "sha": "690c7b525f4367aa91f73e2f91c632206d32e97c6384bdbf2fb7a861b420340d",
+          "replicas": 1,
+          "listenLocal": false,
+          "serviceAccountName": "kps-alertmanager",
+          "automountServiceAccountToken": true,
+          "externalUrl": "http://kps-alertmanager.observability:9093",
+          "nodeSelector": {
+            "puni.dev/capability-observability": "true"
+          },
+          "paused": false,
+          "logFormat": "logfmt",
+          "logLevel": "info",
+          "retention": "120h",
+          "configSecret": "alertmanager-puni",
+          "alertmanagerConfigSelector": {},
+          "alertmanagerConfigNamespaceSelector": {},
+          "resources": {
+            "limits": {
+              "cpu": "200m",
+              "ephemeral-storage": "256Mi",
+              "memory": "128Mi"
+            },
+            "requests": {
+              "cpu": "10m",
+              "ephemeral-storage": "256Mi",
+              "memory": "64Mi"
+            }
+          },
+          "routePrefix": "/",
+          "securityContext": {
+            "fsGroup": 2000,
+            "runAsGroup": 2000,
+            "runAsNonRoot": true,
+            "runAsUser": 1000,
+            "seccompProfile": {
+              "type": "RuntimeDefault"
+            }
+          },
+          "storage": {
+            "volumeClaimTemplate": {
+              "spec": {
+                "accessModes": ["ReadWriteOnce"],
+                "resources": {
+                  "requests": {
+                    "storage": "1Gi"
+                  }
+                },
+                "storageClassName": "puni-retain"
+              }
+            }
+          },
+          "persistentVolumeClaimRetentionPolicy": {
+            "whenDeleted": "Retain",
+            "whenScaled": "Retain"
+          },
+          "affinity": {
+            "podAntiAffinity": {
+              "preferredDuringSchedulingIgnoredDuringExecution": [
+                {
+                  "weight": 100,
+                  "podAffinityTerm": {
+                    "topologyKey": "kubernetes.io/hostname",
+                    "labelSelector": {
+                      "matchExpressions": [
+                        {
+                          "key": "app.kubernetes.io/name",
+                          "operator": "In",
+                          "values": ["alertmanager"]
+                        },
+                        {
+                          "key": "alertmanager",
+                          "operator": "In",
+                          "values": ["kps-alertmanager"]
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "containers": [
+            {
+              "name": "alertmanager",
+              "resources": {
+                "limits": {
+                  "cpu": "200m",
+                  "ephemeral-storage": "256Mi",
+                  "memory": "128Mi"
+                },
+                "requests": {
+                  "cpu": "10m",
+                  "ephemeral-storage": "256Mi",
+                  "memory": "64Mi"
+                }
+              }
+            },
+            {
+              "name": "config-reloader",
+              "resources": {
+                "limits": {
+                  "cpu": "100m",
+                  "ephemeral-storage": "64Mi",
+                  "memory": "64Mi"
+                },
+                "requests": {
+                  "cpu": "10m",
+                  "ephemeral-storage": "64Mi",
+                  "memory": "32Mi"
+                }
+              }
+            }
+          ],
+          "initContainers": [
+            {
+              "name": "init-config-reloader",
+              "resources": {
+                "limits": {
+                  "cpu": "100m",
+                  "ephemeral-storage": "64Mi",
+                  "memory": "64Mi"
+                },
+                "requests": {
+                  "cpu": "10m",
+                  "ephemeral-storage": "64Mi",
+                  "memory": "32Mi"
+                }
+              }
+            }
+          ],
+          "portName": "http-web",
+          "hostNetwork": false
+        }
+      },
+      {
+        "apiVersion": "monitoring.coreos.com/v1",
+        "kind": "Prometheus",
+        "metadata": {
+          "name": "kps-prometheus",
+          "namespace": "observability",
+          "labels": {
+            "app": "kube-prometheus-stack-prometheus",
+            "app.kubernetes.io/managed-by": "Helm",
+            "app.kubernetes.io/instance": "kube-prometheus-stack",
+            "app.kubernetes.io/version": "91.4.1",
+            "app.kubernetes.io/part-of": "kube-prometheus-stack",
+            "chart": "kube-prometheus-stack-91.4.1",
+            "release": "kube-prometheus-stack",
+            "heritage": "Helm",
+            "puni.dev/telemetry-instance": "prod"
+          }
+        },
+        "spec": {
+          "automountServiceAccountToken": true,
+          "alerting": {
+            "alertmanagers": [
+              {
+                "namespace": "observability",
+                "name": "kps-alertmanager",
+                "port": "http-web",
+                "pathPrefix": "/",
+                "apiVersion": "v2"
+              }
+            ]
+          },
+          "image": "quay.io/prometheus/prometheus:v3.14.0-distroless@sha256:50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a",
+          "imagePullPolicy": "IfNotPresent",
+          "version": "v3.14.0-distroless",
+          "enableRemoteWriteReceiver": true,
+          "externalUrl": "http://kps-prometheus.observability:9090",
+          "nodeSelector": {
+            "puni.dev/capability-observability": "true"
+          },
+          "paused": false,
+          "replicas": 1,
+          "shards": 1,
+          "logLevel": "info",
+          "logFormat": "logfmt",
+          "listenLocal": false,
+          "enableOTLPReceiver": false,
+          "enableAdminAPI": false,
+          "resources": {
+            "limits": {
+              "cpu": "1",
+              "ephemeral-storage": "1Gi",
+              "memory": "1Gi"
+            },
+            "requests": {
+              "cpu": "200m",
+              "ephemeral-storage": "1Gi",
+              "memory": "512Mi"
+            }
+          },
+          "retention": "15d",
+          "retentionSize": "8GB",
+          "tsdb": {
+            "outOfOrderTimeWindow": "0s"
+          },
+          "walCompression": true,
+          "routePrefix": "/",
+          "serviceAccountName": "kps-prometheus",
+          "serviceMonitorSelector": {
+            "matchLabels": {
+              "puni.dev/telemetry-instance": "prod"
+            }
+          },
+          "serviceMonitorNamespaceSelector": {
+            "matchLabels": {
+              "kubernetes.io/metadata.name": "observability"
+            }
+          },
+          "podMonitorSelector": {
+            "matchLabels": {
+              "puni.dev/telemetry-instance": "prod"
+            }
+          },
+          "podMonitorNamespaceSelector": {
+            "matchLabels": {
+              "kubernetes.io/metadata.name": "observability"
+            }
+          },
+          "probeSelector": {
+            "matchLabels": {
+              "puni.dev/telemetry-instance": "prod"
+            }
+          },
+          "probeNamespaceSelector": {
+            "matchLabels": {
+              "kubernetes.io/metadata.name": "observability"
+            }
+          },
+          "securityContext": {
+            "fsGroup": 2000,
+            "runAsGroup": 2000,
+            "runAsNonRoot": true,
+            "runAsUser": 1000,
+            "seccompProfile": {
+              "type": "RuntimeDefault"
+            }
+          },
+          "ruleNamespaceSelector": {
+            "matchLabels": {
+              "kubernetes.io/metadata.name": "observability"
+            }
+          },
+          "ruleSelector": {
+            "matchLabels": {
+              "puni.dev/telemetry-instance": "prod"
+            }
+          },
+          "scrapeConfigSelector": {
+            "matchLabels": {
+              "puni.dev/telemetry-instance": "prod"
+            }
+          },
+          "scrapeConfigNamespaceSelector": {
+            "matchLabels": {
+              "kubernetes.io/metadata.name": "observability"
+            }
+          },
+          "storage": {
+            "volumeClaimTemplate": {
+              "spec": {
+                "accessModes": ["ReadWriteOnce"],
+                "resources": {
+                  "requests": {
+                    "storage": "10Gi"
+                  }
+                },
+                "storageClassName": "puni-retain"
+              }
+            }
+          },
+          "affinity": {
+            "podAntiAffinity": {
+              "preferredDuringSchedulingIgnoredDuringExecution": [
+                {
+                  "weight": 100,
+                  "podAffinityTerm": {
+                    "topologyKey": "kubernetes.io/hostname",
+                    "labelSelector": {
+                      "matchExpressions": [
+                        {
+                          "key": "app.kubernetes.io/name",
+                          "operator": "In",
+                          "values": ["prometheus"]
+                        },
+                        {
+                          "key": "app.kubernetes.io/instance",
+                          "operator": "In",
+                          "values": ["kps-prometheus"]
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "containers": [
+            {
+              "name": "prometheus",
+              "resources": {
+                "limits": {
+                  "cpu": "1",
+                  "ephemeral-storage": "1Gi",
+                  "memory": "1Gi"
+                },
+                "requests": {
+                  "cpu": "200m",
+                  "ephemeral-storage": "1Gi",
+                  "memory": "512Mi"
+                }
+              }
+            },
+            {
+              "name": "config-reloader",
+              "resources": {
+                "limits": {
+                  "cpu": "100m",
+                  "ephemeral-storage": "64Mi",
+                  "memory": "64Mi"
+                },
+                "requests": {
+                  "cpu": "10m",
+                  "ephemeral-storage": "64Mi",
+                  "memory": "32Mi"
+                }
+              }
+            }
+          ],
+          "initContainers": [
+            {
+              "name": "init-config-reloader",
+              "resources": {
+                "limits": {
+                  "cpu": "100m",
+                  "ephemeral-storage": "64Mi",
+                  "memory": "64Mi"
+                },
+                "requests": {
+                  "cpu": "10m",
+                  "ephemeral-storage": "64Mi",
+                  "memory": "32Mi"
+                }
+              }
+            }
+          ],
+          "portName": "http-web",
+          "hostNetwork": false
+        }
+      }
+    ]
+  }
+}

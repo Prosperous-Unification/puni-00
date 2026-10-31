@@ -1,0 +1,404 @@
+[
+  {
+    "fault": "selection-boundary",
+    "file": "contracts.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/k3d-helper-images.test.ts",
+      "--test-name-pattern",
+      "Task37 current reader rejects helper"
+    ],
+    "exit": 1,
+    "seconds": 0.222,
+    "failedTests": [
+      "(fail) Task37 current reader rejects helper missing [6.31ms]",
+      "(fail) Task37 current reader rejects helper provider [1.02ms]",
+      "(fail) Task37 current reader rejects helper version [0.70ms]",
+      "(fail) Task37 current reader rejects helper binary-version [0.79ms]",
+      "(fail) Task37 current reader rejects helper arch [0.53ms]",
+      "(fail) Task37 current reader rejects helper repository [0.53ms]",
+      "(fail) Task37 current reader rejects helper digest [0.47ms]",
+      "(fail) Task37 current reader rejects helper config [0.37ms]",
+      "(fail) Task37 current reader rejects helper extra [0.60ms]"
+    ],
+    "restoredSha256": "c244b8b5281bb1b320b96d5443ee39097ba6c2024f0e75364c93a15219291f44"
+  },
+  {
+    "fault": "preimage-identity",
+    "file": "k3d-helper-images.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/k3d-resource-caller.test.ts",
+      "--test-name-pattern",
+      "Task37 real up refuses preimage"
+    ],
+    "exit": 1,
+    "seconds": 4.827,
+    "failedTests": [
+      "(fail) Task37 real up refuses preimage-config without ready evidence or cleanup [1170.13ms]",
+      "(fail) Task37 real up refuses preimage-arch without ready evidence or cleanup [1715.11ms]",
+      "(fail) Task37 real up refuses preimage-reference without ready evidence or cleanup [1728.64ms]"
+    ],
+    "restoredSha256": "d49d4d7c6f281d0d3713234a0f1cdb5610a6e059b5cab16abb33f992273e94bd"
+  },
+  {
+    "fault": "historical-forward",
+    "file": "k3d-creation.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/k3d-creation.test.ts",
+      "--test-name-pattern",
+      "Task37 historical closure"
+    ],
+    "exit": 1,
+    "seconds": 0.173,
+    "failedTests": [
+      "(fail) Task37 historical closure supports teardown but refuses forward acceptance [2.78ms]"
+    ],
+    "restoredSha256": "07219345e755f8e7b7107687f8860b90a344cf0a2e4f30f4e448026336400a78"
+  },
+  {
+    "fault": "effective-config",
+    "file": "k3d-creation.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/k3d-creation.test.ts",
+      "--test-name-pattern",
+      "Task37 (forward closure rejects effective-id|transient closure rejects image)"
+    ],
+    "exit": 1,
+    "seconds": 0.173,
+    "failedTests": [
+      "(fail) Task37 forward closure rejects effective-id [2.68ms]",
+      "(fail) Task37 transient closure rejects image [0.70ms]"
+    ],
+    "restoredSha256": "07219345e755f8e7b7107687f8860b90a344cf0a2e4f30f4e448026336400a78"
+  },
+  {
+    "fault": "transient-set",
+    "file": "k3d-creation.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/k3d-creation.test.ts",
+      "--test-name-pattern",
+      "Task37 transient closure rejects (missing|duplicate)"
+    ],
+    "exit": 1,
+    "seconds": 0.175,
+    "failedTests": [
+      "(fail) Task37 transient closure rejects missing [3.14ms]",
+      "(fail) Task37 transient closure rejects duplicate [0.42ms]"
+    ],
+    "restoredSha256": "07219345e755f8e7b7107687f8860b90a344cf0a2e4f30f4e448026336400a78"
+  },
+  {
+    "fault": "helper-plan",
+    "file": "k3d-creation.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/k3d-creation.test.ts",
+      "--test-name-pattern",
+      "Task37 transient closure rejects (selection)"
+    ],
+    "exit": 1,
+    "seconds": 0.18,
+    "failedTests": ["(fail) Task37 transient closure rejects selection [3.31ms]"],
+    "restoredSha256": "07219345e755f8e7b7107687f8860b90a344cf0a2e4f30f4e448026336400a78"
+  },
+  {
+    "fault": "transient-network",
+    "file": "k3d-creation.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/k3d-creation.test.ts",
+      "--test-name-pattern",
+      "Task37 transient closure rejects (network)"
+    ],
+    "exit": 1,
+    "seconds": 0.176,
+    "failedTests": ["(fail) Task37 transient closure rejects network [3.06ms]"],
+    "restoredSha256": "07219345e755f8e7b7107687f8860b90a344cf0a2e4f30f4e448026336400a78"
+  },
+  {
+    "fault": "transient-mount",
+    "file": "k3d-creation.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/k3d-creation.test.ts",
+      "--test-name-pattern",
+      "Task37 transient closure rejects (mount$)"
+    ],
+    "exit": 1,
+    "seconds": 0.172,
+    "failedTests": ["(fail) Task37 transient closure rejects mount [3.28ms]"],
+    "restoredSha256": "07219345e755f8e7b7107687f8860b90a344cf0a2e4f30f4e448026336400a78"
+  },
+  {
+    "fault": "transient-mount-set",
+    "file": "k3d-creation.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/k3d-creation.test.ts",
+      "--test-name-pattern",
+      "Task37 transient closure rejects (mount-set)"
+    ],
+    "exit": 1,
+    "seconds": 0.187,
+    "failedTests": ["(fail) Task37 transient closure rejects mount-set [3.08ms]"],
+    "restoredSha256": "07219345e755f8e7b7107687f8860b90a344cf0a2e4f30f4e448026336400a78"
+  },
+  {
+    "fault": "serial-overlap",
+    "file": "k3d-creation.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/k3d-creation.test.ts",
+      "--test-name-pattern",
+      "Task37 transient closure rejects (overlap)"
+    ],
+    "exit": 1,
+    "seconds": 0.176,
+    "failedTests": ["(fail) Task37 transient closure rejects overlap [3.09ms]"],
+    "restoredSha256": "07219345e755f8e7b7107687f8860b90a344cf0a2e4f30f4e448026336400a78"
+  },
+  {
+    "fault": "callback-image",
+    "file": "k3d-resource-runtime.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/k3d-resource-runtime.test.ts",
+      "--test-name-pattern",
+      "Task37 callback refuses (config|reference|name)"
+    ],
+    "exit": 1,
+    "seconds": 0.315,
+    "failedTests": [
+      "(fail) Task37 callback refuses config before capture resolves [53.82ms]",
+      "(fail) Task37 callback refuses reference before capture resolves [24.58ms]",
+      "(fail) Task37 callback refuses name before capture resolves [23.82ms]"
+    ],
+    "restoredSha256": "dd28e1822a712181eaca157af7d2dcf697477f913fabfa00400d589f66e7bbc0"
+  },
+  {
+    "fault": "callback-daemon",
+    "file": "k3d-resource-runtime.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/k3d-resource-runtime.test.ts",
+      "--test-name-pattern",
+      "Task37 callback refuses daemon"
+    ],
+    "exit": 1,
+    "seconds": 0.261,
+    "failedTests": ["(fail) Task37 callback refuses daemon before capture resolves [47.88ms]"],
+    "restoredSha256": "dd28e1822a712181eaca157af7d2dcf697477f913fabfa00400d589f66e7bbc0"
+  },
+  {
+    "fault": "callback-environment",
+    "file": "k3d-resource-runtime.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/k3d-resource-runtime.test.ts",
+      "--test-name-pattern",
+      "Task37 callback refuses environment"
+    ],
+    "exit": 1,
+    "seconds": 0.269,
+    "failedTests": ["(fail) Task37 callback refuses environment before capture resolves [54.22ms]"],
+    "restoredSha256": "dd28e1822a712181eaca157af7d2dcf697477f913fabfa00400d589f66e7bbc0"
+  },
+  {
+    "fault": "observation-fsync",
+    "file": "creation-resources.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/k3d-resource-runtime.test.ts",
+      "--test-name-pattern",
+      "Task37 callback retains"
+    ],
+    "exit": 1,
+    "seconds": 0.258,
+    "failedTests": ["(fail) Task37 callback retains an exact transient before closure [45.61ms]"],
+    "restoredSha256": "ed4d388de727673c2cf29a75219bce51e1b769ca13340b353dd1618dc5ad8c95"
+  },
+  {
+    "fault": "retained-cohort",
+    "file": "creation-resources.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/k3d-resource-caller.test.ts",
+      "--test-name-pattern",
+      "Task37 sealed reader refuses"
+    ],
+    "exit": 1,
+    "seconds": 21.701,
+    "failedTests": [
+      "(fail) Task37 sealed reader refuses inputs-version before teardown [2758.30ms]",
+      "(fail) Task37 sealed reader refuses plan-cohort before teardown [2819.49ms]",
+      "(fail) Task37 sealed reader refuses config-cohort before teardown [2787.31ms]",
+      "(fail) Task37 sealed reader refuses selection-cohort before teardown [2838.58ms]",
+      "(fail) Task37 sealed reader refuses observation-cohort before teardown [2832.13ms]",
+      "(fail) Task37 sealed reader refuses observation-missing before teardown [2682.11ms]",
+      "(fail) Task37 sealed reader refuses lineage-cohort before teardown [2651.85ms]"
+    ],
+    "restoredSha256": "ed4d388de727673c2cf29a75219bce51e1b769ca13340b353dd1618dc5ad8c95"
+  },
+  {
+    "fault": "retained-hash",
+    "file": "contracts.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/k3d-helper-images.test.ts",
+      "--test-name-pattern",
+      "Task37 retained historical"
+    ],
+    "exit": 1,
+    "seconds": 0.24,
+    "failedTests": [
+      "(fail) Task37 retained historical toolchain requires exact independent content hash [13.96ms]"
+    ],
+    "restoredSha256": "c244b8b5281bb1b320b96d5443ee39097ba6c2024f0e75364c93a15219291f44"
+  },
+  {
+    "fault": "source-lock",
+    "file": "k3d-lab.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/k3d-resource-caller.test.ts",
+      "--test-name-pattern",
+      "Task37 strict up rejects changed source"
+    ],
+    "exit": 1,
+    "seconds": 1.979,
+    "failedTests": [
+      "(fail) Task37 strict up rejects changed source lock before direct creation [1765.79ms]"
+    ],
+    "restoredSha256": "ccfaa9f1af3270e40d2e0b766d8e7a0142ad823048b4fe3a1ce77ba48fd17c75"
+  },
+  {
+    "fault": "forward-plan",
+    "file": "k3d-resource-runtime.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/k3d-resource-runtime.test.ts",
+      "--test-name-pattern",
+      "Task37 actual forward witness"
+    ],
+    "exit": 1,
+    "seconds": 0.248,
+    "failedTests": [
+      "(fail) Task37 actual forward witness refuses historical plan before retaining any resource record [30.94ms]"
+    ],
+    "restoredSha256": "dd28e1822a712181eaca157af7d2dcf697477f913fabfa00400d589f66e7bbc0"
+  },
+  {
+    "fault": "helper-linkage",
+    "file": "observability-rehearsal-obligations.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/observability-rehearsal-obligations.test.ts",
+      "--test-name-pattern",
+      "Task37 helper image linkage"
+    ],
+    "exit": 1,
+    "seconds": 0.265,
+    "failedTests": [
+      "(fail) Task37 helper image linkage requires exact selected repository and child digest [0.51ms]"
+    ],
+    "restoredSha256": "54b781a3dbd56c177effe20879b08485bd1da589e8a7aeca6dabcee2c709f08b"
+  },
+  {
+    "fault": "import-config",
+    "file": "k3d-resource-runtime.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/k3d-resource-runtime.test.ts",
+      "--test-name-pattern",
+      "Task21 import lookup refuses effective-id"
+    ],
+    "exit": 1,
+    "seconds": 0.267,
+    "failedTests": ["(fail) Task21 import lookup refuses effective-id creator evidence [40.83ms]"],
+    "restoredSha256": "dd28e1822a712181eaca157af7d2dcf697477f913fabfa00400d589f66e7bbc0"
+  },
+  {
+    "fault": "owned-environment",
+    "file": "k3d-lab.ts",
+    "command": [
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "tools/tool-fleet/src/k3d-resource-caller.test.ts",
+      "--test-name-pattern",
+      "Task37 (ordinary up|real up persists)"
+    ],
+    "exit": 1,
+    "seconds": 2.157,
+    "failedTests": [
+      "(fail) Task37 real up persists selection, process environment and every serial effective observation [1008.30ms]",
+      "(fail) Task37 ordinary up propagates the same owned helper references [935.14ms]"
+    ],
+    "restoredSha256": "ccfaa9f1af3270e40d2e0b766d8e7a0142ad823048b4fe3a1ce77ba48fd17c75"
+  }
+]

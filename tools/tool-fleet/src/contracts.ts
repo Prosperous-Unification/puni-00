@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 import { type } from 'arktype';
 
+import { K3dHelpers } from './k3d-helper-images';
 import { type DiscoverySource, type FleetObservation, serializeObservation } from './observation';
 
 // Proof: replacing this checksum expression with an accepting expression made
@@ -46,7 +47,7 @@ const ChartLock = type({
   '+': 'reject',
 });
 
-const ToolchainSchema = type({
+const HistoricalToolchainSchema = type({
   schemaVersion: '1',
   supportedHosts: type({
     distribution: "'ubuntu'",
@@ -121,6 +122,8 @@ const ToolchainSchema = type({
     // negative resolve instead of reject on 2026-09-18.
     sqliteBackup: ImageLock,
     blackboxExporter: ImageLock,
+    // Proof: making this optional fails the missing-gateway-lock production negative with an unrelated null access.
+    elasticGateway: ImageLock,
     '+': 'reject',
   },
   manifests: {
@@ -176,13 +179,17 @@ const ToolchainSchema = type({
   '+': 'reject',
 });
 
-export type Toolchain = typeof ToolchainSchema.infer;
+const ToolchainSchema = HistoricalToolchainSchema.merge({ '+': 'reject', k3dHelpers: K3dHelpers });
+export type Toolchain = typeof HistoricalToolchainSchema.infer | typeof ToolchainSchema.infer;
 
-function parseToolchain(input: unknown): Toolchain {
+function parseToolchain(input: unknown): typeof ToolchainSchema.infer {
+  // Proof: Task37 selection-boundary bypass failed nine current-reader negatives, including provider/platform and binary agreement.
   const toolchain = ToolchainSchema(input);
   if (toolchain instanceof type.errors) {
     throw new Error(`Toolchain validation failed: ${toolchain.summary}`, { cause: toolchain });
   }
+  if (toolchain.binaries.k3d.version !== toolchain.k3dHelpers.version)
+    throw new Error('k3d binary version differs from helper selection');
   return toolchain;
 }
 
@@ -251,7 +258,7 @@ function assertCompleteImageLocks(toolchain: Toolchain): void {
  * unsupported-platform input throws. The caller may use the returned value
  * without release-channel or architecture fallback.
  */
-export async function readToolchain(path: string): Promise<Toolchain> {
+export async function readToolchain(path: string): Promise<typeof ToolchainSchema.infer> {
   let source: string;
   try {
     source = await readFile(path, 'utf8');
@@ -275,6 +282,31 @@ export async function readToolchain(path: string): Promise<Toolchain> {
   const toolchain = parseToolchain(input);
   assertCompleteImageLocks(toolchain);
   return toolchain;
+}
+
+/** Decode retained source only after its independent receipt hash matches; never use this for forward creation. */
+export async function readRetainedToolchain(
+  path: string,
+  expectedSha256: string,
+): Promise<Toolchain> {
+  return decodeRetainedToolchain(await readFile(path), expectedSha256);
+}
+
+/** Decode exactly the retained bytes whose independent receipt hash was checked, preserving complete lock validation. */
+export function decodeRetainedToolchain(bytes: Uint8Array, expectedSha256: string): Toolchain {
+  if (
+    !sha256.test(expectedSha256) ||
+    createHash('sha256').update(bytes).digest('hex') !== expectedSha256
+  )
+    // Proof: Task44 removing this hash join accepted a resealed wrong source hash through real v3 down; source-lock-hash failed.
+    // Proof: Task37 retained-hash bypass accepted another receipt hash; retained historical reader failed.
+    throw new Error('Retained toolchain source identity differs');
+  const input: unknown = JSON.parse(Buffer.from(bytes).toString('utf8'));
+  const retained = HistoricalToolchainSchema.or(ToolchainSchema).assert(input);
+  const lock = 'k3dHelpers' in retained ? parseToolchain(retained) : retained;
+  // Proof: Task37 retained-current missing chart role resolved before this shared completeness check was restored.
+  assertCompleteImageLocks(lock);
+  return lock;
 }
 
 // Proof: widening this union to nonempty string made the unknown-capability production decoder

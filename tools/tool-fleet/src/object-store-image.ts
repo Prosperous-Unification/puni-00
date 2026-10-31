@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import { type } from 'arktype';
 
 import type { Toolchain } from './contracts';
-import { requireBuilder, type RunCommand } from './controller';
+import { type CommandOutput, requireBuilder, type RunCommand } from './controller';
+import { type ObjectStoreArchive, readObjectStoreArchive } from './object-store-archive';
 
 const sha256 = /^[0-9a-f]{64}$/;
 const digest = /^sha256:[0-9a-f]{64}$/;
@@ -34,7 +35,10 @@ export type ObjectStoreLock = typeof ObjectStoreSchema.infer & {
   readonly digest: string;
 };
 type Download = (url: string) => Promise<Response>;
-const runCommand: RunCommand = (command) => Bun.spawnSync([...command]);
+/** Synchronous image command; optional stdin carries verified bytes for exact-node imports. */
+export type ObjectStoreCommand = (command: readonly string[], input?: Uint8Array) => CommandOutput;
+const runCommand: ObjectStoreCommand = (command, input) =>
+  Bun.spawnSync([...command], { stdin: input });
 const decodeOutput = (bytes: Uint8Array): string => new TextDecoder().decode(bytes);
 
 /**
@@ -42,6 +46,8 @@ const decodeOutput = (bytes: Uint8Array): string => new TextDecoder().decode(byt
  * k3d's direct import preserves the release tag but does not create the repository digest alias.
  * Inspect the exact source target before tagging and the alias target afterward; repeat imports
  * converge through the same verified target. Call for each node before applying local consumers.
+ * A strict owned import streams revalidated retained bytes to the supplied creator ID; its
+ * caller must revalidate that in-progress ownership on the captured daemon first.
  * @throws When import, source identity, alias registration or alias identity cannot be proved.
  */
 export function importObjectStore(
@@ -50,10 +56,11 @@ export function importObjectStore(
   cluster: string,
   node: string,
   k3d: string,
-  run: RunCommand = runCommand,
+  run: ObjectStoreCommand = runCommand,
+  owned?: { readonly archive: ObjectStoreArchive; readonly nodeId: string },
 ): void {
-  const invoke = (command: readonly string[]): string => {
-    const execution = run(command);
+  const invoke = (command: readonly string[], input?: Uint8Array): string => {
+    const execution = run(command, input);
     // Proof: injected import exit 42 was accepted with this guard removed (object-store-import.test.ts).
     if (execution.exitCode !== 0)
       throw new Error(
@@ -61,7 +68,19 @@ export function importObjectStore(
       );
     return decodeOutput(execution.stdout);
   };
-  const ctr = ['docker', 'exec', node, 'ctr', '-n', 'k8s.io', 'images'];
+  if (owned !== undefined && !/^[a-f0-9]{64}$/.test(owned.nodeId))
+    // Proof: Removing the ID guard reached distribution for a node name; import-ID negative failed.
+    throw new Error('Object store import requires a full creator ID');
+  if (
+    owned !== undefined &&
+    (archive !== owned.archive.path ||
+      lock.image !== owned.archive.image ||
+      lock.digest !== owned.archive.digest)
+  )
+    // Proof: Removing the receipt comparison reached distribution for a different lock; import-identity negative failed.
+    throw new Error('Object store import archive identity differs');
+  // Proof: Replacing the creator ID with the node name failed the retained-archive import positive.
+  const ctr = ['docker', 'exec', owned?.nodeId ?? node, 'ctr', '-n', 'k8s.io', 'images'];
   const requireTarget = (reference: string): void => {
     const listing = invoke([...ctr, 'ls', `name==${reference}`]);
     const rows = listing
@@ -73,7 +92,13 @@ export function importObjectStore(
     if (rows.length !== 1 || rows[0]?.[0] !== reference || rows[0]?.[2] !== lock.digest)
       throw new Error(`Object store containerd target differs: ${reference}: ${listing}`);
   };
-  invoke([k3d, 'image', 'import', archive, '--cluster', cluster, '--mode', 'direct']);
+  if (owned === undefined)
+    invoke([k3d, 'image', 'import', archive, '--cluster', cluster, '--mode', 'direct']);
+  else
+    invoke(
+      ['docker', 'exec', '-i', owned.nodeId, 'ctr', '-n', 'k8s.io', 'images', 'import', '-'],
+      readObjectStoreArchive(owned.archive),
+    );
   requireTarget(lock.image);
   const reference = `${lock.image.replace(/:[^/:]+$/, '')}@${lock.digest}`;
   invoke([...ctr, 'tag', '--force', lock.image, reference]);

@@ -1,0 +1,167 @@
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  file_storage/queue:
+    directory: /var/lib/elastic-agent/queue
+    create_directory: true
+    timeout: 5s
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+        max_recv_msg_size_mib: 1
+        tls:
+          cert_file: /trust/server/tls.crt
+          key_file: /trust/server/tls.key
+          client_ca_file: /trust/clients/ca.crt
+          client_ca_file_reload: true
+          min_version: "1.3"
+          reload_interval: 1m
+  otlp/platform:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:14317
+        max_recv_msg_size_mib: 1
+        tls:
+          cert_file: /trust/server/tls.crt
+          key_file: /trust/server/tls.key
+          client_ca_file: /trust/clients/ca.crt
+          client_ca_file_reload: true
+          min_version: "1.3"
+          reload_interval: 1m
+connectors:
+  elasticapm: {}
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 768
+    spike_limit_mib: 128
+  elasticapm: {}
+  batch:
+    timeout: 1s
+    send_batch_size: 128
+    send_batch_max_size: 256
+  filter/source:
+    error_mode: propagate
+    logs:
+      log_record:
+        - (resource.attributes["deployment.environment.name"] != "prod") or
+          resource.attributes["service.name"] == nil or
+          resource.attributes["service.name"] == ""
+    traces:
+      span:
+        - (resource.attributes["deployment.environment.name"] != "prod") or
+          resource.attributes["service.name"] == nil or
+          resource.attributes["service.name"] == ""
+    metrics:
+      datapoint:
+        - (resource.attributes["deployment.environment.name"] != "prod") or
+          resource.attributes["service.name"] == nil or
+          resource.attributes["service.name"] == ""
+  filter/platform:
+    error_mode: propagate
+    logs:
+      log_record:
+        - (resource.attributes["puni.cluster"] != "platform-production" and
+          resource.attributes["puni.cluster"] != "workers-production") or
+          resource.attributes["deployment.environment.name"] != nil
+    traces:
+      span:
+        - (resource.attributes["puni.cluster"] != "platform-production" and
+          resource.attributes["puni.cluster"] != "workers-production") or
+          resource.attributes["deployment.environment.name"] != nil
+    metrics:
+      datapoint:
+        - (resource.attributes["puni.cluster"] != "platform-production" and
+          resource.attributes["puni.cluster"] != "workers-production") or
+          resource.attributes["deployment.environment.name"] != nil
+  resource/stream/platform:
+    attributes:
+      - key: data_stream.namespace
+        from_attribute: puni.cluster
+        action: upsert
+  resource/stream:
+    attributes:
+      - key: data_stream.namespace
+        value: prod
+        action: upsert
+exporters:
+  elasticsearch/otel:
+    endpoints:
+      - https://elasticsearch-es-http.observability.svc:9200
+    mapping:
+      mode: otel
+    timeout: 10s
+    sending_queue:
+      enabled: true
+      storage: file_storage/queue
+      sizer: bytes
+      queue_size: 16777216
+      num_consumers: 2
+      block_on_overflow: false
+    retry:
+      enabled: true
+      max_retries: 2
+      initial_interval: 1s
+      max_interval: 5s
+    user: elastic
+    password: ${env:ELASTIC_PASSWORD}
+    tls:
+      ca_file: /trust/elastic/ca.crt
+      min_version: "1.3"
+service:
+  extensions:
+    - health_check
+    - file_storage/queue
+  telemetry:
+    metrics:
+      level: detailed
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
+  pipelines:
+    logs:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - filter/source
+        - resource/stream
+        - batch
+      exporters:
+        - elasticapm
+        - elasticsearch/otel
+    traces:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - filter/source
+        - resource/stream
+        - batch
+        - elasticapm
+      exporters:
+        - elasticapm
+        - elasticsearch/otel
+    metrics/apm:
+      receivers:
+        - elasticapm
+      processors:
+        - memory_limiter
+        - resource/stream
+      exporters:
+        - elasticsearch/otel
+    logs/platform:
+      receivers:
+        - otlp/platform
+      processors:
+        - memory_limiter
+        - filter/platform
+        - resource/stream/platform
+        - batch
+      exporters:
+        - elasticsearch/otel

@@ -1,0 +1,28 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-resource-runtime.test.ts:
+169 |           ['server'],
+170 |           helperEnvironment(selectedHelpers),
+171 |         );
+172 |       if (fault === 'none') expect(await witness.requireNode('server')).toBe('b'.repeat(64));
+173 |       else
+174 |         await rejects(
+                    ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: /creator observation/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-runtime.test.ts:174:15
+(fail) Task21 import lookup refuses effective-id creator evidence [40.83ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+Ran 1 test across 1 file. [258.00ms]

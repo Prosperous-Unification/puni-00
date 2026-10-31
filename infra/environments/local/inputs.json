@@ -10,7 +10,7 @@
   "dnsOwner": "local-fixture",
   "registryUrl": "registry.localhost:5000",
   "encryptedSecretReferences": [],
-  "objectStoreEndpoints": ["http://object-store.localhost:9000"],
+  "objectStoreEndpoints": ["https://object-store.puni-backup.svc:9000"],
   "failureDomains": ["local-process"],
   "alertDestination": "local-sink"
 }

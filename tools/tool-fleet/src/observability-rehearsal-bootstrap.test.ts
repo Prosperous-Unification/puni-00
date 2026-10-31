@@ -1,0 +1,384 @@
+import { rejects } from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
+import { beforeAll, expect, test } from 'bun:test';
+import { stringify } from 'yaml';
+
+import { readToolchain, type Toolchain } from './contracts';
+import {
+  inspectRehearsalKubernetesSources,
+  type RehearsalStageBuild,
+} from './observability-parity-rehearsal';
+import {
+  captureRehearsalFrames,
+  readRehearsalInventory,
+} from './observability-rehearsal-inventory';
+import type { RehearsalBootstrapBuild } from './observability-rehearsal-sources';
+
+const root = join(import.meta.dir, '../../..');
+const hash = (bytes: string) => createHash('sha256').update(bytes).digest('hex');
+const encode = (...manifests: unknown[]) =>
+  manifests.map((manifest) => stringify(manifest)).join('---\n');
+const namespace = { apiVersion: 'v1', kind: 'Namespace', metadata: { name: 'observability' } };
+const dev = { ...namespace, metadata: { name: 'observability-dev' } };
+const flux = {
+  apiVersion: 'apps/v1',
+  kind: 'Deployment',
+  metadata: { name: 'source-controller', namespace: 'flux-system' },
+  spec: {
+    template: {
+      spec: {
+        containers: [{ name: 'manager', image: 'example.invalid/flux@sha256:' + 'a'.repeat(64) }],
+      },
+    },
+  },
+};
+let lock: Toolchain;
+beforeAll(async () => {
+  lock = await readToolchain(join(root, 'infra/versions/toolchain.json'));
+});
+function fixture() {
+  const bytes = encode(namespace, dev);
+  const stages: RehearsalStageBuild[] = [
+    {
+      stage: 'policy',
+      path: 'infra/platform/policy',
+      declarationPath: 'stages/policy.yaml',
+      sourceSHA256: hash('policy'),
+      bytes,
+      sha256: hash(bytes),
+      releases: [],
+    },
+  ];
+  const bootstrap: RehearsalBootstrapBuild[] = [
+    {
+      bootstrap: 'flux',
+      sourcePath: 'infra/platform/flux/install.yaml',
+      path: 'infra/platform/flux/install.yaml',
+      sources: [
+        {
+          sourcePath: 'infra/platform/flux/install.yaml',
+          artifactPath: 'infra/platform/flux/install.yaml',
+          sha256: hash(encode(flux)),
+        },
+      ],
+      bytes: encode(flux),
+      sha256: hash(encode(flux)),
+    },
+    {
+      bootstrap: 'policy',
+      sourcePath: 'infra/platform/policy',
+      path: 'infra/rehearsal/bootstrap/policy',
+      sources: [
+        {
+          sourcePath: 'infra/platform/policy/namespaces.yaml',
+          artifactPath: 'infra/rehearsal/bootstrap/policy/namespaces.yaml',
+          sha256: hash(encode(namespace)),
+        },
+      ],
+      bytes: encode(namespace),
+      sha256: hash(encode(namespace)),
+    },
+  ];
+  const contract = captureRehearsalFrames(stages, {}, bootstrap);
+  return { stages, bootstrap, contract };
+}
+test('bootstrap native facts retain explicit origins and equal policy shares one physical object', () => {
+  const { stages, bootstrap, contract } = fixture();
+  const inventory = readRehearsalInventory(stages, {}, contract, lock, bootstrap);
+  expect(inventory.entries).toHaveLength(3);
+  expect(inventory.entries.find((entry) => entry.name === 'source-controller')).toMatchObject({
+    owner: 'bootstrap/flux',
+    images: [{ name: 'manager' }],
+    source: {
+      kind: 'bootstrap',
+      bootstrap: 'flux',
+      sourcePath: 'infra/platform/flux/install.yaml',
+    },
+  });
+  expect(
+    inventory.entries
+      .find((entry) => entry.name === 'observability')
+      ?.lifecycleOrigins.map((origin) => origin.owner),
+  ).toEqual(['stage/policy', 'bootstrap/policy']);
+  expect(
+    inventory.entries.find((entry) => entry.name === 'observability-dev')?.lifecycleOrigins,
+  ).toHaveLength(1);
+  expect(inventory.frames.filter((frame) => frame.owner.startsWith('bootstrap/'))).toHaveLength(2);
+  expect(inventory.creationAuthority).toBe(false);
+  expect(inventory.runtimeRehearsal).toBe(false);
+  expect(inventory.runnableClosure).toBe('incomplete');
+});
+test('bootstrap conflicts refuse independently decoded full definitions', () => {
+  const { stages, bootstrap } = fixture();
+  const bytes = encode({
+    ...namespace,
+    metadata: { ...namespace.metadata, labels: { changed: 'true' } },
+  });
+  bootstrap[1] = { ...bootstrap[1], bytes, sha256: hash(bytes) };
+  expect(() =>
+    readRehearsalInventory(
+      stages,
+      {},
+      captureRehearsalFrames(stages, {}, bootstrap),
+      lock,
+      bootstrap,
+    ),
+  ).toThrow(/conflict/);
+});
+test('bootstrap equality never permits unrelated cross-stage duplicates', () => {
+  const { stages, bootstrap } = fixture();
+  stages.push({ ...stages[0], stage: 'unrelated' });
+  expect(() =>
+    readRehearsalInventory(
+      stages,
+      {},
+      captureRehearsalFrames(stages, {}, bootstrap),
+      lock,
+      bootstrap,
+    ),
+  ).toThrow(/duplicate/);
+});
+test.each(['flux', 'policy'] as const)(
+  'bootstrap immutable frame contract refuses omitted %s origin',
+  (omitted) => {
+    const { stages, bootstrap, contract } = fixture();
+    expect(() =>
+      readRehearsalInventory(
+        stages,
+        {},
+        contract,
+        lock,
+        bootstrap.filter((frame) => frame.bootstrap !== omitted),
+      ),
+    ).toThrow(/closure/);
+  },
+);
+test('bootstrap contract refuses omitted native workload after frame hash update', () => {
+  const { stages, bootstrap, contract } = fixture();
+  const bytes = encode({ ...namespace, metadata: { name: 'flux-system' } });
+  bootstrap[0] = { ...bootstrap[0], bytes, sha256: hash(bytes) };
+  contract.bootstrap[0] = { ...contract.bootstrap[0], sha256: hash(bytes) };
+  const frame = contract.frames.find((candidate) => candidate.owner === 'bootstrap/flux');
+  if (!frame) throw new Error('Fixture bootstrap frame missing');
+  frame.sha256 = hash(bytes);
+  expect(() => readRehearsalInventory(stages, {}, contract, lock, bootstrap)).toThrow(
+    /resource closure/,
+  );
+});
+test('bootstrap security refuses correctly hashed retained Secret material', async () => {
+  const declarations = await readFile(
+    join(root, 'infra/platform/secrets/platform-local/externally-provided.json'),
+  );
+  const bytes = Buffer.from(
+    encode({
+      apiVersion: 'v1',
+      kind: 'Secret',
+      metadata: { name: 'not-allowed', namespace: 'flux-system' },
+      stringData: { token: 'fixture' },
+    }),
+  );
+  const files = new Map([
+    ['infra/platform/secrets/platform-local/externally-provided.json', declarations],
+    ['infra/platform/flux/install.yaml', bytes],
+  ]);
+  expect(hash(bytes.toString())).toHaveLength(64);
+  expect(() => inspectRehearsalKubernetesSources(files, [])).toThrow(/Secret material/);
+});
+
+test('bootstrap captured source coordinate contract is independent of mutable input arrays', () => {
+  const { stages, bootstrap, contract } = fixture();
+  const changed = bootstrap[0].sources as {
+    sourcePath: string;
+    artifactPath: string;
+    sha256: string;
+  }[];
+  changed[0].sha256 = '0'.repeat(64);
+  expect(() => readRehearsalInventory(stages, {}, contract, lock, bootstrap)).toThrow(/closure/);
+});
+test('bootstrap policy overlap requires the recognized source and stage paths', () => {
+  const { stages, bootstrap } = fixture();
+  bootstrap[1] = { ...bootstrap[1], sourcePath: 'infra/foreign' };
+  expect(() =>
+    readRehearsalInventory(
+      stages,
+      {},
+      captureRehearsalFrames(stages, {}, bootstrap),
+      lock,
+      bootstrap,
+    ),
+  ).toThrow(/duplicate/);
+});
+
+test('bootstrap duplicate application frame refuses at origin closure', () => {
+  const { stages, bootstrap } = fixture();
+  bootstrap.push(bootstrap[0]);
+  expect(() =>
+    readRehearsalInventory(
+      stages,
+      {},
+      captureRehearsalFrames(stages, {}, bootstrap),
+      lock,
+      bootstrap,
+    ),
+  ).toThrow(/frame closure/);
+});
+
+async function inspectCRD(change: (manifest: Record<string, unknown>) => void = () => undefined) {
+  const manifest: Record<string, unknown> = {
+    apiVersion: 'apiextensions.k8s.io/v1',
+    kind: 'CustomResourceDefinition',
+    metadata: { name: 'examples.example.invalid' },
+    spec: {
+      versions: [
+        {
+          name: 'v1',
+          schema: {
+            openAPIV3Schema: {
+              type: 'object',
+              properties: {
+                apiVersion: { type: 'string' },
+                kind: { type: 'string' },
+                metadata: { type: 'object' },
+                secretRef: { type: 'object', properties: { name: { type: 'string' } } },
+              },
+            },
+          },
+        },
+      ],
+    },
+  };
+  change(manifest);
+  const declarations = await readFile(
+    join(root, 'infra/platform/secrets/platform-local/externally-provided.json'),
+  );
+  return inspectRehearsalKubernetesSources(
+    new Map([
+      ['infra/platform/secrets/platform-local/externally-provided.json', declarations],
+      ['infra/platform/flux/install.yaml', Buffer.from(encode(manifest))],
+    ]),
+    [],
+  );
+}
+test('bootstrap CRD schema vocabulary is not a realized resource or Secret reference', async () => {
+  const inspected = await inspectCRD();
+  expect(inspected.secretReferences).toEqual([]);
+});
+test.each(['conversion-reference', 'malformed-embedded', 'material'] as const)(
+  'bootstrap CRD still inspects %s outside reference-schema interpretation',
+  async (fault) => {
+    const failure = inspectCRD((manifest) => {
+      const spec = manifest['spec'] as Record<string, unknown>;
+      if (fault === 'conversion-reference')
+        spec['conversion'] = { webhook: { clientConfig: { secretRef: { name: 'undeclared' } } } };
+      if (fault === 'malformed-embedded')
+        spec['outside'] = { apiVersion: 'v1', kind: {}, metadata: {} };
+      if (fault === 'material')
+        spec['versions'] = [
+          {
+            name: 'v1',
+            schema: {
+              openAPIV3Schema: {
+                type: 'object',
+                description: '-----BEGIN PRIVATE KEY----- fixture',
+              },
+            },
+          },
+        ];
+    });
+    await rejects(
+      failure,
+      fault === 'material'
+        ? /Secret material/
+        : fault === 'conversion-reference'
+          ? /Secret reference/
+          : /kind/,
+    );
+  },
+);
+test.each([
+  'foreign-api',
+  'ordinary-resource',
+  'schema-array',
+  'schema-null',
+  'schema-root-array',
+  'versions-object',
+] as const)('bootstrap schema boundary refuses %s', async (fault) => {
+  await rejects(
+    inspectCRD((manifest) => {
+      if (fault === 'foreign-api') manifest['apiVersion'] = 'example.invalid/v1';
+      if (fault === 'ordinary-resource') manifest['kind'] = 'ConfigMap';
+      const spec = manifest['spec'] as Record<string, unknown>;
+      if (fault === 'schema-array') spec['versions'] = [{ name: 'v1', schema: [] }];
+      if (fault === 'schema-null') spec['versions'] = [{ name: 'v1', schema: null }];
+      if (fault === 'schema-root-array')
+        spec['versions'] = [{ name: 'v1', schema: { openAPIV3Schema: [] } }];
+      if (fault === 'versions-object') spec['versions'] = {};
+    }),
+  );
+});
+
+test.each(['undeclared-reference', 'malformed-embedded'] as const)(
+  'fix1 slash-bearing CRD sibling cannot impersonate schema root: %s',
+  async (fault) => {
+    await rejects(
+      inspectCRD((manifest) => {
+        const spec = manifest['spec'] as Record<string, unknown>;
+        spec['versions/0/schema/openAPIV3Schema'] =
+          fault === 'undeclared-reference'
+            ? { secretRef: { name: 'undeclared' } }
+            : { apiVersion: 'v1', kind: {}, metadata: {} };
+      }),
+      fault === 'undeclared-reference' ? /Secret reference/ : /kind/,
+    );
+  },
+);
+
+test('historical raw Flux coordinates remain explicit while current overlay origins retain both identities', () => {
+  const historical = fixture();
+  const old = readRehearsalInventory(
+    historical.stages,
+    {},
+    historical.contract,
+    lock,
+    historical.bootstrap,
+  );
+  expect(old.entries.find((entry) => entry.name === 'source-controller')?.source).toMatchObject({
+    sourcePath: 'infra/platform/flux/install.yaml',
+    path: 'infra/platform/flux/install.yaml',
+  });
+  const current = fixture();
+  current.bootstrap[0] = {
+    ...current.bootstrap[0],
+    sourcePath: 'infra/platform/flux',
+    path: 'infra/platform/flux',
+    sources: [
+      ...current.bootstrap[0].sources,
+      {
+        sourcePath: 'infra/platform/flux/kustomization.yaml',
+        artifactPath: 'infra/platform/flux/kustomization.yaml',
+        sha256: hash('authored-overlay'),
+      },
+    ],
+  };
+  const inventory = readRehearsalInventory(
+    current.stages,
+    {},
+    captureRehearsalFrames(current.stages, {}, current.bootstrap),
+    lock,
+    current.bootstrap,
+  );
+  expect(
+    inventory.entries.find((entry) => entry.name === 'source-controller')?.source,
+  ).toMatchObject({
+    sourcePath: 'infra/platform/flux',
+    path: 'infra/platform/flux',
+    sources: current.bootstrap[0].sources,
+  });
+  expect(inventory.entries.filter((entry) => entry.owner === 'bootstrap/flux')).toHaveLength(1);
+  expect(inventory.frames.filter((frame) => frame.owner === 'bootstrap/flux')).toHaveLength(1);
+  expect(inventory.creationAuthority).toBe(false);
+  expect(inventory.runtimeRehearsal).toBe(false);
+});
