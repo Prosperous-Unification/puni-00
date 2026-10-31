@@ -2,6 +2,7 @@ import { renameSync, writeFileSync } from 'node:fs';
 
 import type { ApplicationLogState } from './application-log';
 import type { ObservationHealth } from './observation';
+import type { ResourceState } from './resources';
 import { executeBounded } from './source';
 
 export type StorageState =
@@ -23,6 +24,8 @@ export interface HealthCheckpoint {
   health: ObservationHealth;
   application: ApplicationLogState;
   storage: StorageState;
+  /** Absent in older checkpoints; every new CLI cycle supplies an explicit resource state. */
+  resources?: ResourceState;
 }
 
 /** Parses one fixed filesystem with df column padding; ordered header tokens and remote completion time stay required. */

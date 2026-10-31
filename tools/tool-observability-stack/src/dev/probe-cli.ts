@@ -16,6 +16,8 @@ import { readCheckpoint, writeCheckpoint } from './checkpoint';
 import type { ObservationHealth } from './observation';
 import { createOtlpPublisher, createOtlpSender } from './otlp';
 import { collectProbe, runProbe } from './probe';
+import { encodeResourceMetrics, type ResourceState } from './resources';
+import { createResourceReader } from './resources-ssh';
 import { createHttpHealthReader, createSshHealthReader } from './source';
 import { readTransportFile } from './transport';
 
@@ -95,6 +97,7 @@ const applicationLogs = createApplicationLogCollector({
     send('logs', encodeApplicationLogs(records, containerId), signal),
 });
 const readStorage = createStorageReader();
+const readResources = createResourceReader();
 let assessed: { observationId: string; checkedAt: number; health: ObservationHealth } | undefined;
 const acceptance = {
   assess: async (observation: Awaited<ReturnType<typeof collectProbe>>, signal: AbortSignal) => {
@@ -126,10 +129,22 @@ try {
       checkedAt: Date.now(),
     };
     // A local protocol rehearsal must never read or assert actual dev/storage source evidence.
-    const [application, storage] =
-      values.local === undefined
-        ? await Promise.all([applicationLogs.collect(signal), readStorage(signal)])
-        : [unavailableApplication, unavailableStorage];
+    let application = unavailableApplication;
+    let storage: StorageState = unavailableStorage;
+    let resources: ResourceState = {
+      state: 'unavailable',
+      reason: 'source-unavailable',
+      checkedAt: Date.now(),
+    };
+    // Proof: bypassing the local guard fails actual CLI once's executable SSH tripwire.
+    // Only the actual-source branch invokes remote readers. Local rehearsal stays explicitly unavailable.
+    if (values.local === undefined) {
+      [application, storage, resources] = await Promise.all([
+        applicationLogs.collect(signal),
+        readStorage(signal),
+        readResources(signal),
+      ]);
+    }
     const sourceFailed = !observation.success || observation.revision === null;
     const health: ObservationHealth =
       sourceFailed || assessed === undefined
@@ -148,10 +163,20 @@ try {
       health,
       application,
       storage,
+      resources,
     };
     writeHealthCheckpoint(values['health-checkpoint'] ?? `${checkpointPath}.health`, checkpoint);
     console.log(JSON.stringify({ kind: 'observation-health', ...checkpoint }));
-    const published = await send('metrics', encodeHealthMetrics(checkpoint), signal);
+    const published = await send(
+      'metrics',
+      {
+        resourceMetrics: [
+          ...encodeHealthMetrics(checkpoint).resourceMetrics,
+          ...encodeResourceMetrics(resources).resourceMetrics,
+        ],
+      },
+      signal,
+    );
     if (published.state !== 'acknowledged')
       console.error(
         JSON.stringify({ kind: 'health-publication', state: 'failed', reason: published.reason }),
