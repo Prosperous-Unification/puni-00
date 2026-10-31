@@ -1,11 +1,11 @@
-import type { Analytics, AnalyticsState } from '@website/analytics';
+import { type Analytics, type AnalyticsState, createBrowserAnalytics } from '@website/analytics';
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { JSDOM } from 'jsdom';
 import { act, StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { createMilestones, MilestonesContext } from './analytics-flow';
-import { PrivacyChoices } from './privacy-choices';
+import { ArrivalChoice, PrivacyChoices } from './privacy-choices';
 import { RequestEditor } from './request-editor';
 
 const dom = new JSDOM('<!doctype html><body></body>', { url: 'https://dev.app.puni.dev' });
@@ -125,9 +125,18 @@ test('mounted consent has equal choices, visible optional failure and no StrictM
   let listener: (next: AnalyticsState) => void = () => undefined;
   let disposals = 0;
   const analytics = {
+    sync: () => undefined,
+    navigate: () => undefined,
+    dispatch: () => 'dropped',
+    dispatchLead: () => 'dropped',
     getState: () => state,
+    getChoice: () => 'accepted',
+    subscribeChoice: () => () => undefined,
     subscribe: (next: typeof listener) => {
-      listener = next;
+      listener = (updated) => {
+        state = updated;
+        next(updated);
+      };
       return () => undefined;
     },
     accept: () => {
@@ -156,12 +165,12 @@ test('mounted consent has equal choices, visible optional failure and no StrictM
       );
     });
     const buttons = [...container.querySelectorAll('button')];
-    expect(buttons.map((button) => button.textContent)).toEqual([
-      'Privacy choices',
-      'Allow analytics cookies',
-      'Disable measurement',
-    ]);
-    expect(container.textContent).toContain('Basic cookieless measurement starts on arrival');
+    expect(buttons.map((button) => button.textContent)).toEqual(['Privacy choices']);
+    act(() => {
+      buttons[0]?.click();
+    });
+    buttons.push(...[...container.querySelectorAll('button')].slice(1));
+    expect(container.textContent).toContain('We use basic cookieless measurement');
     expect(container.textContent).toContain('Analytics cookies are off');
     expect(buttons[1]?.className).toBe(buttons[2]?.className);
     act(() => {
@@ -195,4 +204,243 @@ test('mounted consent has equal choices, visible optional failure and no StrictM
     });
   }
   expect(disposals).toBe(0);
+});
+
+for (const action of ['Allow analytics cookies', 'Disable measurement'])
+  test(`arrival choice uses canonical storage without moving focus: ${action}`, () => {
+    const isolated = new JSDOM(
+      '<body><button id="request">Request</button><div id="choices"></div></body>',
+      { url: 'https://dev.app.puni.dev/' },
+    );
+    const analytics = createBrowserAnalytics(isolated.window, {
+      enabled: true,
+      environment: 'development',
+      measurementId: 'G-R0JM3R4SSV',
+    });
+    const container = isolated.window.document.getElementById('choices');
+    const request = isolated.window.document.getElementById('request');
+    if (!container || !request) throw new Error('Missing fixture');
+    const root = createRoot(container);
+    request.focus();
+    try {
+      act(() => {
+        root.render(
+          <MilestonesContext.Provider value={createMilestones(analytics)}>
+            <ArrivalChoice />
+            <PrivacyChoices />
+          </MilestonesContext.Provider>,
+        );
+      });
+      expect(container.querySelector('[aria-label="Analytics choice"]')).not.toBeNull();
+      expect(isolated.window.document.activeElement).toBe(request);
+      expect(container.querySelector('[role="dialog"]')).toBeNull();
+      const buttons = [...container.querySelectorAll('button')];
+      expect(buttons.map((button) => button.textContent)).toEqual([
+        'Allow analytics cookies',
+        'Disable measurement',
+        'Privacy choices',
+      ]);
+      expect(buttons[0]?.className).toBe(buttons[1]?.className);
+      act(() => buttons.find((button) => button.textContent === action)?.click());
+      expect(container.querySelector('[aria-label="Analytics choice"]')).toBeNull();
+      expect(analytics.getChoice()).toBe(
+        action === 'Allow analytics cookies' ? 'accepted' : 'rejected',
+      );
+      act(() => {
+        isolated.window.document.cookie =
+          'puni_dev_consent_v1=; Domain=puni.dev; Path=/; Max-Age=0; Secure';
+        analytics.navigate();
+      });
+      expect(container.querySelector('[data-arrival-choice]')).not.toBeNull();
+    } finally {
+      act(() => {
+        root.unmount();
+      });
+      analytics.dispose();
+      isolated.window.close();
+    }
+  });
+
+for (const [preference, visible] of [
+  [null, true],
+  ['malformed', true],
+  [JSON.stringify({ version: 1, accepted: true, expires: 1 }), true],
+  [JSON.stringify({ version: 1, accepted: true, expires: Date.UTC(2030, 0) }), false],
+  [JSON.stringify({ version: 1, accepted: false, expires: Date.UTC(2030, 0) }), false],
+] as const)
+  test(`arrival choice visibility follows validated preference: ${String(preference)}`, async () => {
+    const isolated = new JSDOM('<body><div></div></body>', { url: 'https://dev.app.puni.dev/' });
+    if (preference !== null)
+      isolated.window.document.cookie = `puni_dev_consent_v1=${encodeURIComponent(preference)}; Domain=puni.dev; Path=/; Secure`;
+    const analytics = createBrowserAnalytics(isolated.window, {
+      enabled: true,
+      environment: 'development',
+      measurementId: 'G-R0JM3R4SSV',
+    });
+    const container = isolated.window.document.body;
+    const root = createRoot(container);
+    try {
+      act(() => {
+        root.render(
+          <MilestonesContext.Provider value={createMilestones(analytics)}>
+            <ArrivalChoice />
+            <PrivacyChoices />
+          </MilestonesContext.Provider>,
+        );
+      });
+      expect(container.querySelector('[data-arrival-choice]') !== null).toBe(visible);
+      await act(async () => {
+        isolated.window.document
+          .querySelector('script')
+          ?.dispatchEvent(new isolated.window.Event('error'));
+        await Promise.resolve();
+      });
+      expect(container.querySelector('[data-arrival-choice]') !== null).toBe(visible);
+      act(() => {
+        [...container.querySelectorAll('button')]
+          .find((button) => button.textContent === 'Privacy choices')
+          ?.click();
+      });
+      expect(
+        [...container.querySelectorAll('button')].filter(
+          (button) => button.textContent === 'Allow analytics cookies',
+        ),
+      ).toHaveLength(1);
+    } finally {
+      act(() => {
+        root.unmount();
+      });
+      analytics.dispose();
+      isolated.window.close();
+    }
+  });
+
+for (const action of ['Allow analytics cookies', 'Disable measurement'])
+  test(`arrival choice remains actionable through unreadable and refused persistence: ${action}`, () => {
+    const isolated = new JSDOM('<body></body>', { url: 'https://dev.app.puni.dev/' });
+    Object.defineProperty(isolated.window.document, 'cookie', {
+      configurable: true,
+      get: () => {
+        throw new isolated.window.DOMException('blocked', 'SecurityError');
+      },
+      set: () => undefined,
+    });
+    const analytics = createBrowserAnalytics(isolated.window, {
+      enabled: true,
+      environment: 'development',
+      measurementId: 'G-R0JM3R4SSV',
+    });
+    const container = isolated.window.document.body;
+    const root = createRoot(container);
+    try {
+      act(() => {
+        root.render(
+          <MilestonesContext.Provider value={createMilestones(analytics)}>
+            <ArrivalChoice />
+            <PrivacyChoices />
+          </MilestonesContext.Provider>,
+        );
+      });
+      expect(analytics.getChoice()).toBe('unavailable');
+      expect(container.textContent).toContain('Optional analytics is unavailable');
+      act(() =>
+        [...container.querySelectorAll('button')]
+          .find((button) => button.textContent === action)
+          ?.click(),
+      );
+      expect(container.querySelector('[data-arrival-choice]')).not.toBeNull();
+      Object.defineProperty(isolated.window.document, 'cookie', {
+        configurable: true,
+        get: () => '',
+        set: () => undefined,
+      });
+      act(() =>
+        [...container.querySelectorAll('button')]
+          .find((button) => button.textContent === action)
+          ?.click(),
+      );
+      expect(analytics.getChoice()).toBe('unavailable');
+      expect(container.querySelector('[data-arrival-choice]')).not.toBeNull();
+      Reflect.deleteProperty(isolated.window.document, 'cookie');
+      act(() =>
+        [...container.querySelectorAll('button')]
+          .find((button) => button.textContent === action)
+          ?.click(),
+      );
+      expect(container.querySelector('[data-arrival-choice]')).toBeNull();
+    } finally {
+      act(() => {
+        root.unmount();
+      });
+      analytics.dispose();
+      isolated.window.close();
+    }
+  });
+
+for (const [enabled, url] of [
+  [false, 'https://dev.app.puni.dev/'],
+  [true, 'https://dev.app.puni.dev/operator/'],
+  [true, 'https://dev.app.puni.dev/unknown/'],
+] as const)
+  test(`arrival choice absent when disabled or unsupported: ${String(enabled)} ${url}`, () => {
+    const isolated = new JSDOM('<body></body>', { url });
+    const analytics = createBrowserAnalytics(isolated.window, {
+      enabled,
+      environment: 'development',
+      measurementId: 'G-R0JM3R4SSV',
+    });
+    const root = createRoot(isolated.window.document.body);
+    try {
+      act(() => {
+        root.render(
+          <MilestonesContext.Provider value={createMilestones(analytics)}>
+            <ArrivalChoice />
+          </MilestonesContext.Provider>,
+        );
+      });
+      expect(isolated.window.document.querySelector('[data-arrival-choice]')).toBeNull();
+    } finally {
+      act(() => {
+        root.unmount();
+      });
+      analytics.dispose();
+      isolated.window.close();
+    }
+  });
+
+test('focus sync observes another host choice while vendor stays loading', () => {
+  const isolated = new JSDOM('<body></body>', { url: 'https://dev.app.puni.dev/' });
+  const analytics = createBrowserAnalytics(isolated.window, {
+    enabled: true,
+    environment: 'development',
+    measurementId: 'G-R0JM3R4SSV',
+  });
+  const root = createRoot(isolated.window.document.body);
+  try {
+    act(() => {
+      root.render(
+        <MilestonesContext.Provider value={createMilestones(analytics)}>
+          <ArrivalChoice />
+        </MilestonesContext.Provider>,
+      );
+    });
+    act(() => {
+      isolated.window.document.cookie = `puni_dev_consent_v1=${encodeURIComponent(JSON.stringify({ version: 1, accepted: true, expires: Date.UTC(2030, 0) }))}; Domain=puni.dev; Path=/; Secure`;
+      isolated.window.dispatchEvent(new isolated.window.Event('focus'));
+    });
+    expect(analytics.getState().status).toBe('loading');
+    expect(isolated.window.document.querySelector('[data-arrival-choice]')).toBeNull();
+    act(() => {
+      isolated.window.document.cookie =
+        'puni_dev_consent_v1=malformed; Domain=puni.dev; Path=/; Secure';
+      isolated.window.dispatchEvent(new isolated.window.Event('pageshow'));
+    });
+    expect(isolated.window.document.querySelector('[data-arrival-choice]')).not.toBeNull();
+  } finally {
+    act(() => {
+      root.unmount();
+    });
+    analytics.dispose();
+    isolated.window.close();
+  }
 });

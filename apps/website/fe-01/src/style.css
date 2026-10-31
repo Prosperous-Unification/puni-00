@@ -1771,3 +1771,57 @@ body:has(.night-shell) {
   background: transparent;
   color: var(--ink-2);
 }
+
+.arrival-choice {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  width: min(1100px, 100% - 2 * var(--gutter));
+  margin: var(--space-3) auto var(--space-5);
+  padding: var(--space-4);
+  border: 1px solid #756c61;
+  border-radius: var(--radius-field);
+  background: #211b20;
+  color: #f4eee6;
+}
+.arrival-choice p {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-small);
+  line-height: 1.5;
+}
+.arrival-choice a {
+  color: #f6c985;
+}
+.arrival-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-2);
+}
+.arrival-actions .glass-button {
+  min-height: 44px;
+  padding: var(--space-3) var(--space-4);
+  border-color: #9b8d7c;
+  color: #f4eee6;
+  background: #30272c;
+  white-space: normal;
+}
+@media (max-width: 900px) {
+  .arrival-choice {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+  .arrival-actions {
+    flex-wrap: wrap;
+  }
+  .arrival-actions .glass-button {
+    flex: 1;
+  }
+}
+@media (max-width: 480px) {
+  .arrival-actions {
+    flex-direction: column;
+  }
+}

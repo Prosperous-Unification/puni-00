@@ -26,7 +26,7 @@ import {
 } from './chrome';
 import { FunnelPanel } from './funnel-panel';
 import { GuardrailsPanel } from './guardrails-panel';
-import { PrivacyChoices } from './privacy-choices';
+import { ArrivalChoice, PrivacyChoices } from './privacy-choices';
 import { clearRequestEditor, RequestEditor } from './request-editor';
 
 interface Submission {
@@ -298,7 +298,7 @@ function ManualPage() {
     <div className="page-shell night-band">
       <HeroMedia />
       <SiteHeader buildCurrent="true" tone="night" placement="flow" />
-      <PrivacyChoices />
+      <ArrivalChoice />
       <main className="manual-layout" id="main">
         <aside className="context-panel" aria-label="About this step">
           <p className="eyebrow">01 / Request</p>
@@ -532,6 +532,7 @@ function ManualPage() {
           </div>
         </section>
       </main>
+      <PrivacyChoices />
       <SiteFooter />
     </div>
   );
