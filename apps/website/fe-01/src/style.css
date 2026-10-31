@@ -1821,7 +1821,20 @@ body:has(.night-shell) {
   }
 }
 @media (max-width: 480px) {
-  .arrival-actions {
-    flex-direction: column;
+  .arrival-actions .glass-button {
+    padding-inline: var(--space-2);
   }
+}
+
+/* The arrival invitation shares the existing shell scroll with the full conversation until a
+   choice is saved. The composer follows that content instead of squeezing the readable thread.
+   Proof: restoring fixed-viewport flex sizing fails arrival-choice.mjs at 320x568 (thread 0px),
+   before reading a saved question, typing in the composer or selecting an answer without consent. */
+.build-page:has(.arrival-choice) > .harness,
+.build-page:has(.arrival-choice) .harness-root,
+.build-page:has(.arrival-choice) .harness-thread {
+  flex: none;
+}
+.build-page:has(.arrival-choice) .harness-thread {
+  overflow-y: visible;
 }

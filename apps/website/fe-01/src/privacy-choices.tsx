@@ -113,8 +113,8 @@ export function ArrivalChoice() {
           <strong>Help us improve PUNI.</strong>
         </p>
         <p>
-          We use basic cookieless measurement to improve PUNI. Allow analytics cookies for a clearer
-          view of the journey, or disable measurement.
+          We use cookieless measurement. Allow analytics cookies for a clearer view, or disable
+          measurement. <a href={`${siteOrigin}/privacy/`}>Privacy information</a>
         </p>
         {(state.status === 'unavailable' || choice === 'unavailable') && (
           <p role="status">
@@ -123,7 +123,6 @@ export function ArrivalChoice() {
               : 'Analytics is unavailable. Your request can continue.'}
           </p>
         )}
-        <a href={`${siteOrigin}/privacy/`}>Privacy information</a>
       </div>
       <div className="arrival-actions">
         <button

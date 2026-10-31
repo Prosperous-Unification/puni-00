@@ -7,3 +7,5 @@
 - [x] Inject production faults, observe failures and restore checks with adjacent Proof comments.
 - [x] Run affected named Nx tests/lint/typecheck/build and OpenSpec validation.
 - [x] Self-review, write final evidence and commit with normal hooks.
+
+- [x] Repair independently reviewed short-phone ready-questionnaire collapse; add actual-built offline interaction and scrollbar/header regression, observe RED and broken-layout replay, then verify and commit.
