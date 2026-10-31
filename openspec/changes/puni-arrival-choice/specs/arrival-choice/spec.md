@@ -35,9 +35,19 @@ The arrival choice SHALL offer equal Allow analytics cookies and Disable measure
 
 ### Requirement: Quiet normal-flow app integration
 
-One arrival strip SHALL precede request content on each public anonymous route in normal flow. It SHALL not use a dialog, overlay or focus transfer. Equal actions SHALL have targets at least 44px high, readable contrast and a stacked small-screen layout. Footer Privacy choices SHALL start collapsed independently of consent and avoid duplicate open action controls while the arrival strip is present. Copy SHALL not claim complete GA reports or active collection during failure.
+One arrival strip SHALL precede request content on each public anonymous route in normal flow. It SHALL not use a dialog, overlay or focus transfer. Equal actions SHALL have targets at least 44px high, readable contrast and a stacked small-screen layout. Copy SHALL not claim complete GA reports or active collection during failure.
 
 #### Scenario: Arrival with keyboard focus
 
 - **WHEN** arrival controls mount while the request has focus
-- **THEN** focus remains on the request and only one pair of choice actions is exposed
+- **THEN** focus remains on the request and initially only one pair of choice actions is exposed
+
+### Requirement: Footer choices remain directly available
+
+Footer Privacy choices SHALL start collapsed independently of consent and avoid automatically opening duplicate action groups. Explicit footer expansion SHALL expose both actions for every choice, including unset or unavailable.
+
+#### Scenario: Fresh visitor expands footer choices
+
+- **WHEN** a visitor with unset or unavailable preference expands Privacy choices
+- **THEN** both choice actions and any storage failure status are available in that region
+- **AND** a refused preference write keeps its controls open for recovery

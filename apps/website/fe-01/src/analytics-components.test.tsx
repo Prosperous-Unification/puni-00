@@ -180,7 +180,7 @@ test('mounted consent has equal choices, visible optional failure and no StrictM
     act(() => {
       listener({ status: 'unavailable', reason: 'loader' });
     });
-    expect(container.textContent).toContain('Optional analytics is unavailable');
+    expect(container.textContent).toContain('Analytics is unavailable');
     act(() => {
       buttons[0]?.click();
     });
@@ -305,7 +305,7 @@ for (const [preference, visible] of [
         [...container.querySelectorAll('button')].filter(
           (button) => button.textContent === 'Allow analytics cookies',
         ),
-      ).toHaveLength(1);
+      ).toHaveLength(visible ? 2 : 1);
     } finally {
       act(() => {
         root.unmount();
@@ -342,13 +342,24 @@ for (const action of ['Allow analytics cookies', 'Disable measurement'])
         );
       });
       expect(analytics.getChoice()).toBe('unavailable');
-      expect(container.textContent).toContain('Optional analytics is unavailable');
+      expect(container.textContent).toContain('We couldn’t read or save your choice');
+      const footer = container.querySelector('[aria-label="Analytics privacy"]');
+      if (!footer) throw new Error('Missing footer');
+      act(() => {
+        footer.querySelector('button')?.click();
+      });
+      expect(footer.textContent).toContain('We couldn’t read or save your choice');
+      expect(
+        [...footer.querySelectorAll('button')].filter((button) => button.textContent === action),
+      ).toHaveLength(1);
+
       act(() =>
-        [...container.querySelectorAll('button')]
+        [...footer.querySelectorAll('button')]
           .find((button) => button.textContent === action)
           ?.click(),
       );
       expect(container.querySelector('[data-arrival-choice]')).not.toBeNull();
+      expect(footer.querySelector('button')?.getAttribute('aria-expanded')).toBe('true');
       Object.defineProperty(isolated.window.document, 'cookie', {
         configurable: true,
         get: () => '',
@@ -444,3 +455,46 @@ test('focus sync observes another host choice while vendor stays loading', () =>
     isolated.window.close();
   }
 });
+
+for (const action of ['Allow analytics cookies', 'Disable measurement'])
+  test(`fresh footer can persist a choice directly: ${action}`, () => {
+    const isolated = new JSDOM('<body></body>', { url: 'https://dev.app.puni.dev/' });
+    const analytics = createBrowserAnalytics(isolated.window, {
+      enabled: true,
+      environment: 'development',
+      measurementId: 'G-R0JM3R4SSV',
+    });
+    const root = createRoot(isolated.window.document.body);
+    try {
+      act(() => {
+        root.render(
+          <MilestonesContext.Provider value={createMilestones(analytics)}>
+            <ArrivalChoice />
+            <PrivacyChoices />
+          </MilestonesContext.Provider>,
+        );
+      });
+      const footer = isolated.window.document.querySelector('[aria-label="Analytics privacy"]');
+      if (!footer) throw new Error('Missing footer');
+      act(() => {
+        footer.querySelector('button')?.click();
+      });
+      const button = [...footer.querySelectorAll('button')].find(
+        (button) => button.textContent === action,
+      );
+      expect(button).toBeDefined();
+      act(() => {
+        button?.click();
+      });
+      expect(analytics.getChoice()).toBe(
+        action === 'Allow analytics cookies' ? 'accepted' : 'rejected',
+      );
+      expect(isolated.window.document.querySelector('[data-arrival-choice]')).toBeNull();
+    } finally {
+      act(() => {
+        root.unmount();
+      });
+      analytics.dispose();
+      isolated.window.close();
+    }
+  });

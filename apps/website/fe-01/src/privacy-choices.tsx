@@ -43,38 +43,43 @@ export function PrivacyChoices() {
             Analytics cookies require your permission. Your request text and email stay out of
             analytics. Disable measurement to stop further collection.
           </p>
-          {(choice === 'accepted' || choice === 'rejected') && (
-            <div className="scoping-answers">
-              <button
-                className="glass-button quiet"
-                type="button"
-                onClick={() => {
-                  analytics.accept();
-                  if (analytics.getChoice() !== 'unavailable') setOpen(false);
-                }}
-              >
-                Allow analytics cookies
-              </button>
-              <button
-                className="glass-button quiet"
-                type="button"
-                onClick={() => {
-                  analytics.reject();
-                  if (analytics.getChoice() !== 'unavailable') setOpen(false);
-                }}
-              >
-                Disable measurement
-              </button>
-            </div>
-          )}
+          <div className="scoping-answers">
+            <button
+              className="glass-button quiet"
+              type="button"
+              onClick={() => {
+                analytics.accept();
+                // Proof: unconditional closing failed both footer refusal tests (expanded expected true, got false).
+                if (analytics.getChoice() !== 'unavailable') setOpen(false);
+              }}
+            >
+              Allow analytics cookies
+            </button>
+            <button
+              className="glass-button quiet"
+              type="button"
+              onClick={() => {
+                analytics.reject();
+                // Proof: unconditional closing failed both footer refusal tests (expanded expected true, got false).
+                if (analytics.getChoice() !== 'unavailable') setOpen(false);
+              }}
+            >
+              Disable measurement
+            </button>
+          </div>
         </div>
       )}
       {(choice === 'accepted' || choice === 'rejected') && state.status === 'loading' && (
         <p role="status">Analytics is loading. Your request can continue.</p>
       )}
-      {(choice === 'accepted' || choice === 'rejected') && state.status === 'unavailable' && (
-        <p role="status">Optional analytics is unavailable. Your request can continue.</p>
-      )}
+      {(isOpen || choice === 'accepted' || choice === 'rejected') &&
+        state.status === 'unavailable' && (
+          <p role="status">
+            {choice === 'unavailable'
+              ? 'We couldn’t read or save your choice. Please try again.'
+              : 'Analytics is unavailable. Your request can continue.'}
+          </p>
+        )}
       {isOpen && state.status === 'cookieless' && (
         <p role="status">Analytics cookies are off. Basic cookieless measurement is active.</p>
       )}
@@ -113,8 +118,9 @@ export function ArrivalChoice() {
         </p>
         {(state.status === 'unavailable' || choice === 'unavailable') && (
           <p role="status">
-            Optional analytics is unavailable. Your request can continue. Your privacy choice may
-            not have been saved; try either choice again.
+            {choice === 'unavailable'
+              ? 'We couldn’t read or save your choice. Please try again.'
+              : 'Analytics is unavailable. Your request can continue.'}
           </p>
         )}
         <a href={`${siteOrigin}/privacy/`}>Privacy information</a>
