@@ -4892,3 +4892,62 @@ push or merge ran in this source slice. Independent specification/quality review
 separately bounded actual adapter/existing-pipeline corroboration remain open; no
 stored-history/Prometheus-reset or runtime-acceptance claim is made. Task74,3.1 and
 full two-instance Kubernetes/isolation/history/recovery acceptance stay open.
+
+## Resource coverage, phase findings and Task74 actual pipeline — 2026-10-31
+
+New read-only coverage at15:29:41UTC completed in2.360seconds. Four30second evaluated
+grid series each return2881points/allup across24hours. Raw up counts and sums match
+configured expected cadences: collector, gateway and Prometheus2880each; probe17280.
+These checks do not prove every raw timestamp or whole-stack load coverage. Host and
+container resource histories are absent from dev Prometheus; preserved VictoriaMetrics
+has104metric names, with OpenClaw self-memory metrics but no host/container history.
+Private resource-history-2026-10-31 retains9artifacts and15independent count/hash checks.
+
+Independent phase research follows actual awaited creation/import/bootstrap calls and
+the Flux graph. The conditional52672Mi source sum separates22240Mi persistent initial
+roles,18656Mi first replacements and11776Mi Job/tick attempts. None establishes a
+physical simultaneous peak. Failed/Succeeded Pod status and retained disk history do
+not prove either live process RAM or reclaimed cgroups. No source ledger, floor,
+required instance, recovery case or history policy was changed; the withdrawn hardware
+recommendation remains withdrawn. Next phase measurements need actual execution and
+residual memory attribution rather than invented concurrency discounts.
+
+Fresh independent specification and quality review approves Task74 SOURCE452ab999e,
+full pre-intent16f2 through source range, with no Critical/Important/Minor findings.
+Review is retained as task-74-review.md. Parent read the complete report/review and
+all58raw named fault observations, then verified106evidence artifact hashes,8source
+working/committed hashes and36command receipts without rerunning passing checks.
+The review and source tests do not certify live history or restart CPU interpretation.
+
+A root bounded release binds clean evidence HEADfc1dd68f and all8reviewed source hashes.
+One real createResourceReader invocation used the exact fixed program through the
+existing pinned operator transport to h3mon. This verifies the managed root inspection
+route, not the h1 observer account's newly exercised Python privilege. Existing actual
+collector14318 and Prometheus19090 loopback mappings were independently bound to owned
+running Compose containers before a temporary controller-local SSH forward was started.
+No new remote file, daemon, Docker resource, credential, port exposure or unit was created.
+
+The actual component completed in2.554seconds, with13complete owned workload readings;
+current six-dev memory charge is2.823GiB. Production encodeResourceMetrics and the
+existing createOtlpSender published one25235byte batch, acknowledged successfully.
+The same temporary query route observed74stored Prometheus resource series within the
+10.354second overall operation. Parent independently compared all74state/time/host and
+13workload memory, configured-limit, CPU and execution-start values to the exact reading;
+all match, with no raw machine/daemon/boot/container identities in metric labels.
+Stored CPU names use the exporter `_total` suffix and start timestamp gauges survive.
+No restart was induced, so store-side counter reset behavior and sustained history remain
+unverified. An ingest acknowledgement alone was not counted as storage evidence.
+
+Exactly one provider reading and one metric publication occurred. The owned temporary
+SSH process was terminated/reaped and its PID independently absent; no observer/tunnel
+unit was changed. The existing compiled ab4f observer remains the live autonomous producer
+and does not yet invoke this new reader. This component is therefore not continuous
+resource history activation or full Kubernetes/common-stack/live acceptance. Preserve
+all existing dev health/history and route guarantees for the subsequent bounded rollout.
+
+Raw release, wrapper, component, endpoint preflight, reading, batch, acknowledgement,
+stored series/polls, complete-value comparison and cleanup receipts are retained privately
+in task-74-actual-component. Task74's implementation/review/corroboration source slice
+is complete; original3.1 and canonical4/11 runtime milestones remain open. A persistent
+observer update, at least two freshness windows and restart-aware history verification
+remain required before calling resource collection autonomous in the running system.

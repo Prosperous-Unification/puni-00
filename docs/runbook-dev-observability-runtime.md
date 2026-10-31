@@ -271,3 +271,23 @@ The source adapter additionally checks the initial Victoria datasource type and 
 The pinned compiled helper above remains unchanged; using that new source validation
 on a host requires a separately reviewed compiled helper and hash update. This
 runbook edit does not activate that source or modify either existing receipt.
+
+## Resource-history observer update status
+
+Task74 adds a bounded read-only host/workload resource reader to the source observer.
+Its one-shot actual h3mon inspection, existing OTLP sender and74stored resource series
+are verified in the [owning evidence](../openspec/changes/observability-environment-parity/verify.md).
+The compiled ab4f release and units described above remain unchanged: continuous resource
+collection is **not activated** by that component proof. Stage and validate a new immutable
+compiled observer release and preserve old units/checkpoints/rollback before changing it.
+
+The new `puni_resource_collection_state` and checked/observed timestamps expose resource
+collection independently of application health. Host memory total/available, per-role
+current cgroup memory, configured memory limits and cumulative CPU use the existing
+Prometheus store. Stable `target_host`, `workload_group` and `workload_role` labels identify
+the measured target; source IDs stay in checkpoint provenance. CPU counters use `_total`
+in Prometheus, with separate host/workload started timestamp gauges. Verify generation
+changes and sufficient samples before interpreting a CPU rate; missing rate/history is
+not zero usage. Treat unavailable collection or stale observation timestamps as missing
+capacity evidence. Do not sum independent lifetime maxima or turn configured limits into
+measured concurrent demand.
