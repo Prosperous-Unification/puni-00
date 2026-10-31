@@ -1687,3 +1687,35 @@ The modeled raw source receipts and actual loopback HTTP establish composition, 
 ## Source continuation after retained gateway readiness
 
 The existing restoration closure retains one private gateway-ready source continuation after actual gateway closing monitors. Source phase admission is terminal before I/O. Its verified manual lifecycle transition changes only the private source monitor from cold to running; actual whole-source role binding precedes any subsequent authority collection. The original authority collector's prod/dev database identities are reused. Prod openers remain limited to the retained product backend, while dev openers additionally require the actual source backend PID/start/UID/cgroup and non-null executable. The actual six-response composer and fresh product/solver/source/publication/fence checks precede source-ready return. No public phase/permit, database recapture, restart-policy restoration, controller or exposure release is added.
+
+### Initializer origin-receipt prerequisite
+
+The existing initializer gains one optional `EdgePolicyOriginRequest` containing
+only `attemptId` and `receiptPath`, preserving its ordinary-policy return type.
+A private writer inside its ORIGINAL canonical-lock callback produces the
+observation specified above. It captures original descriptor identities before
+close and verifies independent named/open observations. No callback, state
+factory, policy/hash input or admission reader is exposed.
+
+The selected existing private staging parent must already exist, be canonical,
+owned by the executing UID and mode0700. Retain its directory descriptor through
+exclusive0600 no-follow creation, sync and readback. Validate request/destination
+admission before policy mutation. A later required evidence failure propagates
+without rolling back already-published policy; partial publication is explicit.
+The existing lock-finally behavior is preserved.
+
+Only edge-policy.ts, initialize-edge-policy.ts and their two owning tests are
+part of this slice. Existing lock/native filesystem helpers and installer,
+service, source-model, CI and host code remain unchanged. Focused tests use
+process-private scratch and real bounded child custody without HTTP listeners,
+Docker, systemd, SSH or production state. This slice can run in a separately
+leased947-based checkout while the unrelated participant-policy proof owns its
+own checkout and ports; dependencies, caches and scratch must remain separate.
+
+The later first-reader publisher must join the original initializer and both
+streams, require this invocation's bounded receipt, reacquire the canonical lock
+and compare original policy/parent/lock identities and exact policy bytes.
+Lock-holder bytes and mutable timestamps are deliberately outside continuity.
+No later pathname baseline may replace missing origin evidence. That publisher,
+guarded callers, full initial handoff and host execution are unimplemented here.
+See [origin-receipt evidence](verify-origin-receipt.md).

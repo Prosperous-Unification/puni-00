@@ -1116,3 +1116,14 @@ Actual receipts and limits live in [verify-source-readiness.md](verify-source-re
 - [x] Couple the exact original source start and actual dev-source-backend-only opener admission; observe minimal raw process/HTTP/record GREEN with unchanged budgets.
 - [x] Exercise finite new phase, lifetime, opener, retained identity and closing negatives; independently review exact new dependency fault recipes before omissions.
 - [ ] Record factual scoped proofs/current checks and independent source review before Root's normal checkpoint. Parent10.2, native source/controller/exposure acceptance remain open.
+
+### Initializer origin-receipt prerequisite (bounded part of10.2)
+
+- [x] OR1 Reach genuine initializer RED for requested missing origin evidence, then add the optional typed request and under-original-lock receipt in `edge-policy.ts`. Extend `edge-policy.test.ts` with `origin receipt retains created policy and original parent and lock before release` and `same-byte replacement cannot rebase initializer origin`. Use actual descriptor/named identity checks and a bounded real lock contender at the receipt filesystem boundary. Freeze/review the exact production-path capture-after-unlock and identity-rebase counterfactual recipes before execution; a file-exists assertion alone is insufficient.
+- [x] OR2 Add pre-mutation request/private-destination admission and required exclusive durable evidence. Extend the owning tests with `unsafe origin destination refuses before policy creation` and `required receipt failure retains created policy without success`. Cover existence, aliases, canonical private parent, actual0600 identity and bounded fields; distinguish absence/unreadability and preflight refusal from later write/sync/readback failure. Observe the corresponding finite production dependency omissions fail the same consumers, preserving partial-state and original-custody evidence; never weaken or silently skip an unavailable negative.
+- [x] OR3 Add only the closed opt-in CLI form while preserving old API/no-argument/exact-execute behavior/stdout. Extend `initialize-edge-policy.test.ts` with `origin CLI requires a complete request before mutation`, `origin CLI preserves legacy stdout and original process custody` and `failed initialization receipt is not successful origin`. Join the original child plus both EOFs and independently inspect actual requested evidence. Prove removal of the required receipt dependency breaks the new consumer. Finish scoped checks and independent Astra source/evidence review in [verify-origin-receipt.md](verify-origin-receipt.md).
+
+These are local evidence-producer prerequisites. Reader publication, the actual
+reacquisition consumer, ordinary guarded callers, service/controller/exposure,
+initial H0–H8, native acceptance and parent10.2 remain open. No host action or
+architectural main/deployment adoption follows from this slice.
