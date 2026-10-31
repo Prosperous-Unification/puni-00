@@ -1,8 +1,8 @@
 ## Context
 
 RunStore.createRun accepts an already formed Run; current production callers do not yet
-construct coordinator runs. RunIdCodec accepts strings of1–256 UTF-16 units. The current
-SQLite format4 binds raw IDs directly, whereas payload JSON preserves lone surrogates.
+construct coordinator runs. RunIdCodec accepts strings of 1–256 UTF-16 units. Before this
+change, SQLite format4 bound raw IDs directly, whereas payload JSON preserved lone surrogates.
 The observed public save/read disagreement establishes an adapter contract defect.
 
 ## Goals / Non-Goals
@@ -75,8 +75,41 @@ families while comparing each requested format's exact schema. Format5 recovery 
 from its real family; it must never take format3's empty-recovery branch.
 
 Current-format physical corruption/trigger tests target run5_ tables; historical3↔4 tests
-use an actual pinned format4 producer. Keep the existing pinned format3 fixture unchanged.
-The new predecessor fixture pins genuine b3b594dab4f0153d2ef00a2989bbeb02ea0cbbda.
+use an actual pinned format4 producer. Preserve the existing BB14 production source pin,
+worker/protocol bytes and typed format3 fixture behavior. Its current test-only archive,
+provenance, IPC, readiness and close/drain host can be extracted into one shared owner,
+with wrappers retaining their own compiled pins. Format4 reuses the unchanged strict
+legacy wire decoder through a thin adapter and includes that archived dependency in its
+provenance. Its worker retains a version-specific bootstrap: reusing the frozen format3
+worker would require changing that control or rewriting executable source. The explicit
+cost is one historical worker fork; future format4 worker fixes do not update the frozen
+format3 control. Reverify direct
+and transitive lifecycle/provenance/construction consumers; preserve original causes and
+retain fixtures when native closure is unestablished. The new format4 fixture pins genuine
+b3b594dab4f0153d2ef00a2989bbeb02ea0cbbda. No archived producer source is refactored.
+An in-process genuine-predecessor bridge retains a source lease before importing/opening
+its native provider. Only fulfilled native close releases that lease. Host close still
+attempts worker shutdown and both pipe drains, then rejects with the retained path and
+pending-owner diagnosis while a lease remains. Preserve primary and independent causes;
+an opaque open/close rejection never proves quiescence or permits archive removal.
+
+Repeated imports from separate verified archive paths retained distinct predecessor module
+graphs; the broad validation measured roughly13GiB in its parent alone. Keep one explicitly
+owned, verified b3b archive/module for ordinary in-process fixtures per Bun test process,
+with leases for each independent
+native store. Share only immutable compiled code, never connections, stores, clocks or
+per-case state. Controlled native-fault proofs keep their explicitly isolated verified
+imports and prove closure of each exact native connection before test-owned removal.
+Genuine IPC workers keep independent source archives and protocols.
+
+Dash's dedicated format4-lifetime-preload installs this source owner before fixture use.
+Its single suite teardown awaits pooled-source disposal before calling the existing generic
+removeProcessRoot; unknown closure retains both visibly and throws with original causes.
+Missing the owner refuses before shared-source allocation. No app dependency is added to
+global test infrastructure. A real multi-file child test must establish the preload's actual
+scope, cross-file reuse and later-file usability rather than assuming helper hook semantics.
+Keep the existing30s hook allowance and60s target budget. Current source provenance,
+isolated import-fault ownership, native open/close and missing/late-owner checks remain.
 
 ## Migration Plan
 
@@ -88,11 +121,21 @@ then COMMIT; COMMIT is publication. Any error rolls the whole transaction back. 
 predecessors refuse without a guessed repair. Fresh bootstrap builds the complete current
 format5; ordinary open rejects predecessor formats without mutating them.
 
+Both explicit transition pairs share format-transition.ts for inspection, bounded BUSY
+acquisition, transaction phases, audits, rollback, native close and the public error class.
+Their migration modules retain compiled preparation with explicit unused checks and apply
+work, preserving each pair's statement order and failure categories. The original public
+module re-exports the same error class. Finite copy SQL remains in migrate-identities.ts.
+
 A persisted usage marker is set transactionally with every applied new-format semantic
 reply, including ownership and manifest changes, through the existing finish boundary.
 Duplicate/refused clock observations and shared immutable artifact retention are explicit
 exceptions; observed clocks are never rolled backward during downgrade. Marker updates
 must verify actual affected rows so suppressed marking cannot leave downgrade enabled.
+Recovery closure keeps its existing prohibition on history reads between semantic writes
+and COMMIT. Its checked usage-marker readback is a separate exact metadata query after
+all semantic writes and the marker UPDATE; only clock finalization follows. Tests must
+not broaden that exception to arbitrary SELECTs or permit later semantic writes.
 API downgrade validates the full successor and unused marker; raw down SQL independently
 refuses used/missing/corrupt markers before DROP. Unused downgrade removes successor-only
 structures and restores/audits the exact predecessor identity. Already-loaded format4

@@ -123,14 +123,14 @@ export async function downgradeUnusedSqliteIdentityKeys(
 ): Promise<SqliteFormatTransition>;
 ```
 
-- [ ] 3.1 TDD public-port regression: actual SQLite save/read/retry/reopen preserves
+- [x] 3.1 TDD public-port regression: actual SQLite save/read/retry/reopen preserves
       D800/D801/DC00/FFFD/literal escape/NUL/astral IDs, including distinct records; memory
       is the passing comparison. Watch the original SQLite failure before repair. Test:
       identity-keys.db.test.ts. Implement exactly JSON.stringify(rawId) including quotes;
       decode to unknown, parse a string and require exact re-encoding equality. Keep domain
       validation in its existing codecs. Canonical and physical/logical mismatch checks get
       independent public-path negatives with inherited comparisons left installed.
-- [ ] 3.2 Add complete additive parallel keyed execution/runtime/recovery family with
+- [x] 3.2 Add complete additive parallel keyed execution/runtime/recovery family with
       its own count markers and usage marker. Enumerate finite table/key mapping; never
       rewrite arbitrary SQL. Update every producer, lookup, reader, FK counterpart and
       history validator to select the right compiled format and decode before comparing.
@@ -138,20 +138,36 @@ export async function downgradeUnusedSqliteIdentityKeys(
       version5 must not silently take format3's empty-recovery branch.
       Preserve digest/scope/payload encodings and decoded/numeric ordering. Test: cross-family
       public read/write/retry and populated ordering comparisons in identity-keys.db.test.ts.
-- [ ] 3.3 Add explicit4↔5 migration under BEGIN IMMEDIATE: validate genuine4, copy exact
+- [x] 3.3 Add explicit4↔5 migration under BEGIN IMMEDIATE: validate genuine4, copy exact
       payload bytes with only raw keys encoded, audit successor then publish version/full
       bundle atomically. Preserve old tables and all0001–0004 bytes. Fresh bootstrap creates
       valid5; ordinary open rejects4 unchanged. Test: populated genuine4, absent/unreadable,
       corrupt predecessor, late abort/cleanup fault, reopen and unused round trip.
-- [ ] 3.4 Persist semantic-use marker atomically with successful new-format mutations;
+      Both explicit transition pairs share the narrow format-transition.ts lifecycle;
+      migration owners retain explicit used checks, finite SQL and statement ordering.
+- [x] 3.4 Persist semantic-use marker atomically with successful new-format mutations;
       direct down SQL independently guards exact unused marker before destructive statements.
       Missing/corrupt markers refuse; prove absent/invalid marker update cannot silently affect
       zero rows. Test: used API down, used raw down and separate API/SQL/marker faults.
       Preserve documented immutable-artifact/refusal-clock exceptions without restoring a
       lower observed clock or changing execution ownership/history under mismatch.
-- [ ] 3.5 Prove actual already-open, queued and BUSY genuine format4 writers refuse after
+- [x] 3.5 Prove actual already-open, queued and BUSY genuine format4 writers refuse after
       publication. Pin the reviewed genuine source rather than emulating it. Preserve original
       format3/4 compatibility tests with explicit predecessor targets and all inherited guards.
+      A narrow shared test-only archive/IPC/close host may serve both wrappers; preserve the
+      genuine BB14 pin, archived producer, worker/protocol bytes and typed format3 behavior.
+      Reverify all direct/transitive lifecycle, provenance and construction consumers after
+      extraction; every new load-bearing host check requires an owned boundary fault.
+      An in-process predecessor bridge must retain source through uncertain native open/close;
+      test actual open/close faults, worker/pipes drain despite retention, and restored closure.
+      Bound ordinary in-process fixtures to one verified b3b source per Bun test process,
+      with separate native-store leases and independent worker archives. Controlled native
+      fault proofs retain explicitly isolated verified imports and exact connection-close
+      witnesses. Keep the original format3 control immutable; the version-specific worker
+      fork's disposition and cost are recorded in design.md. Implement the sole Dash lifetime
+      preload and project-command oracle; test actual multi-file lifetime/reuse/teardown and
+      missing-owner refusal before shared allocation. Pooled teardown precedes generic scratch
+      removal, retaining both on unknown closure. Preserve30s hook/60s target budgets.
       Test: format4 compatibility group, actual contention/concurrency cases and original
       physical-schema/history corruption suites. New checks require independent negatives.
 

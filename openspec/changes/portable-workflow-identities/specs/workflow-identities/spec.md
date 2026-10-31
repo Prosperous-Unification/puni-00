@@ -60,7 +60,14 @@ transactional down SQL MUST refuse. Missing or corrupt use markers MUST refuse.
 #### Scenario: Unused transition round trip
 
 - **WHEN** a genuine format4 store is upgraded and downgraded before new-format semantic use
-- **THEN** its full predecessor ledger, payloads and identity remain exact
+- **THEN** its predecessor execution/history ledger, payloads and identity remain exact
+
+#### Scenario: Unused downgrade preserves a later observed clock
+
+- **WHEN** an upgraded store has only duplicate or refused operations that advance its
+  observed clock, without a new semantic mutation
+- **THEN** unused downgrade preserves the greatest observed clock
+- **AND** its predecessor execution/history ledger and payloads remain exact
 
 #### Scenario: New-format use prevents destructive downgrade
 
