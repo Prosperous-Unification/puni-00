@@ -1801,3 +1801,23 @@ construction-time clock while real owned processes/files/locks remain genuine;
 production has no profile/environment override and owning tests retain10000ms.
 The engineering allowances require later target-specific qualification and may
 refuse slow targets; they grant neither host authority nor capacity acceptance.
+
+### Deterministic first-reader observation fixture
+
+The optional local test construction may synchronously observe a detached
+readonly scalar snapshot at the existing child observer disposition point: the
+actual original wait-settled, each actual EOF and delivered read-failure flags.
+The callback cannot supply status, EOF, receipt, admission or continuation; its
+return is ignored. Without the tap, production performs no callback or logging.
+A tiny wrapper models the explicitly optional outcome as observed or
+observer-failed with diagnostic written or unavailable. Callback failure emits
+one fixed bounded diagnostic; diagnostic failure returns unavailable. Neither
+outcome changes original observations, deadlines, refusal, cleanup or lock
+ownership. An unavailable test witness earns no proof credit and creates no new
+HOLD or recovery behavior.
+
+The permanent-read-error fixture waits for the actual settled-wait/unaffected
+EOF/read-error milestone, then advances only its existing construction clock
+beyond unchanged cutoffs. It observes the next real pending pause or actual
+expired rejection before attended fixture teardown. This replaces a30ms timing
+guess; teardown remains disposal of an owned fixture, not production recovery.

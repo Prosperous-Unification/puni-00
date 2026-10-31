@@ -22,6 +22,7 @@ import { expect, test } from 'bun:test';
 import { initializeOrdinaryEdgePolicy } from './edge-policy';
 import { readClosed } from './managed-cohort';
 import {
+  observeSolverReaderDisposition,
   prepareSolverReader,
   runSolverReaderTransport,
   type SolverReaderClock,
@@ -762,18 +763,39 @@ test('EXDEV at the actual link boundary refuses with no copy fallback or fixed p
   expect(await Bun.file(join(fixture.state, 'edge-policy.json')).exists()).toBe(true);
 });
 
-test('terminal real-pipe observation error retains original operation lock until attended outer-fixture teardown', async () => {
+async function assertReadFailureDisposition(throwingTap: boolean): Promise<void> {
   const fixture = await preparationFixture();
   const ready = join(fixture.root, 'staged-child-ready');
   const release = join(fixture.root, 'staged-child-release');
   const fault = join(fixture.root, 'observed-read-failure');
+  const milestone = join(fixture.root, 'actual-child-observations');
+  const disposition = join(fixture.root, 'actual-disposition.json');
   const original = await readFile(fixture.selection.reader.path, 'utf8');
   await replaceFixtureArtifact(
     fixture.selection.reader,
     `${original}\nif (process.argv[2] === '--check-edge-policy') { await Bun.write(${JSON.stringify(ready)}, String(process.pid)); while (!(await Bun.file(${JSON.stringify(release)}).exists())) await Bun.sleep(5); }`,
   );
   const source = new URL('./solver-reader-preparation.ts', import.meta.url).pathname;
-  const program = `import { writeFileSync, existsSync } from 'node:fs'; import { prepareSolverReader } from ${JSON.stringify(source)}; const attempt = prepareSolverReader(${JSON.stringify(fixture.selection)}, ${JSON.stringify(fixture.layout)}, undefined, { afterRead(stream) { if (stream === 'stdout' && existsSync(${JSON.stringify(ready)})) { writeFileSync(${JSON.stringify(fault)}, 'actual pipe read failed'); throw new Error('fixture terminal actual-pipe observation fault'); } } }); attempt.then(() => { throw new Error('unknown observation unexpectedly admitted'); }, (cause) => { throw new Error('unknown observation unwound original operation', { cause }); }); const attended = await new Response(Bun.stdin.stream()).text(); if (attended !== 'retire owned outer fixture') throw new Error('invalid attended fixture disposition'); process.exit(0);`;
+  const program = `
+    import { writeFileSync, existsSync } from 'node:fs'; import { prepareSolverReader } from ${JSON.stringify(source)};
+    let now = 0; let observed = false; let tapThrew = false;
+    const record = (value) => { if (!existsSync(${JSON.stringify(disposition)})) writeFileSync(${JSON.stringify(disposition)}, JSON.stringify({ cause: '', ...value })); };
+    const attempt = prepareSolverReader(${JSON.stringify(fixture.selection)}, ${JSON.stringify(fixture.layout)}, undefined, {
+      clock: { now: () => now, pause: (milliseconds) => { if (observed) record({ status: 'pending' }); return Bun.sleep(milliseconds); } },
+      afterRead(stream) { if (stream === 'stdout' && existsSync(${JSON.stringify(ready)})) { writeFileSync(${JSON.stringify(fault)}, 'actual pipe read failed'); throw new Error('fixture terminal actual-pipe observation fault'); } },
+      disposition(snapshot) {
+        if (snapshot.waitSettled && snapshot.stderrEof && snapshot.stdoutFailed) {
+          observed = true; now = 180001;
+          writeFileSync(${JSON.stringify(milestone)}, JSON.stringify(snapshot));
+          if (${JSON.stringify(throwingTap)} && !tapThrew) { tapThrew = true; throw new Error('fixture throwing read-only disposition tap'); }
+        }
+      },
+    });
+    attempt.then(() => record({ status: 'settled-success' }), (cause) => record({ status: 'settled-refusal', cause: cause instanceof Error ? cause.message : String(cause) }));
+    const attended = await new Response(Bun.stdin.stream()).text();
+    if (attended !== 'retire owned outer fixture') throw new Error('invalid attended fixture disposition');
+    process.exit(0);
+  `;
   const outer = Bun.spawn([process.execPath, '-e', program], {
     stdin: 'pipe',
     stdout: 'pipe',
@@ -781,40 +803,119 @@ test('terminal real-pipe observation error retains original operation lock until
   });
   const out = new Response(outer.stdout).text();
   const err = new Response(outer.stderr).text();
+  const failures: unknown[] = [];
   try {
     await waitForFixture(() => Bun.file(fault).exists());
-    const contender = async () => {
-      const child = Bun.spawn(['flock', '-n', join(fixture.state, 'edge.lock'), 'true'], {
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
-      const [code] = await Promise.all([
-        child.exited,
-        new Response(child.stdout).text(),
-        new Response(child.stderr).text(),
-      ]);
-      return code;
-    };
-    expect(await contender()).toBe(1);
-    expect(outer.exitCode).toBe(null);
-    const originalPid = (await readFile(ready, 'utf8')).trim();
     await writeFile(release, 'attended fixture child release');
-    await waitForFixture(async () => !(await Bun.file(`/proc/${originalPid}/stat`).exists()));
-    await Bun.sleep(30);
-    expect(await contender()).toBe(1);
+    await waitForFixture(() => Bun.file(disposition).exists());
+    const observation: unknown = JSON.parse(await readFile(disposition, 'utf8'));
+    const fields = readClosed(observation, ['status', 'cause']);
+    expect(fields['status']).toBe('pending');
+    const actual: unknown = JSON.parse(await readFile(milestone, 'utf8'));
+    expect(actual).toMatchObject({ waitSettled: true, stderrEof: true, stdoutFailed: true });
+    const contender = Bun.spawn(['flock', '-n', join(fixture.state, 'edge.lock'), 'true'], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const [code] = await Promise.all([
+      contender.exited,
+      new Response(contender.stdout).text(),
+      new Response(contender.stderr).text(),
+    ]);
+    expect(code).toBe(1);
     expect(outer.exitCode).toBe(null);
     expect(await Bun.file(fixture.layout.bun).exists()).toBe(false);
-  } finally {
-    await writeFile(release, 'attended fixture child release');
-    await outer.stdin.write('retire owned outer fixture');
-    await outer.stdin.end();
-    const [code, stdout, stderr] = await Promise.all([outer.exited, out, err]);
-    expect(code).toBe(0);
-    expect(outer.signalCode).toBe(null);
-    expect(stdout).toBe('');
-    expect(stderr).not.toContain('unwound original operation');
+  } catch (cause) {
+    failures.push(cause);
   }
-  // Explicit outer-fixture exit releases its OS descriptors; it proves no production recovery or missing-EOF reconstruction.
+  try {
+    await writeFile(release, 'attended fixture child release');
+    // The actual snapshot includes the original child's joined wait and unaffected EOF before outer retirement.
+    if (outer.exitCode === null) {
+      await waitForFixture(() => Bun.file(milestone).exists());
+      await outer.stdin.write('retire owned outer fixture');
+      await outer.stdin.end();
+    }
+    const [code, stdout, stderr] = await Promise.all([outer.exited, out, err]);
+    expect({ code, signal: outer.signalCode, stdout }).toEqual({
+      code: 0,
+      signal: null,
+      stdout: '',
+    });
+    expect(stderr).toContain('[first-reader] HOLD: original wait or actual EOF remains unknown');
+    if (throwingTap)
+      expect(stderr).toContain(
+        '[first-reader] construction disposition observer failed; proof witness unavailable',
+      );
+  } catch (cause) {
+    failures.push(cause);
+  }
+  const primary = failures.at(0);
+  if (failures.length === 1) throw primary;
+  if (failures.length > 1)
+    throw new AggregateError(
+      failures,
+      'read-failure disposition assertion and attended fixture retirement failed',
+    );
+  // Outer-fixture exit releases only its OS descriptors; no production recovery or missing-EOF reconstruction is claimed.
+}
+
+test('terminal real-pipe observation error retains original operation lock until attended outer-fixture teardown', async () => {
+  await assertReadFailureDisposition(false);
+});
+
+test('throwing read-only disposition tap cannot release actual failed-read operation ownership', async () => {
+  await assertReadFailureDisposition(true);
+});
+
+test('read-only disposition tap reports unavailable diagnostic without changing its detached snapshot', () => {
+  const snapshot = {
+    waitSettled: true,
+    waitFailed: false,
+    stdoutEof: false,
+    stdoutFailed: true,
+    stderrEof: true,
+    stderrFailed: false,
+  };
+  const outcome = observeSolverReaderDisposition(
+    () => {
+      throw new Error('fixture tap failed');
+    },
+    snapshot,
+    () => {
+      throw new Error('fixture diagnostic sink unavailable');
+    },
+  );
+  expect(outcome).toEqual({ status: 'observer-failed', diagnostic: 'unavailable' });
+  expect(snapshot).toEqual({
+    waitSettled: true,
+    waitFailed: false,
+    stdoutEof: false,
+    stdoutFailed: true,
+    stderrEof: true,
+    stderrFailed: false,
+  });
+  const diagnostics: string[] = [];
+  expect(
+    observeSolverReaderDisposition(
+      () => {
+        throw new Error('fixture observed tap error');
+      },
+      snapshot,
+      (message) => {
+        diagnostics.push(message);
+      },
+    ),
+  ).toEqual({ status: 'observer-failed', diagnostic: 'written' });
+  expect(diagnostics).toEqual([
+    '[first-reader] construction disposition observer failed; proof witness unavailable',
+  ]);
+  expect(
+    observeSolverReaderDisposition((detached) => {
+      expect(detached === snapshot).toBe(false);
+      expect(Object.isFrozen(detached)).toBe(true);
+    }, snapshot),
+  ).toEqual({ status: 'observed' });
 });
 
 test('compiler provenance binds actual executing bytes, metadata, virtual selection and every loaded file', async () => {
