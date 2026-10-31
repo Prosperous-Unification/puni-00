@@ -137,6 +137,22 @@ exact inspection/recovery argv and fixed `persistenceFailures` codes. It reports
 retains ownership and cached prepared authority; it neither dumps private causes
 nor claims the failed recording was durable.
 
+Explicit recovery also holds a real nonwaiting Linux `flock` through reclamation,
+preparation, owner transfer, mutation and cleanup. It uses Bun's existing FFI to
+`libc.so.6` on the stable owner-private `recovery.guard` inode in the state root.
+The adapter never removes or replaces that inode; an empty file is not proof the
+kernel lock is free. Process death releases physical exclusion. Logical active or
+unknown ownership still refuses even when the kernel guard is available. Missing
+native support, unsupported host or invalid guard ownership/path refuses before
+claiming recovery; there is no fallback or stale-guard removal procedure.
+
+After completed/compensated receipts are durable, a later required cleanup failure
+exits nonzero as `state:cleanup-failed`. Its `outcome` names the settled phase and
+exact receipts; `receiptInspection` and `inspection` are runnable read-only argv.
+`ownershipPath` must be independently reconciled before another operation. No
+recover command is emitted against retired ownership, and no owner record is
+invented. Earlier pre-completion uncertainty retains its supported pinned retry.
+
 Live status, 2026-10-31: the owned dev observer runs reviewed source
 `047e08024b4b1bbba4cb7700400d6f37b0d0ed05`, with continuous resource history in
 the existing Prometheus. The initial install/preflight sections below describe

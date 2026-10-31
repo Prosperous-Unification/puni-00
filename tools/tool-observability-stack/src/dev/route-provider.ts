@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import {
   closeSync,
   constants,
+  fstatSync,
   fsyncSync,
   lstatSync,
   mkdirSync,
@@ -18,6 +19,7 @@ import { homedir, hostname, userInfo } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
 import { type } from 'arktype';
+import { dlopen } from 'bun:ffi';
 
 import { createBackendAcceptance, createScopedBackendAcceptance } from './acceptance';
 import { parseCheckpoint } from './checkpoint';
@@ -752,11 +754,93 @@ export function reserveRouteCompensation(
   syncRouteDirectory(root);
   return directory;
 }
+/** Linux descriptor exclusion on a stable private inode, never removed/replaced by this adapter.
+ * The caller holds it through the complete recovery operation; process death releases it in-kernel.
+ * Library/file/admission failures refuse without a fallback or logical-owner modification.
+ */
+function acquireRecoveryGuard(context: ObserverContext): () => void {
+  // Proof: removing the host boundary let the unsupported-host control mutate the unit (fix2/06).
+  if (process.platform !== 'linux') throw new Error('route-recovery-platform');
+  const root = statePath(context);
+  checkDirectory(root, true);
+  const library = (() => {
+    try {
+      return dlopen('libc.so.6', { flock: { args: ['i32', 'i32'], returns: 'i32' } });
+    } catch (error) {
+      throw new Error('route-recovery-primitive-unavailable', { cause: error });
+    }
+  })();
+  let descriptor: number;
+  try {
+    descriptor = openSync(
+      join(root, 'recovery.guard'),
+      constants.O_CREAT | constants.O_RDWR | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+      0o600,
+    );
+  } catch (error) {
+    try {
+      library.close();
+    } catch (cleanup) {
+      throw new AggregateError([error, cleanup], 'route-recovery-library-close', {
+        cause: cleanup,
+      });
+    }
+    throw new Error('route-recovery-guard-file', { cause: error });
+  }
+  try {
+    const observed = fstatSync(descriptor),
+      current = lstatSync(join(root, 'recovery.guard'));
+    // Proof: bypassing private inode validation admitted the invalid-mode guard and mutated the unit (fix2/07).
+    if (
+      !observed.isFile() ||
+      observed.uid !== process.getuid?.() ||
+      (observed.mode & 0o077) !== 0 ||
+      observed.nlink !== 1 ||
+      observed.size !== 0 ||
+      observed.dev !== current.dev ||
+      observed.ino !== current.ino
+    )
+      throw new Error('route-recovery-guard-ownership');
+    // Proof: two real stale-lease contenders erased the active winner before physical admission (fix2/01).
+    // Proof: ignoring the actual nonzero flock result erased the winner's active lease (fix2/04).
+    if (library.symbols.flock(descriptor, 2 | 4) !== 0)
+      throw new Error('route-recovery-exclusion-refused');
+    return () => {
+      closeSync(descriptor);
+      library.close();
+    };
+  } catch (error) {
+    try {
+      closeSync(descriptor);
+      library.close();
+    } catch (cleanup) {
+      throw new AggregateError([error, cleanup], 'route-recovery-guard-close', { cause: cleanup });
+    }
+    throw error;
+  }
+}
+/** Holds nonwaiting physical arbitration through logical reservation, transfer, mutation and cleanup.
+ * The caller must closeGuard after the complete operation, including unresolved outcomes; the logical
+ * owner remains authoritative independently of the kernel lock. No stale guard is deleted.
+ */
+export async function reserveRouteRecovery(...inputs: Parameters<typeof prepareRouteRecovery>) {
+  const closeGuard = acquireRecoveryGuard(inputs[0]);
+  try {
+    return { ...(await prepareRouteRecovery(...inputs)), closeGuard };
+  } catch (error) {
+    try {
+      closeGuard();
+    } catch (cleanup) {
+      throw new AggregateError([error, cleanup], 'route-recovery-guard-close', { cause: cleanup });
+    }
+    throw error;
+  }
+}
 /** Explicit reconciliation holds the original lock through preparation. Only durable successor
  * preparation permits archiving exact original owner bytes and atomic inactive-owner replacement.
  * Failed preparation retains the original runnable command; recognized inactive leases can be reconciled.
  */
-export async function reserveRouteRecovery(
+async function prepareRouteRecovery(
   context: ObserverContext,
   pin: ObserverPin,
   prior: {

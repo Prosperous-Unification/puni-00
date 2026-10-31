@@ -155,6 +155,24 @@ export class UncertainRouteOperation extends Error {
     super('route-mutation-uncertain', { cause });
   }
 }
+interface DurableRouteOutcome {
+  phase: 'completed' | 'compensated';
+  operationId: string;
+  receipts: readonly string[];
+}
+/** Unit acceptance and these receipts are already durable. Required cleanup still failed, so callers
+ * must exit nonzero and inspect that settled outcome; retired ownership cannot support recover argv.
+ */
+export class RouteCleanupFailure extends Error {
+  constructor(
+    public readonly outcome: DurableRouteOutcome,
+    public readonly inspection: readonly string[],
+    public readonly ownershipPath: string,
+    cause: unknown,
+  ) {
+    super('route-ownership-cleanup-failed', { cause });
+  }
+}
 function readJSON(reference: typeof EvidenceReference.infer): unknown {
   return decode(readPinnedRouteFile(reference));
 }
@@ -423,7 +441,11 @@ export async function runObservabilityRoute(
   const reservation = recoveryReservation ?? reserveRouteOperation(context, operationId);
   const startedAt = Date.now();
   let prerequisiteObservedAt = startedAt;
-  const progress = { mutationStarted: false, completed: false };
+  const progress: {
+    mutationStarted: boolean;
+    completed: boolean;
+    durableOutcome?: DurableRouteOutcome;
+  } = { mutationStarted: false, completed: false };
   let baseline: Awaited<ReturnType<typeof inspectObserver>> | undefined;
   let preparedReference: typeof EvidenceReference.infer | undefined;
   const persistenceFailures: PersistenceFailure[] = [];
@@ -729,6 +751,7 @@ export async function runObservabilityRoute(
         observations,
         historySHA256: request.history.receipt.sha256,
       });
+      progress.durableOutcome = { phase: 'completed', operationId, receipts: [receipt] };
       progress.completed = true;
       return { operationId, receipt };
     } catch (error) {
@@ -821,6 +844,11 @@ export async function runObservabilityRoute(
           );
           if (!compensationRecorded)
             throw new Error('route-compensation-recording-failed', { cause: error });
+          progress.durableOutcome = {
+            phase: 'compensated',
+            operationId,
+            receipts: [receipt, join(reservation.directory, 'compensated.json')],
+          };
           progress.completed = true;
         } catch (recoveryError) {
           if (compensationDirectory !== undefined)
@@ -886,39 +914,66 @@ export async function runObservabilityRoute(
   } catch (error) {
     outcome = { state: 'failed', cause: error };
   }
+  let cleanupFailure: { cause: unknown } | undefined;
   if ((!progress.mutationStarted && !transferred()) || progress.completed) {
     try {
       reservation.release();
     } catch (error) {
-      const uncertainty =
-        outcome.state === 'failed' && outcome.cause instanceof UncertainRouteOperation
-          ? outcome.cause
-          : undefined;
-      if (uncertainty !== undefined) {
-        persistenceFailures.push('ownership-release-failed');
-        throw new UncertainRouteOperation(
-          uncertainty.operationId,
-          uncertainty.directory,
-          uncertainty.inspection,
-          uncertainty.recoveryCommands,
-          new AggregateError([uncertainty, error], 'route-ownership-release', { cause: error }),
-          persistenceFailures,
-          uncertainty.uncertaintyRecorded,
-        );
-      }
-      if (progress.mutationStarted || recovery !== undefined) {
-        const metadata = uncertainMetadata();
-        throw new UncertainRouteOperation(
-          metadata.operationId,
-          metadata.directory,
-          inspection.split(' '),
-          metadata.recoveryCommands,
-          error,
-          ['ownership-release-failed'],
-        );
-      }
-      throw new Error('route-ownership-release-failed', { cause: error });
+      cleanupFailure = { cause: error };
     }
+  }
+  try {
+    recoveryReservation?.closeGuard();
+  } catch (error) {
+    cleanupFailure = {
+      cause:
+        cleanupFailure === undefined
+          ? error
+          : new AggregateError([cleanupFailure.cause, error], 'route-cleanup-failed', {
+              cause: error,
+            }),
+    };
+  }
+  if (cleanupFailure !== undefined) {
+    const error = cleanupFailure.cause;
+    // Proof: final release faults emitted recover argv after owner retirement despite durable completion (fix2/01).
+    if (progress.durableOutcome !== undefined)
+      throw new RouteCleanupFailure(
+        progress.durableOutcome,
+        inspection.split(' '),
+        join(context.home, '.local/state/puni-dev-observability/route.lock'),
+        outcome.state === 'failed'
+          ? new AggregateError([outcome.cause, error], 'route-settled-cleanup', { cause: error })
+          : error,
+      );
+    const uncertainty =
+      outcome.state === 'failed' && outcome.cause instanceof UncertainRouteOperation
+        ? outcome.cause
+        : undefined;
+    if (uncertainty !== undefined) {
+      persistenceFailures.push('ownership-release-failed');
+      throw new UncertainRouteOperation(
+        uncertainty.operationId,
+        uncertainty.directory,
+        uncertainty.inspection,
+        uncertainty.recoveryCommands,
+        new AggregateError([uncertainty, error], 'route-ownership-release', { cause: error }),
+        persistenceFailures,
+        uncertainty.uncertaintyRecorded,
+      );
+    }
+    if (progress.mutationStarted || recovery !== undefined) {
+      const metadata = uncertainMetadata();
+      throw new UncertainRouteOperation(
+        metadata.operationId,
+        metadata.directory,
+        inspection.split(' '),
+        metadata.recoveryCommands,
+        error,
+        ['ownership-release-failed'],
+      );
+    }
+    throw new Error('route-ownership-release-failed', { cause: error });
   }
   if (outcome.state === 'failed') throw outcome.cause;
   return outcome.operation;

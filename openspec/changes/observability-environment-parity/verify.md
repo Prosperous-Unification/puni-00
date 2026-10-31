@@ -5532,3 +5532,62 @@ The final caller input snapshot is `caller-tested-source.json`, SHA256
 `509f5a26a7bf735cf5074d2c3ba1c7baa64a3650bb4ef8adfb20d256381aba10`.
 Later changes are verification metadata only. The root-approved source change
 justifies a new exact-source build while43/44 remain historical evidence.
+
+### Task79 fix2 — physical recovery arbitration and truthful cleanup
+
+Base `bcef9daf8a8237a8fc540f1996a0c02aa879711d` retains the independently
+reviewed runner-only CI change; `preserved-ci.json` confirms identical workflow
+bytes. All original six findings remain addressed; this round implements only
+Important N1/N2 from `/tmp/puni-task79-fix1-review.md`. New evidence is under
+`/tmp/puni-task79-fix2-evidence/`; all earlier snapshots/builds stay historical.
+
+The adapter uses the existing Bun/Linux `flock(2)` descriptor pattern, with
+nonwaiting physical exclusion acquired before any owner/lease read and held
+through preparation, transfer, mutation and cleanup. `recovery.guard` is a stable
+private empty inode that production never unlinks/replaces. Real process death
+releases the kernel lock; logical active/unknown owner/lease guards remain required.
+Unsupported Linux boundary, missing native primitive or invalid inode/path refuses
+before logical modification, without fallback or recursive stale-mutex cleanup.
+Linux `libc.so.6`/Bun FFI is an explicit new OS dependency; actual observer access
+and native availability remain unverified until separately checked there.
+
+01's deterministic real two-process schedule let both old reclaimers read an
+inactive lease; B then erased A's current active lease before either owner rename.
+The first failing assertion compares actual winner bytes.02 preserved one winner,
+refused B before stale unlink, allowed only A acquisition/transfer/unit mutation,
+then killed A and proved a new real process acquires the same inode and recovers.
+04 ignored only the real nonzero native admission result; the winner was again
+erased. Exact source restoration is in `guard-fault.json`.06/07 removed the new
+host/private-inode guards and each failed actual unit-state assertions; their exact
+restorations are in `boundary-faults.json`.03 tested absent native support, host,
+permissions and symlink refusal. These are new dependencies only, not old matrices.
+
+After durable completed/compensated publication, required cleanup failure now
+exits1 as `cleanup-failed`, with the actual settled phase/operation ID/receipts,
+ownership path and runnable `cat --`/systemctl inspection. It emits no unsupported
+recover argv or invented owner. Earlier pre-completion uncertainty retains its
+original/successor pinned-retry semantics. The physical guard closes on all
+returned/error paths independently of whether logical ownership must be retained.
+01 reached final recovery parent fsync after owner/lock removal and compensated
+release failure after owner unlink, then exposed old unusable uncertainty output.
+The original compensated unit assertion compared the file to itself;02/final11
+capture the expected retained bytes before invocation and verify actual phase,
+operation ID and receipt paths by executing the reported read-only argv.
+
+One amended-path final11 run passed12 tests/90 assertions in35.61s, exit0. It
+covers only fix2 cases and necessary existing partial-handoff/lease-cleanup,
+history retry and active/unknown lease integration. No old82, selection suite,
+31/proof7 matrix, full Nx/host/browser/CI replay ran. Owning no-emit types12/13,
+four-file lint14 and strict OpenSpec15 all exited0. Earlier05 test-only rmdir
+signature errors and09 matcher-typing lint were fixed before final validation.
+The immutable8-file tested snapshot SHA256 is
+`2bca6f1b25fa5a30199199967efed058c6651a1d371a0500be9b5ce493b0ace4`.
+Only closing verification/report metadata changes after it; exact argv/status,
+Git/current/tested identities and final build/native checks are in the indexed
+handoff. No metadata-only commit cycle is required after source/build closure.
+
+All evidence remains local source/component scope. No h1 build, remote mutation,
+real backend publication, deploy, Secret, production, push or merge occurred.
+Full actual acceptance producer, observer runtime/admission, canonical4.1/4.2
+and required CI/host-gate certification remain open/blocking. Root owns rereview
+and later publication; this packet does not certify live acceptance.

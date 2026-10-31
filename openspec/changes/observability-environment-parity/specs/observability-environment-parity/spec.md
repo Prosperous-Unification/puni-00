@@ -131,6 +131,18 @@ A dev migration SHALL retain the Compose stores and the old telemetry path until
 - **AND** interrupted lease cleanup or post-transfer sync failure supports the original or durably prepared successor command after its real process exits
 - **AND** active, denied, foreign or changed ownership/leases refuse without lock stealing
 
+#### Scenario: Recovery reclamation has physical exclusion
+
+- **WHEN** separate processes contend to reconcile an inactive recovery lease
+- **THEN** nonwaiting physical exclusion covers reclamation, acquisition, owner transfer and mutation, so a loser cannot erase the winner's active lease or ownership
+- **AND** the stable private guard inode is never unlinked or replaced, process death releases physical exclusion, and logical active/unknown ownership still refuses after physical release
+
+#### Scenario: Durable completion survives cleanup failure truthfully
+
+- **WHEN** unit acceptance and completed or compensated receipts are durable but required ownership cleanup fails
+- **THEN** the command exits nonzero with the durable outcome, exact receipts and supported inspection metadata
+- **AND** it neither claims overall success nor emits recovery argv requiring retired ownership, recreates owner records or exposes private failure bodies
+
 #### Scenario: Uncertainty diagnostics survive persistence failure
 
 - **WHEN** invocation may have changed the unit and compensation or outer uncertainty publication fails

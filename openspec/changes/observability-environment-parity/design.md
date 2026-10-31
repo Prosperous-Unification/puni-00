@@ -703,3 +703,17 @@ uncertainty always emits safe inspection/recovery metadata even if recording it
 fails; fixed typed persistence diagnostics explicitly distinguish undurable
 outcomes. Prepared references are retained from successful preparation, never
 mandatorily reread while constructing an uncertainty error.
+
+Fix2 serializes the complete recovery critical operation with descriptor-held
+Linux `flock(2)`, using the existing Bun FFI mechanism, on one stable private
+guard inode in the observer state root. The inode is never removed/replaced;
+contention refuses immediately, errors never fall back, and kernel process death
+releases exclusion. Logical active/unknown owner and lease checks remain required.
+This adapter mechanism adds no vendor assumption to the core or generic lock service.
+
+Once completed/compensated receipt publication is durable, later required cleanup
+failure is a nonzero explicit cleanup-failed outcome carrying those receipts and
+read-only inspection. It does not invent uncertainty recovery against already
+retired ownership, recreate records or claim exit-zero success. Pre-completion
+uncertainty keeps the existing pinned-retry semantics. The same completion model
+covers successful compensation and explicit recovery.

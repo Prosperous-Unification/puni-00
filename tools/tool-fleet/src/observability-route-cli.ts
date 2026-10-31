@@ -1,4 +1,5 @@
 import {
+  RouteCleanupFailure,
   routeCommandPrefix,
   runObservabilityRoute,
   UncertainRouteOperation,
@@ -13,6 +14,21 @@ export async function runObservabilityRouteCli(
     const completed = await runObservabilityRoute(arguments_, options);
     console.log(JSON.stringify({ state: 'completed', ...completed, scope: 'dev-route-operation' }));
   } catch (error) {
+    if (error instanceof RouteCleanupFailure) {
+      console.error(
+        JSON.stringify({
+          state: 'cleanup-failed',
+          reason: 'ownership-release-failed',
+          outcome: error.outcome,
+          inspection: error.inspection,
+          ownershipPath: error.ownershipPath,
+          receiptInspection: ['cat', '--', ...error.outcome.receipts],
+          recoveryCommands: [],
+        }),
+      );
+      process.exitCode = 1;
+      return;
+    }
     if (error instanceof Error && error.message === 'route-arguments') {
       console.error(
         JSON.stringify({

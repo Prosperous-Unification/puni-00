@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { hashHistory, routeProviderChecks } from '@tools/observability-route';
 import { routeChecks } from '@tools/observability-route-contract';
 import { createRouteFixture } from '@tools/observability-route-fixture';
+import * as native from 'bun:ffi';
 import { expect, spyOn, test } from 'bun:test';
 
 import { type DiscoveryCommand, runDiscoveryCommand } from './discover';
@@ -389,6 +390,300 @@ async function recoveryChild(
     persistenceFailures: string[];
     fixtureFaultInjected: boolean;
   };
+}
+
+async function waitRecoveryMarker(predicate: () => boolean): Promise<void> {
+  const deadline = performance.now() + 8000;
+  while (!predicate()) {
+    if (performance.now() >= deadline) throw new Error('recovery fixture barrier timeout');
+    await Bun.sleep(10);
+  }
+}
+
+test('fix2 real stale-lease contenders preserve one winner and death releases physical exclusion', async () => {
+  const fixture = await recoveryFixture();
+  const children: {
+    child: ReturnType<typeof Bun.spawn>;
+    ended: boolean;
+    output: Promise<string>;
+  }[] = [];
+  try {
+    const state = fixture.observer.state,
+      lock = join(state, 'route.lock');
+    const owner = JSON.parse(readFileSync(join(lock, 'owner.json'), 'utf8')) as {
+      operationId: string;
+      pid: number;
+    };
+    const stale = '44444444-4444-4444-8444-444444444444';
+    filesystem.mkdirSync(join(state, `route-${stale}`), { mode: 0o700 });
+    fixture.observer.put(join(lock, 'recovery-owner.json'), {
+      operationId: stale,
+      parentOperationId: owner.operationId,
+      pid: owner.pid,
+    });
+    const prior = {
+      operationId: owner.operationId,
+      ownerPID: owner.pid,
+      beforeUnit: fixture.prepared.beforeUnit,
+      afterUnit: fixture.prepared.afterUnit,
+      before: fixture.observer.before,
+      after: fixture.observer.after,
+    };
+    const launch = (tag: string, previous = prior) => {
+      const script = join(fixture.observer.home, `${tag}-contender.ts`);
+      const id = {
+        alpha: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        beta: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        gamma: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      }[tag];
+      if (id === undefined) throw new Error('Unknown contender');
+      writeFileSync(
+        script,
+        `
+        import * as fs from 'node:fs'; import {spyOn,setSystemTime} from 'bun:test';
+        import {reserveRouteRecovery,replaceObserverUnit,publish} from ${JSON.stringify(new URL('../../tool-observability-stack/src/dev/route-provider.ts', import.meta.url).pathname)};
+        const root=${JSON.stringify(fixture.observer.home)}, tag=${JSON.stringify(tag)}, unit=${JSON.stringify(fixture.observer.unit)}, lease=${JSON.stringify(join(lock, 'recovery-owner.json'))};
+        setSystemTime(JSON.parse(fs.readFileSync(root+'/clock.json','utf8')));
+        const mark=(name)=>fs.writeFileSync(root+'/'+tag+'-'+name,'ready');
+        const pause=(name)=>{mark(name);const end=performance.now()+8000;while(!fs.existsSync(root+'/'+tag+'-allow-'+name)){if(performance.now()>end)throw new Error('contender barrier timeout');Bun.sleepSync(10)}};
+        const unlink=fs.unlinkSync,rename=fs.renameSync;
+        spyOn(fs,'unlinkSync').mockImplementation((path)=>{if(tag!=='gamma'&&path===lease)pause('unlink');unlink(path)});
+        spyOn(fs,'renameSync').mockImplementation((from,to)=>{if(tag!=='gamma'&&to===${JSON.stringify(join(lock, 'owner.json'))})pause('owner');if(tag!=='gamma'&&to===unit)pause('unit');rename(from,to)});
+        const context=${JSON.stringify(fixture.observer.context)};
+        context.readProcess=()=>{const manager=JSON.parse(fs.readFileSync(root+'/manager.json','utf8'));return{executable:manager.loadedCommand.split(' ')[0],arguments:manager.loadedCommand.split(' ')}};
+        try {
+          const reservation=await reserveRouteRecovery(context,${JSON.stringify(fixture.observer.pin)},${JSON.stringify(previous)},${JSON.stringify(id)});
+          mark('acquired'); publish(reservation.directory+'/prepared.json',{component:true});publish(reservation.directory+'/mutation-started.json',{component:true});
+          reservation.activate(); mark('transferred'); await replaceObserverUnit(context,fs.readFileSync(unit,'utf8'),${JSON.stringify(prior.beforeUnit)}); mark('mutated');
+          if(tag==='alpha')pause('finish'); reservation.release();if(typeof reservation.closeGuard==='function')reservation.closeGuard(); console.log(JSON.stringify({state:'completed'}));
+        } catch(error) { console.log(JSON.stringify({state:'refused',reason:error instanceof Error?error.message:'unknown'}));process.exitCode=1; }
+      `,
+        { mode: 0o600 },
+      );
+      const child = Bun.spawn([process.execPath, script], {
+        stdout: 'pipe',
+        stderr: 'inherit',
+        env: process.env,
+      });
+      const tracked = { child, ended: false, output: new Response(child.stdout).text() };
+      void child.exited.then(() => {
+        tracked.ended = true;
+      });
+      children.push(tracked);
+      return tracked;
+    };
+    const marker = (tag: string, phase: string) => join(fixture.observer.home, `${tag}-${phase}`);
+    const allow = (tag: string, phase: string) => {
+      writeFileSync(marker(tag, `allow-${phase}`), 'go');
+    };
+    const alpha = launch('alpha');
+    await waitRecoveryMarker(() => existsSync(marker('alpha', 'unlink')) || alpha.ended);
+    expect(alpha.ended).toBe(false);
+    const beta = launch('beta');
+    await waitRecoveryMarker(() => existsSync(marker('beta', 'unlink')) || beta.ended);
+    allow('alpha', 'unlink');
+    await waitRecoveryMarker(() => existsSync(marker('alpha', 'owner')) || alpha.ended);
+    const winner = readFileSync(join(lock, 'recovery-owner.json'));
+    if (existsSync(marker('beta', 'unlink'))) {
+      allow('beta', 'unlink');
+      await waitRecoveryMarker(() => existsSync(marker('beta', 'owner')) || beta.ended);
+    }
+    console.info(
+      JSON.stringify({
+        fix2Contenders: {
+          alphaPID: alpha.child.pid,
+          betaPID: beta.child.pid,
+          betaReachedStaleUnlink: existsSync(marker('beta', 'unlink')),
+          winnerPreserved: readFileSync(join(lock, 'recovery-owner.json')).equals(winner),
+        },
+      }),
+    );
+    expect(readFileSync(join(lock, 'recovery-owner.json'))).toEqual(winner);
+    expect(beta.ended).toBe(true);
+    expect(existsSync(marker('alpha', 'acquired'))).toBe(true);
+    expect(existsSync(marker('beta', 'acquired'))).toBe(false);
+    allow('alpha', 'owner');
+    await waitRecoveryMarker(() => existsSync(marker('alpha', 'unit')) || alpha.ended);
+    allow('alpha', 'unit');
+    await waitRecoveryMarker(() => existsSync(marker('alpha', 'mutated')) || alpha.ended);
+    expect(existsSync(marker('alpha', 'transferred'))).toBe(true);
+    expect(existsSync(marker('beta', 'transferred'))).toBe(false);
+    expect(existsSync(marker('alpha', 'mutated'))).toBe(true);
+    expect(existsSync(marker('beta', 'mutated'))).toBe(false);
+    expect(readFileSync(fixture.observer.unit, 'utf8')).toBe(prior.beforeUnit);
+    const guard = filesystem.statSync(join(state, 'recovery.guard'));
+    alpha.child.kill('SIGKILL');
+    await alpha.child.exited;
+    const gamma = launch('gamma', {
+      ...prior,
+      operationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      ownerPID: alpha.child.pid,
+    });
+    expect(await gamma.child.exited).toBe(0);
+    expect(JSON.parse(await gamma.output) as unknown).toMatchObject({ state: 'completed' });
+    expect(filesystem.statSync(join(state, 'recovery.guard')).ino).toBe(guard.ino);
+    expect(existsSync(join(state, 'route.lock'))).toBe(false);
+  } finally {
+    for (const tracked of children) {
+      if (!tracked.ended) tracked.child.kill('SIGKILL');
+      await tracked.child.exited;
+      await tracked.output;
+    }
+    fixture.close();
+  }
+}, 20000);
+
+for (const phase of ['completed', 'compensated'] as const) {
+  test(`fix2 ${phase} cleanup failure reports durable outcome without retired-owner recovery`, async () => {
+    const recovering = phase === 'completed' ? await recoveryFixture() : undefined;
+    const fixture = recovering ?? (await composedFixture());
+    const retainedUnit =
+      recovering?.prepared.beforeUnit ?? readFileSync(fixture.observer.unit, 'utf8');
+    const originalSync = filesystem.fsyncSync,
+      originalRemove = filesystem.rmdirSync;
+    let injected = false;
+    const sync = spyOn(filesystem, 'fsyncSync').mockImplementation((descriptor) => {
+      const path = filesystem.readlinkSync(`/proc/self/fd/${String(descriptor)}`);
+      if (
+        phase === 'completed' &&
+        !injected &&
+        path === fixture.observer.state &&
+        !existsSync(join(fixture.observer.state, 'route.lock'))
+      ) {
+        injected = true;
+        throw new Error('private-post-completion-sync-fault');
+      }
+      originalSync(descriptor);
+    });
+    const remove = spyOn(filesystem, 'rmdirSync').mockImplementation((path) => {
+      if (
+        phase === 'compensated' &&
+        path === join(fixture.observer.state, 'route.lock') &&
+        !injected
+      ) {
+        injected = true;
+        throw new Error('private-post-compensation-removal-fault');
+      }
+      originalRemove(path);
+    });
+    const lines: string[] = [],
+      previousExit = process.exitCode ?? 0;
+    const stderr = spyOn(console, 'error').mockImplementation((line: unknown) => {
+      lines.push(String(line));
+    });
+    try {
+      await runObservabilityRouteCli(
+        recovering?.args ?? [
+          'switch',
+          fixture.observer.put(
+            join(fixture.observer.home, 'cleanup-request.json'),
+            fixture.operation,
+          ).path,
+        ],
+        recovering?.options ?? {
+          context: fixture.observer.context,
+          producer: fixture.producer,
+          run: fixture.run,
+          wait: async (milliseconds) => {
+            await fixture.observer.tick(milliseconds);
+            fixture.observer.faults.candidateStored = true;
+          },
+        },
+      );
+      const receipts = readdirSync(fixture.observer.state)
+        .filter((entry) => entry.startsWith('route-'))
+        .flatMap((entry) =>
+          readdirSync(join(fixture.observer.state, entry))
+            .filter((file) => file === 'completed.json' || file === 'compensated.json')
+            .map((file) => join(fixture.observer.state, entry, file)),
+        );
+      console.info(
+        JSON.stringify({
+          fix2Retirement: {
+            phase,
+            injected,
+            receiptCount: receipts.length,
+            ownerPresent: existsSync(join(fixture.observer.state, 'route.lock/owner.json')),
+            stderr: lines,
+          },
+        }),
+      );
+      expect(injected).toBe(true);
+      expect(receipts.length).toBeGreaterThan(0);
+      expect(readFileSync(fixture.observer.unit, 'utf8')).toBe(retainedUnit);
+      expect(existsSync(join(fixture.observer.state, 'route.lock/owner.json'))).toBe(false);
+      const diagnostic = JSON.parse(lines.at(-1) ?? 'null') as {
+        state: string;
+        outcome: { phase: string; operationId: string; receipts: string[] };
+        recoveryCommands: string[][];
+        receiptInspection: string[];
+      };
+      expect(diagnostic.state).toBe('cleanup-failed');
+      expect(diagnostic.outcome.phase).toBe(phase);
+      expect(diagnostic.recoveryCommands).toEqual([]);
+      expect(diagnostic.outcome.receipts.toSorted()).toEqual(receipts.toSorted());
+      const inspected = Bun.spawnSync(diagnostic.receiptInspection);
+      expect(inspected.exitCode).toBe(0);
+      const records = inspected.stdout
+        .toString()
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as { phase: string; operationId: string });
+      expect(records.some((record) => record.phase === phase)).toBe(true);
+      expect(records.find((record) => record.phase === phase)?.operationId).toBe(
+        diagnostic.outcome.operationId,
+      );
+      expect(lines.join('\n')).not.toContain('private-post-');
+      expect(process.exitCode).toBe(1);
+    } finally {
+      stderr.mockRestore();
+      sync.mockRestore();
+      remove.mockRestore();
+      process.exitCode = previousExit;
+      fixture.close();
+    }
+  }, 15000);
+}
+
+for (const fault of ['platform', 'primitive', 'permissions', 'symlink'] as const) {
+  test(`fix2 unavailable ${fault} arbitration refuses before ownership or unit changes`, async () => {
+    const fixture = await recoveryFixture();
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform');
+    if (platform === undefined) throw new Error('Missing process platform descriptor');
+    let restorePrimitive: (() => void) | undefined;
+    try {
+      const before = readFileSync(fixture.observer.unit),
+        owner = readFileSync(join(fixture.observer.state, 'route.lock/owner.json'));
+      if (fault === 'platform')
+        Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
+      if (fault === 'primitive') {
+        const denied = spyOn(native, 'dlopen').mockImplementation(() => {
+          throw new Error('injected-unavailable-native-library');
+        });
+        restorePrimitive = () => {
+          denied.mockRestore();
+        };
+      }
+      if (fault === 'permissions')
+        writeFileSync(join(fixture.observer.state, 'recovery.guard'), '', { mode: 0o644 });
+      if (fault === 'symlink')
+        filesystem.symlinkSync(
+          join(fixture.observer.state, 'route.lock/owner.json'),
+          join(fixture.observer.state, 'recovery.guard'),
+        );
+      const failed = await fixture.recover().catch((failure: unknown) => failure);
+      expect(readFileSync(fixture.observer.unit)).toEqual(before);
+      expect(readFileSync(join(fixture.observer.state, 'route.lock/owner.json'))).toEqual(owner);
+      expect(existsSync(join(fixture.observer.state, 'route.lock/recovery-owner.json'))).toBe(
+        false,
+      );
+      expect(failed).toBeInstanceOf(Error);
+    } finally {
+      restorePrimitive?.();
+      Object.defineProperty(process, 'platform', platform);
+      fixture.close();
+    }
+  });
 }
 
 for (const fault of ['handoff-sync', 'lease-cleanup'] as const) {
