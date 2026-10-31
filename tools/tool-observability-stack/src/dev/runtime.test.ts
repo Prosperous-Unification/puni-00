@@ -8,6 +8,86 @@ import { afterEach, expect, it } from 'bun:test';
 import fixture from '../../fixtures/runtime.json';
 import { preflightRuntime, renderObserverUnits, validateRuntimeSnapshot } from './runtime';
 
+it('Task75 CLI selects an immutable observer revision', () => {
+  const cli = new URL('./runtime-cli.ts', import.meta.url).pathname;
+  const selected = Bun.spawnSync([
+    process.execPath,
+    cli,
+    'units',
+    '0123456789abcdef0123456789abcdef01234567',
+  ]);
+  expect(selected.exitCode).toBe(0);
+  const units = JSON.parse(selected.stdout.toString()) as Record<string, string>;
+  expect(units['puni-dev-observability.service']).toContain('/012345678/observer ');
+  expect(units['puni-dev-observability.service']).toContain(
+    '--version 0123456789abcdef0123456789abcdef01234567 --checkpoint ',
+  );
+});
+
+it('Task75 omission preserves the original exact unit bytes', () => {
+  const units = renderObserverUnits();
+  expect(createHash('sha256').update(units['puni-dev-observability.service']).digest('hex')).toBe(
+    '567f1478386132995920772ab592c266919c680654cd1369606539f59658bf88',
+  );
+  expect(
+    createHash('sha256').update(units['puni-dev-observability-tunnel.service']).digest('hex'),
+  ).toBe('00ac97feccce756f6057bb26fb12240b7f2c4b412cfc8b33cac1a39a2b0e8fe4');
+});
+
+it('Task75 renderer changes only the selected executable and version', () => {
+  const original = renderObserverUnits();
+  const selected = renderObserverUnits('0123456789abcdef0123456789abcdef01234567');
+  expect(selected).toEqual({
+    ...original,
+    'puni-dev-observability.service': original['puni-dev-observability.service']
+      .replace('/ab4f7cf6e/observer ', '/012345678/observer ')
+      .replace(
+        '--version ab4f7cf6e3023f2f2851bbf85dfb920c7de0859d ',
+        '--version 0123456789abcdef0123456789abcdef01234567 ',
+      ),
+  });
+});
+
+for (const [name, revision] of [
+  ['empty', ''],
+  ['abbreviated', '012345678'],
+  ['short', '0123456789abcdef0123456789abcdef0123456'],
+  ['long', '0123456789abcdef0123456789abcdef012345678'],
+  ['uppercase', '0123456789ABCDEF0123456789ABCDEF01234567'],
+  ['nonhex', 'g123456789abcdef0123456789abcdef01234567'],
+  ['path', '../0123456789abcdef0123456789abcdef01234567'],
+  ['leading space', ' 0123456789abcdef0123456789abcdef01234567'],
+  ['trailing space', '0123456789abcdef0123456789abcdef01234567 '],
+  ['tab', '0123456789abcdef0123456789abcdef01234567\t'],
+  ['trailing newline', '0123456789abcdef0123456789abcdef01234567\n'],
+  ['carriage return', '0123456789abcdef0123456789abcdef01234567\r'],
+  ['embedded newline', '0123456789abcdef\n123456789abcdef01234567'],
+  ['control', '0123456789abcdef0123456789abcdef01234567\u0001'],
+] as const) {
+  it(`Task75 rejects ${name} revision at renderer and CLI boundaries`, () => {
+    expect(() => renderObserverUnits(revision)).toThrow(/source revision/);
+    const cli = new URL('./runtime-cli.ts', import.meta.url).pathname;
+    const execution = Bun.spawnSync([process.execPath, cli, 'units', revision]);
+    expect(execution.exitCode).not.toBe(0);
+    expect(execution.stdout.toString()).toBe('');
+    expect(execution.stderr.toString()).toContain('source revision');
+  });
+}
+
+it('Task75 CLI rejects extra arguments after a selected revision', () => {
+  const cli = new URL('./runtime-cli.ts', import.meta.url).pathname;
+  const execution = Bun.spawnSync([
+    process.execPath,
+    cli,
+    'units',
+    '0123456789abcdef0123456789abcdef01234567',
+    'extra',
+  ]);
+  expect(execution.exitCode).not.toBe(0);
+  expect(execution.stdout.toString()).toBe('');
+  expect(execution.stderr.toString()).toContain('Unexpected runtime arguments');
+});
+
 it('renders a bounded persistent SSH observer without recreating trusted checkpoints', () => {
   const units = renderObserverUnits();
   const observer = units['puni-dev-observability.service'];

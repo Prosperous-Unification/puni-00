@@ -281,6 +281,28 @@ The compiled ab4f release and units described above remain unchanged: continuous
 collection is **not activated** by that component proof. Stage and validate a new immutable
 compiled observer release and preserve old units/checkpoints/rollback before changing it.
 
+Task75 supports rendering a candidate observer unit from a reviewed clean source checkout:
+
+```sh
+observer_revision="$(git rev-parse HEAD)"
+bun tools/tool-observability-stack/src/dev/runtime-cli.ts units "$observer_revision"
+```
+
+The optional revision must be exactly 40 lowercase hexadecimal characters. Its first nine
+characters select the immutable executable directory; the full revision becomes `--version`.
+Omission still renders the original ab4f unit bytes. The tunnel, checkpoints, service bounds
+and restart policy remain identical. Empty, abbreviated, uppercase, path, whitespace/control
+inputs and extra CLI arguments refuse, including a revision with a trailing newline.
+
+This command only renders text. Resource-history activation remains **pending**: the controller
+must separately build and hash the reviewed immutable release, verify its manifest, preserve
+the exact prior owned unit/binary/checkpoints and rollback path, and validate candidate unit
+syntax before reversible activation. A release-directory collision refuses rather than
+replacing a retained binary. Do not initialize checkpoints or restart the tunnel. The read-only
+preflight above is the pinned ab4f **bootstrap preflight**, not an upgrade preflight: it cannot
+certify a selected later observer release. Fresh existing-account access, target and checkpoint
+identity, effective service bounds and sustained stored cycles still require separate proof.
+
 The new `puni_resource_collection_state` and checked/observed timestamps expose resource
 collection independently of application health. Host memory total/available, per-role
 current cgroup memory, configured memory limits and cumulative CPU use the existing

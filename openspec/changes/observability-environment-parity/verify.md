@@ -4951,3 +4951,84 @@ in task-74-actual-component. Task74's implementation/review/corroboration source
 is complete; original3.1 and canonical4/11 runtime milestones remain open. A persistent
 observer update, at least two freshness windows and restart-aware history verification
 remain required before calling resource collection autonomous in the running system.
+
+## Task75 — Immutable observer revision selection
+
+Source-only implementation from intent commit `45173ea20cfd2a8e85443ce734fd0003cf57fe56`
+(pre-intent review base `4854c2f875f1c7d7af4a991d93330fd749986340`).
+The renderer accepts an optional full lowercase forty-character hexadecimal source revision;
+the first nine characters select its immutable release directory and the same full revision
+binds `--version`. The CLI accepts `units [full-source-revision]`; extra arguments refuse.
+Only those two observer fields vary. Default CLI output is byte-identical to the captured
+baseline, SHA256 `77fe67637b6966eaf06bbabcad5452d467db2fd8c491187c2f972824b2587b60`.
+The tunnel bytes and runtime code preceding the renderer, including the pinned bootstrap
+validator and preflight, remain exact (`preservation.json` below).
+
+All raw command output, argv, exits, UTC start times, elapsed seconds and output SHA256s
+are retained under `/tmp/puni-task75-evidence`; each `.log` has a same-basename JSON
+receipt. `manifest.json` indexes evidence paths and hashes. Source handoff details and the
+final commit identity are in the private `.superpowers/sdd/observability-environment-parity/task-75-report.md`.
+
+### TDD and observed production faults
+
+The new actual CLI positive first failed with exit1: valid selected revision returned1
+instead of0 (`red-cli.log`). Focused RED then recorded16fail/1pass; the lone existing
+extra-argument behavior already passed. Focused GREEN recorded18pass/0fail,65assertions.
+Final covering runtime tests are recorded below. Default hashes were captured from the
+original actual CLI before production edits, not derived from the changed renderer.
+
+Each final safety dependency was independently injected and restored byte-for-byte:
+
+- Removing the forbidden-character scan admitted a forty-character uppercase revision;
+  `Task75 rejects uppercase revision at renderer and CLI boundaries` failed at the renderer
+  throw assertion (`fault-alphabet-final.log`, exit1).
+- Removing the length check admitted a short lowercase hexadecimal revision;
+  `Task75 rejects short revision at renderer and CLI boundaries` failed at that assertion
+  (`fault-length-final.log`, exit1).
+- Moving the remaining-argument slice from2to3 ignored one extra units argument;
+  `Task75 CLI rejects extra arguments after a selected revision` failed because the actual
+  CLI exited0 (`fault-cli-arity.log`, exit1).
+
+Same-basename `-restoration.json` receipts contain original/mutated/restored file hashes
+and exact restoration assertions. Adjacent production `Proof:` comments name these faults.
+No earlier safety mutation matrix was replayed.
+
+An initial redundant length-plus-anchored-regex implementation was refined after removing
+length still rejected the newline negative (`fault-exact-end.log`, exit0; not credited as
+a proof). `anchor-investigation.log` confirmed Bun1.4.4's non-multiline end anchor rejects
+trailing LF/CR/Unicode line separators. Final code uses independent length and forbidden
+character checks, avoiding end-anchor semantics entirely. That initial fault was restored
+in `finally`; its aborted driver run and the later successful proofs remain visible.
+Initial lint found an unnecessary optional chain in a new test; removing it led to the final
+passing lint and covering test below. No failed observation is treated as passing evidence.
+
+### Scoped verification
+
+| Raw log basename             | Exact command                                                                                                                                                                | Exit | Seconds  | Output SHA256                                                      |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | -------- | ------------------------------------------------------------------ |
+| `red-cli.log`                | `bun test tools/tool-observability-stack/src/dev/runtime.test.ts --test-name-pattern Task75 CLI selects`                                                                     | 1    | 0.544423 | `e6722bda3407434fdefe6abb6b9aeafa2cd54ad038dd158c13f71a1909f89ce3` |
+| `red-focused.log`            | `bun test tools/tool-observability-stack/src/dev/runtime.test.ts --test-name-pattern Task75`                                                                                 | 1    | 0.785091 | `fa1ad3aad6e9d71c16e3961ddbea9d200b75b6825fbc222036e8d3f86d3bf7c2` |
+| `green-focused.log`          | `bun test tools/tool-observability-stack/src/dev/runtime.test.ts --test-name-pattern Task75`                                                                                 | 0    | 4.138032 | `0614d2d46138ad2395ec322f54a9ebc95ef84213ba88c6287bc80930a3ceb159` |
+| `fault-alphabet-final.log`   | `bun test tools/tool-observability-stack/src/dev/runtime.test.ts --test-name-pattern Task75 rejects uppercase`                                                               | 1    | 0.263895 | `5609ddb12177a2858d9f4693fae6c3dfa34aa86962a784f89f96603037b69109` |
+| `fault-length-final.log`     | `bun test tools/tool-observability-stack/src/dev/runtime.test.ts --test-name-pattern Task75 rejects short`                                                                   | 1    | 0.26398  | `63c62a4f39e645d02513c67b69d9bc00e45652614cc57bdbaae2af4d4dddf4a4` |
+| `fault-cli-arity.log`        | `bun test tools/tool-observability-stack/src/dev/runtime.test.ts --test-name-pattern Task75 CLI rejects extra`                                                               | 1    | 0.505632 | `a29799749e539443d6dedd414969b37ccf3be2751197f0712eeb055a07e7fd2e` |
+| `final-runtime-restored.log` | `bun test tools/tool-observability-stack/src/dev/runtime.test.ts --timeout=10000`                                                                                            | 0    | 5.840874 | `a3655066a3a266d0980aa4438bb831b14deda70117e46c8a8539338ef5d6b9f2` |
+| `final-type-lib.log`         | `bunx tsc --project tools/tool-observability-stack/tsconfig.lib.json --noEmit`                                                                                               | 0    | 0.40931  | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `final-type-spec.log`        | `bunx tsc --project tools/tool-observability-stack/tsconfig.spec.json --noEmit`                                                                                              | 0    | 0.461441 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `final-lint-restored.log`    | `bunx eslint tools/tool-observability-stack/src/dev/runtime.ts tools/tool-observability-stack/src/dev/runtime-cli.ts tools/tool-observability-stack/src/dev/runtime.test.ts` | 0    | 5.28265  | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `final-openspec.log`         | `bunx --no-install openspec validate observability-environment-parity --strict --json`                                                                                       | 0    | 0.781217 | `7b8126c5ccd09a16cd54fb3138004f26e318717631ffe554789bcd58e7261a60` |
+
+Final runtime:74pass/0fail,164assertions across the one covering runtime test file. No
+Task74 resource/provider suite, old proof matrix, host gate, full Nx gate, build, push,
+remote write or activation was run by this source task. Static checks cover the package's
+production/test TypeScript projects and only the three changed TypeScript files for lint.
+Named-file formatting and `git diff --check` are additionally captured before the normal
+source/evidence commit; its hook output remains in `commit-source.log`.
+
+The owning runbook now shows selected-revision rendering and explicitly distinguishes the
+old ab4f bootstrap preflight from a later-release upgrade preflight. Rendering proves no
+binary identity, host ownership, effective cgroup enforcement, successful activation,
+autonomous stored cycles, history/retention or Kubernetes/Flux readiness. No missing tool
+was substituted. Independent controller review remains pending, so the Task75 checkbox
+and the separate persistent-rollout checkbox remain unchecked. The controller owns all
+remote actions and release/rollback verification.
