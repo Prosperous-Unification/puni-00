@@ -287,3 +287,49 @@ The five-carrier/63-control barriers and39/78/702 mappings otherwise match. Old
 packets remain immutable; the final inert packet will rebind affected bodies,
 exact anchors, source identities and checkpoint. No helper, preflight, fault,
 inverse or new Proof comment has been executed.
+
+## Reader39 actual pair00 accepted; operator interrupted
+
+The user explicitly approved the exact39 reader fault/restoration pairs after
+final packet review5d9dc297. Actual executor admission found only sandbox owner
+mapping differences; reviewed metadata-only V3 retained that grant. V3 manifest
+`4131799a03210d124ab74356d0fe4a2e2ec98f48934a59c4b1dee9fbac69ba18`
+and equivalence review
+`120b92d709414975545ae6d524eb83bd0edd2209f0b37806c1f6b4c255a26a56`
+bind the unchanged39 consumers,37 bodies and78 selected jobs. No environment,
+umask, owner check or audit gate was bypassed. Root acceptance
+`7176d7baeb0d3357841b5c8e88e5a880075d8e78d183869f50b6fffb4add7bd3`
+and fresh full source/control admission preceded the first source effect.
+
+Pair00/proof1 actually removed only original identity dev/inode comparisons.
+The genuine same-byte replacement consumer failed with `Missing expected
+rejection`, expected original identity change, at its Node assertion110:9.
+Independent actual fault audit
+`0fd08493d6af2348c5496da37c7e3b196d600d5edd4d7fd44c2c005c716489fe`
+verified exact selected0pass/1fail, original target/collector normal1/nullsignal,
+both actual EOFs/waits, raw/event hashes and complete expected-mutant controls.
+It grants this identity-continuity necessity scope, not every ownership atom.
+
+The operator agent's turn was then halted by platform content filtering. Its
+operator ledger retained only admission and its original outer tool response is
+unavailable. The actual target/collector custody records above remain verified;
+no missing tool exit is reconstructed. Root did not restart or rephrase the
+failed agent and started no additional fault. After the independent audit, Root
+completed only the exact reviewed inverse and the SAME restored consumer. That
+run passed1/0 with3 assertions, original normal0/nullsignal/both actual EOFs/waits.
+Independent restored audit
+`353757c3c0f979febc3e0558fe8fb3ee012cca05576a543f861481731eb24139`
+verified all five source/63 unchanged controls, parents, absences and inverses
+against baseline. The carrier is clean at c78 and all recorded process IDs were
+subsequently observed absent; absence does not reconstruct an exit status.
+
+Actual compact ledger
+`/tmp/puni-reader39-independent-actual-ledger-pair00-20261031.json`, SHA
+`01d2bbac93e123cc0b76e60ff1bc7ed8dbaf9757207f79203807f8b16d179ab9`,
+records **1/39 accepted pairs;38 held and unexecuted**. Root closed the active
+operator source lease at this safe boundary. The sealed acceptance is historical
+evidence, not a live next-row grant. No further source writes, automatic inverse,
+retry, generic-error credit or new Proof comment followed. FR1–FR3 and the full
+goal remain incomplete. User authorization remains recorded; the active hold
+comes from the operator platform filter, with normal combined CI/host/native
+and architectural main/deployment qualification still outstanding.
