@@ -1,6 +1,7 @@
 import {
   type Analytics,
   type AnalyticsPorts,
+  type CookiePermission,
   createAnalytics,
   type StorageRead,
 } from './analytics';
@@ -75,7 +76,10 @@ function clearCookies(window: Window, configuration: AnalyticsConfiguration): bo
   );
 }
 
-/** Commands use an isolated layer, never an app's existing queue, and contain safe metadata before insertion. */
+/** Commands use an isolated layer and contain safe metadata before insertion. Startup holds at most
+ * 100 command records for at most ten seconds per attempt; overflow disables optional measurement.
+ * The loaded Google tag owns its standard command layer thereafter. Withdrawal purges the layer.
+ */
 function createVendor(window: Window): AnalyticsPorts['vendor'] {
   const queue: IArguments[] = [];
   // The Google tag protocol consumes Arguments records, not an arbitrary array/event object.
@@ -93,7 +97,19 @@ function createVendor(window: Window): AnalyticsPorts['vendor'] {
       // Proof: forcing false left collection enabled on withdrawal in one-browser-controller.
       Reflect.set(window, `ga-disable-${configuration.measurementId}`, disabled);
   }
-  function initialize(context: MeasurementContext, config: AnalyticsConfiguration) {
+  function enqueueConsent(kind: 'default' | 'update', permission: CookiePermission) {
+    command('consent', kind, {
+      analytics_storage: permission,
+      ad_storage: 'denied',
+      ad_user_data: 'denied',
+      ad_personalization: 'denied',
+    });
+  }
+  function initialize(
+    context: MeasurementContext,
+    config: AnalyticsConfiguration,
+    permission: CookiePermission,
+  ) {
     const privacy = {
       allow_google_signals: false,
       campaign_id: '',
@@ -112,18 +128,16 @@ function createVendor(window: Window): AnalyticsPorts['vendor'] {
       linker: { domains: [], accept_incoming: false },
       ...context,
     };
-    command('consent', 'default', {
-      analytics_storage: 'granted',
-      ad_storage: 'denied',
-      ad_user_data: 'denied',
-      ad_personalization: 'denied',
-    });
+    // Proof: forcing granted leaked cookie permission in browser-starts-cookieless;
+    // initialization precedes config/events in startup-preserves-Home.
+    // Proof: using default after a loaded-tag withdrawal failed returning-permission's required update.
+    enqueueConsent(initialized ? 'update' : 'default', permission);
     command('set', privacy);
     command('js', new Date());
     command('config', config.measurementId, privacy);
   }
   return {
-    load: (context, config) => {
+    load: (context, config, permission) => {
       configuration = config;
       if (
         Reflect.has(window, 'puniAnalyticsLayer') &&
@@ -133,7 +147,7 @@ function createVendor(window: Window): AnalyticsPorts['vendor'] {
       Reflect.set(window, 'puniAnalyticsLayer', queue);
       enabled = true;
       setDisabled(false);
-      initialize(context, config);
+      initialize(context, config, permission);
       if (initialized) return Promise.resolve('ready');
       return new Promise((resolve) => {
         const script = window.document.createElement('script');
@@ -171,11 +185,21 @@ function createVendor(window: Window): AnalyticsPorts['vendor'] {
         window.document.head.append(script);
       });
     },
+    updateConsent: (permission) => {
+      // Proof: removing saturation admission silently accepted a consent update beyond the startup bound.
+      if (!enabled || (!initialized && queue.length >= 100)) return 'unavailable';
+      enqueueConsent('update', permission);
+      return 'sent';
+    },
     update: (context) => {
-      if (enabled) command('set', context);
+      // Proof: removing this bound grew the full layer to 101 during navigation-never-grows;
+      // the following send reports overflow and disables measurement.
+      if (enabled && (initialized || queue.length < 100)) command('set', context);
     },
     send: (event) => {
-      if (!enabled || !initialized) return 'unavailable';
+      // Proof: removing the 100-command startup bound left collection loading with 110
+      // queued interactions in startup-commands-are-bounded.
+      if (!enabled || (!initialized && queue.length >= 100)) return 'unavailable';
       command('event', event.name, event.parameters);
       return 'sent';
     },

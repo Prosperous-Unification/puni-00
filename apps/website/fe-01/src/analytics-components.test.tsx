@@ -121,7 +121,7 @@ for (const status of [201, 503])
   });
 
 test('mounted consent has equal choices, visible optional failure and no StrictMode disposal', () => {
-  let state: AnalyticsState = { status: 'denied' };
+  let state: AnalyticsState = { status: 'cookieless' };
   let listener: (next: AnalyticsState) => void = () => undefined;
   let disposals = 0;
   const analytics = {
@@ -158,9 +158,11 @@ test('mounted consent has equal choices, visible optional failure and no StrictM
     const buttons = [...container.querySelectorAll('button')];
     expect(buttons.map((button) => button.textContent)).toEqual([
       'Privacy choices',
-      'Accept analytics',
-      'Reject analytics',
+      'Allow analytics cookies',
+      'Disable measurement',
     ]);
+    expect(container.textContent).toContain('Basic cookieless measurement starts on arrival');
+    expect(container.textContent).toContain('Analytics cookies are off');
     expect(buttons[1]?.className).toBe(buttons[2]?.className);
     act(() => {
       buttons[1]?.click();
@@ -173,9 +175,17 @@ test('mounted consent has equal choices, visible optional failure and no StrictM
     act(() => {
       buttons[0]?.click();
     });
+    act(() => {
+      listener({ status: 'ready' });
+    });
+    expect(container.textContent).toContain('Analytics cookies are allowed');
+    act(() => {
+      listener({ status: 'denied' });
+    });
+    expect(container.textContent).toContain('Measurement is disabled');
     act(() =>
       [...container.querySelectorAll('button')]
-        .find((button) => button.textContent === 'Reject analytics')
+        .find((button) => button.textContent === 'Disable measurement')
         ?.click(),
     );
     expect(state.status).toBe('denied');

@@ -10,11 +10,12 @@ import { configureAnalytics, resolvePage } from './configuration';
 
 const dev = { enabled: true, environment: 'development', measurementId: 'G-R0JM3R4SSV' } as const;
 const href = 'https://dev.app.puni.dev/?email=secret@example.test#private';
-function fixture() {
-  let preference: string | null = null;
-  let location = href;
+function fixture(initialLocation = href, initialPreference: string | null = null) {
+  let preference: string | null = initialPreference;
+  let location = initialLocation;
   let finish: ((loaded: 'ready' | 'unavailable') => void) | undefined;
   const initializations: MeasurementContext[] = [];
+  const permissions: string[] = [];
   const sent: VendorEvent[] = [];
   const markers = new Map<string, string>();
   const cookies = new Map([
@@ -47,7 +48,12 @@ function fixture() {
       return { status: 'ok' };
     },
     vendor: {
-      load: (context) => {
+      updateConsent: (permission) => {
+        permissions.push(permission);
+        return 'sent';
+      },
+      load: (context, _configuration, permission) => {
+        permissions.push(permission);
         initializations.push(context);
         return new Promise((resolve) => {
           finish = resolve;
@@ -69,6 +75,7 @@ function fixture() {
     ports,
     sent,
     initializations,
+    permissions,
     markers,
     cookies,
     disabled: () => disabled,
@@ -90,23 +97,35 @@ function fixture() {
   };
 }
 
-test('basic blocking drops all denied/loading interactions without a backfill queue', async () => {
+test('first page and safe startup steps enqueue before cookie permission without acceptance replay', async () => {
   const f = fixture();
-  expect(f.analytics.getState()).toEqual({ status: 'denied' });
-  expect(f.initializations).toHaveLength(0);
-  expect(
-    f.analytics.dispatch({ name: 'brief_view', route: 'early', starting_choice: 'improve' }),
-  ).toBe('dropped');
-  f.analytics.accept();
-  f.analytics.accept();
+  expect(f.analytics.getState()).toEqual({ status: 'loading' });
   expect(f.initializations).toHaveLength(1);
-  expect(f.analytics.dispatch({ name: 'funnel_failure', category: 'network' })).toBe('dropped');
-  await f.complete();
   expect(f.sent.map((event) => event.name)).toEqual(['page_view']);
   expect(
     f.analytics.dispatch({ name: 'brief_view', route: 'early', starting_choice: 'improve' }),
   ).toBe('sent');
-  expect(f.sent.map((event) => event.name)).toEqual(['page_view', 'brief_view']);
+  f.setLocation('https://dev.app.puni.dev/manual?email=secret@example.test');
+  f.analytics.navigate();
+  expect(f.analytics.dispatch({ name: 'funnel_failure', category: 'network' })).toBe('sent');
+  await f.complete();
+  expect(f.analytics.getState()).toEqual({ status: 'cookieless' });
+  expect(f.sent.map((event) => event.name)).toEqual([
+    'page_view',
+    'brief_view',
+    'page_view',
+    'funnel_failure',
+  ]);
+  expect(
+    f.sent
+      .filter((event) => event.name === 'page_view')
+      .map((event) => event.parameters['page_id']),
+  ).toEqual(['build', 'manual']);
+  f.analytics.accept();
+  f.analytics.accept();
+  expect(f.initializations).toHaveLength(1);
+  expect(f.analytics.getState()).toEqual({ status: 'ready' });
+  expect(f.sent).toHaveLength(4);
 });
 
 test('initialization and navigation contain fixed pages, origin-only referrers and no raw campaign input', async () => {
@@ -139,7 +158,7 @@ test('withdrawal fences a stale completion and clears only environment analytics
   f.analytics.reject();
   await f.complete();
   expect(f.analytics.getState()).toEqual({ status: 'denied' });
-  expect(f.sent).toEqual([]);
+  expect(f.sent.map((event) => event.name)).toEqual(['page_view']);
   expect(f.disabled()).toBeGreaterThan(0);
   expect([...f.cookies.keys()]).toEqual(['puni_prod_ga', 'claim', 'operator']);
   f.analytics.accept();
@@ -165,7 +184,7 @@ test('shared versioned preferences synchronize acceptance, expiry and cross-tab 
   await app.complete();
   app.advance();
   app.analytics.sync();
-  expect(app.analytics.getState()).toEqual({ status: 'denied' });
+  expect(app.analytics.getState()).toEqual({ status: 'cookieless' });
   for (const invalid of [
     '{',
     '{}',
@@ -174,7 +193,7 @@ test('shared versioned preferences synchronize acceptance, expiry and cross-tab 
   ]) {
     app.setPreference(invalid);
     app.analytics.sync();
-    expect(app.analytics.getState()).toEqual({ status: 'denied' });
+    expect(app.analytics.getState()).toEqual({ status: 'cookieless' });
   }
 });
 
@@ -193,7 +212,7 @@ test('optional loading/transport/storage failures are visible and retries are bo
   storage.ports.writePreference = () => ({ status: 'unavailable' });
   storage.analytics.accept();
   expect(storage.analytics.getState()).toEqual({ status: 'unavailable', reason: 'storage' });
-  expect(storage.initializations).toHaveLength(0);
+  expect(storage.initializations).toHaveLength(1);
   const transport = fixture();
   transport.analytics.accept();
   await transport.complete();
@@ -229,17 +248,18 @@ test('programmer errors throw even while denied, and transport programming error
 test('lead receipts stay in consented local markers and mark only successful vendor enqueue', async () => {
   const f = fixture();
   const lead = { name: 'generate_lead', route: 'manual', funnel_version: '1' } as const;
-  expect(f.analytics.dispatchLead('receipt-secret', lead)).toBe('dropped');
+  expect(f.analytics.dispatchLead('receipt-secret', lead)).toBe('sent');
   expect(f.markers.size).toBe(0);
   f.analytics.accept();
   await f.complete();
-  expect(f.sent.map((event) => event.name)).toEqual(['page_view']);
-  expect(f.analytics.dispatchLead('receipt-secret', lead)).toBe('sent');
+  expect(f.sent.map((event) => event.name)).toEqual(['page_view', 'generate_lead']);
+  expect(f.analytics.dispatchLead('receipt-secret', lead)).toBe('duplicate');
+  expect(f.analytics.dispatchLead('consented-receipt', lead)).toBe('sent');
   expect(f.analytics.dispatchLead('receipt-secret', lead)).toBe('duplicate');
   expect(JSON.stringify(f.sent)).not.toContain('receipt-secret');
   const again = createAnalytics(dev, f.ports);
   await f.complete();
-  expect(again.dispatchLead('receipt-secret', lead)).toBe('duplicate');
+  expect(again.dispatchLead('consented-receipt', lead)).toBe('duplicate');
   f.ports.readMarker = () => ({ status: 'unavailable' });
   expect(again.dispatchLead('another-receipt', lead)).toBe('unavailable');
   f.analytics.reject();
@@ -335,14 +355,14 @@ test('listener notifications, late preference changes and terminal disposal cann
   const unsubscribe = f.analytics.subscribe((state) => states.push(state.status));
   f.analytics.accept();
   await f.complete();
-  expect(states).toEqual(['loading', 'ready']);
+  expect(states).toEqual(['ready']);
   unsubscribe();
   f.analytics.reject();
-  expect(states).toEqual(['loading', 'ready']);
+  expect(states).toEqual(['ready']);
   f.analytics.accept();
   f.setPreference(null);
   await f.complete();
-  expect(f.analytics.getState()).toEqual({ status: 'denied' });
+  expect(f.analytics.getState()).toEqual({ status: 'cookieless' });
   f.analytics.dispose();
   f.analytics.accept();
   f.analytics.sync();
@@ -356,17 +376,16 @@ test('a superseded loader cannot ready a newly accepted generation', async () =>
     new Promise((resolve) => {
       completions.push(resolve);
     });
-  f.analytics.accept();
   f.analytics.reject();
   f.analytics.accept();
+  const beforeCompletion = f.sent.length;
+  await f.complete();
+  expect(f.analytics.getState()).toEqual({ status: 'loading' });
+  expect(f.sent).toHaveLength(beforeCompletion);
   completions[0]('ready');
   await Promise.resolve();
-  expect(f.analytics.getState()).toEqual({ status: 'loading' });
-  expect(f.sent).toEqual([]);
-  completions[1]('ready');
-  await Promise.resolve();
   expect(f.analytics.getState()).toEqual({ status: 'ready' });
-  expect(f.sent.map((event) => event.name)).toEqual(['page_view']);
+  expect(f.sent).toHaveLength(beforeCompletion);
 });
 
 test('current service routes resolve to their own reviewed page identity', () => {
@@ -385,7 +404,7 @@ test('current service routes resolve to their own reviewed page identity', () =>
   expect(resolvePage(config, 'https://dev.puni.dev/services/unapproved-slug', '')).toBeNull();
 });
 
-test('malformed preference fields never authorize a load and malformed receipts never become markers', async () => {
+test('malformed preference fields never authorize cookies and malformed receipts never become markers', async () => {
   const f = fixture();
   const valid = { version: 1, accepted: true, expires: Date.UTC(2027, 3, 25) };
   for (const invalid of [
@@ -399,7 +418,8 @@ test('malformed preference fields never authorize a load and malformed receipts 
   ]) {
     f.setPreference(JSON.stringify(invalid));
     f.analytics.sync();
-    expect(f.initializations).toHaveLength(0);
+    expect(f.initializations).toHaveLength(1);
+    expect(f.permissions).toEqual(['denied']);
   }
   f.analytics.accept();
   await f.complete();
@@ -452,8 +472,7 @@ test('launch service routes resolve canonical site metadata before dispatching b
       campaign_medium: '',
       campaign_name: '',
     });
-    const f = fixture();
-    f.setLocation(location + '?email=secret@example.test#private');
+    const f = fixture(location + '?email=secret@example.test#private');
     f.analytics.accept();
     await f.complete();
     expect(f.sent).toEqual([
@@ -578,8 +597,7 @@ test.each([
       expect(
         resolvePage(config, location, 'https://search.example/private?email=route-secret#secret'),
       ).toEqual(expected);
-      const f = fixture();
-      f.setLocation(location);
+      const f = fixture(location);
       f.analytics.accept();
       await f.complete();
       expect(f.initializations).toEqual([expected]);
@@ -617,8 +635,7 @@ test.each([
 ] as const)('unsupported directory routes remain unmeasured: %s%s', (host, path) => {
   const location = `https://${host}${path}?email=route-secret@example.test#private`;
   expect(resolvePage(configureAnalytics(dev, href), location, '')).toBeNull();
-  const f = fixture();
-  f.setLocation(location);
+  const f = fixture(location);
   f.analytics.accept();
   expect(f.analytics.getState()).toEqual({ status: 'disabled' });
   expect(f.initializations).toEqual([]);
@@ -636,4 +653,91 @@ test('directory aliases do not relax approved host validation', () => {
     'https://user:secret@dev.puni.dev/services/',
   ])
     expect(() => resolvePage(config, location, '')).toThrow('Unapproved analytics host');
+});
+
+test('valid legacy rejection stays fully blocked while absent expired and malformed choices collect cookieless', async () => {
+  const validRejection = JSON.stringify({
+    version: 1,
+    accepted: false,
+    expires: Date.UTC(2027, 3, 25),
+  });
+  const rejected = fixture(href, validRejection);
+  expect(rejected.initializations).toEqual([]);
+  expect(rejected.analytics.getState()).toEqual({ status: 'denied' });
+  expect(rejected.analytics.dispatch({ name: 'funnel_failure', category: 'network' })).toBe(
+    'dropped',
+  );
+  for (const choice of [null, '{', JSON.stringify({ version: 1, accepted: true, expires: 1 })]) {
+    const fresh = fixture(href, choice);
+    await fresh.complete();
+    expect(fresh.analytics.getState()).toEqual({ status: 'cookieless' });
+    expect(fresh.sent.map((event) => event.name)).toEqual(['page_view']);
+    expect(fresh.markers.size).toBe(0);
+  }
+});
+
+test('cookieless leads use memory only and never touch unavailable persistent markers', async () => {
+  const f = fixture();
+  f.ports.readMarker = () => {
+    throw new Error('No pre-permission marker reads');
+  };
+  f.ports.writeMarker = () => {
+    throw new Error('No pre-permission marker writes');
+  };
+  const lead = { name: 'generate_lead', route: 'manual', funnel_version: '1' } as const;
+  expect(f.analytics.dispatchLead('private-receipt', lead)).toBe('sent');
+  expect(f.analytics.dispatchLead('private-receipt', lead)).toBe('duplicate');
+  await f.complete();
+  f.analytics.accept();
+  expect(f.analytics.dispatchLead('private-receipt', lead)).toBe('duplicate');
+  expect(f.sent.filter((event) => event.name === 'generate_lead')).toHaveLength(1);
+  expect(JSON.stringify(f.sent)).not.toContain('private-receipt');
+});
+
+test('expiry downgrades the existing tag and clears configured cookies without replay', async () => {
+  const f = fixture(
+    href,
+    JSON.stringify({ version: 1, accepted: true, expires: Date.UTC(2027, 3, 25) }),
+  );
+  await f.complete();
+  expect(f.permissions).toEqual(['granted']);
+  f.advance();
+  f.analytics.sync();
+  expect(f.analytics.getState()).toEqual({ status: 'cookieless' });
+  expect(f.permissions).toEqual(['granted', 'denied']);
+  expect([...f.cookies.keys()]).toEqual(['puni_prod_ga', 'claim', 'operator']);
+  expect(f.sent.map((event) => event.name)).toEqual(['page_view']);
+});
+
+test('consent transport refusal is visible and never implicitly retries or sends future events', async () => {
+  const f = fixture();
+  await f.complete();
+  f.ports.vendor.updateConsent = () => 'unavailable';
+  f.analytics.accept();
+  expect(f.analytics.getState()).toEqual({ status: 'unavailable', reason: 'transport' });
+  expect(f.initializations).toHaveLength(1);
+  expect(f.analytics.dispatch({ name: 'funnel_failure', category: 'network' })).toBe('unavailable');
+});
+
+test('retry refuses unreadable preference state even after a successful preference write', async () => {
+  const f = fixture();
+  await f.complete('unavailable');
+  f.ports.readPreference = () => ({ status: 'unavailable' });
+  f.analytics.accept();
+  expect(f.analytics.getState()).toEqual({ status: 'unavailable', reason: 'storage' });
+  expect(f.initializations).toHaveLength(1);
+});
+
+test('cookie-permission downgrade reports cleanup failure and stops later events', async () => {
+  const f = fixture(
+    href,
+    JSON.stringify({ version: 1, accepted: true, expires: Date.UTC(2027, 3, 25) }),
+  );
+  await f.complete();
+  f.ports.clearAnalytics = () => ({ status: 'unavailable' });
+  f.advance();
+  f.analytics.sync();
+  expect(f.analytics.getState()).toEqual({ status: 'unavailable', reason: 'storage' });
+  expect(f.analytics.dispatch({ name: 'funnel_failure', category: 'network' })).toBe('unavailable');
+  expect(f.sent.map((event) => event.name)).toEqual(['page_view']);
 });

@@ -268,7 +268,7 @@ export function BuildPage() {
   return (
     <div className="page-shell build-page night-shell">
       <HeroMedia />
-      <SiteHeader buildCurrent="page" tone="night" rail="overlay" />
+      <SiteHeader buildCurrent="page" tone="night" placement="overlay" />
       <main className="harness" id="main">
         <PrivacyChoices />
         <h1 ref={heading} tabIndex={-1} className="visually-hidden">
