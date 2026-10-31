@@ -474,6 +474,95 @@ export function runCoordinatorContract(
       );
     });
 
+    for (const mode of ['exact', 'changed', 'stale', 'fresh'] as const)
+      test(`pending WBS read preserves ${mode} admission authority after concurrent admission`, async () => {
+        const setup = await fixture();
+        const entered = Promise.withResolvers<undefined>();
+        const release = Promise.withResolvers<undefined>();
+        let blocked = false;
+        const coordinator = await createRunCoordinator({
+          dag: topology(),
+          runs: setup.runs,
+          runId: setup.run.runId,
+          readWbs: async () => {
+            if (blocked) {
+              entered.resolve(undefined);
+              await release.promise;
+              return { ...currentFacts(), eligibleStepIds: [] };
+            }
+            return currentFacts();
+          },
+        });
+        const ticket = firstTicket(await coordinator.ready());
+        blocked = true;
+        const admission = mode === 'changed' ? { ...setup.admission, ordinal: 2 } : setup.admission;
+        const pending = coordinator.admit(ticket, setup.guard, admission);
+        await entered.promise;
+        try {
+          if (mode !== 'fresh')
+            expect((await setup.runs.admitAttempt(setup.guard, setup.admission)).kind).toBe(
+              'applied',
+            );
+          if (mode === 'stale') setup.clock.advance(101);
+        } finally {
+          release.resolve(undefined);
+        }
+        const reply = await pending;
+        const snapshot = await setup.runs.readRun(setup.run.runId);
+        expect(snapshot.capacity.reserved).toBe(mode === 'fresh' ? 0 : 1);
+        expect(snapshot.attempts).toHaveLength(mode === 'fresh' ? 0 : 1);
+        expect(coordinator.summary().completedWorkIds).toEqual([]);
+        if (mode === 'exact') {
+          expect(reply.kind).toBe('duplicate');
+          expect(unwrapReply(reply).identity).toEqual(setup.admission.identity);
+        } else {
+          expect(reply).toEqual({
+            kind: 'refused',
+            reason:
+              mode === 'changed'
+                ? 'identity_conflict'
+                : mode === 'stale'
+                  ? 'owner_stale'
+                  : 'state_conflict',
+          });
+        }
+      });
+
+    test('captures returned WBS eligibility before awaiting the current store snapshot', async () => {
+      const setup = await fixture();
+      const entered = Promise.withResolvers<undefined>();
+      const release = Promise.withResolvers<undefined>();
+      let blocked = false;
+      let facts = currentFacts();
+      const coordinator = await createRunCoordinator({
+        dag: topology(),
+        runId: setup.run.runId,
+        runs: {
+          ...setup.runs,
+          async readRun(identity) {
+            if (blocked) {
+              entered.resolve(undefined);
+              await release.promise;
+            }
+            return await setup.runs.readRun(identity);
+          },
+        },
+        readWbs: () => Promise.resolve(facts),
+      });
+      const ticket = firstTicket(await coordinator.ready());
+      const eligibility: string[] = [];
+      facts = { ...currentFacts(), eligibleStepIds: eligibility };
+      blocked = true;
+      const pending = coordinator.admit(ticket, setup.guard, setup.admission);
+      await entered.promise;
+      eligibility.push('first');
+      release.resolve(undefined);
+      const reply = await pending;
+      expect((await setup.runs.readRun(setup.run.runId)).capacity.reserved).toBe(0);
+      expect(reply).toEqual({ kind: 'refused', reason: 'state_conflict' });
+      expect(coordinator.summary().completedWorkIds).toEqual([]);
+    });
+
     test('foreign admission tickets cannot reserve capacity even for the same ready activity', async () => {
       const setup = await fixture();
       const other = await createRunCoordinator({

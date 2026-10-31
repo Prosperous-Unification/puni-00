@@ -27,8 +27,13 @@ export async function createRunCoordinator(options: {
   const { dag, runs, runId, readWbs } = options;
   const activities = captureActivities(dag);
   async function readCurrent() {
+    // Proof: removing response capture let a later eligibility-array mutation reserve
+    // capacity in `captures returned WBS eligibility before awaiting the current store snapshot`.
+    const observed = structuredClone(await readWbs());
+    // Proof: reading the store before WBS hid concurrent exact/changed/stale replays
+    // behind state_conflict in `pending WBS read preserves ... admission authority`.
     const snapshot = await runs.readRun(runId);
-    const facts = readCoordinationFacts(await readWbs(), snapshot, activities);
+    const facts = readCoordinationFacts(observed, snapshot, activities);
     return { snapshot, ...facts };
   }
   const initial = await readCurrent();
