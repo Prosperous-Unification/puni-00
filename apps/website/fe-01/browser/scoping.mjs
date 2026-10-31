@@ -405,7 +405,11 @@ try {
       { exact: true },
     )
     .waitFor({ state: 'attached' });
-  await assertAnonymous(mixed, 'typed correction and candidate revision');
+  // Proof: an email field injected only on correctionTab escaped the old mixed.page check; this active-tab check failed, then passed after removing the fault.
+  await assertAnonymous(
+    { ...mixed, page: correctionTab },
+    'typed correction and candidate revision',
+  );
   await correctionTab.close();
   await mixed.page.reload();
   await mixed.page.getByText('Saved version changed', { exact: true }).waitFor();
