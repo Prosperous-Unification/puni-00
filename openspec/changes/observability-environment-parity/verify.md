@@ -5156,3 +5156,96 @@ env -u NO_COLOR -u PYTHON_COLORS FORCE_COLOR=1 bun test tools/tool-observability
 ```
 
 Its first sandboxed attempt passed62 tests but failed2 existing loopback-server tests with listen EPERM. The identical authorized loopback-enabled retry passed64 tests in 33.184 seconds. Scoped test-file ESLint, spec TypeScript, changed-file formatting and strict OpenSpec validation passed. This restores an existing test contract without production behavior or new OpenSpec delta. No remote calls, push, CI routing/settings/timeouts changes, old fault matrix, application suite, full Nx or host gate ran; no broad CI/runtime acceptance claim is made.
+
+### Task77 actual retained history and current prerequisites — 2026-10-31
+
+The complete Task77 intent/source/fix/evidence range from `ef3f111f8` to
+`94080a96d208b29b6a10ee40a0b351e2abddf27a` received independent specification
+and quality approval with no findings. Review SHA256
+`a88c69a9419f7464daca816af9bb43cda4ec9d9339d70fb1015921951ff118e5`.
+Parent verified all 192 indexed artifacts, ten current/committed file identities,
+all 37 original fault/restoration tuples and their raw failure projections, and
+the separately retained parent regression failures. Unsafe acceptance, diagnostic,
+availability and synthetic disclosure evidence remain distinguished. The untriggered
+filesystem harness attempt and vacuous preimplementation failures remain uncredited.
+No passing suite or earlier fault matrix was repeated for review or status.
+
+One actual read-only component executed from clean reviewed source `94080a96d…`.
+Its existing h1claw observer checkpoint was read privately without initialization
+or mutation. Two temporary local strict-key SSH query forwards reused the existing
+h1claw-to-h3mon private routes; no remote artifact, credential, service or tunnel unit
+was changed. After normal batch/scrape settlement, the actual runtime CLI captured
+one observation in 1.599 seconds: one log, two trace spans and three exact correlated
+metric samples. The owner-private retained receipt SHA256 is
+`7c97041fc7b6d4abb929416f3e1c5201dc5eb3d40e601cbe7ae72c24f77a5eb6`.
+
+The controller then removed only its local checkpoint copy from the configured path
+and waited on the same still-running component/forward until the original observation
+aged beyond the live 120-second health window. The actual historical verify command
+succeeded at 126.467 seconds of age in 1.467 seconds, wrote a separate complete
+evidence-only outcome linked to that digest, and left original receipt bytes unchanged.
+This used the real clock and real stored references, not a fixture clock or a fresh
+checkpoint. Exactly one capture and one verify ran. Total component duration was
+107.651 seconds, including the required age wait. The owned SSH process PID 1528527
+was terminated/reaped in finally and independently confirmed absent. Request, retained
+receipt and verification modes were all 0600. Original remote checkpoints, all previous
+history/Grafana receipts, live routes and backends were untouched.
+
+A separate local source-inspection invocation failed exit101 when its sandbox could
+not create a temporary mount marker because the local filesystem was full. The live
+history component nevertheless completed exit0 and retained its cleanup receipt.
+After exact owner/size/SHA checks, only the reproducible local 109,496,496-byte observer
+build copy from Task75 was retired; its deployed immutable executable, original
+rollback executable, manifests, hashes, source and all telemetry/proofs remain retained.
+No general cleanup, storage retirement or unrelated deletion was performed.
+
+The new autonomous resource history also produced a measured 38.028-minute baseline:
+44 selected series/19,944 samples, 73 distinct complete observations and 362 repeated
+scrape views. Six dev services averaged 2.822 GiB with sampled maximum 2.846 GiB;
+seven preserved services averaged 1.897 GiB with sampled maximum 1.952 GiB. Host
+available memory ranged 11.497–11.669 GiB. Across 71 valid same-execution intervals,
+dev CPU averaged 0.0433 cores, with maximum interval-average 0.0842 cores. The
+150.223-second unavailable/restarted interval was excluded, not counted as zero.
+Raw coordinates and analysis are retained. This is current quiet Compose evidence,
+not full cold-start/load/Kubernetes capacity or a renewed hardware recommendation.
+
+Fresh metadata-only authorized Kubernetes reads at 17:12:22 UTC succeeded for all five
+selected projections. Both nodes were Ready, but root puni-cluster was not Ready,
+observability/alerts/backup remained suspended/not Ready, and Elastic/Prometheus CRDs
+were absent. Only cert-manager/Traefik Helm releases were present and Ready in that
+projection. Marker ConfigMap metadata was observed; Secret values and raw annotations
+were not read. This refresh disproves a blanket claim of unavailable Kubernetes
+access, while proving no full target identity, material, capacity or migration
+readiness. No stage was unsuspended or reconciled. Local available RAM was below
+the unchanged 16 GiB full-lab floor, and the local cgroup-v2 memory.max path was absent;
+no local finite-runtime envelope or admission was claimed.
+
+Task78 source `e0613a25e5bad153d0b1c4031b75dcf8b93c77e7` independently passed
+specification/quality review with no findings. Parent read its exact test-only diff,
+forced-color regression and byte-restoration records; the final forced-color file
+passed 64 tests/210 assertions in 33.184 seconds with scoped checks and normal hooks.
+Production provider/guards and CI configuration remain unchanged. The first local
+FORCE_COLOR control inherited NO_COLOR and did not reproduce; it remains uncredited
+as RED. The first covering run's two sandbox listen-EPERM failures remain retained;
+only the authorized loopback-enabled run is credited as green. Historical blank
+GitHub annotations are not asserted to prove empty provider stderr.
+
+Current published-head `ef3f111f8` CI 41221301790 finished failed: resource refusal
+annotations show Python color formatting errors, and a separate backend watcher
+test, `records distinct sorted causes from a directory-only batch across old shared
+usage`, failed. Twilight and pixels passed; infrastructure CI 41221301980 passed Fleet
+and its generic k3s rehearsal. The application watcher cause is unverified and outside
+this observability test fix. No broad application change, CI rerun, timeout increase
+or assertion weakening was made. Those older results do not certify a later source
+or documentation head, or the common observability stack.
+
+Private retained evidence includes Task77 source 192-artifact index/report/review,
+actual release/source binding, command outputs, receipt/outcome, real-age proof and
+forward cleanup; Task78 scoped source/fault/check records; measured-resource and
+metadata-only target projections. Source/task77 witness capture and actual readback
+are complete. Main 4.1 remains open for route operations and isolated rehearsal;
+main 4.2/common live migration, full admission, shared Flux/Pods/CNI/storage, operator
+views/isolation/backup/restore and final handoff remain unverified. Full host gates,
+new full Nx/CI execution, production activation, persistent Secret changes and final
+merge were not performed. The original full goal remains active at 4/11 canonical
+runtime milestones; the 16 GiB floor and withdrawn hardware advice are unchanged.

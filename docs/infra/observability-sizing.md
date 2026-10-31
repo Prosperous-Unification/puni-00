@@ -22,6 +22,27 @@ A read-only inspection on 2026-10-31 at 14:56:49 UTC verified the existing h3mon
 
 The queries used existing backends: Elasticsearch `_stats/store`, Prometheus TSDB metadata/metric-name discovery and three bounded historical PromQL queries. Missing historical series are explicit states, never zeros. Per-container kernel lifetime peaks were observed separately; adding their maxima would not prove a simultaneous stack peak. These measurements do not certify sustained growth, load, startup, migration or outage/recovery demand.
 
+## First autonomous history window
+
+The existing observer's actual readings from 2026-10-31 16:28:18.977 through
+17:06:20.673 UTC cover 38.028 minutes. The bounded stored query returned 44 selected
+series and 19,944 samples; 73 distinct complete observations were used. The 362
+additional matching scrape views repeat held observations and are not independent
+resource readings. Unavailable/stale snapshots were excluded rather than counted as zero.
+
+| Measured quantity                                             |         Mean | Sampled maximum | Scope                                                                           |
+| ------------------------------------------------------------- | -----------: | --------------: | ------------------------------------------------------------------------------- |
+| Six dev services, summed current cgroup memory                |    2.822 GiB |       2.846 GiB | Concurrent selected-role totals in complete reported snapshots                  |
+| Seven preserved legacy services, summed current cgroup memory |    1.897 GiB |       1.952 GiB | Separate group over the same complete observations                              |
+| Six dev services, interval-average CPU                        | 0.0433 cores |    0.0842 cores | 71 valid same-execution intervals; weighted mean, not an instantaneous CPU peak |
+
+Observed host available memory ranged from 11.497 to 11.669 GiB; guest total was
+15.237 GiB. A 150.223-second resource gap/execution change from the bounded
+Alertmanager drill was excluded from CPU deltas. Do not add independent group
+maxima or infer a full Kubernetes startup/load peak from this quiet Compose window.
+The history now supplies measured inputs; it does not lower admission floors,
+establish every required recovery phase or justify a hardware purchase.
+
 ## Next sizing work
 
 1. Reuse the existing telemetry to establish actual resource peaks and storage growth, with time window, scrape coverage and workload phase attached. Identify missing whole-host/container histories explicitly; the Prometheus self-metrics above cover only one process.

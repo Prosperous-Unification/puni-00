@@ -403,17 +403,23 @@ Existing observer file loaders retain their
 original behavior.
 
 Inputs must be readable owner-private regular files; trusted request/receipt/outcome
-bytes are capped at262144. Missing, unreadable, malformed, occupied or changed-route
+bytes are capped at 262144. Missing, unreadable, malformed, occupied or changed-route
 inputs refuse with fixed redacted diagnostic categories. Checkpoints retain their
-existing8192-byte bound and are never initialized here. Backend reads are capped at
-1MiB under one10-second operation deadline, at most16 Elasticsearch records per signal,
-and at most512 stored metric samples. Historical metric reads use original stored
+existing 8192-byte bound and are never initialized here. Backend reads are capped at
+1 MiB under one 10-second operation deadline, at most 16 Elasticsearch records per signal,
+and at most 512 stored metric samples. Historical metric reads use original stored
 scrape coordinates, not query-range evaluation times or current values. Receipts keep
 bounded references and canonical fingerprints, excluding raw bodies and metric labels.
 A noncomplete verification publishes an explicit unavailable outcome and exits nonzero;
 malformed trusted state refuses before publication. Earlier history and Grafana receipts
 are never overwritten. An interrupted partial output requires inspection and a new path.
 
-Source/fixture verification is recorded in the owning OpenSpec evidence. Actual existing
-dev-store corroboration and review are separate; Task77, full4.1 and4.2 remain open until
-their stated requirements are met.
+Source and independent review are recorded in the owning OpenSpec evidence. The new
+commands were also exercised once against the existing dev stores: capture retained one
+log, two trace spans and three correlated stored metric samples. Historical verification
+succeeded at 126.467 seconds of age with the local checkpoint copy absent and the original
+receipt unchanged. Capture took 1.599 seconds and verification 1.467 seconds. Temporary
+local query forwards were terminated and reaped; no backend, route, observer or Secret
+changed. This proves the retained-reference reader, not migration or backup durability.
+Main 4.1 still requires route cutover/rollback/restore and isolated rehearsal; 4.2 still
+requires actual common-stack live acceptance.
