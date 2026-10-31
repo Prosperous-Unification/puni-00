@@ -647,8 +647,8 @@ describe('McpOAuthServer', () => {
     expect((await tokenResponse(oauth, 'random-1', firstCode, verifier)).status).toBe(200);
   });
 
-  // `wbs-mcp-agent-surface` M5: the consent path admits `token_use: consent`, or none for a
-  // token issued before the claim existed, and nothing else, even with a live session.
+  // `wbs-mcp-agent-surface` M5 and task 3.8: the consent path admits only `token_use: consent`,
+  // even with a live session; a token without the claim is refused too.
   it('refuses a consent session token of any use but consent', async () => {
     const signingKeys = generateKeyPairSync('rsa', { modulusLength: 2048 });
     const { oauth } = fixture({ signingKeys });
@@ -669,7 +669,7 @@ describe('McpOAuthServer', () => {
         (cause: unknown) => String(cause),
       );
     expect(await settled(consent)).toBe('admitted');
-    expect(await settled(await resigned(undefined))).toBe('admitted');
+    expect(await settled(await resigned(undefined))).toContain('unknown use');
     expect(await settled(await resigned('other'))).toContain('unknown use');
     // A machine use without a grant is refused by the machine path, never the session's.
     expect(await settled(await resigned('machine'))).not.toBe('admitted');
