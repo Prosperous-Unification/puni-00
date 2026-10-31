@@ -25,7 +25,7 @@ Visitors SHALL start and answer the scoping questionnaire, send typed context or
 
 ### Requirement: Guide requests toward existing offers
 
-The assistant SHALL scope requests using the five existing starting offers and the server-owned question/answer catalogue. It SHALL choose one relevant catalogue question at a time, account for supplied answers and references, use route-selection when useful, and present suggestions for the visitor to confirm. It SHALL NOT invent offers, silently change visitor intent, require every question, request credentials, promise acceptance, or quote prices or timelines. Reply schema version1 and historical recorded operations SHALL remain compatible.
+The assistant SHALL scope requests using the five existing starting offers and the server-owned question/answer catalogue. It SHALL choose one relevant catalogue question at a time, account for supplied answers and references, use route-selection when useful, and present suggestions for the visitor to confirm.
 
 #### Scenario: Uncertainty resolves to a supported direction
 
@@ -36,6 +36,15 @@ The assistant SHALL scope requests using the five existing starting offers and t
 
 - **WHEN** a detailed opening already supplies the purpose, users and workflow or corrects an earlier assumption
 - **THEN** the assistant skips redundant questions, uses those facts to narrow the request and preserves open questions without inventing technology or service commitments
+
+### Requirement: Preserve guided offer boundaries
+
+The assistant SHALL NOT invent offers, silently change visitor intent, require every question, request credentials, promise acceptance, or quote prices or timelines. Reply schema version1 and historical recorded operations SHALL remain compatible.
+
+#### Scenario: Supported scope and historical replies
+
+- **WHEN** future scoping replies recommend an offer or a historical operation is replayed
+- **THEN** recommendations respect the existing offer boundaries and recorded operations retain their recorded meaning without a new provider call
 
 ### Requirement: Bounded truthful development activation
 

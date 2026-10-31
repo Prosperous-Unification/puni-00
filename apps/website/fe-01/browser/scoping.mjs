@@ -54,12 +54,26 @@ async function openDraft(width, startingChoice = 'improve', startConversation = 
   const page = await context.newPage();
   page.on('pageerror', (error) => failures.push(error.message));
   const posts = [];
+  const proposals = [];
+  context.on('request', (request) => {
+    if (request.url().endsWith('/proposals') && request.method() === 'POST')
+      proposals.push(request.postDataJSON());
+  });
   page.on('request', (request) => {
     if (request.url().endsWith('/conversation/stream') && request.method() === 'POST')
       posts.push(request.postDataJSON());
   });
   await page.goto(appOrigin);
-  return { context, page, posts, pair, visitor };
+  return { context, page, posts, proposals, pair, visitor };
+}
+async function assertAnonymous(draft, phase) {
+  // Proof: forcing RequestEditor contact open failed this on the mounted initial Improve question; restored flow passes all starters and review.
+  assert(
+    (await draft.page.locator('input[type="email"]').count()) === 0,
+    `email mounted during ${phase}`,
+  );
+  // Proof: injecting a RequestEditor mount POST failed here before contact submission; exact source restored.
+  assert(draft.proposals.length === 0, `proposal posted during ${phase}`);
 }
 async function waitChoice(page, label) {
   await page.getByRole('button', { name: label, exact: true }).waitFor();
@@ -68,7 +82,10 @@ async function idle(page) {
   await page.getByRole('button', { name: 'Stop response' }).waitFor({ state: 'detached' });
 }
 async function editRequest(page) {
-  await page.getByRole('button', { name: 'Change this', exact: true }).click();
+  const change = page.getByRole('button', { name: 'Change this', exact: true });
+  if (await change.isVisible()) await change.click();
+  else
+    await page.getByRole('button', { name: 'Add references or edit brief', exact: true }).click();
   const references = page.getByRole('textbox', { name: 'Optional references', exact: true });
   if (!(await references.isVisible())) await page.locator('.reference-editor summary').click();
 }
@@ -85,8 +102,10 @@ async function overflow(page) {
 }
 try {
   for (const width of env['PUNI_SCOPING_FOCUS'] ? [] : [320, 390, 1440]) {
-    const { context, page, posts } = await openDraft(width);
+    const draft = await openDraft(width);
+    const { context, page, posts } = draft;
     await waitChoice(page, 'Recurring bugs');
+    await assertAnonymous(draft, 'initial Improve question');
     assert(posts.length === 1 && posts[0].automatic === true, 'authorized initial not once');
     const cacheExpiryMatches = await page.evaluate(async (origin) => {
       const saved = await (
@@ -108,6 +127,7 @@ try {
     await page.getByRole('button', { name: 'Accept payments', exact: true }).click();
     await page.getByRole('button', { name: 'Keep exploring', exact: true }).waitFor();
     assert(posts.length === 4, 'click-only journey count');
+    await assertAnonymous(draft, 'candidate brief review');
     await editRequest(page);
     const brief = page.getByRole('textbox', { name: 'Your brief', exact: true });
     const refs = page.getByRole('textbox', { name: 'Optional references', exact: true });
@@ -125,6 +145,7 @@ try {
     const exact = `${edited}\n\nReferences\n${references}`;
     await reviewRequest(page);
     assert((await final.textContent()) === exact, 'final references missing');
+    await assertAnonymous(draft, 'edited brief and optional references');
     await page.reload();
     await editRequest(page);
     await brief.waitFor();
@@ -168,6 +189,7 @@ try {
         'Preserve my chat draft',
       'contact discarded composer draft',
     );
+    await assertAnonymous(draft, 'declined contact and resumed conversation');
     await page.getByRole('button', { name: 'Ask PUNI to help', exact: true }).click();
     await page
       .getByRole('textbox', { name: 'Email', exact: true })
@@ -181,7 +203,9 @@ try {
       await submit.evaluate((button) => button === globalThis.document.activeElement),
       'email Tab did not reach Send',
     );
-    await submit.scrollIntoViewIfNeeded();
+    // Native nearest scrolling rounded the desktop bottom to900.109px in a900px viewport.
+    // Center the control, then retain exact viewport containment and both edge hit tests.
+    await submit.evaluate((button) => button.scrollIntoView({ block: 'center' }));
     assert(
       await submit.evaluate((button) => {
         const box = button.getBoundingClientRect();
@@ -198,6 +222,7 @@ try {
     );
     await page.screenshot({ path: `${outDir}/scoping-final-${String(width)}.png` });
     await page.screenshot({ path: `${outDir}/scoping-contact-${String(width)}.png` });
+    assert(draft.proposals.length === 0, 'proposal posted before explicit contact submit');
     await page.getByRole('button', { name: 'Send my request', exact: true }).click();
     await page.getByText('Request saved.', { exact: true }).waitFor();
     assert(
@@ -226,13 +251,53 @@ try {
   for (const starter of env['PUNI_SCOPING_FOCUS']
     ? []
     : ['launch', 'similar', 'assistant', 'automate', 'unsure']) {
-    const { context, page, posts } = await openDraft(390, starter);
+    const draft = await openDraft(390, starter);
+    const { context, page, posts } = draft;
     await page.getByRole('group', { name: 'Suggested answers', exact: true }).waitFor();
     assert(posts.length === 1, `starter ${starter} duplicated`);
+    await assertAnonymous(draft, `${starter} starter`);
+    globalThis.console.log(`PASS anonymous starter ${starter}`);
     await overflow(page);
     await context.close();
   }
+  const routed = await openDraft(390, 'unsure');
+  await routed.page.getByRole('group', { name: 'Suggested answers', exact: true }).waitFor();
+  const routingWords = 'Could a different starting offer fit? We move reports between tools.';
+  await routed.page.getByRole('textbox', { name: 'Your message', exact: true }).fill(routingWords);
+  await routed.page.getByRole('textbox', { name: 'Your message', exact: true }).press('Enter');
+  await waitChoice(routed.page, 'Automate my work');
+  await assertAnonymous(routed, 'unconfirmed route recommendation');
+  assert(routed.posts.length === 2, 'route recommendation submitted a visitor answer');
+  await routed.page.getByRole('button', { name: 'Automate my work', exact: true }).click();
+  await routed.page.getByRole('button', { name: 'Keep exploring', exact: true }).waitFor();
+  assert(
+    routed.posts[2].selected.questionId === 'route-selection' &&
+      routed.posts[2].selected.answerId === 'automate',
+    'route confirmation was not the visitor selection',
+  );
+  assert(routed.posts[1].message === routingWords, 'route recommendation changed original words');
+  await assertAnonymous(routed, 'visitor-confirmed route and brief');
+  await routed.context.close();
+  globalThis.console.log(
+    'PASS route suggestions wait for explicit visitor confirmation (scripted reply)',
+  );
+  const uncertain = await openDraft(390, 'improve');
+  await uncertain.page.getByRole('group', { name: 'Suggested answers', exact: true }).waitFor();
+  await assertAnonymous(uncertain, 'uncertain starter');
+  await uncertain.page.getByRole('button', { name: 'Not sure', exact: true }).click();
+  await waitChoice(uncertain.page, 'Payments');
+  await assertAnonymous(uncertain, 'uncertainty and simpler follow-up');
+  await editRequest(uncertain.page);
+  await uncertain.page.getByRole('button', { name: 'No references yet', exact: true }).click();
+  await reviewRequest(uncertain.page);
+  await assertAnonymous(uncertain, 'no references choice');
+  await uncertain.context.close();
+  globalThis.console.log(
+    'PASS anonymous uncertainty and optional reference refusal (scripted reply)',
+  );
   const early = await openDraft(390, 'improve', false);
+  await early.page.getByRole('button', { name: 'Send my request now', exact: true }).waitFor();
+  await assertAnonymous(early, 'before explicit early human review');
   await early.page.getByRole('button', { name: 'Send my request now', exact: true }).click();
   await early.page.getByRole('textbox', { name: 'Email', exact: true }).waitFor();
   assert(early.posts.length === 0, 'early review bought inference');
@@ -297,6 +362,7 @@ try {
   await early.context.close();
   const mixed = await openDraft(390);
   await waitChoice(mixed.page, 'Recurring bugs');
+  await assertAnonymous(mixed, 'before suggested answer');
   const staleTab = await mixed.context.newPage();
   await staleTab.goto(appOrigin);
   await waitChoice(staleTab, 'Recurring bugs');
@@ -339,6 +405,7 @@ try {
       { exact: true },
     )
     .waitFor({ state: 'attached' });
+  await assertAnonymous(mixed, 'typed correction and candidate revision');
   await correctionTab.close();
   await mixed.page.reload();
   await mixed.page.getByText('Saved version changed', { exact: true }).waitFor();
