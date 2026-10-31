@@ -64,3 +64,51 @@ hand crosses is the teleport again**, in a different tool.
 One assertion was re-timed rather than added: the reach describe's `keeps the card the pointer
 arrived on, not the one it left` asserted the switch at once, which is the behaviour this change
 removes; it now advances `TAKEOVER_MS` first.
+
+## Browser clock repair (2026-10-31)
+
+Hosted CI run41226614547 at `021ac3867e7af7d84ce38af1b45a115e209743c0`
+failed the crossing case with preview count0 instead of1; the shard had126 passed
+and one failed. Its trace recorded91.764ms and110.506ms stepped mouse commands,
+and an actual Depends-card takeover during the second command. Individual DOM
+entry-to-arrival timestamps were not captured. The commands did not establish
+the test's required sub50ms journey; this is timing-precondition evidence, not
+a general declaration of correct product behavior.
+
+The repair changes only `e2e/hover-cards.spec.ts`. A narrow opt-in installs the
+Playwright clock before the existing seed/navigation. Setup and layout run
+normally, then the clock pauses for the real pointer path. The test hit-checks
+the live Depends cell, observes notes1/Depends0 after49ms, reaches the original
+card and advances231ms, then verifies cancellation. A fresh actual trigger dwell
+retains the preview at49ms and switches after the final1ms. Production timings,
+handlers, geometry, retries and timeouts remain unchanged; unrelated cases keep
+real time.
+
+The existing Nx e2e setup command, `bun run tools/dev/setup.ts`, exited0 before
+the successful browser run. A prior direct component invocation stopped on the
+missing local AUTH_MODE configuration before tests and supplies no timer evidence.
+The successful run used the existing Playwright configuration with CI=1,
+E2E_PORT_SHIFT=7000, a fresh private database and trace capture. The selected
+crossing, real-time dwell and departure consumers passed3/3 in41.9s. Actual
+trace calls show early clock installation, real pointer moves, and completed
+runFor49/231/49/1 calls. The original process exited0 with both stream EOFs and
+its wait joined.
+
+Selected receipt:
+`/tmp/puni-hover-clock-selected-ready-20261031-nvq0ijp_/selected.receipt.json`.
+Selected stdout SHA256:
+`f25c6e558e8675bf104b1605e5eed154d1fa7cbcb529f19f2c7e5f5d38c2daf7`.
+Frozen test SHA256:
+`141e2da4707a278cb3d59629856c28306aa1446d56f7665e7bcda2458a3a52b4`.
+Independent source/selected review SHA256:
+`8f6660f3610343681b8a6e23d29b135c24e7d02dfd28d6322e092aa79c77d6d2`.
+Configured frontend types, scoped lint and test formatting exited0. The full
+hover file subsequently passed40/40 in5.0m with the same frozen test bytes; its
+original process exited0, both streams reached EOF and its wait was joined.
+Owning receipt SHA256:
+`d78fa24c59edcf403afe195a3d23910954bb8448a7ced6841ea862b9a90ea29f`.
+Owning stdout SHA256:
+`5000a957bc5082c44a12f536d31b5b4a678ed727c9d306b0fd03ce4f96f1d2f5`.
+The affected browser shard and next exact-SHA CI/host gate remain pending at
+this record. The earlier failure proofs above remain historical; no new
+guard-removal proof was performed for this test-only repair.

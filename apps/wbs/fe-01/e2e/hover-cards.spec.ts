@@ -86,7 +86,13 @@ async function boxOf(locator: Locator, what: string): Promise<DOMRect> {
 
 let account = 0;
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page }, testInfo) => {
+  if (
+    testInfo.title === 'keeps the preview while the hand crosses a live trigger on its way to it'
+  ) {
+    // Install before navigation creates application timers; unrelated cases keep real time.
+    await page.clock.install();
+  }
   account += 1;
   await seedPlan(page, `e2e-hover-${String(Date.now())}-${String(account)}`);
 });
@@ -1103,22 +1109,49 @@ test.describe('the Name cell answers from its marker alone', () => {
     const dependsCard = page.getByRole('tooltip', { name: 'What 010 waits for' });
 
     const marker = await boxOf(page.getByLabel('Notes on 010'), 'the notes marker');
-    await page.getByLabel('Notes on 010').hover();
-    expect(await preview.count(), 'the marker opened no preview').toBe(1);
-    const card = await boxOf(preview, 'the preview');
     const cell = await boxOf(
       rowOf(page, '010').locator('td[data-column="depends"]'),
       'the Depends cell of 010',
     );
+    // Driver/frame latency exceeded the 50ms contract in CI41226614547. Setup
+    // runs normally; only this real-pointer journey uses deliberate timer time.
+    await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
+    await page.mouse.move(marker.x + marker.width / 2, marker.y + marker.height / 2);
+    expect(await preview.count(), 'the marker opened no preview').toBe(1);
+    const card = await boxOf(preview, 'the preview');
+    const crossing = { x: cell.x + 2, y: marker.y + marker.height / 2 };
+    expect(
+      await page.evaluate(
+        ({ x, y }) => document.elementFromPoint(x, y)?.closest('td')?.getAttribute('data-column'),
+        crossing,
+      ),
+      'the journey misses the actual Depends trigger',
+    ).toBe('depends');
 
-    await page.mouse.move(cell.x + 2, marker.y + marker.height / 2, { steps: 4 });
+    await page.mouse.move(crossing.x, crossing.y, { steps: 4 });
+    await page.clock.runFor(49);
+    expect(await preview.count(), 'the preview was taken over before 50ms').toBe(1);
+    expect(await dependsCard.count(), 'the Depends card opened before 50ms').toBe(0);
     await page.mouse.move(card.x + 40, card.y + 20, { steps: 4 });
     expect(await preview.count(), 'the preview was taken over on the way').toBe(1);
     expect(await dependsCard.count(), 'the Depends cell opened its card on a passing hand').toBe(0);
 
-    // And the pointer being on the card keeps it past every delay there is.
-    await page.waitForTimeout(TAKEOVER_MS * 3);
-    expect(await preview.count(), 'the preview did not outlast the takeover delay').toBe(1);
+    // Arrival must cancel both timers, rather than merely postpone a takeover.
+    await page.clock.runFor(231);
+    expect(await preview.count(), 'the preview did not outlast the takeover and reach delays').toBe(
+      1,
+    );
+    expect(await dependsCard.count(), 'a cancelled takeover still opened the Depends card').toBe(0);
+
+    // The same installed clock must still run a fresh actual trigger's timer.
+    // Literal 49+1 checks the chosen 50ms contract without following a drifted constant.
+    await page.mouse.move(crossing.x, crossing.y, { steps: 4 });
+    await page.clock.runFor(49);
+    expect(await preview.count(), 'the fresh dwell took over before 50ms').toBe(1);
+    expect(await dependsCard.count(), 'the fresh dwell opened its card before 50ms').toBe(0);
+    await page.clock.runFor(1);
+    expect(await preview.count(), 'the preview outstayed the actual 50ms dwell').toBe(0);
+    expect(await dependsCard.count(), 'the actual 50ms dwell opened no card').toBe(1);
   });
 
   test('lets a pointer that rests on another trigger take over', async ({ page }) => {
