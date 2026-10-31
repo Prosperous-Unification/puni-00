@@ -517,3 +517,46 @@ requires inspection and refusal, never overwriting an earlier binary. Do not
 initialize checkpoints, restart the tunnel or modify h3 stores. A failed update
 restores the saved owned unit and prior executable, retaining failure evidence.
 Full parity, history/recovery and Kubernetes/Flux admission remain open.
+
+### Retained observations before route operations — Task77
+
+Task76 audited the actual seven open main tasks against their owning source.
+The shared instance/security composition already exists; do not rebuild it.
+Task4.1 still lacks historical witnesses and route operations. Implement the
+first dependency now: reusable read-only capture/verification instead of relying
+on the private ad hoc history script. Actual cutover/rollback/restore follows
+through existing binding/unit ownership only after its required live inventory;
+this source slice cannot admit a candidate or finish4.1/4.2.
+
+Keep a small provider-neutral retained-observation model under the existing tool,
+reusing ObservationIdentity and the existing signal vocabulary. It contains
+bounded identities, observation/capture time, reference IDs and fingerprints;
+Elastic indexes/document IDs and Prometheus series/sample coordinates belong
+only to the dedicated provider envelope. No new library, backend, runner or
+bulk data-transfer service is needed. Use the spec's existing explicit retained
+backend access option, preserving both old stores and their queryability.
+
+Capture reuses existing source/checkpoint, backend acceptance and verified
+transport/query-authority semantics. Only an actual complete fresh correlated
+observation can be captured; historical verification separately rereads exact
+references without making an old observation fresh. Retain minimal private
+metadata and canonical hashes, not document bodies, raw labels or Secret material.
+Prometheus sample references can bind a digest of the full series labels and
+the exact stored scrape coordinate; the adapter recomputes them from bounded
+historical queries. Do not confuse range-query evaluation times with stored
+sample times. Elasticsearch references bind exact backing document locations
+within the expected namespace and hash only the validated selected projection.
+
+The on-disk provider envelope has an explicit format/version and links every
+reference exactly once. Route commitments include credential-free endpoint,
+verified service/trust identity and principal identity, with no password/private
+key contents or hashes. Verification requires the expected complete receipt
+digest and the same committed read routes. A future migration receipt may link
+this retained evidence; no candidate/store ownership or readiness is inferred here.
+
+Expose bounded capture/verify operations through the existing runtime CLI,
+with owner-private exclusive output files and fixed diagnostic categories.
+Reuse existing transport deadlines, capped reads and read-only privilege checks;
+all local protocol fixtures stay explicit component evidence. The real existing
+dev stores can corroborate the reader after source review without deploying
+anything or replaying a previous outage. No live route is changed in this slice.

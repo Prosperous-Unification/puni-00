@@ -1008,3 +1008,36 @@ revision generates units only; it does not authorize or perform installation.
 - **WHEN** a candidate unit has been generated successfully
 - **THEN** actual rollout still requires fresh existing-account access, immutable binary/manifest verification, exact prior-unit preservation and reversible activation
 - **AND** autonomous stored collection, effective service bounds and retained history must be observed separately before runtime acceptance
+
+### Requirement: Retained observations have bounded durable evidence
+
+Before changing producer or query routes, the runtime tooling SHALL support
+capturing a retained observation from actual correlated stored signals and
+verifying its exact records later. The shared evidence model MUST be independent
+of backend vendors. Capture and verification MUST remain read-only on backends
+and MUST NOT authorize migration, route mutation or deletion.
+
+#### Scenario: A fresh correlated observation becomes a retained reference
+
+- **WHEN** an existing validated observation has complete stored log, trace and metric acceptance and a capture command selects it
+- **THEN** a new owner-private receipt binds its application identity, observed/captured times and bounded nonempty signal references with canonical content fingerprints
+- **AND** provider-specific record locations and safe route-binding commitments are decoded by a dedicated adapter, with no credentials or raw log/document bodies persisted
+- **AND** publication is exclusive and cannot overwrite an earlier operation or Grafana receipt
+
+#### Scenario: Historical verification succeeds without asserting fresh health
+
+- **WHEN** the original records and exact metric samples remain readable after the observation ages
+- **THEN** verification checks their original identities and fingerprints at the historical sample times
+- **AND** it produces a distinct verification outcome linked to the retained receipt digest, leaves that receipt unchanged and does not classify old telemetry as fresh application health
+
+#### Scenario: Missing changed or inaccessible evidence refuses acceptance
+
+- **WHEN** a retained record/sample is missing, changes content or relationships, cannot be read, returns partial/ambiguous output, or a receipt/binding/identity is malformed, changed or mismatched
+- **THEN** verification cannot report complete and the CLI exits nonzero with bounded explicit reasons
+- **AND** absent, unreadable, malformed and occupied trusted files refuse without overwrite, Secret disclosure, fabricated empty history or backend mutation
+
+#### Scenario: A retained reference is not migration admission
+
+- **WHEN** capture or historical verification succeeds
+- **THEN** candidate ownership, fresh preflight, route switching, rollback/restore and full Kubernetes/Flux acceptance remain independent required work
+- **AND** existing observer/Grafana receipts, current signal semantics, stores and live routes remain unchanged

@@ -2510,3 +2510,10 @@ _Avoid_: failed creation, absent resource
 **Reviewed-empty membership**:
 An explicit review assertion that no member of a named earlier test level belongs to the reviewed fixture scope. It carries no execution or certification claim.
 _Avoid_: unknown membership, passing Performance result
+
+### Observability migration
+
+**Retained observation**:
+An identified set of stored telemetry selected to check history across a deployment change.
+Its continued availability is separate from current application health or migration readiness.
+_Avoid_: health checkpoint, restore receipt

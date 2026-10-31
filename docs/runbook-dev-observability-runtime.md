@@ -334,8 +334,8 @@ Omission still renders the original ab4f unit bytes. The tunnel, checkpoints, se
 and restart policy remain identical. Empty, abbreviated, uppercase, path, whitespace/control
 inputs and extra CLI arguments refuse, including a revision with a trailing newline.
 
-This command only renders text. Resource-history activation remains **pending**: the controller
-must separately build and hash the reviewed immutable release, verify its manifest, preserve
+This command only renders text. The actual activation of `047e08024` is recorded above;
+any later selected revision must separately be built and hashed, have its manifest verified, preserve
 the exact prior owned unit/binary/checkpoints and rollback path, and validate candidate unit
 syntax before reversible activation. A release-directory collision refuses rather than
 replacing a retained binary. Do not initialize checkpoints or restart the tunnel. The read-only
