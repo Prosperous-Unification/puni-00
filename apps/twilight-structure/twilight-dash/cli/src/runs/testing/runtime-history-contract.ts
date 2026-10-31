@@ -93,10 +93,13 @@ export function runtimeHistoryContract(
       expect(typeof stores.runs.stageRuntimeRequest).toBe('function');
       expect(typeof stores.runs.recordRuntimeAcceptance).toBe('function');
       expect(await stores.runs.readRuntimeScope(runtimeScope)).toEqual({
-        version: 1,
+        version: 2,
         kind: 'uninitialized',
         scope: runtimeScope,
         ownerEpoch: 1,
+        recoveries: [],
+        activeRecoveryId: null,
+        generationFloor: null,
       });
       await rejects(
         stores.runs.stageRuntimeRequest(stores.guard, authorityRequest()),

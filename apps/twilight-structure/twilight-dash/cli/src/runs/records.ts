@@ -1,7 +1,16 @@
 import type { ClaimRef } from './claim-records';
-import type { Attempt } from './execution-records';
+import type { Attempt, Attempt2 } from './execution-records';
 import type * as codecs from './record-codecs';
-export type { Attempt, AttemptState, ExecutionCommand, ExecutionFact } from './execution-records';
+import type { RecoveryClosure } from './recovery-records';
+import type { RuntimeScope } from './runtime-records';
+export type {
+  Attempt,
+  Attempt2,
+  Attempt3,
+  AttemptState,
+  ExecutionCommand,
+  ExecutionFact,
+} from './execution-records';
 
 export type StoreId = typeof codecs.StoreIdCodec.infer;
 export type OrganizationId = typeof codecs.OrganizationIdCodec.infer;
@@ -33,6 +42,19 @@ export interface Ownership {
   readonly ownerId: OwnerId;
   readonly epoch: Epoch;
   readonly expiresAt: Timestamp;
+}
+export interface RunGuard {
+  readonly ownership: Ownership;
+  readonly runId: RunId;
+  readonly expectedRevision: Revision;
+}
+export interface AttemptGuard extends RunGuard {
+  readonly attemptId: AttemptId;
+  readonly expectedAttemptRevision: Revision;
+}
+export interface ScopedAttemptGuard extends AttemptGuard {
+  readonly scope: RuntimeScope;
+  readonly expectedScopeRevision: Revision;
 }
 export interface OwnershipStatus {
   readonly storeId: StoreId;
@@ -146,10 +168,16 @@ export interface Admission {
   readonly ordinal: Ordinal;
 }
 /** Consistent run state and store-wide local capacity, independent of ownership. */
-export interface RunSnapshot {
+export type RunSnapshot = RunSnapshot2 | RunSnapshot3;
+export interface RunSnapshot3 extends Omit<RunSnapshot2, 'version' | 'attempts'> {
+  readonly version: 3;
+  readonly attempts: readonly Attempt[];
+  readonly recoveries: readonly RecoveryClosure[];
+}
+export interface RunSnapshot2 {
   readonly version: 2;
   readonly run: Run;
-  readonly attempts: readonly Attempt[];
+  readonly attempts: readonly Attempt2[];
   readonly pendingIntents: readonly ProgressIntent[];
   readonly receipts: readonly CommandReceipt[];
   readonly decisions: readonly Decision[];

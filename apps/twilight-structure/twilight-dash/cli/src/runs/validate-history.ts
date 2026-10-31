@@ -1,5 +1,5 @@
 import { decodeRecordedExecution } from './execution-codecs';
-import type { ExecutionHistory, RecordedExecution } from './execution-records';
+import type { ExecutionHistory2, RecordedExecution } from './execution-records';
 import { claimAcceptTransition, claimStageTransition, turnStageTransition } from './plan-claims';
 import {
   advanceAttempt,
@@ -9,13 +9,15 @@ import {
 } from './plan-execution';
 import { planOutcomeTransition, type RecordedCompletion } from './plan-outcome';
 import { planReceiptTransition, type RecordedReceipt } from './plan-receipt';
-import { auditRuntimeCatalog, reconstructRuntimeScope, type RuntimeCatalog } from './plan-runtime';
+import { reconstructRuntimePrefix } from './plan-recovery-history';
+import { auditRuntimeCatalog, type RuntimeCatalog } from './plan-runtime';
 import { planDecision, type RecordedConsumption } from './plan-signals';
 import {
   addInteger,
   decodeAdmission,
   decodeAttempt,
   decodeCompletion,
+  decodeCurrentAttempt,
   decodeDecision,
   decodeManifest,
   decodeReceipt,
@@ -57,25 +59,11 @@ function scopePrefix(catalog: HistoryCatalog, scope: RuntimeScope, revision: num
   // Proof: F193 removed this sampled check; 'remaining future scope diagnostic' received "corrupt runtime final revision" instead of its named error; diagnostic-only, not acceptance safety. Exact restoration passed.
   if (retained === undefined || revision > retained.revision)
     throw new Error('execution scope context is unavailable');
-  const intents = catalog.runtime.intents.filter(
-    (intent) =>
-      intent.stagedRevision <= revision &&
-      equalRuntimeScopes(readRuntimeRequest(intent.canonicalRequest).scope, scope),
-  );
-  const commands = new Set(intents.map((intent) => intent.commandId));
-  const acceptances = catalog.runtime.acceptances.filter(
-    (acceptance) => acceptance.acceptedRevision <= revision && commands.has(acceptance.commandId),
-  );
-  return reconstructRuntimeScope(
-    { ...retained, revision },
-    intents,
-    acceptances,
-    catalog.ownership,
-  );
+  return reconstructRuntimePrefix(retained, catalog.runtime, catalog.ownership, revision);
 }
 
 /** Folds scopes first, then every original attempt acknowledgement at its true predecessor, and finally cross-links/projections/reservations. Every execution is decoded before dispatch; {@link decodeRecordedExecution} owns command/context/reply correlation, so null context precisely selects ordinary execution. Coherent replacement of every independent fact is outside this local integrity claim. */
-export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHistory[] {
+export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHistory2[] {
   // Proof: F158 removed this sampled check; 'retained history owner scope audit precedes attempts' accepted its positive then lost rejection. Exact restoration passed.
   auditRuntimeCatalog(catalog.runtime, catalog.ownership);
   const runs = new Map(catalog.runs.map((entry) => [entry.run.runId, entry]));
@@ -111,11 +99,88 @@ export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHist
   // Proof: F145 removed only this sampled check; 'retained history owner orphan decision' retained its positive and lost the expected rejection. Exact restoration passed; direct owner proof.
   for (const decision of catalog.decisions)
     if (!attempts.has(decision.attemptId)) throw new Error('orphan decision history');
+  const acceptanceCommands = new Set<string>();
+  const recoveryCommands = new Set(
+    catalog.runtime.recovery.histories.flatMap((history) => [
+      history.intent.recoveryId,
+      ...history.fences.map(
+        (fence) => readRuntimeRequest(fence.canonicalRequest).operation.commandId,
+      ),
+    ]),
+  );
+  if (executions.some((entry) => recoveryCommands.has(entry.command.commandId)))
+    // Proof: R2F46 removed only this check; 'recovery identities cannot borrow an existing execution command' lost its required rejection. Exact restoration passed.
+    throw new Error('corrupt recovery execution command collision');
+  for (const history of catalog.runtime.recovery.histories) {
+    const target = history.intent.target;
+    if (target.kind !== 'claim') continue;
+    const acceptedCommand =
+      history.closure?.originalReply?.kind === 'claim'
+        ? history.closure.originalReply.command
+        : null;
+    if (
+      acceptanceCommands.has(target.acceptanceCommandId) ||
+      recoveryCommands.has(target.acceptanceCommandId) ||
+      catalog.runtime.intents.some((intent) => intent.commandId === target.acceptanceCommandId) ||
+      executions.some(
+        (entry) =>
+          entry.command.commandId === target.acceptanceCommandId &&
+          !equalRecords(entry.command, acceptedCommand),
+      )
+    )
+      // Proof: R2F45 removed only this check; 'recovery claim acceptance identity cannot borrow an existing stage command' lost its required rejection. Exact restoration passed.
+      throw new Error('corrupt recovery claim acceptance identity');
+    acceptanceCommands.add(target.acceptanceCommandId);
+
+    const retained = catalog.attempts.find((entry) => entry.attempt.attemptId === target.attemptId);
+    const stage = executions.find((entry) => entry.command.commandId === target.stageCommandId);
+    if (
+      retained?.attempt.identity.runId !== target.runId ||
+      stage?.reply.kind !== 'claim_staged' ||
+      stage.reply.attempt.attemptId !== target.attemptId ||
+      !equalRecords(stage.reply.intent, target.original)
+    )
+      // Proof: R2F06 removed only this check; 'public runtime read reaches complete claim recovery stage audit' lost its required rejection. Exact restoration passed.
+      throw new Error('corrupt recovery claim stage association');
+    const closure = history.closure;
+    if (closure === null) {
+      const checkpoint = executionCheckpoint(retained.attempt);
+      const stagedCheckpoint = stage.reply.attempt.state;
+      if (
+        retained.attempt.version !== 2 ||
+        checkpoint.kind !== 'claiming' ||
+        !retained.attempt.holdsCapacity ||
+        !equalRecords(checkpoint.intent, target.original) ||
+        stagedCheckpoint.kind !== 'claiming' ||
+        !equalRecords(checkpoint.session, stagedCheckpoint.session)
+      )
+        // Proof: R2F53 removed only this check; 'recovery active journal requires the actual claiming checkpoint and exact index' admitted a valid reattachment that changed the staged checkpoint. Exact restoration passed.
+        throw new Error('corrupt active recovery claim checkpoint');
+    } else {
+      if (closure.attemptReply === null || !equalRecords(closure.attemptReply, retained.attempt))
+        // Proof: R2D03 removed this diagnostic; 'recovery current hold retains its precise provenance diagnostic' instead reached inherited current-attempt provenance (F152). Exact restoration passed; no admission-safety credit.
+        throw new Error('corrupt recovery current hold');
+      if (closure.originalReply !== null) {
+        const accepted = executions.find(
+          (entry) => entry.command.commandId === target.acceptanceCommandId,
+        );
+        if (
+          closure.originalReply.kind !== 'claim' ||
+          accepted?.command.kind !== 'accept_claim' ||
+          accepted.context?.scopeRevision !== closure.scopeBefore ||
+          !equalRecords(accepted.command, closure.originalReply.command) ||
+          !equalRecords(accepted.reply, closure.originalReply.ack)
+        )
+          // Proof: R2F14 removed only this check; 'recovery audit rejects independent original_ack' lost its required rejection. Exact restoration passed.
+          throw new Error('corrupt recovery claim original acknowledgement');
+      }
+    }
+  }
   const staged = new Set<string>();
   const accepted = new Set<string>();
-  const histories: ExecutionHistory[] = [];
+  const histories: ExecutionHistory2[] = [];
   for (const retained of catalog.attempts) {
-    const attempt = decodeAttempt(retained.attempt);
+    const attempt = decodeCurrentAttempt(retained.attempt);
     const admission = decodeAdmission(retained.admission);
     // Proof: F146 removed only this sampled check; 'retained history owner admission ordinal differs' retained its positive and lost the expected rejection. Exact restoration passed; direct owner proof.
     // Proof: F161 removed this sampled check; 'retained history owner admission attempt differs' accepted its positive then lost rejection. Exact restoration passed.
@@ -151,7 +216,19 @@ export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHist
     // Proof: F166 removed this sampled check; 'retained history owner duplicate completion diagnostic' accepted its positive then received corrupt attempt event revision instead of its named error; diagnostic-only, not acceptance safety. Exact restoration passed.
     if (completions.length > 1 || receipts.length > 1)
       throw new Error('duplicate settlement history');
+    const recoveries = catalog.runtime.recovery.histories.flatMap((history) =>
+      history.intent.target.kind === 'claim' &&
+      history.intent.target.attemptId === attempt.attemptId &&
+      history.closure !== null
+        ? [history.closure]
+        : [],
+    );
     const events = [
+      ...recoveries.map((closure) => {
+        // Proof: R2D06 removed this refinement; 'recovery missing hold retains its diagnostic after audited local value changes' received a null-revision TypeError. Earlier hold-closure association (R2F03) owns admission. Exact restoration passed; diagnostic-only.
+        if (closure.attemptReply === null) throw new Error('claim closure has no hold');
+        return { kind: 'recovery' as const, revision: closure.attemptReply.revision, closure };
+      }),
       ...ownExecutions.map((execution) => ({
         kind: 'execution' as const,
         revision: execution.reply.attempt.revision,
@@ -175,6 +252,7 @@ export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHist
     ].sort((left, right) => left.revision - right.revision);
     let predecessor: Attempt = {
       ...attempt,
+      version: 2,
       revision: 0,
       state: { kind: 'queued' },
       holdsCapacity: true,
@@ -199,7 +277,38 @@ export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHist
           ...folded,
         ],
       };
-      if (event.kind === 'execution') {
+      if (predecessor.version !== 2)
+        // Proof: R2D04 removed this diagnostic; 'recovery subsequent event retains its precise hold diagnostic' instead reached ordinary hold refusal (R2F08). Exact restoration passed; no admission-safety credit.
+        throw new Error('recovery hold has a subsequent attempt event');
+      if (event.kind === 'recovery') {
+        const closure = event.closure;
+        const checkpoint = executionCheckpoint(predecessor);
+        if (
+          closure.attemptReply === null ||
+          (closure.decision.kind === 'accepted'
+            ? checkpoint.kind !== 'ready'
+            : checkpoint.kind !== 'claiming')
+        )
+          // Proof: R2D05 removed this refinement after a checkpoint-read dependency fault; 'recovery hold predecessor retains its precise checkpoint dependency diagnostic' instead reached hold-consequence equality (R2F07). Exact restoration passed; diagnostic-only.
+          throw new Error('corrupt recovery hold predecessor');
+        const expected = {
+          ...predecessor,
+          version: 3,
+          revision: addInteger(predecessor.revision, 1),
+          holdsCapacity: true,
+          state: {
+            kind: 'recovery_hold',
+            cause:
+              closure.decision.kind === 'accepted' ? 'claim_accepted_fenced' : 'claim_nonaccepted',
+            closureId: closure.recoveryId,
+            checkpoint,
+          },
+        };
+        if (!equalRecords(expected, closure.attemptReply))
+          // Proof: R2F07 removed only this check; 'recovery audit rejects independent hold_checkpoint' lost its required rejection. Exact restoration passed.
+          throw new Error('corrupt recovery hold consequence');
+        predecessor = decodeCurrentAttempt(closure.attemptReply);
+      } else if (event.kind === 'execution') {
         const execution = event.execution;
         let expected: RecordedExecution['reply'];
         if (execution.context === null) {
@@ -375,7 +484,8 @@ export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHist
     // Proof: F152 removed only this sampled check; 'retained history owner current attempt differs' retained its positive and lost the expected rejection. Exact restoration passed; direct owner proof.
     if (!equalRecords(predecessor, attempt)) throw new Error('corrupt current attempt provenance');
     histories.push({
-      version: 1,
+      version: 2,
+      recoveries,
       run,
       attempt,
       executions: folded,

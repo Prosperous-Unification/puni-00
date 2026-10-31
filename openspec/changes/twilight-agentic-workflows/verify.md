@@ -3433,3 +3433,15 @@ and business-attempt/budget mapping, supported logical and physical recovery,
 operator transitions, remaining adapters/full conformance, second durable
 provider/transfer and CTT consumption. New outcome/recovery/history/format,
 inspection and engine choices remain unaccepted. No production deployment.
+
+## Logical recovery R2 approval — 2026-10-28
+
+The owner approved the recommended R2 authority/claim recovery design for
+implementation, tests and review: preserve and explicitly upgrade populated
+histories, deliver authority/claim recovery first and retain the documented
+legacy artifact/clock exceptions. Architectural main merge remains held.
+The [logical recovery verification record](recovery-verify.md) owns the fresh
+baseline, sandbox diagnosis and all subsequent RED/GREEN/R5 evidence. The
+[ordered plan](recovery-tasks.md) keeps complete write and physical recovery
+and parent S0/S7a requirements open. No new recovery implementation or proof
+is credited by this approval entry.

@@ -4928,6 +4928,15 @@
           "kind": "external",
           "authority": "Historical execution recorded in openspec/changes/twilight-agentic-workflows/verify.md; rerunning its commands produces a new receipt."
         }
+      },
+      {
+        "path": "openspec/changes/twilight-agentic-workflows/evidence/r2-review-gate-checkpoint-20261030.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/twilight-agentic-workflows/recovery-verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical execution recorded in openspec/changes/twilight-agentic-workflows/recovery-verify.md; rerunning its commands produces a new receipt."
+        }
       }
     ],
     "gitlinkBoundaries": [],

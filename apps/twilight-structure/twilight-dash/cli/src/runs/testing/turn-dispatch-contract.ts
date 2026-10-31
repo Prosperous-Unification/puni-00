@@ -807,6 +807,7 @@ export function turnDispatchContract(name: string, create: () => Promise<Outcome
       'locator',
       'executor',
       'pending_grant',
+      'recovery_barrier',
       'grant_mapping',
       'uninitialized',
       'nonready',
@@ -846,7 +847,12 @@ export function turnDispatchContract(name: string, create: () => Promise<Outcome
               ...setup.runs,
               async readExecutionHistory(...args) {
                 const history = await setup.runs.readExecutionHistory(...args);
-                if (history.attempt.state.kind !== 'ready') throw new Error('ready required');
+                if (
+                  history.version !== 2 ||
+                  history.attempt.version !== 2 ||
+                  history.attempt.state.kind !== 'ready'
+                )
+                  throw new Error('current ready history required');
                 return {
                   ...history,
                   attempt: {
@@ -877,6 +883,22 @@ export function turnDispatchContract(name: string, create: () => Promise<Outcome
             Object.assign(setup.executor, { kind: 'tool' });
             reason = 'identity_conflict';
             break;
+          case 'recovery_barrier':
+            runs = {
+              ...setup.runs,
+              async readRuntimeScope(scope) {
+                const history = await setup.runs.readRuntimeScope(scope);
+                if (history.kind !== 'pinned') throw new Error('pin required');
+                return {
+                  ...history,
+                  version: 2,
+                  recoveries: [],
+                  activeRecoveryId: null,
+                  generationFloor: 2,
+                };
+              },
+            };
+            break;
           case 'pending_grant':
           case 'grant_mapping':
           case 'uninitialized':
@@ -886,7 +908,15 @@ export function turnDispatchContract(name: string, create: () => Promise<Outcome
                 const history = await setup.runs.readRuntimeScope(scope);
                 if (history.kind !== 'pinned') throw new Error('pin required');
                 return fault === 'uninitialized'
-                  ? { version: 1, kind: 'uninitialized', scope, ownerEpoch: history.ownerEpoch }
+                  ? {
+                      version: 2,
+                      kind: 'uninitialized',
+                      scope,
+                      ownerEpoch: history.ownerEpoch,
+                      recoveries: [],
+                      activeRecoveryId: null,
+                      generationFloor: null,
+                    }
                   : {
                       ...history,
                       pendingCommandId:
@@ -906,21 +936,40 @@ export function turnDispatchContract(name: string, create: () => Promise<Outcome
             reason = 'state_conflict';
             break;
         }
+        const reads: unknown[] = [];
         let scopeReads = 0;
         const provider = runs;
         runs = {
           ...provider,
+          async readExecutionHistory(...args) {
+            const history = await provider.readExecutionHistory(...args);
+            reads.push({ kind: 'execution', args });
+            return history;
+          },
           async readRuntimeScope(...args) {
-            scopeReads++;
-            return await provider.readRuntimeScope(...args);
+            scopeReads += 1;
+            reads.push({ kind: scopeReads === 1 ? 'verification_scope' : 'preflight_scope', args });
+            // Complete ExecutionHistory2 first verifies its actual retained scope. Inject the operational preflight fault only after that read.
+            return scopeReads === 1
+              ? await setup.runs.readRuntimeScope(...args)
+              : await provider.readRuntimeScope(...args);
           },
         };
         expect(await dispatch(setup, runs)).toEqual({ kind: 'refused', reason });
-        expect(scopeReads).toBe(
-          ['scope_revision', 'pending_grant', 'grant_mapping', 'uninitialized'].includes(fault)
-            ? 1
-            : 0,
-        );
+        const reachesScopePreflight = [
+          'scope_revision',
+          'pending_grant',
+          'recovery_barrier',
+          'grant_mapping',
+          'uninitialized',
+        ].includes(fault);
+        expect(reads).toEqual([
+          { kind: 'execution', args: [setup.guard.runId, setup.guard.attemptId] },
+          { kind: 'verification_scope', args: [setup.scope] },
+          ...(reachesScopePreflight
+            ? [{ kind: 'preflight_scope', args: [setup.guard.scope] }]
+            : []),
+        ]);
         expect(setup.runtimeCalls).toHaveLength(0);
         expect(setup.claimCalls).toHaveLength(0);
         expect(setup.calls).toHaveLength(0);

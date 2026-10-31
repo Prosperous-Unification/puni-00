@@ -1,4 +1,10 @@
-import { addInteger, assertInteger, equalRecords } from './record-codecs';
+import {
+  auditRecoveryCatalog,
+  findRecoveryCommand,
+  reconstructRuntimePrefix,
+  type RecoveryCatalog,
+} from './plan-recovery-history';
+import { addInteger, equalRecords } from './record-codecs';
 import type { OwnershipStatus } from './records';
 import type { StoreReply } from './run-store';
 import {
@@ -13,12 +19,12 @@ import {
 import type {
   RuntimeAcceptance,
   RuntimeAcceptanceInput,
-  RuntimeGrant,
   RuntimeGuard,
   RuntimeIntent,
   RuntimePin,
   RuntimeScope,
   RuntimeScopeSnapshot,
+  RuntimeScopeSnapshot2,
 } from './runtime-records';
 
 export interface RuntimeScopeRecord {
@@ -26,125 +32,31 @@ export interface RuntimeScopeRecord {
   readonly revision: number;
 }
 export interface RuntimeCatalog {
+  readonly recovery: RecoveryCatalog;
   readonly scopes: readonly RuntimeScopeRecord[];
   readonly intents: readonly RuntimeIntent[];
   readonly acceptances: readonly RuntimeAcceptance[];
 }
 
-/** Replays every consecutive event from the immutable pin, rejecting missing links rather than repairing history. Staged local epochs must never decrease across the ordered history. The latest local epoch uses the same persisted ownership label even after expiry. Older labels have no independent owner ledger, and coherent metadata/history replacement is outside this audit. */
+/** Publishes current activity only after complete recovery associations and index validation. */
 export function reconstructRuntimeScope(
   retained: RuntimeScopeRecord,
-  intents: readonly RuntimeIntent[],
-  acceptances: readonly RuntimeAcceptance[],
+  catalog: RuntimeCatalog,
   ownership: OwnershipStatus,
-): Extract<RuntimeScopeSnapshot, { kind: 'pinned' }> {
-  const ownerEpoch = ownership.epoch;
-  const pin = decodeRuntimePin(retained.pin);
-  assertInteger(retained.revision);
-  assertInteger(ownerEpoch);
-  const events = [
-    ...intents.map((intent) => ({ revision: intent.stagedRevision, intent, acceptance: null })),
-    ...acceptances.map((acceptance) => ({
-      revision: acceptance.acceptedRevision,
-      intent: null,
-      acceptance,
-    })),
-  ].sort((left, right) => left.revision - right.revision);
-  let revision = 0;
-  let stagedEpoch = 0;
-  let pending: RuntimeIntent | null = null;
-  let generation: number | null = null;
-  let grant: RuntimeGrant | null = null;
-  let latestAuthority: { readonly intent: RuntimeIntent; readonly grant: RuntimeGrant } | null =
-    null;
-  const orderedIntents: RuntimeIntent[] = [];
-  const orderedAcceptances: RuntimeAcceptance[] = [];
-  for (const event of events) {
-    // Proof: F08 removed consecutive event validation; 'trusted runtime intent revision gap' failed and exact restoration passed.
-    if (event.revision !== addInteger(revision, 1))
-      throw new Error('corrupt runtime event revision');
-    revision = event.revision;
-    if (event.intent !== null) {
-      const intent = decodeRuntimeIntent(event.intent);
-      const { scope, operation } = readRuntimeRequest(intent.canonicalRequest);
-      if (
-        (!('kind' in operation) && operation.action.kind !== 'claim') ||
-        !equalRuntimeScopes(scope, pin.scope) ||
-        // Proof: F11 removed retained ledger correspondence; 'trusted runtime scope ledger' failed and exact restoration passed.
-        operation.expectedLedgerId !== pin.ledgerId ||
-        operation.commandId !== intent.commandId ||
-        // Proof: F10 removed independent request digest verification; 'trusted runtime consistent false digest' failed and exact restoration passed.
-        digestRuntimeRequest(intent.canonicalRequest) !== intent.requestDigest ||
-        // Proof: F12 allowed provenance from a future local epoch; 'trusted runtime future local epoch' failed and exact restoration passed.
-        intent.localOwner.epoch > ownerEpoch
-      )
-        throw new Error('corrupt runtime intent identity');
-      if (
-        intent.localOwner.epoch === ownerEpoch &&
-        // Proof: F57 ignored the latest persisted local owner label; 'trusted runtime current local label' failed and exact restoration passed.
-        intent.localOwner.ownerId !== ownership.owner?.ownerId
-      )
-        throw new Error('corrupt runtime current local owner');
-      // Proof: R1F01 removing this guard admitted persisted [2,1] epochs; read, mutation and reopen missing-rejection tests failed, and exact restoration passed.
-      if (intent.localOwner.epoch < stagedEpoch)
-        throw new Error('corrupt runtime local epoch progression');
-      stagedEpoch = intent.localOwner.epoch;
-      // Proof: F13 allowed overlapping pending historical events; 'trusted runtime second pending event' failed and exact restoration passed.
-      if (pending !== null) throw new Error('corrupt runtime pending command');
-      if (
-        // Proof: F14 removed historical receiver generation progression; 'retained generation progression' failed and exact restoration passed.
-        'kind' in operation &&
-        generation !== null &&
-        (operation.expectedGeneration === null || operation.expectedGeneration < generation)
-      )
-        throw new Error('corrupt runtime generation progression');
-      // Proof: F230 removed this compound check; all three 'review guard runtime claim reconstruction rejects' samples lost their expected throw after valid reconstruction. One owner/three samples; exact restoration passed.
-      if (
-        !('kind' in operation) &&
-        (latestAuthority === null ||
-          !equalRecords(latestAuthority.intent.localOwner, intent.localOwner) ||
-          !equalRecords(operation.authority, latestAuthority.grant.authority))
-      )
-        throw new Error('corrupt runtime claim authority');
-      pending = intent;
-      orderedIntents.push(intent);
-    } else {
-      const acceptance = decodeRuntimeAcceptance(event.acceptance);
-      if (
-        acceptance.commandId !== pending?.commandId ||
-        // Proof: F15 removed acceptance digest linkage; 'trusted runtime acceptance digest' failed and exact restoration passed.
-        acceptance.requestDigest !== pending.requestDigest
-      )
-        throw new Error('corrupt runtime acceptance link');
-      const { operation } = readRuntimeRequest(pending.canonicalRequest);
-      if ('kind' in operation) {
-        generation =
-          operation.expectedGeneration === null ? 1 : addInteger(operation.expectedGeneration, 1);
-        const acceptedGrant: RuntimeGrant = {
-          localEpoch: pending.localOwner.epoch,
-          commandId: pending.commandId,
-          authority: { ownerId: operation.ownerId, generation },
-        };
-        latestAuthority = { intent: pending, grant: acceptedGrant };
-        grant = pending.localOwner.epoch === ownerEpoch ? acceptedGrant : null;
-      } else if (operation.action.kind !== 'claim')
-        throw new Error('corrupt runtime unsupported acceptance');
-      orderedAcceptances.push(acceptance);
-      pending = null;
-    }
-  }
-  // Proof: F09 removed final revision validation; 'trusted runtime final revision' failed and exact restoration passed.
-  if (revision !== retained.revision) throw new Error('corrupt runtime final revision');
+): Extract<RuntimeScopeSnapshot2, { kind: 'pinned' }> {
+  auditRecoveryCatalog(catalog, ownership);
+  const prefix = reconstructRuntimePrefix(retained, catalog, ownership, retained.revision);
   return {
-    version: 1,
-    kind: 'pinned',
-    pin,
-    revision,
-    ownerEpoch,
-    intents: orderedIntents,
-    acceptances: orderedAcceptances,
-    pendingCommandId: pending?.commandId ?? null,
-    grant,
+    ...prefix,
+    recoveries: catalog.recovery.histories.filter((history) =>
+      equalRuntimeScopes(
+        readRuntimeRequest(history.intent.target.original.canonicalRequest).scope,
+        retained.pin.scope,
+      ),
+    ),
+    activeRecoveryId:
+      catalog.recovery.active.find((active) => equalRuntimeScopes(active.scope, retained.pin.scope))
+        ?.recoveryId ?? null,
   };
 }
 
@@ -175,18 +87,8 @@ export function auditRuntimeCatalog(catalog: RuntimeCatalog, ownership: Ownershi
       throw new Error('corrupt runtime acceptance command');
     accepted.add(acceptance.commandId);
   }
-  for (const retained of scopes.values()) {
-    const intents = catalog.intents.filter((intent) =>
-      equalRuntimeScopes(readRuntimeRequest(intent.canonicalRequest).scope, retained.pin.scope),
-    );
-    const identities = new Set(intents.map((intent) => intent.commandId));
-    reconstructRuntimeScope(
-      retained,
-      intents,
-      catalog.acceptances.filter((acceptance) => identities.has(acceptance.commandId)),
-      ownership,
-    );
-  }
+  auditRecoveryCatalog(catalog, ownership);
+  for (const retained of scopes.values()) reconstructRuntimeScope(retained, catalog, ownership);
 }
 
 /** Reads one already audited catalog; raw history has not independently read receipt artifacts. */
@@ -205,17 +107,16 @@ export function inspectRuntimeScope(
     equalRuntimeScopes(candidate.pin.scope, scope),
   );
   if (retained === undefined)
-    return { version: 1, kind: 'uninitialized', scope: structuredClone(scope), ownerEpoch };
-  const intents = catalog.intents.filter((intent) =>
-    equalRuntimeScopes(readRuntimeRequest(intent.canonicalRequest).scope, scope),
-  );
-  const commands = new Set(intents.map((intent) => intent.commandId));
-  return reconstructRuntimeScope(
-    retained,
-    intents,
-    catalog.acceptances.filter((acceptance) => commands.has(acceptance.commandId)),
-    ownership,
-  );
+    return {
+      version: 2,
+      kind: 'uninitialized',
+      scope: structuredClone(scope),
+      ownerEpoch,
+      recoveries: [],
+      activeRecoveryId: null,
+      generationFloor: null,
+    };
+  return reconstructRuntimeScope(retained, catalog, ownership);
 }
 
 export function planRuntimePin(
@@ -259,6 +160,9 @@ export function planRuntimeStage(
     return previous.canonicalRequest === canonicalRequest
       ? { kind: 'duplicate', value: previous }
       : { kind: 'refused', reason: 'identity_conflict' };
+  // Proof: T3NRT removing this namespace check admitted the colliding fresh command; exact restoration passed.
+  if (findRecoveryCommand(catalog.recovery, operation.commandId) !== undefined)
+    return { kind: 'refused', reason: 'identity_conflict' };
   const snapshot = inspectRuntimeScope(catalog, scope, ownership);
   // Proof: F64 removed the named never-pinned diagnostic; 'authority history port exists' failed and exact restoration passed.
   if (snapshot.kind !== 'pinned') throw new Error('runtime scope is not pinned');
@@ -272,6 +176,14 @@ export function planRuntimeStage(
     return { kind: 'refused', reason: 'revision_conflict' };
   // Proof: F03 removed pending serialization; 'one pending command' failed and exact restoration passed.
   if (snapshot.pendingCommandId !== null) return { kind: 'refused', reason: 'state_conflict' };
+  // Proof: R2F44 removed only floor comparison; expected3 staged behind barrier4 while exact original replay remained valid. Exact restoration passed.
+  if (
+    snapshot.version === 2 &&
+    snapshot.generationFloor !== null &&
+    (operation.expectedGeneration === null ||
+      operation.expectedGeneration < snapshot.generationFloor)
+  )
+    return { kind: 'refused', reason: 'authority_conflict' };
   const latest = snapshot.acceptances.findLast((acceptance) => {
     const intent = snapshot.intents.find(
       (candidate) => candidate.commandId === acceptance.commandId,
@@ -336,6 +248,9 @@ export function planRuntimeAcceptance(
   // Proof: F37 removed fresh acceptance revision comparison; 'one pending command' failed and exact restoration passed.
   if (snapshot.revision !== guard.expectedRevision)
     return { kind: 'refused', reason: 'revision_conflict' };
+  // Proof: T3I1 removed this interlock; both public acceptance calls applied behind an active journal. Exact restoration passed.
+  if (snapshot.version === 2 && snapshot.activeRecoveryId !== null)
+    return { kind: 'refused', reason: 'state_conflict' };
   if (snapshot.pendingCommandId !== retained.commandId)
     return { kind: 'refused', reason: 'state_conflict' };
   const { operation } = readRuntimeRequest(retained.canonicalRequest);

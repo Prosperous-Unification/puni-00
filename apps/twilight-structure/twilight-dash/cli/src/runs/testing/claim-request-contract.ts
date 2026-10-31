@@ -379,15 +379,21 @@ export function claimRequestContract(name: string, create: () => Promise<Outcome
       test('refuses retained authority ' + fault + ' conflict', () =>
         scenario(create, async (setup) => {
           const guard = await setup.scopedGuard();
+          const scopes: unknown[] = [];
           const runs: BuildStores = {
             ...setup.runs,
             async readRuntimeScope(scope) {
               const snapshot = structuredClone(await setup.runs.readRuntimeScope(scope));
               if (snapshot.kind !== 'pinned' || snapshot.grant === null)
                 throw new Error('fixture grant missing');
+              scopes.push(structuredClone(scope));
+              if (fault === 'unpinned' && scopes.length === 1) return snapshot;
               if (fault === 'unpinned')
                 return {
-                  version: 1,
+                  version: 2,
+                  recoveries: [],
+                  activeRecoveryId: null,
+                  generationFloor: null,
                   kind: 'uninitialized',
                   scope,
                   ownerEpoch: setup.ownership.epoch,
@@ -412,6 +418,7 @@ export function claimRequestContract(name: string, create: () => Promise<Outcome
             kind: 'refused',
             reason: 'authority_conflict',
           });
+          if (fault === 'unpinned') expect(scopes).toEqual([guard.scope, guard.scope]);
         }),
       );
 

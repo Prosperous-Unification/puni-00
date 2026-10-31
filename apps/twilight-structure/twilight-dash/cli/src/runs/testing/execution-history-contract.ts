@@ -141,7 +141,7 @@ export function executionHistoryContract(
           holdsCapacity: true,
         });
         expect(snapshot.attempts[0]?.state).toEqual({ kind: 'queued' });
-        expect(snapshot.version).toBe(2);
+        expect(snapshot.version).toBe(3);
         expect(snapshot.run.revision).toBe(1);
       } finally {
         await stores.close();
@@ -1416,8 +1416,28 @@ function reviewGuardContract(create: () => Promise<OutcomeFixture>): void {
         };
         const retained = { pin: scope.pin, revision: scope.revision };
         expect(
-          reconstructRuntimeScope(retained, scope.intents, scope.acceptances, ownership)
-            .pendingCommandId,
+          reconstructRuntimeScope(
+            retained,
+            {
+              scopes: [retained],
+              intents: scope.intents,
+              acceptances: scope.acceptances,
+              recovery: {
+                histories: [],
+                barriers: [],
+                active: [],
+                counts: {
+                  journals: 0,
+                  fences: 0,
+                  observations: 0,
+                  closures: 0,
+                  barriers: 0,
+                  active: 0,
+                },
+              },
+            },
+            ownership,
+          ).pendingCommandId,
         ).toBe(command.intent.commandId);
         let intents = [...scope.intents],
           acceptances = [...scope.acceptances],
@@ -1451,7 +1471,28 @@ function reviewGuardContract(create: () => Promise<OutcomeFixture>): void {
           );
         }
         expect(() =>
-          reconstructRuntimeScope({ ...retained, revision }, intents, acceptances, ownership),
+          reconstructRuntimeScope(
+            { ...retained, revision },
+            {
+              scopes: [{ ...retained, revision }],
+              intents,
+              acceptances,
+              recovery: {
+                histories: [],
+                barriers: [],
+                active: [],
+                counts: {
+                  journals: 0,
+                  fences: 0,
+                  observations: 0,
+                  closures: 0,
+                  barriers: 0,
+                  active: 0,
+                },
+              },
+            },
+            ownership,
+          ),
         ).toThrow('corrupt runtime claim authority');
       } finally {
         await stores.close();

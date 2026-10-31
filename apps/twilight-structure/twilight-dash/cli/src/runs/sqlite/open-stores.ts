@@ -55,7 +55,8 @@ export class SqliteOpenError extends Error {
 function hasCode(cause: unknown, code: string): boolean {
   return cause instanceof Error && 'code' in cause && cause.code === code;
 }
-function validateOptions(options: SqliteOptions): SqliteOptions {
+/** Validates explicit lifecycle/transition configuration and resolves its path; absent clocks and invalid numeric limits throw. */
+export function validateOptions(options: SqliteOptions): SqliteOptions {
   // Proof: independently bypassing path, integer and clock boundary validation failed each named required-setting test.
   if (typeof options.path !== 'string' || options.path.length === 0)
     throw new Error('run store path is required');
@@ -79,7 +80,8 @@ function assertAccessible(path: string): void {
     throw new SqliteOpenError('unreadable', path, cause);
   }
 }
-function assertExisting(path: string): void {
+/** Requires an existing accessible regular store file and writable parent; preserves absent, unreadable and corrupt path categories. */
+export function assertExisting(path: string): void {
   try {
     if (!lstatSync(path).isFile()) throw new SqliteOpenError('corrupt', path);
   } catch (cause) {
@@ -91,7 +93,8 @@ function assertExisting(path: string): void {
   }
   assertAccessible(path);
 }
-function assertConfiguration(database: Database, options: SqliteOptions): void {
+/** Requires the persisted organization, capacity and lease to match explicit options before lifecycle or format transitions. */
+export function assertConfiguration(database: Database, options: SqliteOptions): void {
   const meta = readMeta(database);
   // Proof: independently bypassing persisted organization, capacity and lease comparisons accepted each changed opening configuration.
   if (
@@ -188,7 +191,7 @@ export async function bootstrapSqliteStores(input: SqliteOptions) {
         owner: null,
       };
       database.run('BEGIN IMMEDIATE');
-      for (const migration of MIGRATIONS)
+      for (const migration of MIGRATIONS.slice(0, SCHEMA_VERSION))
         // Proof: F34c restored whole-script forward SQL and published after an intermediate CHECK failure; 'intermediate required migration' failed and exact restoration passed.
         for (const statement of migration.forwardStatements) database.run(statement);
       database

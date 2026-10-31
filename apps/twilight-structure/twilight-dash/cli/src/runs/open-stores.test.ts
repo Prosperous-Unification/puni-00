@@ -21,6 +21,11 @@ import {
   unwrapReply,
 } from './testing/fixtures';
 import {
+  createRecoveryFenceCall,
+  createRecoveryObservationCall,
+  createRecoveryResolveCall,
+} from './testing/recovery-contract';
+import {
   authorityReceipt,
   authorityRequest,
   runtimePin,
@@ -215,7 +220,48 @@ test('production close is idempotent and every public operation refuses closed d
   )
     throw new Error('required fixture execution commands missing');
   const scopedGuard = { ...setup.guard, scope: setup.scope, expectedScopeRevision: 0 };
+  const recoveryScope = { ...runtimeScope, personId: 'recovering-person' };
+  unwrapReply(
+    await stores.runs.pinRuntimeScope(ownership, { ...runtimePin, scope: recoveryScope }),
+  );
+  const recoveryOriginal = unwrapReply(
+    await stores.runs.stageRuntimeRequest(
+      { ownership, scope: recoveryScope, expectedRevision: 0 },
+      authorityRequest('recovering-original', 2, recoveryScope),
+    ),
+  );
+  const recoveryBegin = {
+    kind: 'authority' as const,
+    guard: { ownership, scope: recoveryScope, expectedRevision: 1, expectedRecoveryRevision: 0 },
+    intent: {
+      version: 1 as const,
+      recoveryId: 'lifecycle-recovery',
+      target: { kind: 'authority' as const, original: recoveryOriginal },
+      begunScopeRevision: 1,
+      resolver: { ownerId: ownership.ownerId, epoch: ownership.epoch },
+    },
+  };
+  unwrapReply(await stores.runs.beginRecovery(recoveryBegin));
+  const fenceCall = await createRecoveryFenceCall(stores.artifacts, recoveryBegin);
+  unwrapReply(await stores.runs.stageRecoveryFence(fenceCall));
+  const observationCall = await createRecoveryObservationCall(stores.artifacts, fenceCall);
+  const resolveCall = await createRecoveryResolveCall(stores, recoveryBegin, false, undefined, 2);
   const operations = {
+    resolveRecovery: () => stores.runs.resolveRecovery(resolveCall),
+    recordRecoveryFence: () => stores.runs.recordRecoveryFence(observationCall),
+    stageRecoveryFence: () => stores.runs.stageRecoveryFence(fenceCall),
+    beginRecovery: () =>
+      stores.runs.beginRecovery({
+        kind: 'authority',
+        guard: { ...acceptanceGuard, expectedRecoveryRevision: 0 },
+        intent: {
+          version: 1,
+          recoveryId: 'closed-recovery',
+          target: { kind: 'authority', original: runtimeIntent },
+          begunScopeRevision: runtimeIntent.stagedRevision,
+          resolver: { ownerId: ownership.ownerId, epoch: ownership.epoch },
+        },
+      }),
     stageClaim: () => stores.runs.stageClaim(scopedGuard, claimStage),
     recordClaimAcceptance: () => stores.runs.recordClaimAcceptance(scopedGuard, claimAcceptance),
     stageTurn: () => stores.runs.stageTurn(scopedGuard, turnStage),
@@ -313,16 +359,24 @@ function portableImports(path: string): string[] {
 test('portable ports and core records exclude adapter dependencies structurally', () => {
   // Proof: D01R/D02R/D03R injected records/live-port/aggregate edges into each new owner, and D04R restored the runtime aggregate edge; this structural test named each forbidden path and failed.
   const allowed: Readonly<Record<string, readonly string[]>> = {
-    'run-store.ts': ['./records', './runtime-records', './execution-records'],
+    'run-store.ts': ['./records', './runtime-records', './execution-records', './recovery-records'],
     'artifact-store.ts': ['./records'],
-    'records.ts': ['./record-codecs', './claim-records', './execution-records'],
+    'records.ts': [
+      './record-codecs',
+      './claim-records',
+      './execution-records',
+      './recovery-records',
+      './runtime-records',
+    ],
     'record-codecs.ts': [
       '@shared/validation',
       '@twilight-burokrat/contracts',
       './value-codecs',
       './execution-codecs',
+      './execution-records',
+      './recovery-codecs',
     ],
-    'runtime-records.ts': ['./records', '@wbs/contracts'],
+    'runtime-records.ts': ['./records', '@wbs/contracts', './recovery-records'],
     'runtime-codecs.ts': [
       'node:crypto',
       '@shared/validation',
@@ -335,6 +389,7 @@ test('portable ports and core records exclude adapter dependencies structurally'
       './claim-records',
       './records',
       './runtime-records',
+      './recovery-records',
     ],
     'claim-records.ts': [
       '@wbs/contracts',
@@ -345,6 +400,20 @@ test('portable ports and core records exclude adapter dependencies structurally'
     'execution-codecs.ts': [
       '@shared/validation',
       '../agents/execution-codecs',
+      './runtime-codecs',
+      './value-codecs',
+    ],
+    // Proof: T3DREC/T3DCODEC injected actual live-port/provider imports into these owners; this test named both forbidden paths and failed, then passed after exact restoration.
+    'recovery-records.ts': [
+      '@wbs/contracts',
+      './execution-records',
+      './records',
+      './runtime-records',
+    ],
+    'recovery-codecs.ts': [
+      '@shared/validation',
+      './execution-codecs',
+      './recovery-records',
       './runtime-codecs',
       './value-codecs',
     ],

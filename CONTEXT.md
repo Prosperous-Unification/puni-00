@@ -616,6 +616,11 @@ Burokrat's immutable static binding snapshot, complete project-step set and orig
 prompt-byte identities; it grants no execution authority.
 _Avoid_: Approved binding, execution authorization
 
+**Workflow run**:
+One retained execution of a workflow for a work item. Its identity survives coordinator
+restarts and connects its attempts; it is distinct from the harness's agent run.
+_Avoid_: Agent run, session
+
 **Run manifest**:
 The immutable execution configuration retained for a run, identified independently
 from its workflow acceptance.
@@ -654,6 +659,22 @@ _Avoid_: Artifact digest, binding digest, receipt
 **Runtime receipt**:
 The permanent, payload-bound acceptance of one runtime command, separate from undo history.
 _Avoid_: Journal entry, current grant
+
+**Recovery journal**:
+The retained identity, observations and decision for resolving one uncertain runtime request.
+_Avoid_: Retry queue, pending slot
+
+**Recovery fence**:
+A confirmed receiver authority acquisition that prevents an older guarded request from being accepted later.
+_Avoid_: Cancellation, worker termination
+
+**Generation barrier**:
+A retained lower bound that prevents earlier runtime authority from becoming current execution permission.
+_Avoid_: Current grant, recovery fence
+
+**Recovery hold**:
+An attempt checkpoint whose capacity remains reserved while its continuation conditions are unresolved.
+_Avoid_: Failed attempt, physical quiescence
 
 **Receiver ledger**:
 The WBS installation's retained identity and counts of runtime authorities, execution

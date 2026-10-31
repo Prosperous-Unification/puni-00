@@ -1,5 +1,11 @@
 import type { Attachment, ClaimRef, Located } from './claim-records';
-import type { Checkpoint, ExecutionSubmission, RecordedExecution } from './execution-records';
+import type {
+  Attempt2,
+  Checkpoint,
+  ExecutionSubmission,
+  RecordedExecution,
+} from './execution-records';
+import { findRecoveryCommand, type RecoveryCatalog } from './plan-recovery-history';
 import { addInteger, equalRecords } from './record-codecs';
 import type {
   Attempt,
@@ -41,11 +47,14 @@ export function checkAttempt(
 }
 
 /** Extracts one nonrecursive checkpoint without discarding its retained wrapper. */
-export function executionCheckpoint(state: AttemptState): Checkpoint {
+export function executionCheckpoint(
+  candidate: AttemptState | Attempt['state'] | Attempt,
+): Checkpoint {
+  const state = 'state' in candidate ? candidate.state : candidate;
   return 'checkpoint' in state ? state.checkpoint : state;
 }
 /** Active and uncertain execution retains its capacity reservation. */
-export function isExecuting(state: AttemptState): boolean {
+export function isExecuting(state: Attempt['state']): boolean {
   return (
     state.kind !== 'interrupted' &&
     state.kind !== 'waiting_for_person' &&
@@ -57,14 +66,17 @@ export function advanceAttempt(
   attempt: Attempt,
   state: AttemptState,
   holdsCapacity: boolean,
-): Attempt {
+): Attempt2 {
+  // Proof: R2F47 removed only this check; 'recovery hold cannot advance through an ordinary Attempt2 acknowledgement' lost its required rejection. Exact restoration passed.
+  if (attempt.version !== 2)
+    throw new Error('recovery hold cannot advance through ordinary execution');
   return { ...attempt, state, holdsCapacity, revision: addInteger(attempt.revision, 1) };
 }
 export function changeAttempt(
   facts: AttemptFacts,
   state: AttemptState,
   holdsCapacity: boolean,
-): StoreReply<AttemptChange> {
+): StoreReply<AttemptChange & { readonly attempt: Attempt2 }> {
   return {
     kind: 'applied',
     value: {
@@ -116,7 +128,9 @@ export function planExecutionTransition(
   fact: ExecutionFact,
 ): StoreReply<AttemptState> {
   const state = facts.attempt.state;
-  if (!isExecuting(state)) return { kind: 'refused', reason: 'state_conflict' };
+  // Proof: R2F08 removed only hold refusal; 'applied barrier removes latest authority' admitted generic recovery execution. Exact restoration passed.
+  if (state.kind === 'recovery_hold' || !isExecuting(state))
+    return { kind: 'refused', reason: 'state_conflict' };
   const checkpoint = executionCheckpoint(state);
   switch (fact.kind) {
     case 'preparation_intended': {
@@ -298,7 +312,7 @@ export function planExecution(
   facts: ExecutionFacts,
   guard: AttemptGuard,
   fact: ExecutionFact,
-): StoreReply<AttemptChange> {
+): StoreReply<AttemptChange & { readonly attempt: Attempt2 }> {
   if (facts.attempt.identity.runId !== guard.runId)
     return { kind: 'refused', reason: 'identity_conflict' };
   const conflict = checkAttempt(facts, guard);
@@ -325,13 +339,38 @@ export function planExecution(
   if (transition.kind === 'refused') return transition;
   return changeAttempt(facts, transition.value, isExecuting(transition.value));
 }
-/** The current owner authorizes historical replay; guard revisions and provider context never replace original identity. */
+/** The current owner authorizes historical replay; guard revisions and provider context never replace original identity. Fresh commands must respect recovery reservations. Only the exact active original claim acceptance passes that namespace check; its planner still enforces the active-target state interlock. */
 export function replayExecution(
   previous: RecordedExecution | undefined,
   guard: AttemptGuard | ScopedAttemptGuard,
   command: ExecutionSubmission,
+  recovery: RecoveryCatalog,
 ): StoreReply<RecordedExecution> | undefined {
-  if (previous === undefined) return undefined;
+  if (previous === undefined) {
+    const reservation = findRecoveryCommand(recovery, command.commandId);
+    if (reservation !== undefined) {
+      const target = reservation.intent.target;
+      const isOriginalAcceptance =
+        reservation.closure === null &&
+        target.kind === 'claim' &&
+        target.acceptanceCommandId === command.commandId &&
+        command.kind === 'accept_claim' &&
+        target.runId === guard.runId &&
+        target.attemptId === guard.attemptId &&
+        equalRecords(target.original, command.intent);
+      if (!isOriginalAcceptance) return { kind: 'refused', reason: 'identity_conflict' };
+    }
+    // Proof: T3NWIRE removing this namespace check admitted the colliding fresh command; exact restoration passed.
+    if (
+      command.kind === 'stage_claim' &&
+      findRecoveryCommand(
+        recovery,
+        readRuntimeRequest(command.canonicalRequest).operation.commandId,
+      ) !== undefined
+    )
+      return { kind: 'refused', reason: 'identity_conflict' };
+    return undefined;
+  }
   // Proof: Task2 F24 removed command payload comparison; changing canonical wire bytes under the same local ID returned duplicate. Exact restored subset passed.
   if (
     previous.reply.attempt.attemptId !== guard.attemptId ||

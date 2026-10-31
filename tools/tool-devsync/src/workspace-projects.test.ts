@@ -490,17 +490,26 @@ describe('productConstraints', () => {
         ) {
           continue;
         }
-        if (project.name === 'wbs-be-01' && target.name === 'twilight-dash') {
+        const expectedImporter =
+          project.name === 'wbs-be-01' && target.name === 'twilight-dash'
+            ? 'apps/wbs/be-01/scripts/resource-cleanup-smoke.ts'
+            : project.name === 'twilight-dash' && target.name === 'wbs-be-01'
+              ? 'apps/twilight-structure/twilight-dash/cli/src/runs/testing/recovery-receiver.ts'
+              : undefined;
+        if (expectedImporter !== undefined) {
           const importers = getFileMap()
             .fileMap.projectFileMap[project.name].filter((file) =>
               file.deps?.some((dependency) => fileDataDepTarget(dependency) === target.name),
             )
             .map((file) => file.file)
             .sort();
-          // The executable smoke composes both real applications; production WBS must not.
+          // The smoke and private receiver compose real applications; their exact files alone own these edges.
           // Proof: an extra production importer and an unattributed implicit edge each
           // failed this exact-file assertion (2026-10-25).
-          expect(importers).toEqual(['apps/wbs/be-01/scripts/resource-cleanup-smoke.ts']);
+          // Proof: graph-runtime and graph-test injected actual additional Dash importers; each failed this exact-source assertion, then passed after exact removal (2026-10-29).
+          expect(importers).toEqual([expectedImporter]);
+          // Proof: graph-implicit added an actual implicit edge alongside the approved receiver importer; it failed with implicit rather than static, then passed after exact project.json restoration.
+          if (project.name === 'twilight-dash') expect(dependency.type).toBe('static');
           continue;
         }
         // Excused only when the edge is reached through an allowed alias and through no

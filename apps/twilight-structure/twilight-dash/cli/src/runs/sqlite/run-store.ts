@@ -20,6 +20,14 @@ import { planOutcome } from '../plan-outcome';
 import { assertClock, planOwnership, planRenewal } from '../plan-ownership';
 import { planReceipt, replayReceipt } from '../plan-receipt';
 import {
+  isActiveRecoveryAttempt,
+  planRecoveryBegin,
+  planRecoveryFence,
+  planRecoveryObservation,
+  planRecoveryResolution,
+  replayRecoveryResolution,
+} from '../plan-recovery';
+import {
   inspectRuntimeScope,
   planRuntimeAcceptance,
   planRuntimePin,
@@ -31,6 +39,7 @@ import {
   decodeAdmission,
   decodeAttemptGuard,
   decodeCompletion,
+  decodeCurrentAttempt,
   decodeExecutionCommand,
   decodeOwnership,
   decodeRun,
@@ -40,6 +49,12 @@ import {
   runId,
 } from '../record-codecs';
 import type { Ownership, OwnershipStatus, Run } from '../records';
+import {
+  decodeRecoveryBeginCall,
+  decodeRecoveryFenceCall,
+  decodeRecoveryObservationCall,
+  decodeRecoveryResolveCall,
+} from '../recovery-codecs';
 import type { RunStore, StoreReply } from '../run-store';
 import {
   decodeRuntimeAcceptanceInput,
@@ -48,13 +63,21 @@ import {
   decodeRuntimeScope,
 } from '../runtime-codecs';
 import { createSqliteArtifactStore } from './artifact-store';
+import { markIdentityUsage } from './identity-usage';
 import { findExecution, validateAttempt } from './read-executions';
 import { readHistory } from './read-history';
 import { readRuntimeCatalog } from './read-runtime';
 import { findConsumption, findDecision, findReceipt } from './read-signals';
+import {
+  insertRecoveryBegin,
+  insertRecoveryFence,
+  insertRecoveryObservation,
+  insertRecoveryResolution,
+} from './recovery-store';
 import { decodeAttemptRow, decodeManifestRow, decodeRunRow } from './row-codecs';
 import { decodeCompletionRow } from './row-codecs';
 import { insertRuntimeAcceptance, insertRuntimeIntent, insertRuntimePin } from './runtime-store';
+import { CURRENT_FORMAT } from './schema';
 import { readCapacity, readMeta } from './schema';
 
 export interface TransactionOptions {
@@ -160,6 +183,9 @@ export function createSqliteRunStore(
   function finish<T>(reply: StoreReply<T>, observedAt: number): StoreReply<T> {
     // Proof: omitting refused observations accepted clock 1049 after owner_busy at 1050 in the shared contract.
     database.query('UPDATE run_meta SET last_observed_at=? WHERE singleton=1').run(observedAt);
+    // Proof: Task3 038 removed this call; applied ownership left a genuine upgraded store eligible for downgrade. Restored 042 passed.
+    if (reply.kind === 'applied' && CURRENT_FORMAT.identity.version === 5)
+      markIdentityUsage(database);
     return reply;
   }
   function publishOwnership(
@@ -184,7 +210,9 @@ export function createSqliteRunStore(
     return manifest;
   }
   function findRun(identity: string) {
-    const row = database.query('SELECT * FROM run_record WHERE run_id=?').get(identity);
+    const row = database
+      .query(`SELECT * FROM ${CURRENT_FORMAT.family.record} WHERE run_id=?`)
+      .get(CURRENT_FORMAT.encode(identity));
     return row === null ? undefined : decodeRunRow(row);
   }
   function requireRun(identity: string) {
@@ -194,7 +222,9 @@ export function createSqliteRunStore(
     return record;
   }
   function requireAttempt(identity: string) {
-    const row = database.query('SELECT * FROM run_attempt WHERE attempt_id=?').get(identity);
+    const row = database
+      .query(`SELECT * FROM ${CURRENT_FORMAT.family.attempt} WHERE attempt_id=?`)
+      .get(CURRENT_FORMAT.encode(identity));
     // Proof: injecting sqlite missing attempt bypass failed `sqlite signal edges > missing named attempts throw before inbox or receipt mutation` at its explicit assertion.
     if (row === null) throw new Error('attempt does not exist');
     const { attempt } = decodeAttemptRow(row);
@@ -206,19 +236,101 @@ export function createSqliteRunStore(
   }
   function applyChange(run: Run, change: AttemptChange): void {
     database
-      .query('UPDATE run_attempt SET record=? WHERE attempt_id=?')
-      .run(JSON.stringify(change.attempt), change.attempt.attemptId);
+      .query(`UPDATE ${CURRENT_FORMAT.family.attempt} SET record=? WHERE attempt_id=?`)
+      .run(JSON.stringify(change.attempt), CURRENT_FORMAT.encode(change.attempt.attemptId));
     database
-      .query('UPDATE run_record SET record=? WHERE run_id=?')
-      .run(JSON.stringify({ ...run, revision: change.runRevision }), run.runId);
+      .query(`UPDATE ${CURRENT_FORMAT.family.record} SET record=? WHERE run_id=?`)
+      .run(
+        JSON.stringify({ ...run, revision: change.runRevision }),
+        CURRENT_FORMAT.encode(run.runId),
+      );
     // Proof: bypassing release only settled sqlite enforcement failed 'sqlite execution > unknown effects and takeover retain capacity until determinate quiescence'.
     // Proof: bypassing release settled sqlite enforcement failed 'sqlite execution > unknown effects and takeover retain capacity until determinate quiescence'.
     if (!change.attempt.holdsCapacity)
       database
-        .query('DELETE FROM run_reservation WHERE attempt_id=?')
-        .run(change.attempt.attemptId);
+        .query(`DELETE FROM ${CURRENT_FORMAT.family.reservation} WHERE attempt_id=?`)
+        .run(CURRENT_FORMAT.encode(change.attempt.attemptId));
   }
   const runs: RunStore = {
+    async resolveRecovery(input) {
+      // Proof: T6S01 using caller input let clock/queue mutation change the submitted closure and reject its original valid input. Restoration passed.
+      const snapshot = structuredClone(input);
+      const ownership = decodeOwnership(snapshot.guard.ownership);
+      // Proof: T6S06 bypassing only this closure transaction left independently visible acceptance/execution or closure/barrier/hold rows after real late trigger aborts. Restoration passed.
+      return await transact(true, () => {
+        const { authority } = readAuthority(ownership);
+        // Proof: T6S02 removing only this new current-owner gate replayed an expired owner closure. Restoration passed.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        // Proof: T6S03 moving decoding before the complete audit replaced the corruption diagnostic with malformed-input validation; ordering only. Restoration passed.
+        const { catalog } = readHistory(database);
+        // Proof: T6S04 omitting typed decoding admitted schemaVersion2 receipt values. Restoration passed.
+        const call = decodeRecoveryResolveCall(snapshot);
+        const replay = replayRecoveryResolution(catalog, call);
+        if (replay !== undefined) return finish(replay, authority.observedAt);
+        const reply = planRecoveryResolution(catalog, call);
+        if (reply.kind === 'refused') return finish(reply, authority.observedAt);
+        insertRecoveryResolution(database, reply.value, catalog.runtime.acceptances.length);
+        return finish({ kind: 'applied', value: reply.value.closure }, authority.observedAt);
+      });
+    },
+
+    async recordRecoveryFence(input) {
+      // Proof: T5S01 using caller input instead of its snapshot let clock mutation change the retained reply. Exact restoration passed.
+      const snapshot = structuredClone(input);
+      const ownership = decodeOwnership(snapshot.guard.ownership);
+      // Proof: T5S06 bypassing this transaction left observation/journal writes after a late marker abort. Exact restoration passed.
+      return await transact(true, () => {
+        const { authority } = readAuthority(ownership);
+        // Proof: T5S02 removing current ownership fencing replayed an expired-owner observation. Exact restoration passed.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        // Proof: T5S03 moving decoding before the audit changed the corruption diagnostic to malformed input; ordering only. Exact restoration passed.
+        const { catalog } = readHistory(database);
+        // Proof: T5S04 omitting typed decoding admitted a schemaVersion2 receipt. Exact restoration passed.
+        const reply = planRecoveryObservation(catalog, decodeRecoveryObservationCall(snapshot));
+        // Proof: T5S05 omitting publication returned applied on exact replay. Exact restoration passed.
+        if (reply.kind === 'applied') insertRecoveryObservation(database, reply.value);
+        return finish(reply, authority.observedAt);
+      });
+    },
+    async stageRecoveryFence(input) {
+      // Proof: T4S01 using caller input instead of its snapshot let the clock mutation alter the requested ordinal. Exact restoration passed.
+      const snapshot = structuredClone(input);
+      const ownership = decodeOwnership(snapshot.guard.ownership);
+      // Proof: T4S04 bypassing only this transaction call left fence/journal writes after the late marker abort. Exact restoration passed.
+      return await transact(true, () => {
+        const { authority } = readAuthority(ownership);
+        // Proof: T4S02 removing the current-owner gate replayed an expired-owner fence. Exact restoration passed.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        // Proof: T4S05 moving decoding ahead of this audit reported malformed-input error instead of corrupt retained physical counts; ordering proof only. Exact restoration passed.
+        const { catalog } = readHistory(database);
+        // Proof: T4S03 omitting trusted decoding admitted a version2 fence. Exact restoration passed.
+        const reply = planRecoveryFence(catalog, decodeRecoveryFenceCall(snapshot));
+        // Proof: T4S06 omitting publication returned applied again instead of the required retained duplicate. Exact restoration passed.
+        if (reply.kind === 'applied') insertRecoveryFence(database, reply.value);
+        return finish(reply, authority.observedAt);
+      });
+    },
+    // Proof: T3BCS removed only this new dependency; begin detaches retained caller mutation after submission; exact restoration passed.
+    async beginRecovery(input) {
+      // Proof: T3BCSCLOCK replacing the snapshot with caller input retained mutation performed by the real clock dependency; exact restoration passed.
+      const snapshot = structuredClone(input);
+      // Proof: T3BORDERS moving target decoding ahead of this owner boundary threw ValidationError instead of owner_stale; exact restoration passed.
+      const ownership = decodeOwnership(snapshot.guard.ownership);
+      // Proof: T3BTXN bypassed only this new transaction call; a late marker abort left journal/index rows published; exact restoration passed.
+      return await transact(true, () => {
+        const { authority } = readAuthority(ownership);
+        // Proof: T3B1S removed only this new dependency; the expired-owner begin test observed an applied journal; exact restoration passed.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        const { catalog } = readHistory(database);
+        const reply = planRecoveryBegin(catalog, decodeRecoveryBeginCall(snapshot));
+        if (reply.kind === 'applied') insertRecoveryBegin(database, reply.value);
+        return finish(reply, authority.observedAt);
+      });
+    },
     async pinRuntimeScope(requested, input) {
       const ownership = decodeOwnership(structuredClone(requested));
       const snapshot = structuredClone(input);
@@ -239,7 +351,12 @@ export function createSqliteRunStore(
       const scope = decodeRuntimeScope(input);
       return await transact(false, () => {
         const meta = readMeta(database);
-        return inspectRuntimeScope(readHistory(database).catalog.runtime, scope, meta.ownership);
+        const snapshot = inspectRuntimeScope(
+          readHistory(database).catalog.runtime,
+          scope,
+          meta.ownership,
+        );
+        return snapshot;
       });
     },
     async stageRuntimeRequest(inputGuard, canonicalRequest) {
@@ -369,10 +486,10 @@ export function createSqliteRunStore(
         if (reply.kind === 'applied')
           database
             .query(
-              'INSERT INTO run_record(run_id,manifest_digest,record,initial_record) VALUES (?,?,?,?)',
+              `INSERT INTO ${CURRENT_FORMAT.family.record}(run_id,manifest_digest,record,initial_record) VALUES (?,?,?,?)`,
             )
             .run(
-              run.runId,
+              CURRENT_FORMAT.encode(run.runId),
               run.manifestDigest,
               JSON.stringify(reply.value),
               JSON.stringify(reply.value),
@@ -386,10 +503,17 @@ export function createSqliteRunStore(
         const snapshot = readHistory(database);
         const { run } = requireRun(runId(identity));
         return {
-          version: 2,
+          version: 3,
           run,
+          recoveries: snapshot.catalog.runtime.recovery.histories.flatMap((history) =>
+            history.intent.target.kind === 'claim' &&
+            history.intent.target.runId === run.runId &&
+            history.closure !== null
+              ? [history.closure]
+              : [],
+          ),
           attempts: snapshot.catalog.attempts
-            .map((entry) => entry.attempt)
+            .map((entry) => decodeCurrentAttempt(entry.attempt))
             .filter((attempt) => attempt.identity.runId === run.runId)
             .sort(
               (left, right) =>
@@ -437,11 +561,17 @@ export function createSqliteRunStore(
         if (reply.kind === 'applied') {
           const revision = addInteger(run.revision, 1);
           database
-            .query('INSERT INTO run_decision(decision_id,attempt_id,record) VALUES (?,?,?)')
-            .run(decision.decisionId, decision.attemptId, JSON.stringify(decision));
+            .query(
+              `INSERT INTO ${CURRENT_FORMAT.family.decision}(decision_id,attempt_id,record) VALUES (?,?,?)`,
+            )
+            .run(
+              CURRENT_FORMAT.encode(decision.decisionId),
+              CURRENT_FORMAT.encode(decision.attemptId),
+              JSON.stringify(decision),
+            );
           database
-            .query('UPDATE run_record SET record=? WHERE run_id=?')
-            .run(JSON.stringify({ ...run, revision }), run.runId);
+            .query(`UPDATE ${CURRENT_FORMAT.family.record} SET record=? WHERE run_id=?`)
+            .run(JSON.stringify({ ...run, revision }), CURRENT_FORMAT.encode(run.runId));
         }
         return finish(reply, authority.observedAt);
       });
@@ -471,16 +601,18 @@ export function createSqliteRunStore(
         applyChange(run, reply.value);
         database
           .query(
-            'INSERT INTO run_consumption(decision_id,attempt_id,correlation_key,wait,reply) VALUES (?,?,?,?,?)',
+            `INSERT INTO ${CURRENT_FORMAT.family.consumption}(decision_id,attempt_id,correlation_key,wait,reply) VALUES (?,?,?,?,?)`,
           )
           .run(
-            identity,
-            attempt.attemptId,
-            reply.value.wait.correlationKey,
+            CURRENT_FORMAT.encode(identity),
+            CURRENT_FORMAT.encode(attempt.attemptId),
+            CURRENT_FORMAT.encode(reply.value.wait.correlationKey),
             JSON.stringify(reply.value.wait),
             JSON.stringify(reply.value.attempt),
           );
-        database.query('INSERT INTO run_reservation(attempt_id) VALUES (?)').run(attempt.attemptId);
+        database
+          .query(`INSERT INTO ${CURRENT_FORMAT.family.reservation}(attempt_id) VALUES (?)`)
+          .run(CURRENT_FORMAT.encode(attempt.attemptId));
         return finish({ kind: reply.kind, value: reply.value.attempt }, authority.observedAt);
       });
     },
@@ -504,11 +636,13 @@ export function createSqliteRunStore(
         const { run } = requireRun(guard.runId);
         const attempt = requireAttempt(guard.attemptId);
         const completionRow = database
-          .query('SELECT * FROM run_completion WHERE command_id=?')
+          .query(`SELECT * FROM ${CURRENT_FORMAT.family.completion} WHERE command_id=?`)
           .get(
-            attempt.state.kind === 'outcome_pending_progress'
-              ? attempt.state.commandId
-              : receipt.commandId,
+            CURRENT_FORMAT.encode(
+              attempt.state.kind === 'outcome_pending_progress'
+                ? attempt.state.commandId
+                : receipt.commandId,
+            ),
           );
         const intent =
           completionRow === null ? undefined : decodeCompletionRow(completionRow).completion.intent;
@@ -516,14 +650,18 @@ export function createSqliteRunStore(
         if (reply.kind === 'refused') return finish(reply, authority.observedAt);
         applyChange(run, reply.value);
         database
-          .query('INSERT INTO run_receipt(command_id,attempt_id,record,reply) VALUES (?,?,?,?)')
+          .query(
+            `INSERT INTO ${CURRENT_FORMAT.family.receipt}(command_id,attempt_id,record,reply) VALUES (?,?,?,?)`,
+          )
           .run(
-            receipt.commandId,
-            attempt.attemptId,
+            CURRENT_FORMAT.encode(receipt.commandId),
+            CURRENT_FORMAT.encode(attempt.attemptId),
             JSON.stringify(receipt),
             JSON.stringify(reply.value.attempt),
           );
-        database.query('DELETE FROM run_outbox WHERE command_id=?').run(receipt.commandId);
+        database
+          .query(`DELETE FROM ${CURRENT_FORMAT.family.outbox} WHERE command_id=?`)
+          .run(CURRENT_FORMAT.encode(receipt.commandId));
         return finish({ kind: reply.kind, value: reply.value.attempt }, authority.observedAt);
       });
     },
@@ -540,8 +678,8 @@ export function createSqliteRunStore(
         readCapacity(database, meta.capacity);
         const { run } = requireRun(guard.runId);
         const row = database
-          .query('SELECT * FROM run_attempt WHERE attempt_id=?')
-          .get(guard.attemptId);
+          .query(`SELECT * FROM ${CURRENT_FORMAT.family.attempt} WHERE attempt_id=?`)
+          .get(CURRENT_FORMAT.encode(guard.attemptId));
         // Proof: bypassing commitOutcome missing attempt sqlite enforcement failed 'sqlite execution edges > successful effects cannot retry and missing attempts throw without mutations'.
         if (row === null) throw new Error('attempt does not exist');
         const { attempt } = decodeAttemptRow(row);
@@ -551,24 +689,29 @@ export function createSqliteRunStore(
         validateAttempt(database, requireRun(attempt.identity.runId).run, attempt);
         const previous = database
           .query(
-            'SELECT * FROM run_completion WHERE command_id=? OR attempt_id=? ORDER BY command_id',
+            `SELECT * FROM ${CURRENT_FORMAT.family.completion} WHERE command_id=? OR attempt_id=? ORDER BY command_id`,
           )
-          .all(completion.intent.commandId, attempt.attemptId)
-          .map(decodeCompletionRow);
+          .all(
+            CURRENT_FORMAT.encode(completion.intent.commandId),
+            CURRENT_FORMAT.encode(attempt.attemptId),
+          )
+          .map((row) => decodeCompletionRow(row));
         const reply = planOutcome({ run, attempt, previous: previous[0] }, guard, completion);
         if (reply.kind === 'refused') return finish(reply, authority.observedAt);
         if (reply.kind === 'applied') {
           applyChange(run, reply.value);
           database
-            .query('INSERT INTO run_completion(command_id,attempt_id,record) VALUES (?,?,?)')
+            .query(
+              `INSERT INTO ${CURRENT_FORMAT.family.completion}(command_id,attempt_id,record) VALUES (?,?,?)`,
+            )
             .run(
-              completion.intent.commandId,
-              attempt.attemptId,
+              CURRENT_FORMAT.encode(completion.intent.commandId),
+              CURRENT_FORMAT.encode(attempt.attemptId),
               JSON.stringify({ version: 1, completion, reply: reply.value.attempt }),
             );
           database
-            .query('INSERT INTO run_outbox(command_id) VALUES (?)')
-            .run(completion.intent.commandId);
+            .query(`INSERT INTO ${CURRENT_FORMAT.family.outbox}(command_id) VALUES (?)`)
+            .run(CURRENT_FORMAT.encode(completion.intent.commandId));
         }
         return finish({ kind: reply.kind, value: reply.value.attempt }, authority.observedAt);
       });
@@ -593,7 +736,13 @@ export function createSqliteRunStore(
         const snapshot = readHistory(database);
         const guard = decodeAttemptGuard(guardSnapshot);
         const command = decodeExecutionCommand(commandSnapshot);
-        const replay = replayExecution(findExecution(database, command.commandId), guard, command);
+        // Proof: T3NSEX withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
+        const replay = replayExecution(
+          findExecution(database, command.commandId),
+          guard,
+          command,
+          snapshot.catalog.runtime.recovery,
+        );
         if (replay !== undefined) {
           if (replay.kind === 'refused') return finish(replay, authority.observedAt);
           if (replay.value.reply.kind !== 'execution')
@@ -605,6 +754,13 @@ export function createSqliteRunStore(
         }
         const { run } = requireRun(guard.runId);
         const attempt = requireAttempt(guard.attemptId);
+        // Proof: T3I3S removed this interlock; public reattachment applied and changed the active claiming checkpoint. Exact restoration passed.
+        if (
+          isActiveRecoveryAttempt(snapshot.catalog.runtime, attempt.attemptId) &&
+          command.fact.kind !== 'recovery_required' &&
+          command.fact.kind !== 'unresolved'
+        )
+          return finish({ kind: 'refused', reason: 'state_conflict' }, authority.observedAt);
         const reply = planExecution(
           {
             run,
@@ -619,10 +775,12 @@ export function createSqliteRunStore(
         if (reply.kind === 'refused') return finish(reply, authority.observedAt);
         applyChange(run, reply.value);
         database
-          .query('INSERT INTO run_execution(command_id,attempt_id,record,reply) VALUES (?,?,?,?)')
+          .query(
+            `INSERT INTO ${CURRENT_FORMAT.family.execution}(command_id,attempt_id,record,reply) VALUES (?,?,?,?)`,
+          )
           .run(
-            command.commandId,
-            attempt.attemptId,
+            CURRENT_FORMAT.encode(command.commandId),
+            CURRENT_FORMAT.encode(attempt.attemptId),
             JSON.stringify({ version: 1, command, context: null }),
             JSON.stringify({ version: 1, kind: 'execution', attempt: reply.value.attempt }),
           );
@@ -644,7 +802,13 @@ export function createSqliteRunStore(
         const snapshot = readHistory(database);
         const guard = decodeScopedAttemptGuard(guardSnapshot);
         const command = decodeClaimStageCommand(commandSnapshot);
-        const replay = replayExecution(findExecution(database, command.commandId), guard, command);
+        // Proof: T3NSCS withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
+        const replay = replayExecution(
+          findExecution(database, command.commandId),
+          guard,
+          command,
+          snapshot.catalog.runtime.recovery,
+        );
         if (replay !== undefined) {
           if (replay.kind === 'refused') return finish(replay, authority.observedAt);
           if (replay.value.reply.kind !== 'claim_staged')
@@ -678,10 +842,12 @@ export function createSqliteRunStore(
         );
         applyChange(run, { attempt: ack.attempt, runRevision: reply.value.runRevision });
         database
-          .query('INSERT INTO run_execution(command_id,attempt_id,record,reply) VALUES (?,?,?,?)')
+          .query(
+            `INSERT INTO ${CURRENT_FORMAT.family.execution}(command_id,attempt_id,record,reply) VALUES (?,?,?,?)`,
+          )
           .run(
-            command.commandId,
-            attempt.attemptId,
+            CURRENT_FORMAT.encode(command.commandId),
+            CURRENT_FORMAT.encode(attempt.attemptId),
             JSON.stringify({
               version: 1,
               command,
@@ -707,7 +873,13 @@ export function createSqliteRunStore(
         const snapshot = readHistory(database);
         const guard = decodeScopedAttemptGuard(guardSnapshot);
         const command = decodeClaimAcceptCommand(commandSnapshot);
-        const replay = replayExecution(findExecution(database, command.commandId), guard, command);
+        // Proof: T3NSCA withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
+        const replay = replayExecution(
+          findExecution(database, command.commandId),
+          guard,
+          command,
+          snapshot.catalog.runtime.recovery,
+        );
         if (replay !== undefined) {
           if (replay.kind === 'refused') return finish(replay, authority.observedAt);
           if (replay.value.reply.kind !== 'claim_accepted')
@@ -741,10 +913,12 @@ export function createSqliteRunStore(
         );
         applyChange(run, { attempt: ack.attempt, runRevision: reply.value.runRevision });
         database
-          .query('INSERT INTO run_execution(command_id,attempt_id,record,reply) VALUES (?,?,?,?)')
+          .query(
+            `INSERT INTO ${CURRENT_FORMAT.family.execution}(command_id,attempt_id,record,reply) VALUES (?,?,?,?)`,
+          )
           .run(
-            command.commandId,
-            attempt.attemptId,
+            CURRENT_FORMAT.encode(command.commandId),
+            CURRENT_FORMAT.encode(attempt.attemptId),
             JSON.stringify({
               version: 1,
               command,
@@ -770,7 +944,13 @@ export function createSqliteRunStore(
         const snapshot = readHistory(database);
         const guard = decodeScopedAttemptGuard(guardSnapshot);
         const command = decodeTurnStageCommand(commandSnapshot);
-        const replay = replayExecution(findExecution(database, command.commandId), guard, command);
+        // Proof: T3NSTS withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
+        const replay = replayExecution(
+          findExecution(database, command.commandId),
+          guard,
+          command,
+          snapshot.catalog.runtime.recovery,
+        );
         if (replay !== undefined) {
           if (replay.kind === 'refused') return finish(replay, authority.observedAt);
           if (replay.value.reply.kind !== 'turn_staged')
@@ -799,10 +979,12 @@ export function createSqliteRunStore(
 
         applyChange(run, { attempt: ack.attempt, runRevision: reply.value.runRevision });
         database
-          .query('INSERT INTO run_execution(command_id,attempt_id,record,reply) VALUES (?,?,?,?)')
+          .query(
+            `INSERT INTO ${CURRENT_FORMAT.family.execution}(command_id,attempt_id,record,reply) VALUES (?,?,?,?)`,
+          )
           .run(
-            command.commandId,
-            attempt.attemptId,
+            CURRENT_FORMAT.encode(command.commandId),
+            CURRENT_FORMAT.encode(attempt.attemptId),
             JSON.stringify({
               version: 1,
               command,
@@ -829,10 +1011,14 @@ export function createSqliteRunStore(
         const { run } = requireRun(guard.runId);
         const history = database
           .query(
-            'SELECT * FROM run_attempt WHERE attempt_id=? OR (run_id=? AND occurrence_id=?) ORDER BY ordinal',
+            `SELECT * FROM ${CURRENT_FORMAT.family.attempt} WHERE attempt_id=? OR (run_id=? AND occurrence_id=?) ORDER BY ordinal`,
           )
-          .all(admission.attemptId, run.runId, admission.identity.occurrenceId)
-          .map(decodeAttemptRow);
+          .all(
+            CURRENT_FORMAT.encode(admission.attemptId),
+            CURRENT_FORMAT.encode(run.runId),
+            CURRENT_FORMAT.encode(admission.identity.occurrenceId),
+          )
+          .map((row) => decodeAttemptRow(row));
         for (const { attempt } of history) {
           const { run: targetRun } = requireRun(attempt.identity.runId);
           // Proof: injecting admission provenance bypass failed `admission rejects terminal predecessor missing its confirmed receipt provenance` at its explicit assertion.
@@ -848,6 +1034,7 @@ export function createSqliteRunStore(
             capacity: readCapacity(database, meta.capacity),
             run,
             manifest: requireManifest(run.manifestDigest),
+            // Proof: strict Attempt2 conversion failed all four SQLite `recovery hold same occurrence admission` controls on real resolver-produced holds.
             attempts: history.map((entry) => entry.attempt),
             admissions: history.map((entry) => entry.admission),
           },
@@ -859,24 +1046,27 @@ export function createSqliteRunStore(
           const attempt = reply.value.attempt;
           database
             .query(
-              'INSERT INTO run_attempt(attempt_id,run_id,occurrence_id,ordinal,record,admission) VALUES (?,?,?,?,?,?)',
+              `INSERT INTO ${CURRENT_FORMAT.family.attempt}(attempt_id,run_id,occurrence_id,ordinal,record,admission) VALUES (?,?,?,?,?,?)`,
             )
             .run(
-              attempt.attemptId,
-              run.runId,
-              attempt.identity.occurrenceId,
+              CURRENT_FORMAT.encode(attempt.attemptId),
+              CURRENT_FORMAT.encode(run.runId),
+              CURRENT_FORMAT.encode(attempt.identity.occurrenceId),
               attempt.ordinal,
               JSON.stringify(attempt),
               JSON.stringify(admission),
             );
           database
-            .query('UPDATE run_record SET record=? WHERE run_id=?')
-            .run(JSON.stringify({ ...run, revision: reply.value.runRevision }), run.runId);
+            .query(`UPDATE ${CURRENT_FORMAT.family.record} SET record=? WHERE run_id=?`)
+            .run(
+              JSON.stringify({ ...run, revision: reply.value.runRevision }),
+              CURRENT_FORMAT.encode(run.runId),
+            );
           // Proof: suppressing the reservation intent let both capacity-one admissions apply.
           if (reply.value.reserveSlot)
             database
-              .query('INSERT INTO run_reservation(attempt_id) VALUES (?)')
-              .run(attempt.attemptId);
+              .query(`INSERT INTO ${CURRENT_FORMAT.family.reservation}(attempt_id) VALUES (?)`)
+              .run(CURRENT_FORMAT.encode(attempt.attemptId));
         }
         return finish({ kind: reply.kind, value: reply.value.attempt }, authority.observedAt);
       });

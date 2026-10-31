@@ -1,6 +1,7 @@
 import type { ArtifactStore } from './artifact-store';
 import { decodeArtifactRef } from './record-codecs';
 import type { ArtifactRef } from './records';
+import { verifyRecoveryHistory } from './recovery-history';
 import type { RunStore, StoreReply } from './run-store';
 import { decodeRuntimeGuard, decodeRuntimeIntent, decodeRuntimeScope } from './runtime-codecs';
 import { verifyRuntimeReceipt } from './runtime-receipt';
@@ -54,5 +55,8 @@ export async function readRuntimeHistory(
         decodeArtifactRef(structuredClone(acceptance.evidence)),
       );
     }
+  // Proof: R2F12 omitted only recovery verification; 'verified runtime read checks active' accepted a same-reference value rewrite. Exact restoration passed.
+  if (snapshot.version === 2)
+    for (const history of snapshot.recoveries) await verifyRecoveryHistory(artifacts, history);
   return snapshot;
 }
