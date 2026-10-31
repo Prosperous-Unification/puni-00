@@ -279,7 +279,8 @@ function mcpDelegationComposition(
           ),
     mcpDelegation: mcpDelegationAuthority({
       // mcp-01 forwards a human's configured-issuer token; an invalid one, and
-      // a machine bearer (M9), is no upstream sign-in at all.
+      // a machine bearer (M9: a key, another issuer's JWT or a groups-less
+      // one), is no upstream sign-in at all.
       authenticate: async (token) => {
         const outcome = await services.auth.authenticateOrRefuse(token);
         return outcome === 'invalid_token' || outcome === 'machine_bearer_not_accepted'

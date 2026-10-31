@@ -420,14 +420,9 @@ export interface DirectoryUsage {
   }[];
   members: { id: string; name: string }[];
   /**
-   * Linked credentials pinned to the person, revoked by a confirmed removal.
-   * Optional on the wire: an outgoing be-01 mid-swap counts no pins.
-   */
-  pinnedCredentials?: number;
-  /**
    * Unrevoked machine credentials of the person, revoked by a confirmed
-   * removal and refusing an unbind or rebind. Optional on the wire: an
-   * outgoing be-01 mid-swap counts none.
+   * removal and refusing an unbind or rebind; 0 for a team. Optional on the
+   * wire: a be-01 older than `wbs-machine-credentials` slice 2 omits it.
    */
   machineCredentials?: number;
 }

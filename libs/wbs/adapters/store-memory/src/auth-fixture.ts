@@ -51,7 +51,6 @@ export function inMemoryUsers(
       return Promise.resolve(byId.get(id) ?? null);
     },
     // These Maps hold no organizations, so no account here holds a role.
-    membershipRolesOf: () => Promise.resolve([]),
     findExistingOidcIdentity(identity) {
       const owners = [...byId.values()].filter(
         (user) => user.idpIssuer === identity.issuer && user.idpSub === identity.subject,

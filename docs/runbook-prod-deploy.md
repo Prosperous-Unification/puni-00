@@ -170,15 +170,60 @@ signed-in checks fail with 401. Every signed-in request asks the OIDC verifier f
 outage of the provider's discovery or JWKS endpoint shows as 500 on the signed-in checks. That is
 not an application fault.
 
-## Fleet credential links
+## Fleet credentials
 
-Link or unlink a fleet's machine-to-machine credential in the live colour; the
-flags, scopes and refusals are in
-[fleet credentials](auth-integration.md#fleet-credentials):
+Fleets hold machine credentials their organization issues on the settings page
+(`/organization`, "Machine credentials"); the sources and rules are in
+[fleet credentials](auth-integration.md#fleet-credentials). There is no host
+CLI: an operator never links a credential in the live colour.
 
-```sh
-docker exec be-01-<colour> bun run src/link-credential-cli.ts --issuer=<iss> --subject=<sub> --account=<id or username> [--person=<id>]
-```
+**Swap window of the link retirement** (`wbs-machine-credentials` A18, slice 4).
+The release that retires the operator links refuses every Auth0 token without
+`wbs_groups`: as a Bearer on `/api` (`401 machine_bearer_not_accepted`, naming
+`/mcp`; `wbs-mcp-agent-surface` M9), as a browser session cookie (link start
+and callback) and as a refreshed access token. It never reads
+`external_identity.person_id`. Before swapping to it:
+
+1. An admin issues one API key per fleet agent person on the target
+   environment's organization page, and each fleet harness holds its key.
+2. Laptop Claude Code authorizes its agent person at the mcp-01 consent page.
+3. Each fleet calls through `/mcp` with its key instead of its Auth0
+   machine-to-machine token (`/api` refuses both keys and such tokens, M9). An
+   outgoing colour with machine credentials already admits the key and still
+   honours the links until it stops, so a fleet may switch before the swap and
+   must have switched by it.
+4. Evidence, on the outgoing colour: the panel shows a recent "last used" for
+   every new key. A key with none is a fleet still on its Auth0 token, which the
+   swap would cut off.
+5. Evidence that browser sessions survive a refresh: sign in on the target
+   environment, let the session refresh once, decode the refreshed access token
+   and confirm it carries `wbs_groups` (the Auth0 Action must emit it on the
+   refresh grant too). Record the result in the change's `verify.md`, never the
+   token. Without the claim every session ends at its first refresh.
+
+**No person deletions during the swap window.** The new colour deletes a
+person's pinned link rows with the person, unconfirmed, while the outgoing
+colour still honours those links; a new fe-01 talking to the outgoing be-01
+also shows an empty-looking confirmation for a pinned person. Delete persons
+only after the swap commits.
+
+After the swap, confirm every fleet writes, then delete the Auth0
+machine-to-machine applications in the Auth0 dashboard. The pinned rows the
+links left admit nothing; deleting a person removes theirs. A rollback to the
+outgoing release re-admits the links that still exist: rows removed by person
+removals on the new colour stay gone, so their fleets need their API keys (or a
+re-link on the old release) after a rollback. Delete the Auth0 applications
+only once rollback is no longer an option.
+
+**Cleanup once rollback is off the table** (describe, don't automate). Every
+row the retired CLI wrote is a machine pair, an Auth0 machine-to-machine
+subject `<client id>@clients`, pinned or not. Take a backup, list them first
+(`SELECT id, user_id, subject, person_id FROM external_identity WHERE subject
+LIKE '%@clients'`), check no human sign-in is among them, then delete exactly
+those rows. Rolling back `20261019130100_add_external_identity_person` stays
+refused while any row is pinned; its message names the retired CLI, so delete
+the pinned rows (`DELETE FROM external_identity WHERE person_id IS NOT NULL`)
+after a backup instead.
 
 ## MCP agent surface
 

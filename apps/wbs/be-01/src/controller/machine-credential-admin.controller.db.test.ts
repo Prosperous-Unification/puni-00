@@ -559,7 +559,7 @@ describe("a credential's person", () => {
         error: 'in_use',
         at: 0,
         kind: 'deletePerson',
-        usage: { projects: [], members: [], pinnedCredentials: 0, machineCredentials: 1 },
+        usage: { projects: [], members: [], machineCredentials: 1 },
       },
     });
     expect(credentialCount()).toBe(1);
@@ -594,7 +594,7 @@ describe("a credential's person", () => {
           error: 'in_use',
           at: 0,
           kind: 'patchPerson',
-          usage: { projects: [], members: [], pinnedCredentials: 0, machineCredentials: 1 },
+          usage: { projects: [], members: [], machineCredentials: 1 },
         },
       });
     expect(rows("SELECT account_id FROM person WHERE id = 'claire'")).toEqual([
@@ -626,7 +626,7 @@ describe("a credential's person", () => {
         error: 'in_use',
         at: 0,
         kind: 'patchPerson',
-        usage: { projects: [], members: [], pinnedCredentials: 0, machineCredentials: 1 },
+        usage: { projects: [], members: [], machineCredentials: 1 },
       },
     });
     expect(rows("SELECT kind FROM person WHERE id = 'claire'")).toEqual([{ kind: 'agent' }]);
