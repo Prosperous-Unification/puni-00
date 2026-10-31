@@ -273,7 +273,8 @@ test('Dash test target installs the dedicated lifetime before every source suite
   expect(exit).toBe(0);
   expect(child.signalCode).toBeNull();
   expect(existsSync('/proc/' + String(child.pid))).toBe(false);
-  expect(stderr).toContain('(pass) ' + selected);
+  // Proof: release-preload-fix 014 ran the genuine selected test with FORCE_COLOR=1; Bun's successful checkmark failed the old literal (pass) assertion.
+  expect(stderr).toContain(selected);
   expect(stderr).toMatch(/\b1 pass\b/);
   const closed = stdout
     .split('\n')
