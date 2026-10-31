@@ -188,3 +188,41 @@ reader omission or new Proof comment has been executed.
 Root final `bunx openspec validate --all --json` passed310/310,0fail; raw
 report SHA `39733f3a576ff02ab3695c86339f5ea48574364f0194b94e6d903f02a5e5be26`.
 All11 reviewed source hashes remain exact immediately before private staging.
+
+## Two finite proof-consumer gaps closed (test-only wave3)
+
+Astra roster decision
+`8f78d6ab89be28a6595bd6f08663977fcdca4a4003ef96ff1afdcd0680ea5999`
+identified local selected-artifact comparison before transport and unsupported
+build-input refusal as two missing ordinary consumers. Root leased only the
+existing preparation test file; its128 added lines leave the other ten frozen
+source/test bodies identical. Production code is unchanged.
+
+G1 keeps real artifact bytes and selects a different valid reader digest. The
+actual preparation entry must leave command count zero before the exact local
+pin-refusal assertion. If reached in a later approved fault, the controlled
+adapter runs and joins real owned Bun exit42 rather than inventing success. G2
+executes an ordinary text-import control, then the actual production builder
+captures real owned text bytes and reaches its exact unsupported-loader cause.
+No production loader, fake input bytes or build receipt was substituted.
+
+Final11-body freeze
+`c5ca9cc0ed17530c69d837104d2b844b4dd2f925c6d5a59524e39c14051a0480`
+contains only that test change. Original owning67220 joined normal0 with179
+passes/0fail/782 assertions in83.15s across five files; raw log SHA
+`daacbe8ad33504c7f76e4f0a9833cf7d780bb6cfe02c23d198ee38aed0b2f738`.
+Configured types14614, scoped lint96270 and formatting each have original
+observed exit0. Root verified all11 current hashes, all179 actual pass rows,
+zero-failure summary and Git whitespace. Production build was not repeated: no
+production body changed, while the tests construct their actual owned bundles.
+No separate redirected-command PIPE collector certificate is inferred.
+
+Worker report
+`92a994dce55193a0f04f8afe952ae1dec3e6738c3e2553929fea6db4f18e7584`
+and inert two-case addendum
+`9eca097360f84c3009fb0bf81efdeb8029e19188a0af346c105f1868d1d9d185`
+remain local review artifacts. Sealed Astra test/evidence review
+`74e981c86c12739f6106ef840af750ded47fa7de056ff230fc1c6d4c1f049299`
+is GO for this ordinary test-only epoch. The forthcoming static packet may contain39 pairs
+and37 distinct mutation bodies after review; this is not execution approval or
+FR1–FR3 completion. All new omissions remain unexecuted.

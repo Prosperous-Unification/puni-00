@@ -1173,3 +1173,131 @@ test('actual captured owned source carrier change refuses across the shared comp
     refusal: `first-reader compiler/build input changed: ${carrier}`,
   });
 });
+
+test('public first-reader preparation refuses mismatched selected local artifact before any observed transport', async () => {
+  const fixture = await preparationFixture();
+  const installer = await import('../install-solver-supervisor');
+  const requested = {
+    ...fixture.selection,
+    reader: {
+      ...fixture.selection.reader,
+      sha256: fixture.selection.reader.sha256 === 'a'.repeat(64) ? 'b'.repeat(64) : 'a'.repeat(64),
+    },
+  };
+  let commands = 0;
+  let refusal: unknown;
+  try {
+    await installer.prepareSolverReaderInstallation(
+      { host: 'fixture-reader-target', execute: true, selection: requested },
+      {
+        read: () => Promise.reject(new Error('unexpected normal config read')),
+        exists: () => Promise.reject(new Error('unexpected normal file query')),
+        hash: () => Promise.reject(new Error('unexpected unrelated pathname hash')),
+        command: () => Promise.reject(new Error('unexpected normal installer command')),
+        readerCommand: (_argv, finalOperation) => {
+          commands++;
+          return runSolverReaderTransport(
+            [process.execPath, '-e', 'process.exit(42)'],
+            finalOperation,
+          );
+        },
+      },
+      fixture.layout,
+    );
+  } catch (cause) {
+    refusal = cause;
+  }
+  expect(commands).toBe(0);
+  expect(refusal instanceof Error && refusal.message).toBe(
+    `preselected first-reader artifact differs: ${fixture.selection.reader.path}`,
+  );
+  expect(await Bun.file(join(fixture.state, 'edge-policy.json')).exists()).toBe(false);
+  expect(await Bun.file(fixture.layout.bun).exists()).toBe(false);
+  expect(await Bun.file(fixture.layout.reader).exists()).toBe(false);
+});
+
+test('actual first-reader builder captures an owned unsupported text import then refuses its loader', async () => {
+  const fixture = await preparationFixture();
+  const library = resolve(import.meta.dir);
+  const carrier = join(fixture.root, 'solver-reader-preparation.ts');
+  const operationCarrier = join(fixture.root, 'solver-supervisor-install-operation.ts');
+  const text = join(fixture.root, 'required-input.txt');
+  const textBytes = 'actual owned first-reader text input';
+  const control = join(fixture.root, 'text-control.ts');
+  await writeFile(text, textBytes);
+  await writeFile(
+    control,
+    `import contents from ${JSON.stringify(text)}; if (contents !== ${JSON.stringify(textBytes)}) throw new Error('actual text input differs'); console.log(contents);`,
+  );
+  const ordinary = await Bun.build({ entrypoints: [control], target: 'bun' });
+  expect(ordinary.success).toBe(true);
+  const output = ordinary.outputs.at(0);
+  if (output === undefined || ordinary.outputs.length !== 1)
+    throw new Error('owned text import control output absent');
+  const controlBundle = join(fixture.root, 'text-control.js');
+  await writeFile(controlBundle, new Uint8Array(await output.arrayBuffer()));
+  const controlChild = Bun.spawn([process.execPath, controlBundle], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const [controlCode, controlOut, controlErr] = await Promise.all([
+    controlChild.exited,
+    new Response(controlChild.stdout).text(),
+    new Response(controlChild.stderr).text(),
+  ]);
+  expect({
+    code: controlCode,
+    signal: controlChild.signalCode,
+    stdout: controlOut,
+    stderr: controlErr,
+  }).toEqual({ code: 0, signal: null, stdout: `${textBytes}\n`, stderr: '' });
+  const absolutize = (contents: string) =>
+    contents.replaceAll(
+      /from '\.\/([^']+)'/g,
+      (_match: string, relative: string) => `from ${JSON.stringify(join(library, relative))}`,
+    );
+  await writeFile(
+    carrier,
+    `import requiredText from ${JSON.stringify(text)}; if (requiredText !== ${JSON.stringify(textBytes)}) throw new Error('required actual source text differs');\n${absolutize(await readFile(join(library, 'solver-reader-preparation.ts'), 'utf8'))}`,
+  );
+  await writeFile(
+    operationCarrier,
+    absolutize(await readFile(join(library, 'solver-supervisor-install-operation.ts'), 'utf8')),
+  );
+  const helper = join(library, 'solver-reader-preparation.ts');
+  const witness = join(fixture.root, 'unsupported-loader.json');
+  const program = `
+    import * as fs from 'node:fs/promises'; import { mock } from 'bun:test';
+    const actual = await import(${JSON.stringify(helper)}); const readInput = actual.readSolverReaderBuildInput; let captured = false;
+    mock.module(${JSON.stringify(helper)}, () => ({ ...actual, readSolverReaderBuildInput: async (path) => {
+      const loaded = await readInput(path);
+      if (path === ${JSON.stringify(text)}) {
+        if (new TextDecoder().decode(loaded.bytes) !== ${JSON.stringify(textBytes)}) throw new Error('captured actual text bytes differ');
+        captured = true;
+      }
+      return loaded;
+    }}));
+    const { buildSolverReaderPreparationBundle } = await import(${JSON.stringify(operationCarrier)});
+    let refusal = ''; try { await buildSolverReaderPreparationBundle(${JSON.stringify(fixture.selection)}, ${JSON.stringify(fixture.layout)}); } catch (cause) { refusal = cause instanceof AggregateError ? cause.message + ': ' + cause.errors.map(String).join('; ') : cause instanceof Error ? cause.message : String(cause); }
+    await fs.writeFile(${JSON.stringify(witness)}, JSON.stringify({ captured, refusal }));
+  `;
+  const child = Bun.spawn([process.execPath, '-e', program], { stdout: 'pipe', stderr: 'pipe' });
+  const [code, stdout, stderr] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]);
+  expect({ code, signal: child.signalCode, stdout, stderr }).toEqual({
+    code: 0,
+    signal: null,
+    stdout: '',
+    stderr: '',
+  });
+  const observation: unknown = JSON.parse(await readFile(witness, 'utf8'));
+  const fields = readClosed(observation, ['captured', 'refusal']);
+  expect(fields['captured']).toBe(true);
+  expect(fields['refusal']).toBe(
+    `Bundle failed: BuildMessage: unsupported first-reader build file: ${text}`,
+  );
+  expect(await Bun.file(join(fixture.state, 'edge-policy.json')).exists()).toBe(false);
+});
