@@ -4718,3 +4718,77 @@ Full physical admission, larger isolated rehearsal target, Kubernetes/Flux hando
 effective workloads/storage and live signal/history/recovery acceptance remain
 open at 4/11. This permission observation does not authorize a host upgrade,
 persistent Secret change, production activation or final implementation merge.
+
+## Three capacity budgets and hardware targets — 2026-10-31
+
+The user requested completing separate normal, migration and full-rehearsal budgets
+before choosing an upgrade. The canonical result is docs/infra/observability-sizing.md,
+linked from the existing preflight. This is documentation/research under the R4 docs
+exception: no source behavior, admission check, resource policy or capacity floor changed.
+
+Two independent research tasks read current owning definitions, retained pinned outputs
+and the existing ledger. The memory extraction accounts for35native and8generated roles,
+ordinary init sequencing, reloaders, shared owners, per-node agents, complete declared
+replacement/retry/history scenarios and CPU requests versus limits. Source765/packet0a4f
+remain distinct from current49857implementation; inspected owning diffs alter only agent
+ephemeral/scratch policy, preserving memory/CPU. Source-role full-rehearsal memory is
+49984Mi plus2688Mi previously uncharged known OTel/Velero node-agent scenario slots.
+This is conditional planning allocation, not observed simultaneous RAM.
+
+Fresh bounded read-only existing-operator commands completed for h3mon/h4claw in
+2.441/2.456seconds at13:48UTC. They verify existing machine/daemon/PID identities and
+project CPU count, memory controls and complete statvfs counters. Both hosts have8CPUs
+and15.237GiB guest RAM. h3mon has23.314GiB used/120.432GiB service-available disk and
+13running Docker containers with8GiB combined finite memory limits; h4claw retains
+unbounded OpenHands. A separate three-query Kubernetes projection at13:50UTC records
+2Ready nodes,25Pods and2Bound claims without exporting Secret or environment values.
+No workload, store, credentials, trust, host setting or provider resource was mutated.
+
+Proposed allowances explicitly cover host/runtime services, read-only/admission memory,
+maintenance and copy/import workers, image/content/expanded/archive copies, hostPath
+writers, logs, retained bytes, store growth and export/rollback workspaces.20percent of
+total usable capacity remains unallocated, so the formula divides by0.8. They provide
+planning categories and bounded proposed scenarios, not existing enforcement or measured
+sufficiency. Root independently checked261 arithmetic/input-identity comparisons across
+43roles,6disk scenarios and20input hash checks. No renderer, producer, tests, old control,
+full Nx/host gate or CI job was replayed. Initial research extraction/hash-API setup
+failures are retained in the reports and not credited as passing evidence.
+
+Independent documentation review found two Important clarifications: preserve the original
+16GiB-available/120GiB-active preliminary prerequisites and all recovery/history acceptance,
+and state the finite lifecycle contract explicitly. Both are resolved. A minor scratch
+headroom observation caused root to increase the proposed normal pair ephemeral tier
+from12to16GiB (migration24to28), leaving4GiB above the conservative known contributors.
+The changed three-scenario arithmetic passed19additional independent comparisons;
+unchanged memory/source checks were retained. Final review approves documentation only.
+
+Final planning minima: normal h3monitoring31.4844GiB guest RAM/340.3926GiB service disk;
+migration59.8438GiB/455.3926GiB with reused claims, or630.3926GiB disk with another whole
+pair's retained claims; fresh isolated rehearsal79.2969GiB/407.2656GiB. Moving all platform
+controllers onto the migration host raises RAM to74.8438GiB. Candidate profiles are64GiB
+monitoring RAM with600GB+disk for migration, and128GiB-class RAM/512GBdisk for a fresh
+isolated lab, subject to actual guest/filesystem capacity. CPU profiles and all remaining
+writer/worker allowances are proposed policies, not benchmarks. Official provider mapping
+is separately labeled; no price or regional availability is asserted.
+
+Finite scenarios bind one immutable-source operation, its declared retry/history horizon
+and first replacement wave. Forced deletion, lost-node duplicates, further Helm/Flux
+recreations or retained attempts require more allocation/fresh admission. Reusing a claim
+charges it once; another physical generation is additional demand. Proposed backup-fixture
+allocations cannot reduce required recovery cases or retained history; enlarge the budget
+if a required corpus exceeds them. Existing used bytes stay charged once, and no process
+shutdown grants storage deletion or free-space credit.
+
+Private budget-planning-2026-10-31 evidence retains the two research reports/calculators,
+current input hashes, host/cluster projections, independent arithmetic receipts and final
+review. Budget planning is complete for these declared scenarios. Actual aggregate caps,
+effective Pods/cgroups, physical devices/quotas/writers, throughput/retention sufficiency,
+Flux/Kubernetes deployment, stored signals/views/isolation/history/recovery and live-dev
+acceptance remain unverified. No runtime checkbox or canonical4/11 milestone was closed.
+No hardware purchase/resize, production activation, persistent Secret change, destructive
+retirement, implementation push or final merge occurred.
+
+Documentation formatting completed for all three changed files. Strict owning change
+validation passed1change/0issues (34ms). The final documentation review has no open
+Critical or Important findings. Software/runtime tests and full host gates were not
+run for this documentation-only change; they are not inferred from arithmetic checks.

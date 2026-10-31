@@ -115,6 +115,11 @@ rehearsal and cutover tasks. No concrete live dev operation can be prepared from
 
 ## Capacity scopes
 
+The [capacity plan](observability-sizing.md) reconciles normal operation, migration
+overlap and the complete rehearsal into explicit proposed RAM/CPU/disk allocations,
+with current host observations and hardware targets. It does not establish runtime
+admission or authorize a resize.
+
 Keep the selected placement and these three budgets explicit:
 
 - Permanent monitoring includes every dev/production instance assigned to the target,
