@@ -60,11 +60,14 @@ describe('the effective production and test boundaries', () => {
   // Proof: independent source/test allowance removals failed their actual import admissions;
   // broad alias, relative path and unlisted-peer allowances failed the matching denials
   // after zero-fatal parser assertions. Each exact restoration passed 36 assertions (2026-10-31).
-  it('Dash coordination topology consumes only the exact public WBS domain at its two paths', async () => {
+  // Proof (Task2): independent facts-consumer removal, facts-only alias/relative
+  // widening and coordinator-peer admission failed semantic policy assertions;
+  // every restored configuration passed 56 assertions.
+  it('Dash coordination topology consumes only the exact public WBS domain at its exact paths', async () => {
     const peer = 'apps/twilight-structure/twilight-dash/cli/src/runs/prepare-activity.ts';
     const peerOptions = boundaryOf(await lint.calculateConfigForFile(peer))[1];
     if (!isRecord(peerOptions)) throw new Error('Dash coordination peer policy malformed');
-    for (const name of ['topology.ts', 'topology.test.ts']) {
+    for (const name of ['topology.ts', 'topology.test.ts', 'run-facts.ts']) {
       const path = 'apps/twilight-structure/twilight-dash/cli/src/coordination/' + name;
       const [admission] = await lint.lintText("await import('@wbs/domain');", { filePath: path });
       expect(admission.fatalErrorCount, path).toBe(0);
@@ -99,6 +102,8 @@ describe('the effective production and test boundaries', () => {
     }
     for (const path of [
       peer,
+      'apps/twilight-structure/twilight-dash/cli/src/coordination/run-coordinator.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/coordination/run-coordinator.test.ts',
       'apps/twilight-structure/twilight-dash/cli/src/runs/dispatch-turn.test.ts',
     ]) {
       await readFile(join(workspace, path), 'utf8');
