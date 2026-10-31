@@ -616,6 +616,11 @@ Burokrat's immutable static binding snapshot, complete project-step set and orig
 prompt-byte identities; it grants no execution authority.
 _Avoid_: Approved binding, execution authorization
 
+**Workflow run**:
+One retained execution of a workflow for a work item. Its identity survives coordinator
+restarts and connects its attempts; it is distinct from the harness's agent run.
+_Avoid_: Agent run, session
+
 **Run manifest**:
 The immutable execution configuration retained for a run, identified independently
 from its workflow acceptance.
