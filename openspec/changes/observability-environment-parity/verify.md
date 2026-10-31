@@ -5325,3 +5325,31 @@ The pre-commit input manifest records19 files at SHA256
 `b5f5104fe6e87ebb613321e322339a18343780360aef326b9a24aaa94b801f13`.
 Final verification metadata and compiled-entry smoke are recorded separately;
 they do not upgrade component results to actual migration or CI certification.
+
+Source commit `8f032350cd02a69e11f3320f1f2c707bf06a8271` completed normal hooks.
+Lint, format, plaintext-secret and private-nesting commands exited0; migration
+hooks had no matching SQL and doc-caps had no matching index change. Tool-wiki
+exited0 with explicit `inactive`/`certified:false` because its external activation
+root is unprovisioned; that output establishes no Tool Wiki certification.
+
+One local Bun1.4.4 compile used that exact source SHA in
+`PUNI_ROUTE_SOURCE_REVISION` and target `bun-linux-x64`. It bundled217modules
+and produced109856944bytes at SHA256
+`c79813c20f12a89d68a512c326a4cda135ee2e861d9fb52c75d6b2c89fe2343c`.
+Both strict-arity packaging smokes returned expected exit1 with empty stdout:
+source invocation reported Bun plus the real CLI source path (0.674seconds),
+while the compiled invocation reported only its binary (0.588seconds). Both
+use the same invocation-prefix helper as generated recovery commands, with no
+virtual bundled path. This validates packaging/refusal only; actual observer-local
+systemd, process and endpoint execution remains unperformed. The legacy bootstrap
+`runtime-snapshot.py` read is outside the new route CLI's reached paths; its actual
+inputs remain existing reviewed private bindings/manifests/receipts/candidate YAML
+and operator transport, not unembedded generated assets.
+
+Raw build/smoke evidence is `58-compiled-build.txt` and
+`59-packaging-smoke.json`. The original tested-source manifest remains immutable:
+all18 non-verification rows still match source-commit Git blobs exactly; only
+closing `verify.md` metadata changed after tests. Final metadata identity and the
+compact artifact index are retained under `/tmp/puni-task79-evidence/` and the
+scoped handoff report is
+`.superpowers/sdd/observability-environment-parity/task-79-report.md`.
