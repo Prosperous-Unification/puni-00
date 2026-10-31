@@ -5402,3 +5402,18 @@ metadata are distinguished in the final identity, not relabelled as88 input.
 This correction closes the named source progress defect; independent review,
 actual full rehearsal/live operation and required CI/host-gate certification
 remain pending and blocking. No remote operation or real publication occurred.
+
+Correction source commit `3caf2d553918b04f3adbe601a695354d70aeaa6e` completed
+normal hooks (96); no source bytes changed afterward. One justified new local
+Bun1.4.4 compile97 used that exact source revision, bundled217modules in18ms and
+compiled in211ms. The separate `observability-route-progress` artifact is
+109861040bytes,0755, SHA256
+`fd05792d0559f30aa88b0cfd290e0dfc57d2925bf6facd91cb7645914df4049e`.
+Strict-arity smoke98 returned expected exit1/empty stdout for source and compiled
+entrypoints, reporting the correct Bun+real source argv (0.650s) or binary-only
+argv (0.580s) used by generated recovery commands. It proves packaging/refusal,
+not runtime/systemd/source/backend certification. The8f binary and58/59 evidence
+remain intact. New import paths add no unembedded asset read; reached paths still
+require the existing reviewed private inputs and access. Final Git-blob identities,
+preserved test manifests, exact build command, raw indexed artifacts and skipped
+live/CI acceptance are linked by the handoff report. No build/deploy on h1 occurred.
