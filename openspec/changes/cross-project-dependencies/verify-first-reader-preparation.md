@@ -1,10 +1,10 @@
 # Local first-reader preparation
 
-Status: wave2 is frozen; final owning tests177pass/0fail and current build,
-types, all11-file lint and formatting pass. Astra's sealed bounded source review is GO
-for this source and ordinary/static epoch; the deadline issue is closed. R5 and
-host acceptance remain open. FR1–FR3 remain open. Root owns Git/OpenSpec/WBS;
-Sol preserves the frozen source. All prior epochs below retain their own limits.
+Status: wave4 source/test correction is frozen and independently reviewed GO.
+Current owning tests181pass/0fail, build, types, scoped lint and formatting pass.
+The deterministic row17 witness replaces its prior timing guess. R5 execution,
+FR1–FR3 completion, combined CI/host/native and main/deployment remain open.
+Root owns Git/OpenSpec/WBS; all previous epochs retain their stated limits.
 
 The selected private baseline is57e36e0118c6dd2d030d53d53c64d97b1359b568,
 combining reviewed producer f2bfc62a with reconciled c95. Fresh main7e0 is being
@@ -226,3 +226,64 @@ remain local review artifacts. Sealed Astra test/evidence review
 is GO for this ordinary test-only epoch. The forthcoming static packet may contain39 pairs
 and37 distinct mutation bodies after review; this is not execution approval or
 FR1–FR3 completion. All new omissions remain unexecuted.
+
+## Static recipe review and row17 causal correction
+
+Independent review
+`3573f2e96eedd7b87d73febe2885b64695c16361f7f57f5e9e993386dd390116`
+checked all37 exact bodies/inverses and39 selectors. Other38 pairs/36 bodies
+are GO for binding; row17 and the full execution packet remain HOLD. A fixed30ms
+wait can observe a faulty EOF continuation still copying under the lock, then
+retire its fixture before illicit disposition becomes visible. This is a static
+causal counterexample, not an observed fault execution or production defect.
+
+Root released only the preparation module and owning test for the optional
+read-only actual observation tap and deterministic fixture described in design.
+A throwing optional tap must visibly report observer-failed without changing
+actual custody or adding HOLD; diagnostic failure is an explicit unavailable
+outcome. Correct unknown EOF still retains the existing operation/lock. Final
+ordinary checks and review will bind a new explicit source/test epoch; prior
+179-case/c5ca evidence remains its own epoch. No omission is authorized.
+
+The inert78-job candidate envelope
+`/tmp/puni-reader-r5-execution-preparation-20261031/manifest.json`, SHA
+`ac545d071340cdd39f4e36cbab12b710f323b3c9ffe4914a09b12228cf720799`,
+retains702 absent future outputs, the byte-identical29c769 collector and an
+all-before-any five-carrier/63-control descriptor barrier draft. It was not
+executed, imported, compiled or applied. Final HEAD/test/recipe binding stays
+pending this correction and the exact final envelope review; no preflight replay
+or source mutation follows from preparation.
+
+## Wave4 source/test correction accepted locally
+
+Current freeze
+`b73a0d91579503bd72148c33151444e88393d31d810fe60fee86cac6af54a7e3`
+changes only the preparation module and owning test; all other nine bodies are
+unchanged. Root verified all11 hashes and181 actual passing rows,0fail and795
+assertions in79.56s from original owning63843 normal0, raw log
+`61408350885ef1fe79bd57a2f3a531df538b8ce05977a5eae1a3bb7dcc74ab49`.
+Current build33466 joined0 before owning, types17644, lint42662 and formatting
+each have original observed exit0. No separate PIPE certificate is inferred
+from redirected command output. Worker report
+`b1c1a078c24737800a075a8536b357351e2233a2517c4f7fb4f56595ef526030`
+and source/test review
+`837ef30422e03abac3962f6ff0c7f22d50953f072510483a0c413e103b0d9dde`
+are GO for this bounded correction and private checkpoint. Source/runtime leases
+are released under frozen preservation.
+
+The actual snapshot, clock and first pending-status assertion close the static
+row17 timing flaw. A future approved false-EOF fault must lose pending to an
+actual settled-refusal assertion; the private cause file is not emitted before
+scratch cleanup, so no raw expired-cause value is promised. Optional throwing
+tap and unavailable diagnostic cases preserve actual pending ownership. Neither
+ordinary controls nor this static review execute the fault or close FR proofs.
+
+Execution-envelope review
+`1be9f1a6ac037fc7ac7813c09995805f214779d5043e2cda6fb74e0f684a6319`
+requires two corrections in the final rebind:38 printed apply commands need the
+prior-restored audit hash, and accepted audits must bind both original target
+and collector receipt hashes with consistent restored provenance/status checks.
+The five-carrier/63-control barriers and39/78/702 mappings otherwise match. Old
+packets remain immutable; the final inert packet will rebind affected bodies,
+exact anchors, source identities and checkpoint. No helper, preflight, fault,
+inverse or new Proof comment has been executed.

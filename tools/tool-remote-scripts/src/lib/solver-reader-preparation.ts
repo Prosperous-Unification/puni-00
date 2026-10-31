@@ -449,7 +449,46 @@ export interface SolverReaderConstruction {
   readonly clock?: SolverReaderClock;
   /** May inject an observation error after a real pipe read; cannot provide EOF or exit evidence. */
   readonly afterRead?: (stream: 'stdout' | 'stderr') => void;
+  /** Observes a detached scalar snapshot only; return/failure cannot control custody or admission. */
+  readonly disposition?: (snapshot: SolverReaderDisposition) => void;
 }
+export interface SolverReaderDisposition {
+  readonly waitSettled: boolean;
+  readonly waitFailed: boolean;
+  readonly stdoutEof: boolean;
+  readonly stdoutFailed: boolean;
+  readonly stderrEof: boolean;
+  readonly stderrFailed: boolean;
+}
+export type SolverReaderTapObservation =
+  | { readonly status: 'observed' }
+  | { readonly status: 'observer-failed'; readonly diagnostic: 'written' | 'unavailable' };
+
+/**
+ * Test-construction observation boundary; a detached read-only scalar snapshot grants no authority.
+ * Tap return is ignored. A tap or diagnostic failure is explicitly unavailable evidence and
+ * never changes actual child/EOF/deadline state, refusal, cleanup, lock lifetime or HOLD.
+ */
+export function observeSolverReaderDisposition(
+  tap: (snapshot: SolverReaderDisposition) => void,
+  snapshot: SolverReaderDisposition,
+  emit: (message: string) => void = (message) => {
+    console.error(message);
+  },
+): SolverReaderTapObservation {
+  try {
+    tap(Object.freeze({ ...snapshot }));
+    return { status: 'observed' };
+  } catch {
+    try {
+      emit('[first-reader] construction disposition observer failed; proof witness unavailable');
+      return { status: 'observer-failed', diagnostic: 'written' };
+    } catch {
+      return { status: 'observer-failed', diagnostic: 'unavailable' };
+    }
+  }
+}
+
 const READER_CLOCK: SolverReaderClock = {
   now: () => performance.now(),
   pause: (milliseconds) => Bun.sleep(milliseconds),
@@ -518,6 +557,7 @@ async function observeReaderChild(
   clock: SolverReaderClock,
   operationDeadline?: number,
   afterRead?: (stream: 'stdout' | 'stderr') => void,
+  disposition?: (snapshot: SolverReaderDisposition) => void,
 ): Promise<ReaderOutput> {
   const started = clock.now();
   const cutoff = started + execution;
@@ -569,6 +609,15 @@ async function observeReaderChild(
   let expired = false;
   let announcedHold = false;
   for (;;) {
+    if (disposition !== undefined)
+      observeSolverReaderDisposition(disposition, {
+        waitSettled: settlement.exit !== undefined,
+        waitFailed: settlement.waitFailed,
+        stdoutEof: stdout.eof,
+        stdoutFailed: stdout.failed,
+        stderrEof: stderr.eof,
+        stderrFailed: stderr.failed,
+      });
     const now = clock.now();
     const exit = settlement.exit;
     if (
@@ -636,6 +685,7 @@ async function runReaderChild(
   deadline: number,
   descriptor?: number,
   afterRead?: (stream: 'stdout' | 'stderr') => void,
+  disposition?: (snapshot: SolverReaderDisposition) => void,
 ): Promise<void> {
   if (deadline - clock.now() < READER_PROFILE.launchReserve)
     throw new Error('first-reader operation lacks the required child settlement reserve');
@@ -649,7 +699,14 @@ async function runReaderChild(
         ? ['ignore', 'pipe', 'pipe']
         : ['ignore', 'pipe', 'pipe', descriptor],
   });
-  await observeReaderChild(child, READER_PROFILE.execution, clock, deadline, afterRead);
+  await observeReaderChild(
+    child,
+    READER_PROFILE.execution,
+    clock,
+    deadline,
+    afterRead,
+    disposition,
+  );
 }
 
 /** Validates ancestry before creating only the minimal selected canonical parent. */
@@ -743,6 +800,7 @@ export async function prepareSolverReader(
     deadline,
     undefined,
     construction.afterRead,
+    construction.disposition,
   );
   await observe?.('initialized');
   if (!sameIdentity(stagingParent, await assertDirectory(layout.staging, uid, true)))
@@ -768,6 +826,7 @@ export async function prepareSolverReader(
       deadline,
       descriptor,
       construction.afterRead,
+      construction.disposition,
     );
     await observe?.('staged');
     await assertOrigin(receipt, descriptor);
@@ -877,6 +936,7 @@ export async function prepareSolverReader(
         deadline,
         descriptor,
         construction.afterRead,
+        construction.disposition,
       );
       await observe?.('installed');
       await readArtifact({ ...selection.bun, path: layout.bun }, uid, bun.identity);
