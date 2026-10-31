@@ -120,29 +120,23 @@ async function settle() {
 }
 async function close(fixture, name) {
   await settle();
+  const snapshot = {
+    loaders: fixture.loaders(),
+    storage: await storage(fixture.context, fixture.page),
+    commands: await commands(fixture.page),
+    insertions: await fixture.page.evaluate(() => Reflect.get(globalThis, 'analyticsInsertions')),
+  };
+  // Keep interception installed through teardown so a final SDK beacon cannot escape locally fulfilled routes.
+  await fixture.context.close();
+  writeFileSync(
+    `${screenshots}/${name}.json`,
+    JSON.stringify({ ...snapshot, raw: fixture.hits, decoded: decodeHits(fixture.hits) }, null, 2),
+  );
+  // Proof: the late actual-tag final_text fault passed before this ordering fix; it now fails with the full raw receipt retained.
   inspect(fixture.hits);
   const payload = JSON.stringify(decodeHits(fixture.hits));
   for (const secret of fixture.secrets)
     assert(!payload.includes(secret), 'Receipt or claim entered vendor payload');
-  writeFileSync(
-    `${screenshots}/${name}.json`,
-    JSON.stringify(
-      {
-        raw: fixture.hits,
-        decoded: decodeHits(fixture.hits),
-        loaders: fixture.loaders(),
-        storage: await storage(fixture.context, fixture.page),
-        commands: await commands(fixture.page),
-        insertions: await fixture.page.evaluate(() =>
-          Reflect.get(globalThis, 'analyticsInsertions'),
-        ),
-      },
-      null,
-      2,
-    ),
-  );
-  // Keep interception installed through teardown so a final SDK beacon cannot escape locally fulfilled routes.
-  await fixture.context.close();
   globalThis.console.log(`PASS ${name}`);
 }
 async function open(
@@ -583,12 +577,41 @@ try {
         2,
       ),
     );
+    const receipt = 'WITHDRAWAL_RECEIPT_SENTINEL';
+    const marker = `puni_dev:lead:${receipt}`;
+    fixture.secrets.push(receipt);
+    const outcome = await fixture.page.evaluate((confirmation) => {
+      globalThis.sessionStorage.setItem('functional-sentinel', 'kept');
+      return Reflect.get(globalThis, 'analyticsFixture').dispatchLead(confirmation, {
+        name: 'generate_lead',
+        route: 'manual',
+        funnel_version: '1',
+      });
+    }, receipt);
+    assert(outcome === 'sent', 'Permitted withdrawal lead was not enqueued');
+    await until(
+      () => eventNames(fixture.hits).includes('generate_lead'),
+      'Permitted withdrawal lead absent',
+    );
+    const beforeWithdrawal = await storage(fixture.context, fixture.page);
+    const markerBefore = await fixture.page.evaluate(
+      (key) => globalThis.sessionStorage.getItem(key),
+      marker,
+    );
+    const functionalBefore = await fixture.page.evaluate(() =>
+      globalThis.sessionStorage.getItem('functional-sentinel'),
+    );
+    assert(
+      beforeWithdrawal.keys.includes(marker) &&
+        markerBefore === 'sent' &&
+        functionalBefore === 'kept',
+      'Withdrawal setup lacks real marker or functional state',
+    );
     await useController(fixture.page, 'reject');
     await settle();
     const stopped = fixture.hits.length;
     await fixture.page.evaluate(() => {
       const analytics = Reflect.get(globalThis, 'analyticsFixture');
-      globalThis.sessionStorage.setItem('functional-sentinel', 'kept');
       analytics.dispatch({ name: 'services_view', page_id: 'home' });
       globalThis.history.pushState({}, '', '/services');
       analytics.navigate();
@@ -596,13 +619,28 @@ try {
     });
     await settle();
     assert(fixture.hits.length === stopped, 'Loaded tag emitted after withdrawal');
-    assertCookieless(await storage(fixture.context, fixture.page));
-    assert(
-      await fixture.page.evaluate(
-        () => globalThis.sessionStorage.getItem('functional-sentinel') === 'kept',
-      ),
-      'Withdrawal deleted functional storage',
+    const afterWithdrawal = await storage(fixture.context, fixture.page);
+    const functionalAfter = await fixture.page.evaluate(() =>
+      globalThis.sessionStorage.getItem('functional-sentinel'),
     );
+    writeFileSync(
+      `${screenshots}/withdrawal-storage.json`,
+      JSON.stringify(
+        {
+          before: beforeWithdrawal,
+          markerBefore,
+          functionalBefore,
+          after: afterWithdrawal,
+          functionalAfter,
+        },
+        null,
+        2,
+      ),
+    );
+    // Proof: skipping production marker removal fails this actual prepopulated withdrawal case.
+    assertCookieless(afterWithdrawal);
+    // Proof: deleting functional-sentinel inside production cleanup fails preservation across withdrawal.
+    assert(functionalAfter === 'kept', 'Withdrawal deleted functional storage');
     await close(fixture, 'home-accept');
   });
   await run('home-reject-loading', async () => {

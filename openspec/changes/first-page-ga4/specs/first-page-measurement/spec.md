@@ -2,7 +2,7 @@
 
 ### Requirement: First registered page measurement before cookie permission
 
-Enabled measurement SHALL load the Google tag and enqueue the initial canonical page_view on the first registered public page before any cookie-permission interaction. The initial commands SHALL set analytics_storage, ad_storage, ad_user_data and ad_personalization to denied unless valid existing analytics permission grants analytics_storage. Normal builds/demo and unregistered/operator routes SHALL remain unmeasured. The exact development/production origin and measurement-ID isolation SHALL remain enforced.
+Enabled measurement SHALL load the Google tag and enqueue the initial canonical page_view on the first registered public page before any cookie-permission interaction. The initial commands SHALL set analytics_storage, ad_storage, ad_user_data and ad_personalization to denied unless valid existing analytics permission grants analytics_storage.
 
 #### Scenario: Fresh landing without a stored choice
 
@@ -13,6 +13,20 @@ Enabled measurement SHALL load the Google tag and enqueue the initial canonical 
 
 - **WHEN** a safe funnel step or registered client navigation occurs during tag startup
 - **THEN** the initial Home view and eligible safe events are enqueued in order without blocking the functional action or substituting a later page for Home
+
+### Requirement: Measurement enablement and isolation
+
+Normal builds/demo and unregistered/operator routes SHALL remain unmeasured. The exact development/production origin and measurement-ID isolation SHALL remain enforced.
+
+#### Scenario: Disabled build or unregistered route
+
+- **WHEN** analytics is not explicitly enabled or the public route is unregistered/operator
+- **THEN** the context remains unmeasured without a Google loader or event
+
+#### Scenario: Incompatible enabled configuration
+
+- **WHEN** analytics is explicitly enabled with an origin or measurement ID crossing its environment boundary
+- **THEN** the incompatible configuration is refused without loading Google
 
 ### Requirement: Preserve explicit measurement rejection and withdrawal
 
@@ -41,11 +55,20 @@ All event payloads SHALL use the existing validated event/page/campaign allowlis
 - **WHEN** input URLs, fields or browser context contain sensitive sentinels, or the Google load fails/stalls
 - **THEN** actual collector payloads contain none of those values, retries stop at the documented bound, and functional request actions still complete independently
 
-### Requirement: Truthful shared controls and reporting evidence
+### Requirement: Truthful shared privacy controls
 
-Site/app controls and privacy notice SHALL distinguish default cookieless measurement, optional analytics cookies and complete measurement opt-out. They SHALL accurately show loading, cookieless, permitted, rejected and unavailable states. Verification SHALL separate a vendor enqueue, actual network payload, Google endpoint acknowledgement and processed GA4 reports. It SHALL NOT claim complete refused-visitor funnels, low-volume modeling eligibility or verified GA account settings without evidence.
+Site/app controls and privacy notice SHALL distinguish default cookieless measurement, optional analytics cookies and complete measurement opt-out. They SHALL accurately show loading, cookieless, permitted, rejected and unavailable states.
 
-#### Scenario: Inspect consent choices and GA results
+#### Scenario: Inspect consent choices
 
 - **WHEN** a visitor inspects privacy controls before and after granting/rejecting
-- **THEN** controls describe the actual collection/storage state, and the release record states exactly which collection and reporting checks were observed or remain unavailable
+- **THEN** controls describe the actual collection/storage state
+
+### Requirement: Separate collection and reporting evidence
+
+Verification SHALL separate a vendor enqueue, actual network payload, Google endpoint acknowledgement and processed GA4 reports. It SHALL NOT claim complete refused-visitor funnels, low-volume modeling eligibility or verified GA account settings without evidence.
+
+#### Scenario: Inspect collection and GA results
+
+- **WHEN** collection or reporting evidence is recorded after a browser or Google-account check
+- **THEN** the release record states exactly which collection and reporting checks were observed or remain unavailable
