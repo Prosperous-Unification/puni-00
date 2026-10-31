@@ -100,6 +100,10 @@ cleanup for another durable store. WBS030.04/030.12 require second-provider conf
 during S0; the deployment choice and paused-writer transfer in6b.3 remain required before
 claiming portability. Neither prerequisite alone closes S0 or S7a.
 
+The [portable identity repair](../portable-workflow-identities/proposal.md) owns generated
+workflow-run IDs and exact SQLite key preservation. Its migration/conformance work remains
+open; the earlier accepted storage packet does not prove this newly observed edge case.
+
 - [x] 6a.1 Red: shared RunStore/ArtifactStore conformance tests for atomic admission,
       capacity, revision and owner conflicts, immutable manifests, outcome/outbox atomicity,
       inbox deduplication and receipt reconciliation. No SQL or engine-specific schema in ports.

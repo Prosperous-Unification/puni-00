@@ -71,21 +71,23 @@ return Object.freeze(
 
 ## Task 2: Freeze predecessor descriptors before appending a format
 
-Files: runs/sqlite/{format,schema,migrate-recovery,read-runtime}.ts and focused
+Files: runs/sqlite/{format,schema,migrate-recovery}.ts and focused
 format/predecessor tests in runs/sqlite/recovery-migration.db.test.ts.
 
 Consumes existing complete format3/4 identities. Produces named FORMAT3 and FORMAT4
 descriptors; CURRENT_FORMAT still selects4 in this task. No new active format yet.
 
-- [ ] 2.1 TDD: complete format4 identity depends on exactly migrations0..3, independent
+- [x] 2.1 Freeze complete format4 identity to exactly migrations0..3, independent
       of future entries. Build FORMAT3_IDENTITY from slice(0,3) and FORMAT4_IDENTITY from
       slice(0,4); preserve observed pre-change bundle identities exactly. Test: named
-      complete predecessor identity assertions in recovery-migration.db.test.ts.
-- [ ] 2.2 Replace transition use of mutable CURRENT_FORMAT/PREDECESSOR_FORMAT aliases
-      with explicit named format3/4 descriptors. Generalize the runtime recovery capability
-      test so version5 cannot silently return the format3 empty catalog. Test: existing
-      genuine3↔4 populated migration, current4 open and recovery cases; new descriptor
-      capability case. Preserve all old guards and old pinned code fixture bytes.
+      complete predecessor identity assertions in recovery-migration.db.test.ts. This is
+      mechanical preparation: use existing genuine tests rather than new alias/export tests;
+      the real appended-artifact preservation case is exercised with Task3's actual0005.
+- [x] 2.2 Replace transition use of mutable CURRENT_FORMAT/PREDECESSOR_FORMAT aliases
+      with explicit named format3/4 descriptors. Leave runtime recovery dispatch unchanged
+      until actual format5 has production-path coverage in Task3. Test: existing
+      genuine3↔4 populated migration, current4 open and recovery cases. Actual version5
+      recovery coverage follows in Task3. Preserve old guards and pinned code fixture bytes.
 
 Required selection shape:
 
@@ -132,6 +134,8 @@ export async function downgradeUnusedSqliteIdentityKeys(
       its own count markers and usage marker. Enumerate finite table/key mapping; never
       rewrite arbitrary SQL. Update every producer, lookup, reader, FK counterpart and
       history validator to select the right compiled format and decode before comparing.
+      Generalize runtime recovery dispatch with an actual format5 recovery-history test;
+      version5 must not silently take format3's empty-recovery branch.
       Preserve digest/scope/payload encodings and decoded/numeric ordering. Test: cross-family
       public read/write/retry and populated ordering comparisons in identity-keys.db.test.ts.
 - [ ] 3.3 Add explicit4↔5 migration under BEGIN IMMEDIATE: validate genuine4, copy exact
