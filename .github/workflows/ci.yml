@@ -318,7 +318,24 @@ jobs:
     needs: gate_mode
     if: ${{ needs.gate_mode.outputs.mode != 'docs' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # The original 20-minute box expired after the ordinary Nx phase and during Tool Wiki.
+    # Forty-five minutes then expired too: run 35337661318 (2026-09-18, every project affected and
+    # the packed package suite in scope) spent 44m48s through the solver image smoke and was
+    # canceled in the heavy-work lock test. Sixty minutes is a finite allowance above that
+    # measurement. Evidence: openspec/changes/agent-scalable-llm-wiki/verify.md,
+    # "CI gate budget repair after 6234d1c1". Sixty then expired too: run 36410497860 (main
+    # 94ce7928, 2026-09-28) spent 57m46s in the Nx step alone, and run 36416401675 was canceled
+    # at 60m in `Gate head pinning` after every earlier step passed. Ninety was then set for the
+    # single job. With Tool Wiki moved to the Twilight shard (`gate_twilight`) this job took
+    # 26m35s in the full-mode run 36473105834 (Nx step 22m21s; docs/findings/ci-gate-duration.md),
+    # and sixty leaves more than double that. Run 38858776285 (PR #535, f6f867ec, 2026-10-16)
+    # then spent 55m05s in Nx and was canceled in Gate head pinning at 07:01:03 UTC.
+    # Ninety then expired twice in run 40959508633 (PR #787, b3b594da, 2026-10-30):
+    # attempt 1 was canceled in solver smoke after Nx passed; attempt 2 was canceled in lint
+    # after test/typecheck/build passed in 80m32s. Both annotations report a 1h30m0s maximum.
+    # Choose a finite 120-minute allowance; remaining checks still require hosted proof.
+    # Evidence: openspec/changes/workspace-gate-time-budget/verify.md#120-minute-repair-local-evidence.
+    timeout-minutes: 120
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and
       # nx falls back to a different file scope rather than failing. Since

@@ -3393,3 +3393,64 @@ The old full run remains FAILED4885/82/3; the earlier188+68 focused cases retain
 their separate evidence epochs. No fault campaign ran or gained authorization
 here. The initializer24 explicit-approval question remains pending, and the
 architectural PR630/main/deployment holds remain unchanged.
+
+## Slice 19 — task 3.8: consent tokens must carry `token_use`
+
+- **Change:** `consentClaimsOf` (`apps/wbs/mcp-01/src/oauth.ts`) refuses any `token_use` but
+  `consent`, including none. `admitCaller`'s JSDoc, design M5 and the prod runbook's step 6 say so.
+- **Timing:** slice 2 (PR #761) reached dev with #751 on 2026-10-27, so one
+  `MCP_ACCESS_TOKEN_TTL` (3,600 s) had long passed. The Compose prod swap deploys only be, gw and
+  fe and routes no `/mcp` (slice 14), and the Kubernetes cutover is prepared but not authorized
+  (`docs/infra/cutover-plan.md`), so prod's first mcp-01 already issues `token_use: consent`.
+- **Review (Fable high):** no S1–S3; S4 wording fixes applied (design M5 tense, tasks 3.8 past
+  tense, the Kubernetes clause here and in the runbook).
+- **Proof:** `refuses a consent session token of any use but consent` (`oauth.test.ts`) now
+  expects a re-signed token without `token_use` to be refused. With the pre-3.8 guard
+  `use !== undefined &&` restored, it received `"admitted"` and failed (1 fail); with the fix,
+  1 pass. Watched 2026-10-30 (`env -u CLAUDECODE bun test src/oauth.test.ts -t "of any use but consent"`).
+
+## Private main7e0 compatibility closure (2026-10-31)
+
+The private57e36e01 candidate includes the reviewed producer and now carries an
+uncommitted union with fresh main7e0c05d82175b1a374e39d26fc08d3a9349069f5.
+Strict consent token_use refusal, including undefined, and the new negative are
+preserved alongside private deep imports. Main's outer workspace120 change is
+retained without changing the rest of the parsed private workflow.
+
+A naturally stale private capacity expectation failed:5pass/1fail/69assertions,
+Expected90/Received120. Only its workspace expectation changed to120; the remote
+90 assertion and all other controls remain. Final owning evidence is343 distinct
+passes,0 failures and1578 assertions:capacity6/112,OAuth279/1173 and gate
+entrypoints58/293. Configured MCP/Burokrat/hooks lib+spec types, four-file ESLint
+and five-file formatting passed. Six original targets and their collectors
+joined normal0/null signal with both actual PIPE EOFs; all16 source/docs/manifest
+inputs matched before/after. No source changed under these final checks.
+
+Final49-artifact manifest:
+`8743e035c19588e1042bfbd89f2b6a97b898e217e0481018d0739253266eb592`;
+final report:
+`815d5a49b8d532c2b2075d20fdb47bdad51a0c76d073b7abe408518c502ad4f7`;
+baseline12-artifact manifest:
+`d527b9276603453376664613a9fb9c3b39b22ba66940ee9aa328b3ff21dca3b0`.
+Independent bounded source/actual review:
+`48176cecb61a5a373c36f711d7b693468bbf93074512a7785a74e03027e0bf14`.
+Its sole Minor wording ambiguity, remote pair versus leaves, is corrected in the
+workspace spec. No Critical or Important issue was waived.
+
+The duplicate gate-workflow routing suite was not run: complete parsed workflow
+equivalence except the outer budget plus full capacity/gate owners cover this
+bounded change. MCP-main/OpenAPI producer and another full backend target were
+not needed for the changed admission helper. Trusted-modules input for the gate
+scratch fixture names this checkout's installed node_modules; explicit negative
+overrides remain effective. Tool Wiki native activation is not thereby proven.
+
+The separate Origin24 campaign is complete in its recorded scope; the new reader
+implementation, frozen43 campaigns, exact combined hosted CI/canonical host gate,
+native/controller/handoff and architectural main/deployment adoption remain open.
+No historical0077 backend, failed run or old proof epoch is upgraded here.
+
+Root final validation: `bunx openspec validate --all --json` passed310/310,
+with no failures; raw report SHA256
+`6fed5bf72fec14f32173403b36675c70c283edbe5d20d10d328341b572505ec0`.
+All five reviewed source hashes still match; both Git whitespace checks and
+final three-document formatting passed. This supports a private checkpoint only.

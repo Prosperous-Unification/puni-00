@@ -1,17 +1,34 @@
-# Workspace gate capacity
-
 ## Problem
 
-PR #535 run `38858776285` exhausted the former 60-minute workspace allowance after Nx passed. Raising the single job to 90 minutes did not establish a complete verdict: later run `40060433745` spent nearly the whole 90 minutes in workspace work and was cancelled with the frontend test and required post-Nx checks unfinished. Its incomplete artifact also contains independent test failures, tracked separately.
+Cold workspace runs have exhausted historical60/90-minute allowances and left
+required checks unfinished. Increasing a cap does not repair independent test
+failures or establish a completed gate verdict. The retained observations and
+local proofs live in [verification](verify.md).
 
 ## Outcome
 
-Partition the cold workspace Nx gate by whole logical project: backend, remote scripts, frontend and the complement. The fixed remote execution exception in `ci-remote-capacity` runs its entire model wrapper and exact canonical complement in two independent jobs after validation, retaining one remote project owner. Give each runtime job a 90-minute whole-job ceiling and a 75-minute Nx phase ceiling. Run every former non-Nx workspace check in a separate required 30-minute job, concurrently. Keep one validated source plan and a strict `gate` reducer so a skipped, failed, cancelled or absent required job cannot pass.
+Retain the implemented whole-project partition: dedicated backend, remote and
+frontend ownership plus residual workspace coverage, with the fixed remote
+execution layout governed by ci-remote-capacity. Preserve exact validated
+selection, runtime phases, provision, commands, annotations, logs and reduction.
+Carry main's finite120-minute allowance for gate_workspace; dedicated runtime
+jobs retain their existing90-minute ceilings and phase limits. Required non-Nx
+checks retain their30-minute job, and Twilight remains75 minutes.
 
 ## Non-goals
 
-Outside the explicit fixed remote execution exception, no target, test file, dependency, native provision, assertion, retry, cache policy or parallelism change. The exception retains complete test coverage and uses noncached CI-only leaves while canonical local/host targets remain unchanged. The Twilight, docs, browser and canonical host gates keep their contracts. A configured budget is not proof of hosted capacity or a complete green verdict.
+No check removal, target/dependency/assertion/cache/retry change, new partition,
+command-scope change, unrelated timeout change, Tool Wiki activation or product
+architecture/deployment adoption. The fixed remote exception keeps one logical
+owner and complete canonical coverage; its own bounded contract governs physical
+leaves. A configured allowance is not measured hosted capacity.
 
 ## Constraints
 
-The affected plan must retain exact immutable base/head and target-specific selection. Full mode must cover every configured non-Twilight project, including future projects. Each runner must retain the original Nx exit status, annotations and always-on logs. Hosted exact-head cold CI is required before calling the partition sufficient.
+Keep immutable base/head and target-specific selection. Full mode covers every
+non-Twilight project, including future residual projects. Each runner preserves
+original failure, annotations and always-on logs. The stable reducer rejects any
+required failure, cancellation, timeout, absence or unexplained skip. Preserve
+all historical60/90-minute evidence without relabeling it. Require exact-head
+cold hosted CI and the canonical host gate before release acceptance. The raised
+workspace ceiling can cost up to30 additional hosted runner minutes per job.
