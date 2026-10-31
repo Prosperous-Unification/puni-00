@@ -5029,6 +5029,104 @@ The owning runbook now shows selected-revision rendering and explicitly distingu
 old ab4f bootstrap preflight from a later-release upgrade preflight. Rendering proves no
 binary identity, host ownership, effective cgroup enforcement, successful activation,
 autonomous stored cycles, history/retention or Kubernetes/Flux readiness. No missing tool
-was substituted. Independent controller review remains pending, so the Task75 checkbox
-and the separate persistent-rollout checkbox remain unchecked. The controller owns all
-remote actions and release/rollback verification.
+was substituted. At this source handoff, independent controller review and both checkboxes were pending.
+The subsequent reviewed actual rollout is recorded below; the source task itself performed
+no remote action or release/rollback verification.
+
+### Task75 source review and actual autonomous dev resource history — 2026-10-31
+
+Source `047e08024b4b1bbba4cb7700400d6f37b0d0ed05` and its preceding intent
+`45173ea20cfd2a8e85443ce734fd0003cf57fe56` were independently reviewed together
+from base `4854c2f875f1c7d7af4a991d93330fd749986340`. Specification and quality
+approved with no findings. Review report SHA256
+`ca601719b9ab557d82e9b78c25028c6548eef3e88b53a3c278ffaadb9cf7bc53`.
+Parent verified all 62 source-evidence hashes and six current/Git file identities,
+read the actual three final guard-removal failures and exact-restoration receipts;
+no source suite or previous Task74 proofs were replayed. The initial uncredited
+end-anchor experiment remains uncredited. Two parent receipt-reader schema errors
+occurred before writes, were corrected after inspecting the actual schemas, and
+are not product failures or successful verification.
+
+Read-only old-binary/unit/checkpoint preflight completed in 2.721 seconds. The
+actual production resource adapter through the existing h1claw observer account
+read all 13 workloads in 4.170 seconds, proving the required SSH/sudo route without a
+credential or privilege change. Fresh target and owned-unit checks were repeated
+immediately before writes because earlier snapshots had expired, not as test reruns.
+
+`bun build tools/tool-observability-stack/src/dev/probe-cli.ts --compile
+--target=bun-linux-x64 --outfile <exclusive-local-release>/observer` completed
+exit 0 in 0.219 seconds using Bun 1.4.4 locally, 128 modules. Binary 109,496,496 bytes,
+SHA256 `e1d93c75b3a1b1e492c9c83183cd021d24b8b189bf3fd631a59b12f5634a2e5e`;
+manifest SHA256 `475a43545f8e12a70e071d611e668769336e11df9b1fbb15302cb41e87d3842d`;
+candidate unit SHA256 `577ea564c5bacf1bfbd9f463f95ccb944be0aa51e739319bde71d22797a512df`.
+Every transferred artifact, old executable and both unit references passed exact
+sha256sum checks; target files were regular, owned by UID 1000, binary 0700 and
+manifest/units 0600. Candidate systemd syntax validation exited 0, with an unrelated
+existing review-reconcile.service oneshot RuntimeMaxSec warning retained verbatim.
+
+The exclusive immutable release directory and exact prior-unit hardlink were
+preserved, current checkpoint copies retained as evidence, and only the owned
+observer unit atomically replaced. Normal daemon-reload and observer-only restart
+exited 0. `/proc/1839221/exe` resolved to the reviewed new immutable binary and
+matched its hash. The prior ab4f binary and previous.service still match their
+original hashes. Both tunnel definitions remain unchanged; the observation tunnel
+kept PID 3574624. Effective observer/tunnel bounds remain 256 MiB, 25% CPU and 32 tasks,
+25-second stop timeout, on-failure restart/10-second delay/3 starts within 5 minutes.
+No checkpoint initialization, Secret, backend, application or legacy workload change.
+
+Initial stored-signal acceptance was correctly incomplete. Raw stored matrices
+show old/new producer scope versions overlapping at common scrapes, causing the
+existing unique-active-revision check to refuse. Logs/traces became complete and
+then metric acceptance converged without restart or weakened checks; all signals
+were complete at 16:31:05 UTC. This transition limitation is retained in the runbook.
+
+The bounded negative/recovery drill stopped only the freshly identified owned
+dev Alertmanager container, after an independent user-systemd 150-second recovery
+timer was confirmed active/waiting. Its existing strict SSH route and exact full
+container ID were retained privately; the recovery service had 64 MiB/25%/
+32-task limits, a 30-second SSH command bound and 35-second start timeout. The observer
+continued with resource source-unavailable, no new fabricated measured samples,
+and complete original signal/application/storage health. Historical evaluation of
+actual stored samples at 1793464465 showed unavailable 1/complete 0 and last-real
+observation age 125.963 seconds. The live stale-query attempt arrived after recovery
+and is explicitly not credited as a live instantaneous stale observation.
+
+The scheduled recovery started the same container at 16:34:30.107 UTC. No manual or
+duplicate start was issued; both transient units were later inactive/collected.
+The recovered checkpoint and Prometheus showed a new started timestamp, reduced
+fresh cumulative CPU and exactly one stored reset/start change. Only that role's
+startedAt changed in before/after snapshots: all 13 IDs, the other 12 starts, volumes
+and 28 configuration hashes were unchanged. Seven legacy services remained running.
+
+At 16:39:37 UTC the observer and tunnel were active with zero automatic restarts,
+source publication acknowledged, and health/application/storage/resources complete
+for 13 workloads. The final real history query returned 74 series and 9,638 samples.
+All 74 latest stored values matched the exact final checkpoint via the production
+metric encoder. Ten distinct post-recovery observations spanned 270.408 seconds,
+exceeding two 120-second freshness windows; the largest gap was 30.643 seconds and
+every corresponding stored collection state was complete. This proves continuous
+existing-observer collection, rather than the previous root one-shot publication.
+
+Exact original retained log/document fingerprints and two linked trace spans
+were re-read and matched, along with all 18 recorded metric samples at their original
+historical times. This is retained Compose history after an observer update; no
+store migration, route switch or Kubernetes history/recovery proof is implied.
+
+Raw source evidence: `/tmp/puni-task75-evidence`; actual evidence is retained in
+the existing private ledger's task-75-runtime directory with an artifact manifest,
+including reviewed source/build identities, actual commands/outputs, preflight,
+checkpoint/store observations, historical matrices, timed recovery journal,
+preservation snapshots, comparison scripts and actual-verification receipt.
+The abandoned local stage-driver draft was not executed; remote operations used
+the reviewed concrete procedure and standard checked filesystem/systemd commands.
+
+Skipped/unverified: full h2/h4 host gates, whole-module/full Nx reruns, actual
+common Kubernetes/Flux rehearsal, physical admission/writer enforcement, operator
+UI acceptance for the common stack, full migration/isolation/backup/restore,
+production activation, persistent Secret provisioning and final merge. Existing
+published 4854 CI runs were observed without retriggering: pixels and Fleet passed;
+main heavy gates and infra k3s rehearsal were still running at the last read.
+That is not a green CI verdict for later source 047e08024 or this documentation head.
+Original full goal remains active; hardware advice stays withdrawn and the 16 GiB
+available full-lab floor is unchanged. Only source Task75 and the bounded existing
+observer resource rollout task are complete; full 3.1 and parity acceptance stay open.

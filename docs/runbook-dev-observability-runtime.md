@@ -1,8 +1,14 @@
 # Dev observer operation and retained-store rollback
 
+Live status, 2026-10-31: the owned dev observer runs reviewed source
+`047e08024b4b1bbba4cb7700400d6f37b0d0ed05`, with continuous resource history in
+the existing Prometheus. The initial install/preflight sections below describe
+the retained ab4f bootstrap contract. Use the resource-history status below for
+the current release; do not apply the frozen bootstrap preflight to an upgrade.
+
 This package adopts the already staged dev releases; it does not bootstrap arbitrary hosts.
 Use the reviewed implementation commit from a clean checkout. Builds run locally with Bun
-1.4.4, never on h1claw. Existing binary `/home/claw/.local/lib/puni-dev-observability/ab4f7cf6e/observer`
+1.4.4, never on h1claw. Retained bootstrap binary `/home/claw/.local/lib/puni-dev-observability/ab4f7cf6e/observer`
 has SHA256 `281c51a2542784f8b46df5ad8f7a22ab4f29b738a90b15a7bd1c9937a743374c`.
 Its adjacent manifest records the full source revision and local build. Keep that immutable
 release, both initialized checkpoints, h1 `baseline.json`, original h3 release `a1ffe27e7`,
@@ -275,11 +281,45 @@ runbook edit does not activate that source or modify either existing receipt.
 ## Resource-history observer update status
 
 Task74 adds a bounded read-only host/workload resource reader to the source observer.
-Its one-shot actual h3mon inspection, existing OTLP sender and74stored resource series
+Its one-shot actual h3mon inspection, existing OTLP sender and 74 stored resource series
 are verified in the [owning evidence](../openspec/changes/observability-environment-parity/verify.md).
-The compiled ab4f release and units described above remain unchanged: continuous resource
-collection is **not activated** by that component proof. Stage and validate a new immutable
-compiled observer release and preserve old units/checkpoints/rollback before changing it.
+That component proof alone did not activate collection. Task75 subsequently activated
+the locally compiled, reviewed immutable release `047e08024` on the existing h1claw
+observer. Its binary SHA256 is
+`e1d93c75b3a1b1e492c9c83183cd021d24b8b189bf3fd631a59b12f5634a2e5e`;
+the adjacent manifest binds the full source revision, Bun 1.4.4 and bun-linux-x64.
+The running `/proc` executable and unit hash were verified. Both tunnel definitions,
+effective limits of 256 MiB, 25% CPU and 32 tasks, and the restart policy remain unchanged.
+
+Continuous collection is now **active for the existing dev stack**: all 74 latest stored
+resource values matched the actual checkpoint. After a bounded owned-Alertmanager
+drill, ten distinct readings spanned 270.408 seconds, with a maximum gap of 30.643 seconds.
+The observer and tunnel had zero automatic restarts. Stored log/metric/trace,
+application and storage acceptance were complete. This does not establish common
+Kubernetes/Flux parity, full rehearsal admission, production activation or migration.
+
+During the drill, collection became explicitly unavailable; a historical evaluation
+of actual stored samples before timed recovery showed the last observation was
+125.963 seconds old. The live stale-query attempt occurred after recovery and is not
+credited as an instantaneous stale observation. Existing measurements were not
+replaced by zero. The independent bounded recovery started the same container;
+Prometheus recorded one CPU reset and one start-timestamp change. All other twelve
+container starts, all thirteen IDs, volumes and 28 configuration hashes were preserved.
+The original retained log, two trace spans and eighteen metric samples still matched.
+
+The exact prior owned unit remains at
+`/home/claw/.local/lib/puni-dev-observability/047e08024/previous.service` with SHA256
+`567f1478386132995920772ab592c266919c680654cd1369606539f59658bf88`.
+The original ab4f executable remains immutable. To roll back, verify those hashes,
+compare the current unit with the retained candidate, hardlink previous.service to
+an exclusive sibling of the owned unit, atomically rename it over that unit, then
+daemon-reload and restart only puni-dev-observability.service. Retain newer active
+checkpoints; never initialize them or copy old checkpoint evidence over them.
+
+Observer updates can briefly report incomplete stored-signal health while old and new
+producer-scope metrics coexist. This rollout converged without another restart;
+the raw historical matrix records the overlap. Do not treat that interval as
+complete or weaken the unique-active-revision acceptance check to hide it.
 
 Task75 supports rendering a candidate observer unit from a reviewed clean source checkout:
 
