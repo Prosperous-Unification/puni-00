@@ -246,3 +246,99 @@ The local positive qualifies its recorded host Node24.20.0 tuple only; it does
 not repair the historical hosted failure or establish source-image/native
 variance. Complete future-candidate CI/host qualification remains separate.
 No held Reader/fault packet was resumed, rebased or regenerated.
+
+## Pre-cleanup failure visibility (2026-10-31)
+
+Full CI41239259311 completed with failure on published
+`b6463337dde50fccf828b7cd07f8c24ecd816449`:20 jobs succeeded, remote-source
+and its required aggregate failed, and the normal docs alternative was skipped.
+All eight browser shards/pixels and every other runtime job succeeded. Secrets,
+migration and corpus lint steps succeeded. The remote-model member succeeded;
+the aggregate's failed REMOTE_MODEL_RESULT is its whole-matrix input.
+
+The actual source leaf reported62 passes/one failure over63 tests/seven files.
+Its producer diagnostic retained Node24.20.0 exit13, no signal,648.687ms against
+90000ms, empty stdout and2205 stderr bytes. Node reported an unsettled top-level
+await at the generated program's `await server.close()`. The primary producer
+outcome and pending Vite cleanup component are unknown. Reaching finally proves
+neither a prior error nor successful HTTP/package work. The configLoader warning
+is not proved fatal, and this result does not explain the older7789 failure.
+
+Primary job/artifact log SHA256 values:
+`31323c6195ab102ad718cef18339d495928c12317bcfa45e6dd85ca12c9e4348` /
+`705860b648c83f2a95a467b77fc751bb112d5ee00e7bd1c5612493abd7c1200f`.
+The terminal CI receipt SHA256 is
+`be1440d6fb6eec66a6c3f517aa045a91f0a20342ae2fd6f3d3dc6c27a007536a`.
+No retry, cancellation or repeated dispatch supplied this verdict.
+
+### Diagnostic ordering and ordinary consumers
+
+The generated program previously kept captured primary state behind its first
+cleanup await. A synchronous, optional stderr record now precedes that await.
+Fixed labels identify actual create/config/listen/document/entry/response/package
+phases; the record reports primary present or explicit absent, request/response
+counts, pre-listen facts and close-start/return flags. Error fields use bounded
+encoded prefixes with original sizes/truncation. It does not publish early
+observation.json or claim completed cleanup. Optional telemetry visibly returns
+written/unavailable; required cleanup and original/secondary failure ordering
+remain unchanged if the diagnostic sink fails.
+
+A real Node24.20.0 child with an owned TEST Vite module reproduced a known
+pre-listen HMR assertion followed by a naturally unsettled close. The old program
+exited13 and showed its actual close-start marker before the new test failed on
+expected one diagnostic/observed zero:0 pass/one fail,10 expectations,10 filtered.
+This was a genuine missing-diagnostic RED, not a production guard omission or a
+reproduction of the unknown hosted primary cause. A preceding wrong edit-path/
+zero-test setup failure is retained without RED credit.
+
+Five stub consumers then passed with84 expectations. They cover unsettled close,
+settled primary failure, primary-before-secondary aggregation, unavailable
+telemetry with required cleanup, and bounded control-bearing fields surviving the
+unchanged parent stream encoding. Final current non-producer selection passed
+14 tests/zero failures/136 expectations, with the exact genuine producer title
+alone filtered. Both configured remote lib/spec no-emit compilers, final exact
+two-file lint and format exited0. Initial34 test JSON-boundary/async lint findings
+remain a failed epoch, followed only by checked test-boundary corrections.
+
+Final program source SHA256:
+`c2df22c5676995095783cc46e0c4f5f5c60758a3b4eda88fe9cb7b4c38d15f1e`.
+Final test SHA256:
+`e8b1844a84c692c336101f3c1dba697bdd7832cf958af169a44c593350e64d0f`.
+The parent remains113cfad; all18 pins, Vite configuration, closed child
+environment,90s/130s bounds and success/cleanup predicates are unchanged.
+The immutable ordinary receipt SHA256 is
+`51319cabefce482e4a056b38eb4acc434108ad6606cc09ff4eb9827ee70cc8bd`;
+independent source review SHA256 is
+`6889478d3326d24c4ff5e3ae74b48a6687aac3d71907082a20afe8af2d04953b`.
+The bounded record is not a universal guarantee against arbitrary surrounding
+output exceeding the unchanged parent first/last16KiB excerpts.
+
+### One selected genuine producer
+
+After source review/static completion, ONE exact-title genuine consumer ran on
+the frozen two-file overlay over97bfe, with the existing success-only private
+SOURCE_FRONTEND_PRODUCER_EVIDENCE output. It passed1/0 with two expectations and
+14 other tests filtered in2.26s; original53945 joined exit0. No retry occurred.
+Actual Node24.20.0/Vite8.2.2 produced both original expected response digests.
+Retained pre-cleanup data says phasecomplete, primaryabsent and two requests/
+audits/responses, closeStarted true and closeReturned false. Final observation
+then proves closeReturned/explicitWatcherCloseReturned true, HTTP not listening,
+watcherClosed true and zero watched directories. The earlier
+watcherClosedAfterServerClose=false is preserved; the existing explicit watcher
+close performs its separate required completion.
+
+Supervisor exit is0 with90000ms configured. Its signal property is absent in
+serialized JSON because BunSync supplied undefined for no signal; a literal
+captured null is not asserted. The1318 public Git blobs/18 selected pins and
+generated program SHA256
+`4ac447a55dca793cfc9f508ab8bae4f57be11f348934e5d4dcad8a3a80144adc`
+were independently verified. All three source hashes and prior21 policy sources
+remained exact. Immutable selected-positive receipt SHA256:
+`f5a437b788712cff89555602f17435f76c7c5afffc41aee0a46954c6961d7b0c`.
+Original local handles joined; ordinary redirected logs/BunSync completion do not
+independently certify arbitrary descendants or separate pipe-EOF events.
+
+The local positive qualifies this recorded tuple only. Hosted b646's primary
+cause and older7789 remain unknown. No whole source leaf was rerun solely for
+diagnostics. Real31-case policy capacity, held Reader/43 proofs, native image,
+full active handoff, main adoption and deployment remain separate and open.
