@@ -1,3 +1,7 @@
+## Purpose
+
+Stable workflow-run construction and exact private persistence.
+
 ## ADDED Requirements
 
 ### Requirement: New workflow runs have stable generated identities
