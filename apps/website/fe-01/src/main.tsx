@@ -297,7 +297,7 @@ function ManualPage() {
   return (
     <div className="page-shell night-band">
       <HeroMedia />
-      <SiteHeader buildCurrent="true" tone="night" />
+      <SiteHeader buildCurrent="true" tone="night" placement="flow" />
       <PrivacyChoices />
       <main className="manual-layout" id="main">
         <aside className="context-panel" aria-label="About this step">
@@ -607,7 +607,7 @@ function OperatorPage() {
 
   return (
     <div className="page-shell operator-page">
-      <SiteHeader tone="light" />
+      <SiteHeader tone="light" placement="flow" />
       <main className="operator-layout" id="main">
         <p className="eyebrow">Private workspace</p>
         <h1 ref={heading} tabIndex={-1}>

@@ -151,3 +151,25 @@ test('missing versioned expiry visibly disables browser recovery without blockin
   expect(markup).toContain('Ready request');
   expect(markup).toContain('Send my request');
 });
+
+test('brief review renders before explicit contact', () => {
+  const markup = renderToStaticMarkup(
+    <RequestEditor
+      draft={{
+        description: 'Original visitor words',
+        brief: 'Reviewed brief',
+        csrfToken: 'anonymous',
+      }}
+      open
+      onOpen={() => undefined}
+      onClose={() => undefined}
+      onSubmitted={() => undefined}
+    />,
+  );
+  expect(markup).toContain('Reviewed brief');
+  expect(markup).toContain('Change this');
+  expect(markup).toContain('Ask PUNI to help');
+  expect(markup).toContain('Keep exploring');
+  expect(markup).not.toContain('type="email"');
+  expect(markup).not.toContain('type="submit"');
+});

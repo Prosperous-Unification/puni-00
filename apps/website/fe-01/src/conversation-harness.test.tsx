@@ -1072,3 +1072,24 @@ for (const status of [409, 429, 200])
       harness.unmount();
     }
   });
+
+test('anonymous scoped questions and candidate review do not mount an email form', () => {
+  for (const conversation of [
+    scoped,
+    {
+      ...scoped,
+      brief: 'Visitor-reviewed brief',
+      scoping: { ...scoped.scoping, questionId: null, candidateBrief: 'Proposed first step' },
+    },
+  ]) {
+    const markup = renderToStaticMarkup(
+      <LiveHarness
+        initial={conversation}
+        onReload={() => undefined}
+        onHandedOff={() => undefined}
+      />,
+    );
+    expect(markup).toContain('Send my request now');
+    expect(markup).not.toContain('type="email"');
+  }
+});
