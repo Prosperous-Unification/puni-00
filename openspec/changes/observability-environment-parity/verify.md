@@ -5140,3 +5140,19 @@ Private report: `.superpowers/sdd/observability-environment-parity/task-77-repor
 Raw local evidence: `/tmp/puni-task77-evidence`; final original receipt SHA256 `6e283af3d408765d46d33c4e66d580896ba6e79f288e1e34e829da306b8acb44`, distinct verification SHA256 `a12ccc73b87774e37be8de58c197ffa2d7acef7329bd223a11062d7638f1c779`. Earlier receipt generations remain intact. Final new-file suite69tests/328assertions passed, as did scoped lib/spec tsc, lint, format and strict OpenSpec. Necessary selected compatibility passed4runtime/13acceptance/3checkpoint/3transport tests. All37 original mutant commands failed and byte-identical restored controls passed;25 prove unsafe acceptance,10 diagnostic/boundary behavior,1 binding availability and1 synthetic marker exposure. Normal source hooks passed; external Tool Wiki remains inactive/uncertified.
 
 These are local source/component proofs. Task77 remains unchecked pending final independent review and new read-only actual existing-dev corroboration. Main4.1/4.2 and full Kubernetes/Flux acceptance remain open. No remote calls, push, live route/unit/backend mutation, new runner or old outage/proof replay occurred.
+
+## Task78 — deterministic Python provider fixtures — 2026-10-31
+
+Published ef3f CI41221301790 failed plain exception assertions because Python3.14 colored tracebacks under inherited FORCE_COLOR. At unchanged BASE94080a96d208b29b6a10ee40a0b351e2abddf27a, the existing machine rejection failed with ANSI-split `AssertionError: machine` under `env -u NO_COLOR -u PYTHON_COLORS FORCE_COLOR=1`. FORCE_COLOR alone initially passed locally because the harness sets NO_COLOR=1; that control is explicitly uncredited as RED.
+
+Only `dev/resources-ssh.test.ts` changes: every fixture Python launch sets PYTHON_COLORS=0 after inherited environment values. Direct and fake-SSH controls execute the actual embedded provider with a foreign machine identity under FORCE_COLOR=1/PYTHON_COLORS=1, require nonzero exit, no samples and plain exact machine refusal, and forbid ANSI escapes. Both initially failed; removing both new isolation settings failed both controls again. Restoring exact test bytes SHA256 `9f9a56679f2666eecacd14f4ebb947f9b4651ad290dbb0c368f837e417edefdf` passed both. Adjacent Proof comments name those injected faults. Production provider, SSH reader and all existing safety/refusal predicates remain unchanged.
+
+The CI `gh --log-failed` excerpts contain incomplete annotations, including bare Received lines for unified-cgroup/controllers and omitted diagnostics for membership/roster-identity. They do not establish actual empty subprocess stderr. All four named cases locally failed with full colored intended tracebacks before isolation and passed afterward; a separate historical empty-stderr cause remains unproven.
+
+Raw commands, outputs, hashes, exit codes and durations: `/tmp/puni-task78-evidence`; private report `.superpowers/sdd/observability-environment-parity/task-78-report.md`. The forced-color covering command was:
+
+```sh
+env -u NO_COLOR -u PYTHON_COLORS FORCE_COLOR=1 bun test tools/tool-observability-stack/src/dev/resources-ssh.test.ts --timeout=10000
+```
+
+Its first sandboxed attempt passed62 tests but failed2 existing loopback-server tests with listen EPERM. The identical authorized loopback-enabled retry passed64 tests in 33.184 seconds. Scoped test-file ESLint, spec TypeScript, changed-file formatting and strict OpenSpec validation passed. This restores an existing test contract without production behavior or new OpenSpec delta. No remote calls, push, CI routing/settings/timeouts changes, old fault matrix, application suite, full Nx or host gate ran; no broad CI/runtime acceptance claim is made.

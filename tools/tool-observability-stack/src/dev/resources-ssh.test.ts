@@ -134,14 +134,17 @@ function fixture() {
   };
   save();
   const executable = join(directory, 'ssh');
+  // Proof: removing PYTHON_COLORS=0 fails the forced-color ssh refusal control.
   put(
     'ssh',
-    `#!${process.execPath}\nimport {writeFileSync} from 'node:fs';writeFileSync(${JSON.stringify(join(directory, 'argv'))},JSON.stringify(process.argv.slice(2)));const child=Bun.spawn(['python3','-c',${JSON.stringify(wrapper)},${JSON.stringify(directory)}],{stdin:'inherit',stdout:'inherit',stderr:'inherit'});process.exitCode=await child.exited;`,
+    `#!${process.execPath}\nimport {writeFileSync} from 'node:fs';writeFileSync(${JSON.stringify(join(directory, 'argv'))},JSON.stringify(process.argv.slice(2)));const child=Bun.spawn(['python3','-c',${JSON.stringify(wrapper)},${JSON.stringify(directory)}],{env:{...process.env,PYTHON_COLORS:'0'},stdin:'inherit',stdout:'inherit',stderr:'inherit'});process.exitCode=await child.exited;`,
   );
   chmodSync(executable, 0o700);
-  const run = async (optimized = false) => {
+  const run = async (optimized = false, environment = process.env) => {
     save();
     const child = Bun.spawn(['python3', ...(optimized ? ['-O'] : []), '-c', wrapper, directory], {
+      // Proof: removing PYTHON_COLORS=0 fails the forced-color direct refusal control.
+      env: { ...environment, PYTHON_COLORS: '0' },
       stdin: new TextEncoder().encode(resourceProgram),
       stdout: 'pipe',
       stderr: 'pipe',
@@ -155,6 +158,36 @@ function fixture() {
   };
   return { directory, put, settings, save, executable, run };
 }
+
+test.each(['direct', 'ssh'])(
+  'Python fixture keeps %s refusals plain under forced color',
+  async (route) => {
+    const source = fixture();
+    source.put('machine', 'foreign');
+    const environment = { ...process.env, FORCE_COLOR: '1', PYTHON_COLORS: '1' };
+    const captured =
+      route === 'direct'
+        ? await source.run(false, environment)
+        : await (async () => {
+            const child = Bun.spawn([source.executable], {
+              env: environment,
+              stdin: new TextEncoder().encode(resourceProgram),
+              stdout: 'pipe',
+              stderr: 'pipe',
+            });
+            const [exit, stdout, stderr] = await Promise.all([
+              child.exited,
+              new Response(child.stdout).text(),
+              new Response(child.stderr).text(),
+            ]);
+            return { exit, stdout, stderr };
+          })();
+    expect(captured.exit).not.toBe(0);
+    expect(captured.stdout).toBe('');
+    expect(captured.stderr).toContain('AssertionError: machine');
+    expect(captured.stderr).not.toContain('\u001b[');
+  },
+);
 
 test('actual Python reads all thirteen cgroups and host busy counters without idle/guest duplicates', async () => {
   const source = fixture();
@@ -353,7 +386,7 @@ test.each(['malformed', 'oversize', 'stale', 'future', 'blocked'])(
     const source = fixture();
     source.put(
       'ssh',
-      `#!${process.execPath}\n${mode === 'blocked' ? `await Bun.sleep(60000);` : mode === 'oversize' ? `console.log('x'.repeat(32769));` : mode === 'malformed' ? `console.log('bad-json');` : `const child=Bun.spawn(['python3','-c',${JSON.stringify(wrapper)},${JSON.stringify(source.directory)}],{stdin:'inherit',stdout:'pipe',stderr:'ignore'});const reading=JSON.parse(await new Response(child.stdout).text());reading.observedAt=Date.now()+${String(mode === 'future' ? 1000 : -10001)};console.log(JSON.stringify(reading));`} `,
+      `#!${process.execPath}\n${mode === 'blocked' ? `await Bun.sleep(60000);` : mode === 'oversize' ? `console.log('x'.repeat(32769));` : mode === 'malformed' ? `console.log('bad-json');` : `const child=Bun.spawn(['python3','-c',${JSON.stringify(wrapper)},${JSON.stringify(source.directory)}],{env:{...process.env,PYTHON_COLORS:'0'},stdin:'inherit',stdout:'pipe',stderr:'ignore'});const reading=JSON.parse(await new Response(child.stdout).text());reading.observedAt=Date.now()+${String(mode === 'future' ? 1000 : -10001)};console.log(JSON.stringify(reading));`} `,
     );
     const controller = new AbortController();
     const timer =
@@ -379,7 +412,7 @@ test('default CLI sends thirteen measured workload counters through the real OTL
   const source = fixture();
   source.put(
     'ssh',
-    `#!${process.execPath}\nif(!process.argv.includes('python3'))process.exit(1);const child=Bun.spawn(['python3','-c',${JSON.stringify(wrapper)},${JSON.stringify(source.directory)}],{stdin:'inherit',stdout:'inherit',stderr:'inherit'});process.exitCode=await child.exited;`,
+    `#!${process.execPath}\nif(!process.argv.includes('python3'))process.exit(1);const child=Bun.spawn(['python3','-c',${JSON.stringify(wrapper)},${JSON.stringify(source.directory)}],{env:{...process.env,PYTHON_COLORS:'0'},stdin:'inherit',stdout:'inherit',stderr:'inherit'});process.exitCode=await child.exited;`,
   );
   const batches: string[] = [];
   const server = Bun.serve({
@@ -509,7 +542,7 @@ test('compiled observer embeds provider and local once publishes unavailable wit
     // A compiled actual-source cycle must also execute the embedded provider away from the source tree.
     source.put(
       'ssh',
-      `#!${process.execPath}\nif(!process.argv.includes('python3'))process.exit(1);const child=Bun.spawn(['python3','-c',${JSON.stringify(wrapper)},${JSON.stringify(source.directory)}],{stdin:'inherit',stdout:'inherit',stderr:'inherit'});process.exitCode=await child.exited;`,
+      `#!${process.execPath}\nif(!process.argv.includes('python3'))process.exit(1);const child=Bun.spawn(['python3','-c',${JSON.stringify(wrapper)},${JSON.stringify(source.directory)}],{env:{...process.env,PYTHON_COLORS:'0'},stdin:'inherit',stdout:'inherit',stderr:'inherit'});process.exitCode=await child.exited;`,
     );
     const actual = Bun.spawn(
       [
