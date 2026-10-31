@@ -20,7 +20,9 @@ function apiKey(overrides: Partial<MachineCredentialRecord> = {}): MachineCreden
     personId: 'claire',
     source: 'api_key',
     boundAccountId: 'dany',
+    boundAccountRole: 'super_admin',
     revokedAt: null,
+    expiresAt: null,
     trustedIssuerId: null,
     mcpFamilyId: null,
     secrets: [{ digest: DIGEST, expiresAt: null }],
@@ -39,8 +41,10 @@ describe('admitMachineCredential', () => {
         accountId: 'dany',
         organizationId: 'org-a',
         personId: 'claire',
+        accountRole: 'super_admin',
         scopes: ['read', 'write'],
       },
+      proofExpiresAt: null,
     });
   });
 
@@ -59,6 +63,21 @@ describe('admitMachineCredential', () => {
     expect(admitMachineCredential(presentedKey, rotated, NOW)).toEqual(UNKNOWN);
     expect(admitMachineCredential(presentedKey, rotated, NOW + 1)).toEqual(UNKNOWN);
     expect(admitMachineCredential(presentedKey, rotated, NOW - 1).kind).toBe('admitted');
+  });
+
+  // Proof: with the matched secret's expiry answered null, this saw null for
+  // the rotated secret; watched 2026-10-26.
+  it('answers the matched secret’s expiry, null for an unexpiring one', () => {
+    const rotating = apiKey({
+      secrets: [
+        { digest: DIGEST, expiresAt: NOW + 1000 },
+        { digest: OTHER, expiresAt: null },
+      ],
+    });
+    const old = admitMachineCredential(presentedKey, rotating, NOW);
+    const next = admitMachineCredential({ kind: 'api_key', digest: OTHER }, rotating, NOW);
+    expect(old.kind === 'admitted' ? old.proofExpiresAt : 'refused').toBe(NOW + 1000);
+    expect(next.kind === 'admitted' ? next.proofExpiresAt : 'refused').toBeNull();
   });
 
   it('admits both secrets during a rotation window', () => {

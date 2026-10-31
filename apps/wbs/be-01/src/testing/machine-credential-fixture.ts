@@ -2,6 +2,15 @@ import { digestMachineSecret, newMachineKey } from '@wbs/core';
 import type { Database } from 'bun:sqlite';
 
 /** What {@link issueApiKey} stores: an API-key credential of `organizationId` pinned to `personId`. */
+/**
+ * be-01's answer to a machine bearer (a `wbs_mk_` key, a trusted issuer's JWT) on any `/api`
+ * route (`wbs-mcp-agent-surface` M9).
+ */
+export const MACHINE_BEARER_NOT_ACCEPTED = {
+  status: 401,
+  body: { error: 'machine_bearer_not_accepted', endpoint: '/mcp' },
+} as const;
+
 export interface ApiKeyFixture {
   readonly organizationId: string;
   readonly personId: string;
@@ -47,12 +56,17 @@ export function revokeMachineCredential(sqlite: Database, id: string, at: number
   sqlite.run('UPDATE machine_credential SET revoked_at = ? WHERE id = ?', [at, id]);
 }
 
-/** An agent person `id` of `organizationId`, bound to `accountId` or to nobody. */
+/**
+ * An agent person `id` of `organizationId`, bound to `accountId` or to nobody,
+ * named `name` in that organization (the name people read; `id` when omitted).
+ * Its root name is `root-<id>`, so a read of the wrong name shows.
+ */
 export function addAgentPerson(
   sqlite: Database,
   id: string,
   organizationId: string,
   accountId: string | null,
+  name: string = id,
 ): void {
   sqlite.run("INSERT INTO person (id, name, kind, account_id) VALUES (?, ?, 'agent', ?)", [
     id,
@@ -61,6 +75,6 @@ export function addAgentPerson(
   ]);
   sqlite.run(
     'INSERT INTO person_organization (resource_id, organization_id, name) VALUES (?, ?, ?)',
-    [id, organizationId, id],
+    [id, organizationId, name],
   );
 }

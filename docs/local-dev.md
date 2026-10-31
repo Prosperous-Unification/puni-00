@@ -27,18 +27,19 @@ socket and optimization reports itself unavailable. A shell that exports
 `HOSTNAME` overrides the file. A `be-01/.env` seeded before the line existed is
 diagnosed by `bun run dev:setup`: add `HOSTNAME=000000000000` to it.
 
-## Run all three at once
+## Run all four at once
 
-`bun run dev` runs `nx run-many -t serve --projects=wbs-be-01,wbs-gw-01,wbs-fe-01 --parallel=3`,
+`bun run dev` (`bin/dev.sh`) runs `nx run-many -t serve --projects=wbs-be-01,wbs-gw-01,wbs-fe-01,wbs-mcp-01`,
 which brings up:
 
-| App     | URL                     | Notes                                |
-| ------- | ----------------------- | ------------------------------------ |
-| `be-01` | <http://localhost:3100> | Bun + Elysia; SQLite at `./local.db` |
-| `gw-01` | <http://localhost:3200> | Bun + Elysia; WS on `/ws`            |
-| `fe-01` | <http://localhost:4200> | Vite dev server with HMR             |
+| App      | URL                     | Notes                                |
+| -------- | ----------------------- | ------------------------------------ |
+| `be-01`  | <http://localhost:3100> | Bun + Elysia; SQLite at `./local.db` |
+| `gw-01`  | <http://localhost:3200> | Bun + Elysia; WS on `/ws`            |
+| `fe-01`  | <http://localhost:4200> | Vite dev server with HMR             |
+| `mcp-01` | <http://localhost:3300> | MCP endpoint `/mcp`; see below       |
 
-Logs are interleaved. `Ctrl-C` stops all three.
+Logs are interleaved. `Ctrl-C` stops all four.
 
 ## Run one at a time
 
@@ -72,20 +73,23 @@ Expected:
 - `/metrics/snapshot` on gw-01 returns the in-memory counters JSON (useful for
   manual inspection without scraping).
 
-## An activated organization with API-key agents
+## An activated organization with MCP agents
 
 `bun run dev` cannot serve one: `AUTH_MODE=local` makes every request the fixed `local-dev`
 identity, so an API key never authenticates, and nothing creates or activates an organization.
 `apps/wbs/be-01/src/dev/activated-organization-server.ts` boots be-01's production composition
 over a fresh migrated SQLite file in the temp directory, listening on `127.0.0.1` only, registers
 `owner` (password `correct-horse`), makes it `super_admin` of `org-local` and activates isolation.
-It uses public test fixture secrets, which is why it stays on loopback. It is development
-only: `.dockerignore` keeps `src/dev` out of the image and `main.ts` cannot reach it
-(`production-entrypoint.test.ts`). Stopping it, or a failed start, deletes the database.
+It composes machine grants for the mcp-01 at `--mcp-url`, so agents connect the way they do in a
+deployment: over MCP, never with a key on `/api`. It uses public test fixture secrets, which is
+why it stays on loopback. It is development only: `.dockerignore` keeps `src/dev` out of the
+image and `main.ts` cannot reach it (`production-entrypoint.test.ts`). Stopping it, or a failed
+start, deletes the database.
 
 ```bash
-bun apps/wbs/be-01/src/dev/activated-organization-server.ts \
-  --port 7300 --gw-url http://localhost:7301 --app-origin http://localhost:7400
+bun apps/wbs/be-01/src/dev/activated-organization-server.ts --port 7300 \
+  --gw-url http://localhost:7301 --app-origin http://localhost:7400 \
+  --mcp-url http://127.0.0.1:7302/mcp
 
 # gw-01: the fixture's JWT key and internal secret. It verifies native sessions on that
 # key, so the issuer is never fetched, but it must be an https: URL or gw-01 refuses to
@@ -98,6 +102,16 @@ cd apps/wbs/gw-01 && PORT=7301 LOG_LEVEL=info BE_URL=http://localhost:7300 \
   AUTH_CLIENT_SECRET=local AUTH_AUDIENCE=local \
   AUTH_REDIRECT_URI=http://localhost:7400/api/auth/okta/callback bun src/main.ts
 
+# mcp-01 in standalone mode: MCP_PUBLIC_URL is the server's --mcp-url, and
+# MCP_BE_INTERNAL_SECRET is the public fixture the server's banner prints. It also listens
+# on every interface; run it only on a trusted network.
+cd apps/wbs/mcp-01 && PORT=7302 MCP_AUTH_MODE=standalone \
+  MCP_PUBLIC_URL=http://127.0.0.1:7302/mcp WBS_API_URL=http://127.0.0.1:7300 \
+  MCP_TRUSTED_PROXY_HOPS=0 MCP_BE_INTERNAL_SECRET=<printed by the server> \
+  MCP_STORE_PATH=/tmp/wbs-local-mcp.sqlite MCP_STORE_KEY_CURRENT="$(openssl rand -base64 32)" \
+  MCP_SIGNING_KEY_CURRENT="$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 \
+    | openssl pkcs8 -topk8 -nocrypt -outform DER | base64 -w0)" bun src/main.ts
+
 cd apps/wbs/fe-01 && VITE_BE_URL=http://localhost:7300 VITE_GW_URL=http://localhost:7301 \
   bunx vite --host localhost --port 7400 --strictPort
 ```
@@ -108,8 +122,50 @@ session token in `__Host-wbs_access`, the `__Host-wbs_organization` cookie that
 `POST /api/organization/active` sets, and `X-WBS-Expected-Organization: org-local` on writes:
 `POST /api/directory/commands` with `createPerson` (`personKind: agent`) then `patchPerson`
 (`patch.accountId`), then `POST /api/organization/machine-credentials`
-`{ source: 'api_key', name, personId }`. The answer carries the key once; the agent sends it as
-`Authorization: Bearer`. Lease timing has no knob: claims hold for the real 15 minutes.
+`{ source: 'api_key', name, personId }`. The answer carries the key once: save it to a file and
+`chmod 600` it. A pool of agents comes from the organization page's agent pools panel and
+`twilight-dash pool import` instead ([`pool import`](../apps/twilight-structure/twilight-dash/cli/README.md#pool-import)).
+Lease timing has no knob: claims hold for the real 15 minutes.
+
+The agent connects to `http://127.0.0.1:7302/mcp` with
+[`twilight-dash mcp token`](../apps/twilight-structure/twilight-dash/cli/README.md#mcp-token)
+as its `headersHelper`, which exchanges the key for a fresh token at mcp-01's token endpoint
+on every run. For Claude Code, an `.mcp.json` such as:
+
+```json
+{
+  "mcpServers": {
+    "wbs": {
+      "type": "http",
+      "url": "http://127.0.0.1:7302/mcp",
+      "headersHelper": "bun <repo>/apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts mcp token --resource http://127.0.0.1:7302/mcp --key-file <key file>"
+    }
+  }
+}
+```
+
+`activated-organization-server.test.ts` runs this path: the key, the helper, one tool call.
+A human's consent on `/mcp` still cannot complete here: be-01 boots without
+`WBS_DELEGATION_VERIFY_KEY`, and there is no upstream login for mcp-01 to send the human to.
+`bun run dev` starts mcp-01, but its seeded `.env` points `WBS_API_URL` at the deployed dev
+backend and names a placeholder issuer. To exercise MCP consent, use the booted fixture behind
+mcp-01's `organization-delegation.boot.test.ts`:
+`apps/wbs/be-01/src/testing/mcp-delegation-backend.ts` (production be-01 composition, fresh
+delegation key pair, a test JWKS for the upstream login).
+
+Caps come from the test defaults (50 agent persons, 200 concurrent claims, 10,000 units per
+resource). To show or change them, point `organization-limits-cli.ts` at the database path the
+server prints on start. The CLI reads the deployment defaults from the environment and exits 1
+with a `ValidationError` without all three, even for `show`, so set them to the same numbers:
+
+```bash
+DB_PATH=<printed database path> ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS=50 \
+  ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS=200 \
+  ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE=10000 \
+  bun apps/wbs/be-01/src/organization-limits-cli.ts show --organization org-local
+```
+
+`set` and `reset` rehearse unless given `--apply`: [organization limits](runbook-organization-activation.md#organization-limits-after-activation).
 
 ## Tests / lint / typecheck
 

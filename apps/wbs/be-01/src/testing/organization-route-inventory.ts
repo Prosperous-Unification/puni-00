@@ -1,6 +1,84 @@
 /** Independently enumerated production surface; control routes retain their existing authority contracts. */
 export const ORGANIZATION_ROUTE_INVENTORY = [
   {
+    operationId: 'readRuntimeState',
+    method: 'GET',
+    path: '/api/projects/:id/runtime-state',
+    kind: 'read',
+  },
+  {
+    operationId: 'lookupRuntimeReceipt',
+    method: 'GET',
+    path: '/api/projects/:id/runtime-commands/:commandId',
+    kind: 'read',
+  },
+  {
+    operationId: 'acquireRuntimeAuthority',
+    method: 'POST',
+    path: '/api/projects/:id/runtime-authority',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'applyRuntimeCommands',
+    method: 'POST',
+    path: '/api/projects/:id/runtime-commands',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'putApiOrganizationResourceAuthoritiesByAuthorityId',
+    method: 'PUT',
+    path: '/api/organization/resource-authorities/:authorityId',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'getApiOrganizationResourceAuthoritiesByAuthorityId',
+    method: 'GET',
+    path: '/api/organization/resource-authorities/:authorityId',
+    kind: 'read',
+  },
+  {
+    operationId: 'putApiResourceAuthoritiesByAuthorityIdAdmissions',
+    method: 'PUT',
+    path: '/api/resource-authorities/:authorityId/admissions',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'putApiResourceAuthoritiesByAuthorityIdEvents',
+    method: 'PUT',
+    path: '/api/resource-authorities/:authorityId/events',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'getApiResourceAuthoritiesByAuthorityIdCleanupRequests',
+    method: 'GET',
+    path: '/api/resource-authorities/:authorityId/cleanup-requests',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiProjectsByIdResourceUses',
+    method: 'GET',
+    path: '/api/projects/:id/resource-uses',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiProjectsByIdResourceUsesByUseIdHistory',
+    method: 'GET',
+    path: '/api/projects/:id/resource-uses/:useId/history',
+    kind: 'read',
+  },
+  {
+    operationId: 'postApiProjectsByIdResourceUses',
+    method: 'POST',
+    path: '/api/projects/:id/resource-uses',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'postApiProjectsByIdResourceUsesByUseIdEvents',
+    method: 'POST',
+    path: '/api/projects/:id/resource-uses/:useId/events',
+    kind: 'mutation',
+  },
+  {
     operationId: 'getApiOrganizationActive',
     method: 'GET',
     path: '/api/organization/active',
@@ -52,6 +130,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
     method: 'PUT',
     path: '/api/compute-providers/:providerId/resources/:resourceId/capacity-report',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'deleteApiOrganizationAgent-poolsById',
+    method: 'DELETE',
+    path: '/api/organization/agent-pools/:id',
     kind: 'mutation',
   },
   {
@@ -177,6 +261,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'getApiOrganizationCompute-providers',
     method: 'GET',
     path: '/api/organization/compute-providers',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiOrganizationAgent-pools',
+    method: 'GET',
+    path: '/api/organization/agent-pools',
     kind: 'read',
   },
   {
@@ -509,6 +599,18 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'mutation',
   },
   {
+    operationId: 'postApiOrganizationAgent-pools',
+    method: 'POST',
+    path: '/api/organization/agent-pools',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'postApiOrganizationAgent-poolsByIdRekey',
+    method: 'POST',
+    path: '/api/organization/agent-pools/:id/rekey',
+    kind: 'mutation',
+  },
+  {
     operationId: 'postApiOrganizationMachine-credentials',
     method: 'POST',
     path: '/api/organization/machine-credentials',
@@ -654,6 +756,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'postInternalMcpDelegation',
     method: 'POST',
     path: '/internal/mcp/delegation',
+    kind: 'control',
+  },
+  {
+    operationId: 'postInternalMcpMachineGrants',
+    method: 'POST',
+    path: '/internal/mcp/machine-grants',
     kind: 'control',
   },
   {

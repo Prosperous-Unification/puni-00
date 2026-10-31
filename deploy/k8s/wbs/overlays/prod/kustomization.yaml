@@ -22,6 +22,10 @@ configMapGenerator:
       # Sign-in buttons stay off until organization activation (social-sign-in).
       - AUTH_METHODS=none
       - AUTH_REDIRECT_URI=https://wbs.bulletpoints.club/api/auth/okta/callback
+      # mcp-01's issuer, <MCP_PUBLIC_URL>/oauth exactly (wbs-mcp-agent-surface M2); an
+      # activated store refuses to boot without it. Not a secret.
+      # Proof: removing it, or adding a trailing slash, made mcp-manifest.test.ts fail on 2026-10-28.
+      - WBS_MCP_AUTHORIZATION_SERVER=https://wbs.bulletpoints.club/mcp/oauth
   - name: wbs-gateway-config
     namespace: wbs
     literals:
@@ -33,6 +37,9 @@ configMapGenerator:
     namespace: wbs
     literals:
       - MCP_AUTH_MODE=standalone
+      # One hop: the Traefik Ingress (ingress.yaml). Whatever stands in front of Traefik is not
+      # in this repository, so it is not counted (wbs-mcp-agent-surface M10).
+      - MCP_TRUSTED_PROXY_HOPS=1
       - WBS_API_URL=http://wbs-backend.wbs-solver.svc.cluster.local:3100
       - MCP_PUBLIC_URL=https://wbs.bulletpoints.club/mcp
 patches:

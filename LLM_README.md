@@ -65,12 +65,14 @@ git push && ./bin/dev-deploy.sh     # from h1claw, seconds
 
 One container, `wbs-dev-src`, runs all three tiers from a bind-mounted checkout via
 `bun run dev`. The h2puni poller follows puni-00 `main`, records a commit as deployed only after
-`/health` proves that checkout commit, and retries incomplete sync or proof work on later ticks
-until it succeeds. **For application code the watchers are the deploy** — nothing is built, pushed or restarted. The
+be-01's `/health` `bootCommit` proves it runs that commit, and retries incomplete sync or proof work on later ticks
+until it succeeds. **For application code the watchers are the deploy** — nothing is built or pushed; `tool-devsync` restarts only when be-01's `/health` `bootCommit` (the running code; `commit` is the disk) lags the new HEAD. The
 lockfile, migrations, and config read once at startup trigger a restart; a changed `compose.yml`
 or `Dockerfile` fails the deploy with the command that applies it. Dev has **no edge password**
 since 2026-08-06 — be-01 and gw-01 guard themselves, and account registration is open to the
 internet.
+
+Dev observability: [bounded observer, private stores and retained-store rollback](docs/runbook-dev-observability-runtime.md); [existing Grafana views](docs/runbook-dev-observability-grafana.md).
 
 **Which changes reach a running process, and which do not: `docs/runbook-dev-deploy.md`.** Dev no
 longer rehearses the prod swap (runbook, _What dev no longer proves_): run a prod dry-run before any prod deploy.

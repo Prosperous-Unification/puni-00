@@ -1,4 +1,10 @@
-import { JOURNAL_DEPTH, type JournalEntry, type NewJournalEntry, type PlanEvent } from '@wbs/core';
+import {
+  JOURNAL_DEPTH,
+  type JournalEntry,
+  type NewJournalEntry,
+  type PlanEvent,
+  type UndoStack,
+} from '@wbs/core';
 import { expect } from 'bun:test';
 
 import type { CaseRegistration } from '../case-manifest';
@@ -10,6 +16,7 @@ function entry(id: string, projectId: string, userId: string, createdAt: number)
     id,
     projectId,
     userId,
+    personId: null,
     kind: 'rename',
     payload: { label: `Rename ${id}`, forward: { type: 'rename', name: `After ${id}` } },
     inverse: { type: 'rename', name: `Before ${id}` },
@@ -69,6 +76,7 @@ function expectedFlipTarget(
     id: 'flip-target',
     projectId: seed.projectIds[0],
     userId: seed.ownerIds[0],
+    personId: null,
     seq: 1,
     kind: 'rename',
     payload: {
@@ -90,6 +98,7 @@ function expectedFlipPeer(seed: SeededPlan): JournalEntry {
     id: 'flip-peer',
     projectId: seed.projectIds[0],
     userId: seed.ownerIds[0],
+    personId: null,
     seq: 2,
     kind: 'rename',
     payload: { label: 'Rename flip-peer', forward: { type: 'rename', name: 'After flip-peer' } },
@@ -105,6 +114,7 @@ function expectedFlipOther(seed: SeededPlan): JournalEntry {
     id: 'flip-other-project',
     projectId: seed.projectIds[1],
     userId: seed.ownerIds[1],
+    personId: null,
     seq: 1,
     kind: 'rename',
     payload: {
@@ -169,12 +179,28 @@ function expectedFlipHistory(seed: SeededPlan): [PlanEvent[], PlanEvent[]] {
 async function readFlipObservation(readers: SourceReaders, seed: SeededPlan) {
   return {
     entries: await Promise.all([
-      readers.journal.entriesFor(seed.projectIds[0], seed.ownerIds[0]),
-      readers.journal.entriesFor(seed.projectIds[1], seed.ownerIds[1]),
+      readers.journal.entriesFor({
+        projectId: seed.projectIds[0],
+        userId: seed.ownerIds[0],
+        personId: null,
+      }),
+      readers.journal.entriesFor({
+        projectId: seed.projectIds[1],
+        userId: seed.ownerIds[1],
+        personId: null,
+      }),
     ]),
     states: await Promise.all([
-      readers.journal.stateOf(seed.projectIds[0], seed.ownerIds[0]),
-      readers.journal.stateOf(seed.projectIds[1], seed.ownerIds[1]),
+      readers.journal.stateOf({
+        projectId: seed.projectIds[0],
+        userId: seed.ownerIds[0],
+        personId: null,
+      }),
+      readers.journal.stateOf({
+        projectId: seed.projectIds[1],
+        userId: seed.ownerIds[1],
+        personId: null,
+      }),
     ]),
     history: await Promise.all([
       readers.planEvents.listFor(seed.projectIds[0], {}),
@@ -193,9 +219,21 @@ export function journalRegistrations(open: OpenCase<'journal'>): readonly CaseRe
       async ({ port, readers, seed, scenario }) => {
         const sentinels = await seedAtomicSentinels(port, seed);
         const beforeEntries = await Promise.all([
-          readers.journal.entriesFor(seed.projectIds[0], seed.ownerIds[0]),
-          readers.journal.entriesFor(seed.projectIds[0], seed.ownerIds[1]),
-          readers.journal.entriesFor(seed.projectIds[1], seed.ownerIds[1]),
+          readers.journal.entriesFor({
+            projectId: seed.projectIds[0],
+            userId: seed.ownerIds[0],
+            personId: null,
+          }),
+          readers.journal.entriesFor({
+            projectId: seed.projectIds[0],
+            userId: seed.ownerIds[1],
+            personId: null,
+          }),
+          readers.journal.entriesFor({
+            projectId: seed.projectIds[1],
+            userId: seed.ownerIds[1],
+            personId: null,
+          }),
         ]);
         const beforeHistory = await Promise.all(
           seed.projectIds.map((projectId) => readers.planEvents.listFor(projectId, {})),
@@ -231,9 +269,21 @@ export function journalRegistrations(open: OpenCase<'journal'>): readonly CaseRe
         ];
         expect(
           await Promise.all([
-            readers.journal.entriesFor(seed.projectIds[0], seed.ownerIds[0]),
-            readers.journal.entriesFor(seed.projectIds[0], seed.ownerIds[1]),
-            readers.journal.entriesFor(seed.projectIds[1], seed.ownerIds[1]),
+            readers.journal.entriesFor({
+              projectId: seed.projectIds[0],
+              userId: seed.ownerIds[0],
+              personId: null,
+            }),
+            readers.journal.entriesFor({
+              projectId: seed.projectIds[0],
+              userId: seed.ownerIds[1],
+              personId: null,
+            }),
+            readers.journal.entriesFor({
+              projectId: seed.projectIds[1],
+              userId: seed.ownerIds[1],
+              personId: null,
+            }),
           ]),
         ).toEqual(settledEntries);
         expect(
@@ -260,9 +310,21 @@ export function journalRegistrations(open: OpenCase<'journal'>): readonly CaseRe
         expect(scenario.reached()).toBe(true);
         expect(
           await Promise.all([
-            readers.journal.entriesFor(seed.projectIds[0], seed.ownerIds[0]),
-            readers.journal.entriesFor(seed.projectIds[0], seed.ownerIds[1]),
-            readers.journal.entriesFor(seed.projectIds[1], seed.ownerIds[1]),
+            readers.journal.entriesFor({
+              projectId: seed.projectIds[0],
+              userId: seed.ownerIds[0],
+              personId: null,
+            }),
+            readers.journal.entriesFor({
+              projectId: seed.projectIds[0],
+              userId: seed.ownerIds[1],
+              personId: null,
+            }),
+            readers.journal.entriesFor({
+              projectId: seed.projectIds[1],
+              userId: seed.ownerIds[1],
+              personId: null,
+            }),
           ]),
         ).toEqual(settledEntries);
         expect(
@@ -285,7 +347,10 @@ export function journalRegistrations(open: OpenCase<'journal'>): readonly CaseRe
             structuredClone(row),
             event(row.id, row.projectId, row.userId, row.createdAt),
           );
-          await port.flip(row.id, true, { expected: { [row.id]: 900 }, from: { [row.id]: 899 } });
+          await port.flip(row, row.id, true, {
+            expected: { [row.id]: 900 },
+            from: { [row.id]: 899 },
+          });
         }
         const flippedA = stored(undoneA, 1, true, {
           expected: { 'redo-a': 900 },
@@ -301,16 +366,40 @@ export function journalRegistrations(open: OpenCase<'journal'>): readonly CaseRe
         });
         expect(
           await Promise.all([
-            readers.journal.entriesFor(seed.projectIds[0], seed.ownerIds[0]),
-            readers.journal.entriesFor(seed.projectIds[0], seed.ownerIds[1]),
-            readers.journal.entriesFor(seed.projectIds[1], seed.ownerIds[1]),
+            readers.journal.entriesFor({
+              projectId: seed.projectIds[0],
+              userId: seed.ownerIds[0],
+              personId: null,
+            }),
+            readers.journal.entriesFor({
+              projectId: seed.projectIds[0],
+              userId: seed.ownerIds[1],
+              personId: null,
+            }),
+            readers.journal.entriesFor({
+              projectId: seed.projectIds[1],
+              userId: seed.ownerIds[1],
+              personId: null,
+            }),
           ]),
         ).toEqual([[flippedA], [flippedB], [flippedOther]]);
         expect(
           await Promise.all([
-            readers.journal.stateOf(seed.projectIds[0], seed.ownerIds[0]),
-            readers.journal.stateOf(seed.projectIds[0], seed.ownerIds[1]),
-            readers.journal.stateOf(seed.projectIds[1], seed.ownerIds[1]),
+            readers.journal.stateOf({
+              projectId: seed.projectIds[0],
+              userId: seed.ownerIds[0],
+              personId: null,
+            }),
+            readers.journal.stateOf({
+              projectId: seed.projectIds[0],
+              userId: seed.ownerIds[1],
+              personId: null,
+            }),
+            readers.journal.stateOf({
+              projectId: seed.projectIds[1],
+              userId: seed.ownerIds[1],
+              personId: null,
+            }),
           ]),
         ).toEqual([
           { undoable: false, redoable: true },
@@ -335,16 +424,40 @@ export function journalRegistrations(open: OpenCase<'journal'>): readonly CaseRe
         );
         expect(
           await Promise.all([
-            readers.journal.entriesFor(seed.projectIds[0], seed.ownerIds[0]),
-            readers.journal.entriesFor(seed.projectIds[0], seed.ownerIds[1]),
-            readers.journal.entriesFor(seed.projectIds[1], seed.ownerIds[1]),
+            readers.journal.entriesFor({
+              projectId: seed.projectIds[0],
+              userId: seed.ownerIds[0],
+              personId: null,
+            }),
+            readers.journal.entriesFor({
+              projectId: seed.projectIds[0],
+              userId: seed.ownerIds[1],
+              personId: null,
+            }),
+            readers.journal.entriesFor({
+              projectId: seed.projectIds[1],
+              userId: seed.ownerIds[1],
+              personId: null,
+            }),
           ]),
         ).toEqual([[stored(replacement, 1)], [flippedB], [flippedOther]]);
         expect(
           await Promise.all([
-            readers.journal.stateOf(seed.projectIds[0], seed.ownerIds[0]),
-            readers.journal.stateOf(seed.projectIds[0], seed.ownerIds[1]),
-            readers.journal.stateOf(seed.projectIds[1], seed.ownerIds[1]),
+            readers.journal.stateOf({
+              projectId: seed.projectIds[0],
+              userId: seed.ownerIds[0],
+              personId: null,
+            }),
+            readers.journal.stateOf({
+              projectId: seed.projectIds[0],
+              userId: seed.ownerIds[1],
+              personId: null,
+            }),
+            readers.journal.stateOf({
+              projectId: seed.projectIds[1],
+              userId: seed.ownerIds[1],
+              personId: null,
+            }),
           ]),
         ).toEqual([
           { undoable: true, redoable: false },
@@ -380,7 +493,13 @@ export function journalRegistrations(open: OpenCase<'journal'>): readonly CaseRe
             event(row.id, row.projectId, row.userId, row.createdAt),
           );
 
-        expect(await readers.journal.entriesFor(seed.projectIds[0], seed.ownerIds[0])).toEqual(
+        expect(
+          await readers.journal.entriesFor({
+            projectId: seed.projectIds[0],
+            userId: seed.ownerIds[0],
+            personId: null,
+          }),
+        ).toEqual(
           Array.from({ length: 50 }, (_, index) =>
             stored(
               entry(
@@ -393,18 +512,42 @@ export function journalRegistrations(open: OpenCase<'journal'>): readonly CaseRe
             ),
           ),
         );
-        expect(await readers.journal.entriesFor(seed.projectIds[0], seed.ownerIds[1])).toEqual([
+        expect(
+          await readers.journal.entriesFor({
+            projectId: seed.projectIds[0],
+            userId: seed.ownerIds[1],
+            personId: null,
+          }),
+        ).toEqual([
           stored(undoneB, 1, true, { expected: { 'redo-b': 900 }, from: { 'redo-b': 899 } }),
         ]);
-        expect(await readers.journal.stateOf(seed.projectIds[0], seed.ownerIds[0])).toEqual({
+        expect(
+          await readers.journal.stateOf({
+            projectId: seed.projectIds[0],
+            userId: seed.ownerIds[0],
+            personId: null,
+          }),
+        ).toEqual({
           undoable: true,
           redoable: false,
         });
-        expect(await readers.journal.stateOf(seed.projectIds[0], seed.ownerIds[1])).toEqual({
+        expect(
+          await readers.journal.stateOf({
+            projectId: seed.projectIds[0],
+            userId: seed.ownerIds[1],
+            personId: null,
+          }),
+        ).toEqual({
           undoable: false,
           redoable: true,
         });
-        expect(await readers.journal.entriesFor(seed.projectIds[1], seed.ownerIds[1])).toEqual([
+        expect(
+          await readers.journal.entriesFor({
+            projectId: seed.projectIds[1],
+            userId: seed.ownerIds[1],
+            personId: null,
+          }),
+        ).toEqual([
           stored(other, 1, true, {
             expected: { 'redo-other-project': 900 },
             from: { 'redo-other-project': 899 },
@@ -427,6 +570,88 @@ export function journalRegistrations(open: OpenCase<'journal'>): readonly CaseRe
         expect(await readers.planEvents.listFor(seed.projectIds[1], {})).toEqual([
           event(other.id, other.projectId, other.userId, other.createdAt),
         ]);
+      },
+    ),
+    // One stack per (project, account, acting person): an agent's append keeps
+    // another stack's redo, the prune ranks its own stack past the gaps the
+    // other stacks leave in the account's numbers, and a flip names its stack.
+    storeCase(
+      'journal',
+      'journal.append:acting-person-stacks',
+      open,
+      async ({ port, readers, seed }) => {
+        const [projectId] = seed.projectIds;
+        const [userId] = seed.ownerIds;
+        const human: UndoStack = { projectId, userId, personId: null };
+        const agentA: UndoStack = { projectId, userId, personId: seed.personIds[0] };
+        const agentB: UndoStack = { projectId, userId, personId: seed.personIds[1] };
+        const on = (stack: UndoStack, id: string, createdAt: number): NewJournalEntry => ({
+          ...entry(id, projectId, userId, createdAt),
+          personId: stack.personId,
+        });
+        const write = (row: NewJournalEntry) =>
+          port.append(structuredClone(row), event(row.id, projectId, userId, row.createdAt));
+        const read = () =>
+          Promise.all([human, agentA, agentB].map((stack) => readers.journal.entriesFor(stack)));
+        const states = () =>
+          Promise.all([human, agentA, agentB].map((stack) => readers.journal.stateOf(stack)));
+
+        const h1 = on(human, 'person-human-1', 101);
+        const a1 = on(agentA, 'person-a-1', 102);
+        await write(h1);
+        await write(a1);
+        await port.flip(human, h1.id, true, structuredClone(h1.preconditions));
+        await port.flip(agentA, a1.id, true, structuredClone(a1.preconditions));
+        const b1 = on(agentB, 'person-b-1', 103);
+        await write(b1);
+        expect(await read()).toEqual([
+          [stored(h1, 1, true)],
+          [stored(a1, 2, true)],
+          [stored(b1, 3)],
+        ]);
+        expect(await states()).toEqual([
+          { undoable: false, redoable: true },
+          { undoable: false, redoable: true },
+          { undoable: true, redoable: false },
+        ]);
+
+        const crossed = Promise.resolve().then(() =>
+          port.flip(agentB, a1.id, false, structuredClone(a1.preconditions)),
+        );
+        expect(crossed).rejects.toThrow(`no journal entry ${a1.id} on that undo stack`);
+        await crossed.catch(() => undefined);
+        const crossedHuman = Promise.resolve().then(() =>
+          port.flip(human, a1.id, false, structuredClone(a1.preconditions)),
+        );
+        expect(crossedHuman).rejects.toThrow(`no journal entry ${a1.id} on that undo stack`);
+        await crossedHuman.catch(() => undefined);
+        expect(await read()).toEqual([
+          [stored(h1, 1, true)],
+          [stored(a1, 2, true)],
+          [stored(b1, 3)],
+        ]);
+
+        const h2 = on(human, 'person-human-2', 104);
+        await write(h2);
+        const burst = Array.from({ length: JOURNAL_DEPTH + 1 }, (_, index) =>
+          on(agentA, `person-a-burst-${String(index).padStart(2, '0')}`, 200 + index),
+        );
+        for (const row of burst) await write(row);
+        const h3 = on(human, 'person-human-3', 300);
+        await write(h3);
+        expect(await read()).toEqual([
+          [stored(h2, 4), stored(h3, 5 + burst.length)],
+          burst.slice(1).map((row, index) => stored(row, 6 + index)),
+          [stored(b1, 3)],
+        ]);
+        expect(await states()).toEqual([
+          { undoable: true, redoable: false },
+          { undoable: true, redoable: false },
+          { undoable: true, redoable: false },
+        ]);
+        expect(
+          await readers.journal.entriesFor({ projectId, userId: seed.ownerIds[1], personId: null }),
+        ).toEqual([]);
       },
     ),
     storeCase('journal', 'journal.flip:preconditions', open, async ({ port, readers, seed }) => {
@@ -459,6 +684,7 @@ export function journalRegistrations(open: OpenCase<'journal'>): readonly CaseRe
       });
 
       await port.flip(
+        target,
         target.id,
         true,
         structuredClone({ expected: { 'work-a-one': 21 }, from: { 'work-a-one': 11 } }),
@@ -523,13 +749,23 @@ export function journalRegistrations(open: OpenCase<'journal'>): readonly CaseRe
           structuredClone(undone),
           event(undone.id, undone.projectId, undone.userId, undone.createdAt),
         );
-        await port.flip(undone.id, true, structuredClone(undone.preconditions));
+        await port.flip(undone, undone.id, true, structuredClone(undone.preconditions));
         const reap = event('history-only-reap', seed.projectIds[0], seed.ownerIds[0], 102);
         await port.appendEvent(structuredClone(reap));
-        expect(await readers.journal.entriesFor(seed.projectIds[0], seed.ownerIds[0])).toEqual([
-          stored(undone, 1, true),
-        ]);
-        expect(await readers.journal.stateOf(seed.projectIds[0], seed.ownerIds[0])).toEqual({
+        expect(
+          await readers.journal.entriesFor({
+            projectId: seed.projectIds[0],
+            userId: seed.ownerIds[0],
+            personId: null,
+          }),
+        ).toEqual([stored(undone, 1, true)]);
+        expect(
+          await readers.journal.stateOf({
+            projectId: seed.projectIds[0],
+            userId: seed.ownerIds[0],
+            personId: null,
+          }),
+        ).toEqual({
           undoable: false,
           redoable: true,
         });

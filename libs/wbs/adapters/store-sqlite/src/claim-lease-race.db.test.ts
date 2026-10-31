@@ -115,7 +115,14 @@ async function seeded(expiry: { read: ExpiryRead; snapshot: ExpiredLease[] }) {
       ),
   });
   const run = (commands: PlanCommand[], credential: CredentialPin | null) =>
-    runner.runWithin(projectId, 'dany', commands, admin, credential);
+    runner.runWithin(
+      projectId,
+      'dany',
+      commands,
+      admin,
+      credential,
+      credential !== null && 'personId' in credential ? credential.personId : null,
+    );
   const plan = await run(
     [
       ...Array.from({ length: LEAVES }, (_, n): PlanCommand => ({
@@ -393,7 +400,7 @@ describe('claim leases as a model', () => {
         };
         const heartbeat = async (agent: string) => {
           if (revoked.has(agent)) return;
-          await world.runner.renewLeases(agent);
+          await world.runner.renewLeases(agent, null);
           renewIn(model, agent, now);
         };
         /** A session release by the admin: answers whether it released. */
@@ -464,7 +471,7 @@ describe('claim leases as a model', () => {
                 act.with !== 'release' && revoked.has(agent)
                   ? Promise.resolve()
                   : act.with === 'heartbeat'
-                    ? world.runner.renewLeases(agent)
+                    ? world.runner.renewLeases(agent, null)
                     : act.with === 'write'
                       ? world.run(
                           [

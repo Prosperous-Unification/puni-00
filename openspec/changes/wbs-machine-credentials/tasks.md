@@ -218,6 +218,9 @@ See `verify.md`, "Slice 3 record".
       in verify.md before the slice 4 PR merges; after the
       swap, confirm every fleet writes and record the applied state in puni-plan without
       secrets. The Auth0 machine-to-machine applications are deleted in the dashboard.
+      (Pre-swap step recorded 2026-10-31, verify.md "Task 4.3 pre-swap evidence": dev had no
+      linked fleet, so key issuance was vacuous; `wbs_groups` on refresh is ASSUMED with a
+      post-merge check owed by Dany; the Auth0 M2M deletion stays Dany's.)
 
 Slice 4 as built (2026-10-25, PR into `main`, held until 4.3's pre-swap step):
 

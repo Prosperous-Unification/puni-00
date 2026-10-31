@@ -10,11 +10,13 @@ import { TrustedIssuersSection } from './trusted-issuers-section';
 const LIST = 'GET /api/organization/trusted-issuers';
 const REGISTER = 'POST /api/organization/trusted-issuers';
 const GITHUB = 'https://token.actions.githubusercontent.com';
+const ROOT = 'https://wbs.example/mcp/oauth';
+const SUGGESTED = `${ROOT}/org/org-a`;
 const issuer = {
   id: 'ti-1',
   issuer: GITHUB,
   jwksUri: `${GITHUB}/.well-known/jwks`,
-  audience: 'wbs:org:org-a',
+  audience: SUGGESTED,
   ssoConnectionId: null,
   createdAt: 1,
   createdBy: 'u1',
@@ -41,7 +43,7 @@ const scope: ResourceScope = {
 
 function stubSection(routes: Parameters<typeof stubServer>[0] = {}) {
   return stubServer({
-    [LIST]: [() => answer(200, { trustedIssuers: [] })],
+    [LIST]: [() => answer(200, { trustedIssuers: [], audienceRoot: ROOT })],
     'GET /api/organization/sso-connections': [
       () =>
         answer(200, {
@@ -67,18 +69,36 @@ afterEach(() => {
 });
 
 describe('trusted issuers', () => {
-  it('renders loading, then empty with the suggested audience filled in', async () => {
+  it('suggests an audience under the authorization server', async () => {
     stubSection();
     mount();
     expect(screen.getByText('Loading trusted issuers…')).toBeDefined();
     await screen.findByText('No trusted issuers yet.');
-    expect(screen.getByLabelText('Audience')).toHaveProperty('value', 'wbs:org:org-a');
+    expect(screen.getByLabelText('Audience')).toHaveProperty('value', SUGGESTED);
     expect(screen.getByLabelText('Audience')).toHaveProperty('required', true);
     expect(
       screen.getByText(
-        'Tokens must carry this audience. Configure the same value at your identity provider; the suggested value is wbs:org:org-a.',
+        `The audience must be ${ROOT} or a path under it; suggested for this organization: ${SUGGESTED}. Configure the same value at your identity provider.`,
       ),
     ).toBeDefined();
+  });
+
+  it('keeps an audience the admin typed across a reread', async () => {
+    stubSection({
+      [LIST]: [
+        () => answer(200, { trustedIssuers: [], audienceRoot: ROOT }),
+        () => answer(200, { trustedIssuers: [], audienceRoot: ROOT }),
+      ],
+      [REGISTER]: [() => answer(409, { error: 'issuer_unreachable' })],
+    });
+    mount();
+    fireEvent.change(await screen.findByLabelText('Audience'), {
+      target: { value: `${ROOT}/ci` },
+    });
+    fireEvent.change(screen.getByLabelText('Issuer URL'), { target: { value: GITHUB } });
+    fireEvent.click(screen.getByRole('button', { name: 'Register issuer' }));
+    await screen.findByRole('alert');
+    expect(screen.getByLabelText('Audience')).toHaveProperty('value', `${ROOT}/ci`);
   });
 
   it('offers only proven oidc connections', async () => {
@@ -105,8 +125,8 @@ describe('trusted issuers', () => {
   it('registers an issuer, rereads and tells the panel', async () => {
     const sent = stubSection({
       [LIST]: [
-        () => answer(200, { trustedIssuers: [] }),
-        () => answer(200, { trustedIssuers: [issuer] }),
+        () => answer(200, { trustedIssuers: [], audienceRoot: ROOT }),
+        () => answer(200, { trustedIssuers: [issuer], audienceRoot: ROOT }),
       ],
       [REGISTER]: [() => answer(201, issuer)],
     });
@@ -119,7 +139,7 @@ describe('trusted issuers', () => {
     await screen.findByText(GITHUB);
     expect(sent.find((request) => request.route === REGISTER)?.body).toEqual({
       issuer: GITHUB,
-      audience: 'wbs:org:org-a',
+      audience: SUGGESTED,
       ssoConnectionId: 'conn-1',
     });
     await waitFor(() => {
@@ -154,6 +174,11 @@ describe('trusted issuers', () => {
       400,
       'Enter a public HTTPS issuer URL (no IP address or private name, no query or fragment) and an audience.',
     ],
+    [
+      'audience_not_wbs',
+      400,
+      `The audience must be https://wbs.example/mcp/oauth or a path under it.`,
+    ],
     ['forbidden', 403, 'Only an admin can manage trusted issuers.'],
   ])('renders %s on register', async (error, status, text) => {
     stubSection({ [REGISTER]: [() => answer(status, { error })] });
@@ -165,13 +190,13 @@ describe('trusted issuers', () => {
 
   it('shows in_use with its count', async () => {
     const sent = stubSection({
-      [LIST]: [() => answer(200, { trustedIssuers: [issuer] })],
+      [LIST]: [() => answer(200, { trustedIssuers: [issuer], audienceRoot: ROOT })],
       'DELETE /api/organization/trusted-issuers/ti-1': [
         () => answer(409, { error: 'in_use', machineCredentials: 2 }),
       ],
     });
     mount();
-    expect(await screen.findByText('Audience: wbs:org:org-a · Live credentials: 2')).toBeDefined();
+    expect(await screen.findByText(`Audience: ${SUGGESTED} · Live credentials: 2`)).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: `Remove ${GITHUB}` }));
     fireEvent.click(screen.getByRole('button', { name: `Confirm removing ${GITHUB}` }));
     expect((await screen.findByRole('alert')).textContent).toBe(
@@ -183,8 +208,12 @@ describe('trusted issuers', () => {
   it('removes an unused issuer after confirmation', async () => {
     const sent = stubSection({
       [LIST]: [
-        () => answer(200, { trustedIssuers: [{ ...issuer, machineCredentials: 0 }] }),
-        () => answer(200, { trustedIssuers: [] }),
+        () =>
+          answer(200, {
+            trustedIssuers: [{ ...issuer, machineCredentials: 0 }],
+            audienceRoot: ROOT,
+          }),
+        () => answer(200, { trustedIssuers: [], audienceRoot: ROOT }),
       ],
       'DELETE /api/organization/trusted-issuers/ti-1': [() => answerEmpty(204)],
     });
@@ -197,7 +226,10 @@ describe('trusted issuers', () => {
 
   it('renders a query failure with retry', async () => {
     stubSection({
-      [LIST]: [() => answer(503, {}), () => answer(200, { trustedIssuers: [] })],
+      [LIST]: [
+        () => answer(503, {}),
+        () => answer(200, { trustedIssuers: [], audienceRoot: ROOT }),
+      ],
     });
     mount();
     fireEvent.click(await screen.findByRole('button', { name: 'Retry trusted issuers' }));

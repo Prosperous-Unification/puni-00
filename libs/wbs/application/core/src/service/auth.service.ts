@@ -8,7 +8,12 @@ import type { EnterpriseConnections } from '../ports/enterprise-connections';
 import type { OidcIdentityStore, UserStore } from '../ports/user-store';
 
 export type {
+  AdmittedMachineProof,
+  AuthenticationRefusal,
+  BearerRefusal,
   LoginOutcome,
+  PresentedMachineCredential,
+  PresentedMachineGrant,
   RegisterOutcome,
   SignedIn,
 } from '../module/authentication/authentication.feature';

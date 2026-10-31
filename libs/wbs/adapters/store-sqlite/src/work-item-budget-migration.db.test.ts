@@ -72,7 +72,15 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-work-item-budget-'));
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
-  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MIGRATION]);
+  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    '20261028100100_widen_organization_audit_agent_pools',
+    '20261028100000_add_agent_pool',
+    '20261026130000_widen_organization_audit_machine_tokens',
+    '20261026120000_add_command_journal_person',
+    '20261025130000_add_resource_runtime',
+    '20261025120000_add_resource_use',
+    MIGRATION,
+  ]);
   db = openDatabase(path);
   seedBaseline();
   db.close();
@@ -185,7 +193,15 @@ describe(MIGRATION, () => {
         .all();
     const before = facts();
     db.close();
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MIGRATION]);
+    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261028100100_widen_organization_audit_agent_pools',
+      '20261028100000_add_agent_pool',
+      '20261026130000_widen_organization_audit_machine_tokens',
+      '20261026120000_add_command_journal_person',
+      '20261025130000_add_resource_runtime',
+      '20261025120000_add_resource_use',
+      MIGRATION,
+    ]);
     db = openDatabase(path);
     expect(db.query("SELECT name FROM sqlite_master WHERE name LIKE '%budget%'").all()).toEqual([]);
     expect(facts()).toEqual(before);

@@ -71,6 +71,11 @@ function coordinatedStores(
   coordinator: MemoryCoordinator,
 ): TransactionalStores {
   return {
+    runtimeCommands: coordinatedStore(
+      stores.runtimeCommands,
+      ['compareAuthority', 'insertBinding', 'insertAcceptance'],
+      coordinator,
+    ),
     users: coordinatedStore(stores.users, ['create', 'resolveOidcIdentity'], coordinator),
     projects: coordinatedStore(
       stores.projects,

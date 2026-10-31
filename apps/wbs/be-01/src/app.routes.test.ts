@@ -16,6 +16,7 @@ import { AuthService } from '@wbs/core/service/auth.service';
 import { inMemorySpaces } from '@wbs/store-memory/space-fixture';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it, spyOn } from 'bun:test';
+import fc from 'fast-check';
 
 import type { AppOptions } from './app';
 import { buildApp, mountedEndpoints } from './app';
@@ -25,6 +26,7 @@ import {
   type EndpointReply,
   type RequestFailure,
 } from './http/endpoint';
+import { indexEndpoints } from './http/endpoint-index';
 import { bunPasswordHasher, joseTokenCodec } from './runtime/bun-runtime';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from './testing/auth-fixture';
 import { testCalendarMarkerService } from './testing/calendar-marker-fixture';
@@ -38,6 +40,7 @@ import {
   refusingTestEmailDelivery,
 } from './testing/email-verification-fixture';
 import { testHistoryService } from './testing/history-fixture';
+import { linearEndpointLookup, requestsFor } from './testing/linear-endpoint-lookup';
 import { testLoginThrottle } from './testing/login-throttle-fixture';
 import {
   legacyOrganizationAccess,
@@ -58,6 +61,19 @@ import { testWrites } from './testing/writes-fixture';
 
 function options(): AppOptions {
   return {
+    resourceRuntime: {
+      bind: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      read: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      admit: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      ingest: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      requests: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+    },
+    resourceUses: {
+      register: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      append: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      list: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+      history: () => Promise.resolve({ ok: false, reason: 'not_found' }),
+    },
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -168,6 +184,7 @@ const REQUEST_BOUNDARY_ERRORS = new Set([
   'invalid_origin',
   'unauthenticated',
   'unauthorized',
+  'internal_unauthorized',
   'insufficient_scope',
 ]);
 const PUBLIC_OPERATIONS = [
@@ -191,40 +208,45 @@ const SIGNED_IN_OPERATIONS = [
   'getApiMeasures',
   'getApiOnboarding',
   'getApiOrganization',
+  'getApiOrganizationActive',
+  'getApiOrganizationAgent-pools',
+  'getApiOrganizationCompute-providers',
   'getApiOrganizationDomains',
   'getApiOrganizationInvitations',
   'getApiOrganizationJoinRequests',
   'getApiOrganizationLimits',
+  'getApiOrganizationMachine-credentials',
   'getApiOrganizationMembers',
   'getApiOrganizationMemberships',
-  'getApiOrganizationActive',
   'getApiOrganizationProject-rank',
   'getApiOrganizationProvisioningTokens',
-  'getApiOrganizationMachine-credentials',
+  'getApiOrganizationResourceAuthoritiesByAuthorityId',
   'getApiOrganizationSession-policy',
   'getApiOrganizationSso-connections',
   'getApiOrganizationTrusted-issuers',
-  'getApiOrganizationCompute-providers',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
   'getApiProjects',
   'getApiProjectsById',
+  'getApiProjectsByIdBudget-headroom',
   'getApiProjectsByIdCalendar-markers',
   'getApiProjectsByIdClaim-history',
   'getApiProjectsByIdClaims',
   'getApiProjectsByIdHistory',
   'getApiProjectsByIdPeopleByPersonIdWork',
+  'getApiProjectsByIdResourceUses',
+  'getApiProjectsByIdResourceUsesByUseIdHistory',
   'getApiProjectsByIdResources',
   'getApiProjectsByIdSaved-plans',
   'getApiProjectsByIdSaved-plansCompare',
-  'getApiProjectsByIdBudget-headroom',
   'getApiProjectsByIdStartable',
   'getApiProjectsByIdStep-references',
   'getApiProjectsByIdWork-item-rows',
   'getApiProjectsByIdWork-items',
   'getApiProjectsByIdWork-itemsByWorkItemId',
   'getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
+  'getApiResourceAuthoritiesByAuthorityIdCleanupRequests',
   'getApiSaved-plansById',
   'getApiServices',
   'getApiSpaces',
@@ -237,8 +259,16 @@ const SIGNED_IN_OPERATIONS = [
   'getApiWork-item-types',
   'postApiOrganizationActive',
 ] as const;
-const READ_SCOPE_OPERATIONS = ['getApiProjectsByIdExport', 'getPlansBy-solutionBySlug'] as const;
+const READ_SCOPE_OPERATIONS = [
+  'getApiProjectsByIdExport',
+  'getPlansBy-solutionBySlug',
+  'lookupRuntimeReceipt',
+  'readRuntimeState',
+] as const;
 const WRITE_SCOPE_OPERATIONS = [
+  'acquireRuntimeAuthority',
+  'applyRuntimeCommands',
+  'deleteApiOrganizationAgent-poolsById',
   'deleteApiOrganizationCompute-providersById',
   'deleteApiOrganizationDomainsById',
   'deleteApiOrganizationInvitationsById',
@@ -268,6 +298,8 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiOnboardingInvitationsAccept',
   'postApiOnboardingJoinRequests',
   'postApiOnboardingOrganizations',
+  'postApiOrganizationAgent-pools',
+  'postApiOrganizationAgent-poolsByIdRekey',
   'postApiOrganizationCompute-providers',
   'postApiOrganizationDomainsByIdRotate',
   'postApiOrganizationDomainsByIdVerify',
@@ -289,6 +321,8 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiProjectsByIdOpened',
   'postApiProjectsByIdOptimizationRetry',
   'postApiProjectsByIdRedo',
+  'postApiProjectsByIdResourceUses',
+  'postApiProjectsByIdResourceUsesByUseIdEvents',
   'postApiProjectsByIdSaved-plans',
   'postApiProjectsByIdSteps',
   'postApiProjectsByIdUndo',
@@ -297,16 +331,25 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiSpacesByIdProjects',
   'postApiSpacesByIdProjectsByProjectIdMove',
   'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
+  'putApiOrganizationResourceAuthoritiesByAuthorityId',
   'putApiOrganizationSession-policy',
+  'putApiResourceAuthoritiesByAuthorityIdAdmissions',
+  'putApiResourceAuthoritiesByAuthorityIdEvents',
 ] as const;
-const INTERNAL_OPERATIONS = [
-  'postInternalForward',
+const INTERNAL_OPERATIONS = ['postInternalForward'] as const;
+/** mcp-01's routes: its dedicated secret or, during the cutover, `x-internal-auth`. */
+const MCP_INTERNAL_OPERATIONS = [
   'postInternalMcpAuthority',
   'postInternalMcpCredentials',
   'postInternalMcpCredentialsEnded',
   'postInternalMcpDelegation',
   'postInternalMcpOrganizations',
 ] as const;
+/**
+ * mcp-01's dedicated secret alone. The reachability compositions configure no
+ * dedicated secret, so these answer `internal_unauthorized` at the boundary.
+ */
+const MCP_DEDICATED_OPERATIONS = ['postInternalMcpMachineGrants'] as const;
 /** Internal routes whose own handler then needs the user's upstream Bearer, absent here. */
 const UPSTREAM_BEARER_OPERATIONS: ReadonlySet<string> = new Set([
   'postInternalGatewayProjectAccess',
@@ -334,6 +377,9 @@ const ALWAYS_ORIGIN_OPERATIONS = [
   'postApiOrganizationJoinRequestsByIdDeny',
 ] as const;
 const COOKIE_ORIGIN_OPERATIONS = [
+  'acquireRuntimeAuthority',
+  'applyRuntimeCommands',
+  'deleteApiOrganizationAgent-poolsById',
   'deleteApiOrganizationCompute-providersById',
   'deleteApiOrganizationDomainsById',
   'deleteApiOrganizationMachine-credentialsById',
@@ -362,6 +408,8 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiAuthRefresh',
   'postApiClaimsRenew',
   'postApiDirectoryCommands',
+  'postApiOrganizationAgent-pools',
+  'postApiOrganizationAgent-poolsByIdRekey',
   'postApiOrganizationCompute-providers',
   'postApiOrganizationDomainsByIdRotate',
   'postApiOrganizationDomainsByIdVerify',
@@ -380,6 +428,8 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiProjectsByIdOpened',
   'postApiProjectsByIdOptimizationRetry',
   'postApiProjectsByIdRedo',
+  'postApiProjectsByIdResourceUses',
+  'postApiProjectsByIdResourceUsesByUseIdEvents',
   'postApiProjectsByIdSaved-plans',
   'postApiProjectsByIdSteps',
   'postApiProjectsByIdUndo',
@@ -389,10 +439,14 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiSpacesByIdProjects',
   'postApiSpacesByIdProjectsByProjectIdMove',
   'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
+  'putApiOrganizationResourceAuthoritiesByAuthorityId',
   'putApiOrganizationSession-policy',
+  'putApiResourceAuthoritiesByAuthorityIdAdmissions',
+  'putApiResourceAuthoritiesByAuthorityIdEvents',
 ] as const;
 const NO_ORIGIN_OPERATIONS = [
-  'postInternalGatewayProjectBrowserAccess',
+  'lookupRuntimeReceipt',
+  'readRuntimeState',
   'getApiAuthLinkAuth0Callback',
   'getApiAuthLogin',
   'getApiAuthMe',
@@ -401,40 +455,46 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiExternal-systems',
   'getApiMeasures',
   'getApiOnboarding',
-  'getApiOrganizationMemberships',
-  'getApiOrganizationActive',
   'getApiOrganization',
+  'getApiOrganizationActive',
+  'getApiOrganizationCompute-providers',
   'getApiOrganizationDomains',
   'getApiOrganizationInvitations',
   'getApiOrganizationJoinRequests',
   'getApiOrganizationLimits',
+  'getApiOrganizationMachine-credentials',
+  'getApiOrganizationAgent-pools',
   'getApiOrganizationMembers',
+  'getApiOrganizationMemberships',
   'getApiOrganizationProject-rank',
   'getApiOrganizationProvisioningTokens',
-  'getApiOrganizationMachine-credentials',
+  'getApiOrganizationResourceAuthoritiesByAuthorityId',
   'getApiOrganizationSession-policy',
+  'getApiOrganizationSso-connections',
   'getApiOrganizationTrusted-issuers',
-  'getApiOrganizationCompute-providers',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
   'getApiProjects',
   'getApiProjectsById',
+  'getApiProjectsByIdBudget-headroom',
   'getApiProjectsByIdCalendar-markers',
   'getApiProjectsByIdClaim-history',
   'getApiProjectsByIdClaims',
   'getApiProjectsByIdExport',
   'getApiProjectsByIdPeopleByPersonIdWork',
+  'getApiProjectsByIdResourceUses',
+  'getApiProjectsByIdResourceUsesByUseIdHistory',
   'getApiProjectsByIdResources',
   'getApiProjectsByIdSaved-plans',
   'getApiProjectsByIdSaved-plansCompare',
-  'getApiProjectsByIdBudget-headroom',
   'getApiProjectsByIdStartable',
   'getApiProjectsByIdStep-references',
   'getApiProjectsByIdWork-item-rows',
   'getApiProjectsByIdWork-items',
   'getApiProjectsByIdWork-itemsByWorkItemId',
   'getApiProjectsByIdWork-itemsByWorkItemIdRefsByRefIdDelivery',
+  'getApiResourceAuthoritiesByAuthorityIdCleanupRequests',
   'getApiSaved-plansById',
   'getApiServices',
   'getApiSpaces',
@@ -449,14 +509,15 @@ const NO_ORIGIN_OPERATIONS = [
   'getMetrics',
   'getPlansBy-solutionBySlug',
   'postInternalForward',
+  'postInternalGatewayProjectAccess',
+  'postInternalGatewayProjectBrowserAccess',
   'postInternalMcpAuthority',
   'postInternalMcpCredentials',
   'postInternalMcpCredentialsEnded',
   'postInternalMcpDelegation',
+  'postInternalMcpMachineGrants',
   'postInternalMcpOrganizations',
-  'postInternalGatewayProjectAccess',
   'postInternalResume',
-  'getApiOrganizationSso-connections',
 ] as const;
 
 async function reachabilityOptions(
@@ -603,6 +664,8 @@ const STRAY_INPUT_EXCEPTIONS: ReadonlyMap<string, { status: number; error: strin
     ['postApiProjectsImport query', { status: 400, error: 'invalid_body' }],
     ['postInternalGatewayProjectAccess query', { status: 401, error: 'unauthenticated' }],
     ['postInternalGatewayProjectAccess body', { status: 401, error: 'unauthenticated' }],
+    // No dedicated mcp-01 secret is composed here, so identity refuses first.
+    ['postInternalMcpMachineGrants query', { status: 401, error: 'internal_unauthorized' }],
     ['getApiAuthLinkAuth0Callback query', { status: 302, error: null }],
     ['getApiAuthOktaCallback query', { status: 400, error: null }],
     ['getApiProjectsByIdSaved-plansCompare query', { status: 422, error: 'invalid_query' }],
@@ -656,6 +719,10 @@ function expectedPolicies(operationId: string): RequestPolicy[] {
     policies.push({ kind: 'identity', require: 'write-scope' });
   if (includesOperation(INTERNAL_OPERATIONS, operationId))
     policies.push({ kind: 'identity', require: 'internal' });
+  if (includesOperation(MCP_INTERNAL_OPERATIONS, operationId))
+    policies.push({ kind: 'identity', require: 'mcp-internal' });
+  if (includesOperation(MCP_DEDICATED_OPERATIONS, operationId))
+    policies.push({ kind: 'identity', require: 'mcp-dedicated' });
   if (includesOperation(GATEWAY_OPERATIONS, operationId))
     policies.push({ kind: 'identity', require: 'gateway-delegation' });
   if (includesOperation(GATEWAY_BROWSER_OPERATIONS, operationId))
@@ -689,6 +756,30 @@ it('binds each shared HTTP shape once in every configuration that owns it', () =
     for (const shape of shapes) {
       expect(endpoints.filter((endpoint) => endpoint.shape === shape)).toHaveLength(1);
     }
+  }
+});
+
+// The production tables hold no two same-method paths one request could both match, so
+// precedence is proved in `http/endpoint-index.test.ts`; this proves the buckets.
+// Proof: dropping `methods.add('HEAD')` failed this on `HEAD
+// /api/projects/register/runtime-commands/0`, and bucketing the untrimmed pathname failed it on
+// `GET /health/` (watched 2026-10-28).
+it('selects the endpoint the linear lookup selects, over every production table', () => {
+  for (const endpoints of [
+    mountedEndpoints(options()),
+    mountedEndpoints({ ...options(), oidc: oidcOptions() }),
+  ]) {
+    const lookup = indexEndpoints(endpoints);
+    const linear = linearEndpointLookup(endpoints);
+    fc.assert(
+      fc.property(requestsFor(endpoints), ({ method, pathname }) => {
+        const indexed = lookup(method, pathname);
+        const expected = linear(method, pathname);
+        expect(indexed?.endpoint).toBe(expected?.endpoint);
+        expect(indexed?.params).toEqual(expected?.params);
+      }),
+      { numRuns: 5000 },
+    );
   }
 });
 
@@ -832,6 +923,8 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
     ...READ_SCOPE_OPERATIONS,
     ...WRITE_SCOPE_OPERATIONS,
     ...INTERNAL_OPERATIONS,
+    ...MCP_INTERNAL_OPERATIONS,
+    ...MCP_DEDICATED_OPERATIONS,
     ...GATEWAY_OPERATIONS,
     ...GATEWAY_BROWSER_OPERATIONS,
   ]) {
@@ -864,6 +957,8 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
   expect(policyOperations('identity', 'read-scope')).toEqual([...READ_SCOPE_OPERATIONS]);
   expect(policyOperations('identity', 'write-scope')).toEqual([...WRITE_SCOPE_OPERATIONS]);
   expect(policyOperations('identity', 'internal')).toEqual([...INTERNAL_OPERATIONS]);
+  expect(policyOperations('identity', 'mcp-internal')).toEqual([...MCP_INTERNAL_OPERATIONS]);
+  expect(policyOperations('identity', 'mcp-dedicated')).toEqual([...MCP_DEDICATED_OPERATIONS]);
   expect(policyOperations('identity', 'gateway-delegation')).toEqual([...GATEWAY_OPERATIONS]);
   expect(policyOperations('identity', 'gateway-browser')).toEqual([...GATEWAY_BROWSER_OPERATIONS]);
   expect(policyOperations('origin', 'always')).toEqual([...ALWAYS_ORIGIN_OPERATIONS]);
@@ -878,6 +973,8 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
       ...READ_SCOPE_OPERATIONS,
       ...WRITE_SCOPE_OPERATIONS,
       ...INTERNAL_OPERATIONS,
+      ...MCP_INTERNAL_OPERATIONS,
+      ...MCP_DEDICATED_OPERATIONS,
       ...GATEWAY_OPERATIONS,
       ...GATEWAY_BROWSER_OPERATIONS,
     ].sort(),
@@ -997,7 +1094,9 @@ describe('shared HTTP shape reachability through the production app', () => {
           operationId: shape.operationId,
           boundaryError: UPSTREAM_BEARER_OPERATIONS.has(shape.operationId)
             ? 'unauthenticated'
-            : null,
+            : includesOperation(MCP_DEDICATED_OPERATIONS, shape.operationId)
+              ? 'internal_unauthorized'
+              : null,
         });
         expect({ operationId: shape.operationId, reply }).not.toEqual({
           operationId: shape.operationId,
@@ -1012,5 +1111,29 @@ describe('shared HTTP shape reachability through the production app', () => {
 
       expect(modeledNotFoundCount).toBeGreaterThan(0);
     });
+  }
+});
+
+it('returns explicit unavailability for admission in a composition without runtime storage', async () => {
+  const composition = options();
+  const authentication = spyOn(composition.auth, 'authenticateOrRefuse').mockResolvedValue({
+    id: 'runtime-actor',
+    username: 'runtime-actor',
+    scopes: ['read', 'write'],
+    authentication: { kind: 'machine', credentialId: 'runtime-key', personId: 'runtime-person' },
+  });
+  try {
+    const app = buildApp({ ...composition, resourceRuntime: undefined });
+    const response = await app.handle(
+      new Request('http://localhost/api/resource-authorities/dash/admissions', {
+        method: 'PUT',
+        headers: { authorization: 'Bearer fixture', 'content-type': 'application/json' },
+        body: JSON.stringify(REQUEST_BODIES['putApiResourceAuthoritiesByAuthorityIdAdmissions']),
+      }),
+    );
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'resource_tracking_unavailable' });
+  } finally {
+    authentication.mockRestore();
   }
 });

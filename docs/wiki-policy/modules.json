@@ -252,6 +252,10 @@
           },
           {
             "kind": "path",
+            "path": "libs/wbs/application/core/src/http/runtime-command.routes.ts"
+          },
+          {
+            "kind": "path",
             "path": "libs/wbs/application/core/src/http/work-item.routes.ts"
           },
           {

@@ -17,6 +17,9 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
  * for the window between a `RESTART_PATHS` change landing and the restart that
  * applies it — which is why `sync.ts` restarts rather than trusting the
  * watchers, and why the poller reads this only to answer "did the reset land".
+ * `boot.ts` also calls this once at startup for `/health`'s `bootCommit`, the
+ * code actually running: on 2026-10-26 a watcher missed a reset and `commit`
+ * named the new SHA for hours while be-01 served the old one.
  *
  * A prod container has no `.git` (it serves a built image), so this answers
  * `null` there. Null means "this deployment cannot tell you", never "no deploy

@@ -815,3 +815,41 @@ first run failed lint on two `prefer-optional-chain` guards and an `await` in th
 test; fixed (guards re-watched after the rewrite), then typecheck and lint of be-01 and core
 succeeded, the other three having passed in the first run. `nx test` for core and contracts:
 succeeded. `openspec validate --all --json`: 287/287. Burokrat `check-indexes`: exit 0.
+
+## Task 4.3 pre-swap evidence (2026-10-31)
+
+- **Linked fleets on dev: none.** A read-only look at dev on 2026-10-31 found no
+  `external_identity` row with a `person_id` (no pinned links), no `@clients` subject (no
+  Auth0 machine-to-machine identity) and no fleet API keys. No fleet on dev authenticates
+  through an operator link, so the key-issuance and last-use steps are vacuous: merging cuts
+  off no fleet. The fleets already call through `/mcp` (`wbs-mcp-agent-surface` 8.1).
+- **A refreshed browser token carries `wbs_groups`: ASSUMED, not observed.** Decoding one needs
+  the owner's browser session. Basis: the dev tenant's post-login Action sets `wbs_groups` on
+  both the ID and the access token (`docs/auth-integration.md`, the Action at about L170–180),
+  and Auth0 runs post-login Actions on a refresh-token exchange too (Auth0's documented
+  `oauth2-refresh-token` transaction protocol). Owed by Dany after merge: decode a refreshed dev
+  access token and confirm `wbs_groups`; if it is missing, sessions end at their first refresh
+  (the refresh path refuses it, 401).
+- **Not done (owner):** deleting the Auth0 machine-to-machine applications in the dashboard,
+  and the post-swap "every fleet writes" record in puni-plan. 4.3 stays unticked for them.
+- **Hold lifted:** Dany approved landing #731 on 2026-10-31.
+
+## Slice 4 merge with main (2026-10-31)
+
+Merged `origin/main` 7e0c05d82 into the branch (agent pools #771/#774/#772, MCP machine
+credentials, #785 REST off).
+
+- **Conflicts.** `principal.ts`: `CredentialPin` stays an interface without the upstream pair
+  (this slice) and gains main's optional `runId` (`wbs-mcp-agent-surface` M15);
+  `credentialPinOf` keeps main's run for a machine grant and this slice's null for an upstream
+  pair. `claim-store.ts`: main's `pinnedRunOf` kept, reduced to `credential?.runId ?? null`
+  now that no pair can reach it; `claimIdentityOf` keeps this slice's directory-free pin.
+- **Semantic conflicts.** `swarm-rehearsal.boot.db.test.ts` used its fleets' API keys as
+  `/api` Bearers, which #785 refuses: the fleets now buy a machine grant at
+  `/internal/mcp/machine-grants` (as mcp-01 does) and call with it; the raw key is asserted
+  `machine_bearer_not_accepted`; step 6 checks the revoked credential both under its held
+  grant and at a new grant request (`unknown_identity`). Step 4's undo now runs as the claire
+  fleet: undo is per acting person on main, and the release is that fleet's entry, not dany's.
+- **The groups-less half of M9** landed with this merge (`wbs-mcp-agent-surface` verify.md
+  slice 21): 4.1's `unknown_identity` for a groups-less configured-issuer token on `/api` is
+  now `machine_bearer_not_accepted`; `sessionUser` and refresh are unchanged.

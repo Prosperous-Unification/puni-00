@@ -1,5 +1,13 @@
+import type { OrganizationRole } from './stored-vocabularies';
+
 /** Where a machine credential's proof comes from (`wbs-machine-credentials` A3, A8, A21). */
 export type MachineCredentialSource = 'api_key' | 'oidc' | 'mcp_consent';
+
+/**
+ * The sources a machine grant can be issued for (`wbs-mcp-agent-surface` M3):
+ * a consent session takes delegations instead.
+ */
+export type GrantableMachineSource = Exclude<MachineCredentialSource, 'mcp_consent'>;
 
 /** One stored API-key secret of a credential: its SHA-256 hex digest and expiry. */
 export interface MachineSecretRecord {
@@ -19,7 +27,17 @@ export interface MachineCredentialRecord {
   readonly source: MachineCredentialSource;
   /** `person.account_id` read now; null when the person was unbound. */
   readonly boundAccountId: string | null;
+  /**
+   * The bound account's role in the credential's organization, read now; null
+   * when the person is unbound or the account is no member there.
+   */
+  readonly boundAccountRole: OrganizationRole | null;
   readonly revokedAt: number | null;
+  /**
+   * When the credential stops admitting (an agent pool's `expiresAt`,
+   * `wbs-mcp-agent-surface` M7); null for a credential with no expiry.
+   */
+  readonly expiresAt: number | null;
   readonly trustedIssuerId: string | null;
   readonly mcpFamilyId: string | null;
   /** Empty for every source but `api_key`. */
@@ -29,12 +47,20 @@ export interface MachineCredentialRecord {
 /**
  * What the request presented, already verified by its own verifier: the
  * digest of an API key's secret, the trusted issuer whose key set verified a
- * JWT, or the MCP family a delegation names.
+ * JWT, the MCP family a delegation names, or the credential, person and
+ * organization a be-01-signed machine grant names (`wbs-mcp-agent-surface`
+ * M3), reread at every use.
  */
 export type PresentedMachineProof =
   | { readonly kind: 'api_key'; readonly digest: string }
   | { readonly kind: 'oidc'; readonly trustedIssuerId: string }
-  | { readonly kind: 'mcp_consent'; readonly familyId: string };
+  | { readonly kind: 'mcp_consent'; readonly familyId: string }
+  | {
+      readonly kind: 'grant';
+      readonly credentialId: string;
+      readonly personId: string;
+      readonly organizationId: string;
+    };
 
 /** The only scopes a machine credential ever carries (A12): never `editor`. */
 export const MACHINE_SCOPES = ['read', 'write'] as const;
@@ -48,6 +74,8 @@ export interface MachineActor {
   readonly accountId: string;
   readonly organizationId: string;
   readonly personId: string;
+  /** {@link MachineCredentialRecord.boundAccountRole}, as admission read it. */
+  readonly accountRole: OrganizationRole | null;
   readonly scopes: typeof MACHINE_SCOPES;
 }
 
@@ -56,7 +84,16 @@ export interface MachineActor {
  * or the one refusal every failure shares.
  */
 export type MachineAdmission =
-  | { readonly kind: 'admitted'; readonly actor: MachineActor }
+  | {
+      readonly kind: 'admitted';
+      readonly actor: MachineActor;
+      /**
+       * When the matched API-key secret stops admitting (a rotated secret's
+       * window end); null for an unexpiring secret and every other source. A
+       * grant issued for the key never outlives it.
+       */
+      readonly proofExpiresAt: number | null;
+    }
   | { readonly kind: 'refused'; readonly refusal: 'unknown_identity' };
 
 const UNKNOWN: MachineAdmission = { kind: 'refused', refusal: 'unknown_identity' };
@@ -96,6 +133,11 @@ export function digestsEqual(left: string, right: string): boolean {
  *   token, so two organizations trusting one issuer URL never admit each
  *   other's subjects.
  * - `mcp_consent`: the credential must name the delegation's family.
+ * - `grant`: the credential must be an `api_key` or `oidc` one (a consent
+ *   session takes delegations, never grants), and must be the grant's own
+ *   credential, of its person, in its organization; its bound account must
+ *   still be a member there.
+ * - A credential with an expiry (an agent pool's) admits only before it.
  * - The person must still be bound to an account: that account is the actor
  *   ({@link MachineActor}).
  */
@@ -111,11 +153,25 @@ export function admitMachineCredential(
   // unknown_identity after revoke` (machine-credential.controller.db.test.ts)
   // answered 200; watched 2026-10-22.
   if (credential.revokedAt !== null) return UNKNOWN;
+  // Proof: with this check removed, `refuses a pool credential at and after
+  // its expiry` and the property `never admits a revoked, unbound, non-member
+  // or expired-pool credential` (core machine-grant.test.ts) failed; watched
+  // 2026-10-26.
+  if (credential.expiresAt !== null && credential.expiresAt <= now) return UNKNOWN;
   // Proof: with this comparison removed, `refuses an API key against a
   // credential of another source holding its digest` admitted; watched
-  // 2026-10-22.
-  if (credential.source !== presented.kind) return UNKNOWN;
-  if (!matchesProof(presented, credential, now)) return UNKNOWN;
+  // 2026-10-22. A grant never names a consent credential: with that half
+  // answering false, `never admits a consent credential, whose sessions take
+  // delegations instead` (core machine-grant.test.ts) admitted; watched
+  // 2026-10-26.
+  if (
+    presented.kind === 'grant'
+      ? credential.source === 'mcp_consent'
+      : credential.source !== presented.kind
+  )
+    return UNKNOWN;
+  const proof = matchesProof(presented, credential, now);
+  if (proof === null) return UNKNOWN;
   // Proof: admitting an unbound person (an empty account) made `refuses a
   // credential whose person is no longer bound to an account` fail; watched
   // 2026-10-22.
@@ -127,19 +183,23 @@ export function admitMachineCredential(
       accountId: credential.boundAccountId,
       organizationId: credential.organizationId,
       personId: credential.personId,
+      accountRole: credential.boundAccountRole,
       scopes: MACHINE_SCOPES,
     },
+    proofExpiresAt: proof.expiresAt,
   };
 }
 
+/** The proof matched, with the matched secret's expiry; null when it did not match. */
 function matchesProof(
   presented: PresentedMachineProof,
   credential: MachineCredentialRecord,
   now: number,
-): boolean {
+): { readonly expiresAt: number | null } | null {
+  const matched = (isMatch: boolean) => (isMatch ? { expiresAt: null } : null);
   switch (presented.kind) {
     case 'api_key': {
-      let live = false;
+      let live: { readonly expiresAt: number | null } | null = null;
       for (const secret of credential.secrets) {
         // Proof: with `secret.expiresAt > now` replaced by `true`, `refuses a
         // secret at and after its expiry` (machine-credential.test.ts)
@@ -147,9 +207,16 @@ function matchesProof(
         // predicate replaced by `true`, mounted `keeps the id, admits both
         // secrets for 24 hours, then only the new one`
         // (machine-credential-admin.controller.db.test.ts) admitted the rotated
-        // key at T0 + 25 h; watched 2026-10-22.
+        // key at T0 + 25 h; watched 2026-10-22. Only its `/api` line saw it on
+        // 2026-10-29: through mcp-01 the grant's lifetime cap at the secret's
+        // expiry refuses the key too. Since 7.1 removed that line (M9), the
+        // unit test is its negative.
         const unexpired = secret.expiresAt === null || secret.expiresAt > now;
-        if (digestsEqual(secret.digest, presented.digest) && unexpired) live = true;
+        // Proof: with the matched expiry answered null, `answers the matched
+        // secret's expiry…` (machine-credential.test.ts) and be-01's `never
+        // outlives the rotated secret that minted it` failed; watched 2026-10-26.
+        if (digestsEqual(secret.digest, presented.digest) && unexpired)
+          live = { expiresAt: secret.expiresAt };
       }
       return live;
     }
@@ -158,10 +225,23 @@ function matchesProof(
       // trusted issuer's credential for the same subject`
       // (machine-credential.test.ts) admitted B's token as A's; watched
       // 2026-10-22.
-      return credential.trustedIssuerId === presented.trustedIssuerId;
+      return matched(credential.trustedIssuerId === presented.trustedIssuerId);
     case 'mcp_consent':
       // Proof: answering true here made `admits a consent credential only for
       // its own family` admit family-2; watched 2026-10-22.
-      return credential.mcpFamilyId === presented.familyId;
+      return matched(credential.mcpFamilyId === presented.familyId);
+    case 'grant':
+      // Proof: removing each of the three identity comparisons in turn made
+      // `refuses a grant naming another person, organization or credential`
+      // fail; removing the membership predicate made `refuses a credential
+      // whose account is no longer a member of its organization` and the
+      // never-admits property fail (core machine-grant.test.ts); watched
+      // 2026-10-26.
+      return matched(
+        credential.id === presented.credentialId &&
+          credential.personId === presented.personId &&
+          credential.organizationId === presented.organizationId &&
+          credential.boundAccountRole !== null,
+      );
   }
 }

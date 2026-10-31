@@ -1313,7 +1313,16 @@ export function importServiceSourceContract(
         if (tree?.event.type !== 'tree_replaced')
           throw new Error('import did not announce its tree');
         expect(tree.event.workItems.map(({ name }) => name)).toEqual(['Ship']);
-        expect(await source.stores.journal.entriesFor(imported.projectId, ACTOR)).toEqual([]);
+        // Nothing on the account's own stack, nor on an agent person's: an
+        // import journals on no undo stack at all.
+        for (const personId of [null, 'import-agent'])
+          expect(
+            await source.stores.journal.entriesFor({
+              projectId: imported.projectId,
+              userId: ACTOR,
+              personId,
+            }),
+          ).toEqual([]);
         expect(await source.stores.planEvents.listFor(imported.projectId, {})).toEqual([]);
       } finally {
         await source.close();

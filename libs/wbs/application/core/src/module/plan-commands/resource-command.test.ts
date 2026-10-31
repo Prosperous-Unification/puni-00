@@ -68,7 +68,7 @@ async function seeded() {
       claims.add(written, stated, stamp, occupancy, leases),
     remove: (removed, cleared, stamp) => claims.remove(removed, cleared, stamp),
     moveAll: (from, to, stamp) => claims.moveAll(from, to, stamp),
-    renewLeases: (personId, now) => claims.renewLeases(personId, now),
+    renewLeases: (personId, runId, now) => claims.renewLeases(personId, runId, now),
     expiredLeasesOf: (id, at) => claims.expiredLeasesOf(id, at),
     projectsWithExpiredLeases: (at, limit) => claims.projectsWithExpiredLeases(at, limit),
     boundAccountOf: (personId) => Promise.resolve(personId === 'claire' ? F : null),
@@ -86,7 +86,8 @@ async function seeded() {
   });
   const demands = () => source.stores.demands.listByProject(projectId);
   const capacities = () => graph.capacity.listResourceCapacitiesFor(projectId);
-  const entries = async () => (await source.stores.journal.entriesFor(projectId, F)).length;
+  const entries = async () =>
+    (await source.stores.journal.entriesFor({ projectId, userId: F, personId: null })).length;
   /** Creates the two resources the cases use and answers their ids. */
   const declare = async () => {
     const answer = await runner.runDirectory(F, [

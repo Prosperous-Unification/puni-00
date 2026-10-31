@@ -22,6 +22,7 @@ import {
   LIVE_DEV_SOURCE,
   LIVE_DEV_STATE,
   LOCK_BUSY_EXIT_CODE,
+  lockedSyncExitCode,
   MCP_ENV,
   mcpExposureExpected,
   needsRestart,
@@ -35,6 +36,7 @@ import {
   SOLVER_COMPATIBILITY_PATHS,
   solverPreflightDependencies,
   solverTargetDependencies,
+  STALE_BOOT_EXIT_CODE,
   sync,
 } from './sync';
 
@@ -857,10 +859,18 @@ describe('MCP environment prerequisite', () => {
       'MCP_STORE_KEY_CURRENT=store-key',
       'MCP_STORE_PATH=/data/mcp-session.sqlite',
       'MCP_ACCESS_TOKEN_TTL=3600',
+      'MCP_TRUSTED_PROXY_HOPS=1',
     ].join('\n');
     await writeFile(envPath, `${valid}\n`);
     await chmod(envPath, 0o600);
     await assertMcpEnv(envPath);
+    // Proof: with MCP_TRUSTED_PROXY_HOPS dropped from MCP_REQUIRED_ENV, this resolved; watched
+    // 2026-10-27.
+    await writeFile(envPath, `${valid.replace('MCP_TRUSTED_PROXY_HOPS=1', '')}\n`);
+    expect(await rejection(assertMcpEnv(envPath))).toContain(
+      'exactly one non-empty MCP_TRUSTED_PROXY_HOPS',
+    );
+    await writeFile(envPath, `${valid}\n`);
 
     for (const replacement of [
       'MCP_STORE_PATH=/home/puni1/wbs-dev/state/mcp-session.sqlite',
@@ -952,6 +962,7 @@ describe('be-01 environment prerequisite', () => {
     'MCP_STORE_KEY_CURRENT=store-key',
     'MCP_STORE_PATH=/data/mcp-session.sqlite',
     'MCP_ACCESS_TOKEN_TTL=3600',
+    'MCP_TRUSTED_PROXY_HOPS=1',
   ].join('\n');
   const validBe = (): string => BE_REQUIRED_ENV.map((key) => `${key}=value`).join('\n');
 
@@ -1014,5 +1025,212 @@ describe('be-01 environment prerequisite', () => {
     expect(await rejection(sync('unreachable-sha', { mcpEnvPath, beEnvPath }))).toContain(
       'exactly one non-empty ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS=... assignment',
     );
+  });
+});
+
+describe('boot-commit convergence after reset', () => {
+  const VALID_MCP = [
+    'PORT=3300',
+    'MCP_AUTH_MODE=standalone',
+    'WBS_API_URL=http://localhost:3100',
+    'MCP_PUBLIC_URL=https://dev.wbs.bulletpoints.club/mcp',
+    'MCP_SIGNING_KEY_CURRENT=signing-key',
+    'MCP_STORE_KEY_CURRENT=store-key',
+    'MCP_STORE_PATH=/data/mcp-session.sqlite',
+    'MCP_ACCESS_TOKEN_TTL=3600',
+    'MCP_TRUSTED_PROXY_HOPS=1',
+  ].join('\n');
+  const GIT = ['-c', 'user.name=devsync-test', '-c', 'user.email=devsync@example.invalid'];
+  const INSTANT = { watchMs: 0, restartMs: 0, pollMs: 0 };
+
+  interface RehearsalShape {
+    /** How the fake be-01 answers `/health`, and what `docker restart` does to it. */
+    health: 'stale' | 'restart-fixes' | 'unreachable' | 'boots-600ms-after-restart';
+    /** The file the target commit changes; `bun.lock` is a `RESTART_PATHS` entry. */
+    touches?: string;
+    /** A boot commit to report instead of the previous one. */
+    bootCommit?: string;
+    budget?: { watchMs: number; restartMs: number; pollMs: number };
+  }
+
+  /**
+   * A rehearsal source one commit behind its origin, and a `docker` on PATH
+   * standing in for `wbs-dev-src`. `restart-fixes` is the `docker restart`
+   * that repaired dev on 2026-10-26; `stale` is a be-01 that never boots the
+   * new commit.
+   */
+  async function rehearsal(shape: RehearsalShape) {
+    const directory = await scratchAsync('wbs-devsync-boot-');
+    const origin = join(directory, 'origin.git');
+    const source = join(directory, 'source');
+    const commands = join(directory, 'commands');
+    const calls = join(directory, 'docker-calls');
+    const boot = join(directory, 'boot');
+    const restartedAt = join(directory, 'restarted-at');
+    const touched = shape.touches ?? 'README.md';
+    await mkdir(commands, { recursive: true });
+    await $`git init --quiet --bare ${origin}`;
+    await $`git clone --quiet ${origin} ${source}`.quiet();
+    await mkdir(join(source, touched, '..'), { recursive: true });
+    await writeFile(join(source, touched), 'one\n');
+    await $`git -C ${source} add ${touched}`;
+    await $`git -C ${source} ${GIT} commit --quiet -m one`;
+    const previous = (await $`git -C ${source} rev-parse HEAD`.text()).trim();
+    await writeFile(join(source, touched), 'two\n');
+    await $`git -C ${source} ${GIT} commit --quiet -am two`;
+    const target = (await $`git -C ${source} rev-parse HEAD`.text()).trim();
+    await $`git -C ${source} push --quiet origin HEAD:main`.quiet();
+    await $`git -C ${source} reset --hard --quiet ${previous}`;
+    await writeFile(boot, shape.bootCommit ?? previous);
+    const q = (path: string) => JSON.stringify(path);
+    await writeFile(
+      join(commands, 'docker'),
+      `#!/usr/bin/env bash
+set -eu
+case "$1" in
+  exec)
+    if [ "$3" = bun ]; then printf 'install\\n' >> ${q(calls)}; exit 0; fi
+    printf 'exec\\n' >> ${q(calls)}
+    ${
+      shape.health === 'unreachable'
+        ? `echo 'curl: (7) Failed to connect to 127.0.0.1 port 3100' >&2; exit 7`
+        : ''
+    }
+    booted=$(cat ${q(boot)})
+    ${
+      shape.health === 'boots-600ms-after-restart'
+        ? `if [ -f ${q(restartedAt)} ] && [ $(( $(date +%s%3N) - $(cat ${q(restartedAt)}) )) -ge 600 ]; then
+      booted=$(git -C ${q(source)} rev-parse HEAD)
+    fi`
+        : ''
+    }
+    printf '{"status":"ok","commit":"%s","bootCommit":"%s"}' "$(git -C ${q(source)} rev-parse HEAD)" "$booted" ;;
+  restart)
+    printf 'restart\\n' >> ${q(calls)}
+    ${shape.health === 'restart-fixes' ? `git -C ${q(source)} rev-parse HEAD > ${q(boot)}` : ''}
+    ${shape.health === 'boots-600ms-after-restart' ? `date +%s%3N > ${q(restartedAt)}` : ''}
+    ;;
+  *) exit 64 ;;
+esac
+`,
+    );
+    await chmod(join(commands, 'docker'), 0o755);
+    const mcpEnvPath = join(directory, 'mcp.env');
+    await writeFile(mcpEnvPath, `${VALID_MCP}\n`);
+    await chmod(mcpEnvPath, 0o600);
+    const beEnvPath = join(directory, 'be.env');
+    await writeFile(beEnvPath, `${BE_REQUIRED_ENV.map((key) => `${key}=value`).join('\n')}\n`);
+    const deploy = () =>
+      sync(target, {
+        sourcePath: source,
+        containerName: 'wbs-devsync-boot-test',
+        statePath: directory,
+        rehearsal: true,
+        mcpEnvPath,
+        beEnvPath,
+        bootConvergenceBudget: shape.budget ?? INSTANT,
+      });
+    const withFakeDocker = async <T>(run: () => Promise<T>): Promise<T> => {
+      const path = process.env['PATH'];
+      process.env['PATH'] = `${commands}:${path ?? ''}`;
+      try {
+        return await run();
+      } finally {
+        process.env['PATH'] = path;
+      }
+    };
+    const run = () => withFakeDocker(() => rejection(deploy()));
+    const exitCode = () => withFakeDocker(() => lockedSyncExitCode(deploy));
+    const dockerCalls = async () => (await readFile(calls, 'utf8')).trim().split('\n');
+    return { previous, target, source, run, exitCode, dockerCalls };
+  }
+
+  it('refuses a deploy whose be-01 still runs the previous commit', async () => {
+    // A README-only reset reloads nothing, so even a real watch window
+    // restarts after the first observation.
+    const fixture = await rehearsal({
+      health: 'stale',
+      budget: { watchMs: 5_000, restartMs: 0, pollMs: 50 },
+    });
+
+    const outcome = await fixture.run();
+
+    expect(outcome).toContain(`dev is not running ${fixture.target} after a restart`);
+    expect(outcome).toContain(`be-01 booted ${fixture.previous}`);
+    // The checkout did move: `/health`'s `commit` would have called this a success.
+    expect((await $`git -C ${fixture.source} rev-parse HEAD`.text()).trim()).toBe(fixture.target);
+    expect(await fixture.dockerCalls()).toEqual(['exec', 'restart', 'exec']);
+  });
+
+  it('exits 76 for a reset be-01 never booted', async () => {
+    const fixture = await rehearsal({ health: 'stale' });
+
+    expect(await fixture.exitCode()).toBe(STALE_BOOT_EXIT_CODE);
+    expect(STALE_BOOT_EXIT_CODE).toBe(76);
+  });
+
+  it('rethrows any other failure for the ordinary exit', async () => {
+    expect(
+      await rejection(lockedSyncExitCode(() => Promise.reject(new Error('reset did not land')))),
+    ).toContain('reset did not land');
+  });
+
+  it('accepts the deploy once the restart boots the new commit', async () => {
+    const fixture = await rehearsal({ health: 'restart-fixes' });
+
+    expect(await fixture.run()).toBe('(resolved without throwing)');
+    expect(await fixture.dockerCalls()).toEqual(['exec', 'restart', 'exec']);
+  });
+
+  it('names an unreadable health as the reason, with one restart', async () => {
+    const fixture = await rehearsal({ health: 'unreachable' });
+
+    const outcome = await fixture.run();
+
+    // Proof: with the `read.exitCode !== 0` branch removed from the production
+    // observer, this received `be-01: health body is not JSON` instead.
+    expect(outcome).toContain('be-01: health unreadable (exit 7)');
+    expect(outcome).toContain('Failed to connect');
+    expect(await fixture.dockerCalls()).toEqual(['exec', 'restart', 'exec']);
+  });
+
+  it('waits the window when the reset changes watched code', async () => {
+    const fixture = await rehearsal({
+      health: 'stale',
+      touches: 'apps/wbs/be-01/src/changed.ts',
+      budget: { watchMs: 300, restartMs: 0, pollMs: 50 },
+    });
+
+    await fixture.run();
+
+    const calls = await fixture.dockerCalls();
+    expect(calls.indexOf('restart')).toBeGreaterThan(1);
+  });
+
+  it('waits the window when the boot commit is unknown to git', async () => {
+    const fixture = await rehearsal({
+      health: 'stale',
+      bootCommit: 'c'.repeat(40),
+      budget: { watchMs: 300, restartMs: 0, pollMs: 50 },
+    });
+
+    await fixture.run();
+
+    expect((await fixture.dockerCalls()).indexOf('restart')).toBeGreaterThan(1);
+  });
+
+  it('gives a deploy that restarted for a RESTART_PATHS change the cold-boot window', async () => {
+    const fixture = await rehearsal({
+      health: 'boots-600ms-after-restart',
+      touches: 'bun.lock',
+      budget: { watchMs: 200, restartMs: 3_000, pollMs: 50 },
+    });
+
+    // Proof: with `restarted: false` passed from sync(), the 200 ms watch window
+    // closed before the cold boot and this observed a second `restart`.
+    expect(await fixture.run()).toBe('(resolved without throwing)');
+    const calls = await fixture.dockerCalls();
+    expect(calls.slice(0, 2)).toEqual(['install', 'restart']);
+    expect(calls.filter((call) => call === 'restart')).toHaveLength(1);
   });
 });

@@ -2,12 +2,16 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { JwksTokenVerifier } from '@wbs/auth';
+import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
 import { readOrganizationActivation } from '@wbs/store-sqlite';
 import { openExistingConnection } from '@wbs/store-sqlite/db';
 import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
 import { exportJWK, generateKeyPair } from 'jose';
 
+import { MACHINE_BEARER_NOT_ACCEPTED } from './testing/machine-credential-fixture';
+import { TEST_MACHINE_GRANT_ENV } from './testing/machine-grant-fixture';
+import { callForwarded, forwardingMachineGrants, requestGrant } from './testing/mcp-forwarded-call';
 import { writeMcpStoreFixture } from './testing/mcp-store-fixture';
 import { type Answer, OrganizationHarness } from './testing/organization-harness';
 
@@ -17,6 +21,9 @@ import { type Answer, OrganizationHarness } from './testing/organization-harness
  * through the operator's own CLIs, with every plan write and read over the real routes. Each
  * fleet holds an API key its organization's admin issued for its superagent
  * (`wbs-machine-credentials`), which carries its organization, as a fleet does after the swap.
+ * A fleet calls as it does through mcp-01 (`wbs-mcp-agent-surface` M3, M9): its key buys a
+ * machine grant at `/internal/mcp/machine-grants`, and each call carries that grant beside
+ * mcp-01's secret; the key itself is refused on `/api`.
  *
  * The tests share one store and run in order; each names the requirement it demonstrates.
  */
@@ -26,6 +33,8 @@ const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.ur
 const ISSUER = 'https://idp.test';
 const AUDIENCE = 'api://wbs';
 const RAM_CAPACITY = 16;
+/** mcp-01's dedicated secret, which every forwarded machine call carries. */
+const TEST_MACHINE_GRANT_SECRET = TEST_MACHINE_GRANT_ENV['MCP_BE_INTERNAL_SECRET'];
 /** The one leaf outside both fleets' subtrees. */
 const HOTFIX = 'H';
 
@@ -100,11 +109,13 @@ const ids = {
 const sessions = new Map<string, Record<string, string>>();
 /** The machine credential id each fleet's key carries. */
 const fleetCredentials = new Map<Fleet, string>();
+/** Each fleet's whole API key, as its harness holds it. */
+const fleetKeys = new Map<Fleet, string>();
 
 function cli(script: string, args: readonly string[], dbPath = h.databasePath()) {
   const run = Bun.spawnSync([process.execPath, 'run', join(APP_ROOT, 'src', script), ...args], {
     cwd: APP_ROOT,
-    env: { ...process.env, DB_PATH: dbPath },
+    env: { ...process.env, ...TEST_MACHINE_GRANT_ENV, DB_PATH: dbPath },
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -122,6 +133,7 @@ beforeAll(async () => {
   });
   h = OrganizationHarness.openComposedWith({
     sessionBinding: true,
+    machineGrants: await forwardingMachineGrants(),
     afterResolve: () => onResolved?.(),
     upstreamCredential: {
       verifier: new JwksTokenVerifier({
@@ -190,6 +202,23 @@ function sessionOf(actor: string): Record<string, string> {
   const found = sessions.get(actor);
   if (found === undefined) throw new Error(`${actor} has no session`);
   return found;
+}
+
+/**
+ * The headers mcp-01 sends be-01 for an agent holding `key` (`wbs-mcp-agent-surface` M3): the
+ * machine grant its token endpoint obtained for the key, beside mcp-01's dedicated secret.
+ */
+async function grantHeadersOf(key: string): Promise<Record<string, string>> {
+  const issued = await requestGrant(h, { kind: 'api_key', key });
+  const text = await issued.text();
+  // be-01's own grant route answers JSON; the cast reads the one field mcp-01 reads.
+  const grant = text.startsWith('{') ? (JSON.parse(text) as { grant?: unknown }).grant : undefined;
+  if (issued.status !== 200 || typeof grant !== 'string')
+    throw new Error(`grant refused: ${String(issued.status)} ${text}`);
+  return {
+    authorization: `Bearer ${grant}`,
+    [MCP_INTERNAL_SECRET_HEADER]: TEST_MACHINE_GRANT_SECRET,
+  };
 }
 
 function personOf(name: string): string {
@@ -664,7 +693,12 @@ describe('a swarm of two fleets on one plan', () => {
       if (issued.status !== 201 || id === undefined || key === undefined)
         throw new Error(`the ${fleet} key was refused: ${JSON.stringify(issued)}`);
       fleetCredentials.set(fleet, id);
-      sessions.set(fleet, { authorization: `Bearer ${key}` });
+      fleetKeys.set(fleet, key);
+      // `wbs-mcp-agent-surface` M9: the key itself is no `/api` bearer.
+      expect(await send({ authorization: `Bearer ${key}` }, 'GET', '/api/projects')).toMatchObject(
+        MACHINE_BEARER_NOT_ACCEPTED,
+      );
+      sessions.set(fleet, await grantHeadersOf(key));
     }
     expect(usersTable()).toEqual(usersBefore);
   });
@@ -875,7 +909,14 @@ describe('a swarm of two fleets on one plan', () => {
     // `assignee-management` + `resource-occupancy`: a worker claims Review of a held leaf with
     // assign: the leaf's occupancy is shared, so nothing more is acquired.
     const held = heldLeaf();
-    const reviewer = held.fleet === 'claude' ? 'claude-w3' : 'claire-w2';
+    // Never the leaf's own worker: its by-person read would list its dev and qa claims too.
+    // Proof: with the fixed `claude-w3`, a race that left B3 as fleet B's only held leaf
+    // read `[dev, qa, review]` here (h2puni gate on 15fd22d7e, 2026-10-26); `===` for `!==`
+    // below reproduces it on every run.
+    const reviewer = AGENTS.find(
+      (agent) => agent.startsWith(`${held.fleet}-w`) && agent !== held.worker,
+    );
+    if (reviewer === undefined) throw new Error(`no second ${held.fleet} worker to review`);
     const before = occupied();
     const claimed = await commandsAs(held.fleet, [
       {
@@ -974,7 +1015,9 @@ describe('a swarm of two fleets on one plan', () => {
     // `resource-occupancy`: undo of a multi-leaf release re-acquires all or nothing.
     const occupiedBeforeUndo = occupied();
     const claimsBeforeUndo = h.sqlite.query('SELECT * FROM claim ORDER BY id').all();
-    const undone = await send(sessionOf('dany'), 'POST', `/api/projects/${ids.projectId}/undo`);
+    // Undo is per acting person (`undo-per-acting-person`): the release is on the claire
+    // fleet's own stack, so the fleet undoes it, not dany.
+    const undone = await send(sessionOf('claire'), 'POST', `/api/projects/${ids.projectId}/undo`);
     expect(undone).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
     expect((undone.body as { detail: string }).detail).toStartWith('resources_exhausted:');
     expect(occupied()).toEqual(occupiedBeforeUndo);
@@ -1169,9 +1212,15 @@ describe('a swarm of two fleets on one plan', () => {
       `/api/organization/machine-credentials/${String(fleetCredentials.get('claude'))}`,
     );
     expect(revoked.status).toBe(204);
-    // `machine-credentials`: its very next request.
+    // `machine-credentials`: its very next request, under the grant it already holds and when
+    // mcp-01 asks for a new one with the key.
     expect(
       await send(sessionOf('claude'), 'GET', `/api/projects/${ids.projectId}/startable`),
+    ).toMatchObject({ status: 401, body: { error: 'unknown_identity' } });
+    const key = fleetKeys.get('claude');
+    if (key === undefined) throw new Error('the claude fleet holds no key');
+    expect(
+      await callForwarded(h, key, 'GET', `/api/projects/${ids.projectId}/startable`),
     ).toMatchObject({ status: 401, body: { error: 'unknown_identity' } });
     expect(usersTable()).toEqual(before);
     // The account's other credential still works.

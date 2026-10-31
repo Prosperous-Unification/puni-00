@@ -74,6 +74,11 @@ export interface DirectoryManagement extends Store<DirectorySnapshot> {
   /** Marks somebody a person or an agent. Nothing is sent when they already are one. */
   readonly chooseKind: (person: PersonView, kind: PersonKindView) => void;
   readonly setMemberships: (person: PersonView, teamIds: readonly string[]) => void;
+  /**
+   * Binds a person to an account, or unbinds them with null
+   * (`wbs-claim-display` 11.5). Nothing is sent when that is already so.
+   */
+  readonly bindAccount: (person: PersonView, accountId: string | null) => void;
   readonly setOwnedServices: (team: TeamView, serviceIds: readonly string[]) => void;
 
   /** Creates a team and puts one person in it, as one gesture. */

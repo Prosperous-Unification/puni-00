@@ -2,6 +2,7 @@ import {
   type BodyMedia,
   bodyMediaFor,
   type EndpointShape,
+  isServiceIdentityRequirement,
   queryModeFor,
   type Refusal,
   type SchemaShape,
@@ -20,7 +21,7 @@ import {
   type RequestFailure,
   type RequestMetadata,
 } from '../endpoint';
-import { matchPath } from '../route';
+import { indexEndpoints } from '../endpoint-index';
 import { decodeForm } from './form';
 import type { UnexpectedFailureReporter } from './unexpected-failure';
 
@@ -54,16 +55,17 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
     // Proof: omitting this call made the malformed erased open-query table mount without throwing.
     queryModeFor(shape);
     const internal = shape.policies.some(
-      (policy) => policy.kind === 'identity' && policy.require === 'internal',
+      (policy) => policy.kind === 'identity' && isServiceIdentityRequirement(policy.require),
     );
     const user = shape.policies.some(
-      (policy) => policy.kind === 'identity' && policy.require !== 'internal',
+      (policy) => policy.kind === 'identity' && !isServiceIdentityRequirement(policy.require),
     );
     // Proof: removing this check makes the mixed erased-table test fail: function did not throw.
     if (internal && user)
       throw new Error(`Endpoint ${shape.operationId} has incompatible identity policies`);
   }
   const admissions = new WeakMap<Request, Admission>();
+  const lookupEndpoint = indexEndpoints(endpoints);
   const app = new Elysia();
   // Elysia exports onRequest hooks into a parent before routing, so their error
   // hook must follow them. Limit it to this adapter's selected requests.
@@ -109,17 +111,7 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
       // Proof: a fresh signal here made 'cancels the provider read when the request aborts' see the provider signal still open (2026-10-24).
       signal: request.signal,
     };
-    const matched = endpoints
-      .filter(
-        ({ shape }) =>
-          shape.method === request.method || (request.method === 'HEAD' && shape.method === 'GET'),
-      )
-      .flatMap((endpoint) => {
-        const params = matchPath(endpoint.shape.path, metadata.url.pathname);
-        return params === null ? [] : [{ endpoint, params }];
-      })
-      .sort((left, right) => comparePaths(left.endpoint.shape.path, right.endpoint.shape.path))
-      .at(0);
+    const matched = lookupEndpoint(request.method, metadata.url.pathname);
     // Proof: on 2026-09-21, reporting here made “admits static and parameter siblings
     // with their own ordered policies” receive an injected failure instead of an empty list.
     if (matched === undefined) return undefined;
@@ -161,10 +153,23 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
         // issuer invalid_token without fetching any key set`
         // (oidc-credential.controller.db.test.ts) answered 500; watched
         // 2026-10-22.
+        // A machine grant's bearer-level refusals (`wbs-mcp-agent-surface`
+        // M3, M14) reach any route the same way: `internal_unauthorized` for
+        // a missing or wrong mcp-01 secret, `unknown_grant_key` for a grant
+        // under no configured key. `machine_bearer_not_accepted`
+        // (`wbs-mcp-agent-surface` M9) is a machine bearer on any route.
+        // Proof: with it dropped from this condition, `is refused
+        // machine_bearer_not_accepted before any credential read or key set
+        // fetch` (oidc-credential.controller.db.test.ts) answered 500
+        // `undeclared refusal`; watched 2026-10-29.
         if (
           !identity.ok &&
           'error' in identity.body &&
-          (identity.body.error === 'unknown_identity' || identity.body.error === 'invalid_token')
+          (identity.body.error === 'unknown_identity' ||
+            identity.body.error === 'invalid_token' ||
+            identity.body.error === 'internal_unauthorized' ||
+            identity.body.error === 'unknown_grant_key' ||
+            identity.body.error === 'machine_bearer_not_accepted')
         )
           return Response.json(identity.body, {
             status: 401,
@@ -172,7 +177,7 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
           });
         if (!identity.ok) return renderReply(matched.endpoint.shape, identity);
         // Proof: deleting this check admits the mismatched-resolver fixture with 200 instead of 500.
-        if ((policy.require === 'internal') !== 'kind' in identity.principal) {
+        if (isServiceIdentityRequirement(policy.require) !== 'kind' in identity.principal) {
           throw new Error('Identity resolver returned the wrong principal kind');
         }
         admission.principal = identity.principal;
@@ -387,21 +392,6 @@ function parserMedia(contentType: string): BodyMedia | undefined {
     default:
       return undefined;
   }
-}
-
-/**
- * Elysia gives a static segment precedence over a parameter at the first divergence.
- * Proof: omitting this ordering applies the protected parameter route's policy
- * to its public static sibling, and the sibling test receives 401 instead of 200.
- */
-function comparePaths(left: string, right: string): number {
-  const rightSegments = right.split('/');
-  for (const [index, segment] of left.split('/').entries()) {
-    const difference =
-      Number(segment.startsWith(':')) - Number(rightSegments[index]?.startsWith(':'));
-    if (difference !== 0) return difference;
-  }
-  return 0;
 }
 
 /**

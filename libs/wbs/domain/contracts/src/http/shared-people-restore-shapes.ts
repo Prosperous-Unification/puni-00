@@ -9,6 +9,7 @@ export const approveSharedPeopleRestore = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/shared-people/restore-approvals',
   operationId: 'postApiOrganizationSharedPeopleRestoreApprovals',
+  humanOnly: true,
   policies: [
     { kind: 'origin', when: 'always-unsafe-with-session-cookie' },
     { kind: 'identity', require: 'write-scope' },

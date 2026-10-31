@@ -43,7 +43,7 @@ type Reader = Pick<SQLiteBunDatabase, 'select' | 'selectDistinct'>;
  * @throws when `limits` is absent or any of it is outside the bounds an
  * organization may hold.
  */
-function checkedLimits(
+export function checkedLimits(
   limits: OrganizationLimitValues | undefined,
   owner: string,
 ): OrganizationLimitValues {
@@ -481,6 +481,23 @@ export class OrganizationLimitsRepository implements OrganizationLimits {
 }
 
 /**
+ * The organization's agent-person cap and count, read through `db`: the
+ * caller's transaction when it holds one. The one reading `addPerson`'s cap
+ * check (through {@link OrganizationLimitGaugeRepository}) and an agent pool's
+ * creation (`AgentPoolRepository`) both decide by.
+ */
+export function readAgentPersonCapIn(
+  db: Reader,
+  organizationId: string,
+  defaults: OrganizationLimitValues,
+): CapReading {
+  return {
+    cap: readEffectiveLimits(db, organizationId, defaults).limits.maxAgentPersons,
+    current: countAgentPersons(db, organizationId),
+  };
+}
+
+/**
  * {@link OrganizationLimitGauge} over the shared database: plain reads on the
  * process's one connection, inside whatever transaction its caller holds. The
  * source installs it among the stores a batch is admitted with, so a batch
@@ -499,10 +516,7 @@ export class OrganizationLimitGaugeRepository implements OrganizationLimitGauge 
 
   async readAgentPersonCap(organizationId: string): Promise<CapReading> {
     await Promise.resolve();
-    return {
-      cap: readEffectiveLimits(this.db, organizationId, this.defaults).limits.maxAgentPersons,
-      current: countAgentPersons(this.db, organizationId),
-    };
+    return readAgentPersonCapIn(this.db, organizationId, this.defaults);
   }
 
   // Proof: answering `maxAgentPersons` as the cap here failed the SQLite

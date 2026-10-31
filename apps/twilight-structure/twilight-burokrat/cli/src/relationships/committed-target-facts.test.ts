@@ -85,6 +85,8 @@ describe('current nx-target facts in the committed relationship declarations', (
       // uncached failed both declarations on check.wiki-cli.test (expected false, received true).
       // Proof (2026-10-16): retaining `bun test` after the target selected `bun test ./src`
       // failed both declarations on check.wiki-cli.test's command (one changed line each).
+      // Proof (2026-10-27): P1 removed only BE's five new inputs from the full declaration;
+      // this comparison emitted the check.be-01.test five-input authority diff.
       for (const fact of facts) {
         const live = targets.find(
           (target) => target.project === fact.project && target.target === fact.target,

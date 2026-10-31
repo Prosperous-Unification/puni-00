@@ -27,6 +27,7 @@ import type { Gate } from './gate';
 import type { ImmediateTransaction } from './immediate-write';
 import { currentMembershipAccess } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
+import { signalClaimResourceUses } from './resource-use';
 import { bumpWorkItems } from './revision';
 import {
   claim,
@@ -294,6 +295,7 @@ export class ClaimRepository implements ClaimStore {
         // Delegated claims under a removed one go with it (`parent_claim_id`
         // cascades), and every removed claim's occupancy rows with it.
         if (ids.length > 0) tx.delete(claim).where(inArray(claim.id, ids)).run();
+        for (const removed of claims) signalClaimResourceUses(tx, removed, stamp.at, stamp.by);
         for (const { workItemId, stepId } of cleared) {
           tx.delete(stepProgress)
             .where(and(eq(stepProgress.workItemId, workItemId), eq(stepProgress.stepId, stepId)))
@@ -308,9 +310,28 @@ export class ClaimRepository implements ClaimStore {
     });
   }
 
-  async renewLeases(personId: string, now: () => number): Promise<LeaseRenewal> {
+  async renewLeases(
+    personId: string,
+    runId: string | null,
+    now: () => number,
+  ): Promise<LeaseRenewal> {
+    // A run scopes to its own leases and the person's no-run ones; no run
+    // means every lease of the person, never `run_id IS NULL` (the port's
+    // contract, M15).
+    // Proof: with `isNull(claim.runId)` for a null run, the SQLite
+    // certification failed `claims.lease:write-renew-expire` (its run-1
+    // leases left unrenewed); with the run filter dropped, it failed
+    // `claims.lease:run-scoped` (run b's lease renewed by run a); 83 pass,
+    // 1 fail each; watched 2026-10-27.
+    // Proof: with the no-run half dropped (`eq(claim.runId, runId)` alone),
+    // `claims.lease:run-scoped` failed (the pre-opt-in lease left at 10 000);
+    // watched 2026-10-27.
+    const ofHolder = () =>
+      runId === null
+        ? eq(claim.personId, personId)
+        : and(eq(claim.personId, personId), or(eq(claim.runId, runId), isNull(claim.runId)));
     const inForceAt = (at: number) =>
-      and(eq(claim.personId, personId), isNull(claim.leaseRevokedAt), gt(claim.leaseExpiresAt, at));
+      and(ofHolder(), isNull(claim.leaseRevokedAt), gt(claim.leaseExpiresAt, at));
     const dueAt = (at: number) =>
       and(inForceAt(at), lt(claim.leaseExpiresAt, renewalAt(at).dueBefore));
     let at = now();

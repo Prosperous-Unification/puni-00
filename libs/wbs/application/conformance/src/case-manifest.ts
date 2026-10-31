@@ -25,6 +25,7 @@ export const PORT_NAMES = [
   'attempts',
   'blockages',
   'stepParallels',
+  'runtimeCommands',
   'claims',
   'demands',
   'dependencies',
@@ -161,6 +162,7 @@ export const CASE_MANIFEST = {
   blockages: ['blockages.set:read-remove'],
   // Proof: family removed; complete-source inventory assertion failed (source-inventory.txt), 2026-10-15.
   stepParallels: ['stepParallels.set:sparse-replace-remove'],
+  runtimeCommands: ['runtimeCommands.write:permanent-history'],
   claims: [
     'claims.add:taken-stated-remove',
     'claims.listStampedByProject:write-instant',
@@ -169,6 +171,7 @@ export const CASE_MANIFEST = {
     'claims.lease:write-renew-expire',
     'claims.observeProject:legacy-observation',
     'claims.lease:revoked-instant-read',
+    'claims.lease:run-scoped',
     'claims.occupancy:hold-read-cascade',
   ],
   demands: ['demands.set:replace-clear-scope', 'demands.set:missing-reference'],
@@ -183,6 +186,7 @@ export const CASE_MANIFEST = {
   journal: [
     'journal.append:history-atomic',
     'journal.append:account-redo-depth',
+    'journal.append:acting-person-stacks',
     'journal.flip:preconditions',
     'journal.appendEvent:history-only',
   ],

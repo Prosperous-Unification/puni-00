@@ -55,6 +55,7 @@ import {
 } from './measure-definition';
 import { appendOrganizationAudit } from './organization-audit-log';
 import { bumpWorkItems } from './revision';
+import { resourceUseRecord } from './schema';
 import {
   assignment,
   claim,
@@ -1054,7 +1055,9 @@ export class DirectoryRepository implements DirectoryStore {
         const usage = this.resourceUsageIn(tx, resourceId);
         const inUse =
           usage.demands.length > 0 || usage.capacities.length > 0 || usage.occupancies > 0;
-        if (!cascade && inUse) return { ok: false, reason: 'in_use', usage };
+        // Proof: removing outstandingUses admitted cascade deletion with unresolved runtime responsibility (2026-10-25).
+        if ((!cascade && inUse) || (usage.outstandingUses ?? 0) > 0)
+          return { ok: false, reason: 'in_use', usage };
         const demanded = [...new Set(usage.demands.map((each) => each.workItemId))];
         bumpWorkItems(tx, demanded, stamp);
         // Read before the delete cascades the occupancy away: a project whose
@@ -1094,6 +1097,16 @@ export class DirectoryRepository implements DirectoryStore {
 
   /** The demands, capacities and project rows that name one resource, read through `reader`. */
   private resourceUsageIn(reader: Reader, resourceId: string): ResourceUsageRows {
+    // Proof: without pending acknowledgments, the late-cause regression deleted this resource with status 200 (2026-10-25).
+    const tracked = reader
+      .select({ count: sql<number>`count(*)` })
+      .from(resourceUseRecord)
+      .where(
+        sql`json_extract(${resourceUseRecord.snapshot},'$.resourceId')=${resourceId} AND json_extract(${resourceUseRecord.snapshot},'$.source')='runtime' AND (${resourceUseRecord.state}!='release_verified' OR json_extract(${resourceUseRecord.snapshot},'$.pendingCleanupRequest')=1)`,
+      )
+      .get();
+    if (tracked === undefined) throw new Error('runtime use count is absent');
+
     const demands = reader
       .select({
         workItemId: workItemResourceDemand.workItemId,
@@ -1141,6 +1154,7 @@ export class DirectoryRepository implements DirectoryStore {
       // its removal is refused in_use` in `compute-provider.controller.db.test.ts`
       // read `providerId: null`; watched 2026-10-22.
       providerId: referenced?.providerId ?? null,
+      ...(tracked.count > 0 ? { outstandingUses: tracked.count } : {}),
     };
   }
 

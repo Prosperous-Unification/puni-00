@@ -242,12 +242,35 @@ there, added once a connection is seen displaying that exact URI. Unproven clien
 expire after 10 minutes of DCR inactivity. Starting authorization can extend an
 unproven client only to an absolute 20-minute lifetime, and a new flow is
 refused with 429 when that ceiling cannot cover the browser and code-exchange
-window; a successful exchange promotes the client to 24 hours. Registered
+window. A successful code exchange promotes the client to proven, and each
+code exchange or successful refresh renews a proven client to 30 days after
+that use (`PROVEN_CLIENT_TTL_MS`; a refresh never renews or proves an unproven
+one), so it outlives its refresh families (14-day idle, 30-day absolute) and a
+connector that caches its `client_id`, such as Claude Code, can still start a
+fresh authorization after a family lapses. Registered
 clients live in the MCP store (`MCP_STORE_PATH`), so restarts and deploys keep
-them and their lifetimes; authorization with an unknown or expired `client_id`
-answers `400 invalid_client` to the browser with an `error_description` asking
-for a new registration (automatic re-registration by clients is unobserved),
-while other malformed authorization requests stay `invalid_request`. A stored
+them and their lifetimes. Claude Code caches its `client_id` indefinitely and
+does not re-register when the browser shows `invalid_client`, so a well-formed
+authorization whose `client_id` has no live row is re-admitted as a fresh
+unproven client when the id has the exact shape mcp-01 issues (canonical
+base64url of 32 bytes) and the `redirect_uri` passes the `/register` callback
+checks; it goes through the same caps, keyed by the request's source, with that
+`redirect_uri` as its only callback, and a cap refusal answers 429 as `/register`
+does (`McpOAuthServer.readmitClient`, whose JSDoc explains why this is no weaker
+than open registration). A live client is never re-admitted or altered, and a
+second colour that re-admits the same id concurrently continues with the first
+one's row. A `client_id` therefore no longer names one registration; be-01 sees it only
+as the delegation's `client` label. Someone who learns another connector's swept
+id can re-admit it first with another listed callback, and an insider with
+`wbs:read` can complete a sign-in on it and keep it proven for 30 days, renewed also by
+the victim's own older family, so up to that family's absolute expiry plus 30
+days; that connector then gets `invalid_request` without a re-register hint while the
+other client lives, no worse than the permanent `invalid_client` it got before.
+A re-admitted claude.ai client is keyed by the user's browser address, not
+Anthropic's egress, so it leaves the shared proven budget of that egress.
+Any other unknown or expired `client_id` answers `400 invalid_client`
+to the browser with an `error_description` asking for a new registration, while
+other malformed authorization requests stay `invalid_request`. A stored
 client's redirect is re-checked against `HOSTED_REDIRECTS` and the loopback
 rule at every authorization, so removing a callback takes effect at deploy. Registration is
 capped at 20 unproven and 100 proven clients per forwarding source plus 1,000
@@ -256,7 +279,23 @@ unredeemed grants and live sessions are each capped at 1,000 globally. New
 requests at capacity return 429 and never evict another connector's state. A
 session-capacity refusal preserves the valid grant for retry until its five-
 minute expiry. Claude users share Anthropic's forwarding egress, so a burst
-above the per-source limits can return 429 until the oldest state expires.
+above the per-source limits can return 429 until the oldest state expires;
+a proven client holds its per-source slot for 30 days after its last use.
+Revoking a family does not free its client's slot, and the 100-client proven
+per-source cap is shared by every claude.ai user behind one Anthropic egress
+address. A client unused for 30 days, or swept before the 30-day lifetime
+shipped, is re-admitted at its next authorization as above; a source at its cap
+gets 429 until a slot frees. Re-adding Claude Code hits the same cap (it
+registers from the same address); re-adding a claude.ai connector registers from
+Anthropic's egress, a different cap. Only a connector whose cached id or callback does not qualify still needs
+removing and re-adding.
+
+Before prod or outside users, choose how the proven cap scales: a per-subject
+cap, evicting proven clients with no live family least recently used first,
+releasing a client when its last family is revoked, or not counting proven
+clients in the per-source check. Re-admitting swept clients at authorization
+already lets an evicted connector return through the caps, so eviction no longer
+strands it.
 
 Before cutover, the absent `/home/puni1/wbs-dev/state/mcp-exposure` marker makes
 the MCP public probe skip. Cutover atomically writes `enabled` to that mode-600
@@ -269,8 +308,8 @@ Cut over in this order:
 
 1. Before merging, seed `/home/puni1/wbs-dev/src/apps/wbs/mcp-01/.env` with the
    four settings above plus `MCP_SIGNING_KEY_CURRENT`, `MCP_STORE_KEY_CURRENT`,
-   `MCP_STORE_PATH=/data/mcp-session.sqlite`, and `MCP_ACCESS_TOKEN_TTL=3600`,
-   and set mode 600. The store path is inside `wbs-dev-src` and is backed by
+   `MCP_STORE_PATH=/data/mcp-session.sqlite`, `MCP_ACCESS_TOKEN_TTL=3600` and
+   `MCP_TRUSTED_PROXY_HOPS=1` (one Caddy in front), and set mode 600. The store path is inside `wbs-dev-src` and is backed by
    `/home/puni1/wbs-dev/data` on the host. Both manual deploy and the automatic
    poller block before moving the checkout when this durable path is absent.
 2. Merge the reviewed PR and let devsync start `mcp-01`; verify port 3300.
@@ -294,7 +333,11 @@ organization. mcp-01 therefore binds every consent to one organization and
 calls be-01 with a WBS-signed delegation instead
 (`openspec/changes/organization-ownership-and-access`, tasks 2.5, 6.4, 6.6).
 
-- mcp-01 needs be-01's `INTERNAL_AUTH_SECRET` in its own environment, and be-01
+- mcp-01 needs be-01's `MCP_BE_INTERNAL_SECRET` (sent alone, in
+  `x-mcp-internal-auth`, whenever it is set) or, until the secret cutover's
+  second release, its `INTERNAL_AUTH_SECRET` in its own environment
+  (`wbs-mcp-agent-surface` M14: be-01 admits either on `/internal/mcp/*`, so
+  be-01 swaps first, then mcp-01). be-01
   needs the dedicated RSA pair `WBS_DELEGATION_SIGNING_KEY` (PKCS#8 PEM) and
   `WBS_DELEGATION_VERIFY_KEY` (SPKI PEM). Without the secret mcp-01 keeps
   forwarding the upstream token; without the pair be-01 answers
@@ -396,8 +439,9 @@ A credential acts as its person's bound account, capped at `member` with
 in [local development](local-dev.md) and the OpenAPI document.
 
 A verified token of the configured issuer (Auth0) **without** the `wbs_groups`
-claim, such as an Auth0 machine-to-machine token, is refused
-`401 unknown_identity` as a Bearer, and proves no session as a browser cookie
+claim, such as an Auth0 machine-to-machine token, is a machine bearer: `/api`
+refuses it `401 machine_bearer_not_accepted` naming `/mcp`
+(`wbs-mcp-agent-surface` M9), and it proves no session as a browser cookie
 (link start and callback answer 401) or as a refreshed access token (refresh
 answers 401). No `external_identity` row admits it, including a row
 pinned by the retired operator link CLI, and no account is minted or changed.
@@ -406,6 +450,39 @@ stay inert until a cleanup change drops `external_identity.person_id`;
 removing their person deletes them with it. The swap that retired the links is
 [fleet credentials](runbook-prod-deploy.md#fleet-credentials) in the prod
 runbook.
+
+### Fleets and the MCP endpoint
+
+Machines call WBS through mcp-01's `/mcp`, never be-01's `/api`
+(`openspec/changes/wbs-mcp-agent-surface` M1, M9). be-01 refuses a `wbs_mk_` API key, and any
+JWT whose issuer is not the configured sign-in issuer (trusted by an organization or not),
+presented on any `/api` route with
+`401 {"error":"machine_bearer_not_accepted","endpoint":"/mcp"}`, before any read, so the answer
+says nothing of which issuers are trusted. There is no switch. A
+groups-less token of the configured sign-in issuer keeps the linked-credential path above until
+#731 retires operator links, M9's precondition.
+
+A fleet agent takes an mcp-01 access token at `<MCP_PUBLIC_URL>/oauth/token` and calls tools with
+it:
+
+- **An API key** (`wbs_mk_…`, minted on the organization page or by
+  `POST /api/organization/machine-credentials`): `client_credentials`, the key as HTTP Basic.
+- **A workload token** of a trusted issuer (Kubernetes, GitHub Actions): the RFC 7523 JWT-bearer
+  grant. Its audience, the registration's or the credential's, must be mcp-01's issuer
+  `<MCP_PUBLIC_URL>/oauth` or sit under it after a `/`. A row stored before that rule (a
+  `wbs:org:` audience) is refused at use (`invalid_grant`); the deploy's audience preflight
+  lists those rows first ([prod runbook](runbook-prod-deploy.md)).
+
+mcp-01 asks be-01 for a machine grant at `/internal/mcp/machine-grants` under
+`MCP_BE_INTERNAL_SECRET`, the only route that verifies either source. Twilight Dash is the
+helper and client: `twilight-dash mcp token` as Claude Code's `headersHelper`,
+`WorkloadJwtBearerProvider` for MCP SDK clients, and its `report-capacity` and `resources`
+commands as MCP clients themselves
+([Dash README](../apps/twilight-structure/twilight-dash/cli/README.md#mcp-token)). A human, a
+human-consented agent and every claude.ai connector still connect through consent
+([MCP organization delegation](#mcp-organization-delegation)); claude.ai Team and Enterprise
+request headers are shared by every member and must never carry a machine credential. Both local
+stacks serve the machine path ([local development](local-dev.md#an-activated-organization-with-mcp-agents)).
 
 ## Historical Okta mapping
 

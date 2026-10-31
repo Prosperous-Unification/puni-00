@@ -2,13 +2,44 @@ import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import type { TokenVerifier } from '@wbs/auth';
+import { canonicalMcpResourceOf, mcpAuthorizationServerOf } from '@wbs/contracts';
 
 import { authenticateCaller } from './caller-auth';
-import type { McpConfig } from './config';
+import { type McpConfig, offersMachineGrants } from './config';
+import { McpDeploymentFault } from './deployment-fault';
+import { MachineCaller } from './machine-admission';
+import { CLIENT_CREDENTIALS_GRANT, JWT_BEARER_GRANT } from './token-request';
 import { EdgeGate } from './wbs-client';
 
 const HEALTH_PATHS = new Set(['/health/liveness', '/health/readiness', '/health/alb-readiness']);
 const MCP_SCOPES = ['wbs:read', 'wbs:write', 'wbs:editor'] as const;
+
+/**
+ * The prefix of the groups claim's WBS scopes (`dev:wbs:read`): `prod` in production, else
+ * `dev`. The token endpoint signs machine tokens' groups with it and `/mcp` reads them back.
+ */
+export function groupPrefixOf(env: Readonly<Record<string, string | undefined>>): 'prod' | 'dev' {
+  return env['NODE_ENV'] === 'production' ? 'prod' : 'dev';
+}
+
+/** `401 invalid_token` with the RFC 9728 challenge, so a client re-fetches or reauthorizes. */
+function invalidTokenResponse(config: McpConfig, presentedToken: boolean): Response {
+  const resource = new URL(config.MCP_PUBLIC_URL);
+  const resourceMetadata = new URL('/.well-known/oauth-protected-resource', resource);
+  const invalidToken = presentedToken ? ', error="invalid_token"' : '';
+  return Response.json(
+    { error: presentedToken ? 'invalid_token' : 'unauthorized' },
+    {
+      status: 401,
+      headers: {
+        'WWW-Authenticate': `Bearer resource_metadata="${resourceMetadata.href}"${invalidToken}`,
+      },
+    },
+  );
+}
+
+/** A deployment fault, already reported: the client is told only that the server failed. */
+const SERVER_ERROR = () => Response.json({ error: 'server_error' }, { status: 502 });
 
 export function healthResponse(url: URL): Response | undefined {
   return HEALTH_PATHS.has(url.pathname) ? Response.json({ status: 'ok' }) : undefined;
@@ -23,10 +54,9 @@ export function healthResponse(url: URL): Response | undefined {
  * served because MCP clients may begin with the origin or the `/mcp` resource.
  */
 export function oauthMetadataResponse(url: URL, config: McpConfig): Response | undefined {
-  const resource = new URL(config.MCP_PUBLIC_URL);
-  const resourcePath = resource.pathname.replace(/\/$/, '');
-  const resourceUrl = `${resource.origin}${resourcePath}`;
-  const issuer = `${resourceUrl}/oauth`;
+  const resourceUrl = canonicalMcpResourceOf(config.MCP_PUBLIC_URL);
+  const resourcePath = resourceUrl.slice(new URL(resourceUrl).origin.length);
+  const issuer = mcpAuthorizationServerOf(config.MCP_PUBLIC_URL);
   const protectedResourcePaths = new Set([
     '/.well-known/oauth-protected-resource',
     `/.well-known/oauth-protected-resource${resourcePath}`,
@@ -50,8 +80,29 @@ export function oauthMetadataResponse(url: URL, config: McpConfig): Response | u
       registration_endpoint: `${issuer}/register`,
       jwks_uri: `${issuer}/jwks`,
       response_types_supported: ['code'],
-      grant_types_supported: ['authorization_code', 'refresh_token'],
-      token_endpoint_auth_methods_supported: ['none'],
+      // The machine grants (`wbs-mcp-agent-surface` M2) authenticate an API
+      // key by Basic or in the body; `private_key_jwt` is never listed,
+      // because no WBS client authenticates with its own key.
+      // Proof: listing them always failed `omits them without the secret and in gateway mode`
+      // (machine-token.test.ts); watched 2026-10-27.
+      ...(offersMachineGrants(config)
+        ? {
+            grant_types_supported: [
+              'authorization_code',
+              'refresh_token',
+              CLIENT_CREDENTIALS_GRANT,
+              JWT_BEARER_GRANT,
+            ],
+            token_endpoint_auth_methods_supported: [
+              'none',
+              'client_secret_basic',
+              'client_secret_post',
+            ],
+          }
+        : {
+            grant_types_supported: ['authorization_code', 'refresh_token'],
+            token_endpoint_auth_methods_supported: ['none'],
+          }),
       code_challenge_methods_supported: ['S256'],
       scopes_supported: MCP_SCOPES,
       authorization_response_iss_parameter_supported: true,
@@ -66,7 +117,13 @@ interface HttpTransport {
 }
 
 export interface McpOAuthHandler {
-  response(request: Request): Promise<Response | undefined>;
+  /** `peer` is the socket's remote address, which `MCP_TRUSTED_PROXY_HOPS=0` reads. */
+  response(request: Request, peer: string | null): Promise<Response | undefined>;
+}
+
+/** What Bun's server tells about a request's socket. */
+export interface RequestPeer {
+  requestIP(request: Request): { readonly address: string } | null;
 }
 
 /** Handles one public mcp-01 HTTP request before Bun owns the socket. */
@@ -77,17 +134,18 @@ export async function mcpHttpResponse(
   transport: HttpTransport,
   env: Readonly<Record<string, string | undefined>> = process.env,
   oauth?: McpOAuthHandler,
+  peer: string | null = null,
 ): Promise<Response> {
   const url = new URL(request.url);
   const metadata = oauthMetadataResponse(url, config);
   if (metadata !== undefined) return metadata;
   const health = healthResponse(url);
   if (health !== undefined) return health;
-  const oauthResponse = await oauth?.response(request);
+  const oauthResponse = await oauth?.response(request, peer);
   if (oauthResponse !== undefined) return oauthResponse;
   if (url.pathname !== '/mcp') return new Response('Not found', { status: 404 });
 
-  const groupPrefix = env['NODE_ENV'] === 'production' ? 'prod' : 'dev';
+  const groupPrefix = groupPrefixOf(env);
   const groupsClaim = env['AUTH_GROUPS_CLAIM'] ?? 'wbs_groups';
   let authInfo;
   try {
@@ -101,21 +159,40 @@ export async function mcpHttpResponse(
   } catch (cause) {
     if (cause instanceof EdgeGate)
       return Response.json({ error: 'temporarily_unavailable' }, { status: 503 });
-    const resource = new URL(config.MCP_PUBLIC_URL);
-    const resourceMetadata = new URL('/.well-known/oauth-protected-resource', resource);
-    const presentedToken = /^Bearer [^\s]+$/i.test(request.headers.get('authorization') ?? '');
-    const invalidToken = presentedToken ? ', error="invalid_token"' : '';
-    return Response.json(
-      { error: presentedToken ? 'invalid_token' : 'unauthorized' },
-      {
-        status: 401,
-        headers: {
-          'WWW-Authenticate': `Bearer resource_metadata="${resourceMetadata.href}"${invalidToken}`,
-        },
-      },
+    // Reported where it was found (M13); never a verdict on the caller's token.
+    // Proof: answering it 401 failed `a raw upstream Bearer is a reported fault while the
+    // markers disagree` (organization-delegation.boot.test.ts); watched 2026-10-27.
+    if (cause instanceof McpDeploymentFault) return SERVER_ERROR();
+    return invalidTokenResponse(
+      config,
+      /^Bearer [^\s]+$/i.test(request.headers.get('authorization') ?? ''),
     );
   }
-  return await transport.handleRequest(request, { authInfo });
+  const answered = await transport.handleRequest(request, { authInfo });
+  // A machine caller's calls decide the HTTP answer when be-01 could not verify its grant or the
+  // deployment failed (M3); otherwise the JSON-RPC body stands, refusals as tool errors.
+  const machine = authInfo.extra?.['machine'];
+  if (machine instanceof MachineCaller && machine.httpRefusal !== null) {
+    // Proof: with this mapping removed, `answers a missing or wrong secret 502…` and `answers a
+    // grant be-01 cannot verify 401 invalid_token…` (machine-admission.test.ts) saw 200;
+    // watched 2026-10-27.
+    return machine.httpRefusal === 'server_error'
+      ? SERVER_ERROR()
+      : invalidTokenResponse(config, true);
+  }
+  // A request that ran no call because M10 limited its calls is HTTP 429 when its one answer is
+  // such a call; a batch keeps its JSON-RPC array, the limited calls as tool errors beside the
+  // rest (`wbs-mcp-agent-surface` M10). The SDK answers one message as an object, a batch of
+  // several as an array.
+  // Proof: with this removed, `answers a single limited call 429 with Retry-After, and asks
+  // be-01 nothing` (machine-limits.test.ts) saw 200; watched 2026-10-27.
+  const retryAfter = machine instanceof MachineCaller ? machine.unadmittedRetryAfter : null;
+  if (retryAfter !== null && !Array.isArray(await answered.clone().json()))
+    return Response.json(
+      { error: 'rate_limited' },
+      { status: 429, headers: { 'retry-after': String(retryAfter) } },
+    );
+  return answered;
 }
 
 /**
@@ -148,7 +225,7 @@ export function mcpFetchHandler(
   verifier: TokenVerifier,
   env: Readonly<Record<string, string | undefined>> = process.env,
   oauth?: McpOAuthHandler,
-): (request: Request) => Promise<Response> {
+): (request: Request, server?: RequestPeer) => Promise<Response> {
   const perRequest: HttpTransport = {
     async handleRequest(request, options) {
       const server = createServer();
@@ -164,7 +241,16 @@ export function mcpFetchHandler(
       }
     },
   };
-  return (request) => mcpHttpResponse(request, config, verifier, perRequest, env, oauth);
+  return (request, server) =>
+    mcpHttpResponse(
+      request,
+      config,
+      verifier,
+      perRequest,
+      env,
+      oauth,
+      server?.requestIP(request)?.address ?? null,
+    );
 }
 
 /** Serves the stateless Streamable HTTP endpoint on `PORT`. */

@@ -75,6 +75,8 @@ export function createPlanCommands({ projectId, routes }: PlanCommandPorts): Pla
     setBudget: (...args) => routes.setBudget(...args),
     clearBudget: (...args) => routes.clearBudget(...args),
     unfreezeWorkItem: (...args) => routes.unfreezeWorkItem(...args),
+    claimWorkItem: (...args) => routes.claimWorkItem(...args),
+    releaseWorkItem: (...args) => routes.releaseWorkItem(...args),
     addDependency: (...args) => routes.addDependency(...args),
     removeDependency: (...args) => routes.removeDependency(...args),
     addTeam: (...args) => routes.addTeam(...args),

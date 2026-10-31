@@ -42,7 +42,11 @@ import { createLifetimeSlot, type LifetimeSlot } from '@/runtime/lifetime-slot';
 import { createProjectOwner } from '@/runtime/project-runtime';
 import { fakeProjectApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { pageWiring, ProjectPageOverOwner } from '@/testing/project-page-over-owner';
+import {
+  pageWiring,
+  ProjectPageOverOwner,
+  VIEWER_ACCOUNT_ID,
+} from '@/testing/project-page-over-owner';
 import { recordCalls } from '@/testing/record-calls';
 import { refusingApi } from '@/testing/refusing-api';
 import { planRead } from '@/testing/views';
@@ -1578,6 +1582,36 @@ describe('the selected runtime Plan and Board views', () => {
     });
     expect(within(board).queryByText('Old only')).toBeNull();
     expect(within(board).queryAllByText('New only').length).toBeGreaterThan(0);
+  });
+});
+
+describe('claiming from the page the router draws (wbs-claim-display 11.2)', () => {
+  itDom('offers Claim for the person bound to the signed-in account', async () => {
+    // Proof: `ProjectPage` not handing `viewerAccountId` to the table made this
+    // fail on `Unable to find an accessible element with the role "menuitem"
+    // and name "Claim"`; watched 2026-10-27.
+    const model = fakeProjectApi();
+    await model.createWorkItem('p2', { parentId: null, afterId: null, name: 'Build' });
+    const dany = await model.addPerson('dany', []);
+    model.bindAccount(dany.id, VIEWER_ACCOUNT_ID);
+    const api = fakeProjects(TWO);
+    api.tree = (projectId) => model.tree(projectId);
+    api.steps = (projectId) => model.steps(projectId);
+    api.listPeople = () => model.listPeople();
+    api.claimWorkItem = (workItemId, personId) => model.claimWorkItem(workItemId, personId);
+    api.readClaims = (projectId) => model.readClaims(projectId);
+    const owner = createProjectOwner();
+    render(<ProjectPage {...pageWiring(owner, api, undefined, fakeSavedPlanRoutes())} />);
+    await selectProject('p2');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for 010' }));
+    const claim = screen.getByRole('menuitem', { name: 'Claim' });
+    expect(claim.getAttribute('data-fact')).toBeNull();
+    fireEvent.click(claim);
+
+    await waitFor(() => {
+      expect(model.claimCalls).toEqual([`claim:${model.rows[0]?.id ?? ''}:${dany.id}`]);
+    });
   });
 });
 

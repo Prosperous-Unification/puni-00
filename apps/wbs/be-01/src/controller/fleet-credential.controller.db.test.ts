@@ -34,8 +34,9 @@ afterAll(async () => {
 /**
  * The retired operator links (`wbs-machine-credentials` A18, A21, spec
  * `fleet-credentials`): a verified token of the configured issuer without a
- * groups claim is refused `unknown_identity` whatever `external_identity`
- * holds, a pinned row included, and writes nothing; a token with the groups
+ * groups claim is a machine bearer, refused `machine_bearer_not_accepted`
+ * naming `/mcp` (`wbs-mcp-agent-surface` M9, its groups-less half) whatever
+ * `external_identity` holds, a pinned row included, and writes nothing; a token with the groups
  * claim keeps the browser login. A machine is admitted only by a machine
  * credential (`machine-credential.controller.db.test.ts`).
  */
@@ -125,7 +126,10 @@ function linksTable(): unknown[] {
   return h.sqlite.query('SELECT * FROM external_identity ORDER BY id').all();
 }
 
-const UNKNOWN = { status: 401, body: { error: 'unknown_identity' } };
+const MACHINE_BEARER = {
+  status: 401,
+  body: { error: 'machine_bearer_not_accepted', endpoint: '/mcp' },
+};
 
 describe('a retired operator link', () => {
   it('admits nothing for a pinned row, leaving the row and the owner byte for byte', async () => {
@@ -133,7 +137,7 @@ describe('a retired operator link', () => {
     const users = usersTable();
     const links = linksTable();
 
-    expect(await as(await token(FLEET), 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect(await as(await token(FLEET), 'GET', '/api/projects')).toEqual(MACHINE_BEARER);
     expect(usersTable()).toEqual(users);
     expect(linksTable()).toEqual(links);
   }, 30_000);
@@ -142,10 +146,10 @@ describe('a retired operator link', () => {
     legacyLink('mem', null);
     const users = usersTable();
 
-    expect(await as(await token(FLEET), 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect(await as(await token(FLEET), 'GET', '/api/projects')).toEqual(MACHINE_BEARER);
     expect(
       await as(await token(FLEET), 'POST', '/api/projects', { name: 'Written by a link' }),
-    ).toEqual(UNKNOWN);
+    ).toEqual(MACHINE_BEARER);
     expect(usersTable()).toEqual(users);
   }, 30_000);
 
@@ -159,20 +163,20 @@ describe('a retired operator link', () => {
       email_verified: true,
     });
 
-    expect(await as(bearer, 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect(await as(bearer, 'GET', '/api/projects')).toEqual(MACHINE_BEARER);
     expect(usersTable()).toEqual(before);
   }, 30_000);
 
-  it('refuses an unlinked machine token as unknown_identity, minting no account', async () => {
+  it('refuses an unlinked machine token machine_bearer_not_accepted, minting no account', async () => {
     const before = usersTable();
     const bearer = await token(FLEET);
-    expect(await as(bearer, 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect(await as(bearer, 'GET', '/api/projects')).toEqual(MACHINE_BEARER);
     // The refusal keeps the endpoint's own no-store and Vary headers.
     const raw = await h.request('/api/organization/active', {
       headers: { authorization: `Bearer ${bearer}` },
     });
     expect(raw.status).toBe(401);
-    expect(await raw.json()).toEqual({ error: 'unknown_identity' });
+    expect(await raw.json()).toEqual(MACHINE_BEARER.body);
     expect(raw.headers.get('cache-control')).toBe('no-store');
     expect(raw.headers.get('vary')).toContain('Authorization');
     expect(usersTable()).toEqual(before);
@@ -186,7 +190,7 @@ describe('a retired operator link', () => {
     h = openHarness();
     await h.register('dany');
     const before = usersTable();
-    expect(await h.callWith(await token(FLEET), 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect(await h.callWith(await token(FLEET), 'GET', '/api/projects')).toEqual(MACHINE_BEARER);
     expect(usersTable()).toEqual(before);
   }, 30_000);
 
