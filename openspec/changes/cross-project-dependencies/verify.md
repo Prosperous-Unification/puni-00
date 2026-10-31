@@ -7804,3 +7804,5 @@ Private main508 MCP preflight reconciliation: [actual owning checks and composit
 [Read-only original-context source HTTP composition](verify-source-readiness.md) records six ordered actual loopback responses, whole-source bracketing, exact24 new proof witnesses and retained acceptance limits.
 
 [Original gateway-to-source continuation and dev-backend-only admission](verify-source-start.md) records genuine context/start composition, separately scoped ordinary epochs and exact20 new dependency proof pairs. Native/controller/exposure and parent10.2 remain open.
+
+[Initializer origin-receipt prerequisite](verify-origin-receipt.md) records the completed bounded OR1–OR3 local producer:24 independently reviewed fault/restored pairs, current75 owning tests and scoped static checks. It does not establish first-reader publication, host activation or parent10.2 completion.

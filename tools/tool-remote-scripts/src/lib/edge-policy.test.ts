@@ -1,4 +1,16 @@
-import { chmod, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
+import { rejects } from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import {
+  chmod,
+  lstat,
+  mkdir,
+  readFile,
+  realpath,
+  rename,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
+import { relative, resolve } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
@@ -6,6 +18,7 @@ import { expect, test } from 'bun:test';
 import {
   captureEdgePolicy,
   decodeOrdinaryEdgePolicy,
+  type EdgePolicyOriginRequest,
   initializeOrdinaryEdgePolicy,
   readOrdinaryEdgePolicy,
 } from './edge-policy';
@@ -37,6 +50,76 @@ test('exclusive initializer publishes a durable independently readable policy an
   const bytes = await readFile(`${directory}/edge-policy.json`, 'utf8');
   await refuses(initializeOrdinaryEdgePolicy(directory));
   expect(await readFile(`${directory}/edge-policy.json`, 'utf8')).toBe(bytes);
+});
+
+test('origin receipt retains created policy and original parent and lock before release', async () => {
+  const staging = scratchSync('edge-policy-origin-');
+  const directory = `${staging}/state`;
+  const receiptPath = `${staging}/origin.json`;
+  await mkdir(directory, { mode: 0o700 });
+  const parent = await lstat(staging);
+  const getuid = process.getuid;
+  if (getuid === undefined) throw new Error('origin test requires a process UID');
+  expect(parent.isDirectory()).toBe(true);
+  expect(parent.mode & 0o777).toBe(0o700);
+  expect(parent.uid).toBe(getuid());
+  expect(await realpath(staging)).toBe(staging);
+  await rejects(lstat(receiptPath), { code: 'ENOENT' });
+
+  const origin = {
+    attemptId: 'c623b8e1-6d5f-49bf-a63a-f2c1ec22dfb9',
+    receiptPath,
+  };
+  // The typed optional request reaches the existing initializer before its API is extended.
+  const initializeWithOrigin: (
+    edgeState: string,
+    request?: { readonly attemptId: string; readonly receiptPath: string },
+  ) => ReturnType<typeof initializeOrdinaryEdgePolicy> = initializeOrdinaryEdgePolicy;
+  expect(await initializeWithOrigin(directory, origin)).toEqual(policy(directory));
+  expect(await readOrdinaryEdgePolicy(directory)).toEqual(policy(directory));
+  expect(await readFile(`${directory}/edge-policy.json`, 'utf8')).toBe(
+    `${JSON.stringify(policy(directory))}\n`,
+  );
+  process.stderr.write(
+    'ORIGIN_RECEIPT_POLICY_CREATED: original initializer returned and exact policy bytes independently verified\n',
+  );
+
+  expect(await Bun.file(receiptPath).exists(), 'requested origin receipt must be published').toBe(
+    true,
+  );
+  const receipt = await readFile(receiptPath);
+  expect(receipt.byteLength).toBeGreaterThan(0);
+  expect(receipt.byteLength).toBeLessThanOrEqual(16384);
+  const identity = async (path: string) => {
+    const status = await lstat(path, { bigint: true });
+    return {
+      path,
+      device: String(status.dev),
+      inode: String(status.ino),
+      mode: Number(status.mode & 0o7777n),
+      uid: Number(status.uid),
+      gid: Number(status.gid),
+    };
+  };
+  const contents = `${JSON.stringify(policy(directory))}\n`;
+  expect(JSON.parse(receipt.toString())).toEqual({
+    format: 'edge-policy-origin-receipt',
+    version: 1,
+    attemptId: origin.attemptId,
+    edgeState: directory,
+    parent: await identity(directory),
+    lock: await identity(`${directory}/edge.lock`),
+    policy: {
+      ...(await identity(`${directory}/edge-policy.json`)),
+      contents,
+      byteLength: Buffer.byteLength(contents),
+      sha256: createHash('sha256').update(contents).digest('hex'),
+    },
+  });
+  const receiptStatus = await lstat(receiptPath);
+  expect(receiptStatus.isFile()).toBe(true);
+  expect(receiptStatus.mode & 0o7777).toBe(0o600);
+  expect(receiptStatus.uid).toBe(getuid());
 });
 
 for (const fault of [
@@ -362,3 +445,470 @@ test('restoring policy refuses every activation record as restoration authority'
     expect(captureEdgePolicy(directory)).rejects.toThrow('invalid restoring edge policy');
   }
 });
+
+for (const shape of ['null', 'missing-attempt', 'uuid', 'extra'] as const)
+  test(`origin request refuses malformed shape before policy creation: ${shape}`, async () => {
+    const staging = scratchSync('edge-origin-request-');
+    const directory = `${staging}/state`;
+    await mkdir(directory, { mode: 0o700 });
+    const valid = {
+      attemptId: 'c623b8e1-6d5f-49bf-a63a-f2c1ec22dfb9',
+      receiptPath: `${staging}/origin.json`,
+    };
+    const malformed =
+      shape === 'null'
+        ? null
+        : shape === 'missing-attempt'
+          ? { receiptPath: valid.receiptPath }
+          : shape === 'uuid'
+            ? { ...valid, attemptId: 'not-a-uuid' }
+            : { ...valid, extra: true };
+    expect(resolve(valid.receiptPath).startsWith(`${staging}/`)).toBe(true);
+    // Test boundary: forged runtime shapes deliberately bypass the precise optional request type.
+    await refuses(initializeOrdinaryEdgePolicy(directory, malformed as EdgePolicyOriginRequest));
+    expect(await Bun.file(`${directory}/edge-policy.json`).exists()).toBe(false);
+  });
+
+for (const fault of [
+  'existing',
+  'symlink',
+  'public-parent',
+  'unreadable-parent',
+  'missing-parent',
+  'alias-parent',
+  'alias-ancestor',
+  'file-parent',
+  'noncanonical',
+  'relative',
+  'policy-collision',
+  'lock-collision',
+  'owner-collision',
+] as const)
+  test(`unsafe origin destination refuses before policy creation: ${fault}`, async () => {
+    const root = scratchSync('edge-origin-destination-');
+    const directory = `${root}/state`;
+    const staging = `${root}/stage`;
+    await mkdir(directory, { mode: 0o700 });
+    await mkdir(staging, { mode: 0o700 });
+    let receiptPath = `${staging}/origin.json`;
+    if (fault === 'existing') await writeFile(receiptPath, 'retained', { mode: 0o600 });
+    if (fault === 'symlink') {
+      await writeFile(`${staging}/retained`, 'retained', { mode: 0o600 });
+      await symlink(`${staging}/retained`, receiptPath);
+    }
+    if (fault === 'public-parent') await chmod(staging, 0o755);
+    if (fault === 'unreadable-parent') await chmod(staging, 0);
+    if (fault === 'missing-parent') receiptPath = `${root}/absent/origin.json`;
+    if (fault === 'alias-parent') {
+      await symlink(staging, `${root}/alias`);
+      receiptPath = `${root}/alias/origin.json`;
+    }
+    if (fault === 'alias-ancestor') {
+      await symlink(root, `${root}/alias-root`);
+      receiptPath = `${root}/alias-root/stage/origin.json`;
+    }
+    if (fault === 'file-parent') {
+      await writeFile(`${root}/parent-file`, 'retained', { mode: 0o600 });
+      receiptPath = `${root}/parent-file/origin.json`;
+    }
+    if (fault === 'noncanonical') receiptPath = `${staging}/./origin.json`;
+    if (fault === 'relative') receiptPath = relative(process.cwd(), receiptPath);
+    if (fault === 'policy-collision') receiptPath = `${directory}/edge-policy.json`;
+    if (fault === 'lock-collision') receiptPath = `${directory}/edge.lock`;
+    if (fault === 'owner-collision') receiptPath = `${directory}/edge-owner.pending`;
+    expect(resolve(receiptPath).startsWith(`${root}/`)).toBe(true);
+    try {
+      await refuses(
+        initializeOrdinaryEdgePolicy(directory, {
+          attemptId: 'c623b8e1-6d5f-49bf-a63a-f2c1ec22dfb9',
+          receiptPath,
+        }),
+      );
+      expect(await Bun.file(`${directory}/edge-policy.json`).exists()).toBe(false);
+      if (fault === 'existing') expect(await readFile(receiptPath, 'utf8')).toBe('retained');
+      if (fault === 'symlink')
+        expect(await readFile(`${staging}/retained`, 'utf8')).toBe('retained');
+    } finally {
+      if (fault === 'public-parent' || fault === 'unreadable-parent') await chmod(staging, 0o700);
+    }
+  });
+
+async function observeOriginChild(program: string, consumer: string) {
+  const child = Bun.spawn([process.execPath, '-e', program], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+    signal: AbortSignal.timeout(5000),
+    killSignal: 'SIGKILL',
+  });
+  const [exitCode, stdout, stderr] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]);
+  process.stderr.write(
+    `ORIGIN_CHILD_CUSTODY: ${JSON.stringify({ consumer, pid: child.pid, exitCode, signal: child.signalCode, stdoutEof: true, stderrEof: true })}\n`,
+  );
+  if (child.signalCode !== null || exitCode !== 0)
+    process.stderr.write(
+      `ORIGIN_CHILD_FAILURE: ${JSON.stringify({ exitCode, signal: child.signalCode, stdoutBytes: Buffer.byteLength(stdout), stderrBytes: Buffer.byteLength(stderr), stdout: stdout.slice(0, 8192), stderr: stderr.slice(0, 8192) })}\n`,
+    );
+  expect(child.signalCode, 'original origin child must settle normally with both EOFs').toBeNull();
+  return { exitCode, stdout, stderr };
+}
+
+for (const fault of [
+  'write',
+  'file-sync',
+  'parent-sync',
+  'readback',
+  'unreadable',
+  'oversize',
+  'mode',
+  'receipt-inode',
+  'parent-inode',
+  'parent-mode',
+  'policy-inode',
+  'policy-bytes',
+  'lock-inode',
+  'state-inode',
+] as const)
+  test(`required receipt failure retains created policy without success: ${fault}`, async () => {
+    const root = scratchSync('edge-origin-failure-');
+    const directory = `${root}/state`;
+    const staging = `${root}/stage`;
+    await mkdir(directory, { mode: 0o700 });
+    await mkdir(staging, { mode: 0o700 });
+    const receiptPath = `${staging}/origin.json`;
+    const program = `
+      import * as native from 'node:fs';
+      import { mock } from 'bun:test';
+      const original = { ...native };
+      const fault = ${JSON.stringify(fault)};
+      const directory = ${JSON.stringify(directory)};
+      const staging = ${JSON.stringify(staging)};
+      const receiptPath = ${JSON.stringify(receiptPath)};
+      let injected = false;
+      mock.module('node:fs', () => ({ ...original,
+        writeFileSync: (descriptor, ...args) => {
+          if (fault === 'write' && typeof descriptor === 'number' && original.readlinkSync('/proc/self/fd/' + descriptor) === receiptPath) {
+            injected = true; console.log('ORIGIN_FAULT_REACHED:' + fault); throw new Error('injected origin write');
+          }
+          return original.writeFileSync(descriptor, ...args);
+        },
+        fsyncSync: (descriptor) => {
+          const path = original.readlinkSync('/proc/self/fd/' + descriptor);
+          if (path === staging && fault === 'parent-sync') { injected = true; console.log('ORIGIN_FAULT_REACHED:' + fault); throw new Error('injected origin parent sync'); }
+          if (path === receiptPath) {
+            if (fault === 'file-sync') { injected = true; console.log('ORIGIN_FAULT_REACHED:' + fault); throw new Error('injected origin file sync'); }
+            original.fsyncSync(descriptor);
+            if (!['write', 'file-sync', 'parent-sync'].includes(fault)) injected = true;
+            if (fault === 'readback') original.writeFileSync(receiptPath, '{}');
+            if (fault === 'unreadable') original.chmodSync(receiptPath, 0);
+            if (fault === 'oversize') original.writeFileSync(receiptPath, 'x'.repeat(16385));
+            if (fault === 'mode') original.chmodSync(receiptPath, 0o644);
+            if (fault === 'receipt-inode') { const bytes = original.readFileSync(receiptPath); original.renameSync(receiptPath, receiptPath + '.retained'); original.writeFileSync(receiptPath, bytes, {mode: 0o600}); }
+            if (fault === 'parent-inode') { original.renameSync(staging, staging + '.retained'); original.mkdirSync(staging, {mode: 0o700}); original.linkSync(staging + '.retained/origin.json', receiptPath); }
+            if (fault === 'parent-mode') original.chmodSync(staging, 0o755);
+            if (fault === 'policy-inode') { const path = directory + '/edge-policy.json'; const bytes = original.readFileSync(path); original.renameSync(path, path + '.retained'); original.writeFileSync(path, bytes, {mode: 0o600}); }
+            if (fault === 'policy-bytes') original.appendFileSync(directory + '/edge-policy.json', ' ');
+            if (fault === 'lock-inode') { const path = directory + '/edge.lock'; original.renameSync(path, path + '.retained'); original.writeFileSync(path, '', {mode: 0o644}); }
+            if (fault === 'state-inode') { original.renameSync(directory, directory + '.retained'); original.mkdirSync(directory, {mode: 0o700}); for (const name of ['edge-policy.json', 'edge.lock']) original.linkSync(directory + '.retained/' + name, directory + '/' + name); }
+            if (!['write', 'file-sync', 'parent-sync'].includes(fault)) console.log('ORIGIN_FAULT_REACHED:' + fault);
+            return;
+          }
+          return original.fsyncSync(descriptor);
+        },
+      }));
+      const { initializeOrdinaryEdgePolicy } = await import(${JSON.stringify(`${import.meta.dir}/edge-policy.ts`)});
+      let refusal;
+      try { await initializeOrdinaryEdgePolicy(directory, {attemptId: 'c623b8e1-6d5f-49bf-a63a-f2c1ec22dfb9', receiptPath}); }
+      catch (cause) { refusal = cause; }
+      if (!injected) throw new Error('origin filesystem fault boundary not reached');
+      if (!(refusal instanceof Error)) throw new Error('required origin failure admitted');
+      if (!original.lstatSync(directory + '/edge-policy.json').isFile()) throw new Error('created policy lost');
+      if (!original.lstatSync(receiptPath).isFile()) throw new Error('partial receipt lost');
+      console.log('REQUIRED_ORIGIN_REFUSED:' + fault);
+    `;
+    const observed = await observeOriginChild(
+      program,
+      `required receipt failure retains created policy without success: ${fault}`,
+    );
+    expect(observed.exitCode, observed.stderr).toBe(0);
+    expect(observed.stderr).toBe('');
+    process.stderr.write(observed.stdout);
+    expect(observed.stdout).toBe(
+      `ORIGIN_FAULT_REACHED:${fault}\nREQUIRED_ORIGIN_REFUSED:${fault}\n`,
+    );
+    expect(await readFile(`${directory}/edge-policy.json`, 'utf8')).toBe(
+      `${JSON.stringify(policy(directory))}\n${fault === 'policy-bytes' ? ' ' : ''}`,
+    );
+    await refuses(initializeOrdinaryEdgePolicy(directory));
+  });
+
+test('same-byte replacement cannot rebase initializer origin', async () => {
+  const staging = scratchSync('edge-origin-replacement-');
+  const directory = `${staging}/state`;
+  const receiptPath = `${staging}/origin.json`;
+  await mkdir(directory, { mode: 0o700 });
+  await initializeOrdinaryEdgePolicy(directory, {
+    attemptId: 'c623b8e1-6d5f-49bf-a63a-f2c1ec22dfb9',
+    receiptPath,
+  });
+  const origin = await readFile(receiptPath);
+  const created = await lstat(`${directory}/edge-policy.json`, { bigint: true });
+  const contents = await readFile(`${directory}/edge-policy.json`);
+  await rename(`${directory}/edge-policy.json`, `${directory}/edge-policy.retained`);
+  await writeFile(`${directory}/edge-policy.json`, contents, { mode: 0o600 });
+  const replaced = await lstat(`${directory}/edge-policy.json`, { bigint: true });
+  expect(replaced.ino).not.toBe(created.ino);
+  expect(await readFile(receiptPath)).toEqual(origin);
+  expect(JSON.parse(origin.toString())).toMatchObject({
+    policy: { inode: String(created.ino), contents: contents.toString() },
+  });
+});
+
+test('origin receipt publication excludes a real lock contender until original return', async () => {
+  const root = scratchSync('edge-origin-interval-');
+  const directory = `${root}/state`;
+  const staging = `${root}/stage`;
+  await mkdir(directory, { mode: 0o700 });
+  await mkdir(staging, { mode: 0o700 });
+  const receiptPath = `${staging}/origin.json`;
+  const program = `
+    import * as native from 'node:fs';
+    import { strict as assert } from 'node:assert';
+    import { mock } from 'bun:test';
+    const original = { ...native };
+    const directory = ${JSON.stringify(directory)};
+    const receiptPath = ${JSON.stringify(receiptPath)};
+    const contenderProgram = ${JSON.stringify(`
+      import { withCanonicalLock } from '${import.meta.dir}/lock.ts';
+      try { await withCanonicalLock(${JSON.stringify(`${directory}/edge.lock`)}, async () => {}); console.log('ACQUIRED'); }
+      catch (cause) { if (!(cause instanceof Error) || !cause.message.includes('lock held')) throw cause; console.log('REFUSED'); }
+    `)};
+    const contend = (phase) => {
+      const child = Bun.spawnSync([process.execPath, '-e', contenderProgram], {stdout: 'pipe', stderr: 'pipe', timeout: 2000});
+      assert.equal(child.exitCode, 0); assert.equal(child.success, true); assert.equal(child.signalCode, undefined); assert.notEqual(child.exitedDueToTimeout, true); assert.equal(child.stderr.toString(), '');
+      console.log('ORIGIN_CONTENDER_CUSTODY:' + JSON.stringify({phase, pid: child.pid, exitCode: child.exitCode, success: child.success, signalAbsent: child.signalCode === undefined, timeoutAbsent: child.exitedDueToTimeout !== true, stdoutEof: true, stderrEof: true, stdout: child.stdout.toString(), stderr: child.stderr.toString()}));
+      return child.stdout.toString();
+    };
+    let reached = false;
+    mock.module('node:fs', () => ({ ...original, writeFileSync: (descriptor, ...args) => {
+      original.writeFileSync(descriptor, ...args);
+      if (typeof descriptor === 'number' && original.readlinkSync('/proc/self/fd/' + descriptor) === receiptPath) {
+        reached = true;
+        const bytes = original.readFileSync(receiptPath);
+        assert(bytes.length > 0 && bytes.length <= 16384);
+        const receipt = JSON.parse(bytes.toString());
+        const policy = original.lstatSync(directory + '/edge-policy.json', {bigint: true});
+        const lock = original.lstatSync(directory + '/edge.lock', {bigint: true});
+        const parent = original.lstatSync(directory, {bigint: true});
+        assert.equal(receipt.policy.inode, String(policy.ino));
+        assert.equal(receipt.lock.inode, String(lock.ino));
+        assert.equal(receipt.parent.inode, String(parent.ino));
+        assert.equal(contend('held'), 'REFUSED\\n');
+      }
+    }}));
+    const { initializeOrdinaryEdgePolicy } = await import(${JSON.stringify(`${import.meta.dir}/edge-policy.ts`)});
+    await initializeOrdinaryEdgePolicy(directory, {attemptId: 'c623b8e1-6d5f-49bf-a63a-f2c1ec22dfb9', receiptPath});
+    assert(reached);
+    assert.equal(contend('released'), 'ACQUIRED\\n');
+    console.log('ORIGIN_LOCK_INTERVAL: refused during receipt write; acquired after original return');
+  `;
+  const observed = await observeOriginChild(
+    program,
+    'origin receipt publication excludes a real lock contender until original return',
+  );
+  expect(observed.exitCode, observed.stderr).toBe(0);
+  expect(observed.stderr).toBe('');
+  process.stderr.write(observed.stdout);
+  const frames = observed.stdout.split('\n');
+  const receipts = frames
+    .filter((frame) => frame.startsWith('ORIGIN_CONTENDER_CUSTODY:'))
+    .map((frame) => {
+      const receipt: unknown = JSON.parse(frame.slice('ORIGIN_CONTENDER_CUSTODY:'.length));
+      return receipt;
+    });
+  expect(receipts).toMatchObject([
+    {
+      phase: 'held',
+      exitCode: 0,
+      success: true,
+      signalAbsent: true,
+      timeoutAbsent: true,
+      stdoutEof: true,
+      stderrEof: true,
+      stdout: 'REFUSED\n',
+      stderr: '',
+    },
+    {
+      phase: 'released',
+      exitCode: 0,
+      success: true,
+      signalAbsent: true,
+      timeoutAbsent: true,
+      stdoutEof: true,
+      stderrEof: true,
+      stdout: 'ACQUIRED\n',
+      stderr: '',
+    },
+  ]);
+  expect(frames.filter((frame) => !frame.startsWith('ORIGIN_CONTENDER_CUSTODY:')).join('\n')).toBe(
+    'ORIGIN_LOCK_INTERVAL: refused during receipt write; acquired after original return\n',
+  );
+});
+
+test('serialized origin receipt bound refuses while retaining created policy', async () => {
+  const root = scratchSync('edge-origin-bound-');
+  let directory = root;
+  while (directory.length < 3300) {
+    directory += `/${'s'.repeat(100)}`;
+    await mkdir(directory, { mode: 0o700 });
+  }
+  const receiptPath = `${root}/origin.json`;
+  let refusal: unknown;
+  try {
+    await initializeOrdinaryEdgePolicy(directory, {
+      attemptId: 'c623b8e1-6d5f-49bf-a63a-f2c1ec22dfb9',
+      receiptPath,
+    });
+  } catch (cause) {
+    refusal = cause;
+  }
+  expect(refusal).toBeInstanceOf(Error);
+  expect(
+    await Bun.file(receiptPath).exists(),
+    'serialized bound must refuse before receipt creation',
+  ).toBe(false);
+  expect(await readOrdinaryEdgePolicy(directory)).toEqual(policy(directory));
+  expect(String(refusal)).toContain('origin receipt exceeds byte bound');
+});
+
+test('origin destination refuses a foreign-owned filesystem observation before policy creation', async () => {
+  const root = scratchSync('edge-origin-owner-');
+  const directory = `${root}/state`;
+  const staging = `${root}/stage`;
+  await mkdir(directory, { mode: 0o700 });
+  await mkdir(staging, { mode: 0o700 });
+  const observed = await observeOriginChild(
+    `
+    import * as filesystem from 'node:fs/promises';
+    import { mock } from 'bun:test';
+    const original = { ...filesystem };
+    const staging = ${JSON.stringify(staging)};
+    const foreign = (status) => Object.assign(Object.create(Object.getPrototypeOf(status)), status, {uid: status.uid + 1n});
+    mock.module('node:fs/promises', () => ({ ...original, open: async (path, ...options) => {
+      const descriptor = await original.open(path, ...options);
+      if (path === staging) { const stat = descriptor.stat.bind(descriptor); descriptor.stat = async (...options) => foreign(await stat(...options)); }
+      return descriptor;
+    }, lstat: async (path, ...options) => {
+      const status = await original.lstat(path, ...options);
+      if (path === staging) { console.log('ORIGIN_FOREIGN_OWNER_OBSERVED'); return foreign(status); }
+      return status;
+    }}));
+    const { initializeOrdinaryEdgePolicy } = await import(${JSON.stringify(`${import.meta.dir}/edge-policy.ts`)});
+    try { await initializeOrdinaryEdgePolicy(${JSON.stringify(directory)}, {attemptId: 'c623b8e1-6d5f-49bf-a63a-f2c1ec22dfb9', receiptPath: staging + '/origin.json'}); throw new Error('foreign owner admitted'); }
+    catch (cause) { if (!(cause instanceof Error) || !cause.message.includes('owned private parent')) throw cause; }
+  `,
+    'origin destination refuses a foreign-owned filesystem observation before policy creation',
+  );
+  expect(observed.exitCode, observed.stderr).toBe(0);
+  expect(observed.stderr).toBe('');
+  expect(await Bun.file(`${directory}/edge-policy.json`).exists()).toBe(false);
+});
+
+for (const fault of ['late-parent', 'unsafe-integer'] as const)
+  test(`origin metadata boundary refuses without unsupported evidence: ${fault}`, async () => {
+    const root = scratchSync('edge-origin-metadata-');
+    const directory = `${root}/state`;
+    const staging = `${root}/stage`;
+    await mkdir(directory, { mode: 0o700 });
+    await mkdir(staging, { mode: 0o700 });
+    const observed = await observeOriginChild(
+      `
+      import * as filesystem from 'node:fs/promises';
+      import * as native from 'node:fs';
+      import { mock } from 'bun:test';
+      const original = { ...filesystem };
+      const directory = ${JSON.stringify(directory)};
+      const staging = ${JSON.stringify(staging)};
+      const fault = ${JSON.stringify(fault)};
+      const alter = (status) => Object.assign(Object.create(Object.getPrototypeOf(status)), status, {gid: 9007199254740992n});
+      let reached = false;
+      mock.module('node:fs/promises', () => ({ ...original,
+        lstat: async (path, ...options) => {
+          const status = await original.lstat(path, ...options);
+          return fault === 'unsafe-integer' && path === directory ? alter(status) : status;
+        },
+        open: async (path, ...options) => {
+          const descriptor = await original.open(path, ...options);
+          if (path === directory) {
+            reached = true;
+            console.log('ORIGIN_METADATA_REACHED:' + fault);
+            if (fault === 'late-parent') native.chmodSync(staging, 0o755);
+            if (fault === 'unsafe-integer') { const stat = descriptor.stat.bind(descriptor); descriptor.stat = async (...options) => alter(await stat(...options)); }
+          }
+          return descriptor;
+        },
+      }));
+      const { initializeOrdinaryEdgePolicy } = await import(${JSON.stringify(`${import.meta.dir}/edge-policy.ts`)});
+      let refusal;
+      try { await initializeOrdinaryEdgePolicy(directory, {attemptId: 'c623b8e1-6d5f-49bf-a63a-f2c1ec22dfb9', receiptPath: staging + '/origin.json'}); }
+      catch (cause) { refusal = cause; }
+      if (!reached) throw new Error('origin metadata boundary not reached');
+      if (!(refusal instanceof Error)) throw new Error('unsupported origin metadata admitted');
+      if (fault === 'late-parent' && native.existsSync(directory + '/edge-policy.json')) throw new Error('policy created after destination drift');
+      if (fault === 'unsafe-integer' && !refusal.message.includes('origin metadata integer is unsafe')) throw refusal;
+    `,
+      `origin metadata boundary refuses without unsupported evidence: ${fault}`,
+    );
+    expect(observed.exitCode, observed.stderr).toBe(0);
+    expect(observed.stderr).toBe('');
+    expect(observed.stdout).toBe(`ORIGIN_METADATA_REACHED:${fault}\n`);
+    if (fault === 'unsafe-integer')
+      expect(await Bun.file(`${directory}/edge-policy.json`).exists()).toBe(true);
+  });
+
+for (const role of ['policy', 'receipt'] as const)
+  test(`origin exclusive creation refuses nonprivate actual file: ${role}`, async () => {
+    const root = scratchSync('edge-origin-created-mode-');
+    const directory = `${root}/state`;
+    const staging = `${root}/stage`;
+    await mkdir(directory, { mode: 0o700 });
+    await mkdir(staging, { mode: 0o700 });
+    const observed = await observeOriginChild(
+      `
+      import * as native from 'node:fs';
+      import * as files from ${JSON.stringify(`${import.meta.dir}/directory-file.ts`)};
+      import { mock } from 'bun:test';
+      const open = files.openDirectoryFile;
+      const role = ${JSON.stringify(role)};
+      let reached = false;
+      mock.module(${JSON.stringify(`${import.meta.dir}/directory-file.ts`)}, () => ({ ...files, openDirectoryFile: (directory, name, flags) => {
+        const descriptor = open(directory, name, flags);
+        if (name === (role === 'policy' ? 'edge-policy.json' : 'origin.json')) {
+          native.fchmodSync(descriptor, 0o644);
+          if ((native.fstatSync(descriptor).mode & 0o7777) !== 0o644) throw new Error('nonprivate native file fault not delivered');
+          reached = true;
+          console.log('ORIGIN_NONPRIVATE_CREATED:' + role);
+        }
+        return descriptor;
+      }}));
+      const { initializeOrdinaryEdgePolicy } = await import(${JSON.stringify(`${import.meta.dir}/edge-policy.ts`)});
+      let refusal;
+      try { await initializeOrdinaryEdgePolicy(${JSON.stringify(directory)}, {attemptId: 'c623b8e1-6d5f-49bf-a63a-f2c1ec22dfb9', receiptPath: ${JSON.stringify(`${staging}/origin.json`)}}); }
+      catch (cause) { refusal = cause; }
+      if (!reached) throw new Error('original exclusive creation not reached');
+      if (!(refusal instanceof Error)) throw new Error('nonprivate original file admitted');
+      const expected = role === 'policy' ? 'origin created policy must be private and owned' : 'origin receipt must be a private owned file';
+      if (!refusal.message.includes(expected)) throw refusal;
+    `,
+      `origin exclusive creation refuses nonprivate actual file: ${role}`,
+    );
+    expect(observed.exitCode, observed.stderr).toBe(0);
+    expect(observed.stderr).toBe('');
+    expect(observed.stdout).toBe(`ORIGIN_NONPRIVATE_CREATED:${role}\n`);
+    expect(await readOrdinaryEdgePolicy(directory)).toEqual(policy(directory));
+    if (role === 'receipt') expect(await Bun.file(`${staging}/origin.json`).exists()).toBe(true);
+    else expect(await Bun.file(`${staging}/origin.json`).exists()).toBe(false);
+  });

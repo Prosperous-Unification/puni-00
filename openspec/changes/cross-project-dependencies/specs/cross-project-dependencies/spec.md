@@ -1849,3 +1849,53 @@ The private continuation SHALL start only the original source after its original
 - **WHEN** source readiness reaches publication and return
 - **THEN** actual six-response readiness, original product/solver monitors, records, fences, storage and closing source checks precede success
 - **AND** controllers remain fenced and exposure closed
+
+### Requirement: Opt-in initialization exports under-lock origin evidence
+
+`initializeOrdinaryEdgePolicy` SHALL preserve its existing default behavior and return type while optionally accepting only an attempt correlation UUID and an absolute receipt destination. The optional request SHALL produce bounded observation evidence while the ORIGINAL initializer canonical lock remains held. It SHALL grant no admission, policy replacement, pristine-host detection, reader publication, active transition or successor authority. The existing default API and no-argument or exact `--execute` CLI behavior and stdout SHALL remain unchanged.
+
+The closed receipt SHALL identify format `edge-policy-origin-receipt`, version1, the attempt UUID and canonical state path; the original open/named parent and lock identities; and the CREATED policy identity, exact independently verified UTF-8 bytes, byte length and SHA-256. Device/inode values SHALL be canonical decimal strings; mode, uid, gid and byte length SHALL be checked integers. Policy bytes SHALL retain the4096-byte bound and the serialized receipt SHALL be at most16384 UTF-8 bytes. Stable identities SHALL include type/mode/owner and SHALL exclude mutable lock-holder contents, lock size/hash, directory contents and timestamps.
+
+#### Scenario: Evidence is captured before original lock release
+
+- **GIVEN** explicit eligible ordinary-policy initialization and a valid optional evidence request
+- **WHEN** the initializer exclusively creates and independently verifies its policy
+- **THEN** it retains the created policy descriptor identity before close and compares independent open/named policy, parent and original lock observations
+- **AND** it exclusively writes, syncs and independently verifies its private receipt and syncs the receipt parent before the original lock is released
+- **AND** a real competing process cannot acquire that lock during receipt publication
+
+#### Scenario: Default calls and the closed additive CLI remain distinct
+
+- **WHEN** callers omit the optional request, or use the existing no-argument or exact `--execute` CLI forms
+- **THEN** existing return values, stdout and exclusive policy semantics remain unchanged
+- **WHEN** the CLI uses `--execute --origin-receipt=<absolute-path> --attempt-id=<uuid>`
+- **THEN** both named arguments are required exactly once with valid values; incomplete, unknown, duplicate or dry-run receipt requests refuse before policy mutation
+- **AND** successful requested evidence preserves the existing success stdout rather than emitting a ready token
+
+#### Scenario: Unsafe evidence destinations refuse before policy creation
+
+- **WHEN** the requested receipt destination exists, aliases or collides with policy/lock/owner state, is noncanonical, or has a missing, symlink, nonprivate or foreign-owned parent
+- **THEN** the initializer refuses before policy creation and preserves prior bytes
+- **AND** it creates no parent tree and never downgrades to initialization without the requested evidence
+- **AND** successful evidence creation uses retained canonical private-parent authority, descriptor-relative exclusive no-follow creation and actual0600 file identity/mode/owner checks
+
+#### Scenario: Required evidence failure preserves honest partial state
+
+- **WHEN** required receipt write, sync or independent readback fails after policy creation
+- **THEN** initialization fails, success stdout is absent and any already-created policy and partial evidence remain for attended recovery
+- **AND** the initializer never resets, removes or retries the policy as compensation
+- **AND** final original state, lock and policy identity checks precede successful lock release
+
+#### Scenario: Post-release replacement cannot redefine origin
+
+- **GIVEN** a real origin receipt produced under the original initializer lock
+- **WHEN** the policy is replaced by a same-byte file after original process settlement
+- **THEN** the receipt still names the original created inode and policy bytes rather than a later pathname observation
+- **AND** future preparation consumers must require original successful process/stream custody and exact continuity after reacquisition; missing or uncertain evidence never permits recapture or admission
+- **AND** producer tests alone do not qualify an unimplemented publisher or guarded bootstrap consumer
+
+#### Scenario: Optional evidence never changes existing state admission
+
+- **WHEN** existing policy, writer markers, malformed, unreadable or other invalid trusted state is encountered
+- **THEN** existing refusals remain and the receipt request supplies no replacement, downgrade, repair or active-state bypass
+- **AND** an on-disk receipt after failed or unknown process settlement cannot be labeled successful initialization
