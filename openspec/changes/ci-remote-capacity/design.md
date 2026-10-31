@@ -19,3 +19,34 @@ After source checkpoint 6d2b86ee is integrated, the tracked `src/lib/dependency-
 A fourth closed matrix member uses its own isolated runner. Both explicit source partition equalities provision the same pinned Node 24.20.0; no prefix selector is accepted. Static checks and Caddy remain once in rest; immutable head/base/mode, fresh noncached leaf execution, dependency builds, fail-fast false, strict aggregate, distinct partition artifacts, 75-minute phase/90-minute job/30-second TERM bounds are retained. One additional maximum 90-job-minute allocation is a resource cost, not proof of sufficiency. Do not run both actual HTTP parents concurrently on one host.
 
 The mixed-epoch projection 4508.923495s motivates separation but does not certify cold hosted capacity. No actual long parent or performance campaign is part of this bounded local CI implementation. The previous count-specific design sections describe their earlier checkpoints.
+
+## Current policy8 and inherited23 ownership revision
+
+The current contract supersedes earlier checkpoint counts with six fixed leaves
+and five isolated matrix members. Split exact frozen31 source-restoration tuples
+into inherited23 and policy8 parents through one same-depth shared registration/
+original-child custody helper. Retain canonical full-model policy8-then23 order,
+independent literal tuple oracle, exact required files/targets and full canonical
+union/disjointness. Empty, duplicate, overlap, missing, cross-assigned or renamed
+tuples refuse in the actual registration path before fixture or child creation.
+
+Add closed participant-policy leaf/remote-participant-policy runtime dispatch,
+noncached target with ^build and the fifth existing matrix entry. Both source
+identities and policy use the same commit-pinned Node setup via exact equalities.
+Rest alone owns static/Caddy; strict aggregation receives one whole-matrix result.
+Parsed workflow membership, execution-step and actual affected/full dispatch
+proofs establish the fifth member; reducer proofs establish only strict handling
+of its actual whole-matrix input. Each singleton's contiguous FINAL outer
+receipt must show exactly23/8 passes AND tests, one file and no failure/skip/todo/
+outer filter. Nested child filtering remains expected.
+
+Policy-only D465/M495/A505/P525, original custody reservation and H300 follow
+[cross-project timing](../cross-project-dependencies/design.md#fixed-policy-model-timing-and-case-ownership).
+Outer-only scratch preload remains unchanged; its once-per-file30s hook is in H,
+not charged to each case. Inherited23 retains original timing. Existing75m phase,
+90m job,30s TERM escalation and all production reserves remain unchanged. These
+allocations are not measured successful bounds. Same-candidate hosted23/8 and
+all required leaves/aggregate must finish before current distributed coverage or
+capacity acceptance. No intact31 single-process fit or native qualification is
+inferred. The approved independent CI addendum fixes these exact proof scopes;
+local plumbing does not replace actual policy qualification.

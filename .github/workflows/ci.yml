@@ -695,7 +695,13 @@ jobs:
       matrix:
         # Proof: dropping restoration failed the parsed exact-matrix consumer; restored passed (2026-10-30).
         partition:
-          [remote-model, remote-model-continuation, remote-source, remote-source-restoration]
+          [
+            remote-model,
+            remote-model-continuation,
+            remote-source,
+            remote-source-restoration,
+            remote-participant-policy,
+          ]
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and
       # nx falls back to a different file scope rather than failing. Since
@@ -756,7 +762,7 @@ jobs:
 
       - name: Set up source test Node
         # Proof: dropping only the second identity failed the parsed Node condition consumer; restored passed (2026-10-30).
-        if: ${{ matrix.partition == 'remote-source' || matrix.partition == 'remote-source-restoration' }}
+        if: ${{ matrix.partition == 'remote-source' || matrix.partition == 'remote-source-restoration' || matrix.partition == 'remote-participant-policy' }}
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24.20.0'

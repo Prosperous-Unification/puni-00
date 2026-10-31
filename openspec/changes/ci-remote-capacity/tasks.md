@@ -31,4 +31,11 @@
 - [x] 17. Observe actual tiny-Bun singleton/canonical-union and parsed workflow RED, then add only the tracked source-restoration parent as a fifth disjoint leaf and fourth isolated matrix runner.
 - [x] 18. Exercise actual CLI/parsed-shell mapping and required file/target refusals with zero-child evidence; retain the seven-source list, static/Caddy ownership and every bound.
 - [x] 19. Observe the seven independently accepted new dependency pairs and finish final scoped static/source review before Root checkpoint.
-- [ ] 20. Require fresh complete published source/source-restoration jobs, remainder and strict aggregate success before accepting this added capacity. Root owns publication and hosted validation.
+- [x] 20. Require fresh complete published source/source-restoration jobs, remainder and strict aggregate success before accepting this added capacity. Root owns publication and hosted validation.
+
+## Fixed policy8 whole-parent follow-up
+
+- [ ] 21. Observe genuine independent frozen31/actual wrapper-registration RED; implement exact23/8 groups, shared original custody and new policy parent together, preserving all tuples/order and inherited timing. Integrate the closed policy timing contract; retain outer-only preload routing.
+- [ ] 22. Extend canonical tiny-Bun union/disjointness, pre-child file/target/ownership refusals and complete23/8 outer receipt checks; add closed leaf/target/affected-full dispatch and fifth isolated matrix member with exact Node/artifact ownership.
+- [ ] 23. Review and execute only sealed finite registration/receipt/workflow/dispatch dependency omissions. Distinguish matrix membership/step proofs from whole-matrix reducer inputs. Complete scoped static/source review.
+- [ ] 24. Require current policy8 and inherited23 full hosted parents, all other required leaves and strict aggregate on one final candidate within75m/90m before accepting capacity. Root owns Git/publication/hosted validation; native/architectural main holds remain.

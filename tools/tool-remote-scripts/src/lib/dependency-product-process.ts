@@ -4,6 +4,7 @@ import { assertParticipantRestorationContext } from './complete-dependency-exclu
 import { assertParticipantImage } from './dependency-participant-images';
 import type { ParticipantListener } from './dependency-participant-listener';
 import type { FinalizedParticipantRestorationContext } from './dependency-participant-preparation';
+import { assertParticipantLifecycle } from './dependency-participant-restoration';
 import type { ParticipantSnapshot } from './dependency-participant-transition';
 import {
   assertParticipantTransition,
@@ -455,7 +456,7 @@ export async function observeSelectedProductRole(
       .filter((member) => readFields(member)['Id'] === original.id)
       .map((member) => readParticipantSnapshot(member));
     if (parked.length !== 1) throw new Error('product parked selected member absent');
-    assertParticipantTransition(parked[0], firstRuntime.native, 'start');
+    assertParticipantLifecycle(context, role, parked[0], firstRuntime.native);
     const hostConfiguration = readFields(firstRuntime.native['HostConfig']);
     if (
       hostConfiguration['Init'] !== true ||

@@ -2021,3 +2021,67 @@ SHALL never authorize publication, cleanup or lock release.
 
 - **WHEN** a stage command exceeds60s+15s observation or operation SSH exceeds210s+15s, is nonnormal, or loses observation
 - **THEN** the observer retains its original pending local custody and remote partial-state context, does not infer remote settlement and sends no later command, retry or inverse
+
+### Requirement: Original source readiness admits one retained policy transition
+
+After actual source-ready publication and its closing checks, the original consumed participant restoration context SHALL admit exactly one private continuation that restores only the three original restart policies. It SHALL retain the original deadline, owner and locks, evidence, storage and artifact bindings, all eight writer fences and maintenance ingress. The continuation SHALL issue no start, restart or recreate operation. This prerequisite SHALL grant no controller admission, active policy, fence or owner retirement, exposure, native acceptance or completion of the surrounding handoff.
+
+#### Scenario: Exact original policies change without rebinding participants
+
+- **GIVEN** the original solver, backend, gateway and source readiness chain has completed with closing retained checks
+- **WHEN** the original context consumes its policy continuation
+- **THEN** each original participant's policy intent precedes its exact-ID policy update and independent policy-only readback, including the original on-failure retry count
+- **AND** only the authorized expected restart-policy state advances in existing monitors
+- **AND** whole product and source observations after transition preserve the same original process/start, executable, namespaces, role listeners and database opener bindings
+- **AND** the participants-restored record follows successful readback of all original policies and final retained checks
+
+#### Scenario: Invalid context or repeated admitted attempt cannot update policies
+
+- **WHEN** a copied, foreign, released or not-source-ready context is supplied
+- **THEN** it refuses before any policy update without consuming another original context's opportunity
+- **AND** after an admitted attempt is reserved, any failure is terminal for that continuation and reuse refuses before another policy update
+
+#### Scenario: Wrong policy or process drift prevents successful restoration
+
+- **WHEN** policy readback differs from the original policy or retry count, or a retained process, listener, authority, evidence, artifact, store, fence or ingress identity drifts during transition
+- **THEN** policy restoration refuses without successful participants-restored publication
+- **AND** monitors never recapture process identities or accept caller-supplied readiness or replacement baselines
+- **AND** original owner and controller/exposure fences remain conservative; no automatic inverse, retry or broader handoff is inferred
+
+### Requirement: Policy model timing preserves one original lifetime
+
+The eight fixed policy model cases SHALL use D465/M495/A505/P525 seconds with
+one child-local deadline captured before fixture creation. Inherited23 timing,
+all production deadline caps and subordinate launch reserves SHALL remain
+unchanged. These values SHALL be closed engineering refusal budgets, without
+caller overrides or substring-based selection.
+
+#### Scenario: Preparation consumes the policy operation deadline
+
+- **WHEN** a fixed policy case enters its action and preparation or a later phase takes time
+- **THEN** the original pre-fixture D is passed unchanged through preparation, source-ready, updates, publications and retries
+- **AND** M is495s, while a separate parent-local pre-peer origin bounds original child abort at505s and parent test at525s
+- **AND** exhausted parent time refuses before spawn without comparing absolute clocks across processes or resetting either origin
+
+#### Scenario: Earlier original custody remains unknown
+
+- **WHEN** an earlier policy invocation is active, lacks original exit or either EOF, exits by signal, or cannot safely retire its peer
+- **THEN** its worker reservation refuses peer creation and child launches for every later valid invocation through the shared source-restoration parent, including inherited cases
+- **AND** only permitted original normal0/1 settlement with null signal and completed safe retirement releases the reservation
+- **AND** a thrown test, timeout, replacement receipt or generic scratch cleanup does not establish settlement
+
+#### Scenario: Phase capacity has finite explicit overhead
+
+- **WHEN** the eight policy cases execute in the fixed policy leaf
+- **THEN** its unchanged75m phase and90m job retain8*525s plus H300s planning allocation
+- **AND** H allocates180s prerequisites,60s dispatch/reporting,30s once-per-file outer scratch hook and30s other overhead
+- **AND** outer-only preload routing, original child teardown and40s launch reserve remain unchanged
+- **AND** actual overruns fail without automatic widening or a successful-capacity or native acceptance claim
+
+#### Scenario: Canonical execution moves from policy to inherited cases
+
+- **GIVEN** canonical local or host execution can register both fixed source parents in one worker
+- **WHEN** an earlier policy invocation is active or retains custody after signal, missing EOF or retirement failure
+- **THEN** a later inherited case refuses before peer creation or child spawn through the same shared helper
+- **AND** after permitted original normal settlement and safe retirement releases the reservation, inherited execution retains its original300/310/320s timing and fixture semantics
+- **AND** reservation acquisition and release stay policy-only; no global cross-module resource framework is introduced

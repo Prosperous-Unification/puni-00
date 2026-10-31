@@ -1115,7 +1115,7 @@ Actual receipts and limits live in [verify-source-readiness.md](verify-source-re
 - [x] Reach the missing context-only source entry after genuine original preparation, consumption and solver→backend→gateway success; retain prior setup/diagnostic failures separately.
 - [x] Couple the exact original source start and actual dev-source-backend-only opener admission; observe minimal raw process/HTTP/record GREEN with unchanged budgets.
 - [x] Exercise finite new phase, lifetime, opener, retained identity and closing negatives; independently review exact new dependency fault recipes before omissions.
-- [ ] Record factual scoped proofs/current checks and independent source review before Root's normal checkpoint. Parent10.2, native source/controller/exposure acceptance remain open.
+- [x] Record factual scoped proofs/current checks and independent source review before Root's normal checkpoint. Parent10.2, native source/controller/exposure acceptance remain open.
 
 ### Initializer origin-receipt prerequisite (bounded part of10.2)
 
@@ -1138,3 +1138,26 @@ Parent10.2, actual bootstrap/configure/ordinary caller coverage, H0–H8,
 controller/ingress, native acceptance and architectural main/deployment adoption
 remain open. The completed Origin24 batch does not authorize these new
 counterfactuals or the separate frozen43 proof cases.
+
+### Original source-ready policy continuation (bounded part of10.2)
+
+- [x] Reach missing-policy-continuation RED only after the genuine original preparation and solver→backend→gateway→source readiness chain; capture original product on-failure retry counts in the owning fixture.
+- [ ] Restore exact original participant policies through private one-shot original-context authority, recording intent before each exact-ID effect and checking independent policy-only transitions without rebinding product/source identities.
+- [ ] Observe complete same-process post-policy product/source checks, wrong-policy/retry-count and independent process/listener drift refusals; seal and execute only the finite new production-path omission/restoration witnesses.
+- [ ] Finish scoped types/lint/format/OpenSpec and independent Astra source/evidence review; record commands, results and remaining native/controller/exposure limits in verify-participant-policy.md.
+
+This is the policy-restoration prerequisite of the coupled handoff. It leaves
+active admission, ingress reopening, all eight fence archives, owner retirement,
+compatible successor operations, native acceptance and parent10.2 open. The
+broader proposed handoff contract has unresolved independent review findings and
+is not adopted by this slice.
+
+### Fixed policy timing and original child custody
+
+- [ ] PT1 Bind the independent frozen31 tuple oracle to actual23/8 wrapper/helper registrations and closed profile selection. Observe genuine ordinary RED before implementing policy-only D465/M495/A505/P525; preserve inherited23 timing and production guards.
+- [ ] PT2 Prove one pre-fixture child-local D and independent pre-peer parent horizon through the actual orchestration consumer. Exercise short owned children for exhausted-before-spawn, failure/signal, withheld EOF, policy-to-policy and policy-to-inherited second-launch refusal, signal/retirement sticky refusal and permitted normal settlement/retirement. Seal finite new omission recipes before executing them; record original exit/both EOF and no-launch observations.
+- [ ] PT3 After exact source/protocol review, separately qualify one current uninstrumented policy positive and unresolved new R5 obligations under this epoch. Retain prior scoped evidence and failures; stop on unexpected outcomes. Require final current hosted23/8 plus required leaves/aggregate before capacity acceptance.
+
+No policy source or capacity completion follows from this contract. Parent10.2,
+native/controller/exposure acceptance, architectural main adoption and deployment
+remain open or held. Evidence: [policy verification](verify-participant-policy.md).

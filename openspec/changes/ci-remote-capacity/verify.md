@@ -400,3 +400,137 @@ and receipt
 retain that resource refusal. The other holder remained protected; no retry,
 checkout, dependency install, signal or cleanup followed. Exact-SHA host gate
 acceptance, Reader38 proofs, native/controller and main/deployment remain open.
+
+## Published whole-parent acceptance — 2026-10-30
+
+The complete published candidate `947f44515913864be3bb7a489a13e4361ed5d851`
+passed [CI40980585518](https://github.com/Prosperous-Unification/puni-00/actions/runs/40980585518),
+including strict aggregate job123843437150. Infrastructure40980585474 and
+CodeQL40980579929 also completed successfully. The synthetic merge
+`c0866beb3a4776ecef48574c3194782b9d99b410` has parents main80174a65 and
+candidate947f4451 and exactly the candidate tree
+`f999c4c4bbd0d40d7ba789f06980aee341782209`.
+
+Fresh canonical leaf receipts reported model43 tests/1file (phase3120s),
+continuation24/1 (2233s), source60/7 (2426s), source-restoration23/1 (2993s)
+and remainder3418/146 (4327s), each exit0 within the unchanged4500s limit.
+The remainder comprises3416passes and two existing optional real-Docker cleanup
+skips selected when `WBS_SOLVER_ORPHAN_IMAGE` is absent. The skipped cases are
+`removes a merely created container when timer setup fails` and
+`waits and removes after the real container has already stopped` in
+`solver-supervisor-lifecycle.proc.test.ts`. Both source jobs actually used
+Node24.20.0. The runtime-mode docs alternative and trusted-wiki workflow were
+skipped; no success is attributed to those checks.
+
+All original observer/log/artifact processes joined. Root independently read
+all three provider conclusions and exact head. The frozen private terminal
+receipt SHA256 is `2466392e20877cb4048860f93a53eeaee4f0726f349e81f4ed7c43592b496704`;
+its artifact manifest SHA256 is
+`86a20e13cb9af87166306807dd67f02231fa5462f176f74f49f3f5219ab8a4ad`.
+This closes hosted task20 for the947f source epoch only. It establishes neither
+native image/cold-start acceptance nor controller, handoff or exposure behavior.
+The separate exact-SHA h2 gate remains running at this receipt; architectural
+main adoption and deployment remain held.
+
+## Policy8 split and timing contract before implementation
+
+Root accepted the six-leaf/five-matrix direction and independent addendum for
+private implementation after policy carriers were restored/released. Exact31
+ownership, actual wrapper/registration-before-child validation, complete23/8
+outer receipts, parsed workflow member/step routing and strict whole-matrix
+aggregation are required. Historical four-matrix hosted evidence is unchanged.
+
+Astra numeric review
+`abd64d117b66499386dae09793f6c72737be84a84485cb16a8b0978af9ac72b6`
+accepts D465/M495/A505/P525/H300 as unmeasured refusal allocations, with outer-only
+preload/H30 accounting and terminal active/unknown worker launch refusal.
+Independent addendum
+`8f2bbe93b41e1ebeaf72b1871b429cf1420d455b0d55a709d9aa877cc37178ae`
+separates member/step/dispatch evidence from the reducer's whole-matrix input.
+No current new-parent runtime, omission, actual phase fit or source qualification
+is established. Tasks21–24 remain unchecked; architectural main/deploy are held.
+
+## Frozen CI wiring and ordinary source checks
+
+The exact nine-file CI implementation now provides six fixed leaves, five
+isolated matrix members and complete final23/8 outer receipts. Source/evidence
+manifest SHA256:
+`67c5d4c5104ceaf900abbccac32e8d45f1fa745ebf0ffedd3f601791deb7fd6c`.
+Independent source review:
+`ded746e3c1d2077a30b3e582ca77315373331cef0401043034c946f7e4afb72a`.
+No blocking source defect was found. Source9 timing/custody and the combined
+CI18 interface were separately accepted by review
+`3c1b46c5301bd35d1d6ff63d3fd9ac28111d8a11f850b50d172c09d3ddebf692`;
+short-child plumbing is not current policy lifecycle acceptance.
+
+Genuine ordinary REDs covered unknown new leaf, missing matrix/Node/runtime
+identity and wrongly admitted final23/8 pass counts. Restored ordinary checks:
+48 runner tests/514 assertions;102 workflow/runtime tests/952 assertions before
+the final test-only both-mode shell extension; then five updated shell
+consumers/50 assertions. The latter selection's54 filtered tests are deliberate
+owning-test selection, not a successful leaf receipt. Full48 runner tests were
+rerun after the final test changes. Exact-nine formatting passed. No new Proof
+comment or R5 credit follows from these RED/GREEN functionality tests.
+
+The original empty type/lint logs alone did not establish their exit status.
+Root independently ran final scoped configured TypeScript and uncached seven-TS
+ESLint: original3708805 and3708546 respectively both normal0/null signal with
+actual stdout/stderr EOF; all18 frozen source hashes matched before and after.
+An initial wrong compiler-entry-path failure was preserved; using the repository's
+actual node_modules/.bin/tsc corrected only the invocation, with no source/config
+change. These are scoped checks, not full Nx/host gates.
+
+Finite CI omission recipes are private preparation only, not executed. The
+required current inherited23/policy8 whole lifecycle runs, hosted same-candidate
+leaves/aggregate, capacity and native acceptance are unverified. Source test-only
+refinements for newly added deadline guards are separate current work. Tasks21–24
+remain unchecked pending their R5/review/hosted obligations.
+
+Fresh main now4fec7f2ba93876ccb749f6a78b072945cee7813c contains another fleet's
+machine REST-off/MCP changes. Current947-based private overlays are not rebased
+or qualified against it; earlier42d hosted acceptance remains historical. This
+note grants no architectural main merge, deployment or host action.
+
+## Later source baseline and read-only launcher qualification
+
+A static review found that the shared policy reservation originally blocked
+policy cases only. Canonical local/host execution can enter inherited23 through
+the same helper, so the reviewed two-file correction now rejects any valid later
+helper invocation while a policy reservation remains. Acquisition/release and
+successful inherited timing stay unchanged. Current bounded tests22/0/160 and
+source review25e0ad14 accepted that correction; CI9 code remains unchanged.
+An explicit mechanical preparation rebind updated only those two Source control
+bodies before the current CI protocol/envelope seals; no silent baseline drift.
+
+Source's single current uninstrumented model-positive run passed203.451s and was
+independently audited (fb45a3a6). This is not current inherited23/policy8 whole
+hosted execution or a measured capacity result. All required distributed leaves
+and strict aggregate still need one final current candidate.
+
+The corrected CI18 protocol d205f71b is static GO795afbc5: each selected failing
+case needs an independent actual exception/header/site and case-bound ledger
+review before inverse; all32 original source descriptors are retained nofollow/
+no-create and complete provenance/current/inverse checks precede writes. Matrix
+membership/step/dispatch still have separate witnesses from the reducer's
+whole-matrix input. No case mutation or R5 pair has run.
+
+One exact source-read-only CI launch preflight passed and was independently
+accepted by auditd8bd62eacd016f6d6725ca42c8518c9c4b582616d45736ec0a6b1921f099a6af.
+The owner and driver recorded original normal0/null signal/actual both pipe EOFs;
+all32 source identities and immutable inputs stayed exact. Exactly five expected
+private outputs appeared; no test/model/source write/fault/inverse/next occurred.
+Later owner-only receipt/HOLD logging correction779f1460 is static GOacf28201;
+the prior preflight remains narrow normal-path evidence, and its consumed first
+admission is not replayed. Abnormal HOLD/nested collector/fault paths remain
+unqualified. These operational records grant no source mutation or full CI/gate
+acceptance; the initializer24 explicit-approval question remains pending.
+
+## Separate source integration (2026-10-31)
+
+The restored policy/profile/CI implementation is being carried into a separate
+private branch based onb646, preserving the current Ubuntu24.04 Python jobs and
+workspace120m budget. Historical947f whole-parent acceptance above remains its
+own epoch; current policy8/inherited23 and all required leaves/aggregate remain
+pending. The canonical [integration scope and outstanding obligations](../cross-project-dependencies/verify-participant-policy.md#separate-current-source-integration-2026-10-31)
+records the bindings and held proofs. No omission campaign or frozen input is
+resumed by this documentation reconciliation.

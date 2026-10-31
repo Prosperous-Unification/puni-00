@@ -44,7 +44,13 @@ async function runNx(repository: string, args: string[]): Promise<void> {
 async function runRemoteLeaf(
   repository: string,
   head: string,
-  leaf: 'model' | 'model-continuation' | 'source' | 'source-restoration' | 'rest',
+  leaf:
+    | 'model'
+    | 'model-continuation'
+    | 'source'
+    | 'source-restoration'
+    | 'participant-policy'
+    | 'rest',
   mode: string,
 ): Promise<void> {
   if (leaf === 'rest')
@@ -96,6 +102,7 @@ export async function runRuntime(
       'remote-model-continuation',
       'remote-source',
       'remote-source-restoration',
+      'remote-participant-policy',
       'frontend',
       'twilight',
     ].includes(partition)
@@ -116,9 +123,11 @@ export async function runRuntime(
             // CLI ledger; exact restoration passed affected/full. No separate full-mode fault is claimed.
             partition === 'remote-source-restoration'
             ? 'source-restoration'
-            : partition === 'remote-rest'
-              ? 'rest'
-              : undefined;
+            : partition === 'remote-participant-policy'
+              ? 'participant-policy'
+              : partition === 'remote-rest'
+                ? 'rest'
+                : undefined;
   const owner = remoteLeaf === undefined ? partition : 'remote';
   if (mode === 'full') {
     if (partition === 'twilight') throw new Error('Twilight retains its existing full runner');

@@ -40,7 +40,16 @@ const generated =
 export interface SourceRestorationAudit {
   readonly events: string[];
   readonly requests: string[];
-  readonly raw: { role: string; cleanup: boolean; nonce: string; pid: number }[];
+  readonly policyUpdates: { role: string; args: readonly string[]; intents: unknown[] }[];
+  readonly policyReadbacks: { role: string; policy: unknown }[];
+  readonly policyNativeReadbacks: { role: string; id: string; policy: unknown }[];
+  readonly raw: {
+    role: string;
+    cleanup: boolean;
+    nonce: string;
+    pid: number;
+    policyCount: number;
+  }[];
   readonly openerDeliveries: { environment: string; pid: number }[][];
   fault: SourceRestorationCase;
   readonly authoritySourceBindings: boolean[];
@@ -59,8 +68,22 @@ export async function withParticipantSourceRestoration(
     runtime: ReturnType<typeof createParticipantSolverRuntime>,
     audit: SourceRestorationAudit,
   ) => Promise<void>,
+  restoresPolicies = false,
+  deadline?: number,
 ): Promise<void> {
+  if (
+    restoresPolicies &&
+    (deadline === undefined || !Number.isFinite(deadline) || deadline <= performance.now())
+  )
+    throw new Error('policy original pre-fixture deadline absent or exhausted');
+  if (!restoresPolicies && deadline !== undefined)
+    throw new Error('inherited fixture deadline override refused');
   const fixture = await participantActivationFixture();
+  if (restoresPolicies)
+    Object.assign(fixture.backend.HostConfig.RestartPolicy, {
+      Name: 'on-failure',
+      MaximumRetryCount: 3,
+    });
   const coldIds = new Set(fixture.inventory.map((member) => readString(readFields(member)['Id'])));
   for (const product of [fixture.backend, fixture.gateway]) {
     const networks = readFields(readFields(readFields(product)['NetworkSettings'])['Networks']);
@@ -69,6 +92,7 @@ export async function withParticipantSourceRestoration(
       GlobalIPv6Address: '',
     });
   }
+  let originalContext: FinalizedParticipantRestorationContext | undefined;
   let release: (() => void) | undefined;
   let released = false;
   const audit: SourceRestorationAudit = {
@@ -83,6 +107,9 @@ export async function withParticipantSourceRestoration(
     },
     events: [],
     requests: [],
+    policyUpdates: [],
+    policyReadbacks: [],
+    policyNativeReadbacks: [],
     raw: [],
     openerDeliveries: [],
     sourceStarted: false,
@@ -145,6 +172,11 @@ export async function withParticipantSourceRestoration(
       return echo(JSON.stringify([image]));
     }
     const role = roleOf(request.id);
+    if (request.kind !== 'top' && audit.policyUpdates.some((update) => update.role === role))
+      audit.policyReadbacks.push({
+        role,
+        policy: structuredClone(containers[role].HostConfig.RestartPolicy),
+      });
     return echo(request.kind === 'top' ? tops[role] : JSON.stringify(containers[role]));
   };
   Object.assign(fixture.ports, { spawnProductMetadata });
@@ -236,6 +268,97 @@ export async function withParticipantSourceRestoration(
   });
   Object.assign(fixture.ports, {
     docker: async (args: Parameters<typeof docker>[0], signal?: AbortSignal) => {
+      if (restoresPolicies && args[0] === 'update' && args[1] === '--restart=no') {
+        const role = roleOf(args[2]);
+        Object.assign(containers[role].HostConfig.RestartPolicy, {
+          Name: 'no',
+          MaximumRetryCount: 0,
+        });
+      }
+      if (restoresPolicies && args[0] === 'update' && args[1] !== '--restart=no') {
+        expect(args).toHaveLength(3);
+        const role = roleOf(args[2]);
+        const match = /^--restart=(always|unless-stopped|on-failure)(?::([0-9]+))?$/.exec(args[1]);
+        if (match === null || (match.at(2) !== undefined && match[1] !== 'on-failure'))
+          throw new Error('policy fixture unsupported restart spelling');
+        const intents = await Promise.all(
+          (await readdir(fixture.root))
+            .filter((name) => name.endsWith('-activation-participant-policy-intent.json'))
+            .map(
+              async (name) =>
+                readFields(JSON.parse(await readFile(join(fixture.root, name), 'utf8')))['record'],
+            ),
+        );
+        audit.policyUpdates.push({ role, args: [...args], intents });
+        fixture.commands.push([...args]);
+        Object.assign(containers[role].HostConfig.RestartPolicy, {
+          Name: match[1],
+          MaximumRetryCount: match.at(2) === undefined ? 0 : Number(match.at(2)),
+        });
+        if (role === 'backend' && audit.policyUpdates.length === 1) {
+          if (audit.fault === 'policy-name')
+            Object.assign(containers.backend.HostConfig.RestartPolicy, {
+              Name: 'always',
+              MaximumRetryCount: 0,
+            });
+          if (audit.fault === 'policy-count')
+            Object.assign(containers.backend.HostConfig.RestartPolicy, {
+              Name: 'on-failure',
+              MaximumRetryCount: 4,
+            });
+          if (audit.fault === 'policy-pid')
+            Object.assign(containers.backend.State, {
+              Pid: 40011,
+              StartedAt: '2026-10-30T09:00:00Z',
+            });
+          if (['policy-name', 'policy-count', 'policy-pid'].includes(audit.fault)) {
+            audit.faults.push(audit.fault);
+            console.error(
+              `PARTICIPANT_POLICY_UPDATE_DELIVERY: ${audit.fault} actual original-ID update returned normally`,
+            );
+          }
+        }
+        return ids[role] + '\n';
+      }
+      if (
+        restoresPolicies &&
+        args[0] === 'inspect' &&
+        !args.includes('--format') &&
+        audit.policyNativeReadbacks.length < audit.policyUpdates.length
+      ) {
+        const update = audit.policyUpdates[audit.policyNativeReadbacks.length];
+        const role = roleOf(update.args[2]);
+        if (args.includes(ids[role])) {
+          const reply = await docker(args, signal);
+          audit.policyNativeReadbacks.push({
+            role,
+            id: ids[role],
+            policy: structuredClone(containers[role].HostConfig.RestartPolicy),
+          });
+          console.error(
+            `PARTICIPANT_POLICY_NATIVE_READBACK: ${role} original-ID native reply produced`,
+          );
+          if (audit.fault === 'policy-readback-fence' && audit.policyNativeReadbacks.length === 1) {
+            if (originalContext === undefined) throw new Error('original fixture context absent');
+            await writeFile(
+              originalContext.fencedComplete.path,
+              originalContext.fencedComplete.contents + ' ',
+            );
+            audit.faults.push(audit.fault);
+            console.error(
+              'PARTICIPANT_POLICY_FENCE_READBACK_DELIVERY: first actual native reply followed by physical original fence drift',
+            );
+          }
+          if (audit.fault === 'policy-listener' && audit.policyNativeReadbacks.length === 3) {
+            audit.listenerReplaced = true;
+            audit.faults.push(audit.fault);
+            console.error(
+              'PARTICIPANT_POLICY_LISTENER_READBACK_DELIVERY: final actual native reply followed by coherent FD and TCP replacement',
+            );
+          }
+          return reply;
+        }
+      }
       if (args[0] !== 'start') return docker(args, signal);
       expect(args).toHaveLength(2);
       const role = roleOf(args[1]);
@@ -362,9 +485,11 @@ export async function withParticipantSourceRestoration(
       if (!containers[role].State.Running) throw new Error('raw process collection preceded start');
       const sourceFault = audit.listenerReplaced ? 'listener' : 'none';
       if (source && !cleanup && audit.listenerReplaced) {
-        audit.faults.push('listener-after-ready');
+        audit.faults.push(restoresPolicies ? 'policy-listener-raw' : 'listener-after-ready');
         console.error(
-          'SOURCE_RESTORATION_LISTENER_DELIVERY: coherent replacement FD/TCP bytes entering actual raw observer',
+          restoresPolicies
+            ? 'PARTICIPANT_POLICY_LISTENER_RAW_DELIVERY: coherent replacement FD/TCP bytes entering actual raw observer'
+            : 'SOURCE_RESTORATION_LISTENER_DELIVERY: coherent replacement FD/TCP bytes entering actual raw observer',
         );
       }
       const frame = (label: 'before' | 'after') =>
@@ -403,7 +528,7 @@ export async function withParticipantSourceRestoration(
         disappeared = true;
       }
       expect(disappeared).toBe(true);
-      audit.raw.push({ role, cleanup, nonce, pid });
+      audit.raw.push({ role, cleanup, nonce, pid, policyCount: audit.policyUpdates.length });
     },
   });
   const runtime = createParticipantSolverRuntime(fixture);
@@ -482,7 +607,7 @@ export async function withParticipantSourceRestoration(
           owner,
           fixture.request,
           fixture.layouts,
-          performance.now() + 300000,
+          deadline ?? performance.now() + 300000,
           fixture.root,
           fixture.ports,
         );
@@ -491,6 +616,7 @@ export async function withParticipantSourceRestoration(
         };
         try {
           const context = await consumePreparedDependencyActivation(owner, prepared);
+          originalContext = context;
           runtime.bindContext(context);
           await action(context, fixture, runtime, audit);
         } finally {

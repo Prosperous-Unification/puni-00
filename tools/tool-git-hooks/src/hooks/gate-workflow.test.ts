@@ -527,7 +527,7 @@ describe('the validated CI selection step', () => {
   });
 });
 
-test('remote aggregate refuses each failed, cancelled, missing, unknown or omitted execution leaf', () => {
+test('remote aggregate refuses failed, cancelled, skipped, missing or unknown whole-matrix outcomes', () => {
   for (const field of ['remoteResult', 'remoteModelResult'] as const) {
     for (const outcome of ['failure', 'cancelled', 'skipped', '', 'unknown'] as const) {
       expect(reduceGate({ ...green, [field]: outcome }), `${field}/${outcome}`).not.toBe(0);

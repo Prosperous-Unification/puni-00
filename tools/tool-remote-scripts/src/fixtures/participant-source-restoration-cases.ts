@@ -1,4 +1,39 @@
-export const SOURCE_RESTORATION_CASES = [
+export const PARTICIPANT_POLICY_CASES = [
+  {
+    kind: 'policy-released',
+    name: 'participant policy restoration refuses released original source-ready context',
+  },
+  {
+    kind: 'policy-name',
+    name: 'participant policy restoration refuses wrong original policy name',
+  },
+  {
+    kind: 'policy-count',
+    name: 'participant policy restoration refuses wrong original retry count',
+  },
+  {
+    kind: 'policy-pid',
+    name: 'participant policy restoration refuses process drift after exact update',
+  },
+  {
+    kind: 'policy-listener',
+    name: 'participant policy restoration refuses listener drift after final policy readback',
+  },
+  {
+    kind: 'policy-readback-fence',
+    name: 'participant policy restoration refuses fence loss after first policy readback before later intent',
+  },
+  {
+    kind: 'policy-published-record',
+    name: 'participant policy restoration refuses late record drift after actual restored publication',
+  },
+  {
+    kind: 'policy-ready',
+    name: 'participant policy restoration retains original policies and whole bindings',
+  },
+] as const;
+
+export const INHERITED_SOURCE_CASES = [
   { kind: 'ready', name: 'source restoration retains original gateway authority through ready' },
   {
     kind: 'admission',
@@ -49,5 +84,10 @@ export const SOURCE_RESTORATION_CASES = [
     kind: 'listener-after-ready',
     name: 'source restoration refuses listener replacement after actual ready publication',
   },
+] as const;
+
+export const SOURCE_RESTORATION_CASES = [
+  ...PARTICIPANT_POLICY_CASES,
+  ...INHERITED_SOURCE_CASES,
 ] as const;
 export type SourceRestorationCase = (typeof SOURCE_RESTORATION_CASES)[number]['kind'];

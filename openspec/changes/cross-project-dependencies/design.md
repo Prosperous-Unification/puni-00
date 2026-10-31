@@ -1821,3 +1821,73 @@ EOF/read-error milestone, then advances only its existing construction clock
 beyond unchanged cutoffs. It observes the next real pending pause or actual
 expired rejection before attended fixture teardown. This replaces a30ms timing
 guess; teardown remains disposal of an owned fixture, not production recovery.
+
+### Retained source-ready restart-policy transition
+
+A private continuation created only after successful original source-ready closing
+checks restores the three original participant restart policies under the same
+live owner and deadline. Each exact-ID policy effect follows its durable intent;
+the existing policy-only transition validator checks independent readback before
+only the monitor's authorized expected policy advances. Original process and
+listener bindings remain immutable. The source whole-runtime comparison may
+account only for that independently validated policy transition; it must not
+reset its first binding. Final whole product/source and retained checks precede
+participants-restored publication. No start, restart or recreate is permitted.
+
+This bounded prerequisite leaves controllers and ingress closed. Active policy,
+controller packaging, eight-fence archival, terminal owner retirement and future
+compatible successor admission remain separate unfinished parts of the coupled
+handoff. The broader preparation proposal is not accepted: per-component SHA
+attribution, exact approval provenance and minimum controller dispatch authority
+still require resolution. See [policy verification](verify-participant-policy.md).
+
+## Fixed policy-model timing and case ownership
+
+The eight policy continuations use a closed model-only timing profile: D465s
+original operation deadline, M495s model/selected-child timeout, A505s parent
+abort horizon and P525s parent test timeout. Inherited23 cases retain their
+300/310/320s model/abort/parent profile and original fixture deadline semantics.
+The policy action captures its child-local monotonic origin before fixture
+creation and derives D once. Preparation, source-ready, effects, publication and
+retry consume that same deadline. No absolute timestamp is compared across
+process clock domains. The parent independently captures its origin before byte
+peer creation and refuses an expired horizon before spawning; imports/bootstrap
+consume A. The nominal10s M-to-A separation does not guarantee startup fit.
+
+Production600s future-deadline cap, strict40s observer launch reserve and every
+subordinate transport/metadata guard remain unchanged. The allocation is420s
+work plus45s internal launch tail,30s model teardown/accounting and20s parent
+settlement beyond A; these are unmeasured refusal allocations. No guard/barrier,
+authority collection, same-process observation or mandatory publication is
+removed. This is not a native/H0–H8 budget or successful-capacity guarantee.
+
+Before peer creation the shared policy parent reserves that worker's invocation.
+Original exit and BOTH pipe EOF joins, normal0/1 and null signal are required
+before safe peer retirement. The reservation clears only after that retirement
+completes. An active/unknown invocation, signal, missing EOF or retirement failure
+refuses subsequent same-worker peer/child launches through this shared helper,
+including inherited cases, and retains original custody. A thrown test or P timeout alone is not settlement; no replacement
+receipt, forced cleanup or new fixture may bypass this refusal. The byte peer
+remains outside the generic process scratch root.
+
+The existing outer-only scratch preload is retained. Its once-per-file30s
+allowance is outside P and belongs in the policy phase overhead H300:180s
+prerequisites,60s dispatch/reporting,30s outer scratch hook and30s other overhead.
+Thus8*525+300=4500s within the unchanged75m phase/90m job. Inner fixture finally
+belongs within M; inner bootstrap/exit/EOF consumes A/P. No inner preload is
+added. Timers do not prove OS preemption or successful removal. A refused actual
+run is preserved for diagnosis; no automatic widening, retry or budget transfer.
+
+The CI split uses exact independently frozen31 tuples: policy8 and inherited23,
+with the full model catalog retaining policy8-then-inherited23 order. Full
+source-policy qualification and current hosted23/8 acceptance remain separate
+from inexpensive orchestration tests. See the current six-leaf contract in
+[CI capacity design](../ci-remote-capacity/design.md) and actual outcomes in
+[policy verification](verify-participant-policy.md).
+
+The rejection above applies to any valid case entering the shared helper, while
+only policy cases acquire/release the reservation. This closes canonical
+policy-to-inherited execution after unknown custody without changing successful
+inherited23 behavior or timing. The isolated CI8 worker alone is not an isolation
+guarantee for canonical local/h2 execution. Static review identified this scope
+gap; no actual collision or overlapping fixture launch was observed.

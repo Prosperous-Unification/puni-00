@@ -1,6 +1,10 @@
 import { assertParticipantRestorationContext } from './complete-dependency-exclusion';
 import type { FinalizedParticipantRestorationContext } from './dependency-participant-preparation';
 import {
+  assertParticipantLifecycle,
+  projectParticipantLifecycle,
+} from './dependency-participant-restoration';
+import {
   assertParticipantTransition,
   readParticipantSnapshot,
 } from './dependency-participant-transition';
@@ -49,7 +53,7 @@ export async function observeSelectedSourceRoles(context: FinalizedParticipantRe
       .map(readParticipantSnapshot);
     if (parked.length !== 1) throw new Error('source original parked member absent');
     const runtime = await inspectRuntime(context, original.id);
-    assertParticipantTransition(parked[0], runtime.native, 'start');
+    assertParticipantLifecycle(context, 'source', parked[0], runtime.native);
     const firstRoster = await observeRoster(context, original.id, runtime.pid);
     collecting = true;
     const passes = decodePasses(
@@ -62,7 +66,7 @@ export async function observeSelectedSourceRoles(context: FinalizedParticipantRe
     const profile = inspectSourceProfile(passes[0], firstRoster, runtime.native);
     const identities = passes[0].processes.map(({ sockets: _sockets, ...identity }) => identity);
     const binding = JSON.stringify({
-      runtime,
+      runtime: projectParticipantLifecycle(context, 'source', runtime),
       roster: firstRoster,
       identities,
       profile,

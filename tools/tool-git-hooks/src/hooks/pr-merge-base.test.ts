@@ -387,23 +387,27 @@ test.each([
   'remote-model-continuation',
   'remote-source',
   'remote-source-restoration',
+  'remote-participant-policy',
 ])(
   'actual model matrix shell dispatches %s with its immutable merge base and status',
   async (partition) => {
-    const h = history();
-    const execution = runStep(h, step('gate_remote_model', 'Remote isolated leaf — test'), {
-      GATE_MODE: 'affected',
-      GATE_BASE: h.base,
-      RUNTIME_PARTITION: partition,
-      RUNTIME_STATUS: '23',
-    });
-    expect(execution.invocation.exitCode).toBe(23);
-    expect(await execution.calls.text()).toContain(
-      `ci-run-runtime.ts ${partition} ${h.base} ${h.merge} . affected`,
-    );
-    const phase = await Bun.file(join(h.root, 'nx-gate.log')).text();
-    expect(phase).toContain(`runtime phase start partition=${partition} head=${h.merge}`);
-    expect(phase).toContain(`runtime phase end partition=${partition}`);
-    expect(phase).toContain('exit=23');
+    for (const mode of ['affected', 'full']) {
+      const h = history();
+      const execution = runStep(h, step('gate_remote_model', 'Remote isolated leaf — test'), {
+        GATE_MODE: mode,
+        GATE_BASE: mode === 'affected' ? h.base : '',
+        EVENT_NAME: mode === 'affected' ? 'pull_request' : 'workflow_dispatch',
+        RUNTIME_PARTITION: partition,
+        RUNTIME_STATUS: '23',
+      });
+      expect(execution.invocation.exitCode).toBe(23);
+      expect(await execution.calls.text()).toContain(
+        `ci-run-runtime.ts ${partition} ${mode === 'affected' ? h.base + ' ' : ' '}${h.merge} . ${mode}`,
+      );
+      const phase = await Bun.file(join(h.root, 'nx-gate.log')).text();
+      expect(phase).toContain(`runtime phase start partition=${partition} head=${h.merge}`);
+      expect(phase).toContain(`runtime phase end partition=${partition}`);
+      expect(phase).toContain('exit=23');
+    }
   },
 );

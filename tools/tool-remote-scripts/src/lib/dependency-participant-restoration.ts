@@ -15,10 +15,12 @@ import {
 import { consumeSolverReadyForBackend } from './dependency-participant-solver-restoration';
 import {
   assertParticipantTransition,
+  formatParticipantRestartPolicy,
+  type ParticipantRestartPolicy,
   type ParticipantSnapshot,
   readParticipantSnapshot,
 } from './dependency-participant-transition';
-import { observeSelectedProductRole } from './dependency-product-process';
+import { freezeDeep, observeSelectedProductRole } from './dependency-product-process';
 import { runDockerBefore } from './docker-deadline';
 import { parseDockerInspection } from './docker-inspection-json';
 import { ownerDockerHashed, retainActivationRecord } from './edge-ownership';
@@ -87,6 +89,87 @@ const sourceContinuations = new WeakMap<
   FinalizedParticipantRestorationContext,
   SourceContinuation
 >();
+
+type ParticipantRole = 'backend' | 'gateway' | 'source';
+interface RetainedLifecycle {
+  readonly first: ParticipantSnapshot;
+  readonly originalPolicy: ParticipantRestartPolicy;
+  expected: ParticipantSnapshot;
+  restored: boolean;
+}
+const policyLifecycles = new WeakMap<
+  FinalizedParticipantRestorationContext,
+  Readonly<Record<ParticipantRole, RetainedLifecycle>>
+>();
+type PolicyContinuation =
+  | {
+      readonly state: 'source-ready';
+      readonly restorePolicies: () => Promise<ParticipantPolicyRestoration>;
+    }
+  | { readonly state: 'policies-attempted' };
+const policyContinuations = new WeakMap<
+  FinalizedParticipantRestorationContext,
+  PolicyContinuation
+>();
+
+function readParticipantLifecycle(
+  context: FinalizedParticipantRestorationContext,
+  role: ParticipantRole,
+) {
+  const original = context.originals[role];
+  const retained = policyLifecycles.get(context)?.[role];
+  if (
+    context.participants.selected[role].id !== original.id ||
+    (retained !== undefined && retained.first.id !== original.id)
+  )
+    throw new Error('participant lifecycle original identity differs');
+  return retained;
+}
+
+/** Read-only lazy observer dependency: writable policy state remains in the actual source-ready closure. Returns detached native observations, never a transition permit. */
+export function assertParticipantLifecycle(
+  context: FinalizedParticipantRestorationContext,
+  role: ParticipantRole,
+  parked: ParticipantSnapshot,
+  observed: unknown,
+): ParticipantSnapshot {
+  const retained = readParticipantLifecycle(context, role);
+  if (parked.id !== context.originals[role].id)
+    throw new Error('participant parked identity differs');
+  return retained === undefined
+    ? assertParticipantTransition(parked, observed, 'start')
+    : assertParticipantTransition(retained.expected, observed, 'stable');
+}
+
+/** Comparison-only projection after exact full-native validation. The intentional lazy observer import cycle performs no calls at module initialization; no caller can advance the private policy state. */
+export function projectParticipantLifecycle(
+  context: FinalizedParticipantRestorationContext,
+  role: ParticipantRole,
+  observed: ParticipantSnapshot,
+): ParticipantSnapshot {
+  const retained = readParticipantLifecycle(context, role);
+  if (observed.id !== context.originals[role].id)
+    throw new Error('participant observed identity differs');
+  if (retained === undefined) {
+    const parked = context.parkedInventory.filter(
+      (member) => readFields(member)['Id'] === observed.id,
+    );
+    if (parked.length !== 1) throw new Error('participant parked identity absent');
+    return assertParticipantTransition(
+      readParticipantSnapshot(parked[0]),
+      observed.native,
+      'start',
+    );
+  }
+  const current = assertParticipantTransition(retained.expected, observed.native, 'stable');
+  if (!retained.restored) return current;
+  assertParticipantTransition(retained.first, current.native, 'policy', retained.originalPolicy);
+  const native = structuredClone(current.native);
+  readFields(native['HostConfig'])['RestartPolicy'] = structuredClone(
+    readFields(retained.first.native['HostConfig'])['RestartPolicy'],
+  );
+  return assertParticipantTransition(retained.first, native, 'stable');
+}
 
 /** Shared lifecycle machinery; its phase comes only from one of the context-only entries. */
 async function restoreBackend(
@@ -175,6 +258,10 @@ async function restoreBackend(
         backendColor: context.request.prod.backend.color,
         dataDirectory: join(context.layouts.prod.root, 'data'),
       });
+    }
+    async function observeRetainedProduct(role: 'backend' | 'gateway') {
+      const observed = await observeSelectedProductRole(context, role);
+      return { ...observed, runtime: projectParticipantLifecycle(context, role, observed.runtime) };
     }
     async function inspectRetained(): Promise<void> {
       await assertParticipantRestorationContext(context);
@@ -413,7 +500,7 @@ async function restoreBackend(
     // ready record when its owning test required zero; exact restoration passed.
     assertSame(
       readiness.observation,
-      await observeSelectedProductRole(context, 'backend'),
+      await observeRetainedProduct('backend'),
       'backend ready publication inner process binding',
     );
     const ready = await retainActivationRecord(
@@ -439,7 +526,7 @@ async function restoreBackend(
     // readiness; its refusal assertion failed and passed after restoration.
     assertSame(
       readiness.observation,
-      await observeSelectedProductRole(context, 'backend'),
+      await observeRetainedProduct('backend'),
       'backend returned readiness inner process binding',
     );
     // Proof: omitting this closing check returned after raw source policy drift
@@ -458,7 +545,7 @@ async function restoreBackend(
         // and passed after restoration. The observing group is the proved scope.
         assertSame(
           backendReadiness.observation,
-          await observeSelectedProductRole(context, 'backend'),
+          await observeRetainedProduct('backend'),
           'gateway retained backend inner process',
         );
         await inspectParticipantImage(
@@ -518,7 +605,7 @@ async function restoreBackend(
         // return readiness; refusal failed, then passed restored. This is grouped.
         assertSame(
           gatewayReadiness.observation,
-          await observeSelectedProductRole(context, 'gateway'),
+          await observeRetainedProduct('gateway'),
           'gateway ready publication inner process binding',
         );
         await inspectRetained();
@@ -542,7 +629,7 @@ async function restoreBackend(
         await inspectGatewayRetained();
         assertSame(
           gatewayReadiness.observation,
-          await observeSelectedProductRole(context, 'gateway'),
+          await observeRetainedProduct('gateway'),
           'gateway returned readiness inner process binding',
         );
         // Proof: omitting this final check let 'solver-backend gateway refuses
@@ -557,7 +644,7 @@ async function restoreBackend(
           await inspectGatewayRetained();
           assertSame(
             retainedGateway.observation,
-            await observeSelectedProductRole(context, 'gateway'),
+            await observeRetainedProduct('gateway'),
             'source retained gateway inner process',
           );
           await inspectRetained();
@@ -566,7 +653,11 @@ async function restoreBackend(
           if (sourceStarted === null || sourceBinding === null)
             throw new Error('source verified running binding absent');
           const observed = await observeSelectedSourceRoles(context);
-          assertParticipantTransition(sourceStarted, observed.runtime.native, 'stable');
+          assertParticipantTransition(
+            sourceStarted,
+            projectParticipantLifecycle(context, 'source', observed.runtime).native,
+            'stable',
+          );
           assertSame(sourceBinding.roles, observed.roles, 'source retained serving roles');
           assertSame(sourceBinding.namespaces, observed.namespaces, 'source retained namespaces');
           return observed;
@@ -659,6 +750,129 @@ async function restoreBackend(
           // Proof: omitting this final barrier returned readiness after the real
           // source observer returned and the physical fence changed; the restored consumer refused.
           await inspectSourceRetained();
+          if (policyLifecycles.has(context))
+            throw new Error('participant lifecycle already retained');
+          const captureLifecycle = (role: ParticipantRole): RetainedLifecycle => {
+            const first = running.get(context.originals[role].id);
+            if (first === undefined) throw new Error('participant running lifecycle absent');
+            return {
+              first: freezeDeep(structuredClone(first)),
+              originalPolicy: freezeDeep(structuredClone(context.originals[role].policy)),
+              expected: freezeDeep(structuredClone(first)),
+              restored: false,
+            };
+          };
+          const lifecycles = {
+            backend: captureLifecycle('backend'),
+            gateway: captureLifecycle('gateway'),
+            source: captureLifecycle('source'),
+          };
+          policyLifecycles.set(context, lifecycles);
+          const readyRecords = {
+            backend: structuredClone(ready),
+            gateway: structuredClone(gatewayReady),
+            source: structuredClone(sourceReady),
+          };
+          /** Fresh policy-phase whole observations are bracketed by retained state, without changing inherited source-start barriers. */
+          async function inspectPolicyParticipants(): Promise<void> {
+            await inspectRetained();
+            assertSame(
+              backendReadiness.observation,
+              await observeRetainedProduct('backend'),
+              'policy retained backend inner process',
+            );
+            await inspectParticipantImage(
+              readSelectedSnapshot(await readInventory(), 'gateway'),
+              'gateway',
+            );
+            await inspectAuthorities(backendReadiness.observation.process);
+            assertSame(
+              retainedGateway.observation,
+              await observeRetainedProduct('gateway'),
+              'policy retained gateway inner process',
+            );
+            await inspectSourceBinding();
+            await inspectRetained();
+          }
+          async function restorePolicies(): Promise<ParticipantPolicyRestoration> {
+            await inspectPolicyParticipants();
+            const policies: EdgeRecordSnapshot[] = [];
+            for (const role of roles) {
+              const lifecycle = lifecycles[role];
+              if (lifecycle.restored) throw new Error('participant policy already restored');
+              const policyIntent = await retainActivationRecord(
+                context.owner,
+                context.layouts,
+                'participant-policy-intent',
+                {
+                  format: 'dependency-participant-policy-intent',
+                  version: 1,
+                  ready: createReference(readyRecords[role]),
+                  role,
+                  id: lifecycle.first.id,
+                  policySha256: hashActivationBytes(JSON.stringify(lifecycle.originalPolicy)),
+                },
+              );
+              retained.push(structuredClone(policyIntent));
+              policies.push(policyIntent);
+              await inspectRetained();
+              await inspectParticipantImage(
+                readSelectedSnapshot(await readInventory(), 'gateway'),
+                'gateway',
+              );
+              await inspectAuthorities(backendReadiness.observation.process);
+              const policyDocker = ownerDockerHashed(
+                context.owner,
+                role === 'source' ? context.layouts.dev : context.layouts.prod,
+                context.ports.docker,
+              );
+              await runDockerBefore(
+                [
+                  'update',
+                  `--restart=${formatParticipantRestartPolicy(lifecycle.originalPolicy)}`,
+                  lifecycle.first.id,
+                ],
+                policyDocker,
+                context.deadline,
+              );
+              const observed = readSelectedSnapshot(await readInventory(), role);
+              const current = assertParticipantTransition(
+                lifecycle.first,
+                observed.native,
+                'policy',
+                lifecycle.originalPolicy,
+              );
+              lifecycle.expected = freezeDeep(structuredClone(current));
+              lifecycle.restored = true;
+              running.set(current.id, structuredClone(current));
+              await inspectRetained();
+            }
+            await inspectPolicyParticipants();
+            const restored = await retainActivationRecord(
+              context.owner,
+              context.layouts,
+              'participants-restored',
+              {
+                format: 'dependency-participants-restored',
+                version: 1,
+                restoration: createReference(restoration),
+                activated: context.storage.receipts,
+                ready: roles.map((role) => createReference(readyRecords[role])),
+                policies: policies.map(createReference),
+                exposure: 'closed',
+                controllers: 'fenced',
+              },
+            );
+            retained.push(structuredClone(restored));
+            await inspectPolicyParticipants();
+            return {
+              state: 'participants-restored-fenced',
+              exposure: 'closed',
+              controllers: 'fenced',
+              restored,
+            };
+          }
+          policyContinuations.set(context, { state: 'source-ready', restorePolicies });
           return {
             state: 'source-ready-participants-fenced',
             exposure: 'closed',
@@ -780,5 +994,29 @@ export async function restoreSourceAfterGateway(
     return await phase.restoreSource();
   } catch {
     throw new Error('source participant restoration refused');
+  }
+}
+
+/** Exact original restart policies restored with original processes retained; this is not controller or exposure handoff. */
+export interface ParticipantPolicyRestoration {
+  readonly state: 'participants-restored-fenced';
+  readonly exposure: 'closed';
+  readonly controllers: 'fenced';
+  readonly restored: EdgeRecordSnapshot;
+}
+
+/** Consumes only genuine source-ready closure once. Intent, exact policy effects and full independent readbacks remain under the original owner/deadline; admitted failure never retries or inverts. */
+export async function restoreParticipantPoliciesAfterSource(
+  context: FinalizedParticipantRestorationContext,
+): Promise<ParticipantPolicyRestoration> {
+  try {
+    await assertParticipantRestorationContext(context);
+    const phase = policyContinuations.get(context);
+    if (phase?.state !== 'source-ready')
+      throw new Error('original source readiness is not retained');
+    policyContinuations.set(context, { state: 'policies-attempted' });
+    return await phase.restorePolicies();
+  } catch {
+    throw new Error('participant policy restoration refused');
   }
 }

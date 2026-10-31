@@ -19,6 +19,7 @@ const PROJECT = 'tools/tool-remote-scripts';
 const MODEL = 'src/lib/dependency-product-process-model.test.ts';
 const CONTINUATION = 'src/lib/dependency-participant-continuation-model.test.ts';
 const RESTORATION = 'src/lib/dependency-source-restoration.test.ts';
+const POLICY = 'src/lib/dependency-participant-policy-restoration.test.ts';
 const SOURCE = [
   'src/lib/source-role-process.test.ts',
   'src/lib/source-inner-command.test.ts',
@@ -52,6 +53,9 @@ function fixture(): string {
     MODEL,
     CONTINUATION,
     RESTORATION,
+    POLICY,
+    `elsewhere/${POLICY}`,
+    'src/lib/dependency-participant-policy-restoration-extra.test.ts',
     `elsewhere/${RESTORATION}`,
     'src/lib/dependency-source-restoration-extra.test.ts',
     ...explicit,
@@ -69,8 +73,8 @@ function fixture(): string {
       root,
       `${PROJECT}/${path}`,
       `import { test, expect } from 'bun:test';
-       test(${JSON.stringify(path)}, () => {
-         console.log('EXECUTED=' + ${JSON.stringify(path)});
+       for (let index = 0; index < ${String(path === RESTORATION ? 23 : path === POLICY ? 8 : 1)}; index++) test(${JSON.stringify(path)} + index, () => {
+         if (index === 0) console.log('EXECUTED=' + ${JSON.stringify(path)});
          expect(process.env.CLAUDECODE).toBe('0'); expect(process.env.AGENT).toBe('0');
        });`,
     );
@@ -150,6 +154,10 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
   expect(restoration.exitCode, restoration.stderr.toString()).toBe(0);
   const restorationCases = executed(restoration.stdout.toString());
   expect(restorationCases).toEqual([RESTORATION]);
+  const policy = invoke(root, 'participant-policy');
+  expect(policy.exitCode, policy.stderr.toString()).toBe(0);
+  const policyCases = executed(policy.stdout.toString());
+  expect(policyCases).toEqual([POLICY]);
   const rest = invoke(root, 'rest');
   expect(model.exitCode, model.stderr.toString()).toBe(0);
   expect(rest.exitCode, rest.stderr.toString()).toBe(0);
@@ -165,20 +173,38 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
   expect(complement).not.toContain(MODEL);
   expect(complement).not.toContain(CONTINUATION);
   expect(complement).not.toContain(RESTORATION);
+  expect(complement).not.toContain(POLICY);
+  expect(complement).toContain(`elsewhere/${POLICY}`);
+  expect(complement).toContain('src/lib/dependency-participant-policy-restoration-extra.test.ts');
   expect(complement).toContain(`elsewhere/${RESTORATION}`);
   expect(complement).toContain('src/lib/dependency-source-restoration-extra.test.ts');
   expect(complement).toContain(`elsewhere/${CONTINUATION}`);
   expect(complement).toContain('src/lib/dependency-participant-continuation-model-extra.test.ts');
   expect(
-    [...singleton, ...moved, ...sourceCases, ...restorationCases, ...complement].sort(),
+    [
+      ...singleton,
+      ...moved,
+      ...sourceCases,
+      ...restorationCases,
+      ...policyCases,
+      ...complement,
+    ].sort(),
   ).toEqual(executed(canonical.stdout.toString()));
   expect(
-    new Set([...singleton, ...moved, ...sourceCases, ...restorationCases, ...complement]).size,
+    new Set([
+      ...singleton,
+      ...moved,
+      ...sourceCases,
+      ...restorationCases,
+      ...policyCases,
+      ...complement,
+    ]).size,
   ).toBe(
     singleton.length +
       moved.length +
       sourceCases.length +
       restorationCases.length +
+      policyCases.length +
       complement.length,
   );
   expect(model.stdout.toString()).toContain('"fresh":true');
@@ -319,7 +345,13 @@ test('actual noncached Nx leaf targets preserve environment and run dependency b
   const head = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], { cwd: root, stdout: 'pipe' })
     .stdout.toString()
     .trim();
-  for (const leaf of ['model', 'model-continuation', 'source-restoration', 'rest']) {
+  for (const leaf of [
+    'model',
+    'model-continuation',
+    'source-restoration',
+    'participant-policy',
+    'rest',
+  ]) {
     const child = Bun.spawnSync(
       [
         process.execPath,
@@ -350,7 +382,7 @@ test('actual noncached Nx leaf targets preserve environment and run dependency b
     expect(child.stdout.toString()).toContain('"fresh":true');
     if (leaf !== 'rest') expect(existsSync(caddyMarker)).toBe(false);
   }
-  expect(readFileSync(dependencyMarker, 'utf8').trim().split('\n')).toHaveLength(4);
+  expect(readFileSync(dependencyMarker, 'utf8').trim().split('\n')).toHaveLength(5);
   expect(readFileSync(caddyMarker, 'utf8')).toBe('caddy\n');
 }, 20000);
 
@@ -687,5 +719,161 @@ test.each(['absent', 'inputs', 'environment'])(
         false,
       );
     }
+  },
+);
+
+test.each(['missing', 'unreadable', 'alias'] as const)(
+  'policy owner refuses invalid parent before actual child selection: %s',
+  (fault) => {
+    const root = fixture();
+    const path = join(root, PROJECT, POLICY);
+    if (fault === 'missing') rmSync(path);
+    if (fault === 'unreadable') chmodSync(path, 0);
+    if (fault === 'alias') {
+      renameSync(path, `${path}.owned`);
+      symlinkSync(`${path}.owned`, path);
+    }
+    const starts = recordChildStarts(root);
+    for (const leaf of ['participant-policy', 'rest']) {
+      const refused = invoke(root, leaf, starts.preload);
+      if (existsSync(starts.marker))
+        console.error(
+          `RESTORATION_PARENT_CHILD: ${JSON.stringify({ leaf, executed: executed(refused.stdout.toString()) })}`,
+        );
+      expect(refused.exitCode, fault).not.toBe(0);
+      expect(executed(refused.stdout.toString())).toEqual([]);
+      expect(existsSync(starts.marker), 'no test child before required-parent validation').toBe(
+        false,
+      );
+    }
+    if (fault === 'unreadable') chmodSync(path, 0o644);
+  },
+);
+
+test.each(['absent', 'inputs', 'environment'])(
+  'all leaves refuse malformed policy target before actual children: %s',
+  (fault) => {
+    const root = fixture();
+    const path = join(root, PROJECT, 'project.json');
+    const project = JSON.parse(readFileSync(path, 'utf8')) as {
+      targets: Record<string, { inputs?: string[]; options?: Record<string, unknown> }>;
+    };
+    if (fault === 'absent') delete project.targets['test:ci:participant-policy'];
+    if (fault === 'inputs') project.targets['test:ci:participant-policy'].inputs = ['default'];
+    if (fault === 'environment') project.targets['test:ci:participant-policy'].options = {};
+    writeFileSync(path, JSON.stringify(project));
+    const starts = recordChildStarts(root);
+    for (const leaf of [
+      'model',
+      'model-continuation',
+      'source',
+      'source-restoration',
+      'participant-policy',
+      'rest',
+    ]) {
+      const refused = invoke(root, leaf, starts.preload);
+      if (existsSync(starts.marker))
+        console.error(
+          `RESTORATION_TARGET_CHILD: ${JSON.stringify({ leaf, executed: executed(refused.stdout.toString()) })}`,
+        );
+      expect(refused.exitCode).not.toBe(0);
+      expect(executed(refused.stdout.toString())).toEqual([]);
+      expect(existsSync(starts.marker), 'no test child before required-target validation').toBe(
+        false,
+      );
+    }
+  },
+);
+
+test.each([
+  ['source-restoration', RESTORATION, 23],
+  ['participant-policy', POLICY, 8],
+] as const)(
+  'complete %s outer receipts reject successful but incomplete execution',
+  (leaf, owner, count) => {
+    for (const fault of ['passes', 'tests', 'files', 'skip', 'todo', 'filtered', 'malformed']) {
+      const root = fixture();
+      const preload = join(root, 'outer-receipt-view.ts');
+      writeFileSync(
+        preload,
+        `
+      const spawn = Bun.spawn;
+      Bun.spawn = (...args) => {
+        const child = spawn(...args);
+        const stderr = new ReadableStream({async start(controller) {
+          try {
+            const text = await new Response(child.stderr).text();
+            const status = await child.exited;
+            if (status !== 0) throw new Error('receipt view requires successful original child');
+            const summary = /(?:^|\\n)[ \\t]*${String(count)} pass\\r?\\n[ \\t]*0 fail\\r?\\n(?:[ \\t]*\\d+ expect\\(\\) calls\\r?\\n)?Ran ${String(count)} tests across 1 file\\.[^\\r\\n]*\\s*$/.exec(text);
+            if (summary === null) throw new Error('receipt view expected complete original outer execution');
+            const fault = ${JSON.stringify(fault)};
+            const original = summary[0];
+            const changed = fault === 'passes' ? original.replace('${String(count)} pass', '${String(count - 1)} pass')
+              : fault === 'tests' ? original.replace('Ran ${String(count)} tests', 'Ran ${String(count - 1)} tests')
+              : fault === 'files' ? original.replace('across 1 file.', 'across 2 files.')
+              : fault === 'malformed' ? original.replace('Ran ', 'UNSUPPORTED ')
+              : original.replace('0 fail', '1 ' + (fault === 'filtered' ? 'filtered out' : fault) + '\\n 0 fail');
+            process.stderr.write('SUCCESSFUL_ORIGINAL_OUTER_TRANSFORMED_ONCE\\n');
+            controller.enqueue(new TextEncoder().encode(text.slice(0, summary.index) + changed));
+            controller.close();
+          } catch (cause) { controller.error(cause); }
+        }});
+        return new Proxy(child, {get(target, property) {
+          if (property === 'stderr') return stderr;
+          const value = Reflect.get(target, property, target);
+          return typeof value === 'function' ? value.bind(target) : value;
+        }});
+      };
+    `,
+      );
+      const refused = invoke(root, leaf, preload);
+      expect(executed(refused.stdout.toString()), fault).toEqual([owner]);
+      expect(refused.stderr.toString(), fault).toContain(
+        'SUCCESSFUL_ORIGINAL_OUTER_TRANSFORMED_ONCE',
+      );
+      expect(refused.exitCode, fault).toBe(1);
+      expect(refused.stderr.toString(), fault).toContain(
+        'Remote leaf produced no successful nonempty execution receipt',
+      );
+      expect(refused.stdout.toString(), fault).not.toContain('"fresh":true');
+    }
+  },
+);
+
+test.each([
+  ['source-restoration', RESTORATION, 23],
+  ['participant-policy', POLICY, 8],
+] as const)(
+  'complete %s outer receipt permits expected nested child filtering',
+  (leaf, owner, count) => {
+    const root = fixture();
+    const nested = join(root, 'nested-restoration-child.test.ts');
+    writeFileSync(
+      nested,
+      `import { test } from 'bun:test'; for (let index = 0; index < 31; index++) test('child-' + index, () => {});`,
+    );
+    writeFileSync(
+      join(root, PROJECT, owner),
+      `
+    import { test, expect } from 'bun:test';
+    for (let index = 0; index < ${String(count)}; index++) test('outer-' + index, () => {
+      if (index !== 0) return;
+      const child = Bun.spawnSync([process.execPath, 'test', ${JSON.stringify(nested)}, '--test-name-pattern=^child-0$'], {stdout: 'pipe', stderr: 'pipe', timeout: 5000});
+      process.stdout.write(child.stdout);
+      process.stderr.write(child.stderr);
+      expect(child.exitCode).toBe(0);
+      expect(child.signalCode).toBeUndefined();
+      expect(child.stderr.toString()).toContain('30 filtered out');
+      console.log('EXECUTED=' + ${JSON.stringify(owner)});
+      console.error('FILTERED_NESTED_CHILD_JOINED');
+    });
+  `,
+    );
+    const invocation = invoke(root, leaf);
+    expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+    expect(invocation.stderr.toString()).toContain('FILTERED_NESTED_CHILD_JOINED');
+    expect(invocation.stdout.toString()).toContain('"tests":' + String(count));
+    expect(invocation.stdout.toString()).toContain('"files":1');
   },
 );
