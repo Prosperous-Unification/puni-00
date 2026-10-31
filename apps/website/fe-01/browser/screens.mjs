@@ -612,6 +612,129 @@ async function auditFocus(page) {
   return problems;
 }
 
+/** Samples rendered header/control text over its painted surface; it does not certify every video frame. */
+async function auditMasthead(page) {
+  // Field-focus audits may scroll long manual forms; sample the masthead at its own viewport.
+  await page.evaluate(() => globalThis.scrollTo(0, 0));
+  const inspected = await page.evaluate(() => {
+    // The navigation popup intentionally overlays the thread; closed-state audits cover Start over.
+    const isMenuOpen =
+      globalThis.document.querySelector('header .menu-toggle[aria-expanded="true"]') !== null;
+    const roots = [
+      ...globalThis.document.querySelectorAll(
+        isMenuOpen ? 'header.site-header' : 'header.site-header, .harness-bar',
+      ),
+    ];
+    const texts = [];
+    const problems = [];
+    for (const root of roots) {
+      for (const element of [root, ...root.querySelectorAll('*')]) {
+        const box = element.getBoundingClientRect();
+        if (!element.checkVisibility() || box.width === 0 || box.height === 0 || box.bottom <= 0)
+          continue;
+        const ownNodes = [...element.childNodes].filter(
+          (node) => node.nodeType === 3 && node.textContent.trim(),
+        );
+        for (const node of ownNodes) {
+          const range = globalThis.document.createRange();
+          range.selectNodeContents(node);
+          const rectangle = range.getBoundingClientRect();
+          const style = globalThis.getComputedStyle(element);
+          let opacity = 1;
+          for (let ancestor = element; ancestor; ancestor = ancestor.parentElement)
+            opacity *= Number(globalThis.getComputedStyle(ancestor).opacity);
+          texts.push({
+            name: node.textContent.trim(),
+            color: style.color.match(/[\d.]+/g).map(Number),
+            opacity,
+            x: rectangle.x + globalThis.scrollX,
+            y: rectangle.y + globalThis.scrollY,
+            width: rectangle.width,
+            height: rectangle.height,
+          });
+        }
+        if (!element.matches('a[href], button')) continue;
+        // Proof: a 20px identity minimum and zero Build inset reported small/covered targets at every width.
+        if (box.width < 44 || box.height < 44)
+          problems.push(`masthead small target ${element.textContent.trim()}`);
+        const front = globalThis.document.elementFromPoint(
+          box.x + box.width / 2,
+          box.y + box.height / 2,
+        );
+        if (front === null || !element.contains(front))
+          problems.push(`masthead covered target ${element.textContent.trim()}`);
+      }
+    }
+    const labels = [...globalThis.document.querySelectorAll('header .site-nav a')].map((link) =>
+      link.textContent.trim(),
+    );
+    // Proof: removing Blog from SiteHeader failed all four operator captures with the three remaining labels.
+    if (labels.join(',') !== 'Home,Build,Services,Blog')
+      problems.push(`masthead labels ${labels.join(',')}`);
+    if (globalThis.document.querySelector('header .nav-rail-label, header .nav-index'))
+      problems.push('obsolete masthead rail');
+    if (texts.length === 0) throw new Error('Masthead audit found no visible text');
+    return { texts, problems };
+  });
+  const screenshot = await page.screenshot({
+    fullPage: true,
+    style: `header.site-header, header.site-header *, .harness-bar, .harness-bar * { color: transparent !important; -webkit-text-fill-color: transparent !important; text-shadow: none !important; }`,
+  });
+  const ratios = await page.evaluate(
+    async ({ encoded, texts }) => {
+      const bytes = Uint8Array.from(globalThis.atob(encoded), (character) =>
+        character.charCodeAt(0),
+      );
+      const bitmap = await globalThis.createImageBitmap(
+        new globalThis.Blob([bytes], { type: 'image/png' }),
+      );
+      const canvas = globalThis.document.createElement('canvas');
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const context = canvas.getContext('2d');
+      if (context === null) throw new Error('Masthead audit cannot decode painted surface');
+      context.drawImage(bitmap, 0, 0);
+      bitmap.close();
+      const luminance = (rgb) =>
+        rgb
+          .map((channel) => channel / 255)
+          .map((channel) =>
+            channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4,
+          )
+          .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+      return texts.map((text) =>
+        Math.min(
+          ...[0.2, 0.5, 0.8].map((fraction) => {
+            const x = Math.floor(text.x + text.width * fraction);
+            const y = Math.floor(text.y + text.height / 2);
+            if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height)
+              throw new Error('Masthead sample outside screenshot');
+            const background = [...context.getImageData(x, y, 1, 1).data].slice(0, 3);
+            const alpha = (text.color[3] ?? 1) * text.opacity;
+            const foreground = text.color
+              .slice(0, 3)
+              .map((channel, index) => channel * alpha + background[index] * (1 - alpha));
+            const [high, low] = [luminance(foreground), luminance(background)].sort(
+              (first, second) => second - first,
+            );
+            return (high + 0.05) / (low + 0.05);
+          }),
+        ),
+      );
+    },
+    { encoded: Buffer.from(screenshot).toString('base64'), texts: inspected.texts },
+  );
+  // Proof: the low-contrast and overlapping-header CSS faults recorded in verify.md fail this production-page audit.
+  ratios.forEach((ratio, index) => {
+    if (ratio < 4.5)
+      inspected.problems.push(
+        `masthead text ${ratio.toFixed(2)}:1 on ${inspected.texts[index].name}`,
+      );
+  });
+  globalThis.console.log(`masthead contrast: minimum ${Math.min(...ratios).toFixed(2)}:1`);
+  return inspected.problems;
+}
+
 /** The live marketing site the app header must match; only read, never written. */
 const parityOrigin = env['PUNI_PARITY_ORIGIN'] ?? 'https://dev.puni.dev';
 const parityViewports = signInAuditViewports;
@@ -621,20 +744,18 @@ const siteHeaderParts = {
   brand: '.puni-wordmark',
   wordmark: '.puni-wordmark-line',
   moon: '.puni-wordmark-moon img',
-  rail: '.puni-desktop-nav .puni-rail-label',
-  nav: '.puni-rail-links a',
+  nav: '.puni-desktop-nav a',
   menu: '.puni-menu summary',
-  menuTitle: '.puni-menu .nav-link-title',
+  panel: '.puni-menu[open] .nav-menu-content',
   menuItems: '.puni-menu .nav-menu-content a',
 };
 const appHeaderParts = {
   brand: 'header.site-header .brand',
   wordmark: 'header.site-header .wordmark-header',
   moon: 'header.site-header .wordmark-moon img',
-  rail: 'header.site-header .nav-rail-label',
   nav: 'header.site-header .site-nav a',
   menu: 'header.site-header .menu-toggle',
-  menuTitle: 'header.site-header .nav-rail-label',
+  panel: 'header.site-header .site-nav[data-open="true"]',
   menuItems: 'header.site-header .site-nav a',
 };
 
@@ -644,7 +765,8 @@ const appHeaderParts = {
  */
 function measureHeaderParts([parts, phase]) {
   const read = (element) => {
-    if (!element) return 'missing';
+    // Proof: removing the rendered brand class failed header-parity with this error (2026-10-31).
+    if (!element) throw new Error('Required masthead reference/app part missing');
     const box = element.getBoundingClientRect();
     if (box.width === 0 || box.height === 0) return 'hidden';
     const style = globalThis.getComputedStyle(element);
@@ -665,14 +787,13 @@ function measureHeaderParts([parts, phase]) {
   if (phase === 'open')
     return {
       menu: one(parts.menu),
-      menuTitle: one(parts.menuTitle),
+      panel: one(parts.panel),
       menuItems: all(parts.menuItems),
     };
   return {
     brand: one(parts.brand),
     wordmark: one(parts.wordmark),
     moon: one(parts.moon),
-    rail: one(parts.rail),
     nav: all(parts.nav),
     menu: one(parts.menu),
   };
@@ -690,6 +811,11 @@ function compareHeaderParts(site, app) {
       ? sitePart.map((part, index) => [`${name}[${String(index)}]`, part, app[name]?.[index]])
       : [[name, sitePart, app[name]]],
   );
+  // Proof: removing Blog from SiteHeader reported link-count mismatch on desktop and open narrow panels.
+  for (const [name, sitePart] of Object.entries(site)) {
+    if (Array.isArray(sitePart) && sitePart.length !== app[name]?.length)
+      problems.push(`${name}: link count differs`);
+  }
   for (const [name, sitePart, appPart] of pairs) {
     if (appPart === undefined) {
       problems.push(`${name}: absent in app (site ${format(sitePart)})`);
@@ -752,7 +878,13 @@ async function routeSiteMedia(context, stack, abort) {
   });
 }
 
-const browser = await chromium.launch({ channel, headless: true, args: ['--no-sandbox'] });
+const browser = await chromium.launch({
+  ...(env['PUNI_BROWSER_EXECUTABLE']
+    ? { executablePath: env['PUNI_BROWSER_EXECUTABLE'] }
+    : { channel }),
+  headless: true,
+  args: ['--no-sandbox'],
+});
 try {
   for (const state of selected) {
     for (const viewport of state.viewports ?? viewports) {
@@ -841,6 +973,7 @@ try {
       });
       const problems = state.check ? await state.check(page, consoleTexts, state.stack) : [];
       problems.push(...(await auditFocus(page)));
+      problems.push(...(await auditMasthead(page)));
       // W11: a person reads every request and replies by email; no page states a response time.
       // Proof: "We reply within 2 days." added to the receipt lead made manual-receipt report this at every width.
       const responseTime = /within \d+ (hours|days)/i.exec(await page.locator('body').innerText());
@@ -859,49 +992,57 @@ try {
   }
 
   if (!only || only.includes('menu')) {
-    const context = await browser.newContext({ viewport: viewports[2] });
-    await routeSiteMedia(context, aiOff, false);
-    await context.addCookies([await createDraftCookie(aiOff)]);
-    const page = await context.newPage();
-    await page.goto(aiOff.app, { waitUntil: 'domcontentloaded' });
-    // Wait for the loaded state: its h1 focus would otherwise reset the focus start point.
-    await page.locator('.build-disabled-row').waitFor();
-    // The looping background video keeps the network busy, so networkidle never settles here.
-    await page.waitForTimeout(800);
-    // Clicking the header's empty middle sets the sequential focus start before its controls.
-    await page.mouse.click(195, 34);
-    const order = [];
-    for (let step = 0; step < 3; step += 1) {
-      await page.keyboard.press('Tab');
-      order.push(
-        await page.evaluate(() => globalThis.document.activeElement?.className.split(' ')[0] ?? ''),
+    for (const viewport of viewports.filter((candidate) => candidate.width < 992)) {
+      const context = await browser.newContext({ viewport });
+      await routeSiteMedia(context, aiOff, false);
+      await context.addCookies([await createDraftCookie(aiOff)]);
+      const page = await context.newPage();
+      await page.goto(aiOff.app, { waitUntil: 'domcontentloaded' });
+      // Wait for the loaded state: its h1 focus would otherwise reset the focus start point.
+      await page.locator('.build-disabled-row').waitFor();
+      // The looping background video keeps the network busy, so networkidle never settles here.
+      await page.waitForTimeout(800);
+      // Clicking the header's empty middle sets the sequential focus start before its controls.
+      await page.mouse.click(viewport.width / 2, 34);
+      const order = [];
+      for (let step = 0; step < 3; step += 1) {
+        await page.keyboard.press('Tab');
+        order.push(
+          await page.evaluate(
+            () => globalThis.document.activeElement?.className.split(' ')[0] ?? '',
+          ),
+        );
+      }
+      // Proof: moving the brand back after the Menu toggle made this report skip-link,menu-toggle,brand.
+      const orderOk = order.join(',') === 'skip-link,brand,menu-toggle';
+      globalThis.console.log(
+        `tab-order-${String(viewport.width)}: ${order.join(',')} ${orderOk ? 'OK' : 'FAIL'}`,
       );
+      if (!orderOk) failures.push(`tab-order-${String(viewport.width)}`);
+      await page.keyboard.press('Escape');
+      const menu = page.getByRole('button', { name: 'Menu' });
+      await menu.click();
+      const build = page.locator('nav[aria-label="Primary"] a[aria-current="page"]');
+      await build.waitFor();
+      await page.screenshot({ path: `${outDir}/app-menu-open-${String(viewport.width)}.png` });
+      const menuProblems = [...(await auditMasthead(page)), ...(await auditFocus(page))];
+      const expanded = await page.locator('.menu-toggle').getAttribute('aria-expanded');
+      await page.keyboard.press('Escape');
+      const closed = !(await build.isVisible());
+      const focused = await page.evaluate(() =>
+        globalThis.document.activeElement?.classList.contains('menu-toggle'),
+      );
+      const menuOk = expanded === 'true' && closed && focused === true && menuProblems.length === 0;
+      globalThis.console.log(
+        `menu-${String(viewport.width)}: expanded=${String(expanded)} escapeClosed=${String(closed)} focusReturned=${String(focused)} ${menuProblems.join(' / ')} ${menuOk ? 'OK' : 'FAIL'}`,
+      );
+      if (!menuOk) failures.push(`menu-${String(viewport.width)}`);
+      await context.close();
     }
-    // Proof: moving the brand back after the Menu toggle made this report skip-link,menu-toggle,brand.
-    const orderOk = order.join(',') === 'skip-link,brand,menu-toggle';
-    globalThis.console.log(`tab-order-390: ${order.join(',')} ${orderOk ? 'OK' : 'FAIL'}`);
-    if (!orderOk) failures.push('tab-order-390');
-    await page.keyboard.press('Escape');
-    const menu = page.getByRole('button', { name: 'Menu' });
-    await menu.click();
-    const build = page.locator('nav[aria-label="Primary"] a[aria-current="page"]');
-    await build.waitFor();
-    await page.screenshot({ path: `${outDir}/app-menu-open-390.png` });
-    const expanded = await page.locator('.menu-toggle').getAttribute('aria-expanded');
-    await page.keyboard.press('Escape');
-    const closed = !(await build.isVisible());
-    const focused = await page.evaluate(() =>
-      globalThis.document.activeElement?.classList.contains('menu-toggle'),
-    );
-    const menuOk = expanded === 'true' && closed && focused === true;
-    globalThis.console.log(
-      `menu-390: expanded=${String(expanded)} escapeClosed=${String(closed)} focusReturned=${String(focused)} ${menuOk ? 'OK' : 'FAIL'}`,
-    );
-    if (!menuOk) failures.push('menu-390');
-    await context.close();
   }
 
-  // Proof: against the previous header (4cacc8ced) all 15 route-width captures failed (16px
+  // Proof: the obsolete rail failed all 15 route/width comparisons on 2026-10-31.
+  // Against the previous header (4cacc8ced) all 15 route-width captures failed (16px
   // Geist brand, no moon on manual, inline 14px nav, Menu at 1024); restoring the moon's old
   // 0.7em size failed all 15 again on the moon and wordmark boxes.
   if (!only || only.includes('header-parity')) {
@@ -913,7 +1054,7 @@ try {
       await sitePage.evaluate(() => globalThis.document.fonts.ready);
       await sitePage.waitForTimeout(800);
       const site = await sitePage.evaluate(measureHeaderParts, [siteHeaderParts, 'closed']);
-      const isNarrow = viewport.width === 390;
+      const isNarrow = viewport.width < 992;
       let siteOpen = null;
       if (isNarrow) {
         await sitePage.locator(siteHeaderParts.menu).click();
@@ -930,7 +1071,9 @@ try {
         if (isNarrow) {
           await sitePage.locator(siteHeaderParts.menu).click();
           await sitePage.waitForTimeout(300);
-          await sitePage.screenshot({ path: `${outDir}/parity-site-menu-open-390.png` });
+          await sitePage.screenshot({
+            path: `${outDir}/parity-site-menu-open-${String(viewport.width)}.png`,
+          });
         }
       }
       await siteContext.close();
@@ -967,7 +1110,9 @@ try {
             problems.push(
               ...compareHeaderParts(siteOpen, appOpen).map((problem) => `open ${problem}`),
             );
-            await page.screenshot({ path: `${outDir}/parity-app-${name}-menu-open-390.png` });
+            await page.screenshot({
+              path: `${outDir}/parity-app-${name}-menu-open-${String(viewport.width)}.png`,
+            });
           } else problems.push('open menu: app has no visible Menu button');
         }
         globalThis.console.log(`${label}: ${problems.length === 0 ? 'OK' : problems.join(' / ')}`);

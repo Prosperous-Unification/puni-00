@@ -4,8 +4,10 @@ Goal: consistent app chrome and a catalogue-guided conversation before email com
 
 ## Task 1: Quiet app masthead
 
-- [ ] 1.1 Read callers and change SiteHeader/chrome.tsx plus style.css to the landing’s left identity/right quiet desktop navigation and accessible phone Menu. Remove numbered rail markup/styles, retain night/light tones, moon fallback, skip link, current-page semantics and flow/overlay placement under precise names; update all callers in build-page.tsx/main.tsx. RED/GREEN: chrome.test.ts plain labels/identity/menu assertions plus actual old-header parity failure at1440/768/390/320 before implementing.
+- [x] 1.1 Read callers and change SiteHeader/chrome.tsx plus style.css to the landing’s left identity/right quiet desktop navigation and accessible phone Menu. Remove numbered rail markup/styles, retain night/light tones, moon fallback, skip link, current-page semantics and flow/overlay placement under precise names; update all callers in build-page.tsx/main.tsx. RED/GREEN: chrome.test.ts plain labels/identity/menu assertions plus actual old-header parity failure at1440/768/390/320 before implementing.
 - [ ] 1.2 Update existing browser/screens.mjs header-parity/navigation and actual app-state checks to the approved landing reference. Verify small-screen controls, keyboard order/Escape, moon fallback, text contrast4.5/controls44px and CLS0.05 without weakening thresholds. Existing safety proofs remain; any changed check gets an observed fault/restoration and adjacent Proof. Run focused app tests/lint/typecheck/build, record skipped/unavailable checks, commit named source and obtain independent review.
+
+Local Task1 implementation/check evidence is in verify.md;1.2 awaits the independent parent review before completion.
 
 ## Task 2: Offer-guided anonymous conversation
 
