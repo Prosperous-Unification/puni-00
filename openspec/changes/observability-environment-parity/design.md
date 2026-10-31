@@ -495,3 +495,25 @@ Implement with production-boundary TDD, real Python fixture reads and subprocess
 integration, new guard-removal negatives/restoration and scoped checks. Do not replay
 old source/chart/component/fault suites. The code slice stops for independent review;
 a live compiled observer rollout needs fresh source-bound preflight and preservation.
+
+### Immutable observer revision selection — Task75
+
+Keep the original runtime snapshot/preflight as the historical ab4f bootstrap
+contract; do not weaken it to accept arbitrary manifests. Extend the existing
+unit renderer and its CLI with an explicit optional full source revision.
+Validate that value at this boundary, derive the same nine-character immutable
+release directory convention, and bind the full revision to --version. Default
+rendering remains byte-identical. No new deployment framework, provider-neutral
+domain type, credential or glossary term is needed.
+
+This source slice only generates unit text. The controller builds a reviewed
+clean commit locally with pinned Bun, hashes its compiled executable and writes
+an immutable manifest. Before reversible dev activation it verifies fresh owned
+units, binary, checkpoints, target identity and the observer account's h3 access;
+preserves the exact prior unit and release; validates candidate syntax; changes
+only the owned observer unit; then verifies effective bounds and stored cycles.
+The old preflight cannot certify a later release. Any immutable path collision
+requires inspection and refusal, never overwriting an earlier binary. Do not
+initialize checkpoints, restart the tunnel or modify h3 stores. A failed update
+restores the saved owned unit and prior executable, retaining failure evidence.
+Full parity, history/recovery and Kubernetes/Flux admission remain open.

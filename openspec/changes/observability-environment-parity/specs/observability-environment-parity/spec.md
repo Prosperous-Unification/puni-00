@@ -985,3 +985,26 @@ OTel publication and Prometheus storage with explicit unavailable states.
 - **WHEN** resource history or lifetime peaks are inspected for sizing
 - **THEN** distinct workloads' maxima and terminated attempts are not asserted to coexist without phase and identity evidence
 - **AND** source component success does not certify full Kubernetes/Flux, history/recovery or live migration readiness
+
+### Requirement: Immutable observer updates preserve operation
+
+The existing dev observer SHALL support selecting an immutable source revision
+without changing its transport, checkpoints or service containment. Selecting a
+revision generates units only; it does not authorize or perform installation.
+
+#### Scenario: A reviewed observer revision is selected
+
+- **WHEN** the operator renders units for a full lowercase forty-character hexadecimal source revision
+- **THEN** only the observer executable release directory and producer version change together
+- **AND** omission preserves the original unit bytes, the tunnel remains identical, and checkpoints, resource limits and restart policy remain unchanged
+
+#### Scenario: A revision is malformed or extra arguments are supplied
+
+- **WHEN** revision input is empty, abbreviated, uppercase, path-shaped, contains whitespace or control characters, or the CLI receives unexpected arguments
+- **THEN** rendering refuses rather than producing an executable path or accepting an ignored argument
+
+#### Scenario: Source selection does not prove rollout
+
+- **WHEN** a candidate unit has been generated successfully
+- **THEN** actual rollout still requires fresh existing-account access, immutable binary/manifest verification, exact prior-unit preservation and reversible activation
+- **AND** autonomous stored collection, effective service bounds and retained history must be observed separately before runtime acceptance
