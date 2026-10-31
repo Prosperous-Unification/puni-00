@@ -237,13 +237,63 @@ for (const kind of ['reuse', 'missing', 'closed', 'open', 'close', 'provenance']
     await runChild(kind);
   });
 
-test('Dash test target installs the dedicated lifetime before every source suite', () => {
+test('Dash test target installs the dedicated lifetime before every source suite', async () => {
   const project = parseOrThrow(
     type({ targets: { test: { options: { command: 'string', cwd: 'string' } } } }),
     JSON.parse(readFileSync(join(cli, 'project.json'), 'utf8')),
   );
-  expect(project.targets.test.options.command).toBe(
-    'TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../../node_modules bun test --preload src/runs/testing/format4-lifetime-preload.ts src --timeout=60000',
+  const selected = 'unused new down restores exact original physical schema and old records';
+  const cwd = resolve(root, project.targets.test.options.cwd);
+  // exec env preserves the configured assignment and gives the actual Bun runner the owned PID.
+  const argv = [
+    'sh',
+    '-c',
+    `exec env ${project.targets.test.options.command} --test-name-pattern '^${selected}$'`,
+  ];
+  const child = Bun.spawn(argv, { cwd, stdout: 'pipe', stderr: 'pipe', timeout: 45000 });
+  const [exit, stdout, stderr] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]);
+  console.log(
+    JSON.stringify({
+      event: 'format4-configured-target',
+      argv,
+      cwd,
+      pid: child.pid,
+      exit,
+      signal: child.signalCode,
+      stdout,
+      stderr,
+      pipesClosed: true,
+    }),
   );
-  expect(project.targets.test.options.cwd).toBe('apps/twilight-structure/twilight-dash/cli');
-});
+  // Proof: release-preload-fix 002 executed the bare src/ preload and failed here with preload not found; restoring only ./ made the same real source test pass.
+  expect(exit).toBe(0);
+  expect(child.signalCode).toBeNull();
+  expect(existsSync('/proc/' + String(child.pid))).toBe(false);
+  expect(stderr).toContain('(pass) ' + selected);
+  expect(stderr).toMatch(/\b1 pass\b/);
+  const closed = stdout
+    .split('\n')
+    .filter((line) => line.startsWith('{'))
+    .map((line) => JSON.parse(line) as unknown)
+    .map((entry) =>
+      parseOrThrow(
+        type({
+          event: "'format4-provider-closed'",
+          directory: 'string',
+          moduleLoadCount: 'number',
+          leaseCount: 'number',
+        }),
+        entry,
+      ),
+    );
+  expect(closed).toHaveLength(1);
+  for (const provider of closed) {
+    expect(provider.moduleLoadCount).toBe(1);
+    expect(provider.leaseCount).toBe(0);
+    expect(existsSync(provider.directory)).toBe(false);
+  }
+}, 60000);
