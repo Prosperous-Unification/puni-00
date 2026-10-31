@@ -47,7 +47,7 @@ async function createExecutionDatabase() {
   }
 }
 executionHistoryContract('sqlite execution history', createExecutionDatabase);
-test('execution history bootstrap declares format4', async () => {
+test('execution history bootstrap declares format5', async () => {
   const stores = await createExecutionDatabase();
   const database = new Database(stores.options.path, { readonly: true });
   try {

@@ -416,6 +416,7 @@ const mutationCodec = type(
 );
 /** Every serialized command crosses its exact original guard/command codec before calling the original provider. */
 async function invokeMutation(method: Format4Mutation, parameters: unknown[]) {
+  // Proof: fix-round1 006 omitted only this guard; the actual genuine4 worker accepted an extra renewOwnership parameter with all downstream decoders installed. Restored real-worker tuple regressions refuse.
   if (parameters.length !== (method === 'renewOwnership' ? 1 : 2))
     throw new Error('old invocation arity differs');
   const [first, second] = parameters;

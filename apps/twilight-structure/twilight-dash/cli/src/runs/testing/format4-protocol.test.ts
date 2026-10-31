@@ -1,6 +1,18 @@
+import { rejects } from 'node:assert/strict';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { expect, test } from 'bun:test';
 
-import { decodeFormat4Envelope, decodeFormat4Response } from './format4-protocol';
+import { constructFixture, settleFixture } from './construct-fixture';
+import { createFormat4Fixture, verifyFormat4Source } from './format4-fixture';
+import {
+  decodeFormat4Command,
+  decodeFormat4Envelope,
+  decodeFormat4Response,
+  type Format4Command,
+} from './format4-protocol';
 
 function decode(payload: unknown, expected: Parameters<typeof decodeFormat4Response>[1]) {
   const envelope = decodeFormat4Envelope({ kind: 'reply', requestId: '1', payload });
@@ -106,4 +118,90 @@ test('format4 preserves named recursive diagnostic causes and rejects malformed 
   });
   if (malformed.kind === 'ready') throw new Error('unexpected ready');
   expect(() => decodeFormat4Response(malformed, { kind: 'close' })).toThrow();
+});
+
+test('format4 command decoder rejects missing and extra tuple fields', () => {
+  for (const command of [
+    { method: 'renewOwnership', parameters: [ownership] },
+    { method: 'acquireOwnership', parameters: ['owner', 0] },
+  ]) {
+    expect(decodeFormat4Command(command)).toEqual<unknown>(command);
+    expect(() =>
+      decodeFormat4Command({ ...command, parameters: command.parameters.slice(0, -1) }),
+    ).toThrow('arity differs');
+    expect(() =>
+      decodeFormat4Command({ ...command, parameters: [...command.parameters, 'extra'] }),
+    ).toThrow('arity differs');
+  }
+});
+
+test('genuine format4 worker rejects missing and extra command parameters without changing state', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'format4-command-arity-'));
+  const fixture = await constructFixture(
+    () => createFormat4Fixture(join(directory, 'runs.sqlite')),
+    [
+      () => {
+        rmSync(directory, { recursive: true });
+      },
+    ],
+  );
+  await settleFixture(async () => {
+    const prepared = await fixture.prepareMutation('renewOwnership');
+    const before = await fixture.capture();
+    for (const command of [
+      { ...prepared, parameters: [...prepared.parameters, 'extra'] },
+      { ...prepared, parameters: [] },
+      { method: 'acquireOwnership', parameters: ['owner'] },
+      { method: 'acquireOwnership', parameters: ['owner', 0, 'extra'] },
+    ]) {
+      // Test boundary: malformed IPC tuples deliberately bypass only the static call signature; the actual worker's arity and field decoders remain installed.
+      await rejects(fixture.invoke(command as Format4Command), (cause: unknown) => {
+        expect(String(cause)).toContain('format4 worker request refused');
+        expect(String(cause)).toContain('arity differs');
+        return true;
+      });
+      expect(await fixture.capture()).toEqual(before);
+    }
+    expect((await fixture.invoke(prepared)).kind).toBe('applied');
+  }, [
+    () => fixture.close(),
+    () => {
+      rmSync(directory, { recursive: true });
+    },
+  ]);
+});
+
+test('format4 provenance verifies the reused archived protocol dependency', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'format4-shared-protocol-'));
+  const fixture = await constructFixture(
+    () => createFormat4Fixture(join(directory, 'runs.sqlite')),
+    [
+      () => {
+        rmSync(directory, { recursive: true });
+      },
+    ],
+  );
+  const relative = 'testing/format3-protocol.ts';
+  const path = join(
+    fixture.sourceDirectory,
+    'apps/twilight-structure/twilight-dash/cli/src/runs',
+    relative,
+  );
+  const original = readFileSync(path);
+  await settleFixture(() => {
+    writeFileSync(path, Buffer.concat([original, Buffer.from('\n// owned provenance fault\n')]));
+    expect(() => verifyFormat4Source(fixture.sourceDirectory)).toThrow(
+      'predecessor source differs',
+    );
+    writeFileSync(path, original);
+    expect(verifyFormat4Source(fixture.sourceDirectory)).toEqual(fixture.sourceFiles);
+  }, [
+    () => {
+      writeFileSync(path, original);
+    },
+    () => fixture.close(),
+    () => {
+      rmSync(directory, { recursive: true });
+    },
+  ]);
 });

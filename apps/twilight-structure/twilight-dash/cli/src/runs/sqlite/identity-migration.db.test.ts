@@ -23,6 +23,7 @@ import { authorityRequest, runtimePin, runtimeScope } from '../testing/runtime-h
 import { createStoreDirectory } from '../testing/store-directory';
 import { FORMAT4_IDENTITY, FORMAT5_IDENTITY } from './format';
 import { downgradeUnusedSqliteIdentityKeys, upgradeSqliteIdentityKeys } from './migrate-identities';
+import { SqliteFormatTransitionError } from './migrate-recovery';
 import { openSqliteStores } from './open-stores';
 
 async function createPredecessor() {
@@ -281,7 +282,11 @@ for (const failure of ['absent', 'unreadable'] as const)
         writeFileSync(path, 'trusted original bytes');
         chmodSync(path, 0);
       }
-      await rejects(upgradeSqliteIdentityKeys(options), { failure, phase: 'preflight' });
+      await rejects(upgradeSqliteIdentityKeys(options), (cause: unknown) => {
+        expect(cause).toBeInstanceOf(SqliteFormatTransitionError);
+        expect(cause).toMatchObject({ failure, phase: 'preflight' });
+        return true;
+      });
       if (failure === 'absent') expect(existsSync(path)).toBe(false);
       else {
         chmodSync(path, 0o600);

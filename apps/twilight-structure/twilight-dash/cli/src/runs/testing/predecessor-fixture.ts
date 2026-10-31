@@ -130,12 +130,14 @@ export async function createPredecessorFixture(
     pending.clear();
   }
   const readyTimer = setTimeout(() => {
-    failWorker(new Error('format3 worker readiness timed out'));
+    failWorker(new Error(`${source.label} worker readiness timed out`));
     child.kill('SIGKILL');
   }, 30_000);
   child.on('error', failWorker);
   child.on('close', (code, signal) => {
-    const failure = new Error(`format3 worker exited ${String(code)}/${String(signal)}: ${stderr}`);
+    const failure = new Error(
+      `${source.label} worker exited ${String(code)}/${String(signal)}: ${stderr}`,
+    );
     if (!isReady || code !== 0 || signal !== null || pending.size !== 0) failWorker(failure);
     exited.resolve({ code, signal });
   });
@@ -148,20 +150,21 @@ export async function createPredecessorFixture(
           JSON.stringify(response.sourceFiles) !== JSON.stringify(sourceFiles) ||
           JSON.stringify(response.format) !== JSON.stringify(identity)
         )
-          throw new Error('format3 worker source or complete bundle differs');
+          throw new Error(`${source.label} worker source or complete bundle differs`);
         clearTimeout(readyTimer);
         isReady = true;
         ready.resolve(undefined);
         return;
       }
       const request = pending.get(response.requestId);
-      if (request === undefined) throw new Error('unknown format3 response request');
+      if (request === undefined) throw new Error(`unknown ${source.label} response request`);
       const decoded = source.decodeResponse(response, request.expected);
       clearTimeout(request.timer);
       pending.delete(response.requestId);
       if (decoded.kind === 'error')
         request.reject(
-          new Error(`format3 worker request refused: ${JSON.stringify(decoded.error)}`, {
+          // Proof: fix-round1 008 substituted the old producer label; the actual format4 arity refusal lost its correct outer context. Diagnostic-only; cause and refusal remained.
+          new Error(`${source.label} worker request refused: ${JSON.stringify(decoded.error)}`, {
             cause: decoded.error,
           }),
         );
@@ -187,7 +190,7 @@ export async function createPredecessorFixture(
     const requestId = String(nextId);
     const response = Promise.withResolvers<Format3Payload>();
     const timer = setTimeout(() => {
-      failWorker(new Error(`format3 request ${requestId} timed out`));
+      failWorker(new Error(`${source.label} request ${requestId} timed out`));
       child.kill('SIGKILL');
     }, 30_000);
     pending.set(requestId, { ...response, timer, expected: command });
@@ -212,7 +215,7 @@ export async function createPredecessorFixture(
         }
       }
       const timer = setTimeout(() => {
-        failWorker(new Error('format3 worker close timed out'));
+        failWorker(new Error(`${source.label} worker close timed out`));
         child.kill('SIGKILL');
       }, 5_000);
       try {
@@ -254,7 +257,8 @@ export async function createPredecessorFixture(
       if (terminalFailure !== undefined && !failures.includes(terminalFailure.cause))
         failures.unshift(terminalFailure.cause);
       if (failures.length === 1) throw failures[0];
-      if (failures.length > 1) throw new AggregateError(failures, 'format3 worker cleanup failed');
+      if (failures.length > 1)
+        throw new AggregateError(failures, `${source.label} worker cleanup failed`);
     })();
     await closing;
   }
@@ -298,7 +302,7 @@ export async function createPredecessorFixture(
     },
     async armBusy(minimumInvoked: 1 | 2) {
       const payload = await requestWorker({ kind: 'arm_busy', minimumInvoked });
-      if (payload.action !== 'arm_busy') throw new Error('format3 internal action differs');
+      if (payload.action !== 'arm_busy') throw new Error(`${source.label} internal action differs`);
       return payload.value;
     },
     releaseBusy() {
@@ -306,7 +310,8 @@ export async function createPredecessorFixture(
     },
     async armCallback() {
       const payload = await requestWorker({ kind: 'arm_callback' });
-      if (payload.action !== 'arm_callback') throw new Error('format3 internal action differs');
+      if (payload.action !== 'arm_callback')
+        throw new Error(`${source.label} internal action differs`);
       return payload.value;
     },
     releaseCallback() {
@@ -338,12 +343,12 @@ export async function createPredecessorFixture(
     }),
     async populate(population: Format3Population) {
       const payload = await requestWorker({ kind: 'populate', population });
-      if (payload.action !== 'populate') throw new Error('format3 internal action differs');
+      if (payload.action !== 'populate') throw new Error(`${source.label} internal action differs`);
       return payload.value;
     },
     async capture(): Promise<Format3Capture> {
       const payload = await requestWorker({ kind: 'capture' });
-      if (payload.action !== 'capture') throw new Error('format3 internal action differs');
+      if (payload.action !== 'capture') throw new Error(`${source.label} internal action differs`);
       return payload.value;
     },
     async prepareMutation(method: Format3Mutation): Promise<Format3Command> {
@@ -352,13 +357,13 @@ export async function createPredecessorFixture(
         population: 'receipt_settled',
         mutation: method,
       });
-      if (payload.action !== 'prepare') throw new Error('format3 internal action differs');
+      if (payload.action !== 'prepare') throw new Error(`${source.label} internal action differs`);
       const { action: _action, ...command } = payload;
       return command;
     },
     async invoke(command: Format3Command) {
       const payload = await requestWorker({ ...command, kind: 'invoke' });
-      if (payload.action !== 'invoke') throw new Error('format3 internal action differs');
+      if (payload.action !== 'invoke') throw new Error(`${source.label} internal action differs`);
       return payload.value;
     },
     async retainArtifact(bytes: Uint8Array, mediaType: string) {
@@ -367,28 +372,32 @@ export async function createPredecessorFixture(
         base64: Buffer.from(bytes).toString('base64'),
         mediaType,
       });
-      if (payload.action !== 'retain_artifact') throw new Error('format3 internal action differs');
+      if (payload.action !== 'retain_artifact')
+        throw new Error(`${source.label} internal action differs`);
       return payload.value;
     },
     async advanceClock(milliseconds: number) {
       const payload = await requestWorker({ kind: 'advance_clock', milliseconds });
-      if (payload.action !== 'advance_clock') throw new Error('format3 internal action differs');
+      if (payload.action !== 'advance_clock')
+        throw new Error(`${source.label} internal action differs`);
       return payload.value;
     },
     async holdWrite() {
       const payload = await requestWorker({ kind: 'hold_write' });
-      if (payload.action !== 'hold_write') throw new Error('format3 internal action differs');
+      if (payload.action !== 'hold_write')
+        throw new Error(`${source.label} internal action differs`);
       return payload.value;
     },
     async releaseWrite() {
       const payload = await requestWorker({ kind: 'release_write' });
-      if (payload.action !== 'release_write') throw new Error('format3 internal action differs');
+      if (payload.action !== 'release_write')
+        throw new Error(`${source.label} internal action differs`);
       return payload.value;
     },
     async retainManifest(...parameters: Parameters<RunStore['retainManifest']>) {
       const payload = await requestWorker({ kind: 'invoke', method: 'retainManifest', parameters });
       if (payload.action !== 'invoke' || payload.method !== 'retainManifest')
-        throw new Error('format3 internal method differs');
+        throw new Error(`${source.label} internal method differs`);
       return payload.value;
     },
     close: closeFixture,

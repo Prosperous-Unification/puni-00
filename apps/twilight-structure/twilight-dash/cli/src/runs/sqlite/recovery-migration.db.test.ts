@@ -17,7 +17,11 @@ import {
   createRecoveryObservationCall,
 } from '../testing/recovery-contract';
 import { FORMAT3_IDENTITY, FORMAT4_IDENTITY } from './format';
-import { downgradeUnusedSqliteStores, upgradeSqliteStores } from './migrate-recovery';
+import {
+  downgradeUnusedSqliteStores,
+  SqliteFormatTransitionError,
+  upgradeSqliteStores,
+} from './migrate-recovery';
 import { openSqliteStores, type SqliteOptions } from './open-stores';
 for (const population of [
   'queued',
@@ -226,7 +230,7 @@ for (const failure of [
         before: FORMAT3_IDENTITY,
         after: FORMAT4_IDENTITY,
       });
-      expect(caught).toBeInstanceOf(Error);
+      expect(caught).toBeInstanceOf(SqliteFormatTransitionError);
       if (!(caught instanceof Error)) throw new Error('missing transition error');
       expect(caught.cause).toBeInstanceOf(Error);
     }, [
