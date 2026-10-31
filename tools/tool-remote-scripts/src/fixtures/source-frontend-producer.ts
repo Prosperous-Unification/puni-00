@@ -141,6 +141,46 @@ function readObservation(
   return { status: 200, contentType: headers['content-type'], body };
 }
 
+/** Retains complete small streams, or 16KiB from each end; hashes always cover the full captured bytes. */
+function describeProducerStream(bytes: Uint8Array) {
+  const truncated = bytes.byteLength > 32 * 1024;
+  const retained = truncated
+    ? Buffer.concat([bytes.subarray(0, 16 * 1024), bytes.subarray(-16 * 1024)])
+    : Buffer.from(bytes);
+  return {
+    bytes: bytes.byteLength,
+    sha256: digest(bytes),
+    truncated,
+    base64: retained.toString('base64'),
+  };
+}
+
+/**
+ * Refuses an unsuccessful captured producer before reading observations or invoking its consumer.
+ * The diagnostic describes only the returned capture; it establishes no additional process or pipe custody.
+ * Raw streams are bounded and base64 encoded in one JSON record so child text cannot become terminal commands.
+ */
+export function requireSourceFrontendProducerSuccess(
+  child: Pick<
+    Bun.SyncSubprocess<'pipe', 'pipe'>,
+    'success' | 'exitCode' | 'signalCode' | 'stdout' | 'stderr'
+  >,
+  execution: { readonly node: string; readonly elapsedMs: number; readonly timeoutMs: number },
+): void {
+  if (!child.success || child.signalCode !== undefined)
+    throw new Error(
+      'actual frontend producer failed or custody unproved\nsource-frontend-producer-child ' +
+        JSON.stringify({
+          success: child.success,
+          exitCode: child.exitCode,
+          signal: child.signalCode ?? null,
+          ...execution,
+          stdout: describeProducerStream(child.stdout),
+          stderr: describeProducerStream(child.stderr),
+        }),
+    );
+}
+
 /** Captures only tracked public blobs in the admitted layout, then joins the actual Node/Vite child and both pipes before invoking a consumer. Unknown producer/cleanup outcomes retain scratch and throw. */
 export async function withSourceFrontendProducer<T>(
   consume: (
@@ -277,8 +317,11 @@ export async function withSourceFrontendProducer<T>(
         2,
       ),
     );
-    if (!child.success || child.signalCode !== undefined)
-      throw new Error('actual frontend producer failed or custody unproved');
+    requireSourceFrontendProducerSuccess(child, {
+      node,
+      elapsedMs: performance.now() - started,
+      timeoutMs: 90000,
+    });
     const observation: unknown = JSON.parse(
       await readFile(join(directory, 'observation.json'), 'utf8'),
     );

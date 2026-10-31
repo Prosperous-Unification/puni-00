@@ -47,15 +47,12 @@ function principalOf(pin: CredentialPin | null): AuthenticatedUser {
     ...(pin === null
       ? {}
       : {
-          authentication:
-            'personId' in pin
-              ? {
-                  kind: 'machine' as const,
-                  credentialId: 'fixture-credential',
-                  personId: pin.personId,
-                  ...(pin.runId === undefined ? {} : { runId: pin.runId }),
-                }
-              : { kind: 'upstream' as const, issuer: pin.issuer, subject: pin.subject },
+          authentication: {
+            kind: 'machine' as const,
+            credentialId: 'fixture-credential',
+            personId: pin.personId,
+            ...(pin.runId === undefined ? {} : { runId: pin.runId }),
+          },
         }),
   };
 }

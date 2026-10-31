@@ -197,13 +197,17 @@ See `verify.md`, "Slice 3 record".
 
 ## 4. Retirement of the operator links (A18, A21)
 
-- [ ] 4.1 The verification path refuses every groups-less token of the configured issuer
-      `401 unknown_identity` with no credential lookup and no link read;
-      `readExistingOidcIdentity` and the pinned-row admission are deleted — test:
+- [x] 4.1 The verification path refuses every groups-less token of the configured issuer
+      (on `/api` `401 machine_bearer_not_accepted` naming `/mcp`, `wbs-mcp-agent-surface`
+      M9; it was `401 unknown_identity` until the merge with main, verify.md "Slice 4 merge
+      with main") with no credential lookup and no link read; the pinned-row admission is
+      deleted, and `readExistingOidcIdentity` is kept as a never-minting read guarded by the
+      groups check (browser refresh, `sessionUser`); a sign-in without the claim is refused
+      `/?auth_error=groups_claim_missing` — test:
       `fleet-credential.controller.db.test.ts` rewritten: a pinned `external_identity` row
       admits nothing, the owner's row stays byte for byte, a browser token keeps its groups;
       negative: restore the link read and the pinned-row case is admitted; watched.
-- [ ] 4.2 Delete `link-credential-cli.ts`, `credential-link.ts` and their tests; rewrite
+- [x] 4.2 Delete `link-credential-cli.ts`, `credential-link.ts` and their tests; rewrite
       `docs/auth-integration.md` "Fleet credentials" and `docs/runbook-prod-deploy.md`
       "Fleet credential links" to the settings page and the swap window of A18; add the
       `wbs_mk_<id>.` form to the `plaintext-secrets` hook — test: the hook's test with a
@@ -211,9 +215,42 @@ See `verify.md`, "Slice 3 record".
       reader of `external_identity.person_id` remains (grep in the test).
 - [ ] 4.3 Operator (not code): before the swap, an admin issues one API-key credential per
       fleet agent person on dev through the panel (slice 2) and each fleet harness holds
-      it; laptop Claude Code authorizes its agent at the consent page (slice 3); after the
+      it; laptop Claude Code authorizes its agent at the consent page (slice 3); the
+      panel shows a recent last use for every new key on the outgoing colour; a refreshed
+      dev browser access token is decoded and carries `wbs_groups` (Fable review S3-3:
+      the refresh grant must emit it too, else sessions end at the first refresh), recorded
+      in verify.md before the slice 4 PR merges; after the
       swap, confirm every fleet writes and record the applied state in puni-plan without
       secrets. The Auth0 machine-to-machine applications are deleted in the dashboard.
+      (Pre-swap step recorded 2026-10-31, verify.md "Task 4.3 pre-swap evidence": dev had no
+      linked fleet, so key issuance was vacuous; `wbs_groups` on refresh is ASSUMED with a
+      post-merge check owed by Dany; the Auth0 M2M deletion stays Dany's.)
+
+Slice 4 as built (2026-10-25, PR into `main`, held until 4.3's pre-swap step):
+
+- 4.1: only the method's use as an admission is deleted: `readExistingOidcIdentity` itself
+  stays, because browser refresh and `sessionUser` need a never-minting exact-pair read. Every
+  caller checks `groupsClaimed` first: `authenticateOrRefuse` answers `unknown_identity` for a
+  groups-less token of the configured issuer with no identity read; `sessionUser` answers no
+  session for one (so a link start or callback under such a cookie is `401`, Fable review
+  S2-1); the refresh path refuses a refreshed token without groups before installing it; and
+  `organizationCredentialEvidence` throws on one, an invariant broken upstream.
+  `scopesOfRoles` and `membershipRolesOf`, which only the admission read, are deleted (the open
+  `wbs-permissions` change still names `scopesOfRoles`; left to its owner).
+- 4.1, the pin: `credentialPinOf` answers null for an upstream pair, `CredentialPin` is
+  `{ personId }` only, and `DirectoryStore.credentialPinOf`, the memory pins
+  (`pinCredential`) and the two conformance cases `directory.credentialPinOf:unlinked` and
+  `directory.removePerson:pinned-credential` are removed.
+- 4.2, the usage: `pinnedCredentials` leaves the usage rows, the wire and fe-01; the remove
+  confirmation names `machineCredentials` ("N machine credentials of X are revoked"). A
+  person's inert pinned rows no longer refuse an unconfirmed removal and are deleted with the
+  person (`external_identity.person_id` has no `ON DELETE`): that delete is the column's only
+  remaining production use, and the grep test allows exactly it.
+- 4.2, the hook: the `wbs_mk_` pattern landed in slice 1; this slice adds the staged-file
+  exit-code test. The swarm rehearsal issues its fleets' API keys through the admin route and
+  its last step revokes one, instead of the CLI.
+- Not changed: `20261019130100_add_external_identity_person/down.sql` still names the retired
+  CLI in its refusal (a frozen migration); the runbook says to delete the pinned rows instead.
 
 ## 5. The OIDC source and trusted issuers
 

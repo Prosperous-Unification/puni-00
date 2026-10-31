@@ -381,15 +381,15 @@ describe('runtime authorization and request detachment', () => {
       access: { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' } },
     };
     expect(await receiver.acquireRuntimeAuthority(admin, acquisition)).toMatchObject({ ok: true });
-    sqlite.db.run(
-      "INSERT INTO external_identity (id,user_id,issuer,subject,person_id,created_at) VALUES ('pin','ada','https://idp.test','fleet','foreign',1)",
-    );
+    // A machine credential's own person is the pin (`wbs-machine-credentials` A12, A18); a
+    // machine has no admin bypass of the binding, so the person is bound again first.
+    await source.stores.directory.patchPerson('agent', { accountId: 'ada' }, stamp);
     await check(
       {
         ...admin,
         actor: {
           ...actor,
-          authentication: { kind: 'upstream', issuer: 'https://idp.test', subject: 'fleet' },
+          authentication: { kind: 'machine', credentialId: 'key-1', personId: 'foreign' },
         },
       },
       'credential_not_for_person',
@@ -400,14 +400,11 @@ describe('runtime authorization and request detachment', () => {
     await check(context, 'forbidden');
   });
   it('retains original context and request bytes while a real transaction queues admission', async () => {
-    const { receiver, source, sqlite, acquisition, ledger } = await seeded();
+    const { receiver, source, acquisition, ledger } = await seeded();
     await source.stores.directory.addPerson(
       { id: 'missing', name: 'Other pin', kind: 'agent' },
       [],
       stamp,
-    );
-    sqlite.db.run(
-      "INSERT INTO external_identity (id,user_id,issuer,subject,person_id,created_at) VALUES ('pin','ada','https://idp.test','changed','missing',1)",
     );
     const mutable = {
       projectId: 'a1',
@@ -415,9 +412,9 @@ describe('runtime authorization and request detachment', () => {
       actor: {
         ...actor,
         authentication: {
-          kind: 'upstream' as const,
-          issuer: 'https://idp.test',
-          subject: 'original',
+          kind: 'machine' as const,
+          credentialId: 'key-1',
+          personId: 'agent',
         },
       },
       access: {
@@ -439,7 +436,7 @@ describe('runtime authorization and request detachment', () => {
     mutable.projectId = 'b1';
     mutable.personId = 'missing';
     mutable.actor.id = 'missing';
-    mutable.actor.authentication.subject = 'changed';
+    mutable.actor.authentication.personId = 'missing';
     mutable.access.scope.organizationId = 'org-b';
     request.commandId = 'changed';
     request.ownerId = 'changed';

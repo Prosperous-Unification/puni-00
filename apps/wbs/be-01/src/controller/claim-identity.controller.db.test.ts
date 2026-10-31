@@ -1,16 +1,11 @@
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import { JwksTokenVerifier } from '@wbs/auth';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
-import { exportJWK, generateKeyPair, SignJWT } from 'jose';
+import { exportJWK, generateKeyPair } from 'jose';
 
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
 
-const APP_ROOT = dirname(fileURLToPath(new URL('../../package.json', import.meta.url)));
 const ISSUER = 'https://idp.test';
 const AUDIENCE = 'api://wbs';
-const FLEET = 'claire-m2m@clients';
 
 let signing: CryptoKeyPair;
 let jwks: ReturnType<typeof Bun.serve>;
@@ -35,10 +30,11 @@ afterAll(async () => {
 });
 
 /**
- * `person_not_bound` and `credential_not_for_person` (`wbs-team-claims` task
- * 2.3, D5, D6) over be-01's production composition and real SQLite: the claim
- * reads `person.account_id` and the request credential's
- * `external_identity.person_id`, and an organization admin bypasses the first.
+ * `person_not_bound` (`wbs-team-claims` task 2.3, D5) over be-01's production
+ * composition and real SQLite: the claim reads `person.account_id`, and an
+ * organization admin bypasses it. A credential pinned to one person
+ * (`credential_not_for_person`) is a machine credential's, tested in
+ * `machine-credential.controller.db.test.ts`.
  */
 beforeEach(async () => {
   h = OrganizationHarness.openComposedWith({
@@ -108,41 +104,6 @@ const claim = (personId: string) => ({
   personId,
   steps: [firstStep],
 });
-
-/** A machine token for the fleet pair: no groups claim and no email, as Auth0 issues one. */
-function machineToken(): Promise<string> {
-  const seconds = Math.floor(Date.now() / 1000);
-  return new SignJWT({})
-    .setProtectedHeader({ alg: 'RS256', kid: 'claims' })
-    .setIssuer(ISSUER)
-    .setAudience(AUDIENCE)
-    .setSubject(FLEET)
-    .setJti(crypto.randomUUID())
-    .setIssuedAt(seconds)
-    .setExpirationTime(seconds + 300)
-    .sign(signing.privateKey);
-}
-
-async function linkFleet(person: string): Promise<void> {
-  const child = Bun.spawn(
-    [
-      process.execPath,
-      'run',
-      join(APP_ROOT, 'src', 'link-credential-cli.ts'),
-      `--issuer=${ISSUER}`,
-      `--subject=${FLEET}`,
-      '--account=mem',
-      `--person=${person}`,
-    ],
-    {
-      cwd: APP_ROOT,
-      env: { ...process.env, DB_PATH: h.databasePath() },
-      stdout: 'pipe',
-      stderr: 'pipe',
-    },
-  );
-  if ((await child.exited) !== 0) throw new Error('the fleet credential did not link');
-}
 
 function claimsOf(personId: string): number {
   return (
@@ -236,77 +197,5 @@ describe('a move under a claimed leaf', () => {
     expect(error).toBe('destination_claimed');
     expect(holders.length).toBeGreaterThan(0);
     expect(holders.map(({ name }) => name)).toEqual(holders.map(() => 'claire'));
-  });
-});
-
-describe('a credential pinned to one person', () => {
-  // Proof: `runCommandBatch` passing a null credential (no pin read) made the
-  // claim as `codex` answer 200 (watched 2026-10-20).
-  it('claims as its person and is refused as any other of its account’s persons', async () => {
-    await linkFleet('claire');
-    const token = await machineToken();
-
-    expect(
-      await h.callWith(
-        token,
-        'POST',
-        `/api/projects/${projectId}/commands`,
-        { commands: [claim('codex')] },
-        { 'X-WBS-Expected-Organization': 'org-a' },
-      ),
-    ).toEqual(refused('credential_not_for_person'));
-    expect(claimsOf('codex')).toBe(0);
-    const own = await h.callWith(
-      token,
-      'POST',
-      `/api/projects/${projectId}/commands`,
-      { commands: [claim('claire')] },
-      { 'X-WBS-Expected-Organization': 'org-a' },
-    );
-    expect(own.status).toBe(200);
-    expect(claimsOf('claire')).toBeGreaterThan(0);
-  });
-
-  // Proof: with `parentChain.some(...)` in decideClaim's pin check answering
-  // false, the delegated claim as `codex` answered 403
-  // credential_not_for_person; watched 2026-10-20.
-  it('delegates under its own person’s subtree claim, and only there', async () => {
-    await linkFleet('claire');
-    const token = await machineToken();
-    const asFleet = (commands: unknown[]) =>
-      h.callWith(
-        token,
-        'POST',
-        `/api/projects/${projectId}/commands`,
-        { commands },
-        { 'X-WBS-Expected-Organization': 'org-a' },
-      );
-    const created = await batch('dany', [
-      { kind: 'createWorkItem', parentId: leaf, afterId: null, name: 'Under' },
-    ]);
-    if (created.status !== 200) throw new Error(`child refused: ${JSON.stringify(created)}`);
-    const under = (created.body as { results: { id: string }[] }).results[0]?.id ?? '';
-    expect(
-      (await asFleet([{ kind: 'claimWorkItem', workItemId: leaf, personId: 'claire' }])).status,
-    ).toBe(200);
-    const parentClaim = h.sqlite
-      .query<{ id: string }, [string]>('SELECT id FROM claim WHERE work_item_id = ?')
-      .get(leaf)?.id;
-    expect(parentClaim).toBeDefined();
-    const delegated = {
-      kind: 'claimWorkItem',
-      workItemId: under,
-      personId: 'codex',
-      steps: [firstStep],
-    };
-    expect(await asFleet([delegated])).toEqual(refused('credential_not_for_person'));
-    expect(claimsOf('codex')).toBe(0);
-    expect((await asFleet([{ ...delegated, parentClaim }])).status).toBe(200);
-    expect(claimsOf('codex')).toBeGreaterThan(0);
-  });
-
-  it('leaves the account’s own session unpinned', async () => {
-    await linkFleet('claire');
-    expect((await batch('mem', [claim('codex')])).status).toBe(200);
   });
 });

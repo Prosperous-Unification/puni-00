@@ -1054,6 +1054,70 @@ describe('the OIDC callback after activation', () => {
     expect(all('SELECT * FROM external_identity')).toEqual([]);
   });
 
+  // A token without `wbs_groups` is a machine's (`wbs-machine-credentials`
+  // A18): it proves no browser session, so a retired link row cannot start a
+  // link that would add a sign-in method to the human's account.
+  // Proof: with `sessionUser`'s groups check removed, this started the link
+  // (200) and asked the provider for an authorization URL; watched 2026-10-25.
+  it('refuses a link start under a groups-less cookie whose pair is linked', async () => {
+    activate();
+    googleAccount('g', 'google-oauth2|1');
+    sql(
+      "INSERT INTO external_identity (id, user_id, issuer, subject, created_at) VALUES ('map-fleet', 'g', 'https://idp.test', 'claire-m2m@clients', 1)",
+    );
+    accessClaims.set('fleet-access', {
+      iss: 'https://idp.test',
+      sub: 'claire-m2m@clients',
+      exp: Math.floor((now + 900_000) / 1000),
+    });
+    const app = mounted(githubClaims);
+    const before = all('SELECT user_id, subject FROM external_identity ORDER BY subject');
+
+    const start = await startOidcLink(app, 'fleet-access', { method: 'github' });
+    expect(start.status).toBe(401);
+    expect(linkAuthorization).toBeNull();
+    expect(all('SELECT user_id, subject FROM external_identity ORDER BY subject')).toEqual(before);
+  });
+
+  // Proof: with the refresh path's groups check removed, this answered 204
+  // and replaced the lifecycle's credential; watched 2026-10-25.
+  it('refuses a refreshed access token without groups, leaving the lifecycle alone', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const credential = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    await lifecycle.open('session-1', credential, { openedAt: 1, reauthenticatedAt: null });
+    const { wbs_groups: _groups, ...groupless } = claims;
+    refreshClaims = { ...groupless, exp: Math.floor((now + 900_000) / 1000) };
+    const app = mounted(claims, lifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential,
+    });
+
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          origin: 'https://dev.wbs.test',
+          cookie: '__Host-wbs_session=session-1; __Host-wbs_access=access-1',
+        },
+      }),
+    );
+    expect(response.status).toBe(401);
+    expect(await lifecycle.generation('session-1')).toEqual({ generation: 1, current: credential });
+  });
+
   it('refuses a verified refresh identity for another local user before lifecycle CAS', async () => {
     sql(
       "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
@@ -2692,6 +2756,29 @@ describe('the OIDC callback after activation', () => {
       credential: expected,
     });
     expect(response.headers.get('set-cookie')).toContain('__Host-wbs_access=access-1;');
+  });
+
+  // A human whose access token carries no groups claim would get a session every `/api` call
+  // refuses (a groups-less configured-issuer token is a machine bearer, M9): a sign-in loop.
+  // The callback refuses it as a rendered error before anything is written.
+  // Proof: with the callback's groups check removed (red first), this redirected to `/`
+  // instead of the rendered error; watched 2026-10-31.
+  it('refuses a sign-in whose access token has no groups claim, issuing no session', async () => {
+    const { wbs_groups: _groups, ...groupless } = claims;
+    callbackAccessClaims = { ...groupless, exp: Math.floor((now + 900_000) / 1000) };
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const app = mounted(claims, lifecycle);
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1', {
+        headers: { cookie: `${browserBindingCookieName('binding-1')}=binding-1` },
+      }),
+    );
+    expect(response.status).toBe(302);
+    expect(response.headers.get('location')).toBe('/?auth_error=groups_claim_missing');
+    expect(response.headers.get('set-cookie') ?? '').not.toContain('__Host-wbs_access=access-1');
+    expect(all('SELECT id FROM users')).toEqual([]);
+    expect(all('SELECT * FROM browser_auth_lifecycle')).toEqual([]);
+    expect(localTokens.read('session-1')).toBeNull();
   });
 
   describe('sign-in times (organization-session-policy)', () => {

@@ -1,9 +1,13 @@
-import { rejects } from 'node:assert/strict';
+import { rejects, throws } from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { cp, mkdir } from 'node:fs/promises';
 
 import { expect, test } from 'bun:test';
 
-import { withSourceFrontendProducer } from '../fixtures/source-frontend-producer';
+import {
+  requireSourceFrontendProducerSuccess,
+  withSourceFrontendProducer,
+} from '../fixtures/source-frontend-producer';
 
 test('actual pinned Vite producer reaches the complete frontend document and entry inspectors', async () => {
   await withSourceFrontendProducer(async (observations, directory) => {
@@ -170,5 +174,141 @@ test('complete entry refuses changed executable retaining its exact original map
   const observation = await readModeledResponse(body, 'text/javascript');
   expect(() => inspectSourceFrontendEntry(observation)).toThrow(
     'source frontend entry unsupported',
+  );
+});
+
+test('actual failed Node producer preserves bounded child diagnostics in its refusal', () => {
+  const node = Bun.which('node');
+  if (node === null) throw new Error('Node diagnostic fixture runtime absent');
+  const stdout = Buffer.from('diagnostic stdout ::error::\u001b[31m\n');
+  const stderr = Buffer.from('diagnostic stderr\n');
+  const started = performance.now();
+  const child = Bun.spawnSync(
+    [
+      node,
+      '-e',
+      `process.stdout.write(${JSON.stringify(stdout.toString())}); process.stderr.write(${JSON.stringify(stderr.toString())}); process.exitCode = 23;`,
+    ],
+    {
+      env: { PATH: '/usr/bin:/bin' },
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 5000,
+    },
+  );
+  const execution = { node, elapsedMs: performance.now() - started, timeoutMs: 5000 };
+  expect(child.exitCode).toBe(23);
+  expect(child.stdout).toEqual(stdout);
+  expect(child.stderr).toEqual(stderr);
+  throws(
+    () => {
+      requireSourceFrontendProducerSuccess(child, execution);
+    },
+    (failure: unknown) => {
+      expect(failure).toBeInstanceOf(Error);
+      if (!(failure instanceof Error)) return false;
+      const prefix =
+        'actual frontend producer failed or custody unproved\nsource-frontend-producer-child ';
+      expect(failure.message.startsWith(prefix)).toBe(true);
+      const diagnostic: unknown = JSON.parse(failure.message.slice(prefix.length));
+      expect(diagnostic).toEqual({
+        success: false,
+        exitCode: 23,
+        signal: null,
+        ...execution,
+        stdout: {
+          bytes: stdout.byteLength,
+          sha256: createHash('sha256').update(stdout).digest('hex'),
+          truncated: false,
+          base64: stdout.toString('base64'),
+        },
+        stderr: {
+          bytes: stderr.byteLength,
+          sha256: createHash('sha256').update(stderr).digest('hex'),
+          truncated: false,
+          base64: stderr.toString('base64'),
+        },
+      });
+      return true;
+    },
+  );
+});
+
+test('producer refusal diagnostics bound oversized non-UTF8 bytes and model signal metadata', () => {
+  const stdout = Buffer.alloc(40 * 1024, 0xff);
+  stdout.set(Buffer.from('head'), 0);
+  stdout.set(Buffer.from('tail'), stdout.byteLength - 4);
+  const child = {
+    success: true,
+    exitCode: 0,
+    signalCode: 'SIGTERM',
+    stdout,
+    stderr: Buffer.alloc(0),
+  };
+  throws(
+    () => {
+      requireSourceFrontendProducerSuccess(child, {
+        node: '/modeled/node',
+        elapsedMs: 90,
+        timeoutMs: 90000,
+      });
+    },
+    (failure: unknown) => {
+      if (!(failure instanceof Error)) return false;
+      const prefix =
+        'actual frontend producer failed or custody unproved\nsource-frontend-producer-child ';
+      expect(failure.message.startsWith(prefix)).toBe(true);
+      expect(failure.message.split('\n')).toHaveLength(2);
+      const diagnostic: unknown = JSON.parse(failure.message.slice(prefix.length));
+      expect(diagnostic).toEqual({
+        success: true,
+        exitCode: 0,
+        signal: 'SIGTERM',
+        node: '/modeled/node',
+        elapsedMs: 90,
+        timeoutMs: 90000,
+        stdout: {
+          bytes: stdout.byteLength,
+          sha256: createHash('sha256').update(stdout).digest('hex'),
+          truncated: true,
+          base64: Buffer.concat([
+            stdout.subarray(0, 16 * 1024),
+            stdout.subarray(-16 * 1024),
+          ]).toString('base64'),
+        },
+        stderr: {
+          bytes: 0,
+          sha256: createHash('sha256').update(Buffer.alloc(0)).digest('hex'),
+          truncated: false,
+          base64: '',
+        },
+      });
+      return true;
+    },
+  );
+});
+
+test('producer refusal diagnostics retain exactly 32KiB without truncation', () => {
+  const stdout = Buffer.alloc(32 * 1024, 0x80);
+  throws(
+    () => {
+      requireSourceFrontendProducerSuccess(
+        { success: false, exitCode: 1, stdout, stderr: Buffer.alloc(0) },
+        { node: '/modeled/node', elapsedMs: 1, timeoutMs: 90000 },
+      );
+    },
+    (failure: unknown) => {
+      if (!(failure instanceof Error)) return false;
+      expect(failure.message).toContain(
+        JSON.stringify({
+          bytes: stdout.byteLength,
+          sha256: createHash('sha256').update(stdout).digest('hex'),
+          truncated: false,
+          base64: stdout.toString('base64'),
+        }),
+      );
+      return true;
+    },
   );
 });

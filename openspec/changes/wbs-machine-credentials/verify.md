@@ -842,3 +842,221 @@ failures, two scheduling type errors and ten static-import lint findings. On
 the combined feature/main branch, all eight mounted machine restricted-project
 role-ceiling cases passed (28 assertions), including ordinary creator success.
 Full CI and the exact-SHA host gate remain pending.
+
+## Slice 4 record (2026-10-25): retirement of the operator links, tasks 4.1 and 4.2
+
+Branch `feat/wbs-machine-credentials-retire-links` from main `93b6f3555`. Held from merging
+until task 4.3's pre-swap step (every fleet holds its API key): merging deploys to dev, where
+the swap refuses every Auth0 machine-to-machine token. 4.3 (operator, Dany) is not done.
+
+Red first: the rewritten `fleet-credential.controller.db.test.ts` against main's code failed
+4 of 7 (`admits nothing for a pinned row …`, `admits nothing for an unpinned row …`,
+`leaves the owner’s email alone …` each received 200 instead of `401 unknown_identity`;
+`removes a person with a pinned row unconfirmed …` received 409 `in_use`).
+
+| Command (worktree, `env -u CLAUDECODE` for `bun test`)                                                                                                                                                                                                                                     | Result                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| `bun test` be-01: fleet-credential, claim-identity, machine-credential, machine-credential-admin, directory controller, directory service, person-account-migration, person-account controller, oidc-identity controller, organization-credential-rules, `swarm-rehearsal.boot.db.test.ts` | 270 pass, 0 fail (11 files)                     |
+| `bunx nx run-many -t typecheck -p wbs-be-01 wbs-fe-01 wbs-store-sqlite wbs-store-memory wbs-auth wbs-core wbs-conformance wbs-contracts tool-git-hooks`                                                                                                                                    | 12 tasks succeeded                              |
+| `CLAUDECODE=0 bunx nx run-many -t test -p wbs-core wbs-store-memory wbs-conformance wbs-contracts wbs-auth tool-git-hooks wbs-store-sqlite --parallel=1`                                                                                                                                   | 7 projects succeeded                            |
+| fe-01 `TZ=UTC bunx vitest run src/components/directory/directory-page.test.tsx`                                                                                                                                                                                                            | 51 pass (red first on the renamed confirmation) |
+| `bunx openspec validate --all --json`                                                                                                                                                                                                                                                      | 287 items, 0 failed                             |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                                                                                                                                                | exit 0                                          |
+
+Lint: `NODE_OPTIONS=--max-old-space-size=8192 bunx nx run-many -t lint` over the same nine
+projects: eight passed, `wbs-store-memory` failed on an unused import left in
+`directory-fixture.test.ts`; fixed, then `nx run-many -t lint test -p wbs-store-memory`
+succeeded.
+
+Not run locally (laptop RAM, another heavy agent): the full be-01 `test:store`/`test:unit` and
+fe-01 suites; CI carries them.
+
+### Slice 4 failure proofs
+
+| Guard (file)                                                           | Injected fault                                                           | Observed failure                                                                                                                                                     |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `authentication.feature.ts` groups-less refusal (4.1)                  | link read restored (`readExistingOidcIdentity`, linked account admitted) | `admits nothing for a pinned row …`, `admits nothing for an unpinned row …`, `leaves the owner’s email alone …` failed (3 of 7)                                      |
+| `oidc-identity.ts` `groupsClaimed`                                     | answered `true` always                                                   | 5 of 7 `fleet-credential` cases failed (links admitted, unlinked tokens minted accounts)                                                                             |
+| `store-sqlite/directory.ts` delete of a removed person's pinned rows   | delete removed                                                           | `removes a person with a pinned row unconfirmed …` answered 500 (foreign key)                                                                                        |
+| `claim-store.ts` `claimIdentityOf` pin                                 | `pinnedPersonOf` answered null                                           | `refuses a pinned credential claiming as another agent` (memory) and `machine-credential.controller.db.test.ts` `claims as its person …`, `delegates under …` failed |
+| `user.ts` email kept under a token without one                         | early return removed                                                     | `keeps its groups whether or not its pair is linked …` read `email: null, email_verified: 0`                                                                         |
+| grep test: no production reader of `external_identity.person_id` (4.2) | `DirectoryRepository.credentialPinOf` restored                           | `has no production reader …` listed its `.select({ personId: externalIdentity.personId })` beside the allowed delete                                                 |
+| `plaintext-secrets.ts` `wbs_mk_` pattern (4.2)                         | pattern made unmatchable (`(?!)`)                                        | `aborts a commit staging a WBS API key, exit 1, …` exited 0; `detects a WBS API key …` scanned null                                                                  |
+
+Each fault was restored from a copy and the file's diff checked before moving on.
+
+### Slice 4 review fixes (Fable on #731 at 2cb8e3674: request changes, fixed)
+
+- **S2-1** `sessionUser` admitted a groups-less token whose pair a retired link maps, so a
+  fleet's Auth0 token as the session cookie could start and complete an account link (Fable
+  reproduced it). `sessionUser` now answers no session for a token without `wbs_groups`, and
+  the refresh path refuses a refreshed token without it before installing it. Red first: both
+  new `oidc-identity.controller.db.test.ts` cases failed on 2cb8e3674 (link start 200, refresh
+  204).
+- **S3-1** `organizationCredentialEvidence` throws for groups-less evidence (unreachable: the
+  principal was admitted on the same token), with a unit test.
+- **S3-2, S3-6** Runbook swap section: no person deletions during the window, the last-used
+  evidence step, the `wbs_groups`-on-refresh evidence step, the rollback caveat for rows that
+  person removals deleted, and the post-rollback cleanup of every CLI row (described, backup
+  first).
+- **S3-3** Task 4.3's pre-swap step now requires a decoded refreshed dev access token showing
+  `wbs_groups`, recorded here before the PR merges. Not done: it is Dany's operator step.
+- **S3-4** Stale comments fixed (`claim.ts`, `wbs-api.ts`, `work-item-shapes.ts`,
+  `refusal.ts`). The open `wbs-permissions` change still plans `scopesOfRoles` changes
+  (tasks.md:72; design.md:9, 296, 486, 639); left to its owner, listed in the PR.
+- **S3-5** The grep test's JSDoc states what it does not prove.
+- **S3-7** The h2puni/h4claw gate was not run by this slice's worker; CI on the PR is the
+  check of record until the coordinator runs the gate.
+
+| Guard (file)                                      | Injected fault           | Observed failure                                                                                                           |
+| ------------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `authentication.feature.ts` `sessionUser` groups  | check removed            | `refuses a link start under a groups-less cookie whose pair is linked`: 1 of 80 failed                                     |
+| `auth-oidc-endpoints.ts` refresh groups           | check removed            | `refuses a refreshed access token without groups, leaving the lifecycle alone`: 1 of 80 failed                             |
+| `organization-credential.ts` groups-less evidence | throw replaced by `null` | `throws for groups-less upstream evidence behind an admitted principal` (`organization-credential.test.ts`): 1 of 4 failed |
+
+Fresh runs after the fixes (`env -u CLAUDECODE bun test`): fleet-credential,
+oidc-identity, organization-credential, machine-credential, organization-credential-rules,
+claim-identity, `boot.db.test.ts`, swarm rehearsal: 193 pass, 0 fail. The nine other suites
+that call link, `sessionUser` or refresh (boot-browser-session, auth-oidc, pending-membership,
+browser-lifecycle mounted process, enterprise-link, organization-audit-completeness,
+oidc.integration, auth-oidc-shapes, enterprise-email-trust): 114 pass, 0 fail. `nx run-many -t typecheck lint` over be-01, fe-01, core, contracts and store-sqlite: the
+first run failed lint on two `prefer-optional-chain` guards and an `await` in the new unit
+test; fixed (guards re-watched after the rewrite), then typecheck and lint of be-01 and core
+succeeded, the other three having passed in the first run. `nx test` for core and contracts:
+succeeded. `openspec validate --all --json`: 287/287. Burokrat `check-indexes`: exit 0.
+
+## Task 4.3 pre-swap evidence (2026-10-31)
+
+- **Linked fleets on dev: none.** A read-only look at dev on 2026-10-31 found no
+  `external_identity` row with a `person_id` (no pinned links), no `@clients` subject (no
+  Auth0 machine-to-machine identity) and no fleet API keys. No fleet on dev authenticates
+  through an operator link, so the key-issuance and last-use steps are vacuous: merging cuts
+  off no fleet. The fleets already call through `/mcp` (`wbs-mcp-agent-surface` 8.1).
+- **A refreshed browser token carries `wbs_groups`: ASSUMED, not observed.** Decoding one needs
+  the owner's browser session. Basis: the dev tenant's post-login Action sets `wbs_groups` on
+  both the ID and the access token (`docs/auth-integration.md`, the Action at about L170–180),
+  and Auth0 runs post-login Actions on a refresh-token exchange too (Auth0's documented
+  `oauth2-refresh-token` transaction protocol). Owed by Dany after merge: decode a refreshed dev
+  access token and confirm `wbs_groups`; if it is missing, sessions end at their first refresh
+  (the refresh path refuses it, 401).
+- **Not done (owner):** deleting the Auth0 machine-to-machine applications in the dashboard,
+  and the post-swap "every fleet writes" record in puni-plan. 4.3 stays unticked for them.
+- **Hold lifted:** Dany approved landing #731 on 2026-10-31.
+
+## Slice 4 merge with main (2026-10-31)
+
+Merged `origin/main` 7e0c05d82 into the branch (agent pools #771/#774/#772, MCP machine
+credentials, #785 REST off).
+
+- **Conflicts.** `principal.ts`: `CredentialPin` stays an interface without the upstream pair
+  (this slice) and gains main's optional `runId` (`wbs-mcp-agent-surface` M15);
+  `credentialPinOf` keeps main's run for a machine grant and this slice's null for an upstream
+  pair. `claim-store.ts`: main's `pinnedRunOf` kept, reduced to `credential?.runId ?? null`
+  now that no pair can reach it; `claimIdentityOf` keeps this slice's directory-free pin.
+- **Semantic conflicts.** `swarm-rehearsal.boot.db.test.ts` used its fleets' API keys as
+  `/api` Bearers, which #785 refuses: the fleets now buy a machine grant at
+  `/internal/mcp/machine-grants` (as mcp-01 does) and call with it; the raw key is asserted
+  `machine_bearer_not_accepted`; step 6 checks the revoked credential both under its held
+  grant and at a new grant request (`unknown_identity`). Step 4's undo now runs as the claire
+  fleet: undo is per acting person on main, and the release is that fleet's entry, not dany's.
+- **The groups-less half of M9** landed with this merge (`wbs-mcp-agent-surface` verify.md
+  slice 21): 4.1's `unknown_identity` for a groups-less configured-issuer token on `/api` is
+  now `machine_bearer_not_accepted`; `sessionUser` and refresh are unchanged.
+
+## Private main reconciliation (2026-10-31)
+
+The conflicting private and incoming verification histories above were preserved when preparing the uncommitted union of private `7789ddc55` and
+main `1860660a`. Their commands, failure proofs and counts qualify their recorded
+revisions; they are not added together or relabeled as combined acceptance.
+Fresh combined compilation, auth/credential/runtime/conformance and coherent
+backend verification must be recorded separately. No new source-omission proof
+was performed during this document resolution.
+
+The incoming retirement and missing-groups contracts remain required alongside
+the private dependency/current-authority protections. Historical fleet/swap
+readiness notes do not establish current deployment readiness. This private
+reconciliation neither migrates fleet credentials nor authorizes main adoption,
+credential deletion or deployment. Frozen Reader and other proof carriers are
+outside this worktree and remain held.
+
+### Combined source review and component checks
+
+The isolated union retains incoming missing-groups refusal, machine/consent/run
+pins and retirement, together with private current-authority, dependency,
+capability, first-step, QA and19-migration expectations. A full semantic review
+reported no material reconciliation defect. The only catalog retirement is
+`directory.credentialPinOf:unlinked` and
+`directory.removePerson:pinned-credential`; all private cross-project cases and
+strict catalog equality remain.
+
+Fresh component checks on the reconciled source passed:
+
+- Core focused44 and configured owning1780 tests across141 files.
+- Focused backend auth/pin/runtime211 tests across8 files; MCP/swarm/directory88.
+- Auth adapter125 tests across9 files and the three lease/race fixtures14.
+- Frontend auth/directory83 tests across2 files and configured frontend types.
+- Full normal adapter conformance168 tests/13592 assertions and strict catalog135.
+  SQLite offers135 cases without gaps; memory offers127 with six declared
+  exclusions and two absent families. These declarations are not silently
+  treated as implemented memory coverage. Existing negative adapter fixtures
+  operate in process and temporary databases; no production file was patched.
+- Configured SQLite types passed after removing only three unreachable legacy
+  fixture arms; the original six TS2339 diagnostics are retained separately.
+- Scoped lint on58 existing TypeScript/TSX paths and authored formatting passed.
+
+These overlapping component counts are not summed into a whole-suite total.
+The configured coherent backend suite is still running at this record. Its
+normal pure-descriptor prerequisite generated an ignored OpenAPI build output
+(4061532 bytes), SHA256
+`3587f1ce57604cc2e402f20317236072e2802a004a7688be7e14fc17de5d8b86`;
+no committed document or app fixture was used as generator input.
+
+Frozen61-path source manifest SHA256:
+`fa64f90ff75cee525be94683f45132f805134125b5e92582b6ff38b3427c4a53`.
+Full source-review SHA256:
+`bf02c6763a13f7c8c487fdae9915bcfcb752b6813d59fa6f29cb0c2ed8bd68f5`.
+Private component report at its frozen current version:
+`/tmp/puni-main186-reconciliation-current-20261031.md`, SHA256
+`3f0ba45dfdd04845b93803b3db7c151766a042a211f926c857c276a17dd03bca`.
+An earlier summary at that same path was superseded without a retained body;
+it is not used as immutable evidence. Raw command logs and the source manifest
+remain the primary records. Current7789 hosted and host-gate checks remain
+evidence for7789 only; neither qualifies this different union.
+
+### Coherent combined backend final result
+
+The same original configured `bunx nx run wbs-be-01:test` session8839 completed
+with observed exit0 after the pending component record above. Its mandatory
+pure-descriptor prerequisite and test target both succeeded without cache hits.
+The backend reported4959 passes, three skips, zero failures and104547
+expectations across4962 tests/321 files. Bun elapsed3343.86s; Nx elapsed55m48s.
+These are the combined suite's own counts, not a sum of component runs.
+
+The two real shared blue/green host-restore cases were skipped because
+`WBS_HOST_RESTORE_REAL_DOCKER` was absent. The real solver orphan-process case
+was skipped because `WBS_SOLVER_ORPHAN_IMAGE` was absent. All three native opt-in
+variables, including `WBS_HOST_RESTORE_PROOF_IMAGE`, were absent before launch;
+no real container/image proof was enabled or credited. The raw summary repeats
+three distinct skip names; it does not represent six skipped tests.
+
+Primary backend log SHA256:
+`45a92ab791b17f0af68c9743ffc7c9b5cc274945714e95b282d589eebdb2868f`.
+The final immutable receipt is
+`/tmp/puni-main186-reconciliation-final-v1-20261031.md`, SHA256
+`5ee39c80968cf2752ae8cbdc08aa862c9c1884cbbf5dd919eea493b3cf3d55e4`.
+Its separate raw-log manifest SHA256 is
+`04a22aefb758fcb319e020caed6a6a1dbc7b2d0221dce304e1e3a6dc29e59a96`.
+
+After settlement all61 original source entries and the two separately reviewed
+diagnostic files matched their frozen hashes. The closing63-entry manifest
+SHA256 is `4ef407165d24606fee8cbf326ec29b30fb9f9e9eadc643e3c49dc7527f3e4b63`.
+All owned local command sessions joined. File-redirected logs and observed exec
+completion do not independently prove separate pipe-EOF events; none are claimed.
+
+The complete package review found no material source/documentation issue and
+required this actual terminal result before a private checkpoint. Its SHA256 is
+`f04130c16704f3b74105da172dd266aa7f3aa646206dcc352fedcf853701a2cf`.
+Normal final formatting, OpenSpec validation and commit hooks remain separate
+checkpoint records. Whole-candidate CI and the canonical host gate must qualify
+the eventual committed SHA. Main adoption, deployment, native acceptance and
+held Reader/proof campaigns remain outside this result.

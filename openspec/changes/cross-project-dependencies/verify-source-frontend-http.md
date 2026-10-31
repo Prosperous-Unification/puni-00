@@ -186,3 +186,63 @@ Those checks preceded only this factual documentation note; their staged tree wa
 `528800fd213ffd747066e99c12aebdde5261ab1c`. Original manifest profile capture, source
 readiness/start, controller/policy/exposure, native/browser acceptance, parent10.2,
 MAIN adoption and deployment remain open.
+
+## Hosted producer failure visibility (2026-10-31)
+
+Hosted run41230200371 at `7789ddc55a1361ba66b179639ad2d04f72da95d0`
+finished red solely in the remote-source leaf and its required aggregate. The
+leaf reported59 passes and one failure in60 tests/seven files: the actual pinned
+Vite producer reached its unsuccessful-child guard after1029.69ms. The uploaded
+log retained the generic exception and scratch path, but not the child's numeric
+status, signal or buffers. Those records existed only on the discarded runner.
+The cause is unknown; neither a timeout, port issue nor producer defect is
+inferred. The older passing run does not explain this failure.
+
+The exact uploaded artifact13053849171 was verified against provider SHA256
+`e39bc3896cf0b89d1e49a10de7237f321158dbb149c41544bd81951d29840132`.
+Its `nx-gate.log` SHA256 is
+`94e8dcb1b5ff32c37d1b5e7a9ae687d876d03207cd78f2a5f7bbf4147fd13cd1`.
+
+The private diagnostic-only repair extracts the same existing refusal predicate
+into a directly called fixture helper. Its exception retains the original prefix
+and adds actual returned status, resolved executable, elapsed/configured time
+and stream metadata. Each stream reports full byte count/SHA256, truncation and
+at most32KiB of Base64 bytes (16KiB at each end when longer). Arbitrary child bytes
+are not interpreted as terminal or workflow commands. Existing CI stream
+forwarding and `nx-gate.log` upload preserve this diagnostic without a workflow
+change. Scratch/cause retention, all18 selected pins, actual producer program,
+Node resolution, closed environment,90s/130s limits, response digests and cleanup
+conditions remain unchanged. No diagnostic establishes additional process or
+pipe custody.
+
+Fresh validation:
+
+- Real Node24.20.0 child exited23 with recognizable stdout/stderr. The unchanged
+  extracted guard first failed the diagnostic regression:0 pass/1 fail because
+  its error lacked the JSON record. This was not a source-guard omission.
+- Diagnostic cases then passed3/3, including arbitrary oversized/non-UTF8/empty
+  captures, modeled signal metadata and the32KiB boundary.
+- Owning file passed10/10, including one genuine unchanged pinned Vite positive
+  using the final producer helper. Three test-only callback braces then fixed
+  lint findings; the current file's nine other cases passed9/9, with the already
+  completed genuine positive explicitly filtered out. No second positive or
+  whole27-minute source-leaf rerun was performed just for missing diagnostics.
+- Independent final lint, configured typechecks and formatting exited0. The
+  initial combined shell's format exit was not mistaken for lint success.
+
+Final producer fixture SHA256:
+`113cfad9406df299dbfa615ac47f306394341c0d929da354bd31679edd6a7d1d`.
+Final test SHA256:
+`5b7fea97941e17b50fa131414fc670917b7211dacdb5ebad99bf651cae544bc4`.
+Unchanged producer-program SHA256:
+`8796720e22cad54fc2334fee4ebeba2eb06955ea783d1bfe1090de307993af12`.
+Immutable actual report:
+`/tmp/puni-source-frontend-diagnostic-v1-report-20261031.md`, SHA256
+`dc47cf5648f9f7ecbcf9bbba1a77b11f5950d9e09770c4ab0847ba31c80a21d7`.
+Independent final review SHA256:
+`6a9114abbd3ba0a5b2aa524a6f87930f4ecafd809b87c125a6275747abf5ebbb`.
+
+The local positive qualifies its recorded host Node24.20.0 tuple only; it does
+not repair the historical hosted failure or establish source-image/native
+variance. Complete future-candidate CI/host qualification remains separate.
+No held Reader/fault packet was resumed, rebased or regenerated.
