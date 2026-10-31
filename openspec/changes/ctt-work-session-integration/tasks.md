@@ -2,7 +2,7 @@
 
 ### Task 1: Native topology
 
-- [ ] 1.1 Pin `configurable-tree-traversal` 0.12.0 in `package.json`/`bun.lock`; add `src/coordination/topology.ts` and `topology.test.ts` under Twilight Dash. Export `materializeOrderedSteps(workItemId: string, steps: readonly { id: string; position: number }[])` returning native `MaterializedDagInput<StepNodeRef, string>`, and `prepareCoordination(input: MaterializedDagInput<StepNodeRef, string>)` returning native `PreparedDag<StepNodeRef, string>`. Test real work tickets, bytewise ties, accepted-work seeds, parallel joins and W/C separation; negative: disconnected cycle and absent prerequisite must prevent executable topology. Observe red before implementing; independently bypass preparation validation and observe the negative fail before restoring.
+- [x] 1.1 Pin `configurable-tree-traversal` 0.12.0 in `package.json`/`bun.lock`; add `src/coordination/topology.ts` and `topology.test.ts` under Twilight Dash. Export `materializeOrderedSteps(workItemId: string, steps: readonly { id: string; position: number }[])` returning native `MaterializedDagInput<StepNodeRef, string>`, and `prepareCoordination(input: MaterializedDagInput<StepNodeRef, string>)` returning native `PreparedDag<StepNodeRef, string>`. Test real work tickets, bytewise ties, accepted-work seeds, parallel joins and W/C separation; negative: disconnected cycle and absent prerequisite must prevent executable topology. Observe red before implementing; independently bypass preparation validation and observe the negative fail before restoring.
 
 ## 2. Host-controlled admission and reconstruction
 

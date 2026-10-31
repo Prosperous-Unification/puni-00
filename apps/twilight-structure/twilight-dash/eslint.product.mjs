@@ -8,7 +8,8 @@
  * fleet's pinned SSH transport through the exact `@tools/fleet-ssh-transport` alias. The two exact progress paths additionally reach
  * `@twilight-burokrat/contracts` alone, as do the two exact run storage codec/planner paths.
  * Tests may additionally reach the shared scratch helper
- * and the shared clock-read detector.
+ * and the shared clock-read detector. The two coordination topology paths reuse WBS
+ * step ordering and identity through the exact public `@wbs/domain` alias.
  */
 export default ({
   browserAdapterConstraint,
@@ -252,6 +253,17 @@ export default ({
         'apps/twilight-structure/twilight-dash/cli/src/runs/testing/runtime-dispatch-worker.ts',
       ],
       rules: boundary(['^@twilight-burokrat/contracts$', '^@wbs/contracts$']),
+    },
+    {
+      // Proof: removing either exact consumer failed its real @wbs/domain admission;
+      // widening the alias, relative import or peer path failed the corresponding
+      // zero-fatal denial in "Dash coordination topology consumes only the exact public
+      // WBS domain at its two paths"; each byte-exact restoration passed (2026-10-31).
+      files: [
+        'apps/twilight-structure/twilight-dash/cli/src/coordination/topology.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/coordination/topology.test.ts',
+      ],
+      rules: boundary(['^@wbs/domain$']),
     },
   ];
 };
