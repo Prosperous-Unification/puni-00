@@ -566,6 +566,45 @@ describe('registration', () => {
     }
   });
 
+  // Proof: 2026-10-31, with the parser admitting any secret (`parseMachineKey`'s refusal in
+  // token-request.ts removed) this asked be-01 with the registered client's secret as the key
+  // and answered 502, not 401.
+  it("a confidential consent client's secret never authenticates a machine grant", async () => {
+    const { oauth, be } = server(() => issued());
+    const response = await oauth.response(
+      new Request(`${OAUTH}/register`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          redirect_uris: ['http://127.0.0.1:33418/callback'],
+          token_endpoint_auth_method: 'client_secret_basic',
+        }),
+      }),
+    );
+    if (response === undefined) throw new Error('not a registration route');
+    const { client_id: clientId, client_secret: secret } = (await response.json()) as {
+      client_id: string;
+      client_secret: string;
+    };
+    for (const presented of [
+      token(
+        oauth,
+        { grant_type: CLIENT_CREDENTIALS_GRANT },
+        `Basic ${btoa(`${clientId}:${secret}`)}`,
+      ),
+      token(oauth, {
+        grant_type: CLIENT_CREDENTIALS_GRANT,
+        client_id: clientId,
+        client_secret: secret,
+      }),
+    ]) {
+      const refused = await presented;
+      expect(refused.status).toBe(401);
+      expect(await refused.json()).toEqual({ error: 'invalid_client' });
+    }
+    expect(be.sent).toEqual([]);
+  });
+
   it('still registers a consent client', async () => {
     expect((await register(server(() => issued()).oauth, ['authorization_code'])).status).toBe(201);
     expect((await register(server(() => issued()).oauth)).status).toBe(201);

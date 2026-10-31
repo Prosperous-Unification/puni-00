@@ -798,6 +798,53 @@ each is stated so a pool's N persons, all bound to one admin, are not a surprise
 
 Task 6.0 greps every `userId` key and adds any check missing from this table before slice 6.
 
+**M17. Confidential consent clients (slice 20, 2026-10-31).** Since #751 the metadata lists
+`client_secret_basic` and `client_secret_post` for the machine grants, so claude.ai's custom
+connector registers `client_secret_post` and was refused `400 invalid_client_metadata`
+("Couldn't register with WBS (dev)'s sign-in service"); Claude Code registers `none` and kept
+working.
+
+- _Registration._ `none`, `client_secret_basic` and `client_secret_post` are accepted; an
+  absent or other method stays `invalid_client_metadata`, and so does a machine grant (M2). A
+  confidential client gets 32 random bytes, base64url, as `client_secret` in the `201` only
+  (RFC 7591 §3.2.1), with `client_secret_expires_at` equal to `client_id_expires_at` and
+  `Cache-Control: no-store`. The secret lives as long as the client, whose lifetime slides
+  with use exactly as a public client's. The registration caps, TTLs and allowlist are
+  unchanged.
+- _Storage._ Migration `20261031120000_mcp_client_secret` adds `token_endpoint_auth_method`
+  and `client_secret_sha256` to `mcp_client`, both NULL for a public client, CHECKed
+  together. Plain SHA-256 suffices for a 256-bit random secret; nothing slower is needed. A
+  colour still on the older release reads a confidential row as public until it stops, which
+  is no weaker than today (PKCE binds every code). Rollback refuses while a confidential
+  client is live.
+- _Token endpoint._ Machine grants dispatch first and never look up a registered client
+  (M2), so a client secret is no API key. For `authorization_code` and `refresh_token`,
+  `presentedClientOf` reads Basic, body secret or neither (two methods, a repeated field or a
+  Basic user unlike the body `client_id` are `invalid_request`; a non-Basic header or a
+  `client_assertion` is `invalid_client`), and `authenticatesClient` requires the registered
+  method and, for a confidential client, the secret's digest in constant time. A public client
+  that presents a secret fails too, so an API key never authenticates a consent grant. Every
+  failure is `401 invalid_client` with the Basic challenge; a code is burned on it, and a
+  refresh authenticates before the token is judged, so a caller without the secret cannot end
+  the family by replay. PKCE S256 stays mandatory.
+- _Swept clients._ Re-admission at `/authorize` stays public-only: a swept confidential
+  client's secret is gone, its connector's next token request fails `invalid_client`, and the
+  MCP SDK re-registers on that. A refresh whose client is absent is judged as public; a proven
+  client is renewed past its families' absolute expiry at every exchange and refresh, so no
+  live family outlives its client.
+- _Unchanged._ `/authorize` needs no change: it already checks the registered callback and
+  PKCE for every client. Revocation stays possession-based for every client, a recorded
+  deviation: RFC 7009 §2.1 has the server authenticate a confidential client there, but
+  revoking only ends the grant the presenter already holds, and a client that sends its
+  credentials anyway is still served. The metadata is unchanged: without
+  `MCP_BE_INTERNAL_SECRET` or in gateway mode it still lists only `none`, and a client that
+  registers confidential there anyway is accepted and then authenticated as above.
+
+_Alternative:_ answer `token_endpoint_auth_method: none` in the `201` instead of refusing. RFC
+7591 §3.2.1 lets the server replace the value, and MCP SDK 1.31.0 would follow it, but a
+client may reject a replaced method and claude.ai's behaviour is unobserved, so real support
+was chosen. Advertising only `none` again would break the machine grants.
+
 ## Risks / Trade-offs
 
 - **claude.ai Request headers can be shared credentials.** In v1 all of claude.ai is

@@ -3,6 +3,7 @@ import { closeSync, openSync } from 'node:fs';
 
 import { Database, SQLiteError } from 'bun:sqlite';
 
+import type { ClientAuthentication } from './consent-client';
 import {
   McpStoreRefused,
   migrateMcpStore,
@@ -74,14 +75,15 @@ export interface FamilyRecord extends FamilyInput {
 export class McpRefreshFamilyCorrupt extends Error {}
 
 /**
- * A dynamically registered public OAuth client. `expiresAt` is the sliding lifetime cleanup
- * enforces; `unprovenExpiresAt` caps how far authorization may extend a client that has not yet
- * completed a token exchange (`proven`).
+ * A dynamically registered OAuth consent client, public or confidential (`authentication`).
+ * `expiresAt` is the sliding lifetime cleanup enforces; `unprovenExpiresAt` caps how far
+ * authorization may extend a client that has not yet completed a token exchange (`proven`).
  */
 export interface RegisteredClient {
   readonly clientId: string;
   readonly source: string;
   readonly redirectUris: readonly string[];
+  readonly authentication: ClientAuthentication;
   readonly proven: boolean;
   readonly expiresAt: number;
   readonly unprovenExpiresAt: number;
@@ -567,8 +569,9 @@ export class McpSessionStore {
     this.db
       .query(
         `INSERT INTO mcp_client (
-          client_id, source, redirect_uris, proven, expires_at, unproven_expires_at
-        ) VALUES (?, ?, ?, ?, ?, ?)`,
+          client_id, source, redirect_uris, proven, expires_at, unproven_expires_at,
+          token_endpoint_auth_method, client_secret_sha256
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         client.clientId,
@@ -577,6 +580,8 @@ export class McpSessionStore {
         client.proven ? 1 : 0,
         client.expiresAt,
         client.unprovenExpiresAt,
+        client.authentication.method === 'none' ? null : client.authentication.method,
+        client.authentication.method === 'none' ? null : client.authentication.secretSha256,
       );
   }
 
@@ -932,10 +937,30 @@ function clientOf(row: Row): RegisteredClient {
     clientId,
     source,
     redirectUris: uris,
+    authentication: clientAuthenticationOf(clientId, row),
     proven: proven === 1,
     expiresAt,
     unprovenExpiresAt,
   };
+}
+
+/**
+ * A stored client's authentication: both columns NULL is public, a confidential method needs its
+ * 64-hex digest. Anything else is refused as trusted state that is malformed, never read as public.
+ */
+function clientAuthenticationOf(clientId: string, row: Row): ClientAuthentication {
+  const method = row['token_endpoint_auth_method'];
+  const digest = row['client_secret_sha256'];
+  if (method === null && digest === null) return { method: 'none' };
+  // Proof: 2026-10-31, reading any other row as public made `refuses a stored client whose
+  // authentication is malformed` (store-migrations.test.ts) resolve a public client.
+  if (
+    (method === 'client_secret_basic' || method === 'client_secret_post') &&
+    typeof digest === 'string' &&
+    /^[0-9a-f]{64}$/.test(digest)
+  )
+    return { method, secretSha256: digest };
+  throw new Error(`MCP client ${clientId} authentication is malformed`);
 }
 
 function digestOf(token: string): Buffer {

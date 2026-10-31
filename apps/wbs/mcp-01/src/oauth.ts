@@ -33,6 +33,13 @@ import {
 
 import type { CallerAdmission } from './caller-auth';
 import { type McpConfig, offersMachineGrants } from './config';
+import {
+  authenticatesClient,
+  type ClientAuthentication,
+  isRegistrableMethod,
+  issueClientSecret,
+  presentedClientOf,
+} from './consent-client';
 import { type DeploymentFaultReporter, McpDeploymentFault } from './deployment-fault';
 import { groupPrefixOf, type McpOAuthHandler } from './http';
 import {
@@ -826,7 +833,12 @@ export class McpOAuthServer implements McpOAuthHandler {
     } catch {
       return protocolError('invalid_client_metadata');
     }
-    if (!isObject(body) || body['token_endpoint_auth_method'] !== 'none') {
+    // A confidential consent client (M17) is issued a secret; the machine grants' Basic and
+    // body methods are what the metadata lists, so claude.ai asks for `client_secret_post`.
+    // Proof: 2026-10-31, accepting only `none` here made `registers a client_secret_post and a
+    // client_secret_basic client, answering the secret once` (oauth.test.ts) answer 400.
+    const method: unknown = isObject(body) ? body['token_endpoint_auth_method'] : undefined;
+    if (!isObject(body) || !isRegistrableMethod(method)) {
       return protocolError('invalid_client_metadata');
     }
     // A machine grant is a credential's, never a registered client's
@@ -860,23 +872,37 @@ export class McpOAuthServer implements McpOAuthHandler {
     }
     this.cleanup();
     const issuedAt = this.now();
+    const issued = method === 'none' ? undefined : issueClientSecret(method);
     const client = this.store.admitClient(
       source,
       issuedAt,
       (census) => this.admitsUnprovenClient(census),
-      () => this.unprovenClient(this.random(), source, redirectUris, issuedAt),
+      () =>
+        this.unprovenClient(
+          this.random(),
+          source,
+          redirectUris,
+          issuedAt,
+          issued?.authentication ?? { method: 'none' },
+        ),
     );
     if (client === null) return protocolError('temporarily_unavailable', undefined, 429);
+    const clientIdExpiresAt = Math.floor(client.expiresAt / 1000);
+    // RFC 7591 §3.2.1: the secret is answered here once and never again, and expires with the
+    // client, whose lifetime slides with use exactly as a public client's does.
     return Response.json(
       {
         client_id: client.clientId,
-        client_id_expires_at: Math.floor(client.expiresAt / 1000),
+        client_id_expires_at: clientIdExpiresAt,
         client_id_issued_at: Math.floor(issuedAt / 1000),
+        ...(issued === undefined
+          ? {}
+          : { client_secret: issued.secret, client_secret_expires_at: clientIdExpiresAt }),
         grant_types: ['authorization_code', 'refresh_token'],
         redirect_uris: redirectUris,
-        token_endpoint_auth_method: 'none',
+        token_endpoint_auth_method: method,
       },
-      { status: 201 },
+      { status: 201, headers: { 'cache-control': 'no-store', pragma: 'no-cache' } },
     );
   }
 
@@ -895,11 +921,13 @@ export class McpOAuthServer implements McpOAuthHandler {
     source: string,
     redirectUris: readonly string[],
     issuedAt: number,
+    authentication: ClientAuthentication,
   ): RegisteredClient {
     return {
       clientId,
       source,
       redirectUris,
+      authentication,
       proven: false,
       expiresAt: issuedAt + this.clientTtlMs,
       unprovenExpiresAt: issuedAt + this.clientTtlMs * 2,
@@ -965,7 +993,10 @@ export class McpOAuthServer implements McpOAuthHandler {
     // Proof: 2026-10-25, admitting with `() => true` made `re-admits a swept client only within
     // the per-source unproven cap` (oauth.test.ts) answer 302 instead of 429.
     const client = this.store.readmitClient(
-      this.unprovenClient(clientId, source, [redirectUri], now),
+      // Re-admitted clients are public: a swept confidential client's secret is gone with it,
+      // so its connector's token request presents a secret, gets `invalid_client`, and
+      // registers again (the MCP SDK does on `invalid_client`).
+      this.unprovenClient(clientId, source, [redirectUri], now, { method: 'none' }),
       now,
       (census) => this.admitsUnprovenClient(census),
     );
@@ -1431,18 +1462,44 @@ export class McpOAuthServer implements McpOAuthHandler {
     return { markerId, expiresAt };
   }
 
+  /**
+   * The token endpoint. A machine grant goes to {@link machineToken}, which never looks a
+   * registered client up; the consent grants (`authorization_code`, `refresh_token`) first read
+   * the client authentication presented ({@link presentedClientOf}) and accept only the
+   * registered client's own method and secret (M17), so an API key never authenticates a
+   * consent grant and a registered client's secret never reaches a machine grant.
+   */
   private async token(request: Request, source: string): Promise<Response> {
     const form = await request.formData();
-    if (form.get('grant_type') === 'refresh_token') return await this.refreshGrant(form);
     // Proof: without this dispatch every grant test in machine-token.boot.test.ts failed
     // (invalid_grant); watched 2026-10-27.
     if (isMachineGrantType(form.get('grant_type')))
       return await this.machineToken(request, form, source);
+    const presented = presentedClientOf(form, request.headers.get('authorization'));
+    if (form.get('grant_type') === 'refresh_token') return await this.refreshGrant(form, presented);
 
     const code = stringField(form, 'code');
+    if (typeof presented === 'string') {
+      if (code !== undefined) this.grants.delete(code);
+      return presented === 'invalid_client'
+        ? machineRefusal('invalid_client')
+        : protocolError('invalid_request');
+    }
     this.cleanup();
     const grant = code === undefined ? undefined : this.grants.get(code);
     const client = grant === undefined ? null : this.store.client(grant.clientId, this.now());
+    if (
+      code !== undefined &&
+      grant !== undefined &&
+      client !== null &&
+      presented.clientId === grant.clientId &&
+      !authenticatesClient(client.authentication, presented)
+    ) {
+      // Proof: 2026-10-31, skipping this refusal made `refuses a confidential client's code
+      // without its secret or with a wrong one, and burns it` (oauth.test.ts) answer 200.
+      this.grants.delete(code);
+      return machineRefusal('invalid_client');
+    }
     const verifier = stringField(form, 'code_verifier');
     if (
       code === undefined ||
@@ -1450,7 +1507,7 @@ export class McpOAuthServer implements McpOAuthHandler {
       client === null ||
       grant.expiresAt <= this.now() ||
       form.get('grant_type') !== 'authorization_code' ||
-      stringField(form, 'client_id') !== grant.clientId ||
+      presented.clientId !== grant.clientId ||
       // Proof: on 2026-09-27, removing this comparison failed `refuses a token exchange that
       // substitutes another registered redirect, and burns the code` with 200 (oauth.test.ts).
       stringField(form, 'redirect_uri') !== grant.redirectUri ||
@@ -1548,10 +1605,32 @@ export class McpOAuthServer implements McpOAuthHandler {
     }
   }
 
-  private async refreshGrant(form: FormData): Promise<Response> {
+  /**
+   * The refresh grant. The client authenticates before the token is judged, so a caller without
+   * a confidential client's secret cannot even end that family by replaying its token. A client
+   * already swept is judged as public: a proven client is renewed past its families' absolute
+   * expiry at every exchange and refresh, so no live family outlives its client in production,
+   * and a family of a swept confidential client fails anyway for a connector that still sends
+   * its secret.
+   */
+  private async refreshGrant(
+    form: FormData,
+    presented: ReturnType<typeof presentedClientOf>,
+  ): Promise<Response> {
+    if (presented === 'invalid_client') return machineRefusal('invalid_client');
+    if (presented === 'invalid_request') return protocolError('invalid_request');
     const refreshToken = stringField(form, 'refresh_token');
-    const clientId = stringField(form, 'client_id');
+    const clientId = presented.clientId;
     if (refreshToken === undefined || clientId === undefined) return protocolError('invalid_grant');
+    // Proof: 2026-10-31, skipping this refusal made `refreshes a confidential client only with
+    // its secret` (oauth.test.ts) answer 200 for a refresh without the secret.
+    if (
+      !authenticatesClient(
+        this.store.client(clientId, this.now())?.authentication ?? { method: 'none' },
+        presented,
+      )
+    )
+      return machineRefusal('invalid_client');
     const requestedScope = form.get('scope');
     // Proof: on 2026-09-27, reading scope through stringField failed `refuses a refresh whose scope
     // is not text`: a multipart file scope was treated as omitted, not 400 (oauth.test.ts).
@@ -2496,7 +2575,8 @@ function rateLimited(retryAfterSeconds: number): Response {
 }
 
 /**
- * A machine grant refusal (RFC 6749 §5.2), never cached: `invalid_client` is
+ * A machine grant refusal (RFC 6749 §5.2), and a consent grant's failed client
+ * authentication (M17), never cached: `invalid_client` is
  * 401 with a Basic challenge (RFC 6749 §5.2, RFC 7617), an `invalid_request`
  * with a wait is the rate limit's 429, be-01 unavailable is 503, and
  * everything else 400. A wait is sent as `Retry-After`.

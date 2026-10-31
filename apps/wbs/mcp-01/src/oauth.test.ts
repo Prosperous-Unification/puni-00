@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { BrowserOidcClient, JwtClaims } from '@wbs/auth';
+import { newMachineKey } from '@wbs/core';
 import { Database } from 'bun:sqlite';
 import { describe, expect, it } from 'bun:test';
 import { decodeJwt, decodeProtectedHeader, SignJWT } from 'jose';
@@ -3269,6 +3270,7 @@ describe('registered clients across a restart', () => {
         clientId: 'planted-client',
         source: UNATTRIBUTED_SOURCE,
         redirectUris: [planted],
+        authentication: { method: 'none' },
         proven: true,
         expiresAt: 1_700_000_000_000 + 60_000,
         unprovenExpiresAt: 1_700_000_000_000 + 60_000,
@@ -3552,6 +3554,7 @@ describe('registered clients across a restart', () => {
           clientId,
           source: UNATTRIBUTED_SOURCE,
           redirectUris,
+          authentication: { method: 'none' },
           proven: true,
           expiresAt: now + 1_000,
           unprovenExpiresAt: now + 1_000,
@@ -3785,6 +3788,7 @@ describe('registered clients across a restart', () => {
           clientId,
           source: '203.0.113.9',
           redirectUris: [CALLBACK],
+          authentication: { method: 'none' },
           proven: false,
           expiresAt: now + 600_000,
           unprovenExpiresAt: now + 1_200_000,
@@ -3810,6 +3814,7 @@ describe('registered clients across a restart', () => {
           clientId,
           source: UNATTRIBUTED_SOURCE,
           redirectUris: [CALLBACK],
+          authentication: { method: 'none' },
           proven: true,
           expiresAt: START + 30 * DAY,
           unprovenExpiresAt: START + 30 * DAY,
@@ -3885,6 +3890,7 @@ describe('registered clients across a restart', () => {
         clientId,
         source: '203.0.113.9',
         redirectUris: [CALLBACK],
+        authentication: { method: 'none' as const },
         proven: false,
         expiresAt: now + 600_000,
         unprovenExpiresAt: now + 1_200_000,
@@ -3894,5 +3900,288 @@ describe('registered clients across a restart', () => {
       expect(store.client(clientId, now)).toEqual(readmitted);
       store.close();
     });
+  });
+});
+
+describe('confidential consent clients (M17)', () => {
+  type Confidential = 'client_secret_basic' | 'client_secret_post';
+  const TOKEN = 'https://dev.wbs.bulletpoints.club/mcp/oauth/token';
+  const VERIFIER = 'c'.repeat(43);
+
+  /** The registration claude.ai sends, with `method` as its token endpoint auth method. */
+  async function registerAs(oauth: McpOAuthServer, method: string | undefined): Promise<Response> {
+    const response = await oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/register', {
+        body: JSON.stringify({
+          client_name: 'Claude',
+          grant_types: ['authorization_code', 'refresh_token'],
+          redirect_uris: [CALLBACK],
+          response_types: ['code'],
+          token_endpoint_auth_method: method,
+        }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      }),
+    );
+    if (response === undefined) throw new Error('DCR endpoint did not handle the request');
+    return response;
+  }
+
+  async function registered(
+    oauth: McpOAuthServer,
+    method: Confidential,
+  ): Promise<{ clientId: string; secret: string }> {
+    const response = await registerAs(oauth, method);
+    expect(response.status).toBe(201);
+    const body = (await response.json()) as { client_id: string; client_secret: string };
+    return { clientId: body.client_id, secret: body.client_secret };
+  }
+
+  async function codeFor(oauth: McpOAuthServer, clientId: string): Promise<string> {
+    const { response } = await completedAuthorization(oauth, VERIFIER, clientId);
+    const code = new URL(response.headers.get('location') ?? 'https://invalid').searchParams.get(
+      'code',
+    );
+    if (code === null) throw new Error('consent did not issue a code');
+    return code;
+  }
+
+  /** One token request; `basic` puts `[id, secret]` in the header, every field goes in the body. */
+  async function tokenCall(
+    oauth: McpOAuthServer,
+    fields: Record<string, string>,
+    basic?: readonly [string, string],
+  ): Promise<Response> {
+    const response = await oauth.response(
+      new Request(TOKEN, {
+        body: new URLSearchParams(fields),
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          ...(basic === undefined ? {} : { authorization: `Basic ${btoa(basic.join(':'))}` }),
+        },
+        method: 'POST',
+      }),
+    );
+    if (response === undefined) throw new Error('token endpoint did not handle the request');
+    return response;
+  }
+
+  const exchange = (code: string, clientId?: string): Record<string, string> => ({
+    ...(clientId === undefined ? {} : { client_id: clientId }),
+    code,
+    code_verifier: VERIFIER,
+    grant_type: 'authorization_code',
+    redirect_uri: CALLBACK,
+  });
+
+  async function expectInvalidClient(response: Response): Promise<void> {
+    expect(response.status).toBe(401);
+    expect(response.headers.get('www-authenticate')).toBe('Basic realm="wbs-mcp"');
+    expect(await response.json()).toEqual({ error: 'invalid_client' });
+  }
+
+  // Proof: 2026-10-31, accepting only `none` at registration made this answer 400
+  // invalid_client_metadata for both methods (the live claude.ai failure).
+  it('registers a client_secret_post and a client_secret_basic client, answering the secret once', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'mcp-confidential-'));
+    const path = join(root, 'sessions.sqlite');
+    try {
+      const store = new McpSessionStore(path, [randomBytes(32)]);
+      const { oauth } = fixture({ store });
+      for (const method of ['client_secret_post', 'client_secret_basic'] as const) {
+        const response = await registerAs(oauth, method);
+        expect(response.status).toBe(201);
+        expect(response.headers.get('cache-control')).toBe('no-store');
+        const body = (await response.json()) as Record<string, unknown>;
+        expect(body).toMatchObject({
+          grant_types: ['authorization_code', 'refresh_token'],
+          redirect_uris: [CALLBACK],
+          token_endpoint_auth_method: method,
+        });
+        expect(body['client_secret']).toMatch(/^[A-Za-z0-9_-]{43}$/);
+        expect(body['client_secret_expires_at']).toBe(body['client_id_expires_at']);
+      }
+      const publicBody = (await (await registerAs(oauth, 'none')).json()) as Record<
+        string,
+        unknown
+      >;
+      expect(publicBody['token_endpoint_auth_method']).toBe('none');
+      expect(publicBody).not.toHaveProperty('client_secret');
+      expect(publicBody).not.toHaveProperty('client_secret_expires_at');
+      store.close();
+      const db = new Database(path, { readonly: true });
+      const rows = db
+        .query(
+          'SELECT token_endpoint_auth_method AS method, client_secret_sha256 AS digest FROM mcp_client ORDER BY rowid',
+        )
+        .all() as { method: string | null; digest: string | null }[];
+      db.close();
+      expect(rows.map(({ method }) => method)).toEqual([
+        'client_secret_post',
+        'client_secret_basic',
+        null,
+      ]);
+      expect(rows[0]?.digest).toMatch(/^[0-9a-f]{64}$/);
+      expect(rows[2]?.digest).toBeNull();
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it('still refuses an absent, unknown or private_key_jwt auth method', async () => {
+    const { oauth } = fixture();
+    for (const method of [undefined, 'private_key_jwt', 'tls_client_auth', 'NONE']) {
+      const response = await registerAs(oauth, method);
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: 'invalid_client_metadata' });
+    }
+  });
+
+  it('exchanges and refreshes a confidential client with its secret, by its own method', async () => {
+    for (const method of ['client_secret_post', 'client_secret_basic'] as const) {
+      const { oauth } = fixture();
+      const { clientId, secret } = await registered(oauth, method);
+      const code = await codeFor(oauth, clientId);
+      const issued =
+        method === 'client_secret_post'
+          ? await tokenCall(oauth, { ...exchange(code, clientId), client_secret: secret })
+          : await tokenCall(oauth, exchange(code), [clientId, secret]);
+      expect(issued.status).toBe(200);
+      const { refresh_token: refresh } = (await issued.json()) as { refresh_token: string };
+      const refreshFields = { grant_type: 'refresh_token', refresh_token: refresh };
+      const refreshed =
+        method === 'client_secret_post'
+          ? await tokenCall(oauth, { ...refreshFields, client_id: clientId, client_secret: secret })
+          : await tokenCall(oauth, refreshFields, [clientId, secret]);
+      expect(refreshed.status).toBe(200);
+    }
+  });
+
+  // Proof: 2026-10-31, skipping the token endpoint's `authenticatesClient` refusal made this
+  // answer 200 for the code sent without its secret; returning `true` from the digest compare
+  // made it answer 200 for the wrong secret.
+  it("refuses a confidential client's code without its secret or with a wrong one, and burns it", async () => {
+    const { oauth } = fixture();
+    const { clientId, secret } = await registered(oauth, 'client_secret_post');
+    const missing = await codeFor(oauth, clientId);
+    await expectInvalidClient(await tokenCall(oauth, exchange(missing, clientId)));
+    const burned = await tokenCall(oauth, {
+      ...exchange(missing, clientId),
+      client_secret: secret,
+    });
+    expect(burned.status).toBe(400);
+    expect(await burned.json()).toEqual({ error: 'invalid_grant' });
+
+    const wrong = await codeFor(oauth, clientId);
+    await expectInvalidClient(
+      await tokenCall(oauth, { ...exchange(wrong, clientId), client_secret: `${secret}x` }),
+    );
+    await expectInvalidClient(
+      await tokenCall(oauth, {
+        ...exchange(await codeFor(oauth, clientId), clientId),
+        client_secret: randomBytes(32).toString('base64url'),
+      }),
+    );
+  });
+
+  // Proof: 2026-10-31, comparing only the secret in `authenticatesClient` made the Basic
+  // client's secret sent in the body answer 200.
+  it('refuses a secret sent by the method it was not registered with, and a secret from a public client', async () => {
+    const { oauth } = fixture();
+    const basic = await registered(oauth, 'client_secret_basic');
+    await expectInvalidClient(
+      await tokenCall(oauth, {
+        ...exchange(await codeFor(oauth, basic.clientId), basic.clientId),
+        client_secret: basic.secret,
+      }),
+    );
+    const post = await registered(oauth, 'client_secret_post');
+    await expectInvalidClient(
+      await tokenCall(oauth, exchange(await codeFor(oauth, post.clientId)), [
+        post.clientId,
+        post.secret,
+      ]),
+    );
+    const { oauth: other } = fixture();
+    const publicId = await register(other);
+    await expectInvalidClient(
+      await tokenCall(other, {
+        ...exchange(await codeFor(other, publicId), publicId),
+        client_secret: 'anything',
+      }),
+    );
+  });
+
+  // Proof: 2026-10-31, skipping `refreshGrant`'s `authenticatesClient` refusal made the refresh
+  // without the secret answer 200.
+  it('refreshes a confidential client only with its secret, and a refused refresh keeps the family', async () => {
+    const { oauth } = fixture();
+    const { clientId, secret } = await registered(oauth, 'client_secret_basic');
+    const issued = await tokenCall(oauth, exchange(await codeFor(oauth, clientId)), [
+      clientId,
+      secret,
+    ]);
+    const { refresh_token: refresh } = (await issued.json()) as { refresh_token: string };
+    const fields = { grant_type: 'refresh_token', refresh_token: refresh };
+    await expectInvalidClient(await tokenCall(oauth, { ...fields, client_id: clientId }));
+    await expectInvalidClient(await tokenCall(oauth, fields, [clientId, 'wrong']));
+    await expectInvalidClient(
+      await tokenCall(oauth, { ...fields, client_id: clientId, client_secret: secret }),
+    );
+    expect((await tokenCall(oauth, fields, [clientId, secret])).status).toBe(200);
+  });
+
+  it('keeps the public flow: a none client exchanges and refreshes with its client_id alone', async () => {
+    const { oauth } = fixture();
+    const clientId = await register(oauth);
+    const issued = await tokenCall(oauth, exchange(await codeFor(oauth, clientId), clientId));
+    expect(issued.status).toBe(200);
+    const { refresh_token: refresh } = (await issued.json()) as { refresh_token: string };
+    const refreshed = await tokenCall(oauth, {
+      client_id: clientId,
+      grant_type: 'refresh_token',
+      refresh_token: refresh,
+    });
+    expect(refreshed.status).toBe(200);
+  });
+
+  // Proof: 2026-10-31, `authenticatesClient` returning `true` made the key sent as the client's
+  // secret redeem the code (200). Dropping the token endpoint's `presented.clientId ===
+  // grant.clientId` guard only turned the key's own id from invalid_grant into invalid_client:
+  // a code is bound to its client twice.
+  it('an API key never authenticates a consent grant, by its own id or as a client secret', async () => {
+    const { oauth } = fixture();
+    const { clientId, secret } = await registered(oauth, 'client_secret_basic');
+    const credentialId = '0b7c2f8e-3a41-4c55-9f0e-1d2e3f405162';
+    const { key } = newMachineKey(credentialId);
+    const asKey = await tokenCall(oauth, exchange(await codeFor(oauth, clientId)), [
+      credentialId,
+      key,
+    ]);
+    expect(asKey.status).toBe(400);
+    expect(await asKey.json()).toEqual({ error: 'invalid_grant' });
+    await expectInvalidClient(
+      await tokenCall(oauth, exchange(await codeFor(oauth, clientId)), [clientId, key]),
+    );
+    const issued = await tokenCall(oauth, exchange(await codeFor(oauth, clientId)), [
+      clientId,
+      secret,
+    ]);
+    const { refresh_token: refresh } = (await issued.json()) as { refresh_token: string };
+    const fields = { grant_type: 'refresh_token', refresh_token: refresh };
+    await expectInvalidClient(await tokenCall(oauth, fields, [credentialId, key]));
+    await expectInvalidClient(await tokenCall(oauth, fields, [clientId, key]));
+    expect((await tokenCall(oauth, fields, [clientId, secret])).status).toBe(200);
+  });
+
+  // Proof: 2026-10-31, recording the token form's `client_secret` in `routeEvidenceOf` (the
+  // evidence the `mcp_oauth_route` log line prints) put the secret in this evidence.
+  it('records no client secret in route evidence', async () => {
+    const { oauth, routeEvidence } = fixture();
+    const { clientId, secret } = await registered(oauth, 'client_secret_post');
+    const code = await codeFor(oauth, clientId);
+    await tokenCall(oauth, { ...exchange(code, clientId), client_secret: `${secret}-wrong` });
+    expect(routeEvidence.length).toBeGreaterThan(2);
+    expect(JSON.stringify(routeEvidence)).not.toContain(secret);
   });
 });

@@ -10,6 +10,8 @@ import clientDown from '../drizzle/20261021120000_mcp_client/down.sql' with { ty
 import clientUp from '../drizzle/20261021120000_mcp_client/migration.sql' with { type: 'text' };
 import familyPersonDown from '../drizzle/20261022130000_mcp_family_person/down.sql' with { type: 'text' };
 import familyPersonUp from '../drizzle/20261022130000_mcp_family_person/migration.sql' with { type: 'text' };
+import clientSecretDown from '../drizzle/20261031120000_mcp_client_secret/down.sql' with { type: 'text' };
+import clientSecretUp from '../drizzle/20261031120000_mcp_client_secret/migration.sql' with { type: 'text' };
 
 /**
  * One paired migration of the durable MCP store. `preflightDown` runs inside the rollback's
@@ -109,6 +111,25 @@ function preflightFamilyPersonDown(db: Database): void {
     );
 }
 
+/**
+ * Refuses the client-secret migration's reversal while a confidential client is live: without
+ * its method and digest it would read as public and redeem codes and refreshes with no secret.
+ */
+function preflightClientSecretDown(db: Database, now: number): void {
+  const live = db
+    .query<{ n: number }, [number]>(
+      `SELECT COUNT(*) AS n FROM mcp_client
+        WHERE token_endpoint_auth_method IS NOT NULL AND expires_at > ?`,
+    )
+    .get(now)?.n;
+  // Proof: 2026-10-31, with this refusal removed `refuses to roll back the client secret
+  // migration while a confidential client is live` (store-migrations.test.ts) rolled back.
+  if (live !== 0)
+    throw new McpStoreRefused(
+      `MCP store rollback refused: ${String(live)} live confidential clients must expire first`,
+    );
+}
+
 /** The ordered, bundled manifest; history on disk must be an exact prefix of it. */
 export const MCP_STORE_MIGRATIONS: readonly McpStoreMigration[] = [
   { name: BASELINE, up: refreshFamilyUp, down: refreshFamilyDown },
@@ -124,6 +145,12 @@ export const MCP_STORE_MIGRATIONS: readonly McpStoreMigration[] = [
     up: familyPersonUp,
     down: familyPersonDown,
     preflightDown: preflightFamilyPersonDown,
+  },
+  {
+    name: '20261031120000_mcp_client_secret',
+    up: clientSecretUp,
+    down: clientSecretDown,
+    preflightDown: preflightClientSecretDown,
   },
 ];
 
