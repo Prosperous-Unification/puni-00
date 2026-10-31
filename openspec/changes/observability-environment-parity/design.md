@@ -686,6 +686,10 @@ controller/chart/config changes can preserve UIDs and current preflight cannot
 prove semantic equivalence. A fetched but unapplied main advance may reuse the
 cohort; an applied controller revision change requires new reviewed evidence.
 No revision-equivalence framework or relaxed controller convergence is implied.
+The same repository identity projection applies to the parent preflight join:
+restore may refresh only the fetched head, while all other prior pins, including
+source UID and applied resource revisions, remain exact. New reviewed source
+instances cannot be adopted through restore.
 
 Operation/lock creation syncs the state parent before mutation; compensation does
 the same. Explicit recovery retains its original ownership during preparation.

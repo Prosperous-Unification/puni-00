@@ -5510,3 +5510,25 @@ rehearsal remain unverified. Canonical4.1/4.2 stay open. Required CI/host-gate
 certification remains blocking and unverified here; parallel CI bootstrap work is
 outside this fix. No remote call, real backend publication, CI run/workflow edit,
 Secret, production, deploy, push or merge was performed by this agent.
+
+Source fix commit `cf7efc161168a5b591c243a4d8bc50fe497b04ce` completed normal
+hooks42 (lint11.49s,format3.46s,plain-secrets0.04s,private-nesting0.05s,
+tool-wiki0.02s; trailer hooks0.02s each). One local compile43 used that exact
+source stamp:217modules,21ms bundle,271ms compile,109869232bytes,0755, SHA256
+`dfaa1cf33adee0fc691cefc4540d207caa046ef619474726ce82fd9545344abf`.
+Smoke44 gave expected arity exit1/empty stdout and correct source/compiled argv
+(0.661s/0.588s). This is preserved pre-caller-correction packaging evidence, not
+the final executable or actual observer/runtime certification.
+
+The same fetched-head exclusion was still missing from the parent preflight
+join. Root authorized propagation through one shared `selectRepositoryIdentity`,
+retaining all other parent pins and applied revisions.45 genuinely failed restore
+after switch/rollback and fetched-only head advance, with unchanged reviewed
+cohort bytes under the existing reviewed one-day age bound. Its first assertions
+also refused a newly reviewed foreign source UID without mutation.47 then passed
+seven affected selection/restore cases,20 assertions in8.45s;48 Fleet types,
+49 two-file lint and50 strict OpenSpec exited0. No82-suite or old proof replay.
+The final caller input snapshot is `caller-tested-source.json`, SHA256
+`509f5a26a7bf735cf5074d2c3ba1c7baa64a3650bb4ef8adfb20d256381aba10`.
+Later changes are verification metadata only. The root-approved source change
+justifies a new exact-source build while43/44 remain historical evidence.

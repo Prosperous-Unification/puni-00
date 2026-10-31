@@ -165,6 +165,14 @@ function byteReference(path: string) {
 function equal(left: unknown, right: unknown) {
   return hashHistory(left) === hashHistory(right);
 }
+/** Fetched repository heads move independently of immutable recipients. Fresh preflight validates
+ * that head; cohort and parent authority retain kind/name/namespace/UID. Applied resource pins stay exact.
+ */
+function selectRepositoryIdentity(
+  source: ReturnType<typeof decodeObservabilityPreflightRequest>['source'],
+) {
+  return { kind: source.kind, name: source.name, namespace: source.namespace, uid: source.uid };
+}
 function shellArgument(value: string) {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
@@ -374,6 +382,8 @@ export async function runObservabilityRoute(
     const prior = decodeObservabilityPreflightRequest(readJSON(parent.request.preflight));
     const identity = (pin: typeof prior) => ({
       ...pin,
+      // Proof: restore after a fetched-only advance failed with unchanged cohort/receipts (fix1/45); reviewed source adoption still refuses.
+      source: selectRepositoryIdentity(pin.source),
       rollbackPath: '',
       rollbackSHA256: '',
       rollbackOperationId: '',
@@ -590,12 +600,7 @@ export async function runObservabilityRoute(
         const selection = hashHistory({
           resources: preflightRequest.resources,
           // Proof: binding the fetched head rejected unchanged applied recipients (fix1/33); fresh preflight still checks the head.
-          source: {
-            kind: preflightRequest.source.kind,
-            name: preflightRequest.source.name,
-            namespace: preflightRequest.source.namespace,
-            uid: preflightRequest.source.uid,
-          },
+          source: selectRepositoryIdentity(preflightRequest.source),
           nodes: preflightRequest.nodes.map(({ name, uid, machineID }) => ({
             name,
             uid,

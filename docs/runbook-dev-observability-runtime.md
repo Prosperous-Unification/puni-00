@@ -47,6 +47,9 @@ refreshed live-head pin. Applied resource/controller revisions stay bound. A fet
 unapplied main advance may reuse acceptance; an applied revision change requires
 new review even when UIDs and candidate artifacts are unchanged. Current preflight
 does not prove semantic equivalence of controller/chart/config changes.
+The parent preflight join uses that same repository identity: restore can refresh
+the fetched head while every other prior pin stays exact. A newly reviewed foreign
+repository UID still cannot be adopted through restore.
 Each cohort member must start within the reviewed `maxAgeMs`; captures and both
 windows lie inside it, so a recent completion cannot freshen old checks. Neutral
 controller-convergence/effective-workload-isolation categories require this

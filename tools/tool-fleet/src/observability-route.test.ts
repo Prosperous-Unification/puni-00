@@ -1317,15 +1317,20 @@ for (const variant of ['lost-reload', 'failed-start'] as const) {
   });
 }
 
-test('Task79 composed switch rollback during Kubernetes failure and restore retain every prior receipt', async () => {
+test('fix1 restore after a fetched head advance preserves cohort and receipts and refuses source adoption', async () => {
   const fixture = await composedFixture();
   try {
-    const switched = await fixture.invoke('switch');
+    const operation = {
+      ...fixture.operation,
+      acceptance: { ...fixture.operation.acceptance, maxAgeMs: 86400000 },
+    };
+    const originalCohort = readFileSync(operation.acceptance.receipt.path);
+    const switched = await fixture.invoke('switch', operation);
     const switchedBytes = readFileSync(switched.receipt),
       originalHistory = readFileSync(fixture.observer.history.path);
     fixture.snapshot.resources[1].ready = false;
     const rollbackRequest = {
-      ...fixture.operation,
+      ...operation,
       before: fixture.observer.after,
       after: fixture.observer.before,
       beforeSHA256: fixture.observer.afterSHA256,
@@ -1338,6 +1343,9 @@ test('Task79 composed switch rollback during Kubernetes failure and restore reta
     const rolledBack = await fixture.invoke('rollback', rollbackRequest);
     expect(readFileSync(switched.receipt)).toEqual(switchedBytes);
     fixture.snapshot.resources[1].ready = true;
+    const rollbackBytes = readFileSync(rolledBack.receipt);
+    fixture.request.source.requiredRevision = `main@sha1:${'e'.repeat(40)}`;
+    fixture.snapshot.source.revision = fixture.request.source.requiredRevision;
     const freshRollback = fixture.observer.put(
       join(fixture.observer.home, 'new-preflight-rollback.json'),
       {
@@ -1357,19 +1365,69 @@ test('Task79 composed switch rollback during Kubernetes failure and restore reta
         rollbackSHA256: freshRollback.sha256,
       },
     );
-    const restored = await fixture.invoke('restore', {
-      ...fixture.operation,
-      acceptance: fixture.acceptance(),
+    const restoreRequest = {
+      ...operation,
       preflight: freshPreflight,
       parent: {
         path: rolledBack.receipt,
-        sha256: createHash('sha256').update(readFileSync(rolledBack.receipt)).digest('hex'),
+        sha256: createHash('sha256').update(rollbackBytes).digest('hex'),
       },
+    };
+    const fresh = JSON.parse(readFileSync(freshPreflight.path, 'utf8')) as typeof fixture.request;
+    const foreign = { ...fresh, source: { ...fresh.source, uid: 'foreign-reviewed-source' } };
+    const reviewed = structuredClone(operation.acceptance);
+    reviewed.staged.selection = hashHistory({
+      resources: foreign.resources,
+      source: {
+        kind: foreign.source.kind,
+        name: foreign.source.name,
+        namespace: foreign.source.namespace,
+        uid: foreign.source.uid,
+      },
+      nodes: foreign.nodes.map(({ name, uid, machineID }) => ({ name, uid, machineID })),
+      workloads: foreign.candidate.map(
+        ({ kind, instance, namespace, name, node, replicaUIDs }) => ({
+          kind,
+          instance,
+          namespace,
+          name,
+          node,
+          replicaUIDs,
+        }),
+      ),
     });
+    const foreignCohort = JSON.parse(originalCohort.toString('utf8')) as {
+      staged: { binding: { selection: string } };
+    };
+    foreignCohort.staged.binding.selection = reviewed.staged.selection;
+    reviewed.receipt = fixture.observer.put(
+      join(fixture.observer.home, 'foreign-reviewed-cohort.json'),
+      foreignCohort,
+    );
+    fixture.snapshot.source.uid = foreign.source.uid;
+    const before = readFileSync(fixture.observer.unit);
+    const refused = await fixture
+      .invoke('restore', {
+        ...restoreRequest,
+        acceptance: reviewed,
+        preflight: fixture.observer.put(
+          join(fixture.observer.home, 'foreign-reviewed-preflight.json'),
+          foreign,
+        ),
+      })
+      .catch((failure: unknown) => failure);
+    expect(readFileSync(fixture.observer.unit)).toEqual(before);
+    expect(refused).toBeInstanceOf(Error);
+    if (!(refused instanceof Error)) throw new Error('Expected parent identity refusal');
+    expect(refused.message).toBe('route-parent-preflight');
+    fixture.snapshot.source.uid = fixture.request.source.uid;
+    const restored = await fixture.invoke('restore', restoreRequest);
     expect(new Set([switched.operationId, rolledBack.operationId, restored.operationId]).size).toBe(
       3,
     );
     expect(readFileSync(switched.receipt)).toEqual(switchedBytes);
+    expect(readFileSync(rolledBack.receipt)).toEqual(rollbackBytes);
+    expect(readFileSync(operation.acceptance.receipt.path)).toEqual(originalCohort);
     expect(readFileSync(fixture.observer.history.path)).toEqual(originalHistory);
   } finally {
     fixture.close();
