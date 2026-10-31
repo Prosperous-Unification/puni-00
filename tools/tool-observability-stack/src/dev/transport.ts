@@ -39,6 +39,11 @@ export function readTransportFile(path: string): VerifiedEndpoint {
       throw new Error('Malformed transport binding JSON', { cause: error.name });
     throw error;
   }
+  return parseTransportBinding(wire);
+}
+
+/** Validates already-decoded transport material without filesystem reads; throws for malformed shape, trust, service or credentials. */
+export function parseTransportBinding(wire: unknown): VerifiedEndpoint {
   const endpoint = checkEndpoint(wire);
   bindTransport(endpoint);
   return endpoint;

@@ -390,8 +390,7 @@ export async function captureHistory(
   // Proof: removing the binding snapshot makes the actual authenticated caller-mutation capture test fail after acceptance.
   const boundRoutes = structuredClone(routes); // guard: capture-binding-snapshot
   // Proof: extending this to20s made capture total deadline succeed after12.6s; the20s test harness observed the intended assertion.
-  const signal = AbortSignal.timeout(10000),
-    started = Date.now(); // guard: deadline
+  const signal = AbortSignal.timeout(10000); // guard: deadline
   const routesCommitment = commitments(boundRoutes);
   const report = await createBackendAcceptance({
     ...boundRoutes,
@@ -429,8 +428,9 @@ export async function captureHistory(
       elasticReferences.push({ id, kind, index: hit._index, documentId: hit._id });
     }
   }
-  const samples = await metricSamples(prometheus, started / 1000, signal),
-    scrape = report.provenance.metric.scrapeTimestamp;
+  // Proof: the real HTTP returned-coordinate fixture failed when an earlier clock excluded the unchanged accepted scrape; both queries now anchor that exact coordinate.
+  const scrape = report.provenance.metric.scrapeTimestamp,
+    samples = await metricSamples(prometheus, scrape, signal);
   const prometheusReferences: typeof Provider.infer.prometheus = [];
   for (const [ordinal, kind] of metricKinds.entries()) {
     const selected = samples.filter((sample) => sample.kind === kind && sample.time === scrape);

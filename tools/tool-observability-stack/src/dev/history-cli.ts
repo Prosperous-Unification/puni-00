@@ -13,7 +13,7 @@ import { dirname } from 'node:path';
 
 import { type } from 'arktype';
 
-import { readCheckpoint } from './checkpoint';
+import { parseCheckpoint } from './checkpoint';
 import {
   captureHistory,
   HistoryReadFault,
@@ -21,7 +21,7 @@ import {
   readHistoryReceipt,
   verifyHistory,
 } from './history-provider';
-import { readTransportFile, type TransportEndpoint } from './transport';
+import { parseTransportBinding, type TransportEndpoint } from './transport';
 
 const Route = type({ '+': 'reject', kind: "'loopback'", url: 'string' }).or({
   '+': 'reject',
@@ -40,7 +40,8 @@ function readPrivate(path: string): Buffer {
   let descriptor: number;
   try {
     // Proof: removing O_NOFOLLOW made trusted request symlink follow another file and successfully capture.
-    descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    // Proof: without O_NONBLOCK the actual FIFO test hit its controlled2s child deadline before descriptor validation; this permits prompt nonregular refusal.
+    descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   } catch (error) {
     // Proof: removing this contextual category made trusted request-missing lose its distinct absent diagnostic.
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT')
@@ -94,8 +95,8 @@ function decode(bytes: Buffer): unknown {
 }
 function resolveRoute(route: typeof Route.infer): TransportEndpoint {
   if (route.kind === 'loopback') return route.url;
-  readPrivate(route.path);
-  return readTransportFile(route.path);
+  // Proof: deterministic binding pathname substitution retains these checked bytes; the former reopen consumed public replacement credentials and failed authentication.
+  return parseTransportBinding(decode(readPrivate(route.path)));
 }
 /** Publishes a new owner-private receipt exclusively, syncing both file and containing directory. */
 function publish(path: string, wire: unknown): void {
@@ -146,8 +147,8 @@ export async function runHistoryCli(args: string[]): Promise<void> {
     };
     if (operation === 'history-capture') {
       availableOutput(receiptPath);
-      readPrivate(request.checkpointPath);
-      const previous = readCheckpoint(request.checkpointPath);
+      // Proof: deterministic checkpoint pathname substitution made the former reopen capture a replacement observation from public unchecked bytes; this retains the original identity.
+      const previous = parseCheckpoint(readPrivate(request.checkpointPath).toString('utf8'));
       // Proof: removing this refusal made the empty-checkpoint test lose its explicit empty-state diagnostic.
       if (previous === undefined) throw new Error('history-checkpoint-empty');
       publish(receiptPath, await captureHistory(routes, previous));

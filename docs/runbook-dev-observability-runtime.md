@@ -393,6 +393,15 @@ owner-private files and syncs the file and directory. Retain the original bytes 
 digest. A later verify writes a distinct outcome linked to that digest. It does not
 read a newer checkpoint or classify the old observation as fresh application health.
 
+The history command parses the same descriptor-checked bytes it reads for each request,
+receipt, checkpoint and transport binding. It does not reopen checkpoint or binding
+pathnames after the private-file check; concurrent pathname replacement cannot substitute
+an unchecked identity or credential binding. Nonblocking open lets descriptor validation
+reject FIFOs without waiting for a writer. Capture's second metric read uses the accepted
+scrape coordinate, preserving a legitimate scrape selected after query setup began.
+Existing observer file loaders retain their
+original behavior.
+
 Inputs must be readable owner-private regular files; trusted request/receipt/outcome
 bytes are capped at262144. Missing, unreadable, malformed, occupied or changed-route
 inputs refuse with fixed redacted diagnostic categories. Checkpoints retain their

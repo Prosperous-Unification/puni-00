@@ -258,23 +258,55 @@ function fixture(authenticated = false, ageMs = 30000, mtls = false) {
           for (let ordinal = 1; ordinal <= 510; ordinal++)
             metrics[0].values.push([scrape - ordinal / 1000, '0']);
         if (faults.kind === 'second-wrong-gauge' && metricReads > 1) metrics[0].values[0][1] = '0';
+        const cutoff = Number(url.searchParams.get('time'));
+        if (faults.kind === 'query-cutoff' && metricReads === 1)
+          for (const series of metrics) series.values[0][0] = cutoff;
+        const returned =
+          faults.kind === 'query-cutoff'
+            ? metrics.map((series) => ({
+                ...series,
+                values: series.values.filter(([time]) => Number(time) <= cutoff),
+              }))
+            : metrics;
         return Response.json(
           {
             status: 'success',
             ...(faults.kind === 'warning' ? { warnings: [secret] } : {}),
             ...(faults.kind === 'oversize' ? { padding: ' '.repeat(1048577) } : {}),
-            data: { resultType: 'matrix', result: metrics },
+            data: { resultType: 'matrix', result: returned },
           },
           { status: faults.status },
         );
       }
       const hits = url.pathname.includes('logs-') ? logs : traces;
       // Actual exact-document queries must name the original physical index and ID.
-      const body = (await request.json()) as { query?: { ids?: { values: string[] } } };
+      const body = (await request.json()) as {
+        query?: {
+          ids?: { values: string[] };
+          bool?: { filter: { term: Record<string, string> }[] };
+        };
+      };
+      const requestedReplacement =
+        body.query?.bool?.filter.some(
+          (filter) => filter.term['attributes.puni.observation.id'] === 'replacement-observation',
+        ) === true;
+      const scopedHits = requestedReplacement
+        ? hits.map((hit) => ({
+            ...hit,
+            _id: `${hit._id}-replacement`,
+            _source: {
+              ...hit._source,
+              attributes: {
+                ...hit._source.attributes,
+                'puni.observation.id': 'replacement-observation',
+              },
+            },
+          }))
+        : hits;
       const selected =
         body.query?.ids === undefined
-          ? hits
-          : hits.filter((hit) => body.query?.ids?.values.includes(hit._id));
+          ? scopedHits
+          : scopedHits.filter((hit) => body.query?.ids?.values.includes(hit._id));
       return Response.json(
         {
           timed_out: faults.kind === 'partial',
@@ -756,5 +788,91 @@ test('receipt encoding size fault refuses before publication', async () => {
 test('capture preserves the live 120-second freshness gate for a coherent 150-second observation', async () => {
   const f = fixture(false, 150000);
   expect((await f.capture()).exit).not.toBe(0);
+  expect(() => readFileSync(f.receiptPath)).toThrow();
+});
+
+function substituteAfterRead(target: string, replacement: string): string {
+  return `import * as fs from 'node:fs'; import { mock } from 'bun:test';
+    const target = ${JSON.stringify(target)}, replacement = ${JSON.stringify(replacement)};
+    const inode = fs.statSync(target).ino, original = fs.readSync;
+    let substituted = false;
+    const readSync = (descriptor, ...args) => {
+      const length = original(descriptor, ...args);
+      if (!substituted && length > 0 && fs.fstatSync(descriptor).ino === inode) {
+        fs.renameSync(replacement, target); substituted = true;
+      }
+      return length;
+    };
+    mock.module('node:fs', () => ({ ...fs, readSync }));`;
+}
+
+test('capture consumes the checked checkpoint bytes after deterministic pathname substitution', async () => {
+  const f = fixture();
+  const replacement = join(f.root, 'replacement-checkpoint.json');
+  f.save(replacement, { ...f.observation, observationId: 'replacement-observation' });
+  chmodSync(replacement, 0o644);
+  f.preload(substituteAfterRead(f.checkpointPath, replacement));
+  const execution = await f.capture();
+  expect(statSync(f.checkpointPath).mode & 0o777).toBe(0o644);
+  expect(execution.exit).toBe(0);
+  const receipt = JSON.parse(readFileSync(f.receiptPath, 'utf8')) as {
+    observation: { identity: { observationId: string } };
+  };
+  expect(receipt.observation.identity.observationId).toBe('retained-observation');
+});
+
+test('capture consumes the checked binding bytes after deterministic pathname substitution', async () => {
+  const f = fixture(true);
+  const replacement = join(f.root, 'replacement-binding.json'),
+    stable = join(f.root, 'stable-prometheus.json');
+  f.save(stable, f.binding);
+  f.save(f.requestPath, { ...f.request, prometheus: { kind: 'binding-file', path: stable } });
+  f.save(replacement, {
+    ...f.binding,
+    authentication: { kind: 'basic', username: 'reader', password: 'UNCHECKED_REPLACEMENT' },
+  });
+  chmodSync(replacement, 0o644);
+  f.preload(substituteAfterRead(f.bindingPath, replacement));
+  const execution = await f.capture();
+  expect(statSync(f.bindingPath).mode & 0o777).toBe(0o644);
+  expect(execution.exit).toBe(0);
+  expect(JSON.parse(readFileSync(f.receiptPath, 'utf8')) as unknown).toMatchObject({
+    observation: { identity: { observationId: 'retained-observation' } },
+  });
+});
+
+test('capture rereads the scrape selected after its initial clock at the returned coordinate', async () => {
+  const f = fixture();
+  f.faults.kind = 'query-cutoff';
+  f.preload('const epoch = Date.now(); let calls = 0; Date.now = () => epoch + ++calls * 10;');
+  expect((await f.capture()).exit).toBe(0);
+  const times = f.queries
+    .filter((query) => query.startsWith('/api/v1/query'))
+    .map((query) => Number(new URL(query, 'http://127.0.0.1').searchParams.get('time')));
+  expect(times.length).toBe(2);
+  expect(times[1]).toBe(times[0]);
+});
+
+test('FIFO trusted input refuses promptly within a controlled child deadline', async () => {
+  const f = fixture();
+  rmSync(f.requestPath);
+  execFileSync('mkfifo', ['-m', '600', f.requestPath]);
+  const child = Bun.spawn(
+    [process.execPath, cli, 'history-capture', f.requestPath, f.receiptPath],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  const completion = await Promise.race([
+    child.exited.then((exit) => ({ state: 'exited' as const, exit })),
+    Bun.sleep(2000).then(() => ({ state: 'child-deadline' as const })),
+  ]);
+  if (completion.state === 'child-deadline') child.kill('SIGKILL');
+  const [stdout, stderr] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  expect(completion).toEqual({ state: 'exited', exit: 1 });
+  expect(stdout + stderr).not.toContain(secret);
+  expect(stderr.trim()).toBe('history-file-unreadable');
   expect(() => readFileSync(f.receiptPath)).toThrow();
 });
