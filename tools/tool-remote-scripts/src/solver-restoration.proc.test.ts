@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { scratchSync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
+import { initialHandoffLayout } from './fixtures/initial-handoff';
 import { envLayout } from './lib/env';
 import { withCanonicalLock } from './lib/lock';
 
@@ -34,6 +35,7 @@ test('actual built restoring CLI proves executing identity and retains the runti
     entrypoints: [resolve(import.meta.dir, 'solver-supervisor.ts')],
     target: 'bun',
     plugins: [
+      initialHandoffLayout(root, layouts),
       {
         name: 'private-restoration-fixture',
         setup(build) {

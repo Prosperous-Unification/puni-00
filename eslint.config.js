@@ -327,6 +327,7 @@ export default [
     ['lib/complete-dependency-exclusion.ts', ['@wbs/contracts/dependency-runtime']],
     ['lib/dependency-activation-failure.ts', ['@wbs/contracts/dependency-runtime']],
     ['lib/dependency-activation-records.ts', ['@wbs/contracts/dependency-runtime']],
+    ['lib/initial-handoff-graph.ts', ['@wbs/contracts/dependency-runtime']],
     [
       'lib/complete-dependency-exclusion.test.ts',
       ['@wbs/store-sqlite/db', '@wbs/store-sqlite/cross-project-dependency-activation'],

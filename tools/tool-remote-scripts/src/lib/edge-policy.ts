@@ -74,7 +74,15 @@ export interface RestoringEdgePolicy {
   readonly ownerPublicationSha256: string;
   readonly restorationIntent: { readonly name: string; readonly sha256: string };
 }
-export type EdgePolicy = OrdinaryEdgePolicy | RestoringEdgePolicy;
+export interface ActiveEdgePolicy {
+  readonly format: 'dependency-edge-policy';
+  readonly version: 1;
+  readonly phase: 'active';
+  readonly edgeState: string;
+  readonly ownerPublicationSha256: string;
+  readonly handoff: { readonly name: string; readonly sha256: string };
+}
+export type EdgePolicy = OrdinaryEdgePolicy | RestoringEdgePolicy | ActiveEdgePolicy;
 export interface EdgeRecordSnapshot {
   readonly path: string;
   readonly device: string;
@@ -88,8 +96,39 @@ export interface EdgePolicySnapshot extends EdgeRecordSnapshot {
   readonly policy: EdgePolicy;
 }
 
-/** Closed phase-aware grammar; active remains unsupported and grants no fallback. */
+/** Closed phase-aware grammar; decoding alone grants no startup authority. */
 export function decodeEdgePolicy(value: unknown, edgeState: string): EdgePolicy {
+  if (typeof value === 'object' && value !== null && 'phase' in value && value.phase === 'active') {
+    const policy = readClosed(value, [
+      'format',
+      'version',
+      'phase',
+      'edgeState',
+      'ownerPublicationSha256',
+      'handoff',
+    ]);
+    const handoff = readClosed(policy['handoff'], ['name', 'sha256']);
+    const name = readString(handoff['name']);
+    const sha256 = readString(handoff['sha256']);
+    const ownerPublicationSha256 = readString(policy['ownerPublicationSha256']);
+    if (
+      policy['format'] !== 'dependency-edge-policy' ||
+      policy['version'] !== 1 ||
+      policy['edgeState'] !== edgeState ||
+      !/^[a-f0-9]{64}$/.test(ownerPublicationSha256) ||
+      !/^[a-f0-9]{64}$/.test(sha256) ||
+      !/^edge-owner-[0-9]{6,12}-handoff-complete\.json$/.test(name)
+    )
+      throw new Error('invalid active edge policy');
+    return {
+      format: 'dependency-edge-policy',
+      version: 1,
+      phase: 'active',
+      edgeState,
+      ownerPublicationSha256,
+      handoff: { name, sha256 },
+    };
+  }
   if (!(
     typeof value === 'object' &&
     value !== null &&
@@ -254,6 +293,10 @@ export async function captureEdgeRecord(
   if (
     name !== 'edge-policy.json' &&
     name !== 'edge-owner.pending' &&
+    name !== 'edge-owner.json' &&
+    !/^edge-owner-[0-9]{6,12}-(handoff-admission|handoff-intent|exposure-intent|exposure-complete|handoff-complete)\.json$/.test(
+      name,
+    ) &&
     !/^edge-owner-[0-9]{6,12}-solver-restore-intent\.json$/.test(name) &&
     !/^edge-owner-[0-9]{6,12}-activation-(participants|capture|backup|intent|committed|fenced-complete|participant-restore-intent|participant-start-intent|participant-ready|participant-policy-intent|participants-restored)\.json$/.test(
       name,
