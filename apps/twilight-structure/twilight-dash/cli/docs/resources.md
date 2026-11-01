@@ -100,7 +100,10 @@ epoch, provider, disk scale, budget policy and the host pool's budgets, headroom
 enrollment identity. Its schema is `user_version` 1. A ledger written before the host pool
 (`user_version` 0) is migrated forward in one transaction the first time a schema-3
 configuration opens it, only when its pinned binding is exactly that configuration's earlier
-fields; any other version is refused, since nothing here can step a newer schema back. Another configuration cannot silently change
+fields; any other version is refused, since nothing here can step a newer schema back. The
+migration prints one line naming the ledger and the step. A Dash of the earlier version already
+running keeps its open connection and does not count host jobs until it restarts, so drain and
+restart it before enrolling the host (J12's drain before enrollment). Another configuration cannot silently change
 this binding. Never delete or replace `.dash` to regain capacity. Missing/corrupt state refuses
 normal operation; recovery requires preserving the ledger and reconciling outstanding uses.
 
@@ -278,10 +281,13 @@ workspace slots; a host job also reserves cores, memory and exclusive units.
   is down. Its events wait in the ledger's `host_job_events` outbox for slice 5's projection.
 - **Refusals.** An envelope above `allocatable` in any dimension, or an exclusive id with no
   units, is refused at once (exit 73) naming the dimension and both figures, without a ticket.
+  A free unit is handed out only when its tree is readable and clean; a dirty, deleted or broken
+  tree is not free and is named in the waiter's outcome and its 75 refusal. A unit must also be
+  clean and held by no process at `resources init`.
   Otherwise the caller holds a ticket: waiters are served oldest-fitting-first; a waiter
   overtaken by three younger admissions becomes a barrier no younger waiter passes, the oldest
   barrier applying. A waiter past its wait budget is refused 75 naming who is ahead; a
-  wait-zero caller is refused 75 while any live ticket is ahead. A ticket whose process is gone,
+  wait-zero caller is decided once: admitted if it fits, refused 75 if not or while any live ticket is ahead. A ticket whose process is gone,
   or whose budget ended over a minute ago, is removed by whoever polls next, named on stderr.
 - **Settlement per entry.** Cores and memory return when the launched process group is
   terminal (the same `/proc` session inspection as above) and every declared container is gone;
@@ -291,7 +297,9 @@ workspace slots; a host job also reserves cores, memory and exclusive units.
   surviving children keep cores and memory, a dirty or moved tree stays `blocked` naming the
   file until an operator restores it, and a job never launched returns only after its launcher
   is gone and the 60-second launch grace has passed. `watch`'s sweep re-reads that evidence each
-  tick; until slice 3 reads Docker, a job that declared containers stays charged.
+  tick for running and `unknown` jobs; a `blocked` job is re-read after one second, doubling to
+  a one-minute cap, and records an event only when its evidence changes. Until slice 3 reads
+  Docker, a job that declared containers stays charged.
 
 The `ops job` and `ops pool` commands arrive with slice 3; this slice gives the runtime
 (`ResourceRuntime.admitHostJob`, `settleHostJob`, `hostPoolStatus`) and `resources init`.

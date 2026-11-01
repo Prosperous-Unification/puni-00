@@ -24,7 +24,7 @@ import {
 
 /**
  * The host pool's admission queue and settlement against a model (`dash-host-jobs` J5, J6,
- * J2', J18), with `fc.asyncModelRun`. Five contenders, each a real waiter process (`sleep`)
+ * J2', J18), with `fc.asyncModelRun`. Seven contenders, each a real waiter process (`sleep`)
  * whose identity its ticket and job record, over two ledger connections, draw arrivals of five
  * job types (a gate holding a tree, a build, a whole-pool calibration, a type with declared
  * containers, and one larger than the host), polls, preparations, launches of real payload
@@ -49,7 +49,7 @@ import {
  * red against these tests on 2026-11-01 and restored.
  */
 if (insideLinuxNamespace(import.meta.path)) {
-  const ALLOCATABLE = { cpuCores: 8, memoryGib: 13, workspaceSlots: 6 };
+  const ALLOCATABLE = { cpuCores: 8, memoryGib: 13, workspaceSlots: 8 };
   const TYPES: readonly JobTypeDescriptor[] = [
     // Three gates fit every dimension but trees, so the unit check alone holds the third.
     jobType('gate', 2, 4, ['gate_tree']),
@@ -63,6 +63,8 @@ if (insideLinuxNamespace(import.meta.path)) {
     admitted: 0,
     barrierHeld: 0,
     severalBarriers: 0,
+    barrierFormed: 0,
+    overtakes: 0,
     treeBound: 0,
     calibration: 0,
     reclaimed: 0,
@@ -286,7 +288,7 @@ if (insideLinuxNamespace(import.meta.path)) {
       if (live.filter((ticket) => ticket.overtakes >= 3).length > 1) reached.severalBarriers += 1;
       const candidates = barrier < 0 ? live : live.slice(0, barrier + 1);
       let expected: 'admitted' | 'waiting' | 'refused';
-      if (model.now > mine.deadline) {
+      if (mine.wait > 0 && model.now > mine.deadline) {
         expected = 'refused';
         reached.budgetRefused += 1;
       } else if (mine.wait === 0 && ahead.length > 0) {
@@ -317,7 +319,11 @@ if (insideLinuxNamespace(import.meta.path)) {
       if (outcome.kind === 'admitted') {
         reached.admitted += 1;
         if (TYPES[mine.type]?.id === 'calibration') reached.calibration += 1;
-        for (const older of ahead) older.overtakes += 1;
+        for (const older of ahead) {
+          older.overtakes += 1;
+          if (older.overtakes === 3) reached.barrierFormed += 1;
+        }
+        reached.overtakes += ahead.length;
         contender.job = {
           id: outcome.job.id,
           type: mine.type,
@@ -493,7 +499,7 @@ if (insideLinuxNamespace(import.meta.path)) {
     }
   }
 
-  const index = fc.nat({ max: 4 });
+  const index = fc.nat({ max: 6 });
   const commands = [
     fc
       .tuple(index, fc.nat({ max: 9 }), fc.constantFrom(...WAITS))
@@ -503,6 +509,12 @@ if (insideLinuxNamespace(import.meta.path)) {
       ),
     index.map((who) => new Arrive(who, 1, 600)),
     index.map((who) => new Arrive(who, 2, 600)),
+    // Long-waiting gates and calibrations, and frequent polls, build barriers at random.
+    index.map((who) => new Arrive(who, 0, 600)),
+    index.map((who) => new Arrive(who, 0, 600)),
+    index.map((who) => new Arrive(who, 1, 600)),
+    index.map((who) => new Poll(who)),
+    index.map((who) => new Poll(who)),
     index.map((who) => new Poll(who)),
     index.map((who) => new Poll(who)),
     index.map((who) => new Poll(who)),
@@ -516,15 +528,32 @@ if (insideLinuxNamespace(import.meta.path)) {
     fc.constant(new Settle()),
   ];
 
+  // Half the random runs start with a build held, a calibration waiting behind it and two
+  // builds past it, so one more random admission makes it a barrier: random draws then build
+  // and test barriers too, not only the examples.
+  const barrierSeed = (): Command[] => [
+    new Arrive(0, 1, 600),
+    new Poll(0),
+    new Arrive(0, 2, 600),
+    new Poll(0),
+    new Arrive(0, 1, 600),
+    new Poll(1),
+    new Arrive(0, 1, 600),
+    new Poll(1),
+  ];
+  const drawRun = fc
+    .tuple(fc.boolean(), fc.commands(commands, { maxCommands: 80, size: 'max' }))
+    .map(([seeded, tail]): Iterable<Command> => (seeded ? [...barrierSeed(), ...tail] : tail));
+
   test('the admission queue and settlement follow the model under every interleaving', async () => {
     await fc.assert(
-      fc.asyncProperty(fc.commands(commands, { maxCommands: 80, size: 'max' }), async (drawn) => {
+      fc.asyncProperty(drawRun, async (drawn) => {
         const fixture = hostPoolFixture({
           cpuCores: 8,
           memoryGib: 15,
           headroom: { cpuCores: 0, memoryGib: 2 },
           gateTrees: 2,
-          workspaceSlots: 6,
+          workspaceSlots: 8,
           credential: fakeCredential(),
         });
         const model: Model = { now: 1800000000000, tickets: [], jobs: [], contenders: [] };
@@ -546,7 +575,7 @@ if (insideLinuxNamespace(import.meta.path)) {
             },
           },
         };
-        model.contenders = Array.from({ length: 5 }, () => ({
+        model.contenders = Array.from({ length: 7 }, () => ({
           owner: waiter(real),
           ticket: null,
           job: null,
@@ -646,6 +675,8 @@ if (insideLinuxNamespace(import.meta.path)) {
       },
     );
     // The draw reached every behaviour the model claims to cover.
+    // The three examples form two barriers; random runs must form more.
+    expect(reached.barrierFormed).toBeGreaterThan(2);
     for (const [name, count] of Object.entries(reached))
       expect(`${name} ${String(count > 0)}`).toBe(`${name} true`);
   }, 120000);

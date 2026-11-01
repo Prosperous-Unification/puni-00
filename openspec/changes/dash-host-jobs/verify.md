@@ -95,6 +95,96 @@ before its trees, so dropping the unit check passed; the model's gate is now 2 c
 and an example drives a third gate onto two held trees. Random draws rarely built a barrier;
 the examples now build two and show the oldest applying.
 
+### Review fixes (Fable, PR #804, MERGE AFTER FIXES)
+
+What changed:
+
+- **S1 (blocking).** A wait-zero ticket's deadline is its arrival time. The enqueue's FULL fsync
+  already puts that in the past, so the "budget spent" branch refused it 75 on an empty pool
+  under a real clock. The branch now applies only when `waitSeconds > 0`. A wait-zero ticket is
+  decided once: admitted if it fits, else refused 75 by the no-room branch.
+- **S2, outbox churn.** A tmp entry that is `blocked` with a deletion intent stays `blocked`; it
+  no longer flips back to `held`. Both settlement transactions now write an event only when the
+  entries, state or evidence identities change (`settlementOf`). Otherwise they save only the
+  retry schedule.
+- **S2, R5 proofs.** Added `Proof:` comments on the refusals that were tested but uncommented.
+  Added tests for:
+  - both `tmpIntent` blocked branches;
+  - a replaced tmp directory or a symlink in its place;
+  - version-0 unexpected tables;
+  - the duplicate exclusive id;
+  - the prepare, launch and exit seam guards;
+  - an unreadable pool mode;
+  - one table-driven test for the pool-shape refusals;
+  - the init unit refusals: not a directory, an inode duplicate through a real bind mount
+    inside the namespace, dirty, held.
+- **S3.**
+  - Init refuses a dirty or held unit.
+  - Admission hands out only a ready unit: readable and clean, with its HEAD read in the same
+    transaction. A dirty or broken free unit is not free; the waiting outcome names it
+    (`unavailableUnits`) and so does the 75 refusal. A broken unit no longer crashes the
+    admitting transaction.
+  - `git()` errors now name the subcommand and the tree.
+  - Reclaim lines are reported after commit.
+  - The 0→1 migration prints one line naming the ledger and the step.
+  - A `blocked` job backs off: one second, doubling to a one-minute cap.
+  - Model draws are biased: seven contenders, extra gate, build and calibration arrivals, more
+    polls. Half the random runs start from a barrier seed (a build held, a calibration waiting,
+    two builds past it). The test asserts that random runs form more barriers than the three
+    examples do (the examples form 2).
+  - The spec scenario "A third gate is overtaken, then barred" now states its pool: 16 cores,
+    34 GiB, headroom 0 cores and 2 GiB, two trees. The test always ran on that pool; the first
+    scenario's 8-core pool cannot hold two gates and three builds.
+
+New assumptions:
+
+- **A18.** A `blocked` host job uses the worktree cleanup's retry delays (1 s doubling to a 60 s
+  cap) but not its six-attempt exhaustion. A blocked tree is resolved by an operator, and no
+  retry command exists before slice 3, so exhaustion would strand a resolved tree. `unknown` and
+  `held` jobs are still read every tick, because termination must be seen promptly.
+- **A19.** Admission checks a free unit's readiness with `git status` and `git rev-parse`, but
+  not `inspectHolds`. A full `/proc` scan on every poll was judged too costly. Holds are
+  checked at init and at settlement, which is when a unit returns.
+- **A20.** The migration line goes to stderr. `ResourceRuntime.open` has no report sink, and
+  this happens once per ledger.
+- **A21.** The `waiting` outcome gains `unavailableUnits`: the free units that cannot be handed
+  out now, each with its reason.
+
+Model counters on one run after the bias: barrierHeld 3–18, severalBarriers 4, barrierFormed
+12–15, treeBound 4–30. The examples alone contribute barrierHeld 2, severalBarriers 4,
+barrierFormed 2 and treeBound 1.
+
+Faults added to the table, all against the final code:
+
+| Fault injected                                                                                   | Test that went red                                                         | Observed                                                              |
+| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| budget-spent branch without the `waitSeconds > 0` guard (S1)                                     | `a wait-zero caller on an empty pool is admitted under an advancing clock` | expected `admitted`, received `refused`                               |
+| budget-spent check disabled                                                                      | `a waiter past its budget is refused 75 …`                                 | outcome differs from the 75 refusal                                   |
+| wait-zero-ahead check disabled                                                                   | `a wait-zero caller is refused 75 while a live ticket is ahead …`          | admitted                                                              |
+| reclaim skipped                                                                                  | `dead tickets are reclaimed by whoever sees them …`                        | no lines                                                              |
+| `blocked` → `held` flip restored in `tmpIntent`                                                  | `a blocked tmp directory adds no outbox rows …`                            | revision 4 → 8                                                        |
+| event on every settlement pass                                                                   | same                                                                       | revision 4 → 8                                                        |
+| backoff dropped                                                                                  | same                                                                       | `settleAttempts` 1 → 2 without time passing                           |
+| "present without a recorded identity" dropped                                                    | `a tmp directory nobody recorded stays charged`                            | entry released                                                        |
+| "absent without a deletion intent" dropped                                                       | `a tmp directory removed behind the runtime stays charged`                 | entry released                                                        |
+| tmp identity check (symlink, replaced inode) dropped                                             | `a replaced tmp directory or symlink stays charged and untouched`          | `released`                                                            |
+| resting-commit check dropped                                                                     | `a dirty tree is not returned`                                             | "tree clean at its resting commit" on a moved HEAD                    |
+| version-0 unexpected-tables check dropped                                                        | `refuses a version-0 ledger with unexpected tables`                        | migrated                                                              |
+| duplicate exclusive id check dropped                                                             | `the host-job seams refuse out-of-order calls`                             | gate queued                                                           |
+| launch guard, exit guard dropped                                                                 | same                                                                       | accepted                                                              |
+| prepare guard dropped                                                                            | same                                                                       | refused only by mkdir `EEXIST` (second guard)                         |
+| pool-mode check reduced to `undefined`                                                           | `status refuses an unreadable pool mode`                                   | bare `TypeError`                                                      |
+| headroom, exclusive id, empty unit list, absolute path, root overlap checks (each dropped alone) | `the pool shape refuses each malformed statement`                          | the config loaded                                                     |
+| not-a-directory check dropped                                                                    | `init refuses each unit the host cannot hand out`                          | refused only as "not the top of a Git work tree" (second guard)       |
+| inode-duplicate check dropped                                                                    | same                                                                       | refused only as "held: mounted target remains charged" (second guard) |
+| init clean check, init hold check (each dropped)                                                 | same                                                                       | `initialized`                                                         |
+| free-unit clean check dropped                                                                    | `a dirty or broken free unit is not free, and is named`                    | the gate was admitted onto the dirty tree                             |
+| removal exit-code check alone dropped                                                            | `a failed cleanup leaves the tmp reservation charged`                      | stayed green: the presence re-check refuses                           |
+| presence re-check alone dropped                                                                  | same                                                                       | stayed green: the exit-code check refuses                             |
+| both removal checks dropped                                                                      | same                                                                       | `released` beside the outside hard link                               |
+
+Every fault from the first table was rerun against this code; see the Commands section.
+
 ### Commands
 
 Fresh on 2026-11-01, worktree root, final code; trimmed.
@@ -114,6 +204,20 @@ Fresh on 2026-11-01, worktree root, final code; trimmed.
 | `./node_modules/.bin/openspec validate dash-host-jobs --json`                                | `passed: 1, failed: 0`                                                                                                                                                                                                                                                                         |
 
 The baseline flake `unknown surviving child identities stay blocked…` passed inside this run: its namespace wrapper passes only when every inner test does.
+
+After the review fixes (fresh, same host):
+
+| Command                                                                                      | Result                                                                                                                                                                                                                                                             |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run twilight-dash:test --skip-nx-cache` | exit 0, `Successfully ran target test for project twilight-dash` (31m52s); `host-jobs.test.ts in a private Linux namespace` ✓ 11.5 s (34 tests inside), `host-jobs.model.test.ts …` ✓ 21.2 s, `managed resource runtime real Linux namespace integration` ✓ 45.2 s |
+| `bunx nx run twilight-dash:typecheck`, `:lint`, `:build`                                     | `Successfully ran target …` each                                                                                                                                                                                                                                   |
+| `check-indexes working . HEAD`                                                               | exit 0                                                                                                                                                                                                                                                             |
+| `bunx prettier --check` on the 16 touched files                                              | `All matched files use Prettier code style!`                                                                                                                                                                                                                       |
+| `./node_modules/.bin/openspec validate dash-host-jobs --json`                                | `passed: 1, failed: 0`                                                                                                                                                                                                                                             |
+| fault table, all 46 faults rerun against this code                                           | 44 red; the two single removal-check faults stay green as recorded (each check backs up the other)                                                                                                                                                                 |
+
+`wbs-be-01:typecheck` and `pilot-policy.test.ts` were not rerun: nothing they cover changed in the
+review fixes.
 
 ### Skipped or unverified
 

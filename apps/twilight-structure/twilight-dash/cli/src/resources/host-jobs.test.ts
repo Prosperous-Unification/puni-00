@@ -1,6 +1,15 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { chmodSync, linkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  linkSync,
+  mkdirSync,
+  readFileSync,
+  rmdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 
 import { Database } from 'bun:sqlite';
@@ -56,12 +65,16 @@ if (insideLinuxNamespace(import.meta.path)) {
     credential: fakeCredential(),
   };
 
-  function pool(shape: PoolShape, overrides: Record<string, unknown> = {}) {
+  function pool(
+    shape: PoolShape,
+    overrides: Record<string, unknown> = {},
+    wallClock: { read: () => number } = clock,
+  ) {
     const fixture = hostPoolFixture(shape, overrides);
     fixtures.push(fixture);
     const runtime = ResourceRuntime.initialize(
       loadResourceConfiguration(fixture.config),
-      clock,
+      wallClock,
       ampleHost,
     );
     return { ...fixture, runtime };
@@ -400,7 +413,7 @@ if (insideLinuxNamespace(import.meta.path)) {
           'host job gate gate:two refused: wait budget of 5s spent; ahead: gate:one (starting)',
       });
       const waiting = runtime.pollHostJob(third, silent);
-      expect(waiting).toEqual({ kind: 'waiting', ahead: [] });
+      expect(waiting).toEqual({ kind: 'waiting', ahead: [], unavailableUnits: [] });
       runtime.close();
     });
 
@@ -549,9 +562,11 @@ if (insideLinuxNamespace(import.meta.path)) {
       expect(runtime.pollHostJob(next, silent).kind).toBe('refused');
       rmSync(join(tree, 'stray.txt'));
       fixtureGit(tree, 'commit', '--quiet', '--allow-empty', '-m', 'moved');
+      now += 61000;
       runtime.sweep();
       expect(runtime.inspectHostJob(job.id).units[0]?.reason).toContain('not its resting commit');
       fixtureGit(tree, 'reset', '--quiet', '--hard', 'HEAD~1');
+      now += 61000;
       runtime.sweep();
       expect(runtime.inspectHostJob(job.id).state).toBe('released');
       admitted(runtime, queue(runtime, { descriptor: gate, label: 'gate:after', waitSeconds: 0 }));
@@ -607,6 +622,313 @@ if (insideLinuxNamespace(import.meta.path)) {
         workspaceSlots: 1,
       });
       runtime.close();
+    });
+  });
+
+  describe('review fixes (Fable, PR #804)', () => {
+    test('a wait-zero caller on an empty pool is admitted under an advancing clock', () => {
+      let tick = 1800000000000;
+      const advancing = { read: () => (tick += 7) };
+      const { runtime } = pool(scenarioPool, {}, advancing);
+      for (const label of ['build:1', 'build:2', 'build:3', 'build:4'])
+        expect(
+          runtime.pollHostJob(queue(runtime, { descriptor: build, label, waitSeconds: 0 }), silent)
+            .kind,
+        ).toBe('admitted');
+      const ahead = queue(runtime, {
+        descriptor: jobType('calibration', 8, 13),
+        label: 'calibrate',
+        waitSeconds: 600,
+      });
+      expect(runtime.pollHostJob(ahead, silent).kind).toBe('waiting');
+      const late = runtime.pollHostJob(
+        queue(runtime, { descriptor: jobType('tiny', 0, 0), label: 'tiny', waitSeconds: 0 }),
+        silent,
+      );
+      expect(late.kind).toBe('refused');
+      expect(late.kind === 'refused' ? late.exitCode : 0).toBe(75);
+      runtime.close();
+    });
+
+    test('a blocked tmp directory adds no outbox rows and backs off its evidence reads', async () => {
+      const { runtime, base } = pool(scenarioPool);
+      const job = admitted(
+        runtime,
+        queue(runtime, {
+          descriptor: jobType('test-queued', 1, 1, [], 1),
+          label: 'q',
+          waitSeconds: 0,
+        }),
+      );
+      const payload = launch(runtime, job);
+      writeFileSync(join(job.locator, 'shared'), 'bytes');
+      linkSync(join(job.locator, 'shared'), join(base, 'outside-link'));
+      await payload.release();
+      runtime.sweep();
+      const blocked = runtime.inspectHostJob(job.id);
+      expect(blocked.tmpDisk.state).toBe('blocked');
+      expect(blocked.settleAttempts).toBe(1);
+      const rows = runtime.hostJobOutbox().length;
+      runtime.sweep();
+      expect(runtime.inspectHostJob(job.id).settleAttempts).toBe(1);
+      for (let pass = 0; pass < 2; pass++) {
+        now += 61000;
+        runtime.sweep();
+      }
+      const later = runtime.inspectHostJob(job.id);
+      expect(later.settleAttempts).toBe(3);
+      expect(later.tmpDisk.state).toBe('blocked');
+      expect(later.revision).toBe(blocked.revision);
+      expect(runtime.hostJobOutbox().length).toBe(rows);
+      runtime.close();
+    });
+
+    test('a tmp directory nobody recorded stays charged', async () => {
+      const { runtime } = pool(scenarioPool);
+      const launcher = spawn('sleep', ['600'], { stdio: 'ignore' });
+      payloads.push(launcher);
+      const job = admitted(
+        runtime,
+        queue(runtime, { descriptor: build, label: 'b', waitSeconds: 0 }, launcher.pid),
+      );
+      mkdirSync(job.locator, { mode: 0o700 });
+      launcher.kill('SIGKILL');
+      await once(launcher, 'exit');
+      now += 61000;
+      runtime.sweep();
+      const settled = runtime.inspectHostJob(job.id);
+      expect(settled.compute.state).toBe('released');
+      expect(settled.tmpDisk).toEqual({
+        state: 'blocked',
+        reason: 'tmp directory present without a recorded identity',
+      });
+      expect(runtime.hostPoolStatus().reserved.workspaceSlots).toBe(1);
+      runtime.close();
+    });
+
+    test('a tmp directory removed behind the runtime stays charged', async () => {
+      const { runtime } = pool(scenarioPool);
+      const job = admitted(
+        runtime,
+        queue(runtime, { descriptor: build, label: 'b', waitSeconds: 0 }),
+      );
+      const payload = launch(runtime, job);
+      rmdirSync(job.locator);
+      await payload.release();
+      runtime.sweep();
+      expect(runtime.inspectHostJob(job.id).tmpDisk).toEqual({
+        state: 'blocked',
+        reason: 'tmp directory absent without a deletion intent',
+      });
+      runtime.close();
+    });
+
+    test('a replaced tmp directory or symlink stays charged and untouched', async () => {
+      for (const replacement of ['directory', 'symlink'] as const) {
+        const { runtime, base } = pool(scenarioPool);
+        const job = admitted(
+          runtime,
+          queue(runtime, { descriptor: build, label: replacement, waitSeconds: 0 }),
+        );
+        const payload = launch(runtime, job);
+        rmdirSync(job.locator);
+        const outside = join(base, 'outside');
+        mkdirSync(outside);
+        writeFileSync(join(outside, 'keep'), 'source');
+        if (replacement === 'directory') {
+          mkdirSync(job.locator, { mode: 0o700 });
+          writeFileSync(join(job.locator, 'keep'), 'source');
+        } else symlinkSync(outside, job.locator);
+        await payload.release();
+        runtime.sweep();
+        const settled = runtime.inspectHostJob(job.id);
+        expect(settled.tmpDisk.state).toBe('blocked');
+        expect(settled.tmpDisk.reason).toContain('identity changed');
+        expect(readFileSync(join(job.locator, 'keep'), 'utf8')).toBe('source');
+        expect(readFileSync(join(outside, 'keep'), 'utf8')).toBe('source');
+        runtime.close();
+      }
+    });
+
+    test('refuses a version-0 ledger with unexpected tables', () => {
+      const { root, config, runtime } = pool(scenarioPool);
+      runtime.close();
+      const db = new Database(join(root, '.dash', 'resources.sqlite'));
+      const binding = db.query<{ identity: string }, []>('SELECT identity FROM binding').get();
+      const legacy = (JSON.parse(binding?.identity ?? '[]') as string[]).slice(0, 11);
+      db.run(
+        'DROP TABLE host_jobs; DROP TABLE host_job_tickets; DROP TABLE host_job_events; DROP TABLE host_pool; CREATE TABLE stranger (id INTEGER); PRAGMA user_version=0',
+      );
+      db.query('UPDATE binding SET identity=?').run(JSON.stringify(legacy));
+      db.close();
+      expect(() => ResourceRuntime.open(loadResourceConfiguration(config), clock)).toThrow(
+        'resource ledger version 0 has unexpected tables: binding, cursor, events, sqlite_sequence, stranger, uses',
+      );
+    });
+
+    test('the host-job seams refuse out-of-order calls', () => {
+      const { runtime } = pool(scenarioPool);
+      expect(() =>
+        runtime.enqueueHostJob(
+          {
+            descriptor: jobType('gate', 1, 1, ['gate_tree', 'gate_tree']),
+            label: 'g',
+            waitSeconds: 0,
+          },
+          process.pid,
+        ),
+      ).toThrow('host job gate names an exclusive id twice');
+      const job = admitted(
+        runtime,
+        queue(runtime, { descriptor: build, label: 'b', waitSeconds: 0 }),
+      );
+      expect(() => runtime.recordHostJobLaunch(job.id, process.pid)).toThrow(
+        'host job is not awaiting launch',
+      );
+      runtime.prepareHostJob(job.id);
+      expect(() => runtime.prepareHostJob(job.id)).toThrow('host job is not awaiting preparation');
+      expect(() => runtime.recordHostJobExit(job.id, 0)).toThrow(
+        'host job has no running payload to record',
+      );
+      runtime.close();
+    });
+
+    test('status refuses an unreadable pool mode', () => {
+      const { root, runtime } = pool(scenarioPool);
+      const db = new Database(join(root, '.dash', 'resources.sqlite'));
+      db.run('DELETE FROM host_pool');
+      db.close();
+      expect(() => runtime.hostPoolStatus()).toThrow('host pool mode unreadable');
+      runtime.close();
+    });
+
+    test('the pool shape refuses each malformed statement', () => {
+      const shape = { ...scenarioPool, gateTrees: 0 };
+      const rows: [Record<string, unknown>, string][] = [
+        [{ headroom: { cpuCores: 8, memoryGib: 2 } }, 'headroom must leave at least one core'],
+        [{ headroom: { cpuCores: 0, memoryGib: 15 } }, 'headroom must leave at least one core'],
+        [{ exclusiveUnits: { Gate: ['/x/y'] } }, 'exclusive id Gate malformed'],
+        [{ exclusiveUnits: { gate_tree: [] } }, 'names no unit'],
+        [
+          { exclusiveUnits: { gate_tree: ['relative/tree'] } },
+          'must be an absolute normalized path',
+        ],
+        [{ exclusiveUnits: { gate_tree: ['/x/../y'] } }, 'must be an absolute normalized path'],
+      ];
+      for (const [overrides, refusal] of rows) {
+        const fixture = hostPoolFixture(shape, overrides);
+        fixtures.push(fixture);
+        expect(() => loadResourceConfiguration(fixture.config)).toThrow(refusal);
+      }
+      const inside = hostPoolFixture(shape);
+      fixtures.push(inside);
+      const overlapping = hostPoolFixture(shape, {
+        root: inside.root,
+        exclusiveUnits: { gate_tree: [join(inside.root, 'tree')] },
+      });
+      fixtures.push(overlapping);
+      expect(() => loadResourceConfiguration(overlapping.config)).toThrow(
+        'overlaps the managed root',
+      );
+    });
+
+    test('init refuses each unit the host cannot hand out', async () => {
+      const shape = { ...scenarioPool, gateTrees: 1 };
+      const refusedWith = (units: string[]) => {
+        const config = hostPoolFixture(
+          { ...scenarioPool, gateTrees: 0 },
+          { exclusiveUnits: { gate_tree: units } },
+        );
+        fixtures.push(config);
+        try {
+          ResourceRuntime.initialize(loadResourceConfiguration(config.config), clock, ampleHost);
+          return 'initialized';
+        } catch (cause) {
+          return cause instanceof Error ? cause.message : 'not an Error';
+        }
+      };
+      const fixture = hostPoolFixture(shape);
+      fixtures.push(fixture);
+      const [tree] = fixture.trees;
+      if (!tree) throw new Error('fixture tree missing');
+      const file = join(fixture.base, 'file');
+      writeFileSync(file, 'not a tree');
+      expect(refusedWith([file])).toBe(`host pool unit ${file} is not a directory`);
+      const twin = join(fixture.base, 'twin');
+      mkdirSync(twin);
+      const bind = Bun.spawnSync(['mount', '--bind', tree, twin], { stderr: 'pipe' });
+      if (bind.exitCode !== 0) throw new Error(`bind mount refused: ${bind.stderr.toString()}`);
+      try {
+        expect(refusedWith([tree, twin])).toBe(`host pool unit ${twin} is named twice`);
+      } finally {
+        Bun.spawnSync(['umount', twin]);
+      }
+      writeFileSync(join(tree, 'stray.txt'), 'dirty');
+      expect(refusedWith([tree])).toBe(`host pool unit ${tree} is not clean`);
+      rmSync(join(tree, 'stray.txt'));
+      const worker = spawn('sleep', ['600'], { cwd: tree, stdio: 'ignore' });
+      payloads.push(worker);
+      await Bun.sleep(50);
+      expect(refusedWith([tree])).toStartWith(`host pool unit ${tree} is held:`);
+    });
+
+    test('a dirty or broken free unit is not free, and is named', () => {
+      const { runtime, trees } = pool({ ...scenarioPool, gateTrees: 1 });
+      const [tree] = trees;
+      if (!tree) throw new Error('fixture tree missing');
+      writeFileSync(join(tree, 'stray.txt'), 'dirty');
+      const patient = queue(runtime, { descriptor: gate, label: 'g:wait', waitSeconds: 600 });
+      const waiting = runtime.pollHostJob(patient, silent);
+      expect(waiting).toMatchObject({
+        kind: 'waiting',
+        unavailableUnits: [{ path: tree, reason: 'dirty: ?? stray.txt' }],
+      });
+      const refused = runtime.pollHostJob(
+        queue(runtime, { descriptor: build, label: 'b:zero', waitSeconds: 0 }),
+        silent,
+      );
+      expect(refused.kind).toBe('refused');
+      runtime.withdrawHostJob(patient);
+      rmSync(join(tree, 'stray.txt'));
+      rmSync(join(tree, '.git'), { recursive: true, force: true });
+      const broken = runtime.pollHostJob(
+        queue(runtime, { descriptor: gate, label: 'g:zero', waitSeconds: 0 }),
+        silent,
+      );
+      expect(broken.kind).toBe('refused');
+      expect(broken.kind === 'refused' ? broken.reason : '').toContain(
+        `units not free: ${tree} (Git provider operation refused: git status in ${tree})`,
+      );
+      runtime.close();
+    });
+
+    test('migration names the ledger and the version step once', () => {
+      const { root, config, runtime } = pool(scenarioPool);
+      runtime.close();
+      const ledger = join(root, '.dash', 'resources.sqlite');
+      const db = new Database(ledger);
+      const binding = db.query<{ identity: string }, []>('SELECT identity FROM binding').get();
+      const legacy = (JSON.parse(binding?.identity ?? '[]') as string[]).slice(0, 11);
+      db.run(
+        'DROP TABLE host_jobs; DROP TABLE host_job_tickets; DROP TABLE host_job_events; DROP TABLE host_pool; PRAGMA user_version=0',
+      );
+      db.query('UPDATE binding SET identity=?').run(JSON.stringify(legacy));
+      db.close();
+      const lines: string[] = [];
+      const write = process.stderr.write.bind(process.stderr);
+      process.stderr.write = (chunk: string | Uint8Array) => {
+        lines.push(String(chunk));
+        return true;
+      };
+      try {
+        ResourceRuntime.open(loadResourceConfiguration(config), clock).close();
+        ResourceRuntime.open(loadResourceConfiguration(config), clock).close();
+      } finally {
+        process.stderr.write = write;
+      }
+      expect(lines).toEqual([
+        `resources: migrated ledger ${ledger} from version 0 to 1 (host pool)\n`,
+      ]);
     });
   });
 }

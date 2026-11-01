@@ -266,6 +266,10 @@ export interface HostJob {
   compute: HostJobEntry;
   tmpDisk: HostJobEntry;
   units: HostJobUnit[];
+  /** Consecutive settlements that ended `blocked`; the retry backoff counts from it. */
+  settleAttempts: number;
+  /** While `blocked`, the instant before which settlement re-reads no evidence. */
+  nextSettleAt: number | null;
 }
 const HostJobEntryShape = type({
   state: "'held'|'unknown'|'blocked'|'released'",
@@ -300,6 +304,8 @@ const HostJobShape = type({
     path: 'string > 0',
     restingCommit: /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/,
   }).array(),
+  settleAttempts: 'number.integer >= 0',
+  nextSettleAt: 'number | null',
 }).onUndeclaredKey('reject');
 
 /** What a caller asks the host pool for; `descriptor` arrives through the catalogue port. */
@@ -331,7 +337,12 @@ export interface HostJobTicket {
  */
 export type HostJobAdmission =
   | { kind: 'admitted'; job: HostJob }
-  | { kind: 'waiting'; ahead: HostJobTicket[] }
+  | {
+      kind: 'waiting';
+      ahead: HostJobTicket[];
+      /** Free units that cannot be handed out now: dirty, deleted or unreadable trees. */
+      unavailableUnits: { path: string; reason: string }[];
+    }
   | { kind: 'refused'; exitCode: 73 | 75; reason: string };
 
 /**
@@ -358,6 +369,19 @@ export interface HostPoolStatus {
   units: { exclusiveId: string; path: string; heldBy: string | null }[];
   jobs: HostJob[];
   waiters: HostJobTicket[];
+}
+
+/** What a settlement event reports: entries, state and the evidence identities. */
+function settlementOf(job: HostJob): string {
+  return JSON.stringify([
+    job.state,
+    job.compute,
+    job.tmpDisk,
+    job.units,
+    job.process,
+    job.descendants,
+    job.tmpDeleteIntent,
+  ]);
 }
 
 /** The ledger schema this Dash writes; {@link ResourceRuntime.open} steps 0 forward to it. */
@@ -477,6 +501,8 @@ export function loadResourceConfiguration(path: string): ResourceConfiguration {
  * no path named twice across all ids. {@link checkHostFacts} checks the host at init.
  */
 function checkPoolShape(parsed: typeof Configuration.infer): void {
+  // Proof: each refusal in this function, removed, let its row of `the pool shape refuses each
+  // malformed statement` (host-jobs.test.ts) load (2026-11-01, verify.md Slice 2).
   if (parsed.headroom.cpuCores >= parsed.cpuCores || parsed.headroom.memoryGib >= parsed.memoryGib)
     throw new Error('host pool headroom must leave at least one core and one GiB allocatable');
   const seen = new Set<string>();
@@ -536,6 +562,10 @@ function checkHostFacts(configuration: ResourceConfiguration, host: HostFacts): 
   for (const path of Object.values(configuration.exclusiveUnits).flat()) {
     if (realpathSync(path) !== path) throw new Error(`host pool unit ${path} is not canonical`);
     const identity = statSync(path);
+    // Proof: removed, the not-a-directory refusal fell through to "not the top of a Git work
+    // tree", and the inode-duplicate refusal to the bind mount's "held: mounted target" in
+    // `init refuses each unit the host cannot hand out` (host-jobs.test.ts); both still refuse
+    // by a second guard, these name the fault (2026-11-01, verify.md Slice 2).
     if (!identity.isDirectory()) throw new Error(`host pool unit ${path} is not a directory`);
     const key = `${String(identity.dev)}:${String(identity.ino)}`;
     if (identities.has(key)) throw new Error(`host pool unit ${path} is named twice`);
@@ -547,6 +577,22 @@ function checkHostFacts(configuration: ResourceConfiguration, host: HostFacts): 
       throw new Error(`host pool unit ${path} is not the top of a Git work tree`, { cause });
     }
     if (top !== path) throw new Error(`host pool unit ${path} is not the top of a Git work tree`);
+    // A unit enters the pool at rest: clean and held by no process, as settlement returns it.
+    // Proof: without these, `init refuses each unit the host cannot hand out`
+    // (host-jobs.test.ts) enrolled a tree with stray.txt and one a live process worked in
+    // (2026-11-01, verify.md Slice 2).
+    if (git(['-C', path, 'status', '--porcelain', '--untracked-files=all']) !== '')
+      throw new Error(`host pool unit ${path} is not clean`);
+    try {
+      inspectHolds(path);
+    } catch (cause) {
+      throw new Error(
+        `host pool unit ${path} is held: ${cause instanceof Error ? cause.message : 'unreadable'}`,
+        {
+          cause,
+        },
+      );
+    }
   }
 }
 
@@ -706,7 +752,14 @@ function git(arguments_: string[], input?: string): string {
     timeout: 30000,
     killSignal: 'SIGKILL',
   });
-  if (execution.exitCode !== 0) throw new Error('Git provider operation refused');
+  if (execution.exitCode !== 0) {
+    // Name the tree and subcommand, never stdin or stderr, which may quote file contents.
+    const tree = arguments_[0] === '-C' ? ` in ${arguments_[1] ?? '?'}` : '';
+    const subcommand = arguments_.find(
+      (argument, index) => index > (arguments_[0] === '-C' ? 1 : -1) && !argument.startsWith('-'),
+    );
+    throw new Error(`Git provider operation refused: git ${subcommand ?? '?'}${tree}`);
+  }
   return execution.stdout.toString().trim();
 }
 
@@ -914,34 +967,46 @@ export class ResourceRuntime {
       return row.user_version;
     };
     if (version() === LEDGER_VERSION) return;
-    db.transaction(() => {
-      const found = version();
-      if (found === LEDGER_VERSION) return;
-      // Proof: without it, `refuses a ledger version it does not know` (host-jobs.test.ts)
-      // treated version 9 as version 0 and refused only on its tables (2026-11-01, Slice 2).
-      if (found !== 0)
-        throw new Error(
-          `resource ledger version ${String(found)} is unknown to this Dash; refusing to guess its schema`,
-        );
-      const tables = db
-        .query<{ name: string }, []>(
-          "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
+    const migrated = db
+      .transaction((): boolean => {
+        const found = version();
+        if (found === LEDGER_VERSION) return false;
+        // Proof: without it, `refuses a ledger version it does not know` (host-jobs.test.ts)
+        // treated version 9 as version 0 and refused only on its tables (2026-11-01, Slice 2).
+        if (found !== 0)
+          throw new Error(
+            `resource ledger version ${String(found)} is unknown to this Dash; refusing to guess its schema`,
+          );
+        const tables = db
+          .query<{ name: string }, []>(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
+          )
+          .all()
+          .map((table) => table.name);
+        // Proof: without it `refuses a version-0 ledger with unexpected tables`
+        // (host-jobs.test.ts) migrated a ledger it did not write (2026-11-01, verify.md Slice 2).
+        if (JSON.stringify(tables) !== JSON.stringify(LEDGER_V0_TABLES))
+          throw new Error(`resource ledger version 0 has unexpected tables: ${tables.join(', ')}`);
+        const binding = db.query<{ identity: string }, []>('SELECT identity FROM binding').get();
+        // Proof: without it, `migrates a version-0 ledger forward, only under its own binding`
+        // (host-jobs.test.ts) rebound another authority's ledger (2026-11-01, verify.md Slice 2).
+        if (
+          binding?.identity !== JSON.stringify(ResourceRuntime.legacyBinding(configuration, root))
         )
-        .all()
-        .map((table) => table.name);
-      if (JSON.stringify(tables) !== JSON.stringify(LEDGER_V0_TABLES))
-        throw new Error(`resource ledger version 0 has unexpected tables: ${tables.join(', ')}`);
-      const binding = db.query<{ identity: string }, []>('SELECT identity FROM binding').get();
-      // Proof: without it, `migrates a version-0 ledger forward, only under its own binding`
-      // (host-jobs.test.ts) rebound another authority's ledger (2026-11-01, verify.md Slice 2).
-      if (binding?.identity !== JSON.stringify(ResourceRuntime.legacyBinding(configuration, root)))
-        throw new Error('resource authority binding mismatch');
-      db.run(HOST_POOL_SCHEMA);
-      db.query('UPDATE binding SET identity=?').run(
-        JSON.stringify(ResourceRuntime.binding(configuration, root)),
+          throw new Error('resource authority binding mismatch');
+        db.run(HOST_POOL_SCHEMA);
+        db.query('UPDATE binding SET identity=?').run(
+          JSON.stringify(ResourceRuntime.binding(configuration, root)),
+        );
+        db.run(`PRAGMA user_version=${String(LEDGER_VERSION)}`);
+        return true;
+      })
+      .immediate();
+    // `open` has no report sink and this happens once per ledger: say it on stderr.
+    if (migrated)
+      process.stderr.write(
+        `resources: migrated ledger ${join(configuration.root, '.dash', 'resources.sqlite')} from version 0 to ${String(LEDGER_VERSION)} (host pool)\n`,
       );
-      db.run(`PRAGMA user_version=${String(LEDGER_VERSION)}`);
-    }).immediate();
   }
   /** Close this connection without altering durable obligations. */
   close(): void {
@@ -1994,6 +2059,8 @@ export class ResourceRuntime {
   ): { kind: 'queued'; ticket: string } | { kind: 'refused'; exitCode: 73; reason: string } {
     const request = HostJobRequestShape.assert(input);
     const exclusive = request.descriptor.envelope.exclusive;
+    // Proof: without it `the host-job seams refuse out-of-order calls` (host-jobs.test.ts)
+    // queued a gate naming gate_tree twice (2026-11-01, verify.md Slice 2).
     if (new Set(exclusive).size !== exclusive.length)
       throw new Error(`host job ${request.descriptor.id} names an exclusive id twice`);
     const oversize = this.oversize(request.descriptor);
@@ -2038,10 +2105,13 @@ export class ResourceRuntime {
    * exclusive id, recording each unit's resting commit. No WBS call is made (J4).
    */
   pollHostJob(ticket: string, report: (line: string) => void): HostJobAdmission {
+    // Reclaim lines are reported only after the transaction commits: a rolled-back delete
+    // removed nothing and must not be announced.
+    const reclaimed: string[] = [];
     // Proof: reading the reservations before this transaction let `launcher processes racing
     // one ledger file never overcommit` (host-jobs.model.test.ts) replay a tree held by two
     // jobs; a deferred one crashed contenders SQLITE_BUSY and SQLITE_BUSY_SNAPSHOT (2026-11-01).
-    return this.transaction((): HostJobAdmission => {
+    const outcome = this.transaction((): HostJobAdmission => {
       const now = this.clock.read();
       const mine = this.tickets().find((row) => row.id === ticket);
       if (mine === undefined)
@@ -2053,9 +2123,11 @@ export class ResourceRuntime {
       for (const row of this.tickets()) {
         if (row.id === ticket) continue;
         const gone = !alive({ pid: row.pid, boot: row.boot, start: row.start });
+        // Proof: skipping this reclaim left `dead tickets are reclaimed by whoever sees them,
+        // named on stderr` (host-jobs.test.ts) with no line and both tickets (2026-11-01).
         if (!gone && now - row.deadline <= TICKET_RECLAIM_AFTER_MS) continue;
         this.db.query('DELETE FROM host_job_tickets WHERE id=?').run(row.id);
-        report(
+        reclaimed.push(
           `host pool: removing ticket ${row.label} (pid ${String(row.pid)}): ${gone ? 'its process is gone' : 'its wait budget ended over a minute ago'}`,
         );
       }
@@ -2077,14 +2149,41 @@ export class ResourceRuntime {
         this.db.query('DELETE FROM host_job_tickets WHERE id=?').run(ticket);
         return { kind: 'refused', exitCode: 75, reason };
       };
-      if (now > mine.deadline)
+      // A wait-zero ticket is never "spent": its deadline is its arrival, which the enqueue's
+      // fsync already put in the past; it is decided once, below.
+      // Proof: without the `waitSeconds > 0` guard, `a wait-zero caller on an empty pool is
+      // admitted under an advancing clock` (host-jobs.test.ts) was refused 75 "wait budget of 0s
+      // spent"; without the deadline check, `a waiter past its budget is refused 75` waited on
+      // (2026-11-01, verify.md Slice 2).
+      if (request.waitSeconds > 0 && now > mine.deadline)
         return refuse(
           `${named}: wait budget of ${String(request.waitSeconds)}s spent; ahead: ${aheadText()}`,
         );
+      // Proof: without it `a wait-zero caller is refused 75 while a live ticket is ahead, even
+      // with room` (host-jobs.test.ts) was admitted (2026-11-01, verify.md Slice 2).
       if (request.waitSeconds === 0 && ahead.length > 0)
         return refuse(`${named}: wait budget 0 with live tickets ahead: ${aheadText()}`);
       const { vector: reserved, units: held } = this.reservations();
       const allocatable = this.allocatable();
+      // A free unit must also be ready: readable, clean, its HEAD known. Read once per poll.
+      const readiness = new Map<string, { commit: string } | { reason: string }>();
+      const ready = (path: string): { commit: string } | { reason: string } => {
+        const known = readiness.get(path);
+        if (known !== undefined) return known;
+        const verdict = this.unitReadiness(path);
+        readiness.set(path, verdict);
+        return verdict;
+      };
+      const freeUnit = (exclusiveId: string): string | undefined =>
+        (this.configuration.exclusiveUnits[exclusiveId] ?? []).find(
+          (path) => !held.has(path) && 'commit' in ready(path),
+        );
+      const unavailable = (): string => {
+        const named = [...readiness].flatMap(([path, verdict]) =>
+          'reason' in verdict ? [`${path} (${verdict.reason})`] : [],
+        );
+        return named.length === 0 ? '' : `; units not free: ${named.join(', ')}`;
+      };
       const fits = (row: TicketRow): boolean => {
         const { descriptor } = this.ticketRequest(row);
         const diskUnits = this.diskUnitsOf(descriptor);
@@ -2102,33 +2201,37 @@ export class ResourceRuntime {
           this.freeSpaceCovers(reserved.diskUnits + diskUnits) &&
           // Proof: without it the model in host-jobs.model.test.ts admitted a third gate onto
           // a held tree where it expected `waiting` (2026-11-01, verify.md Slice 2).
-          descriptor.envelope.exclusive.every((id) =>
-            (this.configuration.exclusiveUnits[id] ?? []).some((path) => !held.has(path)),
-          )
+          descriptor.envelope.exclusive.every((id) => freeUnit(id) !== undefined)
         );
       };
       const chosen = chooseWaiter(live, fits);
       if (chosen?.id !== ticket) {
         if (now >= mine.deadline)
           return refuse(
-            `${named}: no room within its wait budget of ${String(request.waitSeconds)}s; ahead: ${aheadText()}`,
+            `${named}: no room within its wait budget of ${String(request.waitSeconds)}s; ahead: ${aheadText()}${unavailable()}`,
           );
-        return { kind: 'waiting', ahead: ahead.map((row) => this.ticketView(row)) };
+        return {
+          kind: 'waiting',
+          ahead: ahead.map((row) => this.ticketView(row)),
+          unavailableUnits: [...readiness].flatMap(([path, verdict]) =>
+            'reason' in verdict ? [{ path, reason: verdict.reason }] : [],
+          ),
+        };
       }
       for (const row of ahead)
         this.db.query('UPDATE host_job_tickets SET overtakes=overtakes+1 WHERE id=?').run(row.id);
       this.db.query('DELETE FROM host_job_tickets WHERE id=?').run(ticket);
       const id = randomUUID();
       const units = request.descriptor.envelope.exclusive.map((exclusiveId): HostJobUnit => {
-        const path = (this.configuration.exclusiveUnits[exclusiveId] ?? []).find(
-          (candidate) => !held.has(candidate),
-        );
-        if (path === undefined) throw new Error('host pool unit vanished during admission');
+        const path = freeUnit(exclusiveId);
+        const verdict = path === undefined ? undefined : ready(path);
+        if (path === undefined || verdict === undefined || !('commit' in verdict))
+          throw new Error('host pool unit vanished during admission');
         held.set(path, id);
         return {
           exclusiveId,
           path,
-          restingCommit: git(['-C', path, 'rev-parse', 'HEAD']),
+          restingCommit: verdict.commit,
           state: 'held',
           reason: 'admitted',
         };
@@ -2157,10 +2260,30 @@ export class ResourceRuntime {
         compute: { state: 'held', reason: 'admitted' },
         tmpDisk: { state: 'held', reason: 'admitted' },
         units,
+        settleAttempts: 0,
+        nextSettleAt: null,
       };
       this.hostJobEvent(job, 'admitted');
       return { kind: 'admitted', job };
     });
+    for (const line of reclaimed) report(line);
+    return outcome;
+  }
+  /**
+   * Whether a free unit can be handed out: its tree readable and clean, with the HEAD that
+   * becomes its resting commit. A deleted or broken tree is not free, never fatal: the waiter
+   * keeps waiting or is refused 75 naming it.
+   */
+  private unitReadiness(path: string): { commit: string } | { reason: string } {
+    try {
+      const status = git(['-C', path, 'status', '--porcelain', '--untracked-files=all']);
+      // Proof: without it `a dirty free unit is not free, named` (host-jobs.test.ts) admitted a
+      // gate onto a tree with stray.txt (2026-11-01, verify.md Slice 2).
+      if (status !== '') return { reason: `dirty: ${status.split('\n').slice(0, 3).join('; ')}` };
+      return { commit: git(['-C', path, 'rev-parse', 'HEAD']) };
+    } catch (cause) {
+      return { reason: cause instanceof Error ? cause.message : 'unreadable' };
+    }
   }
   /**
    * Queue and wait until admitted, refused or cancelled, polling every `pollMs`: the blocking
@@ -2193,6 +2316,9 @@ export class ResourceRuntime {
   prepareHostJob(id: string): HostJob {
     return this.transaction(() => {
       const job = this.inspectHostJob(id);
+      // Proof: each of these three seam guards, removed, failed `the host-job seams refuse
+      // out-of-order calls` (host-jobs.test.ts): launch unprepared and an exit before launch
+      // were accepted; a second prepare failed only on mkdir EEXIST (2026-11-01, Slice 2).
       if (job.state !== 'starting' || job.dev !== null)
         throw new Error('host job is not awaiting preparation');
       mkdirSync(job.locator, { mode: 0o700 });
@@ -2295,6 +2421,8 @@ export class ResourceRuntime {
           state: 'blocked',
           reason: `tree ${unit.path} is not clean: ${status.split('\n').slice(0, 5).join('; ')}`,
         };
+      // Proof: without it `a dirty tree is not returned` (host-jobs.test.ts) released a tree
+      // moved to another commit (2026-11-01, verify.md Slice 2).
       if (head !== unit.restingCommit)
         return {
           state: 'blocked',
@@ -2329,10 +2457,21 @@ export class ResourceRuntime {
    * proven stays charged, `unknown` while the launcher is gone, `blocked` when evidence refuses.
    */
   settleHostJob(id: string, containers: ContainerEvidence): HostJob {
-    this.transaction(() => {
+    const current = this.inspectHostJob(id);
+    // A blocked job waits for an operator; re-reading Git and /proc for it every tick inside
+    // the write lock would only repeat the refusal. Unknown and held jobs are read every tick.
+    // Proof: without it, `a blocked job backs off its evidence reads` (host-jobs.test.ts) saw
+    // the second sweep re-read and re-save the job (2026-11-01, verify.md Slice 2).
+    if (
+      current.state === 'blocked' &&
+      current.nextSettleAt !== null &&
+      this.clock.read() < current.nextSettleAt
+    )
+      return current;
+    const removing = this.transaction(() => {
       const job = this.inspectHostJob(id);
-      if (job.state === 'released') return;
-      const before = JSON.stringify(job);
+      if (job.state === 'released') return false;
+      const before = settlementOf(job);
       if (job.compute.state !== 'released') job.compute = this.computeEvidence(job, containers);
       const excluded = job.compute.state === 'released';
       const waiting: HostJobEntry = {
@@ -2345,13 +2484,17 @@ export class ResourceRuntime {
       }
       if (job.tmpDisk.state !== 'released') job.tmpDisk = excluded ? this.tmpIntent(job) : waiting;
       this.summarize(job);
-      if (JSON.stringify(job) !== before) this.hostJobEvent(job, 'settlement');
+      const removal = job.tmpDisk.state !== 'released' && job.tmpDeleteIntent;
+      // The removal transaction below schedules the retry when it runs.
+      if (!removal) this.scheduleSettlement(job);
+      this.recordSettlement(job, before);
+      return removal;
     });
-    const intended = this.inspectHostJob(id);
-    if (intended.tmpDisk.state === 'released' || !intended.tmpDeleteIntent) return intended;
+    if (!removing) return this.inspectHostJob(id);
     return this.transaction(() => {
       const job = this.inspectHostJob(id);
       if (job.tmpDisk.state === 'released' || !job.tmpDeleteIntent) return job;
+      const before = settlementOf(job);
       try {
         if (this.hostJobTmpPresent(job)) {
           inspectHolds(job.locator);
@@ -2367,6 +2510,10 @@ export class ResourceRuntime {
             ],
             { stdout: 'pipe', stderr: 'pipe', timeout: 30000, killSignal: 'SIGKILL' },
           );
+          // Proof: this exit-code check and the presence re-check below each hold alone;
+          // removing both let `a failed cleanup leaves the tmp reservation charged`
+          // (host-jobs.test.ts) see the entry `released` beside the outside hard link
+          // (2026-11-01, verify.md Slice 2).
           if (removal.exitCode !== 0) throw new Error('descriptor-relative removal refused');
         }
         if (this.hostJobTmpPresent(job)) throw new Error('tmp directory still present');
@@ -2379,9 +2526,35 @@ export class ResourceRuntime {
         };
       }
       this.summarize(job);
-      this.hostJobEvent(job, 'settlement');
+      this.scheduleSettlement(job);
+      this.recordSettlement(job, before);
       return job;
     });
+  }
+  /**
+   * The worktree cleanup's retry delays for a blocked job (one second doubling to a one-minute
+   * cap), without its six-attempt exhaustion: a blocked tree is resolved by an operator, and no
+   * retry command exists before slice 3, so exhaustion would strand a resolved tree.
+   */
+  private scheduleSettlement(job: HostJob): void {
+    if (job.state !== 'blocked') {
+      job.settleAttempts = 0;
+      job.nextSettleAt = null;
+      return;
+    }
+    job.settleAttempts += 1;
+    job.nextSettleAt = this.clock.read() + Math.min(60000, 1000 * 2 ** (job.settleAttempts - 1));
+  }
+  /**
+   * Persist a settlement pass: an event with the reservation it leaves only when an entry,
+   * the state or the evidence identities changed, so a job that stays blocked or unknown adds
+   * no outbox rows tick after tick; otherwise only the retry schedule is saved.
+   */
+  private recordSettlement(job: HostJob, before: string): void {
+    // Proof: emitting on every pass grew `host_job_events` by two rows per sweep in `a blocked
+    // tmp directory adds no outbox rows` (host-jobs.test.ts), 2026-11-01, verify.md Slice 2.
+    if (settlementOf(job) !== before) this.hostJobEvent(job, 'settlement');
+    else this.saveHostJob(job);
   }
   /** Whether the job's tmp directory exists as the identity recorded at preparation. */
   private hostJobTmpPresent(job: HostJob): boolean {
@@ -2392,6 +2565,8 @@ export class ResourceRuntime {
       if (isMissing(cause)) return false;
       throw cause;
     }
+    // Proof: without it `a replaced tmp directory or symlink stays charged and untouched`
+    // (host-jobs.test.ts) removed the replacement (2026-11-01, verify.md Slice 2).
     if (
       identity.isSymbolicLink() ||
       !identity.isDirectory() ||
@@ -2409,11 +2584,19 @@ export class ResourceRuntime {
   private tmpIntent(job: HostJob): HostJobEntry {
     try {
       if (job.dev === null) {
+        // Proof: without it `a tmp directory nobody recorded stays charged` (host-jobs.test.ts)
+        // released the reservation over an unknown directory (2026-11-01, verify.md Slice 2).
         if (existsSync(job.locator))
           return { state: 'blocked', reason: 'tmp directory present without a recorded identity' };
         return { state: 'released', reason: 'tmp directory never created' };
       }
+      // A removal already intended and refused stays blocked until the removal succeeds.
+      // Proof: returning `held` here flipped the entry held↔blocked on every sweep in `a blocked
+      // tmp directory adds no outbox rows` (host-jobs.test.ts), 2026-11-01, verify.md Slice 2.
+      if (job.tmpDeleteIntent && job.tmpDisk.state === 'blocked') return job.tmpDisk;
       const present = this.hostJobTmpPresent(job);
+      // Proof: without it `a tmp directory removed behind the runtime stays charged`
+      // (host-jobs.test.ts) released an absence nobody intended (2026-11-01, Slice 2).
       if (!present && !job.tmpDeleteIntent)
         return { state: 'blocked', reason: 'tmp directory absent without a deletion intent' };
       if (present) inspectHolds(job.locator);
@@ -2429,6 +2612,8 @@ export class ResourceRuntime {
   /** What the host is doing: mode, budget, reservations, units, unreleased jobs, waiters. */
   hostPoolStatus(): HostPoolStatus {
     const mode = this.db.query<{ mode: string }, []>('SELECT mode FROM host_pool WHERE id=1').get();
+    // Proof: without it `status refuses an unreadable pool mode` (host-jobs.test.ts) threw a
+    // bare TypeError on the missing row instead of naming it (2026-11-01, verify.md Slice 2).
     if (mode?.mode !== 'observe' && mode?.mode !== 'concurrent')
       throw new Error('host pool mode unreadable');
     const { vector, units } = this.reservations();
