@@ -3,6 +3,7 @@ import {
   type BigIntStats,
   closeSync,
   constants,
+  type Dir,
   fstatSync,
   lstatSync,
   opendirSync,
@@ -158,17 +159,47 @@ function matchesFile(expected: BigIntStats, observed: BigIntStats): boolean {
   );
 }
 
-/** Retained read-only descriptor graph. Pending synchronous reads cannot release an enclosing runtime lock. */
+type CloseOutcome =
+  | { readonly status: 'unattempted' }
+  | { readonly status: 'closed' }
+  | { readonly status: 'unknown'; readonly failure: unknown };
+type OwnedResource = (
+  | {
+      readonly kind: 'file' | 'parent';
+      readonly path: string;
+      readonly descriptor: number;
+    }
+  | { readonly kind: 'stream'; readonly path: string; readonly directory: Dir }
+) & { outcome: CloseOutcome };
+
+/** Retains original custody and failures without claiming whether a throwing close released it. */
+class GraphCleanupFailure extends AggregateError {
+  constructor(
+    failures: readonly unknown[],
+    readonly custody: readonly OwnedResource[],
+  ) {
+    super(failures, 'initial handoff cleanup outcome unknown');
+  }
+}
+
+type GraphLifecycle =
+  | { readonly status: 'usable' | 'revoked' | 'closing' | 'closed' }
+  | { readonly status: 'failed'; readonly failure: GraphCleanupFailure };
+
+/** Owns original read-only resources. Unknown close outcomes revoke observation and never authorize retry. */
 class GraphFiles {
   private readonly directories = new Map<string, HeldDirectory>();
   private readonly files = new Map<string, CapturedFile>();
   private readonly absences = new Map<string, HeldDirectory>();
   private readonly rosters = new Map<string, readonly string[]>();
   private edges = 0;
-  private closed = false;
+  private readonly resources = new Set<OwnedResource>();
+  private readonly operationFailures: unknown[] = [];
+  private lifecycle: GraphLifecycle = { status: 'usable' };
   constructor(readonly deadline: number) {}
   assertDeadline(): void {
-    if (this.closed) refuseGraph('observation already closed');
+    if (this.lifecycle.status === 'closed') refuseGraph('observation already closed');
+    if (this.lifecycle.status !== 'usable') refuseGraph('observation cleanup outcome unknown');
     if (!Number.isFinite(this.deadline) || performance.now() >= this.deadline)
       refuseGraph('original deadline exceeded');
   }
@@ -186,6 +217,13 @@ class GraphFiles {
       path,
       constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
     );
+    const resource: OwnedResource = {
+      kind: 'parent',
+      path,
+      descriptor,
+      outcome: { status: 'unattempted' },
+    };
+    this.resources.add(resource);
     try {
       const identity = fstatSync(descriptor, { bigint: true });
       const named = lstatSync(path, { bigint: true });
@@ -193,12 +231,11 @@ class GraphFiles {
         refuseGraph('directory changed');
       this.checkDirectoryMode(identity, modes, owned);
       const held = { path, descriptor, identity };
-      this.directories.set(path, held);
       this.assertDeadline();
+      this.directories.set(path, held);
       return held;
     } catch (cause) {
-      closeSync(descriptor);
-      throw cause;
+      this.closeAfterFailure(resource, cause);
     }
   }
   private checkDirectoryMode(
@@ -252,6 +289,13 @@ class GraphFiles {
     } catch (cause) {
       throw new Error('initial handoff cannot open ' + basename(path), { cause });
     }
+    const resource: OwnedResource = {
+      kind: 'file',
+      path,
+      descriptor,
+      outcome: { status: 'unattempted' },
+    };
+    this.resources.add(resource);
     try {
       const identity = fstatSync(descriptor, { bigint: true });
       if (
@@ -271,8 +315,7 @@ class GraphFiles {
       this.files.set(path, held);
       return held;
     } catch (cause) {
-      closeSync(descriptor);
-      throw cause;
+      this.closeAfterFailure(resource, cause);
     }
   }
   private readBytes(
@@ -343,6 +386,13 @@ class GraphFiles {
     this.assertDirectory(parent);
     // Linux self-FD resolution selects this retained directory, not a mutable caller pathname.
     const directory = opendirSync('/proc/self/fd/' + String(parent.descriptor), { bufferSize: 1 });
+    const resource: OwnedResource = {
+      kind: 'stream',
+      path: parent.path,
+      directory,
+      outcome: { status: 'unattempted' },
+    };
+    this.resources.add(resource);
     const names: string[] = [];
     try {
       for (;;) {
@@ -353,9 +403,10 @@ class GraphFiles {
         if (names.length >= maximum) refuseGraph('raw artifact roster exceeds selected membership');
         names.push(entry.name);
       }
-    } finally {
-      directory.closeSync();
+    } catch (cause) {
+      this.closeAfterFailure(resource, cause);
     }
+    this.closeTransient(resource);
     this.assertDirectory(parent);
     return names.sort();
   }
@@ -376,6 +427,13 @@ class GraphFiles {
         basename(held.path),
         constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
       );
+      const resource: OwnedResource = {
+        kind: 'file',
+        path: held.path,
+        descriptor,
+        outcome: { status: 'unattempted' },
+      };
+      this.resources.add(resource);
       try {
         if (!matchesFile(held.identity, fstatSync(descriptor, { bigint: true })))
           refuseGraph('closing file identity differs');
@@ -387,9 +445,10 @@ class GraphFiles {
         );
         if (observed.sha256 !== held.sha256 || observed.contents !== held.contents)
           refuseGraph('closing file bytes differ');
-      } finally {
-        closeSync(descriptor);
+      } catch (cause) {
+        this.closeAfterFailure(resource, cause);
       }
+      this.closeTransient(resource);
     }
     this.assertStable();
   }
@@ -421,13 +480,65 @@ class GraphFiles {
       );
     this.assertDeadline();
   }
-  closeFiles(): void {
-    if (this.closed) return;
-    this.closed = true;
-    for (const file of this.files.values()) closeSync(file.descriptor);
-    for (const parent of this.directories.values()) closeSync(parent.descriptor);
+  /** Calls each original close at most once; a throw records UNKNOWN rather than authorizing retry. */
+  private attemptClose(resource: OwnedResource): void {
+    if (resource.outcome.status !== 'unattempted') return;
+    try {
+      if (resource.kind === 'stream') resource.directory.closeSync();
+      else closeSync(resource.descriptor);
+      resource.outcome = { status: 'closed' };
+      this.resources.delete(resource);
+    } catch (failure) {
+      resource.outcome = { status: 'unknown', failure };
+      if (this.lifecycle.status === 'usable') this.lifecycle = { status: 'revoked' };
+    }
+  }
+  /** Successful temporary resources leave custody; unknown originals remain for the terminal sweep. */
+  private closeTransient(resource: OwnedResource): void {
+    this.attemptClose(resource);
+    if (resource.outcome.status === 'unknown') throw resource.outcome.failure;
+  }
+  /** A local validation/read refusal must survive an independently unknown cleanup outcome. */
+  private closeAfterFailure(resource: OwnedResource, cause: unknown): never {
+    this.attemptClose(resource);
+    if (resource.outcome.status === 'unknown') {
+      this.operationFailures.push(cause);
+      throw new AggregateError(
+        [cause, resource.outcome.failure],
+        'initial handoff operation and cleanup failed',
+      );
+    }
+    throw cause;
+  }
+  /** Sweeps all originals even after expiry. Failed cleanup permanently rethrows the same retained error. */
+  closeFiles(primary?: { readonly failure: unknown }): void {
+    if (this.lifecycle.status === 'closed') return;
+    if (this.lifecycle.status === 'failed') throw this.lifecycle.failure;
+    if (this.lifecycle.status === 'closing') refuseGraph('cleanup already in progress');
+    this.lifecycle = { status: 'closing' };
+    const custody = [...this.resources];
+    for (const resource of custody) if (resource.kind !== 'parent') this.attemptClose(resource);
+    for (const resource of custody) if (resource.kind === 'parent') this.attemptClose(resource);
+    const failures: unknown[] = [];
+    for (const resource of custody)
+      if (resource.outcome.status === 'unknown') failures.push(resource.outcome.failure);
+    if (failures.length !== 0) {
+      const failure = new GraphCleanupFailure(
+        [
+          ...(primary === undefined ? [] : [primary.failure]),
+          ...this.operationFailures,
+          ...failures,
+        ],
+        custody,
+      );
+      this.lifecycle = { status: 'failed', failure };
+      throw failure;
+    }
+    this.lifecycle = { status: 'closed' };
     this.files.clear();
     this.directories.clear();
+    this.absences.clear();
+    this.rosters.clear();
   }
 }
 
@@ -1273,7 +1384,7 @@ function captureRawArtifacts(
   files.assertDeadline();
   return contents;
 }
-/** Reads only fixed selected raw paths. Refuses expired or closed observations; proves no SQLite integrity or effect. */
+/** Reads fixed selected raw paths. Cleanup attempts every original once and retains unknown custody with construction failures. */
 export function captureInitialHandoffArtifacts(
   request: InitialHandoffArtifactRequest,
   deadline: number,
@@ -1311,12 +1422,12 @@ export function captureInitialHandoffArtifacts(
       },
     };
   } catch (cause) {
-    files.closeFiles();
+    files.closeFiles({ failure: cause });
     throw cause;
   }
 }
 
-/** Captures the complete closed INITIAL graph and every selected raw byte under one existing deadline. */
+/** Captures the complete INITIAL graph under one deadline; construction refusals preserve primary and owned-cleanup failures. */
 export async function captureInitialHandoff(
   snapshot: EdgePolicySnapshot,
   deadline: number,
@@ -1430,7 +1541,7 @@ export async function captureInitialHandoff(
       },
     };
   } catch (cause) {
-    files.closeFiles();
+    files.closeFiles({ failure: cause });
     throw cause;
   }
 }
