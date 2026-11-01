@@ -14,11 +14,13 @@ import { declaredContainersOnly, loadResourceConfiguration, ResourceRuntime } fr
  * identity is captured), record the leader's exit 0, print `ready <job id> <child pid>`, then
  * wait to be killed.
  *
- * `race <config> <descriptor-json> <go-file> <rounds>`: wait for the go file, then `rounds`
- * times admit (waiting up to 60 s), launch a short payload, wait for it and settle until
- * released; print `done`. The parent judges the ledger's event history.
+ * `race <config> <descriptor-json> <go-file> <rounds> <release-file>`: wait for the go file,
+ * then `rounds` times admit (waiting up to 60 s), launch a short payload, wait for it and
+ * settle until released; print `done`. The first admission holds its reservation until the
+ * release file appears, so the parent can see the pool full before anything settles. The
+ * parent judges the ledger's event history.
  */
-const [mode, config, descriptorJson, path, rounds] = process.argv.slice(2);
+const [mode, config, descriptorJson, path, rounds, release] = process.argv.slice(2);
 if (!mode || !config || !descriptorJson || !path) throw new Error('launcher fixture arguments');
 const descriptor = JSON.parse(descriptorJson) as JobTypeDescriptor;
 // Tickets carry epoch deadlines that every contender compares, so each reads the host clock.
@@ -70,6 +72,13 @@ if (mode === 'race') {
   for (let attempt = 0; attempt < 3000 && !existsSync(path); attempt++) await Bun.sleep(2);
   for (let round = 0; round < Number(rounds); round++) {
     const job = await admit(`race:${String(process.pid)}:${String(round)}`);
+    if (round === 0) {
+      if (!release) throw new Error('race release file required');
+      for (let attempt = 0; !existsSync(release); attempt++) {
+        if (attempt > 30000) throw new Error('race release file never appeared');
+        await Bun.sleep(2);
+      }
+    }
     const payload = spawn('/bin/sh', ['-c', 'read gate'], {
       detached: true,
       stdio: ['pipe', 'ignore', 'ignore'],

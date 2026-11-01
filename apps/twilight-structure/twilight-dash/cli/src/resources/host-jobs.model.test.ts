@@ -696,6 +696,7 @@ if (insideLinuxNamespace(import.meta.path)) {
         ampleHost,
       ).close();
       const go = join(fixture.base, 'go');
+      const release = join(fixture.base, 'release');
       const launchers = Array.from({ length: 6 }, (_, index) =>
         Bun.spawn(
           [
@@ -708,12 +709,38 @@ if (insideLinuxNamespace(import.meta.path)) {
             ),
             go,
             '6',
+            release,
           ],
           { stdout: 'pipe', stderr: 'pipe' },
         ),
       );
       await Bun.sleep(300);
       writeFileSync(go, 'go');
+      // Each launcher holds its first admission until `release`: with 3 cores and six 1-core
+      // jobs, three are admitted and held together while three wait, whatever the timing.
+      // Proof: without this barrier the launchers did not collide in time on CI's 4-vCPU runner
+      // and `peak` was 2 (puni-00 run 41332780726, 2026-11-01).
+      const observer = ResourceRuntime.open(loadResourceConfiguration(fixture.config), {
+        read: () => 1,
+      });
+      let full = observer.hostPoolStatus();
+      try {
+        for (
+          let attempt = 0;
+          attempt < 3000 && !(full.reserved.cpuCores === 3 && full.waiters.length === 3);
+          attempt++
+        ) {
+          await Bun.sleep(10);
+          full = observer.hostPoolStatus();
+        }
+      } finally {
+        observer.close();
+      }
+      expect({ reserved: full.reserved.cpuCores, waiting: full.waiters.length }).toEqual({
+        reserved: 3,
+        waiting: 3,
+      });
+      writeFileSync(release, 'release');
       const outputs = await Promise.all(
         launchers.map(async (launcher) => ({
           code: await launcher.exited,
@@ -748,7 +775,7 @@ if (insideLinuxNamespace(import.meta.path)) {
         else treeHolders.delete(event.jobId);
         expect(treeHolders.size).toBeLessThanOrEqual(1);
       }
-      // The race was real: the pool was full at some instant.
+      // The pool was full at some instant, as the release barrier guarantees.
       expect(peak).toBe(3);
     } finally {
       fixture.remove();
