@@ -165,12 +165,16 @@ test('the runtime configuration refuses malformed provider, flag and hop setting
       OPENROUTER_PRIVACY_VERIFIED: '1',
       OPENROUTER_INPUT_USD_PER_MILLION: '0.44',
       OPENROUTER_OUTPUT_USD_PER_MILLION: '1.76',
+      OPENROUTER_INPUT_CEILING_USD_PER_MILLION: '0.44',
+      OPENROUTER_OUTPUT_CEILING_USD_PER_MILLION: '1.76',
     }),
   ).toMatchObject({
     openRouterEnabled: true,
     openRouterPrivacyVerified: true,
     openRouterInputUsdPerMillion: 0.44,
     openRouterOutputUsdPerMillion: 1.76,
+    openRouterInputCeilingUsdPerMillion: 0.44,
+    openRouterOutputCeilingUsdPerMillion: 1.76,
   });
 });
 

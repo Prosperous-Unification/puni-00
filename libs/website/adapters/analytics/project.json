@@ -1,0 +1,42 @@
+{
+  "name": "website-analytics",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/website/adapters/analytics/src",
+  "projectType": "library",
+  "tags": ["scope:shared", "runtime:browser", "ring:adapter", "product:website"],
+  "metadata": {
+    "portability": {
+      "visibility": "public",
+      "dependencies": ["libs/website/domain/contracts"],
+      "aliases": ["@website/analytics"],
+      "packages": { "jsdom": "^30.0.1" }
+    }
+  },
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun test ./libs/website/adapters/analytics/src --timeout=30000" }
+    },
+    "test:unit": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun test ./libs/website/adapters/analytics/src --timeout=30000" }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx eslint libs/website/adapters/analytics/src" }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force libs/website/adapters/analytics/tsconfig.json"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun build libs/website/adapters/analytics/src/index.ts --target=browser --outdir=dist/libs/website/adapters/analytics"
+      },
+      "outputs": ["{workspaceRoot}/dist/libs/website/adapters/analytics"]
+    }
+  }
+}
