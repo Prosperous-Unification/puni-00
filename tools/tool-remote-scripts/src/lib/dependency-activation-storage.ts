@@ -7,6 +7,7 @@ import {
   openSync,
   readdirSync,
   readFileSync,
+  readSync,
   realpathSync,
 } from 'node:fs';
 import { fchmodSync, fsyncSync, mkdirSync } from 'node:fs';
@@ -17,7 +18,12 @@ import {
   type DependencyActivationReceipt,
   parseDependencyReceipt,
 } from '@wbs/contracts/dependency-runtime';
-import { snapshotDatabase, verifySnapshot } from '@wbs/store-sqlite/backup';
+import {
+  snapshotDatabase,
+  snapshotDatabaseBounded,
+  verifySnapshot,
+  verifySnapshotBounded,
+} from '@wbs/store-sqlite/backup';
 import {
   activateDependencies,
   inspectDependencyActivation,
@@ -46,9 +52,35 @@ import {
 } from './edge-ownership';
 import { captureEdgeRecord, type EdgeRecordSnapshot } from './edge-policy';
 import type { EnvName } from './env';
+import {
+  captureInitialHandoffArtifacts,
+  type InitialHandoffArtifactObservation,
+} from './initial-handoff-graph';
 import { assertSame, readRecord } from './managed-cohort';
 import { writeNewMigrationCapture } from './migration-capture-file';
 
+/** Weak diagnostic retention only: raw owner/outcomes may be collected when the safe error is discarded; this is not UNKNOWN custody. */
+const storageFailures = new WeakMap<DependencyActivationFailure, readonly unknown[]>();
+function settleStorage<T>(operation: () => T, cleanups: readonly (() => void)[]): T {
+  const failures: unknown[] = [];
+  let outcome: { value: T } | undefined;
+  try {
+    outcome = { value: operation() };
+  } catch (cause) {
+    failures.push(cause);
+  }
+  for (const close of cleanups) {
+    try {
+      close();
+    } catch (cause) {
+      failures.push(cause);
+    }
+  }
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1) throw new AggregateError(failures, 'private storage outcomes');
+  if (outcome === undefined) throw new Error('storage outcome absent');
+  return outcome.value;
+}
 const inode = (stats: { dev: bigint; ino: bigint }) => `${String(stats.dev)}:${String(stats.ino)}`;
 /** Retains the canonical parent across census; main descriptors exist only during synchronous storage boundaries. */
 export function retainActivationDatabase(binding: DatabaseIdentity) {
@@ -91,14 +123,16 @@ export function retainActivationDatabase(binding: DatabaseIdentity) {
       accessPath,
       constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
     );
-    try {
+    return settleStorage(() => {
       inspectMain(main);
       const value = operation(accessPath);
       inspectMain(main);
       return value;
-    } finally {
-      closeSync(main);
-    }
+    }, [
+      () => {
+        closeSync(main);
+      },
+    ]);
   }
   try {
     withPath(() => undefined);
@@ -114,8 +148,13 @@ export function retainActivationDatabase(binding: DatabaseIdentity) {
       },
     };
   } catch (cause) {
-    closeSync(parent);
-    throw cause;
+    return settleStorage<never>(() => {
+      throw cause;
+    }, [
+      () => {
+        closeSync(parent);
+      },
+    ]);
   }
 }
 /** Exact retained bytes, never a freshly accepted tampered digest. */
@@ -130,13 +169,58 @@ export async function activateDependencyStores(
 ) {
   const scope = await assertCompleteDependencyExclusion(owner, token);
   const { layouts, request, deadline, attempt, directory, artifactDirectory } = scope;
+  const limits = { maxBytes: 1073741824, deadline };
+  const isInitial = scope.purpose === 'initial-handoff';
+  let raw: InitialHandoffArtifactObservation | undefined;
+  let isClosed = false;
+  function closeRaw() {
+    if (isClosed) throw new Error('activation evidence monitor closed');
+    if (raw !== undefined) {
+      raw.verifyClosure();
+      raw.assertStable();
+    }
+    checkDeadline();
+  }
+  /** A failed raw close is UNKNOWN, never retried here; GraphFiles settlement and strong UNKNOWN custody remain separate prerequisites. */
+  function closeRawFiles() {
+    if (raw === undefined) return;
+    try {
+      raw.closeFiles();
+    } catch (failure) {
+      const cleanup = Object.assign(new Error('private raw cleanup unknown'), {
+        state: 'unknown-raw-cleanup' as const,
+        observation: raw,
+        failure,
+      });
+      Object.freeze(cleanup);
+      throw cleanup;
+    }
+  }
+  const verifyBackup = (path: string) =>
+    isInitial ? verifySnapshotBounded(path, limits) : verifySnapshot(path);
+  function admitBytes(contents: string, maximum: number) {
+    if (
+      isInitial &&
+      (Buffer.byteLength(contents, 'utf8') > maximum ||
+        Buffer.from(contents, 'utf8').toString('utf8') !== contents)
+    )
+      throw new Error('initial preparation publication byte limit exceeded');
+    checkDeadline();
+  }
   const anchors = new Map<EnvName, Awaited<ReturnType<typeof retainActivationDatabase>>>();
   const captures = new Map<EnvName, MigrationSetCapture>();
   const retained: { path: string; contents: string; identity: string }[] = [];
   const activationRecords: EdgeRecordSnapshot[] = [];
   const evidenceNames = new Set<string>();
   const backups: { path: string; sha256: string; bytes: number; identity: string }[] = [];
-  let retainedEvidence = false;
+  function closeAnchors() {
+    const held = [...anchors.values()];
+    anchors.clear();
+    settleStorage(
+      () => undefined,
+      held.map((anchored) => anchored.close),
+    );
+  }
   const committed: { environment: EnvName; receipt: DependencyActivationReceipt }[] = [];
   const commitRecords: { environment: EnvName; reference: { name: string; sha256: string } }[] = [];
   const intentRecords: { environment: EnvName; reference: { name: string; sha256: string } }[] = [];
@@ -173,6 +257,69 @@ export async function activateDependencyStores(
       'activation fixed evidence children',
     );
   }
+  function readCapture(path: string, expectedIdentity: string): string | Promise<string> {
+    if (!isInitial) return readRecord(path);
+    inspectEvidence();
+    const descriptor = openSync(
+      path,
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
+    return settleStorage(() => {
+      const original = fstatSync(descriptor, { bigint: true });
+      const identity = (stats: typeof original) =>
+        [
+          stats.dev,
+          stats.ino,
+          stats.mode,
+          stats.nlink,
+          stats.size,
+          stats.mtimeNs,
+          stats.ctimeNs,
+        ].join(':');
+      function inspect() {
+        checkDeadline();
+        inspectEvidence();
+        const current = fstatSync(descriptor, { bigint: true });
+        const named = lstatSync(path, { bigint: true });
+        if (
+          !current.isFile() ||
+          (current.mode & 0o444n) === 0n ||
+          inode(current) !== expectedIdentity ||
+          identity(current) !== identity(original) ||
+          identity(named) !== identity(original)
+        )
+          throw new Error('initial capture original identity changed');
+        if (current.size > 4194304n) throw new Error('initial capture byte limit exceeded');
+      }
+      inspect();
+      const bytes = Buffer.alloc(Number(original.size));
+      let offset = 0;
+      while (offset < bytes.length) {
+        inspect();
+        const count = readSync(
+          descriptor,
+          bytes,
+          offset,
+          Math.min(1048576, bytes.length - offset),
+          offset,
+        );
+        inspect();
+        if (count === 0) throw new Error('initial capture short read');
+        offset += count;
+      }
+      if (readSync(descriptor, Buffer.alloc(1), 0, 1, offset) !== 0)
+        throw new Error('initial capture byte count changed');
+      inspect();
+      const contents = bytes.toString('utf8');
+      if (!Buffer.from(contents, 'utf8').equals(bytes))
+        throw new Error('initial capture UTF-8 changed');
+      return contents;
+    }, [
+      () => {
+        closeSync(descriptor);
+      },
+    ]);
+  }
   function anchor(env: EnvName) {
     const anchored = anchors.get(env);
     if (anchored === undefined) throw new Error('activation database anchor missing');
@@ -201,27 +348,33 @@ export async function activateDependencyStores(
     anchor(env).withPath((path) => {
       if (receipt === undefined) {
         const database = openReadOnlyDatabase(path);
-        try {
-          inspectDormantDependencies(database);
-        } finally {
-          database.close();
-        }
+        settleStorage(
+          () => inspectDormantDependencies(database),
+          [
+            () => {
+              database.close();
+            },
+          ],
+        );
       } else {
         const connection = openReadOnlyConnection(path);
-        try {
+        settleStorage(() => {
           assertSame(
             { state: 'ENABLED', receipt },
             inspectDependencyActivation(connection.db),
             'independent activation authority',
           );
-        } finally {
-          connection.close();
-        }
+        }, [
+          () => {
+            connection.close();
+          },
+        ]);
       }
     });
     checkDeadline();
   }
   async function inspectActivationRecord(publication: EdgeRecordSnapshot) {
+    closeRaw();
     const named = lstatSync(publication.path, { bigint: true });
     if (!named.isFile() || (named.mode & 0o7777n) !== 0o600n)
       throw new Error('retained activation publication is not private');
@@ -231,6 +384,7 @@ export async function activateDependencyStores(
       await captureEdgeRecord(directory, basename(publication.path), 65536),
       'original activation publication snapshot',
     );
+    closeRaw();
   }
   async function inspectPublications() {
     inspectEvidence();
@@ -246,7 +400,7 @@ export async function activateDependencyStores(
       );
       assertSame(
         publication.contents,
-        await readRecord(publication.path),
+        await readCapture(publication.path, publication.identity),
         'retained activation evidence',
       );
     }
@@ -256,7 +410,7 @@ export async function activateDependencyStores(
         `/proc/self/fd/${String(evidence)}/${basename(backup.path)}`,
         constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
       );
-      try {
+      settleStorage(() => {
         const before = fstatSync(descriptor, { bigint: true });
         if (
           !before.isFile() ||
@@ -264,19 +418,31 @@ export async function activateDependencyStores(
           inode(before) !== backup.identity
         )
           throw new Error('retained backup identity differs');
-        const bytes = readFileSync(descriptor);
-        if (
-          bytes.length !== backup.bytes ||
-          hashActivationBytes(bytes) !== backup.sha256 ||
-          inode(fstatSync(descriptor, { bigint: true })) !== backup.identity
-        )
-          throw new Error('retained backup bytes differ');
-      } finally {
-        closeSync(descriptor);
-      }
+        if (isInitial) {
+          const verified = verifyBackup(backup.path);
+          if (
+            verified.bytes !== backup.bytes ||
+            verified.sha256 !== backup.sha256 ||
+            inode(lstatSync(backup.path, { bigint: true })) !== backup.identity
+          )
+            throw new Error('retained bounded backup bytes differ');
+        } else {
+          const bytes = readFileSync(descriptor);
+          if (
+            bytes.length !== backup.bytes ||
+            hashActivationBytes(bytes) !== backup.sha256 ||
+            inode(fstatSync(descriptor, { bigint: true })) !== backup.identity
+          )
+            throw new Error('retained backup bytes differ');
+        }
+      }, [
+        () => {
+          closeSync(descriptor);
+        },
+      ]);
     }
     inspectEvidence();
-    checkDeadline();
+    closeRaw();
   }
   async function inspectRetained() {
     await inspectPublications();
@@ -293,7 +459,13 @@ export async function activateDependencyStores(
     label: Label,
     record: ActivationRecordByLabel[Label],
   ) {
+    const expected = `${JSON.stringify({ owner: scope.pending, record })}\n`;
+    admitBytes(expected, 65536);
+    closeRaw();
     const publication = await retainActivationRecord(owner, layouts, label, record);
+    if (isInitial)
+      assertSame(expected, publication.contents, 'preadmitted activation envelope bytes');
+    closeRaw();
     activationRecords.push(publication);
     await inspectActivationRecord(publication);
     return reference(publication);
@@ -359,6 +531,7 @@ export async function activateDependencyStores(
       await inspectRetained();
       const capture = original(env);
       const contents = `${JSON.stringify(capture)}\n`;
+      admitBytes(contents, 4194304);
       const path = `${evidencePath}/${env}.capture.json`;
       await writeNewMigrationCapture(
         `/proc/self/fd/${String(evidence)}/${env}.capture.json`,
@@ -366,12 +539,13 @@ export async function activateDependencyStores(
       );
       evidenceNames.add(`${env}.capture.json`);
       inspectEvidence();
+      const captureIdentity = inode(lstatSync(path, { bigint: true }));
       assertSame(
         contents,
-        await readRecord(`/proc/self/fd/${String(evidence)}/${env}.capture.json`),
+        await readCapture(`/proc/self/fd/${String(evidence)}/${env}.capture.json`, captureIdentity),
         'activation capture publication',
       );
-      retained.push({ path, contents, identity: inode(lstatSync(path, { bigint: true })) });
+      retained.push({ path, contents, identity: captureIdentity });
       const captureReference = {
         name: `${env}.capture.json`,
         sha256: hashActivationBytes(contents),
@@ -388,7 +562,9 @@ export async function activateDependencyStores(
       const backupPath = `${evidencePath}/${env}.before.sqlite`;
       const backupAccess = `/proc/self/fd/${String(evidence)}/${env}.before.sqlite`;
       const snapshot = anchor(env).withPath((sourcePath) =>
-        snapshotDatabase(sourcePath, backupAccess),
+        isInitial
+          ? snapshotDatabaseBounded(sourcePath, backupAccess, limits)
+          : snapshotDatabase(sourcePath, backupAccess),
       );
       checkDeadline();
       evidenceNames.add(`${env}.before.sqlite`);
@@ -397,18 +573,19 @@ export async function activateDependencyStores(
         backupAccess,
         constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
       );
-      let backupIdentity: string;
-      try {
+      const backupIdentity = settleStorage(() => {
         const observed = fstatSync(backup, { bigint: true });
         if (!observed.isFile()) throw new Error('activation backup is not a regular file');
-        backupIdentity = inode(observed);
         fchmodSync(backup, 0o600);
         fsyncSync(backup);
-      } finally {
-        closeSync(backup);
-      }
+        return inode(observed);
+      }, [
+        () => {
+          closeSync(backup);
+        },
+      ]);
       fsyncSync(evidence);
-      const verified = verifySnapshot(backupAccess);
+      const verified = verifyBackup(backupAccess);
       checkDeadline();
       assertSame(snapshot, verified, 'activation verified backup');
       // Proof: removing this full capture admitted an integrity-valid backup with unchanged names and a changed hash; real backup-ledger negative failed.
@@ -420,11 +597,14 @@ export async function activateDependencyStores(
       checkDeadline();
       assertSame(capture, backupCapture, 'activation backup complete ledger');
       const copied = openReadOnlyDatabase(backupAccess);
-      try {
-        inspectDormantDependencies(copied);
-      } finally {
-        copied.close();
-      }
+      settleStorage(
+        () => inspectDormantDependencies(copied),
+        [
+          () => {
+            copied.close();
+          },
+        ],
+      );
       checkDeadline();
       backups.push({
         path: backupPath,
@@ -448,6 +628,36 @@ export async function activateDependencyStores(
       prepared.set(env, { capture: captureReference, backup: backupReference, snapshot: verified });
       inspectLedger(env);
       await inspectRetained();
+    }
+    if (isInitial) {
+      stage = 'initial-raw-observation';
+      raw = captureInitialHandoffArtifacts(
+        {
+          edgeState: directory,
+          owner: scope.pending,
+          activation: request,
+          databases: (['prod', 'dev'] as const).map((environment) => ({
+            environment,
+            ...scope.databases[environment],
+          })),
+          selected: request.activate.map((environment) => {
+            const preparation = prepared.get(environment);
+            if (preparation === undefined) throw new Error('initial selected preparation absent');
+            return {
+              environment,
+              capture: preparation.capture,
+              backup: {
+                name: `${environment}.before.sqlite`,
+                sha256: preparation.snapshot.sha256,
+                bytes: preparation.snapshot.bytes,
+                migrations: preparation.snapshot.migrations,
+              },
+            };
+          }),
+        },
+        deadline,
+      );
+      closeRaw();
     }
     stage = 'participants';
     const participantRecord = await retain('participants', scope.participants);
@@ -482,11 +692,12 @@ export async function activateDependencyStores(
       await inspectRetained();
       assertSame(
         preparation.snapshot,
-        verifySnapshot(preparation.snapshot.path),
+        verifyBackup(preparation.snapshot.path),
         'retained activation backup',
       );
       inspectLedger(env);
       inspectAuthority(env);
+      closeRaw();
       stage = 'dispatch-uncertain';
       scope.authority.set(env, 'dispatch-uncertain');
       const authority = anchor(env).withPath((path) =>
@@ -543,34 +754,38 @@ export async function activateDependencyStores(
       try {
         await assertDependencyOwner(owner, layouts.prod, request.owner.sha);
         await assertDependencyOwner(owner, layouts.dev, request.owner.sha);
-        checkDeadline();
+        closeRaw();
         for (const env of ['prod', 'dev'] as const) {
           const authority = expected.get(env);
           const captured = original(env);
           if (authority === undefined) throw new Error('expected store authority absent');
           const anchored = retainActivationDatabase(scope.databases[env]);
-          try {
+          settleStorage(() => {
             anchored.withPath((path) => {
               if (authority.state === 'ENABLED') {
                 const connection = openReadOnlyConnection(path);
-                try {
+                settleStorage(() => {
                   assertSame(
                     authority,
                     inspectDependencyActivation(connection.db),
                     'restoration exact activation receipt',
                   );
-                } finally {
-                  // Proof: omitting this close exposed real SQLite/main/WAL/SHM descriptors at the next awaited owner boundary; prepared-store lifetime test failed its empty-FD assertion.
-                  connection.close();
-                }
+                }, [
+                  () => {
+                    // Proof: omitting this close exposed real SQLite/main/WAL/SHM descriptors at the next awaited owner boundary; prepared-store lifetime test failed its empty-FD assertion.
+                    connection.close();
+                  },
+                ]);
               } else {
                 const database = openReadOnlyDatabase(path);
-                try {
+                settleStorage(() => {
                   // Proof: omitting this post-finalizer check admitted a nonselected ENABLED marker; prepared-store lifetime negative missed its rejection.
                   inspectDormantDependencies(database);
-                } finally {
-                  database.close();
-                }
+                }, [
+                  () => {
+                    database.close();
+                  },
+                ]);
               }
               const current = captureAppliedMigrationSet(path, artifactDirectory, {
                 target: captured.target,
@@ -580,24 +795,40 @@ export async function activateDependencyStores(
               // Proof: omitting this comparison admitted a deleted valid migration row after finalizers; prepared-store lifetime negative missed its rejection.
               assertSame(captured, current, 'restoration complete migration ledger');
             });
-          } finally {
-            anchored.close();
-          }
+          }, [
+            () => {
+              anchored.close();
+            },
+          ]);
           checkDeadline();
         }
         await assertDependencyOwner(owner, layouts.prod, request.owner.sha);
         await assertDependencyOwner(owner, layouts.dev, request.owner.sha);
-      } catch {
-        throw new DependencyActivationFailure(
+        closeRaw();
+      } catch (cause) {
+        const failure = new DependencyActivationFailure(
           attempt,
           'restoration-store-readback',
           undefined,
           scope.committed,
         );
+        storageFailures.set(failure, [cause]);
+        throw failure;
       }
     };
-    retainedEvidence = true;
-    return {
+    closeRaw();
+    const preparation =
+      raw === undefined
+        ? { purpose: 'restoration' as const }
+        : {
+            purpose: 'initial-handoff' as const,
+            artifacts: raw.contents,
+            records: Object.freeze(
+              activationRecords.map((publication) => Object.freeze({ ...publication })),
+            ),
+          };
+    const packet = {
+      ...preparation,
       receipts: committed,
       participantRecord,
       commitRecords,
@@ -605,24 +836,78 @@ export async function activateDependencyStores(
       stores: Object.freeze({ inspect: inspectStores }),
       evidence: {
         inspect: inspectPublications,
+        assertStable: closeRaw,
         close: () => {
           if (evidence === undefined || state === undefined)
             throw new Error('activation evidence monitor closed');
-          closeSync(evidence);
-          closeSync(state);
+          const descriptions = [evidence, state];
           evidence = undefined;
           state = undefined;
+          isClosed = true;
+          const failures: unknown[] = [];
+          for (const close of [
+            closeRawFiles,
+            ...descriptions.map((descriptor) => () => {
+              closeSync(descriptor);
+            }),
+          ]) {
+            try {
+              close();
+            } catch (cause) {
+              failures.push(cause);
+            }
+          }
+          if (failures.length > 0) {
+            const failure = new DependencyActivationFailure(
+              attempt,
+              'evidence-cleanup',
+              undefined,
+              scope.committed,
+            );
+            storageFailures.set(failure, [...failures, raw]);
+            throw failure;
+          }
         },
       },
     };
-  } catch {
-    // Private SQL/config/transport causes never escape; durable intent and prior committed stores remain monotone.
-    throw new DependencyActivationFailure(attempt, stage, environment, scope.committed);
-  } finally {
-    for (const anchored of anchors.values()) anchored.close();
-    if (!retainedEvidence) {
-      if (evidence !== undefined) closeSync(evidence);
-      if (state !== undefined) closeSync(state);
+    stage = 'anchor-finalizers';
+    closeAnchors();
+    closeRaw();
+    return packet;
+  } catch (cause) {
+    // Private SQL/config/transport causes never escape; durable commits remain monotone.
+    const publicFailure = new DependencyActivationFailure(
+      attempt,
+      stage,
+      environment,
+      scope.committed,
+    );
+    // Successful transfer already drained anchors; only failure still owns these descriptions.
+    const cleanups: (() => void)[] = [closeAnchors, closeRawFiles];
+    isClosed = true;
+    if (evidence !== undefined) {
+      const descriptor = evidence;
+      evidence = undefined;
+      cleanups.push(() => {
+        closeSync(descriptor);
+      });
     }
+    if (state !== undefined) {
+      const descriptor = state;
+      state = undefined;
+      cleanups.push(() => {
+        closeSync(descriptor);
+      });
+    }
+    const failures: unknown[] = [];
+    for (const close of cleanups) {
+      try {
+        close();
+      } catch (cleanupFailure) {
+        failures.push(cleanupFailure);
+      }
+    }
+    storageFailures.set(publicFailure, [cause, ...failures, raw]);
+    throw publicFailure;
   }
 }

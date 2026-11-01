@@ -17,7 +17,7 @@ import type { SourceDevRestartInputs } from './source-dev-inputs';
 
 export type DependencyParticipantRole = 'backend' | 'gateway' | 'source';
 /** Private actual observations retained by the activation core. This type has no constructor or authority decoder. */
-export interface ParticipantRestorationContext {
+interface ParticipantRestorationBase {
   readonly owner: DependencyOwner;
   readonly layouts: SolverLayouts;
   readonly request: CompleteDependencyActivationRequest;
@@ -35,11 +35,23 @@ export interface ParticipantRestorationContext {
   readonly observeAuthorities: () => Promise<InstalledAuthorityObservation>;
   readonly source: SourceDevRestartInputs;
   readonly artifact: Awaited<ReturnType<typeof scanMigrationArtifact>>;
-  readonly storage: Awaited<ReturnType<typeof activateDependencyStores>>;
   readonly participants: CompleteDependencyParticipants;
 }
+type Storage = Awaited<ReturnType<typeof activateDependencyStores>>;
+/** Mandatory full evidence is available only on the genuine initial purpose branch; its synchronous closing observation follows the final awaited fence readback before minting. */
+export type ParticipantRestorationContext = ParticipantRestorationBase &
+  (
+    | {
+        readonly purpose: 'restoration';
+        readonly storage: Extract<Storage, { readonly purpose: 'restoration' }>;
+      }
+    | {
+        readonly purpose: 'initial-handoff';
+        readonly storage: Extract<Storage, { readonly purpose: 'initial-handoff' }>;
+      }
+  );
 /** Minted only after activation's physical finalizers and retained fenced-complete readback succeeded. */
-export interface FinalizedParticipantRestorationContext extends ParticipantRestorationContext {
+export type FinalizedParticipantRestorationContext = ParticipantRestorationContext & {
   readonly completion: CompleteDependencyActivationCompletion;
   readonly fencedComplete: EdgeRecordSnapshot;
-}
+};

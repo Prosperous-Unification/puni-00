@@ -334,7 +334,11 @@ export default [
     ],
     [
       'lib/dependency-activation-storage.test.ts',
-      ['@wbs/store-sqlite/db', '@wbs/store-sqlite/cross-project-dependency-activation'],
+      [
+        '@wbs/store-sqlite/db',
+        '@wbs/store-sqlite/cross-project-dependency-activation',
+        '@wbs/store-sqlite/migration-set',
+      ],
     ],
     ['fixtures/dependency-complete-activation.ts', ['@wbs/store-sqlite/migrate']],
   ].map(([file, aliases]) => ({

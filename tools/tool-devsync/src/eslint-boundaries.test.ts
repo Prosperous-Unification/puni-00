@@ -1434,12 +1434,30 @@ const ACTIVATION_IMPORTS = [
   ],
   [
     'lib/dependency-activation-storage.test.ts',
-    ['@wbs/store-sqlite/db', '@wbs/store-sqlite/cross-project-dependency-activation'],
+    [
+      '@wbs/store-sqlite/db',
+      '@wbs/store-sqlite/cross-project-dependency-activation',
+      '@wbs/store-sqlite/migration-set',
+    ],
   ],
   ['fixtures/dependency-complete-activation.ts', ['@wbs/store-sqlite/migrate']],
 ] as const;
 
 describe('source-bundled activation leaves', () => {
+  async function readActivationMessages(path: string, source: string) {
+    const boundary = boundaryOf(await lint.calculateConfigForFile(path));
+    expect(boundary[0], `active Nx rule for ${path}`).toBe(2);
+    const reports = await lint.lintText(source, { filePath: path });
+    expect(reports, `one actual lint report for ${path}`).toHaveLength(1);
+    const report = reports[0];
+    expect(report.fatalErrorCount, `valid parser/config for ${path}`).toBe(0);
+    expect(
+      report.messages.filter((message) => message.fatal === true || message.ruleId === null),
+      `no parser or setup diagnostics for ${path}`,
+    ).toEqual([]);
+    return report.messages.map((message) => message.ruleId);
+  }
+
   it('keeps every peer boundary option and only the exact needed activation edges', async () => {
     const peer = boundaryOf(
       await lint.calculateConfigForFile('tools/tool-remote-scripts/src/lib/docker.ts'),
@@ -1459,6 +1477,19 @@ describe('source-bundled activation leaves', () => {
       };
       expect(retainedOptions, file).toEqual(peer);
       const source = await readFile(join(workspace, path), 'utf8');
+      if (file === 'lib/dependency-activation-storage.test.ts') {
+        expect(
+          await readActivationMessages(path, source),
+          'actual owning storage test',
+        ).not.toContain('@nx/enforce-module-boundaries');
+        expect(
+          await readActivationMessages(
+            path,
+            "import * as MigrationSet from '@wbs/store-sqlite/migration-set'; export { MigrationSet };",
+          ),
+          'actual runtime namespace import',
+        ).not.toContain('@nx/enforce-module-boundaries');
+      }
       for (const alias of aliases) {
         expect(importsAlias(source, alias), `${file} actually imports ${alias}`).toBe(true);
         expect(
@@ -1489,6 +1520,24 @@ describe('source-bundled activation leaves', () => {
         expect(await ruleIds(path, `await import('${alias}');`), `${file}:${alias}`).toContain(
           '@nx/enforce-module-boundaries',
         );
+      if (file === 'lib/dependency-activation-storage.test.ts') {
+        for (const alias of [
+          '@wbs/store-sqlite/migration-set/foreign',
+          '@wbs/store-sqlite/migration-set-extra',
+          '@wbs/store-sqlite/foreign@wbs/store-sqlite/migration-set',
+          '../../../../libs/wbs/adapters/store-sqlite/src/migration-set',
+          '@wbs/store-sqlite',
+          '@wbs/store-sqlite/migrate',
+        ]) {
+          for (const source of [
+            `import * as Leaf from '${alias}'; export { Leaf };`,
+            `await import('${alias}');`,
+          ])
+            expect(await readActivationMessages(path, source), `${file}:${alias}`).toContain(
+              '@nx/enforce-module-boundaries',
+            );
+        }
+      }
       if (!aliases.some((alias) => alias === '@wbs/store-sqlite/migrate'))
         expect(await ruleIds(path, "await import('@wbs/store-sqlite/migrate');"), file).toContain(
           '@nx/enforce-module-boundaries',
@@ -1518,6 +1567,18 @@ describe('source-bundled activation leaves', () => {
     ]) {
       for (const alias of aliases)
         expect(await ruleIds(path, `await import('${alias}');`), `${path}:${alias}`).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+    }
+    for (const path of [
+      'tools/tool-remote-scripts/src/lib/complete-dependency-exclusion.test.ts',
+      'tools/tool-remote-scripts/src/lib/dependency-capability.test.ts',
+    ]) {
+      for (const source of [
+        "import * as MigrationSet from '@wbs/store-sqlite/migration-set'; export { MigrationSet };",
+        "await import('@wbs/store-sqlite/migration-set');",
+      ])
+        expect(await readActivationMessages(path, source), `${path}:migration-set only`).toContain(
           '@nx/enforce-module-boundaries',
         );
     }
