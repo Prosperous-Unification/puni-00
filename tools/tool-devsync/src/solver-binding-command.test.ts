@@ -1,18 +1,13 @@
-import {
-  chmod,
-  copyFile,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rename,
-  rm,
-  symlink,
-  writeFile,
-} from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 
+import {
+  controllerAccountPlugin,
+  copyControllerBun,
+  verifyControllerFile,
+} from '@tools/controller-account-fixture';
 import { afterEach, expect, test } from 'bun:test';
 
 const roots: string[] = [];
@@ -31,7 +26,7 @@ async function fixture(preparedReader = true) {
   await mkdir(fixed);
   const bun = join(fixed, 'bun');
   const reader = join(fixed, 'solver-supervisor.js');
-  if (preparedReader) await copyFile(process.execPath, bun);
+  if (preparedReader) copyControllerBun(bun);
   const runner = join(root, 'solver-binding-runtime.js');
   for (const [source, destination] of [
     [new URL('./solver-binding-runtime.ts', import.meta.url).pathname, runner],
@@ -48,6 +43,7 @@ async function fixture(preparedReader = true) {
       entrypoints: [source],
       target: 'bun',
       plugins: [
+        controllerAccountPlugin(),
         {
           name: 'owned-binding-layout',
           setup(build) {
@@ -75,6 +71,7 @@ async function fixture(preparedReader = true) {
       mode: 0o755,
     });
   }
+  if (preparedReader) verifyControllerFile(reader);
   const admission = new URL('../../tool-remote-scripts/src/lib/edge-admission.ts', import.meta.url)
     .pathname;
   const child = join(root, 'child.ts');

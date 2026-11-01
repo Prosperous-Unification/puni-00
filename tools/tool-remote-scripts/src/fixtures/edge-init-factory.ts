@@ -65,6 +65,10 @@ async function pin(path: string) {
 }
 const transcript: string[] = [];
 const reads: string[] = [];
+const packetIO = { opens: 0, descriptorReads: 0, pathReads: 0 };
+const policyIO = { opens: 0, descriptorReads: 0, pathReads: 0 };
+const packetName = '/home/puni1/wbs/factory-packet.json';
+const policyName = '/home/puni1/wbs/state/edge-policy.json';
 const action = process.argv[2] ?? 'prepare';
 const injection = process.argv.at(5);
 const fault = injection === undefined || injection === '' ? action : injection;
@@ -172,7 +176,23 @@ await mock.module('node:fs/promises', () => ({
       } else filesystem.appendFileSync(named, '\n# changed while held\n');
     }
     const mapped = map(path);
+    if (entryActive && mapped === root + packetName) packetIO.opens += 1;
+    if (entryActive && mapped === root + policyName) policyIO.opens += 1;
     const descriptor = await files.open(mapped, ...arguments_);
+    const nativeReadFile = descriptor.readFile.bind(descriptor);
+    const nativeRead = descriptor.read.bind(descriptor);
+    Object.defineProperty(descriptor, 'readFile', {
+      value: (...options: Parameters<typeof nativeReadFile>) => {
+        if (entryActive && mapped === root + packetName) packetIO.descriptorReads += 1;
+        return nativeReadFile(...options);
+      },
+    });
+    Object.defineProperty(descriptor, 'read', {
+      value: (...options: Parameters<typeof nativeRead>) => {
+        if (entryActive && mapped === root + policyName) policyIO.descriptorReads += 1;
+        return nativeRead(...options);
+      },
+    });
     const fd = descriptor.fd;
     const ownerToken = ownership.track(fd, mapped);
     const nativeStat = descriptor.stat.bind(descriptor);
@@ -232,8 +252,12 @@ await mock.module('node:fs/promises', () => ({
       return files.stat(mapped, { bigint: true }).then((native) => modelPath(mapped, native));
     return files.stat(mapped).then((native) => modelPath(mapped, native));
   },
-  readFile: (path: string, options?: Parameters<typeof files.readFile>[1]) =>
-    options === undefined ? files.readFile(map(path)) : files.readFile(map(path), options),
+  readFile: (path: string, options?: Parameters<typeof files.readFile>[1]) => {
+    const mapped = map(path);
+    if (entryActive && mapped === root + packetName) packetIO.pathReads += 1;
+    if (entryActive && mapped === root + policyName) policyIO.pathReads += 1;
+    return options === undefined ? files.readFile(mapped) : files.readFile(mapped, options);
+  },
   readlink: (path: string) => files.readlink(map(path)),
   readdir: (path: string) => files.readdir(map(path)),
   mkdir: (path: string, options?: Parameters<typeof files.mkdir>[1]) =>
@@ -359,6 +383,7 @@ const { runProductionInitAdoption, decodeInitPacket, fingerprintPacketRoster } =
   await import('../lib/edge-init-observer');
 const { WRITER_MEMBERS } = await import('../lib/installed-writers');
 const { SOLVER_UNIT_PROPERTIES } = await import('../lib/solver-unit-observation');
+const { decodeEdgePolicy } = await import('../lib/edge-policy');
 const seed = packetFixture();
 const packet = seed.packet;
 const websocketRoute = {
@@ -561,6 +586,41 @@ unitBytes = Object.entries({ ...unit, ...(fault === 'queued-job' ? { Job: '71' }
 const { symbols } = dlopen('libc.so.6', {
   flock: { args: [FFIType.i32, FFIType.i32], returns: FFIType.i32 },
 });
+process.env['WBS_EDGE_STATE'] = '/home/puni1/wbs/state';
+if (fault !== 'policy-missing')
+  await write(
+    '/home/puni1/wbs/state/edge-policy.json',
+    fault === 'policy-malformed'
+      ? '{'
+      : JSON.stringify({
+          format: 'dependency-edge-policy',
+          version: 1,
+          phase:
+            fault === 'policy-active'
+              ? 'active'
+              : fault === 'policy-restoring'
+                ? 'restoring'
+                : 'ordinary',
+          edgeState: '/home/puni1/wbs/state',
+          ...(fault === 'policy-active'
+            ? {
+                ownerPublicationSha256: hash('fixture owner publication'),
+                handoff: {
+                  name: 'edge-owner-123456-handoff-complete.json',
+                  sha256: hash('fixture handoff'),
+                },
+              }
+            : fault === 'policy-restoring'
+              ? {
+                  ownerPublicationSha256: hash('fixture owner publication'),
+                  restorationIntent: {
+                    name: 'edge-owner-123456-solver-restore-intent.json',
+                    sha256: hash('fixture restoration intent'),
+                  },
+                }
+              : {}),
+        }),
+  );
 const locks: number[] = [];
 for (const lock of packet.quiescence.locks) {
   await write(lock.path, '');
@@ -573,13 +633,141 @@ for (const lock of packet.quiescence.locks) {
     inode: (await pin(lock.path)).inode,
   });
 }
-process.env['WBS_EDGE_LOCK_FD'] = String(locks[0]);
-if (fault === 'forged-lock')
-  process.env['WBS_EDGE_LOCK_FD'] = String(
-    filesystem.openSync(root + packet.quiescence.locks[0].path, filesystem.constants.O_RDWR),
-  );
+const heldDescriptor = locks.at(0);
+const originalLock = packet.quiescence.locks.at(0);
+if (heldDescriptor === undefined || originalLock === undefined)
+  throw new Error('fixture original edge lock absent');
+process.env['WBS_EDGE_LOCK_FD'] = String(heldDescriptor);
+let forgedDescriptor: number | undefined;
+if (fault === 'forged-lock') {
+  forgedDescriptor = filesystem.openSync(root + originalLock.path, filesystem.constants.O_RDWR);
+  process.env['WBS_EDGE_LOCK_FD'] = String(forgedDescriptor);
+}
 if (fault === 'owner-marker')
   await write('/home/puni1/wbs/state/edge-owner.pending', 'PRIVATE_FACTORY_SECRET');
+
+/** Reads delivered policy with original filesystem APIs before the production-entry interval. */
+async function observePolicyDelivery(): Promise<{
+  phase: 'ordinary' | 'active' | 'restoring' | 'missing' | 'malformed';
+  path: string;
+  sha256: string | null;
+}> {
+  let bytes: Buffer;
+  try {
+    bytes = await files.readFile(root + policyName);
+  } catch (cause) {
+    if (
+      fault !== 'policy-missing' ||
+      !(cause instanceof Error) ||
+      !('code' in cause) ||
+      cause.code !== 'ENOENT'
+    )
+      throw cause;
+    return { phase: 'missing', path: policyName, sha256: null };
+  }
+  if (fault === 'policy-missing') throw new Error('missing fixture policy unexpectedly readable');
+  if (fault === 'policy-malformed') {
+    if (bytes.toString('utf8') !== '{') throw new Error('malformed fixture policy differs');
+    let refused = false;
+    try {
+      const value: unknown = JSON.parse(bytes.toString('utf8'));
+      decodeEdgePolicy(value, '/home/puni1/wbs/state');
+    } catch {
+      refused = true;
+    }
+    if (!refused) throw new Error('malformed fixture policy decoded');
+    return { phase: 'malformed', path: policyName, sha256: hash(bytes) };
+  }
+  const value: unknown = JSON.parse(bytes.toString('utf8'));
+  const decoded = decodeEdgePolicy(value, '/home/puni1/wbs/state');
+  const expected =
+    fault === 'policy-active' ? 'active' : fault === 'policy-restoring' ? 'restoring' : 'ordinary';
+  if (decoded.phase !== expected) throw new Error('delivered fixture policy phase differs');
+  return { phase: decoded.phase, path: policyName, sha256: hash(bytes) };
+}
+const policyDelivery = await observePolicyDelivery();
+type EarlyDelivery =
+  | { kind: 'none'; ready: true }
+  | {
+      kind: 'forged-lock';
+      ready: true;
+      heldDescriptor: number;
+      selectedDescriptor: number;
+      heldIdentity: string;
+      selectedIdentity: string;
+      canonicalPath: string;
+    }
+  | {
+      kind: 'owner-marker';
+      ready: true;
+      heldDescriptor: number;
+      selectedDescriptor: number;
+      heldIdentity: string;
+      canonicalPath: string;
+      markerPath: string;
+      markerSha256: string;
+      markerMode: number;
+    };
+let earlyDelivery: EarlyDelivery = { kind: 'none', ready: true };
+if (fault === 'forged-lock' || fault === 'owner-marker') {
+  if (policyDelivery.phase !== 'ordinary')
+    throw new Error('early fixture fault lacks ordinary policy');
+  const canonicalPath = await files.realpath(root + originalLock.path);
+  const named = await files.lstat(canonicalPath, { bigint: true });
+  const held = filesystem.fstatSync(heldDescriptor, { bigint: true });
+  const heldIdentity = `${String(held.dev)}:${String(held.ino)}`;
+  if (
+    !held.isFile() ||
+    held.dev !== named.dev ||
+    held.ino !== named.ino ||
+    heldIdentity !== `${originalLock.device}:${originalLock.inode}`
+  )
+    throw new Error('early fixture original edge identity differs');
+  if (fault === 'forged-lock') {
+    if (
+      forgedDescriptor === undefined ||
+      forgedDescriptor === heldDescriptor ||
+      process.env['WBS_EDGE_LOCK_FD'] !== String(forgedDescriptor)
+    )
+      throw new Error('forged fixture descriptor not independently selected');
+    const reopened = filesystem.fstatSync(forgedDescriptor, { bigint: true });
+    if (!reopened.isFile() || reopened.dev !== held.dev || reopened.ino !== held.ino)
+      throw new Error('forged fixture descriptor names another lock');
+    earlyDelivery = {
+      kind: 'forged-lock',
+      ready: true,
+      heldDescriptor,
+      selectedDescriptor: forgedDescriptor,
+      heldIdentity,
+      selectedIdentity: `${String(reopened.dev)}:${String(reopened.ino)}`,
+      canonicalPath,
+    };
+  } else {
+    const markerPath = '/home/puni1/wbs/state/edge-owner.pending';
+    const marker = await files.lstat(root + markerPath);
+    const bytes = await files.readFile(root + markerPath);
+    if (
+      !marker.isFile() ||
+      marker.isSymbolicLink() ||
+      (marker.mode & 0o7777) !== 0o600 ||
+      bytes.toString('utf8') !== 'PRIVATE_FACTORY_SECRET' ||
+      process.env['WBS_EDGE_LOCK_FD'] !== String(heldDescriptor)
+    )
+      throw new Error('owner marker fixture not delivered');
+    earlyDelivery = {
+      kind: 'owner-marker',
+      ready: true,
+      heldDescriptor,
+      selectedDescriptor: heldDescriptor,
+      heldIdentity,
+      canonicalPath,
+      markerPath,
+      markerSha256: hash(bytes),
+      markerMode: marker.mode & 0o7777,
+    };
+  }
+}
+
 const version = { ApiVersion: '1.52', Os: 'linux', Version: '29.1.3' };
 const info = {
   ID: 'factory-daemon',
@@ -2030,8 +2218,13 @@ try {
     packetPath,
     action === 'recovery' ? 'inspect-recovery' : action === 'execute' ? 'execute' : 'prepare',
   );
+  entryActive = false;
   console.log(
     JSON.stringify({
+      packetIO,
+      policyIO,
+      policyDelivery,
+      earlyDelivery,
       summary,
       transcript,
       reads,
@@ -2052,8 +2245,13 @@ try {
     }),
   );
 } catch (cause) {
+  entryActive = false;
   console.log(
     JSON.stringify({
+      packetIO,
+      policyIO,
+      policyDelivery,
+      earlyDelivery,
       refusal: cause instanceof Error ? cause.message : 'unknown',
       transcript,
       reads,
@@ -2089,5 +2287,6 @@ try {
     ),
   ]);
   for (const fd of locks) filesystem.closeSync(fd);
+  if (forgedDescriptor !== undefined) filesystem.closeSync(forgedDescriptor);
   if (suppliedRoot === undefined) await files.rm(root, { recursive: true });
 }

@@ -1,6 +1,12 @@
-import { chmod, link, mkdir, readdir, readFile, utimes, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readdir, readFile, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import {
+  controllerAccountPlugin,
+  copyControllerBun,
+  mapControllerShell,
+  verifyControllerFile,
+} from '@tools/controller-account-fixture';
 import { scratchAsync } from '@tools/test-scratch';
 import { describe, expect, it } from 'bun:test';
 
@@ -13,6 +19,7 @@ const readerCompilation = await Bun.build({
   ],
   target: 'bun',
   plugins: [
+    controllerAccountPlugin(),
     {
       name: 'owned-poller-reader',
       setup(build) {
@@ -52,12 +59,13 @@ async function preparePollerCommand(argv: string[], state: string): Promise<stri
   await writeFile(join(state, 'edge.lock'), '');
   const bun = join(state, 'fixed-bun');
   const reader = join(state, 'fixed-reader.js');
-  await link(process.execPath, bun);
+  copyControllerBun(bun);
   await writeFile(
     reader,
     readerProgram.replace(JSON.stringify(ownedStateAnchor), JSON.stringify(state)),
     { mode: 0o755 },
   );
+  verifyControllerFile(reader);
   const relocated = new Map<string, string>();
   for (const source of sources) {
     const body = await readFile(source, 'utf8');
@@ -69,7 +77,7 @@ async function preparePollerCommand(argv: string[], state: string): Promise<stri
     const path = join(state, source.split('/').at(-1)!);
     await writeFile(
       path,
-      body
+      mapControllerShell(body)
         .replaceAll('/home/puni1/.local/lib/wbs-solver/bun', bun)
         .replaceAll('/home/puni1/.local/lib/wbs-solver/solver-supervisor.js', reader),
     );

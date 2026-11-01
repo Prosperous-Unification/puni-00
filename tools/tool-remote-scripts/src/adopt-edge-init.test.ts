@@ -1,4 +1,4 @@
-import { copyFile, mkdir, mkdtemp, open, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, open, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,6 +7,12 @@ import { expect, test } from 'bun:test';
 
 import { packetFixture } from '../test/edge-init-observer-fixture';
 import { describeInitRefusal, parseInitArguments } from './adopt-edge-init';
+import {
+  controllerAccountPlugin,
+  copyControllerBun,
+  verifyControllerFile,
+  writeControllerPreload,
+} from './fixtures/controller-account';
 import { InitRefusal } from './lib/edge-init';
 import { InitObservationRefusal } from './lib/edge-init-observer';
 import { withCanonicalLock } from './lib/lock';
@@ -16,7 +22,7 @@ async function prepareAdoptionLayout(root: string) {
   await mkdir(directory);
   const bun = join(directory, 'bun');
   const reader = join(directory, 'solver-supervisor.js');
-  await copyFile(process.execPath, bun);
+  copyControllerBun(bun);
   await writeFile(
     join(root, 'edge-policy.json'),
     JSON.stringify({
@@ -52,16 +58,19 @@ async function prepareAdoptionLayout(root: string) {
   const compilation = await Bun.build({
     entrypoints: [fileURLToPath(new URL('./solver-supervisor.ts', import.meta.url))],
     target: 'bun',
-    plugins: [plugin],
+    plugins: [controllerAccountPlugin(), plugin],
   });
   const output = compilation.outputs.at(0);
   if (!compilation.success || compilation.outputs.length !== 1 || output === undefined)
     throw new Error('actual adoption reader build failed');
   await writeFile(reader, new Uint8Array(await output.arrayBuffer()), { mode: 0o755 });
+  verifyControllerFile(reader);
   const preload = join(root, 'owned-layout-preload.ts');
+  const accountPreload = join(root, 'account-preload.ts');
+  writeControllerPreload(accountPreload);
   await writeFile(
     preload,
-    `import {mock} from 'bun:test'; const original=await import(${JSON.stringify(contract)}); mock.module(${JSON.stringify(contract)},()=>({...original,SOLVER_READER_STATE:${JSON.stringify(root)},SOLVER_SUPERVISOR_BUN:${JSON.stringify(bun)},SOLVER_SUPERVISOR_BUNDLE:{...original.SOLVER_SUPERVISOR_BUNDLE,remote:${JSON.stringify(reader)}}}));`,
+    `import ${JSON.stringify(accountPreload)}; import {mock} from 'bun:test'; const original=await import(${JSON.stringify(contract)}); mock.module(${JSON.stringify(contract)},()=>({...original,SOLVER_READER_STATE:${JSON.stringify(root)},SOLVER_SUPERVISOR_BUN:${JSON.stringify(bun)},SOLVER_SUPERVISOR_BUNDLE:{...original.SOLVER_SUPERVISOR_BUNDLE,remote:${JSON.stringify(reader)}}}));`,
   );
   return { plugin, preload };
 }
@@ -241,7 +250,7 @@ for (const bundled of [false, true]) {
         const build = await Bun.build({
           entrypoints: [entry],
           target: 'bun',
-          plugins: [layout.plugin],
+          plugins: [controllerAccountPlugin(), layout.plugin],
         });
         expect(build.success).toBe(true);
         const artifact = build.outputs.at(0);

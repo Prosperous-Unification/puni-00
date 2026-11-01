@@ -1,6 +1,5 @@
 import {
   chmod,
-  copyFile,
   mkdir,
   mkdtemp,
   readdir,
@@ -16,6 +15,13 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, expect, test } from 'bun:test';
 
+import {
+  controllerAccountPlugin,
+  copyControllerBun,
+  mapControllerShell,
+  verifyControllerFile,
+  writeControllerPreload,
+} from './fixtures/controller-account';
 import { initializeOrdinaryEdgePolicy } from './lib/edge-policy';
 import { buildSolverSupervisorInstallOperation } from './lib/solver-supervisor-install-operation';
 
@@ -39,11 +45,12 @@ async function fixture(preparedReader = true) {
   if (preparedReader) {
     const directory = join(root, 'home/.local/lib/wbs-solver');
     await mkdir(directory, { recursive: true });
-    await copyFile(process.execPath, join(directory, 'bun'));
+    copyControllerBun(join(directory, 'bun'));
     const compilation = await Bun.build({
       entrypoints: [new URL('./solver-supervisor.ts', import.meta.url).pathname],
       target: 'bun',
       plugins: [
+        controllerAccountPlugin(),
         {
           name: 'owned-solver-install-layout',
           setup(build) {
@@ -72,12 +79,14 @@ async function fixture(preparedReader = true) {
       new Uint8Array(await output.arrayBuffer()),
       { mode: 0o755 },
     );
+    verifyControllerFile(join(directory, 'solver-supervisor.js'));
     const binding = await Bun.build({
       entrypoints: [
         new URL('../../tool-devsync/src/solver-binding-runtime.ts', import.meta.url).pathname,
       ],
       target: 'bun',
       plugins: [
+        controllerAccountPlugin(),
         {
           name: 'owned-binding-layout',
           setup(build) {
@@ -204,14 +213,18 @@ if [ "\${FAULT:-}" = readiness ] && [[ "$*" = *is-active* ]]; then exit 1; fi
     await writeFile(join(root, 'commands', name), script);
     await chmod(join(root, 'commands', name), 0o755);
   }
+  const preload = join(root, 'account-preload.ts');
+  writeControllerPreload(preload);
   const shell = (local: boolean) =>
-    buildSolverSupervisorInstallOperation(
-      files,
-      hashes,
-      staging,
-      socket,
-      local,
-      createdStageIdentity,
+    mapControllerShell(
+      buildSolverSupervisorInstallOperation(
+        files,
+        hashes,
+        staging,
+        socket,
+        local,
+        createdStageIdentity,
+      ),
     )
       .replaceAll('/home/puni1/wbs/state', state)
       .replaceAll('/home/puni1/', `${root}/home/`);
@@ -245,7 +258,7 @@ if [ "\${FAULT:-}" = readiness ] && [[ "$*" = *is-active* ]]; then exit 1; fi
         );
         await writeFile(
           launch,
-          `import {runSolverBindingCommand} from ${JSON.stringify(outer)}; const attempt = await runSolverBindingCommand({cwd: ${JSON.stringify(root)}, argv: [process.execPath, ${JSON.stringify(child)}], edgeLock: 'inherit'}); if(attempt.exitCode !== 0) throw new Error(attempt.stderr);`,
+          `import {runSolverBindingCommand} from ${JSON.stringify(outer)}; const attempt = await runSolverBindingCommand({cwd: ${JSON.stringify(root)}, argv: [process.execPath, '--preload=' + ${JSON.stringify(preload)}, ${JSON.stringify(child)}], edgeLock: 'inherit'}); if(attempt.exitCode !== 0) throw new Error(attempt.stderr);`,
         );
         const setup =
           localMode === 'missing'
