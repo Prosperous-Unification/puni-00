@@ -70,7 +70,7 @@ describe('explain production CLI', () => {
     const invocation = await runCli(['explain', 'NO-SUCH-RULE']);
     expect(invocation.exitCode).toBe(1);
     expect(stderrOf(invocation)).toContain(
-      'unknown rule: NO-SUCH-RULE (registered: F1, F7, INV-CLASSIFY, K2, K3, K4, K5, K6, MOD-DIRECT-ENTRIES, MOD-INDEX, MOD-LAYOUT, PERF-THRESHOLD, REL-EXTRACT, SPEC-SCENARIOS)',
+      'unknown rule: NO-SUCH-RULE (registered: F1, F7, INV-CLASSIFY, JOB-CATALOGUE, K2, K3, K4, K5, K6, MOD-DIRECT-ENTRIES, MOD-INDEX, MOD-LAYOUT, PERF-THRESHOLD, REL-EXTRACT, SPEC-SCENARIOS)',
     );
   });
 });
@@ -338,6 +338,7 @@ const everyRuleObserving: RuleModeEntry[] = [
   { ruleId: 'F1', mode: 'observe' },
   { ruleId: 'F7', mode: 'observe' },
   { ruleId: 'INV-CLASSIFY', mode: 'observe' },
+  { ruleId: 'JOB-CATALOGUE', mode: 'observe' },
   { ruleId: 'K2', mode: 'observe' },
   { ruleId: 'K3', mode: 'observe' },
   { ruleId: 'K4', mode: 'observe' },
