@@ -5895,3 +5895,26 @@ checks, CI/provider/SSH/runtime/packet operations and old proof matrices. Curren
 live observability acceptance remain unverified; canonical runtime progress remains 4/11.
 Publication and independent review remain root-owned. This fixture/doc repair certifies no
 host, Secret, service, store, admission, capacity or runtime milestone.
+
+### Task86 review closure and preceding CI verdicts
+
+Independent scoped specification/quality review approved ceb640d49→411518d84
+with no actionable findings. Root inspected actual RED/GREEN output and verified
+all 87 indexed artifacts, both tested source files against candidate/final Git
+blobs, and all 142 unchanged packet generator inputs. Review SHA256:
+`beccc0621b162f286b459ee14186b9c32e5d0488aee46bc8b2e5b159175328aa`. Review did not repeat tests.
+
+Preceding published head ceb640d49 has terminal infrastructure success, including
+fleet-check and the workflow's F8 release/Traefik Kubernetes checks. Twilight and
+all four browser shards/pixels also passed. The workspace job failed two tasks:
+`tool-observability-stack:test` and `tool-devsync:test`, with the 19 cases repaired
+above. Its Nx report covered 52 projects/138 tasks, reported 82m36s and zero cache
+hits; the workspace job ran 23:41:01–01:07:24 UTC. Artifact 13064253429 retains the
+4,579,401-byte full Nx log; its ZIP digest is
+`aaa702cb91365f23db03bc24646910e128082738dc44dc1058cca40087f751ff`.
+These are terminal results for ceb640d49, not certification of a later publication.
+
+Full two-instance observability rehearsal, actual admission, live convergence and
+all seven pending main tasks remain open. No new packet, production binary,
+service or store changed. Packet publication still awaits explicit approval after
+automatic review rejected the new payload; host selection is separately pending.
