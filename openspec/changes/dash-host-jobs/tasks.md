@@ -13,31 +13,33 @@
       `puni-pr-00` gets its own catalogue with `website-dev-build` in a companion PR — test: the
       catalogue parses with the shared ArkType shape; an argv outside the argument profile is
       refused.
-- [ ] 1.2 Burokrat rule `JOB-CATALOGUE` in observe mode through the existing rule framework:
+- [x] 1.2 Burokrat rule `JOB-CATALOGUE` in observe mode through the existing rule framework:
       malformed entry, duplicate id, absent entrypoint, expired estimate against the supplied
       instant, envelope below calibrated p95, unbounded containers — test: one fixture per
       failure; negative: drop the `until` comparison and the 2026-12-02 fixture passes.
-- [ ] 1.3 Twilight glossary terms (J1), the names page note that a host pool is a capacity
+- [x] 1.3 Twilight glossary terms (J1), the names page note that a host pool is a capacity
       pool of one host, platform-map lines for reconciliation items 4, 8, 14 and 16, and the
       refactoring queue's heavy-lock item marked closed-for-enrolled-hosts.
 
 ## 2. Ledger extension and admission (needs 1.1; `src/resources/runtime.ts`)
 
-- [ ] 2.1 Extend the managed-resource ledger and configuration with `cpuCores` and `memoryGib`
+- [x] 2.1 Extend the managed-resource ledger and configuration with `cpuCores` and `memoryGib`
       budgets and typed headroom, named exclusive units (distinct canonical paths), the pool
       mode and enrollment identity, and the use kind `host_job` admitted host-locally (J4, J5)
       — test: `ops pool init` refuses an existing ledger, a readable-by-others config, a budget
       above `MemTotal`, duplicate unit paths; an existing worktree use and a host job reserve
       from one vector; negative: drop the host-local path and watch the gate wait on a refusing
-      WBS fixture.
-- [ ] 2.2 Admission: vector fit, exclusive units, exit 73, oldest-fitting-first with atomic
+      WBS fixture. Done on `ResourceRuntime.initialize`, which `resources init` calls; the
+      `ops pool init|inspect` spelling arrives with slice 3's `ops` namespace (verify.md
+      Slice 2, A13).
+- [x] 2.2 Admission: vector fit, exclusive units, exit 73, oldest-fitting-first with atomic
       overtake counting and the oldest barrier, deadlines, wait-zero refusal, dead-ticket
       reclaim (J5, J6) — test: the spec scenarios; `fc.asyncModelRun` over admissions, exits,
       deadline crossings, cancellations, simultaneous contenders, several barriers, calibration
       and crashes from several processes, with sabotage proofs (drop `BEGIN IMMEDIATE`, drop the
       unit check, drop the barrier, release on launcher death) each watched red before the slice
       lands (J18).
-- [ ] 2.3 Settlement per reservation entry with terminal evidence (J2'): process group terminal
+- [x] 2.3 Settlement per reservation entry with terminal evidence (J2'): process group terminal
       through the runtime's pidfd and `/proc` inspection, declared containers gone, tmp
       directory verified removed, `gate_tree` verified at its resting commit and clean; one
       transaction with the outbox event — test: the surviving-child and dirty-tree scenarios;

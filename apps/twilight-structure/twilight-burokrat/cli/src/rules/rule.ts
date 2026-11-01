@@ -71,6 +71,8 @@ export interface Verdict {
    * so it cannot certify. Only `lint-ci` certifies.
    */
   readonly certifies: false;
+  /** The instant dated rules judged against, as `check --now` supplied it; absent otherwise. */
+  readonly evaluatedAt?: string;
   readonly scenarios?: SpecificationsReport;
 }
 
@@ -97,6 +99,11 @@ export interface RuleContext {
   readonly performancePolicyDigest?: string;
   readonly scenarios?: RulePolicy['scenarios'];
   readonly candidateDigest: string;
+  /**
+   * The instant dated rules judge against, supplied by the caller (`check --now`); Burokrat reads
+   * no clock. Absent when the caller supplied none.
+   */
+  readonly evaluatedAt?: Date;
   /** The index report, computed once per check and shared by the three module rules. */
   readonly indexes: RuleOutcome<IndexReport>;
   /**

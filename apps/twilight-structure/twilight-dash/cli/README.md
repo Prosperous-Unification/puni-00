@@ -34,6 +34,8 @@ directories, Git worktrees and their commands through a separate durable reserva
 Start with the [resource runbook](docs/resources.md) for the current-account setup and cleanup inspection requirements,
 owner-only enrollment, automatic Claude/Codex command wrappers, copied generated dependencies,
 WBS authority binding and truthful cleanup blockers. Existing unmanaged sessions are untracked.
+The same ledger is the host pool that admits host jobs (gates, release builds) by cores, memory,
+disk and exclusive units, host-locally: see [host pool and host jobs](docs/resources.md#host-pool-and-host-jobs).
 
 ## Activation controller
 

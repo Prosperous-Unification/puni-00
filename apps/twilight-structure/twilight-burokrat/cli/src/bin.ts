@@ -83,7 +83,7 @@ commands:
   twilight-burokrat validate-record <kind> <json>
   twilight-burokrat validate-progress-receipt <receipt.json> <plan-reference.json> <tasks.json>
   twilight-burokrat validate-plan-tasks <plan-reference.json> <tasks.json>
-  twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>] [--performance-evidence <json>]
+  twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>] [--performance-evidence <json>] [--now <UTC-instant>]
   twilight-burokrat inspect-evaluation-coverage <repository> <full-sha> <external-rule-policy> <external-coverage-review>
   twilight-burokrat inspect-performance <repository> <committed-sha> <external-rule-policy>
   twilight-burokrat inspect-browser-scenarios <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority> <capability>

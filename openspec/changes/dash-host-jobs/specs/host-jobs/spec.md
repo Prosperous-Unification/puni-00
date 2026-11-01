@@ -20,7 +20,7 @@ catalogue does not name or whose argument profile the argv does not match.
 - **WHEN** the rule judges a puni-00 revision whose catalogue names `gate`, `release-build`,
   `test-queued` and `solver-image-publish`, each estimated until 2026-12-01, at an instant before
   that date
-- **THEN** the rule passes and names the four types; `website-dev-build` is judged from
+- **THEN** the rule passes with no finding and no unevaluated rule; `website-dev-build` is judged from
   `puni-pr-00`'s own catalogue and revision
 
 #### Scenario: An estimate outlives its date
@@ -63,7 +63,9 @@ interleaving of admissions, exits, crashes and reclaims.
 
 #### Scenario: A third gate is overtaken, then barred
 
-- **WHEN** two gates run, a third gate waits for a tree and three builds that fit arrive after it
+- **WHEN** the pool has budget 16 cores and 34 GiB with headroom 0 cores and 2 GiB and two
+  `gate_tree` units, two gates run, a third gate waits for a tree and three builds that fit
+  arrive after it
 - **THEN** the three builds run ahead of it and a fourth build waits behind the gate until the
   gate has run
 

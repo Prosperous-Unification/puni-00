@@ -51,6 +51,14 @@ refuses a finding inside the consumer's adopted set and reports one outside it a
 because a file was touched needs a comparison base the verdict records, which this package does not
 yet take.
 
+The host-jobs family checks `JOB-CATALOGUE`: each entry of the candidate's
+[`infra/jobs/catalogue.json`](../../../../infra/jobs/README.md) is well formed, uniquely named,
+starts from an entrypoint present at the revision, declares `containers` as `none` or a bound,
+has an estimate whose `until` date has not passed and reserves no less than its calibrated p95.
+The rule is dated and the package reads no clock, so `check --now <UTC instant>` supplies the
+instant; without it a candidate carrying a catalogue leaves the rule unevaluated. A candidate
+without a catalogue declares no host jobs and has nothing to judge.
+
 The package installs two commands for the same program: `twilight-burokrat`, which documentation
 uses, and the short form `twib`.
 
