@@ -1,0 +1,24 @@
+# Current frontend input epoch verification
+
+Status: contract opening only. No implementation, current producer/response/test qualification or CI acceptance follows. Source6 and CI remain held pending full five-path source/evidence acceptance. Root owns these docs; a source lease follows independent review.
+
+Architecture decision426102f32ced5f8cad172f6bfa4cf1b7aea31e539e0d03df44040dbc14280cb9 and scopeaed0f057191e7594105861ab07ee768e9c8731bc8789f13d532771b5ef785599 bind candidate78e1aaf7aab789569e1d0e328ba9d9f9d2dc8c57/treee9292d3b. Earlier382-case composition audit0f0d0946 remains valid for its finite scope, excluding this failed boundary. Old pairs exist at62d824dd41b1b826db90c4748b30ce834cd7812d/ba121f86. Root readonly baseline6bdef5d0 matched sixteen common inputs and independently confirmed only the CTT package/lock changes.
+
+Actual Source6 prod-green1 refused before preparation at frontend fixture inputs unsupported, exit1/0.247s with streams joined. Its six WIP files remain provisional and stopped under their separate lease. Fixture-only refresh is rejected: the production selector and real Vite producer also pin the old pair. Full CI always runs the real producer; the evidence-copy variable does not skip it. No known-bad78e dispatch or partial historical fixture bridge is accepted.
+
+Only five existing source paths under tools/tool-remote-scripts/src may change: lib/source-frontend-profile.ts, fixtures/source-frontend-profile.ts, fixtures/source-frontend-producer.ts, lib/source-frontend-profile.test.ts and lib/source-frontend-http.test.ts. Preserve sixteen common tuples; admit only complete before-ctt/current-CTT pairs from design. HTTP inspectors, both output hashes, generated program, canonical constructor, startup/restoration callers, Source6, package/lock and CI remain read-only. No caller expected-pin API, shared selector-to-fixture expectation service or schema change.
+
+Required actual evidence: current validated-byte materialization; canonical current selector RED/GREEN; both complete epoch matrices and mixed pairs; valid committed same-length drift; one original producer SHA/observed Git/live/snapshot/installed epoch through close; real current Node/Vite responses; a distinct genuine canonical fixture using actual eighteen captured bytes; actual selector and both unchanged full-response inspectors; original child/pipes/server/watcher/cleanup receipts. Never label expected constants observations, treat the producer snapshot as canonical, or regenerate the positive bytes from live fixtures. If either complete current response differs, stop for separate response-profile review.
+
+Prospective census60 selector (old28+current28+mixed2+actual drift2), whole HTTP15, restoration-inputs4. These are not observed results. Outer allocations180/240filtered-producer/420whole-HTTP/180restoration seconds; preserve inner130000ms test,90000ms child,5000ms Node,15000ms Git/HTTP,256KiB bodies and restoration30000ms cases. Separate types300s/lint180s/format60s/OpenSpec180s. Freeze before final tests; failure/unknown/overdue stops new starts and retains originals. No retroactive bound increase or automatic retry.
+
+| Changed dependency                 | Required ordinary witness                                                     | Physical necessity                    |
+| ---------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------- |
+| Coupled epoch                      | Both mixed pairs refuse at actual consumers                                   | OPEN, no omission grant               |
+| File kind/size/hash                | Actual current valid-manifest drift and boundary-specific faults              | OPEN; group redundant checks honestly |
+| Validated-byte copying             | Materialized bytes equal retained validated observations                      | OPEN, no omission grant               |
+| Captured provenance                | Same Git SHA/blob/live/snapshot/installed epoch before launch                 | OPEN, no omission grant               |
+| Original closing epoch             | Known/unknown replacement refuses without recapture                           | OPEN, no omission grant               |
+| Producer/manifest/HTTP composition | Actual captured bytes, real canonical manifest, unchanged full-body responses | OPEN, no omission grant               |
+
+No new Proof claim or held Reader38/separate43 recipe execution. Old Source proofs stay historical. Full source/installed closure, browser bootstrap, native image/restart, owner/custody/H0-H8/Successor74/Q0-Q3, capacity, current full CI/canonical host gates and architectural main/deployment remain open. Source4 artifact is unexecuted; original cleanup UNKNOWN and I1/E2 open. No parent task completes from this contract.
