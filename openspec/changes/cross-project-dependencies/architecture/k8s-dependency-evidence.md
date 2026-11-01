@@ -3,7 +3,7 @@
 This bounded prerequisite for tasks 10.1/10.2 preserves evidence across a future
 coordinator interruption. It adds no release caller, filesystem persistence,
 Kubernetes observation, SQL operation, activation authority, participant fencing,
-restoration or exposure. ADR 0064 remains the recovery boundary.
+restoration or exposure. ADR 0069 remains the recovery boundary.
 
 `dependency-evidence.ts` exports a pure closed version-1 codec and conservative
 recovery classifier. The envelope contains a decoded payload, exact canonical JSON

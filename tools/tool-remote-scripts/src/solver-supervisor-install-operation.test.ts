@@ -230,6 +230,7 @@ if [ "\${FAULT:-}" = readiness ] && [[ "$*" = *is-active* ]]; then exit 1; fi
       .replaceAll('/home/puni1/', `${root}/home/`);
   return {
     root,
+    preload,
     state,
     staging,
     files,
@@ -525,6 +526,7 @@ if [ "\${FAULT:-}" = staged-config ] && [[ "$remote" = */2 ]]; then printf corru
     const run = async () => {
       let argv = [
         process.execPath,
+        '--preload=' + host.preload,
         new URL('./install-solver-supervisor.ts', import.meta.url).pathname,
         local ? '--local' : '--host=h2puni',
         `--config=${config}`,

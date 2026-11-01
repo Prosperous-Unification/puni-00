@@ -80,7 +80,7 @@ Add only `renameDirectoryFileNoReplace(directory,source,target)` to existing dir
 
 Each planned archive ref uses original dev/inode, same parent dev/inode, mode0600 and exact bytes/hash; intended rename changes timestamps, so do not invent ctime equality. Sync affected directory and independently verify destination plus exact source ENOENT. Preserve original descriptors through reads. Active policy/prepared-complete replacement uses exclusive private sibling, pre-write size check, exact old snapshot comparison, sync, descriptor-relative intended rename and independent readback. No file on failure is automatically replaced with old bytes.
 
-ADR0064 governs after any activation/exposure uncertainty: current stores, artifacts, remaining fences, archives, policy/pointer and failure evidence remain. Original context cannot be revived by a retry, repaired marker or successful subsequent read. Before H5 failure retains original owner/fences; partial H5+ preserves exact partial transition. Distinguish an observable later durable H8 from acknowledgement of this original invocation.
+ADR0069 governs after any activation/exposure uncertainty: current stores, artifacts, remaining fences, archives, policy/pointer and failure evidence remain. Original context cannot be revived by a retry, repaired marker or successful subsequent read. Before H5 failure retains original owner/fences; partial H5+ preserves exact partial transition. Distinguish an observable later durable H8 from acknowledgement of this original invocation.
 
 ## Timing, dependencies and acceptance
 

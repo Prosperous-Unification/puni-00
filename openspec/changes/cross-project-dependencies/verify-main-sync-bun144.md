@@ -8,7 +8,7 @@ not host operational acceptance or adoption of a new source runtime image.
 ## Mechanical coordination
 
 Main's ADR 0057 describes activities; the feature monotone-activation decision is
-now [ADR 0064](../../../docs/adr/0064-cross-project-dependency-activation-is-monotone.md).
+now [ADR 0069](../../../docs/adr/0069-cross-project-dependency-activation-is-monotone.md).
 Current links and references follow that rename. Dated historical checkout paths
 and raw Bun 1.4.2 evidence remain unchanged. UI conflict resolution preserves
 scoped/captured dependency behavior alongside main's kit controls, select styles,
@@ -135,3 +135,11 @@ binary-specific AppArmor userns profile. The h2 gate only probes tool presence
 and namespace capability; it never installs packages or changes host policy.
 A missing/unusable host prerequisite remains an explicit operational block.
 No global sysctl weakening or strace dependency was introduced.
+
+## CI document and transport fixture repair — 2026-11-01
+
+Full CI run `41339741814` at `1c89723188958b9254d93b14576c6ab45c5f9246` finished failed:21 jobs succeeded, workspace/remote/aggregate failed and the docs-only job was skipped. All eight browser shards passed. Workspace evidence showed four failures caused by duplicate ADR0064/0065 identities; the root-migration negative stopped at the preceding ADR check. The repair preserves main's Optique0064 and analytics0065, moves the dependency decisions unchanged to0069/0070 and repairs current references while retaining historical command evidence.
+
+The remote-rest leaf reported3971 passes,2 skips and5 failures. Its real CLI transport omitted the fixture's existing account preload, so installed-reader admission refused before the intended checksum/publication boundaries. The repair only returns that existing private preload and passes it before the installer entrypoint in the existing shared remote/inherited-local argv. Production admission, actual ownership captures, assertions and the seven-case matrix are unchanged.
+
+Independent Astra source review accepted both bounded repairs for focused verification at `/tmp/puni-ci-document-fixture-repair-source-review-20261101.md`; it made no runtime acceptance claim. Fresh changed-file Prettier write exited0 and `bun x --no-install openspec validate --all --json` passed320/320. Exact ordinary tests and the docs target remain unverified at this checkpoint. Clone-based docs tests require the repair committed first; a normal-hook commit precedes those checks. No main merge, deployment, native custody campaign or held Reader campaign is authorized by this repair.
