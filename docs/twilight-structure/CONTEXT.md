@@ -178,6 +178,36 @@ _Avoid_: Agent claim, Playwright report
 A bounded supply of an execution resource shared by competing activities.
 _Avoid_: Budget, availability
 
+**Host pool**:
+The capacity pool of one host, in cores, memory, tmp disk and named exclusive units, that
+Twilight Dash admits host jobs against from a ledger on that host.
+_Avoid_: Heavy lock, host lock, slot
+
+**Job type**:
+A catalogued kind of heavy run, named in the repository that defines it with its entrypoint and
+its job envelope.
+_Avoid_: Lane, task, workload
+
+**Job envelope**:
+The resource vector a job type reserves from a host pool: cores, memory, tmp disk and the
+exclusive units it needs, with the provenance of those numbers.
+_Avoid_: Limit, quota, requirement
+
+**Host job**:
+One admitted run of a job type on one host, measured in its own cgroup scope from admission
+to exit.
+_Avoid_: Lock holder, ticket, lane
+
+**Calibration run**:
+A host job admitted with the whole host pool so that its measurements describe the job type
+alone; it proposes an envelope and never writes one.
+_Avoid_: Diagnostic, benchmark, dry run
+
+**Envelope drift**:
+The audit's finding that a job type's declared envelope and its measured history disagree:
+an overrun, waste, an expired estimate or an unlabelled container.
+_Avoid_: Violation, anomaly
+
 **Budget**:
 The authorized consumption policy for one run, containing warning targets and
 hard caps for its accounted resources.
