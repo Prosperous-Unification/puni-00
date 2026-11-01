@@ -359,6 +359,7 @@ function fixture(authenticated = false, ageMs = 30000, mtls = false) {
         ...args,
       ],
       {
+        env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1' },
         stdout: 'pipe',
         stderr: 'pipe',
       },
@@ -859,7 +860,11 @@ test('FIFO trusted input refuses promptly within a controlled child deadline', a
   execFileSync('mkfifo', ['-m', '600', f.requestPath]);
   const child = Bun.spawn(
     [process.execPath, cli, 'history-capture', f.requestPath, f.receiptPath],
-    { stdout: 'pipe', stderr: 'pipe' },
+    {
+      env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1' },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
   );
   const completion = await Promise.race([
     child.exited.then((exit) => ({ state: 'exited' as const, exit })),
