@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "jobs": [
+    {
+      "id": "gate",
+      "entrypoint": "bin/h2puni-gate.sh",
+      "argumentProfile": "<sha>",
+      "envelope": { "cpuCores": 4, "memoryGib": 6, "tmpDiskGib": 8, "exclusive": ["gate_tree"] },
+      "containers": { "memoryGib": 1, "cpuCores": 1 },
+      "enforcement": "observe",
+      "provenance": {
+        "kind": "estimated",
+        "basis": "user slice memory.current 2.0 GiB during gate:0a518a42 on h2puni, 2026-11-01; the containers bound is declared for the solver image smoke and the Caddy test container, not yet enforced on either (task 6.2)",
+        "until": "2026-12-01"
+      }
+    },
+    {
+      "id": "release-build",
+      "entrypoint": "bin/publish-release.sh",
+      "argumentProfile": "",
+      "envelope": {
+        "cpuCores": 1,
+        "memoryGib": 2,
+        "tmpDiskGib": 2,
+        "exclusive": ["dagger_engine"]
+      },
+      "containers": { "memoryGib": 8, "cpuCores": 6 },
+      "enforcement": "observe",
+      "provenance": {
+        "kind": "estimated",
+        "basis": "read, not measured, 2026-11-01: the host side is one Bun process driving the Dagger SDK; the build runs in the wbs-dagger-engine container that tool-dagger starts with --memory=8g --cpus=6, which is the containers bound",
+        "until": "2026-12-01"
+      }
+    },
+    {
+      "id": "test-queued",
+      "entrypoint": "package.json#scripts.test:queued",
+      "argumentProfile": "",
+      "envelope": { "cpuCores": 4, "memoryGib": 6, "tmpDiskGib": 4, "exclusive": [] },
+      "containers": { "memoryGib": 1, "cpuCores": 1 },
+      "enforcement": "observe",
+      "provenance": {
+        "kind": "estimated",
+        "basis": "read, not measured, 2026-11-01: nx run-many -t test at nx.json parallel 4, the test half of the gate without its tree; tool-remote-scripts:test:caddy starts an unbounded Caddy container today, so the bound is declared, not yet enforced (task 6.2)",
+        "until": "2026-12-01"
+      }
+    },
+    {
+      "id": "solver-image-publish",
+      "entrypoint": "tools/tool-devsync/src/solver-binding-runtime.ts",
+      "argumentProfile": "<sha>",
+      "envelope": {
+        "cpuCores": 1,
+        "memoryGib": 2,
+        "tmpDiskGib": 2,
+        "exclusive": ["dagger_engine"]
+      },
+      "containers": { "memoryGib": 8, "cpuCores": 6 },
+      "enforcement": "observe",
+      "provenance": {
+        "kind": "estimated",
+        "basis": "read, not measured, 2026-11-01: a frozen bun install of the candidate, then the be tier through tool-dagger in the same wbs-dagger-engine container as release-build (--memory=8g --cpus=6), then a docker pull",
+        "until": "2026-12-01"
+      }
+    }
+  ]
+}

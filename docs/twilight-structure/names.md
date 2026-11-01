@@ -69,6 +69,8 @@ act as the trusted gate. Twilight Dash holds the secrets and performs the effect
   activation controller is Dash's second authority: its own process, observation store and
   service account, sharing no table or lock with the lease authority
   ([ADR 0051](../adr/0051-the-activation-controller-runs-in-dash-as-a-second-authority.md)).
+  A host pool is a capacity pool of one host: Dash admits host jobs from it, and Burokrat's
+  `JOB-CATALOGUE` judges only the job catalogue they are admitted from (`dash-host-jobs`).
 - **The verifier tool.** The control-plane design planned a separate Twilight compile and
   verify tool. Its verification half is Twilight Burokrat's work and its compile half is
   Twilight Dash's. No separate tool is created.
@@ -76,7 +78,8 @@ act as the trusted gate. Twilight Dash holds the secrets and performs the effect
 ### Clock reads
 
 Twilight Burokrat reads no clock. It takes the instant it evaluates from its caller:
-`inspect-manual` requires `--now`, and Twilight Dash supplies it. The activation controller, the
+`inspect-manual` requires `--now`, `check` takes `--now` for the dated rule `JOB-CATALOGUE`, and
+Twilight Dash supplies it. The activation controller, the
 observation service and the review invoker moved to Twilight Dash in October 2026 with their clock
 reads (WBS a81d93a0). Dash also measures the activation checks: `twilight-dash
 run-activation-checks` records each check's instants in a CheckRun ledger, and both

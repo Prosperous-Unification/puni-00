@@ -111,6 +111,7 @@ fi
 # Proof: gate-entrypoints.test.ts commits exit-0 replacements for both candidate scripts and
 # observes the externally selected launcher reject obligation.application before either runs.
 # Positional parameters belong to the preserved inner shell.
+# Job type `gate` in infra/jobs/catalogue.json.
 # shellcheck disable=SC2016
 gate_with_pinned_head "$repo_root" "$(resolve_heavy_lock_path)" "$target" -- \
   bash -c 'set -euo pipefail; if [[ -n "$1" ]]; then bash "$1" committed "$2" "$3"; else printf "%s\n" "{\"schemaVersion\":1,\"status\":\"inactive\",\"certified\":false,\"reason\":\"external activation marker is not provisioned\"}"; fi; exec bash "$4" "$2" "$3"' \
