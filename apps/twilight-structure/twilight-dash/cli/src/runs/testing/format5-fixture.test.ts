@@ -750,3 +750,70 @@ test('genuine5 independent observation refuses unknown scope instead of journal 
   expect(await fixture.worker.exited).toEqual({ code: 0, signal: null });
   expect(fixture.worker.stdoutClosed && fixture.worker.stderrClosed).toBe(true);
 }, 60000);
+
+test('genuine5 observation snapshots submitted scope before caller mutation and keeps worker orderly', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'format5-scope-snapshot-'));
+  console.log(
+    JSON.stringify({
+      event: 'genuine5-scope-snapshot-created',
+      directory,
+      path: join(directory, 'runs.sqlite'),
+    }),
+  );
+  const owner = createStoreDirectory(directory, { recursive: true });
+  const fixture = owner.retainStore(await createFormat5Fixture(join(directory, 'runs.sqlite')));
+  try {
+    await owner.runTest(async () => {
+      const command = requireRecoveryCommand(await fixture.prepareMutation('beginRecovery'));
+      if (command.method !== 'beginRecovery') throw Error('native begin command absent');
+      const native = await fixture.invoke(command);
+      if (native.kind !== 'applied') throw Error('native begin refused');
+      const scope = command.parameters[0].guard.scope,
+        recoveryId = command.parameters[0].intent.recoveryId;
+      const journal = await fixture.observeRecovery(scope, recoveryId);
+      if (journal === null) throw Error('committed native journal absent');
+      deepStrictEqual(journal, native.value);
+      const expected = structuredClone(journal);
+      const submittedScope = { ...scope };
+      const originalScope = { ...submittedScope };
+      const pending = fixture.observeRecovery(submittedScope, recoveryId);
+      submittedScope.personId = 'caller-mutated-person';
+      const observed = await pending;
+      deepStrictEqual(observed, expected);
+      expect(submittedScope.personId).toBe('caller-mutated-person');
+      deepStrictEqual(await fixture.observeRecovery(originalScope, recoveryId), expected);
+      const capture = await fixture.capture();
+      expect(
+        capture.tables.some(
+          (table) => table.name === 'run5_recovery_journal' && table.rows.length === 1,
+        ),
+      ).toBe(true);
+      console.log(
+        JSON.stringify({
+          event: 'genuine5-scope-snapshot-returned',
+          directory,
+          originalScope,
+          submittedScope,
+          journal: observed,
+        }),
+      );
+    });
+  } finally {
+    console.log(
+      JSON.stringify({
+        event: 'genuine5-scope-snapshot-closure',
+        directory,
+        sourceDirectory: fixture.sourceDirectory,
+        terminal: await fixture.worker.exited,
+        stdoutClosed: fixture.worker.stdoutClosed,
+        stderrClosed: fixture.worker.stderrClosed,
+        directoryExists: existsSync(directory),
+        sourceExists: existsSync(fixture.sourceDirectory),
+      }),
+    );
+  }
+  expect(await fixture.worker.exited).toEqual({ code: 0, signal: null });
+  expect(fixture.worker.stdoutClosed && fixture.worker.stderrClosed).toBe(true);
+  expect(existsSync(directory)).toBe(false);
+  expect(existsSync(fixture.sourceDirectory)).toBe(false);
+}, 60000);

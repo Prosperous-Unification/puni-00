@@ -433,11 +433,17 @@ async function startPredecessorWorker(
       if (payload.action !== 'invoke') throw new Error(`${source.label} internal action differs`);
       return payload.value;
     },
-    /** Independent read after invocation; native incompatible/corrupt errors remain errors. Null denotes only a missing journal inside a known pinned native-v2 scope; unknown scopes/versions are errors. No earlier native invocation result is replaced. */
+    /** Independent read after invocation; native incompatible/corrupt errors remain errors. Null denotes only a missing journal inside a known pinned native-v2 scope; unknown scopes/versions are errors. No earlier native invocation result is replaced. The submitted primitive-string scope is copied before serialization and retained correlation; later caller mutation cannot change that request. */
     async observeRecovery(scope: RuntimeScope, recoveryId: string) {
       if (source.label !== 'format5')
         throw new Error('format5 observation is unavailable on legacy workers');
-      const payload = await requestWorker({ kind: 'observe_recovery', scope, recoveryId });
+      // Proof: 'genuine5 observation snapshots submitted scope before caller mutation and keeps worker orderly' failed with target-correlation error/SIGKILL when only this copy became the caller reference; exact source restored, original journal and orderly close passed.
+      const submittedScope = { ...scope };
+      const payload = await requestWorker({
+        kind: 'observe_recovery',
+        scope: submittedScope,
+        recoveryId,
+      });
       if (payload.action !== 'observe_recovery')
         throw new Error('format5 observation action differs');
       return payload.value;
