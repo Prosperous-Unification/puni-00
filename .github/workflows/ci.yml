@@ -317,6 +317,9 @@ jobs:
     name: gate workspace
     needs: gate_mode
     if: ${{ needs.gate_mode.outputs.mode != 'docs' }}
+    # Keep pinned Python 3.14.4 on its supported Ubuntu 24.04 image.
+    # Proof: workspace job 124617218173 failed setup-python on 26.04;
+    # job 124582747681 installed 3.14.4 and passed on 24.04.
     runs-on: ubuntu-24.04
     # The original 20-minute box expired after the ordinary Nx phase and during Tool Wiki.
     # Forty-five minutes then expired too: run 35337661318 (2026-09-18, every project affected and
@@ -365,7 +368,7 @@ jobs:
           cache-dependency-path: libs/wbs/adapters/solver-py/requirements.lock
 
       # `nx run-many -t build` shellchecks the deploy scripts and is no longer
-      # allowed to skip itself when shellcheck is absent. ubuntu-latest ships
+      # allowed to skip itself when shellcheck is absent. The 24.04 image ships
       # it, but assert rather than discovering the absence as a green build
       # that checked nothing.
       # Proof: removing this block failed toolchain-pins.test.ts's workspace native provisioning check.
@@ -484,7 +487,7 @@ jobs:
           cache-dependency-path: libs/wbs/adapters/solver-py/requirements.lock
 
       # `nx run-many -t build` shellchecks the deploy scripts and is no longer
-      # allowed to skip itself when shellcheck is absent. ubuntu-latest ships
+      # allowed to skip itself when shellcheck is absent. The 24.04 image ships
       # it, but assert rather than discovering the absence as a green build
       # that checked nothing.
       # Proof: removing this block failed toolchain-pins.test.ts's workspace native provisioning check.
@@ -601,7 +604,7 @@ jobs:
           cache-dependency-path: libs/wbs/adapters/solver-py/requirements.lock
 
       # `nx run-many -t build` shellchecks the deploy scripts and is no longer
-      # allowed to skip itself when shellcheck is absent. ubuntu-latest ships
+      # allowed to skip itself when shellcheck is absent. The 24.04 image ships
       # it, but assert rather than discovering the absence as a green build
       # that checked nothing.
       # Proof: removing this block failed toolchain-pins.test.ts's workspace native provisioning check.
@@ -731,7 +734,7 @@ jobs:
           cache-dependency-path: libs/wbs/adapters/solver-py/requirements.lock
 
       # `nx run-many -t build` shellchecks the deploy scripts and is no longer
-      # allowed to skip itself when shellcheck is absent. ubuntu-latest ships
+      # allowed to skip itself when shellcheck is absent. The 24.04 image ships
       # it, but assert rather than discovering the absence as a green build
       # that checked nothing.
       # Proof: removing this block failed toolchain-pins.test.ts's workspace native provisioning check.
@@ -857,7 +860,7 @@ jobs:
           cache-dependency-path: libs/wbs/adapters/solver-py/requirements.lock
 
       # `nx run-many -t build` shellchecks the deploy scripts and is no longer
-      # allowed to skip itself when shellcheck is absent. ubuntu-latest ships
+      # allowed to skip itself when shellcheck is absent. The 24.04 image ships
       # it, but assert rather than discovering the absence as a green build
       # that checked nothing.
       # Proof: removing this block failed toolchain-pins.test.ts's workspace native provisioning check.
@@ -974,7 +977,7 @@ jobs:
           cache-dependency-path: libs/wbs/adapters/solver-py/requirements.lock
 
       # `nx run-many -t build` shellchecks the deploy scripts and is no longer
-      # allowed to skip itself when shellcheck is absent. ubuntu-latest ships
+      # allowed to skip itself when shellcheck is absent. The 24.04 image ships
       # it, but assert rather than discovering the absence as a green build
       # that checked nothing.
       # Proof: removing this block failed toolchain-pins.test.ts's workspace native provisioning check.

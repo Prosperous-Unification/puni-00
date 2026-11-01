@@ -252,6 +252,16 @@
       fake. A `wbs_mk_` key is already 401 through `decodeJwt`, and no check is claimed for
       it.
 - [ ] 3.6 Hosted connector check on dev: claude.ai consent with `none` is unchanged. Record it.
+      (Since #751 claude.ai registers `client_secret_post`, not `none`; task 3.9.)
+- [x] 3.9 Confidential consent clients (design M17): registration accepts `client_secret_basic`
+      and `client_secret_post`, answers the secret once and stores its digest; the consent
+      grants require it by the registered method. Negatives: accept only `none` again (the live
+      400); skip the code or refresh refusal; compare only the secret, not the method; make the
+      digest compare return `true`; the migration CHECKs as `CHECK (1)`; the rollback preflight
+      and down `DELETE` removed. A boot test runs the claude.ai-shaped flow through the MCP SDK.
+      The claude.ai check on dev after deploy stays with 3.6. Review of PR #791: the family
+      records its client's method and the exchange is atomic (S2-1), an absent method is
+      `client_secret_basic`, and the metadata lists all three methods. verify.md slice 20.
 - [x] 3.7 Secret cutover (M14), with each secret tested on `/internal/mcp/delegation`. The old
       secret is removed in release N+1 (a follow-up).
 - [x] 3.8 Removed the consent path's `use === undefined` branch (`consentClaimsOf` in

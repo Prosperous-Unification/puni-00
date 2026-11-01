@@ -3,11 +3,17 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import {
+  discoverAuthorizationServerMetadata,
+  exchangeAuthorization,
+  refreshAuthorization,
+  registerClient,
+} from '@modelcontextprotocol/sdk/client/auth.js';
 import { JwksTokenVerifier } from '@wbs/auth';
 import { newMachineKey } from '@wbs/core';
 import { Database } from 'bun:sqlite';
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
-import { exportJWK, generateKeyPair, SignJWT } from 'jose';
+import { decodeJwt, exportJWK, generateKeyPair, SignJWT } from 'jose';
 
 import type { McpConfig } from './config';
 import { mcpFetchHandler } from './http';
@@ -226,28 +232,7 @@ async function connect(
     }),
   );
   const clientId = ((await registered.json()) as { client_id: string }).client_id;
-  const authorize = new URL(`${OAUTH}/authorize`);
-  authorize.search = new URLSearchParams({
-    client_id: clientId,
-    code_challenge: createHash('sha256').update(VERIFIER).digest('base64url'),
-    code_challenge_method: 'S256',
-    redirect_uri: CALLBACK,
-    response_type: 'code',
-    scope: 'wbs:read wbs:write',
-  }).toString();
-  const started = await oauthCall(new Request(authorize));
-  const binding = started.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
-  const state = new URL(started.headers.get('location') ?? '').searchParams.get('state') ?? '';
-  let callback = await oauthCall(
-    new Request(`${OAUTH}/callback?code=upstream&state=${state}`, { headers: { cookie: binding } }),
-  );
-  if (callback.status === 200) callback = await choose(callback, options.agent);
-  else if (options.agent !== undefined) throw new Error('no choice page offered the agent');
-  if (callback.status !== 302)
-    throw new Error(`consent did not redirect: ${String(callback.status)}`);
-  const code = new URL(callback.headers.get('location') ?? '').searchParams.get('code');
-  if (code === null)
-    throw new Error(`consent refused: ${String(callback.headers.get('location'))}`);
+  const code = await consentCode(clientId, options.agent);
   const token = await oauthCall(
     new Request(`${OAUTH}/token`, {
       method: 'POST',
@@ -263,6 +248,33 @@ async function connect(
   );
   const body = (await token.json()) as { access_token: string; refresh_token: string };
   return { access: body.access_token, refresh: body.refresh_token, clientId };
+}
+
+/** Authorization through consent for `clientId`, with {@link VERIFIER}'s challenge; the code. */
+async function consentCode(clientId: string, agent: string | undefined): Promise<string> {
+  const authorize = new URL(`${OAUTH}/authorize`);
+  authorize.search = new URLSearchParams({
+    client_id: clientId,
+    code_challenge: createHash('sha256').update(VERIFIER).digest('base64url'),
+    code_challenge_method: 'S256',
+    redirect_uri: CALLBACK,
+    response_type: 'code',
+    scope: 'wbs:read wbs:write',
+  }).toString();
+  const started = await oauthCall(new Request(authorize));
+  const binding = started.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+  const state = new URL(started.headers.get('location') ?? '').searchParams.get('state') ?? '';
+  let callback = await oauthCall(
+    new Request(`${OAUTH}/callback?code=upstream&state=${state}`, { headers: { cookie: binding } }),
+  );
+  if (callback.status === 200) callback = await choose(callback, agent);
+  else if (agent !== undefined) throw new Error('no choice page offered the agent');
+  if (callback.status !== 302)
+    throw new Error(`consent did not redirect: ${String(callback.status)}`);
+  const code = new URL(callback.headers.get('location') ?? '').searchParams.get('code');
+  if (code === null)
+    throw new Error(`consent refused: ${String(callback.headers.get('location'))}`);
+  return code;
 }
 
 /** The agent labels of the last choice page, in page order. */
@@ -1578,103 +1590,183 @@ describe('MCP organization delegation against a booted be-01', () => {
     });
   }
 
-  for (const fault of ['unchanged', 'revocation', 'family'] as const) {
-    test(`real agent consent queued external update revalidates ${fault} authority`, async () => {
-      const personId = `queued-${fault}`;
-      await fixture('agent', { id: personId, name: personId, account: 'dany' });
-      const consent = await connect('auth0|dany', { agent: personId });
-      const createProject = async (name: string): Promise<string> => {
-        const created = await tool(consent.access, 'postApiProjects', { name });
-        expect(created, created.text).toMatchObject({ isError: false });
-        return (JSON.parse(created.text) as { project: { id: string } }).project.id;
-      };
-      const predecessorProjectId = await createProject(`Queued ${fault} predecessor`);
-      const successorProjectId = await createProject(`Queued ${fault} successor`);
-      const createLeaf = async (id: string): Promise<string> => {
-        const created = await tool(consent.access, 'postApiProjectsByIdCommands', {
-          id,
-          commands: [{ kind: 'createWorkItem', name: `Queued ${fault} leaf` }],
+  for (const confidential of [false, true]) {
+    for (const fault of ['unchanged', 'revocation', 'family'] as const) {
+      test(`${confidential ? 'confidential refreshed' : 'real'} agent consent queued external update revalidates ${fault} authority`, async () => {
+        const personId = `${confidential ? 'confidential-' : ''}queued-${fault}`;
+        await fixture('agent', { id: personId, name: personId, account: 'dany' });
+        const consent = await (async (): Promise<{
+          access: string;
+          refresh?: () => Promise<string>;
+        }> => {
+          if (!confidential) {
+            const connected = await connect('auth0|dany', { agent: personId });
+            return { access: connected.access };
+          }
+          login.subject = 'auth0|dany';
+          login.lifetimeSeconds = 900;
+          const fetchFn = (input: string | URL, init?: RequestInit) =>
+            handle(new Request(input, init));
+          const metadata = await discoverAuthorizationServerMetadata(OAUTH, { fetchFn });
+          if (metadata === undefined) throw new Error('no authorization server metadata');
+          const client = await registerClient(OAUTH, {
+            metadata,
+            clientMetadata: {
+              redirect_uris: [CALLBACK],
+              grant_types: ['authorization_code', 'refresh_token'],
+              response_types: ['code'],
+              token_endpoint_auth_method: 'client_secret_post',
+            },
+            fetchFn,
+          });
+          expect(client.token_endpoint_auth_method).toBe('client_secret_post');
+          if (client.client_secret === undefined) throw new Error('registration issued no secret');
+          const tokens = await exchangeAuthorization(OAUTH, {
+            metadata,
+            clientInformation: client,
+            authorizationCode: await consentCode(client.client_id, personId),
+            codeVerifier: VERIFIER,
+            redirectUri: CALLBACK,
+            fetchFn,
+          });
+          expect(
+            (await consents()).filter((credential) => credential.personId === personId),
+          ).toEqual([{ personId, issuedBy: 'u-dany', revokedAt: null }]);
+          const familyId = decodeJwt(tokens.access_token)['mcp_family_id'];
+          if (typeof familyId !== 'string') throw new Error('consent token has no family');
+          const tables = (await fixture('consent-write-state', {})) as {
+            name: string;
+            rows: string[];
+          }[];
+          const credentials = tables.find((table) => table.name === 'machine_credential');
+          if (credentials === undefined) throw new Error('consent credential table missing');
+          expect(
+            credentials.rows
+              .map((row) => JSON.parse(row) as Record<string, unknown>)
+              .filter((credential) => credential['person_id'] === personId),
+          ).toMatchObject([
+            {
+              person_id: personId,
+              source: 'mcp_consent',
+              mcp_family_id: familyId,
+              revoked_at: null,
+            },
+          ]);
+          const refreshToken = tokens.refresh_token;
+          if (refreshToken === undefined) throw new Error('consent issued no refresh token');
+          return {
+            access: tokens.access_token,
+            refresh: async () => {
+              const refreshed = await refreshAuthorization(OAUTH, {
+                metadata,
+                clientInformation: client,
+                refreshToken,
+                fetchFn,
+              });
+              expect(decodeJwt(refreshed.access_token)['mcp_family_id']).toBe(familyId);
+              return refreshed.access_token;
+            },
+          };
+        })();
+        const createProject = async (name: string): Promise<string> => {
+          const created = await tool(consent.access, 'postApiProjects', { name });
+          expect(created, created.text).toMatchObject({ isError: false });
+          return (JSON.parse(created.text) as { project: { id: string } }).project.id;
+        };
+        const predecessorProjectId = await createProject(`Queued ${fault} predecessor`);
+        const successorProjectId = await createProject(`Queued ${fault} successor`);
+        const createLeaf = async (id: string): Promise<string> => {
+          const created = await tool(consent.access, 'postApiProjectsByIdCommands', {
+            id,
+            commands: [{ kind: 'createWorkItem', name: `Queued ${fault} leaf` }],
+          });
+          expect(created, created.text).toMatchObject({ isError: false });
+          const workItemId = (JSON.parse(created.text) as { results: { id: string }[] }).results.at(
+            0,
+          )?.id;
+          if (workItemId === undefined) throw new Error('queued consent leaf not minted');
+          return workItemId;
+        };
+        const predecessorId = await createLeaf(predecessorProjectId);
+        const successorId = await createLeaf(successorProjectId);
+        const predecessor = {
+          projectId: predecessorProjectId,
+          scope: 'whole',
+          workItemId: predecessorId,
+        };
+        const successor = {
+          projectId: successorProjectId,
+          scope: 'whole',
+          workItemId: successorId,
+        };
+        const added = await tool(consent.access, 'postApiProjectsByIdCommands', {
+          id: successorProjectId,
+          commands: [{ kind: 'addTypedDependency', predecessor, successor, type: 'FS' }],
         });
-        expect(created, created.text).toMatchObject({ isError: false });
-        const workItemId = (JSON.parse(created.text) as { results: { id: string }[] }).results.at(
+        expect(added, added.text).toMatchObject({ isError: false });
+        const dependencyId = (JSON.parse(added.text) as { results: { id: string }[] }).results.at(
           0,
         )?.id;
-        if (workItemId === undefined) throw new Error('queued consent leaf not minted');
-        return workItemId;
-      };
-      const predecessorId = await createLeaf(predecessorProjectId);
-      const successorId = await createLeaf(successorProjectId);
-      const predecessor = {
-        projectId: predecessorProjectId,
-        scope: 'whole',
-        workItemId: predecessorId,
-      };
-      const successor = { projectId: successorProjectId, scope: 'whole', workItemId: successorId };
-      const added = await tool(consent.access, 'postApiProjectsByIdCommands', {
-        id: successorProjectId,
-        commands: [{ kind: 'addTypedDependency', predecessor, successor, type: 'FS' }],
-      });
-      expect(added, added.text).toMatchObject({ isError: false });
-      const dependencyId = (JSON.parse(added.text) as { results: { id: string }[] }).results.at(
-        0,
-      )?.id;
-      if (dependencyId === undefined) throw new Error('queued consent relationship not minted');
-      const read = await tool(consent.access, 'getApiProjectsByIdWork-items', {
-        id: predecessorProjectId,
-      });
-      expect(read, read.text).toMatchObject({ isError: false });
-      await fixture('arm-consent-write', {});
-      const pending = tool(consent.access, 'postApiProjectsByIdCommands', {
-        id: successorProjectId,
-        commands: [
-          {
-            kind: 'patchWorkItem',
-            workItemId: successorId,
-            patch: { name: 'Queued rename committed' },
-          },
-          { kind: 'updateTypedDependency', dependencyId, predecessor, successor, type: 'SS' },
-        ],
-      });
-      try {
-        expect(await fixture('wait-consent-write', {})).toEqual({ queued: true });
-        if (fault !== 'unchanged')
-          expect(await fixture('change-consent', { personId, fault })).toEqual({ changed: 1 });
-        // Snapshot after real delegation admission and independent credential mutation:
-        // delegation_use itself is intentionally outside the command transaction.
-        const before = await fixture('consent-write-state', {});
-        const sent = await fixture('publications', {});
-        await fixture('release-consent-write', {});
-        const response = await pending;
-        if (fault === 'unchanged') {
-          expect(response, response.text).toMatchObject({ isError: false });
-          const after = (await fixture('write-state', {})) as Record<string, unknown>[][];
-          expect(after[1].find((row) => row['id'] === successorId)).toMatchObject({
-            id: successorId,
-            name: 'Queued rename committed',
-          });
-          expect(after[4].find((row) => row['id'] === dependencyId)).toMatchObject({
-            id: dependencyId,
-            type: 'SS',
-          });
-          expect(await fixture('consent-write-state', {})).not.toEqual(before);
-          expect(await fixture('publications', {})).not.toEqual(sent);
-        } else {
-          // Proof: captured request access admitted both queued consent faults; removing
-          // only the persisted family comparison admitted family mismatch (2026-10-23).
-          expect(response.isError).toBe(true);
-          expect(response.text).toContain('HTTP 409');
-          expect(JSON.parse(response.text.slice(response.text.indexOf('\n') + 1))).toEqual({
-            error: 'organization_context_changed',
-          });
-          expect(await fixture('consent-write-state', {})).toEqual(before);
-          expect(await fixture('publications', {})).toEqual(sent);
+        if (dependencyId === undefined) throw new Error('queued consent relationship not minted');
+        const read = await tool(consent.access, 'getApiProjectsByIdWork-items', {
+          id: predecessorProjectId,
+        });
+        expect(read, read.text).toMatchObject({ isError: false });
+        const writeAccess =
+          consent.refresh === undefined ? consent.access : await consent.refresh();
+        await fixture('arm-consent-write', {});
+        const pending = tool(writeAccess, 'postApiProjectsByIdCommands', {
+          id: successorProjectId,
+          commands: [
+            {
+              kind: 'patchWorkItem',
+              workItemId: successorId,
+              patch: { name: 'Queued rename committed' },
+            },
+            { kind: 'updateTypedDependency', dependencyId, predecessor, successor, type: 'SS' },
+          ],
+        });
+        try {
+          expect(await fixture('wait-consent-write', {})).toEqual({ queued: true });
+          if (fault !== 'unchanged')
+            expect(await fixture('change-consent', { personId, fault })).toEqual({ changed: 1 });
+          // Snapshot after real delegation admission and independent credential mutation:
+          // delegation_use itself is intentionally outside the command transaction.
+          const before = await fixture('consent-write-state', {});
+          const sent = await fixture('publications', {});
+          await fixture('release-consent-write', {});
+          const response = await pending;
+          if (fault === 'unchanged') {
+            expect(response, response.text).toMatchObject({ isError: false });
+            const after = (await fixture('write-state', {})) as Record<string, unknown>[][];
+            expect(after[1].find((row) => row['id'] === successorId)).toMatchObject({
+              id: successorId,
+              name: 'Queued rename committed',
+            });
+            expect(after[4].find((row) => row['id'] === dependencyId)).toMatchObject({
+              id: dependencyId,
+              type: 'SS',
+            });
+            expect(await fixture('consent-write-state', {})).not.toEqual(before);
+            expect(await fixture('publications', {})).not.toEqual(sent);
+          } else {
+            // Proof: captured request access admitted both queued consent faults; removing
+            // only the persisted family comparison admitted family mismatch (2026-10-23).
+            expect(response.isError).toBe(true);
+            expect(response.text).toContain('HTTP 409');
+            expect(JSON.parse(response.text.slice(response.text.indexOf('\n') + 1))).toEqual({
+              error: 'organization_context_changed',
+            });
+            expect(await fixture('consent-write-state', {})).toEqual(before);
+            expect(await fixture('publications', {})).toEqual(sent);
+          }
+        } finally {
+          // Release is idempotent only through this explicit fixture cleanup route.
+          await fixture('cleanup-consent-write', {});
+          await pending;
         }
-      } finally {
-        // Release is idempotent only through this explicit fixture cleanup route.
-        await fixture('cleanup-consent-write', {});
-        await pending;
-      }
-    });
+      });
+    }
   }
 
   test("a removed member's session is refused on its next call and cannot refresh", async () => {
@@ -1700,5 +1792,107 @@ describe('MCP organization delegation against a booted be-01', () => {
     );
     expect(refreshed.status).toBe(400);
     expect(await refreshed.json()).toEqual({ error: 'invalid_grant' });
+  });
+
+  // Task 3.9 (M17): claude.ai's connector registers `client_secret_post`, because the metadata
+  // lists the machine grants' methods. The MCP SDK stands in for claude.ai at the token
+  // endpoint: it reads the method from the registration answer and sends the secret by it.
+  // It signs in as grace, whom no earlier test removes, and makes its own project, so it reads
+  // nothing an earlier test wrote.
+  // Proof: 2026-10-31, with registration accepting only `none` again (oauth.ts `register`) this
+  // failed at `registerClient` with the live `invalid_client_metadata`.
+  test('a claude.ai-shaped confidential connector consents, calls a tool and refreshes', async () => {
+    login.subject = 'auth0|grace';
+    login.lifetimeSeconds = 900;
+    const fetchFn = (input: string | URL, init?: RequestInit) => handle(new Request(input, init));
+    const metadata = await discoverAuthorizationServerMetadata(OAUTH, { fetchFn });
+    if (metadata === undefined) throw new Error('no authorization server metadata');
+    expect(metadata.token_endpoint_auth_methods_supported).toContain('client_secret_post');
+    const client = await registerClient(OAUTH, {
+      metadata,
+      clientMetadata: {
+        client_name: 'Claude',
+        redirect_uris: [CALLBACK],
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'client_secret_post',
+      },
+      fetchFn,
+    });
+    expect(client.token_endpoint_auth_method).toBe('client_secret_post');
+    if (client.client_secret === undefined) throw new Error('registration issued no secret');
+    const sent: Request[] = [];
+    const recording = (input: string | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      sent.push(request.clone());
+      return handle(request);
+    };
+    const tokens = await exchangeAuthorization(OAUTH, {
+      metadata,
+      clientInformation: client,
+      authorizationCode: await consentCode(client.client_id, undefined),
+      codeVerifier: VERIFIER,
+      redirectUri: CALLBACK,
+      fetchFn: recording,
+    });
+    const exchanged = new URLSearchParams(await sent[0]?.text());
+    expect(exchanged.get('client_secret')).toBe(client.client_secret);
+    expect(sent[0]?.headers.get('authorization')).toBeNull();
+    const created = await tool(tokens.access_token, 'postApiProjects', { name: 'Confidential' });
+    expect(created.isError).toBe(false);
+    const listed = await tool(tokens.access_token, 'getApiProjects', {});
+    expect(listed.isError).toBe(false);
+    expect(projectNames(listed.text)).toContain('Confidential');
+    const refreshed = await refreshAuthorization(OAUTH, {
+      metadata,
+      clientInformation: client,
+      refreshToken: tokens.refresh_token ?? '',
+      fetchFn,
+    });
+    expect((await tool(refreshed.access_token, 'getApiProjects', {})).isError).toBe(false);
+
+    // Without its secret, the same client is refused, and so is an API key on either grant.
+    const withoutSecret = await oauthCall(
+      new Request(`${OAUTH}/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: refreshed.refresh_token ?? '',
+          client_id: client.client_id,
+        }),
+      }),
+    );
+    expect(withoutSecret.status).toBe(401);
+    const asKey = await oauthCall(
+      new Request(`${OAUTH}/token`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          authorization: `Basic ${btoa(`${MACHINE_CREDENTIAL}:${MACHINE_KEY}`)}`,
+        },
+        body: new URLSearchParams({
+          code: await consentCode(client.client_id, undefined),
+          code_verifier: VERIFIER,
+          grant_type: 'authorization_code',
+          redirect_uri: CALLBACK,
+        }),
+      }),
+    );
+    expect(await asKey.json()).toEqual({ error: 'invalid_grant' });
+    const asMachine = await oauthCall(
+      new Request(`${OAUTH}/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: CLIENT_CREDENTIALS_GRANT,
+          resource: MCP_URL,
+          client_id: client.client_id,
+          client_secret: client.client_secret,
+        }),
+      }),
+    );
+    expect(asMachine.status).toBe(401);
+    expect(await asMachine.json()).toEqual({ error: 'invalid_client' });
   });
 });
