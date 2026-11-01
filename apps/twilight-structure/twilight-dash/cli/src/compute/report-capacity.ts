@@ -342,6 +342,9 @@ export function sleepUnlessInterrupted(
   });
 }
 
+/** The one line `report-capacity` refuses with when its grammar is wrong. */
+export const usage = 'usage: twilight-dash report-capacity --config <owner-only file>';
+
 /**
  * `report-capacity --config <file>`: loads the owner-only configuration through `adapters`, then
  * runs {@link runReporter}. The grammar is exactly one `--config` and its path.
@@ -354,7 +357,7 @@ export async function reportCapacityCommand(
 ): Promise<never> {
   const path = argv.at(1);
   if (argv.length !== 2 || argv.at(0) !== '--config' || path === undefined || path.length === 0) {
-    throw new Error('usage: twilight-dash report-capacity --config <owner-only file>');
+    throw new Error(usage);
   }
   const configuration = await loadReporterConfiguration(path, adapters);
   return runReporter(configuration, deps);

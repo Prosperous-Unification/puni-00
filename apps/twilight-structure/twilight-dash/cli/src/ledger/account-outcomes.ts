@@ -13,7 +13,7 @@ const repeatedFlags = ['--claude-projects', '--codex-sessions'] as const;
 type SingleFlag = (typeof singleFlags)[number];
 type RepeatedFlag = (typeof repeatedFlags)[number];
 
-const usage =
+export const usage =
   'usage: dash account-outcomes --repository <path> --since <instant> --until <instant> --rate-card <path> --output <new-dir> [--claude-projects <dir>]... [--codex-sessions <dir>]...';
 
 interface Invocation {

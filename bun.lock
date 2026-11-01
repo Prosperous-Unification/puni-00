@@ -53,7 +53,6 @@
         "@nx/workspace": "23.2.1",
         "@opentelemetry/exporter-trace-otlp-proto": "^0.222.0",
         "@opentelemetry/sdk-trace-base": "^2.11.0",
-        "@optique/testing": "1.3.6",
         "@playwright/test": "^1.63.0",
         "@radix-ui/react-dialog": "^1.1.23",
         "@standard-schema/spec": "1.1.0",
@@ -718,11 +717,7 @@
 
     "@optique/core": ["@optique/core@1.3.6", "", {}, "sha512-BXVuVyxP9bg8FbyvBYrSHisnAeG3XTf1xcuUjAWgDWKfzZssMGbSrMdiv4tA+BK3+CrSo6no+uHWpiHh4HMKeg=="],
 
-    "@optique/discover": ["@optique/discover@1.3.6", "", { "dependencies": { "@optique/core": "1.3.6", "@optique/run": "1.3.6" }, "bin": { "optique-discover": "./dist/cli.js" } }, "sha512-22VPHFYpUHHp1Eq2DeczrT9lGpbi4nnygBqDAA2d2kkbgidfe++phbaWK2FP4evmqffJOYINeKpsvVbFMhJ3Xg=="],
-
     "@optique/run": ["@optique/run@1.3.6", "", { "dependencies": { "@optique/core": "1.3.6" } }, "sha512-uxlHO8vG/5ni1V+t+jdmYqiyYYY5uOevO/6U866oBpnlOxOGn2ZWIlPpDXAU3e5GRu4VecbeXoNff18yRDGoQw=="],
-
-    "@optique/testing": ["@optique/testing@1.3.6", "", { "dependencies": { "@optique/core": "1.3.6", "@optique/discover": "1.3.6", "@optique/run": "1.3.6" } }, "sha512-1qZnbvX4XEAt32rIp5Xs6/OAyEAfSVJh9lV6G5KH76Pq37dcgs9KzTS4H25Ozm6q+va4lthMvo90OLidi4WNwQ=="],
 
     "@oxc-project/types": ["@oxc-project/types@0.148.0", "", {}, "sha512-Nm4s/jB+4FpFsPhWGEC4h7rzksesmtnMXomo6rCMcg/b8zLQuOziRgkCS1fxDCXOlJB/6Q8oABOZ/OP6RIPj9A=="],
 

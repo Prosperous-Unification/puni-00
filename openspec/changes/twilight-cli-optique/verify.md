@@ -2,7 +2,17 @@
 
 ## Dash
 
-Tasks 1.1–1.4 on `feat/twilight-cli-optique-dash`, based on `plan/dash-host-jobs`.
+Tasks 1.1–1.4 on `feat/twilight-cli-optique-dash`, based on `plan/dash-host-jobs`. Task 1.1 is
+ticked on the spec's transitional clause (requirement 1: until its grammar is typed, a command
+whose module parses its own grammar passes its words through unchanged); tasks 1.5–1.9 type the
+rest.
+
+### Pass-through commands (shrinks per tasks 1.5–1.9)
+
+`bootstrap-authority`, `inspect-authority`, `recover-publication`, `submit-admission`,
+`render-observation-units`, `run-activation-checks`, `bootstrap-observation`,
+`migrate-observation`, `record-progress`, `record-progress-v2`, `account-outcomes`,
+`report-capacity`, `resources`, `mcp token`, `pool import`. Typed: `plan-enrollment`.
 
 ### Assumptions
 
@@ -32,11 +42,25 @@ refused `usage: mcp token --resource <url> …`. No test pinned that line.
   ``Unexpected option or subcommand: `--x`.`` where it read `Unsupported Dash flag: --x`.
 - **D5. `--flag=value` is accepted by `plan-enrollment`.** Optique's `option` always accepts the
   `=` spelling and has no switch to refuse it; the same eight values reach the planner in the same
-  order. Before, `--fleet=x` refused `Unsupported Dash flag: --fleet=x`.
+  order. Before, `--fleet=x` refused `Unsupported Dash flag: --fleet=x`. Stated by
+  `accepts the --flag=value spelling and plans the same arguments`.
 - **D6. `<command> --help` on a delegated command still reaches the command,** which refuses it
   in its usage line as before; `help <command>` prints the generated help.
 - **D7. `runDashArguments(argv, deps)`** parses then dispatches, for the in-process tests that
   hold an argv; it refuses `mcp`/`pool`, which only the entrypoint dispatches.
+- **D8. Help is byte-stable.** `run` gets `colors: false` and `maxWidth: 120`, so neither the
+  terminal's colours nor its width (`process.stdout.columns`, `COLUMNS`) changes help or refusals.
+- **D9. Delegated grammars are tied to their modules.** `delegatedGrammars` in `cli-parser.ts`
+  holds each delegated command's grammar for `help <command>`; one test per command asserts the
+  module's exported usage line ends with `<words> <grammar>`. The parser cannot import the usage
+  constants, because `cli-parser.ts` loads on `mcp token`'s fast path and the modules pull in the
+  command graph. `resources` has no usage line; its action list is compared with the actions its
+  module's refusal names.
+- **D10.** `help`/`completion` refusals keep only the first sentence when Optique appends a help
+  page (`completion` without a shell): `usage: twilight-dash completion (Missing shell name for
+completion.)`.
+- **D11.** Only `@optique/core` and `@optique/run` are root dependencies (C1); `@optique/testing`
+  was unused and is removed, and with it `@optique/discover` leaves the lock.
 
 ### Changed pinned lines
 
@@ -68,13 +92,17 @@ name appear in it), so each now pins the reason.
 
 ### Faults (each watched red, then restored)
 
-| Fault injected                                                    | Test                                                                                    | Observed                                                                  |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `onExit` removed from `run` (falls to `process.exit`)             | `the installed entrypoint refuses an apply command`, `… refuses a valueless flag …`     | stderr `""` instead of `error: Unsupported Dash command: apply\n`; 2 fail |
-| unknown-command mapping removed (`refusalOf` returns the reason)  | `the installed entrypoint refuses an apply command`, `refuses unsupported command %s …` | ``error: Unexpected option or subcommand: `apply`.``; 6 fail              |
-| `report-capacity` removed from the parser, kept in `dashHandlers` | `help names every dispatched command and no other`                                      | diff `- "report-capacity"`                                                |
-| value `pattern` removed from `flagValue`                          | `refuses a valueless or empty flag before planning`                                     | no refusal (planner ran with `''`)                                        |
-| `runDash` handler-table guard removed                             | `runDash refuses a command no handler takes`                                            | `handler is not a function…` instead of `Unsupported Dash command: apply` |
+| Fault injected                                                                  | Test                                                                                    | Observed                                                                                                 |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `onExit` removed from `run` (falls to `process.exit`)                           | `the installed entrypoint refuses an apply command`, `… refuses a valueless flag …`     | stderr `""` instead of `error: Unsupported Dash command: apply\n`; 2 fail                                |
+| unknown-command mapping removed (`refusalOf` returns the reason)                | `the installed entrypoint refuses an apply command`, `refuses unsupported command %s …` | ``error: Unexpected option or subcommand: `apply`.``; 6 fail                                             |
+| `report-capacity` removed from the parser, kept in `dashHandlers`               | `help names every dispatched command and no other`                                      | diff `- "report-capacity"`                                                                               |
+| value `pattern` removed from `flagValue`                                        | `refuses a valueless or empty flag before planning`                                     | no refusal (planner ran with `''`)                                                                       |
+| `maxWidth: 120` removed from `run`                                              | `help parity holds under COLUMNS=30`                                                    | help printed under `COLUMNS=30` differed from the in-process bytes (per-entry command parity still held) |
+| `report-capacity`'s module usage changed to `--config <file>`                   | `help shows each delegated module grammar > report-capacity`                            | expected to end with ` report-capacity --config <owner-only file>`; 1 fail                               |
+| first-sentence cut removed from the `completion` refusal                        | `completion without a shell refuses in one short line`                                  | message carried the whole help page                                                                      |
+| `report-capacity` removed from the parser (re-watched after the parity rewrite) | `help names every dispatched command and no other`                                      | diff `- "report-capacity"`                                                                               |
+| `runDash` handler-table guard removed                                           | `runDash refuses a command no handler takes`                                            | `handler is not a function…` instead of `Unsupported Dash command: apply`                                |
 
 ### Skipped or unverified
 

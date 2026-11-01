@@ -60,14 +60,50 @@ const planEnrollment = command(
 );
 
 /**
+ * The grammar each delegated command's module documents: the tail of that module's usage line
+ * after the command words, shown by `help <command>`. `cli.test.ts` compares each with the
+ * module's exported usage, so a module grammar changed alone fails a test.
+ */
+export const delegatedGrammars = {
+  'bootstrap-authority': '<repository>',
+  'inspect-authority': '<repository> [--session <id>]',
+  'recover-publication': '<repository> --integration-id <id>',
+  'submit-admission': '<repository> <packet-json> <staged|committed> <revision-or-base>',
+  'render-observation-units': '<layout.json> <new-dir>',
+  'run-activation-checks':
+    '--candidate-repository <checkout> --candidate-sha <40-hex sha> --candidate-policy <committed path> --check-runs <new directory>',
+  'bootstrap-observation': '<service.json>',
+  'migrate-observation': '<service.json>',
+  'record-progress': '--entries <path> --plan-reference <path> --tasks <path> --output <path>',
+  'record-progress-v2': '--entries <path> --plan-reference <path> --tasks <path> --output <path>',
+  'account-outcomes':
+    '--repository <path> --since <instant> --until <instant> --rate-card <path> --output <new-dir> [--claude-projects <dir>]... [--codex-sessions <dir>]...',
+  'report-capacity': '--config <owner-only file>',
+  resources:
+    'init|create|exec|run|inspect|cleanup|sweep|sync|watch --config <path> [flags] [-- <command>...]',
+  'mcp token':
+    '--resource <url> (--key-file <path> | --assertion-file <path> | --github-actions-audience <audience>) [--run <id>]',
+  'pool import': '<pool-keys.json> --store <directory>',
+} as const;
+
+type DelegatedWords = keyof typeof delegatedGrammars;
+
+function described(words: DelegatedWords, brief: string) {
+  return {
+    brief: [text(brief)],
+    description: [text(`${brief} Arguments: ${delegatedGrammars[words]}`)],
+  };
+}
+
+/**
  * A command whose module parses its own arguments: the tokens after its name reach that module
  * verbatim, so its grammar and refusal wording stay where they are documented and tested.
  */
-function delegated<const Name extends string>(name: Name, brief: string, grammar: string) {
+function delegated<const Name extends DelegatedWords>(name: Name, brief: string) {
   return command(
     name,
     object({ command: constant(name), argv: passThrough({ format: 'greedy' }) }),
-    { brief: [text(brief)], description: [text(`${brief} Arguments: ${grammar}`)] },
+    described(name, brief),
   );
 }
 
@@ -75,8 +111,8 @@ function delegated<const Name extends string>(name: Name, brief: string, grammar
 function namespaced<const Space extends string, const Name extends string>(
   space: Space,
   name: Name,
+  words: DelegatedWords & `${Space} ${Name}`,
   brief: string,
-  grammar: string,
 ) {
   return command(
     space,
@@ -87,7 +123,7 @@ function namespaced<const Space extends string, const Name extends string>(
         subcommand: constant(name),
         argv: passThrough({ format: 'greedy' }),
       }),
-      { brief: [text(brief)], description: [text(`${brief} Arguments: ${grammar}`)] },
+      described(words, brief),
     ),
     { brief: [text(brief)] },
   );
@@ -99,60 +135,28 @@ const dispatchedCommands = [
   delegated(
     'bootstrap-authority',
     'Create the repository authority; the only command that creates one.',
-    '<repository>',
   ),
-  delegated(
-    'inspect-authority',
-    'Print the authority state, read-only.',
-    '<repository> [--session <id>]',
-  ),
-  delegated(
-    'recover-publication',
-    'Finish an interrupted publication from its durable record.',
-    '<repository> --integration-id <id>',
-  ),
+  delegated('inspect-authority', 'Print the authority state, read-only.'),
+  delegated('recover-publication', 'Finish an interrupted publication from its durable record.'),
   delegated(
     'submit-admission',
     "Freeze a bound packet's candidate and print its submission report.",
-    '<repository> <packet-json> <staged|committed> <revision-or-base>',
   ),
   delegated(
     'render-observation-units',
     'Render the uninstalled observation service units into a new directory.',
-    '<layout.json> <new-dir>',
   ),
   delegated(
     'run-activation-checks',
     "Run a candidate's activation checks and write the CheckRun ledger.",
-    '--candidate-repository <checkout> --candidate-sha <sha> --candidate-policy <path> --check-runs <new-dir>',
   ),
-  delegated('bootstrap-observation', 'Create the observation store.', '<service.json>'),
-  delegated('migrate-observation', 'Migrate the observation store to v10.', '<service.json>'),
-  delegated(
-    'record-progress',
-    'Record operator progress assertions as a receipt.',
-    '--entries <path> --plan-reference <path> --tasks <path> --output <path>',
-  ),
-  delegated(
-    'record-progress-v2',
-    'Record operator progress assertions as a plan-bound receipt.',
-    '--entries <path> --plan-reference <path> --tasks <path> --output <path>',
-  ),
-  delegated(
-    'account-outcomes',
-    "Write the period's efficiency breakdown from harness logs.",
-    '--repository <path> --since <instant> --until <instant> --rate-card <path> --output <new-dir> [--claude-projects <dir>]... [--codex-sessions <dir>]...',
-  ),
-  delegated(
-    'report-capacity',
-    'Measure each bound resource and report it to WBS until a refusal.',
-    '--config <owner-only file>',
-  ),
-  delegated(
-    'resources',
-    'Manage disposable directories, worktrees and their commands.',
-    'init|create|exec|run|inspect|cleanup|sweep|sync|watch --config <path> [flags] [-- <command>...]',
-  ),
+  delegated('bootstrap-observation', 'Create the observation store.'),
+  delegated('migrate-observation', 'Migrate the observation store to v10.'),
+  delegated('record-progress', 'Record operator progress assertions as a receipt.'),
+  delegated('record-progress-v2', 'Record operator progress assertions as a plan-bound receipt.'),
+  delegated('account-outcomes', "Write the period's efficiency breakdown from harness logs."),
+  delegated('report-capacity', 'Measure each bound resource and report it to WBS until a refusal.'),
+  delegated('resources', 'Manage disposable directories, worktrees and their commands.'),
 ] as const;
 
 /** The commands `entrypoint.ts` dispatches before it loads `cli.ts`. */
@@ -160,15 +164,10 @@ const entrypointCommands = [
   namespaced(
     'mcp',
     'token',
+    'mcp token',
     "Print a fresh WBS MCP bearer as a header map for Claude Code's headersHelper.",
-    '--resource <url> (--key-file <path> | --assertion-file <path> | --github-actions-audience <aud>) [--run <id>]',
   ),
-  namespaced(
-    'pool',
-    'import',
-    "Store an agent pool's keys for mcp token.",
-    '<pool-keys.json> --store <directory>',
-  ),
+  namespaced('pool', 'import', 'pool import', "Store an agent pool's keys for mcp token."),
 ] as const;
 
 const commands = [...dispatchedCommands, ...entrypointCommands];
@@ -209,14 +208,22 @@ function refusalOf(args: readonly string[], errorText: string): string {
   const name = args.at(0);
   // Proof: returning `reason` unmapped here failed `the installed entrypoint refuses an apply
   // command` with Optique's "Unexpected option or subcommand: `apply`." (2026-11-01).
-  if (name === 'help' || name === 'completion') return `usage: ${programName} ${name} (${reason})`;
+  if (name === 'help' || name === 'completion') {
+    // `completion` without a shell follows its first sentence with its whole help page.
+    // Proof: returning `reason` whole here failed `completion without a shell refuses in one
+    // short line` with the help page in the line (2026-11-01).
+    const brief = reason.includes('Usage:') ? /^[^.]*\./u.exec(reason)?.[0] : undefined;
+    return `usage: ${programName} ${name} (${brief ?? reason})`;
+  }
   const usage = name === undefined ? undefined : usageOf(name);
   if (usage === undefined) return `Unsupported Dash command: ${String(name)}`;
   return `${usage.replace(/\s+/gu, ' ')} (${reason})`;
 }
 
 /** The exit that ends `run` after it printed help or a completion script; never escapes. */
-class Printed extends Error {}
+class Printed extends Error {
+  override readonly name = 'Printed';
+}
 
 /**
  * Parses one Dash command line through Optique's `run`, with every sink injected: help and
@@ -243,7 +250,12 @@ export function readDashInvocation(
       onExit: (code) => {
         throw code === 0 ? new Printed() : new UsageRefusal(refusalOf(args, errorText));
       },
+      // The two byte-stability knobs: without them `run` reads the terminal's colour support and
+      // width (`process.stdout.columns`, `COLUMNS`), so help and refusals would vary per terminal.
+      // Proof: dropping `maxWidth` failed `help parity holds under COLUMNS=30`: the help printed
+      // under `COLUMNS=30` differed from the in-process bytes (2026-11-01).
       colors: false,
+      maxWidth: 120,
       aboveError: 'none',
       help: 'both',
       completion: 'command',

@@ -6,7 +6,16 @@ Each Twilight CLI (Twilight Dash, Twilight Burokrat, Twilight Navigator) SHALL d
 commands as `@optique/core` parsers in one module per CLI and SHALL run them through
 `@optique/run` with injected stdout, stderr and exit, so the command handlers receive a typed
 object and never read `argv`. No command's name, flags, files, outputs or semantics SHALL
-change.
+change. Until its grammar is typed, a command whose module parses its own grammar SHALL pass the
+words after its name through unchanged; the list of such commands is recorded in verify.md and
+shrinks per tasks 1.5 to 1.9.
+
+#### Scenario: A delegated command receives its words unchanged
+
+- **WHEN** `twilight-dash inspect-authority <repository> --session <id>` runs while
+  `inspect-authority` still parses its own grammar
+- **THEN** its module receives `<repository> --session <id>` exactly and refuses or accepts them
+  as before
 
 #### Scenario: The same command, the same output
 
@@ -50,8 +59,10 @@ accepts and no other.
 
 #### Scenario: Help lists every command
 
-- **WHEN** `twilight-dash --help` runs
-- **THEN** stdout names every command `runDash` dispatches and the exit code is 0
+- **WHEN** `twilight-dash --help` runs, at any terminal width
+- **THEN** stdout names every command Dash dispatches (those `runDash` dispatches, and `mcp` and
+  `pool`, which the entrypoint dispatches) and no other, a delegated command's help shows its
+  module's documented grammar, and the exit code is 0
 
 #### Scenario: Completion
 

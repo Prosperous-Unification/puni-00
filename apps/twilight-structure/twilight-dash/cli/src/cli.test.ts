@@ -5,8 +5,20 @@ import { join } from 'node:path';
 import type { Usage } from '@optique/core';
 import { afterAll, describe, expect, test } from 'bun:test';
 
+import {
+  bootstrapUsage as bootstrapObservationUsage,
+  migrateUsage as migrateObservationUsage,
+} from './activation/observation-commands';
+import { usage as renderObservationUnitsUsage } from './activation/units/bundle';
+import {
+  bootstrapUsage as bootstrapAuthorityUsage,
+  inspectUsage as inspectAuthorityUsage,
+  recoverUsage as recoverPublicationUsage,
+} from './authority/authority-commands';
 import { openAuthority } from './authority/authority-store';
 import { acquireClaims } from './authority/claims';
+import { usage as submitAdmissionUsage } from './authority/submit-admission';
+import { usage as runActivationChecksUsage } from './check-runs/run-activation-checks';
 import {
   type DashDependencies,
   dashHandlers,
@@ -14,7 +26,13 @@ import {
   runDash,
   runDashArguments,
 } from './cli';
-import { dashParser, readDashInvocation } from './cli-parser';
+import { dashParser, delegatedGrammars, readDashInvocation, UsageRefusal } from './cli-parser';
+import { usage as reportCapacityUsage } from './compute/report-capacity';
+import { usage as accountOutcomesUsage } from './ledger/account-outcomes';
+import { USAGE as poolImportUsage } from './mcp/pool-import';
+import { USAGE as mcpTokenUsage } from './mcp/token-command';
+import { progressUsage } from './progress/record-progress';
+import { runResources } from './resources/command';
 
 const scratchRoots: string[] = [];
 
@@ -114,6 +132,15 @@ describe('Dash enrollment planning dispatcher', () => {
     const planner = observePlanner();
     await runDashArguments(
       ['plan-enrollment', ...enrollmentFlags.slice(8), ...enrollmentFlags.slice(0, 8)],
+      dependencies(planner.run),
+    );
+    expect(planner.calls).toEqual([['--operation', 'enroll', ...enrollmentFlags]]);
+  });
+
+  test('accepts the --flag=value spelling and plans the same arguments', async () => {
+    const planner = observePlanner();
+    await runDashArguments(
+      ['plan-enrollment', `--fleet=${enrollmentFlags[1]}`, ...enrollmentFlags.slice(2)],
       dependencies(planner.run),
     );
     expect(planner.calls).toEqual([['--operation', 'enroll', ...enrollmentFlags]]);
@@ -328,6 +355,8 @@ test('unknown commands and flags refuse before any store open', async () => {
   }
 });
 
+// Spawns the entrypoint, which loads the whole command graph: 5 s idle on the laptop, so the
+// 5 s Bun default timed it out under load (docs/test-budgets.md: 3 x idle, rounded up).
 test('a refused command prints one line on stderr and exits 1', () => {
   const root = scratchRepository();
   const execution = Bun.spawnSync({
@@ -342,7 +371,7 @@ test('a refused command prints one line on stderr and exits 1', () => {
   expect(execution.stderr.toString('utf8')).toBe(
     `error: authority absent: ${join(root, '.git', 'module-wiki')}; run \`twilight-dash bootstrap-authority <repository>\` to create it [ENOENT]\n`,
   );
-});
+}, 20_000);
 
 test('runDash refuses a command no handler takes', async () => {
   const planner = observePlanner();
@@ -359,8 +388,9 @@ test('runDash refuses a command no handler takes', async () => {
   expect(planner.calls).toEqual([]);
 });
 
-/** The commands `entrypoint.ts` dispatches before it loads `cli.ts`. */
-const entrypointCommands = ['mcp', 'pool'];
+/** The namespaced commands `entrypoint.ts` dispatches before it loads `cli.ts`, as two words. */
+const entrypointWords = Object.keys(delegatedGrammars).filter((words) => words.includes(' '));
+const entrypointCommands = entrypointWords.map((words) => words.split(' ')[0]);
 
 function printedBy(args: readonly string[]): string {
   let stdout = '';
@@ -371,31 +401,81 @@ function printedBy(args: readonly string[]): string {
   return stdout;
 }
 
-/** The first word of each top-level command the root parser declares, through nested `or`s. */
-function parserCommands(usage: Usage = dashParser.usage): string[] {
+/**
+ * The first word after `twilight-dash` in each usage entry of a help page. The usage block ends
+ * at the first blank line; entries are matched across line breaks, so wrapping cannot hide one.
+ */
+function helpCommands(help: string): string[] {
+  const [usageBlock] = help.split('\n\n');
+  const named = new Set(
+    [...usageBlock.matchAll(/twilight-dash\s+(\S+)/gu)].map((match) => match[1]),
+  );
+  for (const generated of ['help', 'completion', '--help']) named.delete(generated);
+  return [...named].sort();
+}
+
+/** The command words of each top-level branch the root parser declares, through nested `or`s. */
+function parserCommands(usage: Usage = dashParser.usage): string[][] {
   return usage.flatMap((term) =>
     term.type === 'exclusive'
       ? term.terms.flatMap((branch) => {
           const [first] = branch;
-          if (first.type === 'command') return [first.name];
-          return first.type === 'exclusive' ? parserCommands([first]) : [];
+          if (first.type === 'exclusive') return parserCommands([first]);
+          const words = branch.flatMap((part) => (part.type === 'command' ? [part.name] : []));
+          return words.length === 0 ? [] : [words];
         })
       : [],
   );
 }
 
+const dispatched = [...Object.keys(dashHandlers), ...entrypointCommands].sort();
+
 describe('Dash help and completion', () => {
   test('help names every dispatched command and no other', () => {
-    const help = printedBy(['--help']);
-    const named = new Set(
-      [...help.matchAll(/^(?:Usage:)? +twilight-dash (\S+)/gmu)].map((match) => match[1]),
-    );
-    for (const generated of ['help', 'completion', '--help']) named.delete(generated);
-    const dispatched = [...Object.keys(dashHandlers), ...entrypointCommands].sort();
     // Proof: removing `report-capacity` from the parser's command list (not from `dashHandlers`)
     // failed this assertion with `- "report-capacity"` (2026-11-01).
-    expect([...named].sort()).toEqual(dispatched);
-    expect(parserCommands().sort()).toEqual(dispatched);
+    expect(helpCommands(printedBy(['--help']))).toEqual(dispatched);
+    expect(
+      parserCommands()
+        .map(([first]) => first)
+        .sort(),
+    ).toEqual(dispatched);
+  });
+
+  test('the namespaced commands carry exactly their delegated subcommand', () => {
+    const namespaced = parserCommands()
+      .filter((words) => words.length > 1)
+      .map((words) => words.join(' '))
+      .sort();
+    expect(namespaced).toEqual([...entrypointWords].sort());
+    expect(entrypointWords.sort()).toEqual(['mcp token', 'pool import']);
+    expect(helpCommands(printedBy(['help', 'mcp']))).toEqual(['mcp']);
+    expect(
+      [...printedBy(['help', 'mcp']).matchAll(/twilight-dash mcp (\S+)/gu)].map(
+        (match) => match[1],
+      ),
+    ).toEqual(['token']);
+    expect(
+      [...printedBy(['help', 'pool']).matchAll(/twilight-dash pool (\S+)/gu)].map(
+        (match) => match[1],
+      ),
+    ).toEqual(['import']);
+  });
+
+  test('help parity holds under COLUMNS=30', () => {
+    const inProcess = printedBy(['--help']);
+    for (const columns of ['30', '400']) {
+      const execution = Bun.spawnSync({
+        cmd: [process.execPath, join(import.meta.dir, 'entrypoint.ts'), '--help'],
+        env: { ...process.env, COLUMNS: columns },
+        stderr: 'pipe',
+        stdout: 'pipe',
+      });
+      expect(execution.exitCode, columns).toBe(0);
+      const help = execution.stdout.toString('utf8');
+      expect(helpCommands(help), columns).toEqual(dispatched);
+      expect(help, columns).toBe(inProcess);
+    }
   });
 
   test('help <command> prints that command on stdout', () => {
@@ -403,6 +483,12 @@ describe('Dash help and completion', () => {
       'Usage: twilight-dash inspect-authority',
     );
     expect(printedBy(['help', 'plan-enrollment'])).toContain('--known-hosts-sha256 SHA256');
+  });
+
+  test('completion without a shell refuses in one short line', () => {
+    expect(() => readDashInvocation(['completion'], () => undefined)).toThrow(
+      new UsageRefusal('usage: twilight-dash completion (Missing shell name for completion.)'),
+    );
   });
 
   test('the installed entrypoint prints help and a zsh completion script, exit 0', () => {
@@ -418,5 +504,47 @@ describe('Dash help and completion', () => {
       if (args[0] === 'completion') expect(stdout).toStartWith('#compdef twilight-dash\n');
       else expect(stdout, args.join(' ')).toContain('Usage: twilight-dash ');
     }
+  });
+});
+
+/** Each delegated module's usage line, which its own refusals print. */
+const moduleUsages: Readonly<Record<Exclude<keyof typeof delegatedGrammars, 'resources'>, string>> =
+  {
+    'bootstrap-authority': bootstrapAuthorityUsage,
+    'inspect-authority': inspectAuthorityUsage,
+    'recover-publication': recoverPublicationUsage,
+    'submit-admission': submitAdmissionUsage,
+    'render-observation-units': renderObservationUnitsUsage,
+    'run-activation-checks': runActivationChecksUsage,
+    'bootstrap-observation': bootstrapObservationUsage,
+    'migrate-observation': migrateObservationUsage,
+    'record-progress': progressUsage(1),
+    'record-progress-v2': progressUsage(2),
+    'account-outcomes': accountOutcomesUsage,
+    'report-capacity': reportCapacityUsage,
+    'mcp token': mcpTokenUsage,
+    'pool import': poolImportUsage,
+  };
+
+describe('help shows each delegated module grammar', () => {
+  test.each(Object.entries(moduleUsages))('%s', (words, usage) => {
+    // Proof: changing `report-capacity`'s module usage to `--config <file>` failed this test
+    // for `report-capacity` (2026-11-01).
+    expect(usage).toEndWith(` ${words} ${delegatedGrammars[words as keyof typeof moduleUsages]}`);
+  });
+
+  test('resources: the actions its module accepts', async () => {
+    const refusal = await runResources(
+      [],
+      FIXED_CLOCK,
+      () => undefined,
+      () => {
+        throw new Error('resources connected before refusing');
+      },
+    ).catch((cause: unknown) => (cause instanceof Error ? cause.message : String(cause)));
+    const actions = String(refusal)
+      .replace(/^resources requires /u, '')
+      .split(/, (?:or )?/u);
+    expect(delegatedGrammars.resources.split(' ')[0].split('|')).toEqual(actions);
   });
 });

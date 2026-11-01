@@ -31,7 +31,7 @@ export interface McpTokenDependencies {
   readonly write: (text: string) => unknown;
 }
 
-const USAGE =
+export const USAGE =
   'usage: mcp token --resource <url> (--key-file <path> | --assertion-file <path> | --github-actions-audience <audience>) [--run <id>]';
 const FLAGS = new Set([
   '--resource',
