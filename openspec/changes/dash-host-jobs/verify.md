@@ -379,3 +379,162 @@ review fixes.
 - Pre-existing flake: `unknown surviving child identities stay blocked until exact evidence is
 restored` (runtime.test.ts) failed once on the untouched base under this host's load (its
   readiness file did not appear within 6 s); see the test run below for its status here.
+
+## Slice 3 — measured runs, container bounds, status (tasks 3.1–3.3)
+
+Branch `feat/dash-host-jobs-3-run` from `plan/dash-host-jobs` at `056466709` (slices 1 and 2,
+the race-test fix, the Dash CLI on Optique), 2026-11-01, on the 24-core workstation (Linux 7.0,
+systemd 255, cgroup v2 delegating `cpu memory pids` to the user manager, Docker 29.7.2, another
+worker beside it). Code: `apps/twilight-structure/twilight-dash/cli/src/ops/` (`commands.ts`,
+`job-run.ts`, `scope.ts`, `containers.ts`, `run-records.ts`, `catalogue.ts`, `status.ts`,
+`refusal.ts`), the `ops` grammar in `src/cli-parser.ts`, its handler in `src/cli.ts`, exit 64
+for an `ops` usage refusal in `src/entrypoint.ts`. Tests: `src/ops/job-run.test.ts`,
+`src/ops/status.test.ts` (fixture `src/ops/ops.test.fixture.ts`) and three `ops` tests in
+`src/cli.test.ts`. Nothing in `src/compute`, `src/resources/runtime.ts`, `@wbs/contracts`,
+be-01, fe-01 or `bin/` changed.
+
+### Assumptions (open decisions taken per design.md; overrulable by id)
+
+- **S3-A1 Typed namespace.** `ops` is parsed whole by Optique (J17), as `plan-enrollment` is:
+  each leaf is `object({ command: 'ops', words: 'job run', … })`, and `src/ops/commands.ts`'s
+  `opsHandlers` is a mapped type over `words`, held equal to the parser by a test. `ops` sits in
+  the root `or` beside the delegated list, which is at Optique's fifteen-parser limit with 14.
+  `calibrate`, `propose`, `audit` and `switch-mode` are not declared: help would list commands
+  that cannot run; slices 4 and 6 add them.
+- **S3-A2 Checkout and revision.** The catalogue is the one in the checkout holding the
+  current directory, read with `git show HEAD:infra/jobs/catalogue.json`, never the working
+  tree; HEAD is the payload SHA the record pins. Schema 3's configuration is the runtime's
+  closed shape (`onUndeclaredKey('reject')`, `runtime.ts`), so it names no enrolled checkouts
+  yet; which checkout a launcher stands in is `run_heavy_job`'s and the `gate_host` role's
+  (6.1, 6.3). An absent catalogue, unknown type or argument mismatch is 64; a malformed
+  catalogue is 70.
+- **S3-A3 Payload words.** The words after `--` are the payload: the first is the program, the
+  rest must match the argument profile. The first word is not compared with the catalogue's
+  `entrypoint`: J15 splits the gate into outer launcher and payload in 6.2, and the spec's own
+  scenario runs `--type test-queued -- true`.
+- **S3-A4 Run records.** One owner-only SQLite file, `<root>/.dash/host-job-runs.sqlite`, with a
+  `runs` table (the start pinned at the gate, the outcome at exit) and a `samples` table (one
+  row per sample), not a JSON column: the ledger's job snapshot is the runtime's closed shape.
+  `ops pool init` creates it, as does the first run while the ledger holds no host job;
+  missing beside a ledger that has host jobs is 70, never recreated.
+- **S3-A5 Launch.** `ResourceRuntime.run` is bound to the worktree `uses` table and
+  `runtime.ts` belongs to slice 5's worker, so `src/ops/job-run.ts` reproduces its FD-gate
+  protocol over the host-job seams: `systemd-run` is spawned detached (its own session) and
+  execs `/bin/sh` reading `start` from fd 3; `recordHostJobLaunch` persists the leader's
+  identity right after spawn, then the scope is awaited in `/proc/<pid>/cgroup`, the counters
+  are read and the gate sample stored, and only then is `start` written. The gated shell stays
+  the session leader and runs the payload in the foreground, so its status is the payload's
+  own (128 + signal); it reports it on fd 4 and keeps the scope occupied until the launcher
+  writes `done` after the exit sample (the observation boundary). A no-op trap keeps the shell
+  alive through a forwarded SIGINT/SIGTERM/SIGHUP; the payload gets default dispositions.
+  Extracting one launcher for worktree uses and host jobs is follow-up work in `runtime.ts`.
+- **S3-A6 Refusals before and at the gate.** "No user manager" is found by a throwaway probe
+  scope (`dash-probe-<uuid>`, the job's memory properties, `true`) before the ticket, so it
+  reserves nothing. A refusal after admission (scope not started within 15 s, a counter
+  unreadable, the run record unwritable at the gate) closes the gate unopened: the shell exits
+  125 without running the payload, the exit is recorded and the job settles on its terminal
+  evidence (released in the test). `--expand-environment=no` and `--collect` need systemd 254
+  or later; h2puni and h4claw run Ubuntu 24.04 (systemd 255), read from design.md, not checked
+  on the hosts.
+- **S3-A7 Exit codes and flags.** An `ops` usage refusal exits 64 (the entrypoint keeps 1 for
+  every other command); an interrupted waiter 130 or 143 with its ticket withdrawn; an
+  unusable configuration or ledger 70. `--config` is required (no default path: J12's shim
+  passes the fixed one); `--wait-seconds` defaults to 0 and `--poll-seconds` to 5 within 1 to
+  30, as the shell lock; `--label` defaults to `unlabeled`.
+- **S3-A8 Record identity.** Host class `linux-<arch>-<nproc>c-<floor MemTotal GiB>g`;
+  descriptor digest the SHA-256 of the catalogue entry's JSON as parsed.
+- **S3-A9 Docker reading.** `src/compute/docker.ts`'s `parseContainerIds` and `sumLabelled`
+  are module-private and `src/compute` is slice 5's, so `src/ops/containers.ts` reads Docker
+  over `compute/execution.ts`'s exported `spawnClient` and `execute`: a `docker events` stream
+  of `create` events from the gate instant, each container judged at once by its labels and
+  `docker inspect`'s `HostConfig.Memory` and `NanoCpus` (only `--cpus` counts as a CPU bound),
+  a closing replay of the window for anything the stream had not delivered, and per sample
+  `docker ps --filter label=puni.job=<id>` plus `docker stats --no-stream`. Verdicts: `bounded`,
+  `unlabelled`, `unbounded`, `unverified` (gone before its bound was read, or the replay
+  failed); a container labelled with another job is that job's. Settlement's evidence is "no
+  running container carries the label".
+- **S3-A10 `watch` and containers.** `watch` still settles with `declaredContainersOnly`
+  (a `runtime.ts` change): a declared-bound job whose launcher died stays charged until an
+  operator settles it. Recorded in `docs/resources.md`.
+- **S3-A11 Fifth counter.** `memory.events` `high` is read with the four counters and required
+  at the gate like them: J9's proposal excludes throttled runs by it.
+- **S3-A12 Observe mode.** `ops job run` does not yet run under the shell lock's queue protocol
+  (J12); `run_heavy_job` brings that in 6.1, before any host is enrolled, and with it the
+  spec's `with-heavy-lock.sh status` half of "One running, one waiting". Nothing in `bin/`
+  changed, so that command's first line is untouched.
+- **S3-A13 Output and settlement.** The payload keeps stdout and stderr; Dash's own lines go to
+  stderr as `ops job: …`. The launcher settles for up to 30 seconds, then leaves what is still
+  charged to `watch`, one line per entry either way.
+- **S3-A14 Test isolation.** The tests run inside a private user and PID namespace that maps
+  this account to itself (`--map-user`), not to root: a mapped root's `CAP_DAC_OVERRIDE` would
+  read a mode-000 `memory.peak` anyway (checked). Real-scope tests skip, named with the probe's
+  diagnostic, where `systemd-run --user --scope` fails (a CI runner without a user manager);
+  container tests skip, named, without a local daemon holding `busybox:1.37.0-musl` (never
+  pulled). The wrapper prints the inner results so a skip stays visible.
+
+### Fault injection
+
+Each fault was applied by exact text replacement from a scratch script outside the repository,
+the named file run (`bun test`, CLAUDECODE unset; the namespace wrapper reruns the file
+inside), and the file restored byte for byte, its SHA-256 checked. All against the final code.
+
+| Fault injected                                                              | Test that went red                                                                           | Observed                                                             |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| scope probe result ignored (stub `systemd-run`: "Failed to connect to bus") | `refuses 70 when the user manager is unavailable, nothing reserved`                          | job admitted; refused only at launch, "launch identity … unrecorded" |
+| `systemd-run` absence unchecked                                             | `refuses 70 before admission when systemd-run is absent`                                     | `Executable not found in $PATH: "null"`, no 70                       |
+| gate-sample refusal skipped (`memory.peak` mode 000 in the real scope)      | `refuses 70 when memory.peak is unreadable at the gate, the payload never runs`              | no refusal: the payload ran unmeasured                               |
+| observation boundary dropped (`read done <&3` → `:`)                        | `a one-second job is still measured`, `a gate is measured`                                   | exit sample `scope … torn down before the exit sample`               |
+| container memory and cpu bound checks dropped                               | `an unbounded container makes the run's attribution incomplete`                              | `attributionIncomplete` false                                        |
+| `ops job audit` added to the parser, not to `opsHandlers`                   | `every ops command the parser declares has a handler, and every handler a command`           | `+ "job audit"`                                                      |
+| catalogue read from the working tree                                        | `reads the catalogue at HEAD, not the working tree`                                          | the uncommitted type was found, no refusal                           |
+| unknown-type check dropped                                                  | `an uncatalogued type exits 64 …`, `reads the catalogue at HEAD …`                           | `undefined is not an object (evaluating 'jobType.argumentProfile')`  |
+| run records recreated beside a ledger with host jobs                        | `refuses 70 run records missing beside a ledger with host jobs`                              | no refusal: records recreated and the job run                        |
+| `docker` absence unchecked for a declared bound                             | `refuses 70 before admission when docker is absent and a bound is declared`                  | `Executable not found in $PATH: "null"`                              |
+| `runOps` handler guard dropped                                              | `runOps refuses ops words no handler takes`                                                  | `handler is not a function`                                          |
+| entrypoint exits 1 for an `ops` usage refusal                               | `an ops usage refusal exits 64; other commands still exit 1`                                 | expected 64, received 1                                              |
+| status peak dropped                                                         | `one running, one waiting: the gate with its tree and peak, then the build`                  | running line read `peak unmeasured`                                  |
+| sample timer left uncleared                                                 | `the installed entrypoint runs a job and passes its status`                                  | 15.49 s for a payload that exits at once (bound 9.5 s)               |
+| exit sample's empty-scope check never refuses (scope torn down underneath)  | `a scope torn down early is a recorded telemetry failure; the status is still the payload s` | `telemetryFailure` null                                              |
+| ledger write failure rethrown (payload opens the managed root to 0755)      | `a ledger write failure is recorded apart; the status is still the payload's`                | rejected `resource root must be owner-only` instead of returning 4   |
+
+The negatives the brief named map to rows 1 (stub `systemd-run`), 3 (`memory.peak`), 15 (scope
+torn down early: the payload's 3 still returned), 5 (bound check) and 6 (parser without
+handler).
+
+### Commands
+
+Fresh on 2026-11-01/02, worktree root, final code (after the lint boundary fix); trimmed.
+
+| Command                                                                                                            | Result                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run twilight-dash:test --skip-nx-cache`                       | exit 0, `Successfully ran target test for project twilight-dash` (28m26s): `4186 pass, 0 fail, Ran 4186 tests across 126 files`; `job-run.test.ts in a private Linux namespace` ✓ 25.5 s (24 inside), `status.test.ts …` ✓ 4.2 s (3 inside), `host-jobs.test.ts …` ✓ |
+| first run of the same target, before the lint fix                                                                  | exit 1: `4185 pass, 1 fail`, the slice-2 test `a replaced tmp directory or symlink stays charged and untouched` (see below); it passed 3 of 3 runs alone and in the rerun                                                                                            |
+| `bunx nx run twilight-dash:typecheck`                                                                              | `Successfully ran target typecheck`                                                                                                                                                                                                                                  |
+| `bunx nx run twilight-dash:lint`                                                                                   | `Successfully ran target lint` (it first failed `ops/catalogue.ts:4 Imports of apps are forbidden`; fixed by an exact entry in `twilight-dash/eslint.product.mjs`)                                                                                                   |
+| `bunx nx run twilight-dash:build`                                                                                  | `Successfully ran target build`                                                                                                                                                                                                                                      |
+| `bun test tools/tool-devsync/src/eslint-boundaries.test.ts src/lint-policy-cache.test.ts` (product policy changed) | `54 pass, 0 fail`                                                                                                                                                                                                                                                    |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                        | exit 0; no Burokrat index covers twilight-dash `src/ops`, as none covers `src/resources`; review debt listed is pre-existing (store-memory, plan-commands)                                                                                                           |
+| `TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test …/pilot-policy.test.ts`                                 | `24 pass, 0 fail, 430 expect() calls, Ran 24 tests across 1 file. [329.89s]`                                                                                                                                                                                         |
+| `bunx prettier --check` on the 20 touched files                                                                    | `All matched files use Prettier code style!`                                                                                                                                                                                                                         |
+| `./node_modules/.bin/openspec validate dash-host-jobs --json`                                                      | `passed: 1, failed: 0`                                                                                                                                                                                                                                               |
+| `systemd-run --user --scope -p MemoryHigh=100M …` reading its own counters (before writing code)                   | exit 0; `memory.peak 1417216`, `memory.high 104857600`, `cpu.stat usage_usec 8626`; also inside the test namespace                                                                                                                                                   |
+
+### Skipped or unverified
+
+- No real gate, release build or `test:queued` ran through `ops job run`; the payloads were
+  fixture scripts. Launchers move onto it in slice 6.
+- Real-scope and container tests ran on this laptop only (its user manager, Docker 29.7.2 with
+  `busybox:1.37.0-musl` already pulled). On a CI runner with no user manager or no such image
+  they skip, each naming its probe's diagnostic, so CI may not exercise them (S3-A14).
+- `--expand-environment=no` needs systemd 254 or later; not checked on h2puni or h4claw. h4claw
+  also refuses `unshare --user`, so these tests cannot run there.
+- Not done in this slice: `calibrate`, `propose`, `audit`, `switch-mode` (slices 4, 6); J12's
+  observe-mode queue protocol and the `with-heavy-lock.sh status` half of "One running, one
+  waiting" (6.1); `watch` reading Docker for declared-bound jobs (S3-A10); WBS publication
+  (slice 5).
+- Pre-existing race, not fixed (outside this slice's files): the `directory` case of
+  `a replaced tmp directory or symlink stays charged and untouched` (host-jobs.test.ts) does
+  `rmdirSync` then `mkdirSync` on the same path, and the file system may hand the new directory
+  the old inode number; the runtime then sees the recorded identity and removes it, so the test
+  sees `released`. It failed once in a full run, passed 3 of 3 alone and in the full rerun.
+- The h2puni gate is not run for a slice PR into `plan/dash-host-jobs` (task 0.1).
