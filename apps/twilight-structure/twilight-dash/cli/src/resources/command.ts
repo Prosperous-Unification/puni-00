@@ -5,6 +5,7 @@ import type { ApiKey, McpEndpoint } from '../mcp/machine-token';
 import type { WbsTools } from '../mcp/wbs-tools';
 import {
   type CreationRequest,
+  linuxHostFacts,
   loadResourceConfiguration,
   ResourceRuntime,
   ResourceWbsUnavailable,
@@ -63,7 +64,7 @@ export async function runResources(
   const configuration = loadResourceConfiguration(config);
   const runtime =
     action === 'init'
-      ? ResourceRuntime.initialize(configuration, clock)
+      ? ResourceRuntime.initialize(configuration, clock, linuxHostFacts)
       : ResourceRuntime.open(configuration, clock);
   const report = (value: unknown): void => {
     write(`${JSON.stringify(value)}\n`);
