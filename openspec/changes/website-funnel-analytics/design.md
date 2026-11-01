@@ -12,7 +12,7 @@ This work is separately reviewable from [conversion scoping](../conversion-scopi
 
 ## Decisions
 
-The boundary and alternatives are in [proposed ADR 0064](../../../docs/adr/0064-consented-traffic-analytics-stays-separate-from-request-content.md).
+The boundary and alternatives are in [proposed ADR 0065](../../../docs/adr/0065-consented-traffic-analytics-stays-separate-from-request-content.md).
 
 ### Consent and integration
 
