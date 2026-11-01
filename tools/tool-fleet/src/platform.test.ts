@@ -854,6 +854,46 @@ describe('validatePlatform', () => {
     );
   });
 
+  for (const [name, path, before, after, refusal] of [
+    [
+      'absent production namespace',
+      'infra/platform/policy/namespaces.yaml',
+      'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: website-prod\n  labels:\n    pod-security.kubernetes.io/enforce: restricted\n    pod-security.kubernetes.io/enforce-version: latest\n',
+      '',
+      /tenant namespace website-prod must enforce Pod Security restricted/,
+    ],
+    [
+      'production namespace without restricted admission',
+      'infra/platform/policy/namespaces.yaml',
+      '  name: website-prod\n  labels:\n    pod-security.kubernetes.io/enforce: restricted\n',
+      '  name: website-prod\n  labels:\n',
+      /tenant namespace website-prod must enforce Pod Security restricted/,
+    ],
+    [
+      'absent production default-deny',
+      'infra/platform/policy/network-policy.yaml',
+      'apiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: default-deny\n  namespace: website-prod\nspec:\n  podSelector: {}\n  policyTypes: [Ingress, Egress]\n',
+      '',
+      /tenant namespace website-prod has no default-deny NetworkPolicy/,
+    ],
+    ...(['Ingress', 'Egress'] as const).map(
+      (direction) =>
+        [
+          `production default-deny with only ${direction}`,
+          'infra/platform/policy/network-policy.yaml',
+          '  name: default-deny\n  namespace: website-prod\nspec:\n  podSelector: {}\n  policyTypes: [Ingress, Egress]\n',
+          `  name: default-deny\n  namespace: website-prod\nspec:\n  podSelector: {}\n  policyTypes: [${direction}]\n`,
+          /tenant namespace website-prod has no default-deny NetworkPolicy/,
+        ] as const,
+    ),
+  ] as const) {
+    it(`rejects ${name}`, async () => {
+      const root = await mutablePlatform();
+      await replaceManifestText(root, path, before, after);
+      expect(validatePlatform(root)).rejects.toThrow(refusal);
+    });
+  }
+
   it('probes both dev preview hostnames from the production blackbox', async () => {
     const probe: unknown = parse(
       await readFile(

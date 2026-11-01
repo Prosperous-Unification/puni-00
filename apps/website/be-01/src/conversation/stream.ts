@@ -1,18 +1,34 @@
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
-import { replyReplacePart } from '@website/contracts';
+import {
+  type ConversationAdmissionMarker,
+  conversationAdmissionPart,
+  invalidScopingReplyText,
+  presentScopingReply,
+  readScopingReply,
+  type ReplyFailure,
+  replyReplacePart,
+  type ScopingReply,
+} from '@website/contracts';
 import {
   createUIMessageStream,
   createUIMessageStreamResponse,
+  defaultSettingsMiddleware,
   streamText,
   toUIMessageStream,
   type UIMessageChunk,
+  wrapLanguageModel,
 } from 'ai';
+
+import { parseProviderScopingReply, scopingReplySchema } from './scoping-reply';
 
 export type ProviderFetch = (input: string, init: RequestInit) => Response | Promise<Response>;
 
 export interface ProviderRates {
   inputUsdPerMillion: number;
   outputUsdPerMillion: number;
+  /** Verified effective rates covering cache writes/reads and every applicable tier. */
+  inputCeilingUsdPerMillion: number;
+  outputCeilingUsdPerMillion: number;
 }
 
 /** The OpenRouter reasoning efforts an operator may configure; higher efforts are refused. */
@@ -55,6 +71,13 @@ export interface ChatMessage {
 export const replyDeadlineMilliseconds = 30_000;
 
 /**
+ * Bun HTTP idle seconds: the reply deadline plus five seconds for settlement/flush. Shared by
+ * production and evaluation; ordinary inactive connections also retain this finite budget.
+ * Proof: reducing this to ten seconds reset both delayed real-HTTP entrypoint/evaluator tests.
+ */
+export const replyHttpIdleSeconds = replyDeadlineMilliseconds / 1_000 + 5;
+
+/**
  * Reads the provider's raw final usage. Normalized SDK usage reports zeros for an absent value,
  * so only integral, nonnegative raw token counts are trusted; anything else returns null and
  * the operation is settled at its full reservation. `completion_tokens` already includes any
@@ -66,17 +89,53 @@ export function readFinalUsage(
   if (typeof usage !== 'object' || usage === null || Array.isArray(usage)) return null;
   const promptTokens: unknown = Reflect.get(usage, 'prompt_tokens');
   const completionTokens: unknown = Reflect.get(usage, 'completion_tokens');
-  // Proof: the missing-final-usage stream test fails if normalized SDK zeros settle this reservation.
+  // Proof: normalized SDK zeros failed missing-final-usage; allowing unsafe integers failed the mounted cache-aware unsafe-token test.
   if (
     typeof promptTokens !== 'number' ||
     typeof completionTokens !== 'number' ||
-    !Number.isInteger(promptTokens) ||
-    !Number.isInteger(completionTokens) ||
+    !Number.isSafeInteger(promptTokens) ||
+    !Number.isSafeInteger(completionTokens) ||
     promptTokens < 0 ||
     completionTokens < 0
   )
     return null;
   return { promptTokens, completionTokens };
+}
+
+/**
+ * Known charge requires both raw safe token counts and a reported USD cost. The conservative
+ * token floor survives cache discounts; provider surcharges are never discarded. Missing or
+ * malformed charge returns null so every settlement route retains its full reservation.
+ */
+export function readFinalCharge(
+  usage: unknown,
+  rates: Pick<ProviderRates, 'inputUsdPerMillion' | 'outputUsdPerMillion'>,
+) {
+  const tokens = readFinalUsage(usage);
+  const cost: unknown =
+    typeof usage === 'object' && usage !== null ? Reflect.get(usage, 'cost') : undefined;
+  // Proof: defaulting absent cost to zero failed missing-charge tests through all four mounted settlement routes.
+  if (!tokens || typeof cost !== 'number' || !Number.isFinite(cost) || cost < 0) return null;
+  const ratedMicroUsd = Math.ceil(
+    tokens.promptTokens * rates.inputUsdPerMillion +
+      tokens.completionTokens * rates.outputUsdPerMillion,
+  );
+  const billedMicroUsd = Math.ceil(cost * 1_000_000);
+  // Proof: removing billed safe-integer validation failed all four mounted unsafe-charge cases.
+  if (
+    !Number.isSafeInteger(ratedMicroUsd) ||
+    ratedMicroUsd < 0 ||
+    !Number.isSafeInteger(billedMicroUsd) ||
+    billedMicroUsd < 0
+  )
+    return null;
+  // Proof: using only token cost failed surcharge/pilot rounding; using only billed cost failed all four zero-charge token floors.
+  return {
+    ...tokens,
+    ratedMicroUsd,
+    reportedCostUsd: cost,
+    accountedMicroUsd: Math.max(ratedMicroUsd, billedMicroUsd),
+  };
 }
 
 /**
@@ -110,8 +169,11 @@ export function isRefusalError(error: unknown): boolean {
   return isRefusalChunk({ error: data });
 }
 
-/** The routing block every paid request carries: the pinned endpoint, privacy flags and price ceilings. */
-export function providerRouting(provider: string, rates: ProviderRates) {
+/** The routing block every paid request carries: the pinned endpoint, privacy flags and base-price routing limits; effective cache/tier ceilings are separate. */
+export function providerRouting(
+  provider: string,
+  rates: Pick<ProviderRates, 'inputUsdPerMillion' | 'outputUsdPerMillion'>,
+) {
   return {
     only: [provider],
     zdr: true,
@@ -128,13 +190,29 @@ export function providerRouting(provider: string, rates: ProviderRates) {
 }
 
 /** Streams a saved reply back as one text part, with no provider call. */
-export function replayReply(reply: string): Response {
+export function replayReply(
+  reply: string,
+  replyVersion: 1 | null = null,
+  replyFailure: ReplyFailure | null = null,
+  admission?: ConversationAdmissionMarker,
+  promptVersion?: string,
+): Response {
+  let prose = reply;
+  if (replyVersion === 1) {
+    // Proof: removing this guard made the mounted structured replay missing-identity test return a response.
+    if (promptVersion === undefined)
+      throw new Error('Structured replay lacks recorded prompt identity');
+    // Proof: forcing the current identity here failed historical-v5 mounted replay.
+    prose = presentScopingReply(readScopingReply(reply), promptVersion).text;
+  }
   const stream = createUIMessageStream({
     execute: ({ writer }) => {
+      if (admission) writer.write({ type: conversationAdmissionPart, data: admission });
       const id = crypto.randomUUID();
       writer.write({ type: 'text-start', id });
-      writer.write({ type: 'text-delta', id, delta: reply });
+      writer.write({ type: 'text-delta', id, delta: prose });
       writer.write({ type: 'text-end', id });
+      if (replyFailure) writer.write({ type: 'data-reply-failure', data: { code: replyFailure } });
     },
   });
   return createUIMessageStreamResponse({ stream });
@@ -151,6 +229,7 @@ export interface ProviderDecline {
 }
 
 export interface ConfirmedReplyOptions {
+  admission?: ConversationAdmissionMarker;
   pin: ProviderPin;
   rates: ProviderRates;
   system: string;
@@ -166,6 +245,11 @@ export interface ConfirmedReplyOptions {
   aborts: Map<string, AbortController>;
   /** Commits the reply and settled usage; false leaves the operation to be marked unknown. */
   complete(reply: string, actualMicroUsd: number, truncated: boolean): boolean;
+  /** Buffers a version-1 envelope; null settles a known invalid envelope with the fixed manual path. */
+  structured?: {
+    promptVersion: string;
+    complete(reply: ScopingReply | null, actualMicroUsd: number): boolean;
+  };
   /** Settles an operation whose final usage is unknown; see the store's ceiling settlement. */
   markUnknown(): void;
   /** Told of each provider failure (5xx, timeout, non-refusal stream error), not of a stop. */
@@ -182,20 +266,30 @@ export interface ConfirmedReplyOptions {
 }
 
 /**
- * Streams one paid conversation reply as an AI SDK UI message stream and emits the finish event
- * only after {@link ConfirmedReplyOptions.complete} has stored the reply with final provider usage.
- * A timeout, abort, browser disconnect, provider or stream error, missing raw usage, an empty or
- * oversized reply, or a refused completion marks the operation unknown and ends the stream with an
- * error chunk. A provider refusal ({@link ProviderRefusal}) instead completes with the decline
- * reply at the provider-reported usage, or 0 when it reported none, and streams that reply with
- * a `stop` finish; the refusal's own error chunk is never forwarded. Partial text may already
- * have streamed before the refusal, so the decline is sent as a `data-reply-replace` part
- * ({@link replyReplacePart}) after every open text part is ended: the replacement supersedes the
- * partial text and the folded stream equals the stored reply. Ordinary replies still stream token
- * by token. Durable cancellation is checked every 50 ms while the provider is running and before
- * forwarding each chunk; completion remains fenced by the store. Cleanup in another process therefore aborts an idle
- * provider and suppresses subsequent publication, including queued provider chunks. Already delivered text
- * cannot be recalled. The watcher is released with the provider deadline on every terminal outcome.
+ * Streams one paid reply through the AI SDK UI protocol; finish is published only after durable
+ * settlement. Legacy mode streams text progressively and settles through
+ * {@link ConfirmedReplyOptions.complete}.
+ * An empty or oversized legacy reply is unknown and settles at its reserved ceiling.
+ *
+ * Structured mode buffers the entire envelope, validates it and commits through
+ * {@link ConfirmedReplyOptions.structured} before publishing readable prose. A malformed,
+ * oversized or truncated envelope with valid usage completes accounting at the actual cost and
+ * publishes the fixed manual-path reply with `data-reply-failure`; no invalid model content or
+ * scoping action is published or saved. A valid envelope publishes only its committed prose.
+ *
+ * A provider refusal ({@link ProviderRefusal}) with valid usage completes with the server-owned
+ * decline at the reported cost. Legacy mode ends open text parts and sends {@link replyReplacePart}
+ * to replace any already-streamed partial text; structured mode publishes the decline only after
+ * settlement. Both finish with `stop` and suppress the provider refusal's own error chunk.
+ * Missing or invalid usage, including refusal usage, always settles at the full reserved ceiling
+ * and ends with an error chunk. Explicitly reported zero usage remains distinct from missing usage.
+ * Timeout, abort, disconnect, provider/stream errors and rejected completion likewise mark the
+ * operation unknown rather than publishing a confirmed reply.
+ *
+ * Durable cancellation is checked every 50 ms and before forwarding chunks; the store fences
+ * completion too. Cleanup in another process aborts an idle provider and suppresses subsequent
+ * publication, including queued chunks. Already delivered legacy text cannot be recalled. The
+ * watcher and provider deadline are released on every terminal outcome.
  */
 export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
   const abort = new AbortController();
@@ -237,12 +331,21 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
   const decline = options.decline;
   let refusal: ProviderRefusal | null = null;
   let declined = false;
+  let confirmedText: string | null = null;
+  let replyFailure: ReplyFailure | null = null;
   /** The last raw usage seen; a refusal's usage can ride the error chunk the SDK does not parse. */
   let rawUsage: unknown = undefined;
-  const inputRate = options.rates.inputUsdPerMillion;
-  const outputRate = options.rates.outputUsdPerMillion;
   const streamed = streamText({
-    model: openrouter.chat(options.pin.model),
+    model: options.structured
+      ? wrapLanguageModel({
+          model: openrouter.chat(options.pin.model),
+          middleware: defaultSettingsMiddleware({
+            settings: {
+              responseFormat: { type: 'json', schema: scopingReplySchema, name: 'scoping_reply' },
+            },
+          }),
+        })
+      : openrouter.chat(options.pin.model),
     system: options.system,
     messages: options.messages,
     maxRetries: 0,
@@ -266,7 +369,9 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
     },
     providerOptions: {
       openrouter: {
+        ...(options.structured ? { structuredOutputs: { strict: true } } : {}),
         provider: providerRouting(options.pin.provider, options.rates),
+        // Proof: raising only this provider cap by 100 failed the mounted structured 700-token contract.
         max_completion_tokens: options.maxCompletionTokens,
         // Proof: removing this spread failed the mounted reasoning-effort conversation test.
         ...reasoningRequest(options.pin.reasoningEffort),
@@ -278,16 +383,38 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
         if (finishReason === 'content-filter') refusal = 'content_filter';
         if (refusal) {
           // Proof: dropping the raw fallback settled 0 in the usage-on-the-error-chunk refusal test.
-          const reported = readFinalUsage(finalStep.usage.raw ?? rawUsage);
-          // A refusal is settled at what the provider reported; it reports nothing for a pre-check block.
-          const actualMicroUsd = reported
-            ? Math.ceil(reported.promptTokens * inputRate + reported.completionTokens * outputRate)
-            : 0;
+          const reported = readFinalCharge(finalStep.usage.raw ?? rawUsage, options.rates);
+          // Proof: settling absent refusal usage at zero failed structured accounting refusal missing usage.
+          if (!reported) {
+            options.markUnknown();
+            return;
+          }
+          const actualMicroUsd = reported.accountedMicroUsd;
           declined = decline.complete(refusal, actualMicroUsd);
           if (!declined) options.markUnknown();
           return;
         }
-        const usage = readFinalUsage(finalStep.usage.raw);
+        const usage = readFinalCharge(finalStep.usage.raw, options.rates);
+        if (options.structured) {
+          if (!usage) {
+            options.markUnknown();
+            return;
+          }
+          const parsed = parseProviderScopingReply(text, finishReason !== 'stop');
+          // Proof: fixed 400-token settlement and subtracting 600 reasoning tokens each failed structured accounting reasoning included once.
+          const actualMicroUsd = usage.accountedMicroUsd;
+          const reply = parsed.kind === 'valid' ? parsed.value : null;
+          if (!options.structured.complete(reply, actualMicroUsd)) {
+            options.markUnknown();
+            return;
+          }
+          confirmedText =
+            reply === null
+              ? invalidScopingReplyText
+              : presentScopingReply(reply, options.structured.promptVersion).text;
+          replyFailure = reply === null ? 'invalid_scoping_reply' : null;
+          return;
+        }
         if (
           !usage ||
           !['stop', 'length'].includes(finishReason) ||
@@ -298,11 +425,13 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
           return;
         }
         // Proof: subtracting reasoning_tokens here settled 502 instead of 1,558 in the reasoning settlement test.
-        const actualMicroUsd = Math.ceil(
-          usage.promptTokens * inputRate + usage.completionTokens * outputRate,
-        );
+        const actualMicroUsd = usage.accountedMicroUsd;
         if (!options.complete(text.trim(), actualMicroUsd, finishReason === 'length'))
           options.markUnknown();
+      } catch (error) {
+        // Proof: omitting ceiling settlement left the injected failed-turn operation inflight.
+        options.markUnknown();
+        throw error;
       } finally {
         release();
       }
@@ -327,6 +456,8 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
   let connected = true;
   const confirmed = new ReadableStream<UIMessageChunk>({
     start(controller) {
+      if (options.admission)
+        controller.enqueue({ type: conversationAdmissionPart, data: options.admission });
       // The pump runs on the server after browser disconnect; only settled turns get a finish event.
       void (async () => {
         let finishChunk: UIMessageChunk | null = null;
@@ -337,6 +468,11 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
             // Proof: removing this fence published SECRET LATE REPLY in the cleanup-before-polling-tick test.
             if (!options.canContinue()) abort.abort();
             if (abort.signal.aborted) continue;
+            // Proof: removing this buffer published SECRET UNCOMMITTED when the turn insert rolled back.
+            if (options.structured) {
+              if (chunk.type === 'finish') finishChunk = chunk;
+              continue;
+            }
             if (chunk.type === 'text-start') openTextIds.add(chunk.id);
             else if (chunk.type === 'text-end') openTextIds.delete(chunk.id);
             if (chunk.type === 'finish') finishChunk = chunk;
@@ -347,6 +483,24 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
           await completion.promise;
           if (connected) {
             if (
+              options.structured &&
+              !abort.signal.aborted &&
+              options.canContinue() &&
+              options.isCompleted() &&
+              (confirmedText !== null || declined)
+            ) {
+              const id = options.operationId;
+              controller.enqueue({ type: 'text-start', id });
+              controller.enqueue({
+                type: 'text-delta',
+                id,
+                delta: declined ? decline.reply : String(confirmedText),
+              });
+              controller.enqueue({ type: 'text-end', id });
+              if (replyFailure)
+                controller.enqueue({ type: 'data-reply-failure', data: { code: replyFailure } });
+              controller.enqueue({ type: 'finish', finishReason: 'stop' });
+            } else if (
               !abort.signal.aborted &&
               options.canContinue() &&
               declined &&
