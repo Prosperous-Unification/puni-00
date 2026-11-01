@@ -106,14 +106,14 @@ the caller-approved `setProgress`/final `releaseWorkItem` batch. Return `guard`,
 returns the exact current ScopedAttemptGuard. It supplies explicit pure catalog projections
 for planner tests, not a fake implementation of RunStore. The caller owns `stores.close()`.
 
-- [ ] 1.1 Observe semantic RED then implement strict portable decoders and snapshots — tests:
+- [x] 1.1 Observe semantic RED then implement strict portable decoders and snapshots — tests:
       `write-codecs.test.ts` covers valid stage/acceptance/attempt/obligation records, historical
       codec identities, unknown/missing/version fields, precise pending/nonaccepted/terminal
       variants, false capacity, determinate effect, operation binding, canonical request bytes,
       unbounded wire versus bounded local IDs, nested mutation and caller ownership. Negative:
       independently bypass each new shape/semantic/snapshot dependency and observe its actual
       decoder test fail, then restore exactly. Do not use a missing import as semantic RED.
-- [ ] 1.2 Observe RED then implement pure stage/acceptance and immutable replay plans — tests:
+- [x] 1.2 Observe RED then implement pure stage/acceptance and immutable replay plans — tests:
       `plan-writes.test.ts` uses genuine prepared/claimed turn facts, accepted current authority,
       independent scope cut and exact target; stage frees capacity once, acceptance closes one
       obligation, original replay survives later facts, changed reuse and global local/wire
@@ -121,7 +121,7 @@ for planner tests, not a fake implementation of RunStore. The caller owns `store
       local/wire lexical equality; stale scope/run/attempt guards and every coherent target mismatch refuse.
       Negative: independently omit each new stage/acceptance, grant/floor, correspondence,
       reservation, original-ack, collision and state/revision check and watch the named assertion fail.
-- [ ] 1.3 Verify effective lint boundaries and Task1 quality — tests:
+- [x] 1.3 Verify effective lint boundaries and Task1 quality — tests:
       `eslint-boundaries.test.ts` permits only declared exact public aliases and rejects sibling,
       relative, subpath and unlisted-peer imports with zero fatal parser errors. Run focused source
       tests, actual named Dash/tool-devsync lint/typecheck and changed formatting. Negative:
