@@ -660,6 +660,11 @@ _Avoid_: Artifact digest, binding digest, receipt
 The permanent, payload-bound acceptance of one runtime command, separate from undo history.
 _Avoid_: Journal entry, current grant
 
+**Write obligation**:
+The outstanding delivery of a validated business outcome through one exact runtime command,
+including retention of its acceptance. It is distinct from local capacity and a remote claim.
+_Avoid_: Retry permission, new business attempt, generic progress intent
+
 **Recovery journal**:
 The retained identity, observations and decision for resolving one uncertain runtime request.
 _Avoid_: Retry queue, pending slot
