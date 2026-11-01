@@ -1,17 +1,13 @@
 import { parseOrThrow, type } from '@shared/validation';
 
 import type { Attempt2 } from '../execution-records';
-import { decodeCurrentAttempt, equalRecords } from '../record-codecs';
-import {
-  decodeRecoveryBeginCall,
-  decodeRecoveryFenceCall,
-  decodeRecoveryHistory,
-  decodeRecoveryObservationCall,
-  decodeRecoveryResolveCall,
-} from '../recovery-codecs';
+import { decodeCurrentAttempt } from '../record-codecs';
+import * as recoveryCodecs from '../recovery-codecs';
 import type { Attempt3 } from '../recovery-records';
 import type { RecoveryHistory } from '../recovery-records';
 import type { RunStore, StoreReply } from '../run-store';
+import { equalRuntimeScopes, readRuntimeRequest } from '../runtime-codecs';
+import type { RuntimeScope } from '../runtime-records';
 import {
   decodeFormat3Command,
   decodeFormat3Payload,
@@ -48,7 +44,12 @@ export type Format5Command =
 export type Format5Expected =
   | Exclude<Format3Expected, { kind: 'invoke' } | { kind: 'populate' }>
   | { readonly kind: 'invoke'; readonly method: Format5Mutation }
-  | { readonly kind: 'populate'; readonly mutation?: Format5Mutation };
+  | { readonly kind: 'populate'; readonly mutation?: Format5Mutation }
+  | {
+      readonly kind: 'observe_recovery';
+      readonly scope: RuntimeScope;
+      readonly recoveryId: string;
+    };
 export type Format5Correlation =
   | { readonly action: 'invoke' | 'prepare'; readonly method: Format5Mutation }
   | { readonly action: Exclude<Format5Expected['kind'], 'invoke'> };
@@ -57,13 +58,17 @@ type RecoveryReply = {
     readonly action: 'invoke';
     readonly method: Method;
     readonly value: Awaited<ReturnType<RunStore[Method]>>;
-    readonly history?: RecoveryHistory;
   };
 }[RecoveryMethod];
 export type Format5Payload =
   | Exclude<Format3Payload, { action: 'prepare' } | { action: 'invoke'; method: 'admitAttempt' }>
   | ({ readonly action: 'prepare' } & Format5Command)
   | RecoveryReply
+  | {
+      readonly action: 'observe_recovery';
+      readonly version: 2;
+      readonly value: RecoveryHistory | null;
+    }
   | {
       readonly action: 'invoke';
       readonly method: 'admitAttempt';
@@ -88,7 +93,7 @@ const recoveryMethods = new Set<string>([
   'resolveRecovery',
 ]);
 const actions =
-  "'populate'|'capture'|'retain_artifact'|'advance_clock'|'hold_write'|'release_write'|'arm_busy'|'arm_callback'|'close'";
+  "'populate'|'capture'|'retain_artifact'|'advance_clock'|'hold_write'|'release_write'|'arm_busy'|'arm_callback'|'observe_recovery'|'close'";
 const correlationCodec = type({ action: "'invoke'|'prepare'", method: format5MutationCodec })
   .onUndeclaredKey('reject')
   .or(type({ action: actions }).onUndeclaredKey('reject'));
@@ -132,13 +137,25 @@ export function decodeFormat5Command(input: unknown): Format5Command {
   const first = command.parameters[0];
   switch (command.method) {
     case 'beginRecovery':
-      return { method: command.method, parameters: [decodeRecoveryBeginCall(first)] };
+      return {
+        method: command.method,
+        parameters: [recoveryCodecs.decodeRecoveryBeginCall(first)],
+      };
     case 'stageRecoveryFence':
-      return { method: command.method, parameters: [decodeRecoveryFenceCall(first)] };
+      return {
+        method: command.method,
+        parameters: [recoveryCodecs.decodeRecoveryFenceCall(first)],
+      };
     case 'recordRecoveryFence':
-      return { method: command.method, parameters: [decodeRecoveryObservationCall(first)] };
+      return {
+        method: command.method,
+        parameters: [recoveryCodecs.decodeRecoveryObservationCall(first)],
+      };
     case 'resolveRecovery':
-      return { method: command.method, parameters: [decodeRecoveryResolveCall(first)] };
+      return {
+        method: command.method,
+        parameters: [recoveryCodecs.decodeRecoveryResolveCall(first)],
+      };
     default:
       throw new Error('unsupported format5 recovery method');
   }
@@ -183,9 +200,23 @@ function decodeReply<Value>(
   );
   return reply.kind === 'refused' ? reply : { kind: reply.kind, value: decode(reply.value) };
 }
-/** Recovery replies carry a complete independently decoded journal, allowing precise fence/observation/closure values without importing unavailable private historical codecs. */
+/** Controller-only native value decoding is detached and structural. The archived worker transports its native invocation independently and never calls these new value wrappers: its namespace contains the immutable c12 exports. Complete journal correspondence belongs to an explicit later observation, whose failure cannot replace this reply. */
 export function decodeFormat5Payload(input: unknown): Format5Payload {
   const header = parseOrThrow(type({ action: 'string', 'method?': 'string' }), input);
+  // Proof: the genuine5 native-COMMIT/separate-observation test lost rejection of unsupported version or malformed history when each boundary was independently bypassed; exact source hashes restored.
+  if (header.action === 'observe_recovery') {
+    const payload = parseOrThrow(
+      type({ action: "'observe_recovery'", version: '2', value: 'unknown' }).onUndeclaredKey(
+        'reject',
+      ),
+      input,
+    );
+    return {
+      action: 'observe_recovery',
+      version: payload.version,
+      value: payload.value === null ? null : recoveryCodecs.decodeRecoveryHistory(payload.value),
+    };
+  }
   if (header.action === 'prepare') {
     const prepared = parseOrThrow(
       type({
@@ -229,69 +260,39 @@ export function decodeFormat5Payload(input: unknown): Format5Payload {
       action: "'invoke'",
       method: format5MutationCodec,
       value: 'unknown',
-      'history?': 'unknown',
     }).onUndeclaredKey('reject'),
     input,
   );
-  const history =
-    payload.history === undefined ? undefined : decodeRecoveryHistory(payload.history);
-  function requireValue<Value>(candidate: unknown, value: Value | undefined | null): Value {
-    if (
-      history === undefined ||
-      value === undefined ||
-      value === null ||
-      !equalRecords(candidate, value)
-    )
-      throw new Error('format5 recovery reply differs from complete journal');
-    return structuredClone(value);
-  }
   switch (payload.method) {
     case 'beginRecovery':
       return {
         action: 'invoke',
         method: payload.method,
-        value: decodeReply(payload.value, (candidate) => requireValue(candidate, history)),
-        ...(history === undefined ? {} : { history }),
+        value: decodeReply(payload.value, recoveryCodecs.decodeRecoveryHistory),
       };
     case 'stageRecoveryFence':
       return {
         action: 'invoke',
         method: payload.method,
-        value: decodeReply(payload.value, (candidate) => {
-          const identity = parseOrThrow(type({ ordinal: 'number' }), candidate);
-          return requireValue(
-            candidate,
-            history?.fences.find((fence) => fence.ordinal === identity.ordinal),
-          );
-        }),
-        ...(history === undefined ? {} : { history }),
+        value: decodeReply(payload.value, recoveryCodecs.decodeRecoveryFence),
       };
     case 'recordRecoveryFence':
       return {
         action: 'invoke',
         method: payload.method,
-        value: decodeReply(payload.value, (candidate) => {
-          const identity = parseOrThrow(type({ observedRevision: 'number' }), candidate);
-          return requireValue(
-            candidate,
-            history?.observations.find(
-              (observation) => observation.observedRevision === identity.observedRevision,
-            ),
-          );
-        }),
-        ...(history === undefined ? {} : { history }),
+        value: decodeReply(payload.value, recoveryCodecs.decodeRecoveryObservation),
       };
     case 'resolveRecovery':
       return {
         action: 'invoke',
         method: payload.method,
-        value: decodeReply(payload.value, (candidate) => requireValue(candidate, history?.closure)),
-        ...(history === undefined ? {} : { history }),
+        value: decodeReply(payload.value, recoveryCodecs.decodeRecoveryClosure),
       };
     default:
       throw new Error('unsupported format5 reply method');
   }
 }
+
 export function decodeFormat5Response(
   envelope: Exclude<ReturnType<typeof decodeFormat5Envelope>, { kind: 'ready' }>,
   request: Format5Expected,
@@ -306,6 +307,23 @@ export function decodeFormat5Response(
   if (actual.action !== expected.action) throw new Error('format5 response action differs');
   if ('method' in expected && (!('method' in actual) || actual.method !== expected.method))
     throw new Error('format5 response method differs');
+  // Proof: independent recovery-ID and scope guard faults made the genuine5 native-COMMIT/separate-observation test accept each wrong target; exact source hashes restored.
+  if (
+    request.kind === 'observe_recovery' &&
+    decoded.kind === 'reply' &&
+    decoded.payload.action === 'observe_recovery' &&
+    decoded.payload.value !== null
+  ) {
+    const history = decoded.payload.value;
+    if (
+      history.intent.recoveryId !== request.recoveryId ||
+      !equalRuntimeScopes(
+        readRuntimeRequest(history.intent.target.original.canonicalRequest).scope,
+        request.scope,
+      )
+    )
+      throw new Error('format5 observation target differs');
+  }
   return decoded;
 }
 export const format5SourceEntries = [

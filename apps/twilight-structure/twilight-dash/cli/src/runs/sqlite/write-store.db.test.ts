@@ -764,3 +764,91 @@ for (const domain of ['local', 'settlement'] as const)
       }, [() => fixture.close()]);
     },
   );
+
+test('ignored obligation DELETE aborts actual acceptance and reopens the exact pending bundle', async () => {
+  const fixture = await writeInspection();
+  let reopened: Awaited<ReturnType<typeof openSqliteStores>> | undefined;
+  try {
+    const setup = await createWriteFixture({ ...fixture.stores, clock: fixture.clock });
+    const stage = unwrapReply(await fixture.stores.runs.stageWrite(setup.guard, setup.command));
+    const guard = await setup.currentGuard();
+    const input = {
+      commandId: executionCommandId('delete-proof-accept'),
+      stageCommandId: setup.command.commandId,
+      intent: stage.intent,
+      evidence: await retainWriteReceipt(fixture.stores, stage.intent),
+    };
+    const capturePhysical = () =>
+      fixture.database
+        .query<{ name: string }, []>(
+          "SELECT name FROM sqlite_schema WHERE type='table' AND name LIKE 'run_%' ORDER BY name",
+        )
+        .all()
+        .map(({ name }) => ({
+          name,
+          rows: fixture.database
+            .query('SELECT * FROM "' + name.replaceAll('"', '""') + '"')
+            .all()
+            .map((row) => JSON.stringify(row))
+            .sort(),
+        }));
+    const readVisible = async (runs: typeof fixture.stores.runs) => ({
+      run: await runs.readRun(setup.run.runId),
+      history: await runs.readExecutionHistory(setup.run.runId, setup.guard.attemptId),
+      scope: await runs.readRuntimeScope(setup.scope),
+    });
+    const before = { physical: capturePhysical(), visible: await readVisible(fixture.stores.runs) };
+    fixture.database.run(
+      'CREATE TRIGGER ignore_obligation_delete BEFORE DELETE ON run6_write_obligation BEGIN SELECT RAISE(IGNORE); END',
+    );
+    const acceptance = await acceptWriteReceipt(
+      fixture.stores.runs,
+      fixture.stores.artifacts,
+      guard,
+      input,
+    ).then(
+      (value) => ({ kind: 'returned' as const, value }),
+      (cause: unknown) => ({ kind: 'thrown' as const, cause }),
+    );
+    console.log(
+      JSON.stringify({
+        event: 'ignored-obligation-delete',
+        acceptance:
+          acceptance.kind === 'returned'
+            ? acceptance
+            : { kind: acceptance.kind, cause: String(acceptance.cause) },
+        before: before.physical,
+        after: capturePhysical(),
+      }),
+    );
+    expect(acceptance.kind).toBe('thrown');
+    if (acceptance.kind !== 'thrown')
+      throw Error('ignored obligation DELETE unexpectedly committed');
+    expect(String(acceptance.cause)).toContain('write obligation removal differs');
+    fixture.database.run('DROP TRIGGER ignore_obligation_delete');
+    expect({
+      physical: capturePhysical(),
+      visible: await readVisible(fixture.stores.runs),
+    }).toEqual(before);
+    await fixture.stores.closeConnection();
+    reopened = await openSqliteStores(fixture.options);
+    expect({ physical: capturePhysical(), visible: await readVisible(reopened.runs) }).toEqual(
+      before,
+    );
+    expect(await reopened.runs.stageWrite(setup.guard, setup.command)).toEqual({
+      kind: 'duplicate',
+      value: stage,
+    });
+    const accepted = await acceptWriteReceipt(reopened.runs, reopened.artifacts, guard, input);
+    expect(accepted.kind).toBe('applied');
+    if (accepted.kind !== 'applied') throw new Error('unguarded acceptance control refused');
+    expect(await acceptWriteReceipt(reopened.runs, reopened.artifacts, guard, input)).toEqual({
+      ...accepted,
+      kind: 'duplicate',
+    });
+  } finally {
+    await settleFixture(async () => {
+      if (reopened !== undefined) await reopened.close();
+    }, [() => fixture.close()]);
+  }
+});

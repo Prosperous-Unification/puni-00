@@ -15,6 +15,7 @@ import { createInterface } from 'node:readline';
 import { parseOrThrow, type } from '@shared/validation';
 
 import type { RunStore } from '../run-store';
+import type { RuntimeScope } from '../runtime-records';
 import type { SqliteFormatIdentity } from '../sqlite/format';
 import type * as SqliteStoreModule from '../sqlite/open-stores';
 import { format3MutationCodec } from './format3-protocol';
@@ -109,6 +110,8 @@ export type PredecessorSource = PredecessorSourceBase &
       }
   );
 function legacyExpected(request: Format3Expected | Format5Expected): Format3Expected {
+  if (request.kind === 'observe_recovery')
+    throw new Error('format5 observation is unavailable on legacy workers');
   if (request.kind === 'invoke')
     return { kind: 'invoke', method: parseOrThrow(format3MutationCodec, request.method) };
   if (request.kind === 'populate')
@@ -238,6 +241,11 @@ async function startPredecessorWorker(
           readonly mutation?: Format3Mutation | Format5Command['method'];
         }
       | ({ readonly kind: 'invoke' } & (Format3Command | Format5Command))
+      | {
+          readonly kind: 'observe_recovery';
+          readonly scope: RuntimeScope;
+          readonly recoveryId: string;
+        }
       | Omit<Extract<Format3Request, { kind: 'retain_artifact' }>, 'requestId'>
       | Omit<Extract<Format3Request, { kind: 'advance_clock' }>, 'requestId'>
       | Omit<Extract<Format3Request, { kind: 'arm_busy' }>, 'requestId'>
@@ -425,6 +433,15 @@ async function startPredecessorWorker(
       if (payload.action !== 'invoke') throw new Error(`${source.label} internal action differs`);
       return payload.value;
     },
+    /** Independent read after invocation; native incompatible/corrupt errors remain errors. Null denotes only a missing journal inside a known pinned native-v2 scope; unknown scopes/versions are errors. No earlier native invocation result is replaced. */
+    async observeRecovery(scope: RuntimeScope, recoveryId: string) {
+      if (source.label !== 'format5')
+        throw new Error('format5 observation is unavailable on legacy workers');
+      const payload = await requestWorker({ kind: 'observe_recovery', scope, recoveryId });
+      if (payload.action !== 'observe_recovery')
+        throw new Error('format5 observation action differs');
+      return payload.value;
+    },
     async retainArtifact(bytes: Uint8Array, mediaType: string) {
       const payload = await requestWorker({
         kind: 'retain_artifact',
@@ -464,7 +481,10 @@ async function startPredecessorWorker(
 }
 
 type WorkerFixture = Awaited<ReturnType<typeof startPredecessorWorker>>;
-type LegacyFixture = Omit<WorkerFixture, 'populate' | 'prepareMutation' | 'invoke'> & {
+type LegacyFixture = Omit<
+  WorkerFixture,
+  'populate' | 'prepareMutation' | 'invoke' | 'observeRecovery'
+> & {
   populate(population: Format3Population): ReturnType<WorkerFixture['populate']>;
   prepareMutation(method: Format3Mutation): Promise<Format3Command>;
   invoke(command: Format3Command): Promise<Extract<Format3Payload, { action: 'invoke' }>['value']>;
@@ -490,7 +510,7 @@ export async function createPredecessorFixture(
   source: PredecessorSource,
   path: string,
   mode: 'bootstrap' | 'open' = 'bootstrap',
-) {
+): Promise<LegacyFixture | Format5Fixture> {
   return await startPredecessorWorker(source, path, mode);
 }
 /** Extracts and verifies one explicitly pinned archive; its caller owns removal after every native or worker owner closes. */

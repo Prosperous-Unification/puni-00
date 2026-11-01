@@ -41,6 +41,7 @@ import {
   decodeRuntimeAcceptanceInput,
   decodeRuntimeGuard,
   decodeRuntimePin,
+  scopeCodec,
 } from '../runtime-codecs';
 import { FORMAT_HASH, MIGRATIONS, SCHEMA_VERSION } from '../sqlite/format';
 import { bootstrapSqliteStores, openSqliteStores } from '../sqlite/open-stores';
@@ -70,8 +71,6 @@ import { format5MutationCodec } from './format5-protocol';
 import {
   correlateFormat5Request,
   decodeFormat5Command,
-  decodeFormat5Payload,
-  type Format5Payload,
   format5SourceEntries,
 } from './format5-protocol';
 import { createRecoveryResolveCall } from './recovery-contract';
@@ -252,7 +251,12 @@ function captureDatabase(): Format5Capture {
       })),
   };
 }
-function sendReply(message: Format5Response): void {
+/** Native invoke payloads cross the wire without a second read or controller decoding. The controller alone validates their precise detached values; archived c12 never loads new value exports by name. */
+function sendReply(
+  message:
+    | Exclude<Format5Response, { kind: 'reply' }>
+    | { kind: 'reply'; requestId: string; payload: unknown },
+): void {
   process.stdout.write(
     JSON.stringify(message, (_key, value: unknown) =>
       typeof value === 'bigint'
@@ -579,6 +583,12 @@ const requestCodec = type({
   'mutation?': mutationCodec,
 })
   .or({ kind: "'invoke'", requestId: 'string', method: mutationCodec, parameters: 'unknown[]' })
+  .or({
+    kind: "'observe_recovery'",
+    requestId: 'string',
+    scope: scopeCodec,
+    recoveryId: 'string>=1',
+  })
   .or({ kind: "'retain_artifact'", requestId: 'string', base64: 'string', mediaType: 'string' })
   .or({ kind: "'advance_clock'", requestId: 'string', milliseconds: 'number' })
   .or({ kind: "'arm_callback'", requestId: 'string' })
@@ -630,9 +640,14 @@ async function disposeWorker() {
   if (failures.length === 1) throw failures[0];
   if (failures.length > 1) throw new AggregateError(failures, 'old worker cleanup failed');
 }
+/** A missing journal is optional only inside a known pinned native scope. Unsupported versions remain in the wire header for strict controller rejection. */
+// Proof: removing only this guard made 'genuine5 independent observation refuses unknown scope instead of journal absence' return null; exact hash restored and guarded RPC passed.
+function requireObservationScope(kind: 'pinned' | 'uninitialized'): void {
+  if (kind !== 'pinned') throw new Error('format5 observation scope unavailable');
+}
 async function processRequest(request: typeof requestCodec.infer) {
   try {
-    let payload: Format5Payload;
+    let payload: unknown;
     switch (request.kind) {
       case 'arm_busy':
         pauseBusyAt = (counts.get('invoked') ?? 0) + request.minimumInvoked;
@@ -654,42 +669,28 @@ async function processRequest(request: typeof requestCodec.infer) {
             ? { action: 'populate', value: await populateHistory(request.population) }
             : { action: 'prepare', ...(await prepareMutation(request.mutation)) };
         break;
+      // Proof: four genuine5 stale-recovery regressions observed native owner_stale plus clock-only change while the old supplemental read threw incompatible. Standalone native transport passed after separation.
       case 'invoke': {
         observe('invoked');
         const value = await invokeMutation(request.method, request.parameters);
-        let history;
-        if (
-          request.method === 'beginRecovery' ||
-          request.method === 'stageRecoveryFence' ||
-          request.method === 'recordRecoveryFence' ||
-          request.method === 'resolveRecovery'
-        ) {
-          const command = decodeFormat5Command({
-            method: request.method,
-            parameters: request.parameters,
-          });
-          if (
-            command.method !== 'beginRecovery' &&
-            command.method !== 'stageRecoveryFence' &&
-            command.method !== 'recordRecoveryFence' &&
-            command.method !== 'resolveRecovery'
-          )
-            throw new Error('format5 recovery command differs');
-          const call = command.parameters[0];
-          const scope = await stores.runs.readRuntimeScope(call.guard.scope);
-          const recoveryId =
-            command.method === 'beginRecovery'
-              ? command.parameters[0].intent.recoveryId
-              : command.parameters[0].recoveryId;
-          if (scope.kind === 'pinned' && scope.version === 2)
-            history = scope.recoveries.find((entry) => entry.intent.recoveryId === recoveryId);
-        }
-        payload = decodeFormat5Payload({
-          action: 'invoke',
-          method: request.method,
-          value,
-          ...(history === undefined ? {} : { history }),
-        });
+        payload = { action: 'invoke', method: request.method, value };
+        break;
+      }
+      case 'observe_recovery': {
+        const scope = await stores.runs.readRuntimeScope(request.scope);
+        requireObservationScope(scope.kind);
+        payload = {
+          action: 'observe_recovery',
+          version: scope.version,
+          value:
+            scope.version === 2
+              ? scope.kind === 'pinned'
+                ? (scope.recoveries.find(
+                    (history) => history.intent.recoveryId === request.recoveryId,
+                  ) ?? null)
+                : null
+              : scope,
+        };
         break;
       }
       case 'retain_artifact':

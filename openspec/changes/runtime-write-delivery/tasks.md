@@ -163,12 +163,17 @@ No write-recovery branch is introduced in Task2;
 `plan-recovery-history.ts`, `validate-history.ts`, `claim-history.ts`, `runtime-history.ts`,
 `testing/memory-stores.ts`, `testing/write-fixture.ts` for optional existing ownership/suffix
 context and suffix-derived write IDs only; SQLite `format.ts`, `schema.ts`, `open-stores.ts`,
-`run-store.ts`, `runtime-store.ts`, `read-history.ts`, `read-outcomes.ts`,
-`read-executions.ts`, `read-signals.ts`, `read-runtime.ts`, `row-codecs.ts`;
+`run-store.ts`, `read-history.ts`, `read-runtime.ts`;
 `testing/predecessor-fixture.ts` only for a precise format5 source/protocol route;
 `apps/twilight-structure/twilight-dash/cli/project.json` for the exact format5 lifetime preload,
 and the exact export/policy/test owners reached by these new modules. Historical tests use
 the new genuine format5 bridge where they require5; preserve their behavior/assertions.
+
+Inspected and reused unchanged: SQLite `runtime-store.ts`, `read-outcomes.ts`,
+`read-executions.ts`, `read-signals.ts` and `row-codecs.ts`. These already route through
+`CURRENT_FORMAT`/`FormatDescriptor`, complete `readHistory`, or shared `decodeCurrentAttempt`;
+the changed descriptor/history/decoder owners supply the new behavior. Generic completion
+and receipt semantics remain unchanged; no source edit is required in these five owners.
 
 The write fixture forwards its optional ownership/suffix context unchanged to `prepareTurn`.
 Use returned `setup.suffix` for `wire-write${suffix}` and `stage-write${suffix}`; an empty suffix

@@ -49,6 +49,7 @@ export function insertWriteAcceptance(
   const removed = database
     .query('DELETE FROM run6_write_obligation WHERE stage_command_id=?')
     .run(CURRENT_FORMAT.encode(change.obligationKey));
+  // Proof: 'ignored obligation DELETE aborts actual acceptance and reopens the exact pending bundle' used BEFORE DELETE RAISE(IGNORE); removing only this guard returned applied/one obligation/one receipt/count0. Exact source hash restored; guarded rollback/reopen passed.
   if (removed.changes !== 1) throw new Error('write obligation removal differs');
   database
     .query(

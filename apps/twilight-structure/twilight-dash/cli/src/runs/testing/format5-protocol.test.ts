@@ -29,8 +29,10 @@ const recoveryRoutes: Exclude<
 > extends never
   ? true
   : false = true;
+const legacyObservationExcluded: 'observeRecovery' extends keyof LegacyWorker ? false : true = true;
 test('historical worker signatures select their actual legacy or recovery command domain', () => {
   expect(legacyRoutes).toBe(true);
+  expect(legacyObservationExcluded).toBe(true);
   expect(recoveryRoutes).toBe(true);
 });
 const ownership = decodeOwnership({

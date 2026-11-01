@@ -1,3 +1,4 @@
+import { deepStrictEqual, rejects } from 'node:assert/strict';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -104,6 +105,36 @@ for (const method of [
         if (reply.kind !== 'applied') throw new Error('genuine recovery command refused');
         const duplicate = await fixture.invoke(command);
         expect(duplicate).toEqual({ ...reply, kind: 'duplicate' });
+        const selected = requireRecoveryCommand(command);
+        const call = selected.parameters[0];
+        const recoveryId =
+          selected.method === 'beginRecovery'
+            ? selected.parameters[0].intent.recoveryId
+            : selected.parameters[0].recoveryId;
+        const history = await fixture.observeRecovery(call.guard.scope, recoveryId);
+        if (history === null) throw Error('native recovery observation absent');
+        const original =
+          method === 'beginRecovery'
+            ? history
+            : method === 'stageRecoveryFence'
+              ? history.fences.at(-1)
+              : method === 'recordRecoveryFence'
+                ? history.observations.at(-1)
+                : history.closure;
+        if (original === undefined || original === null)
+          throw Error('native recovery witness absent');
+        expect(reply.value).toEqual(original);
+        const payload = { action: 'invoke' as const, method, value: reply };
+        deepStrictEqual(decodeFormat5Payload(payload), payload);
+        const malformed = {
+          ...payload,
+          value: { ...reply, value: { ...reply.value, version: 2 } },
+        };
+        expect(() => decodeFormat5Payload(malformed)).toThrow();
+        const decoded = decodeFormat5Payload(payload);
+        const retained = structuredClone(decoded);
+        Object.assign(reply.value, { unexpectedNativeMutation: true });
+        expect(decoded).toEqual(retained);
       });
       expect(await fixture.worker.exited).toEqual({ code: 0, signal: null });
       expect(fixture.worker.stdoutClosed).toBe(true);
@@ -424,3 +455,298 @@ for (const scenario of [
     },
     60000,
   );
+
+import { ownerId } from '../record-codecs';
+import { upgradeSqliteWrites } from '../sqlite/migrate-writes';
+import type { Format5Capture, Format5Command } from './format5-protocol';
+import { decodeFormat5Command } from './format5-protocol';
+import type { HistoricalRunStore } from './predecessor-fixture';
+type HistoricalRecoveryCommand = Extract<
+  Format5Command,
+  { method: 'beginRecovery' | 'stageRecoveryFence' | 'recordRecoveryFence' | 'resolveRecovery' }
+>;
+function requireRecoveryCommand(command: Format5Command): HistoricalRecoveryCommand {
+  switch (command.method) {
+    case 'beginRecovery':
+    case 'stageRecoveryFence':
+    case 'recordRecoveryFence':
+    case 'resolveRecovery':
+      return command;
+    default:
+      throw Error('selected native recovery command absent');
+  }
+}
+async function invokeNativeRecovery(runs: HistoricalRunStore, command: HistoricalRecoveryCommand) {
+  switch (command.method) {
+    case 'beginRecovery':
+      return await runs.beginRecovery(command.parameters[0]);
+    case 'stageRecoveryFence':
+      return await runs.stageRecoveryFence(command.parameters[0]);
+    case 'recordRecoveryFence':
+      return await runs.recordRecoveryFence(command.parameters[0]);
+    case 'resolveRecovery':
+      return await runs.resolveRecovery(command.parameters[0]);
+  }
+}
+function readRefusalClock(capture: Format5Capture) {
+  const meta = capture.tables.find((table) => table.name === 'run_meta');
+  if (meta === undefined) throw Error('native capture metadata absent');
+  const index = meta.columns.indexOf('last_observed_at'),
+    clock = meta.rows[0]?.[index];
+  if (index < 0 || (typeof clock !== 'number' && typeof clock !== 'bigint'))
+    throw Error('native refusal clock absent');
+  const exact = Number(clock);
+  if (!Number.isSafeInteger(exact)) throw Error('native refusal clock is unsafe');
+  return exact;
+}
+function omitRefusalClock(capture: Format5Capture) {
+  return {
+    ...capture,
+    tables: capture.tables.map((table) =>
+      table.name === 'run_meta'
+        ? {
+            ...table,
+            rows: table.rows.map((row) =>
+              row.map((cell, index) => (table.columns[index] === 'last_observed_at' ? 0 : cell)),
+            ),
+          }
+        : table,
+    ),
+  };
+}
+for (const method of [
+  'beginRecovery',
+  'stageRecoveryFence',
+  'recordRecoveryFence',
+  'resolveRecovery',
+] as const)
+  test(
+    'genuine5 ' +
+      method +
+      ' bridge preserves native stale refusal after real upgrade with clock-only change',
+    async () => {
+      const directory = mkdtempSync(join(tmpdir(), 'format5-refusal-order-'));
+      const owner = createStoreDirectory(directory, { recursive: true });
+      const fixture = await createFormat5Fixture(join(directory, 'runs.sqlite'));
+      const clock = new FixtureClock();
+      const options = {
+        path: join(directory, 'runs.sqlite'),
+        organizationId: organizationId('organization'),
+        capacity: 1,
+        leaseMilliseconds: 100,
+        clock,
+        maxBusyAttempts: 20,
+        busyDelayMilliseconds: 1,
+      };
+      const native = owner.retainStore(await openVerifiedFormat5Stores(fixture, options));
+      await owner.runTest(async () => {
+        const command = requireRecoveryCommand(await fixture.prepareMutation(method));
+        const call = command.parameters[0];
+        const stale = requireRecoveryCommand(
+          decodeFormat5Command({
+            ...command,
+            parameters: [
+              {
+                ...call,
+                guard: {
+                  ...call.guard,
+                  ownership: { ...call.guard.ownership, ownerId: ownerId('stale-reader') },
+                },
+              },
+            ],
+          }),
+        );
+        await upgradeSqliteWrites(options);
+        clock.advance(10);
+        await fixture.advanceClock(20);
+        const before = await fixture.capture();
+        const raw = await invokeNativeRecovery(native.runs, stale);
+        const afterNative = await fixture.capture();
+        const bridge = await fixture.invoke(stale).then(
+          (value) => ({ kind: 'returned' as const, value }),
+          (cause: unknown) => ({ kind: 'thrown' as const, cause }),
+        );
+        const afterBridge = await fixture.capture();
+        console.log(
+          JSON.stringify(
+            {
+              event: 'genuine5-stale-recovery-native-versus-bridge',
+              method,
+              raw,
+              bridge:
+                bridge.kind === 'returned'
+                  ? bridge
+                  : { kind: bridge.kind, cause: String(bridge.cause) },
+              before,
+              afterNative,
+              afterBridge,
+            },
+            (_key, value: unknown) =>
+              typeof value === 'bigint'
+                ? { kind: 'sqlite_bigint', decimal: String(value) }
+                : value instanceof Uint8Array
+                  ? { kind: 'sqlite_blob', base64: Buffer.from(value).toString('base64') }
+                  : value,
+          ),
+        );
+        expect(raw).toEqual({ kind: 'refused', reason: 'owner_stale' });
+        expect(omitRefusalClock(afterNative)).toEqual(omitRefusalClock(before));
+        expect(readRefusalClock(afterNative)).toBe(1010);
+        expect(omitRefusalClock(afterBridge)).toEqual(omitRefusalClock(before));
+        expect(readRefusalClock(afterBridge)).toBe(1020);
+        expect(bridge).toEqual({ kind: 'returned', value: raw });
+        clock.advance(10);
+        await rejects(invokeNativeRecovery(native.runs, command), /incompatible/);
+        await rejects(fixture.invoke(command), /incompatible/);
+        expect(await fixture.capture()).toEqual(afterBridge);
+      });
+      expect(await fixture.worker.exited).toEqual({ code: 0, signal: null });
+      expect(fixture.worker.stdoutClosed && fixture.worker.stderrClosed).toBe(true);
+    },
+    60000,
+  );
+
+import { decodeFormat5Envelope, decodeFormat5Response } from './format5-protocol';
+test('genuine5 native COMMIT reply survives migration and a separate observation error', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'format5-observation-cut-'));
+  const owner = createStoreDirectory(directory, { recursive: true });
+  const path = join(directory, 'runs.sqlite');
+  const fixture = owner.retainStore(await createFormat5Fixture(path));
+  await owner.runTest(async () => {
+    const command = requireRecoveryCommand(await fixture.prepareMutation('beginRecovery'));
+    if (command.method !== 'beginRecovery') throw Error('native begin command absent');
+    const scope = command.parameters[0].guard.scope,
+      recoveryId = command.parameters[0].intent.recoveryId;
+    expect(await fixture.observeRecovery(scope, recoveryId)).toBeNull();
+    const native = await fixture.invoke(command);
+    expect(native.kind).toBe('applied');
+    const committed = structuredClone(native);
+    const journal = await fixture.observeRecovery(scope, recoveryId);
+    if (journal === null) throw Error('committed native journal absent');
+    if (native.kind !== 'applied') throw Error('native begin refused');
+    deepStrictEqual(journal, native.value);
+    expect(await fixture.observeRecovery(scope, 'unrecorded')).toBeNull();
+    const envelope = decodeFormat5Envelope({
+      kind: 'reply',
+      requestId: 'independent',
+      payload: { action: 'observe_recovery', version: 2, value: journal },
+    });
+    if (envelope.kind !== 'reply') throw Error('native observation envelope absent');
+    expect(
+      decodeFormat5Response(envelope, { kind: 'observe_recovery', scope, recoveryId }),
+    ).toMatchObject({ payload: { value: journal } });
+    expect(() =>
+      decodeFormat5Response(envelope, { kind: 'observe_recovery', scope, recoveryId: 'different' }),
+    ).toThrow('observation target differs');
+    expect(() =>
+      decodeFormat5Response(envelope, {
+        kind: 'observe_recovery',
+        scope: { ...scope, personId: 'different' },
+        recoveryId,
+      }),
+    ).toThrow('observation target differs');
+    expect(() =>
+      decodeFormat5Payload({ action: 'observe_recovery', version: 3, value: journal }),
+    ).toThrow();
+    expect(() =>
+      decodeFormat5Payload({
+        action: 'observe_recovery',
+        version: 2,
+        value: { ...journal, version: 2 },
+      }),
+    ).toThrow();
+    const observedPayload = {
+      action: 'observe_recovery',
+      version: 2,
+      value: structuredClone(journal),
+    };
+    const observed = decodeFormat5Payload(observedPayload);
+    const detached = structuredClone(observed);
+    Object.assign(observedPayload.value.intent, { recoveryId: 'caller-mutation' });
+    expect(observed).toEqual(detached);
+    const probe = owner.retainProbe(new Database(path));
+    probe.run('UPDATE run5_recovery_format SET journal_count=journal_count+1');
+    await rejects(fixture.observeRecovery(scope, recoveryId), /corrupt/);
+    deepStrictEqual(native, committed);
+    probe.run('UPDATE run5_recovery_format SET journal_count=journal_count-1');
+    const before = await fixture.capture();
+    await upgradeSqliteWrites({
+      path,
+      organizationId: organizationId('organization'),
+      capacity: 1,
+      leaseMilliseconds: 100,
+      clock: new FixtureClock(),
+      maxBusyAttempts: 20,
+      busyDelayMilliseconds: 1,
+    });
+    const upgraded = await fixture.capture();
+    await rejects(fixture.observeRecovery(scope, recoveryId), /incompatible/);
+    deepStrictEqual(native, committed);
+    expect(await fixture.capture()).toEqual(upgraded);
+    console.log(
+      JSON.stringify(
+        {
+          event: 'genuine5-independent-observation-after-native-commit',
+          native,
+          committed,
+          before,
+          upgraded,
+          observation: 'incompatible',
+        },
+        (_key, value: unknown) =>
+          typeof value === 'bigint'
+            ? { kind: 'sqlite_bigint', decimal: String(value) }
+            : value instanceof Uint8Array
+              ? { kind: 'sqlite_blob', base64: Buffer.from(value).toString('base64') }
+              : value,
+      ),
+    );
+  });
+  expect(await fixture.worker.exited).toEqual({ code: 0, signal: null });
+  expect(fixture.worker.stdoutClosed && fixture.worker.stderrClosed).toBe(true);
+}, 60000);
+
+test('genuine5 independent observation refuses unknown scope instead of journal absence', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'format5-observation-absence-'));
+  const owner = createStoreDirectory(directory, { recursive: true });
+  const fixture = owner.retainStore(await createFormat5Fixture(join(directory, 'runs.sqlite')));
+  await owner.runTest(async () => {
+    const command = requireRecoveryCommand(await fixture.prepareMutation('beginRecovery'));
+    if (command.method !== 'beginRecovery') throw Error('native begin command absent');
+    const scope = command.parameters[0].guard.scope;
+    expect(await fixture.observeRecovery(scope, 'absent-journal')).toBeNull();
+    const before = await fixture.capture();
+    const observation = await fixture
+      .observeRecovery({ ...scope, personId: 'unknown-person' }, 'absent-journal')
+      .then(
+        (value) => ({ kind: 'returned' as const, value }),
+        (cause: unknown) => ({ kind: 'thrown' as const, cause }),
+      );
+    const after = await fixture.capture();
+    console.log(
+      JSON.stringify(
+        {
+          event: 'genuine5-unknown-observation-scope',
+          observation:
+            observation.kind === 'returned'
+              ? observation
+              : { kind: observation.kind, cause: String(observation.cause) },
+          before,
+          after,
+        },
+        (_key, value: unknown) =>
+          typeof value === 'bigint'
+            ? { kind: 'sqlite_bigint', decimal: String(value) }
+            : value instanceof Uint8Array
+              ? { kind: 'sqlite_blob', base64: Buffer.from(value).toString('base64') }
+              : value,
+      ),
+    );
+    expect(observation.kind).toBe('thrown');
+    if (observation.kind !== 'thrown') throw Error('unknown scope was reported as journal absence');
+    expect(String(observation.cause)).toContain('format5 observation scope unavailable');
+    expect(after).toEqual(before);
+  });
+  expect(await fixture.worker.exited).toEqual({ code: 0, signal: null });
+  expect(fixture.worker.stdoutClosed && fixture.worker.stderrClosed).toBe(true);
+}, 60000);

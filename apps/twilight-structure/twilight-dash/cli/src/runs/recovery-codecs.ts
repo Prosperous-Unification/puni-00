@@ -10,10 +10,13 @@ import {
 import type {
   RecoveryBeginCall,
   RecoveryCall,
+  RecoveryClosure,
   RecoveryExchange,
+  RecoveryFence,
   RecoveryFenceInput,
   RecoveryFenceReplyInput,
   RecoveryHistory,
+  RecoveryObservation,
   RecoveryResolveCall,
 } from './recovery-records';
 import { acceptanceCodec, intentCodec, scopeCodec } from './runtime-codecs';
@@ -369,6 +372,21 @@ const exchangeCodec = exchange;
 export function decodeRecoveryExchange(candidate: unknown): RecoveryExchange {
   // Proof: C1 bypassed this new parse dependency; owned malformed record negatives lost rejection.
   return structuredClone(parseOrThrow(exchangeCodec, candidate));
+}
+/** Structurally validates and detaches a native fence value; complete-history correspondence and artifact authentication remain separate. */
+// Proof: removing this parse or snapshot independently failed the genuine format5 stageRecoveryFence complete-correlated-witness protocol test (malformed version or caller mutation); exact source hashes restored.
+export function decodeRecoveryFence(candidate: unknown): RecoveryFence {
+  return structuredClone(parseOrThrow(fence, candidate));
+}
+/** Structurally validates and detaches a native observation; complete-history correspondence and artifact authentication remain separate. */
+// Proof: removing this parse or snapshot independently failed the genuine format5 recordRecoveryFence complete-correlated-witness protocol test (malformed version or caller mutation); exact source hashes restored.
+export function decodeRecoveryObservation(candidate: unknown): RecoveryObservation {
+  return structuredClone(parseOrThrow(observation, candidate));
+}
+/** Structurally validates and detaches a native closure; complete-history correspondence and artifact authentication remain separate. */
+// Proof: removing this parse or snapshot independently failed the genuine format5 resolveRecovery complete-correlated-witness protocol test (malformed version or caller mutation); exact source hashes restored.
+export function decodeRecoveryClosure(candidate: unknown): RecoveryClosure {
+  return structuredClone(parseOrThrow(closure, candidate));
 }
 export function decodeRecoveryHistory(candidate: unknown): RecoveryHistory {
   // Proof: C2 bypassed this new parse dependency; owned malformed record negatives lost rejection.
