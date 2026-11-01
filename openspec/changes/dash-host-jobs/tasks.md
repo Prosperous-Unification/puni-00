@@ -1,95 +1,117 @@
-## 0. Dany reads J1 to J18
+## 0. Dany reads J1 to J18 and the placement
 
-- [ ] 0.1 Dany confirms or amends design.md J1 to J18, in particular J4 (a third authority with
-      its own ledger, no WBS on the admission path), J6 (oldest-fitting-first with a barrier of
-      three), J12 (the legacy lock held while `legacyLockPath` is set, the shim deciding by one
-      fixed path) and J17 (one tool, `dev` and `ops` namespaces; a fourth tool is his later ADR).
-      Slices 1 and 2 may proceed on J1 to J6; slice 3 waits for J7 and J8; slice 6 for J12 to J15.
+- [ ] 0.1 Dany confirms or amends design.md, in particular J4 (the host pool is the existing
+      managed-resource ledger, with a host-local use kind that needs no WBS admission), J6
+      (oldest-fitting-first with a barrier of three younger admissions), J12 (fenced mode change,
+      Dash singleton holding the flock in concurrent mode) and J17 (`ops job …` now, the `dev`
+      migration its own change). Slices 1 and 2 may proceed on J1 to J6 and the placement; slice
+      3 waits for J7 and J8; slice 6 for J12 to J16. Codex's review and its disposition are in
+      design.md's last section.
 
 ## 1. Catalogue and rule (static; no host change)
 
-- [ ] 1.1 `infra/jobs/catalogue.json` with the five types (J2, J14) and `infra/jobs/README.md`
-      naming the fields and the `propose` → PR loop; each entrypoint script gains one comment
-      naming its catalogue id — test: the catalogue parses with the shared ArkType shape.
-- [ ] 1.2 Burokrat rule `JOB-CATALOGUE` in observe mode: malformed entry, duplicate id, absent
-      entrypoint, expired estimate against `--now`, envelope below calibrated p95 — test: one
-      fixture per failure; negative: drop the `until` comparison and the 2026-12-02 fixture
-      passes.
-- [ ] 1.3 Twilight glossary terms (J1) and the names/boundaries note that a host pool is a
-      capacity pool of one host.
+- [ ] 1.1 `infra/jobs/catalogue.json` with the four types of this repository (J2, J14) and
+      `infra/jobs/README.md` naming the fields, the provisional heuristics of J9 and the
+      `propose` → PR loop; each entrypoint script gains one comment naming its catalogue id;
+      `puni-pr-00` gets its own catalogue with `website-dev-build` in a companion PR — test: the
+      catalogue parses with the shared ArkType shape; an argv outside the argument profile is
+      refused.
+- [ ] 1.2 Burokrat rule `JOB-CATALOGUE` in observe mode through the existing rule framework:
+      malformed entry, duplicate id, absent entrypoint, expired estimate against the supplied
+      instant, envelope below calibrated p95, unbounded containers — test: one fixture per
+      failure; negative: drop the `until` comparison and the 2026-12-02 fixture passes.
+- [ ] 1.3 Twilight glossary terms (J1), the names page note that a host pool is a capacity
+      pool of one host, platform-map lines for reconciliation items 4, 8, 14 and 16, and the
+      refactoring queue's heavy-lock item marked closed-for-enrolled-hosts.
 
-## 2. Host pool ledger and admission (needs 1.1)
+## 2. Ledger extension and admission (needs 1.1; `src/resources/runtime.ts`)
 
-- [ ] 2.1 `src/ops/host-pool/`: owner-only config (fixed path, `budget`, `headroomGib`,
-      exclusive units, `legacyLockPath`, WBS binding), SQLite ledger (`pool`, `ticket`, `job`,
-      `sample`, `calibration`, `outbox`), `ops pool init|inspect` — test: init refuses an
-      existing ledger, a config another user can read, a budget above the machine's `MemTotal`.
-- [ ] 2.2 Admission: vector fit, exclusive units, exit 73, oldest-fitting-first, barrier of
-      three, deadlines, dead-ticket reclaim (J5, J6) — test: the four spec scenarios;
-      `fc.asyncModelRun` over admissions and exits from several processes with sabotage proofs
-      (drop the `BEGIN IMMEDIATE`, drop the unit check, drop the barrier) each watched red
-      before the slice lands (J18).
+- [ ] 2.1 Extend the managed-resource ledger and configuration with `cpuCores` and `memoryGib`
+      budgets and typed headroom, named exclusive units (distinct canonical paths), the pool
+      mode and enrollment identity, and the use kind `host_job` admitted host-locally (J4, J5)
+      — test: `ops pool init` refuses an existing ledger, a readable-by-others config, a budget
+      above `MemTotal`, duplicate unit paths; an existing worktree use and a host job reserve
+      from one vector; negative: drop the host-local path and watch the gate wait on a refusing
+      WBS fixture.
+- [ ] 2.2 Admission: vector fit, exclusive units, exit 73, oldest-fitting-first with atomic
+      overtake counting and the oldest barrier, deadlines, wait-zero refusal, dead-ticket
+      reclaim (J5, J6) — test: the spec scenarios; `fc.asyncModelRun` over admissions, exits,
+      deadline crossings, cancellations, simultaneous contenders, several barriers, calibration
+      and crashes from several processes, with sabotage proofs (drop `BEGIN IMMEDIATE`, drop the
+      unit check, drop the barrier, release on launcher death) each watched red before the slice
+      lands (J18).
+- [ ] 2.3 Settlement per reservation entry with terminal evidence (J2'): process group terminal
+      through the runtime's pidfd and `/proc` inspection, declared containers gone, tmp
+      directory verified removed, `gate_tree` verified at its resting commit and clean; one
+      transaction with the outbox event — test: the surviving-child and dirty-tree scenarios;
+      negative: settle memory on exit code alone and watch the surviving-child test admit over it.
 
 ## 3. Measured runs (needs 2)
 
-- [ ] 3.1 `ops job run`: `systemd-run --user --scope` with `MemoryHigh`/`MemoryMax`, private
-      `TMPDIR`, the environment of J7, ten-second cgroup samples, run record before exit, exit
-      code pass-through, 128 + signal — test: a real scope on the Linux runner reading its own
-      `memory.peak`; negative: replace `systemd-run` with a stub answering "Failed to connect to
-      bus" and watch exit 70 before the argv (J8); negative: make `memory.peak` unreadable and
-      watch 70.
-- [ ] 3.2 Labelled containers (J16): `containers: labelled` samples `docker stats` of
-      `puni.job=<id>` through the docker adapter's reading; `docker events` during the window
-      records unlabelled starts on the run — test: fixture docker CLI.
-- [ ] 3.3 `ops job status` (J13) — test: the one-running-one-waiting scenario, exact lines.
+- [ ] 3.1 `ops job run`: scope through the runtime's FD-gated launch, counters read and identity
+      persisted before the gate opens, `MemoryHigh`/`MemoryMax`, private `TMPDIR`, the
+      environment of J7, ten-second samples, observation boundary alive through the final
+      sample and durable record, telemetry and ledger-write failures recorded apart, exit code
+      pass-through, 128 + signal — test: a real scope on the Linux runner reading its own
+      `memory.peak`; a one-second payload; negative: stub `systemd-run` answering "Failed to
+      connect to bus" and watch exit 70 before the payload (J8); make `memory.peak` unreadable
+      at the gate and watch 70; tear the scope down early and watch the recording failure.
+- [ ] 3.2 Declared container bounds (J16): labelled and bounded containers sampled through the
+      docker adapter's reading as advisory evidence; unlabelled or unbounded starts during the
+      window recorded `attribution_incomplete` — test: a real short-lived bounded container and
+      an unbounded one against a local daemon; negative: drop the bound check and the unbounded
+      run counts as complete.
+- [ ] 3.3 `ops job status` (J13) — test: the one-running-one-waiting scenario, exact lines,
+      settlement state shown.
 
 ## 4. Calibration, proposal, audit (needs 3)
 
-- [ ] 4.1 `ops job calibrate` (drain, whole budget, no `MemoryHigh`, calibration record) and
-      `ops job propose` (p95 × 1.25, three-record minimum, record ids) — test: the two spec
-      scenarios; negative: lower the minimum to one and watch the refusal test fail.
-- [ ] 4.2 `ops job audit` with the four drift kinds and the weekly timer units rendered beside
-      the observation units — test: one fixture per kind, `no drift` on a clean ledger;
-      negative: drop the overrun window and the 7-against-6 fixture passes.
+- [ ] 4.1 `ops job calibrate` (drain, whole `allocatable`, no `MemoryHigh`, calibration record)
+      and `ops job propose` (nearest-rank p95 per dimension over complete comparable records,
+      throttled runs excluded from memory, three-calibration minimum, 1.25, record ids) — test:
+      the spec scenarios; negative: lower the minimum to one and watch the refusal test fail;
+      include a throttled run and watch the proposal drop.
+- [ ] 4.2 `ops job audit` with the four drift kinds, overruns kept until superseded, and the
+      weekly timer units rendered beside the observation units — test: one fixture per kind,
+      `no drift` on a clean ledger; negative: age overruns out after five runs and the
+      eight-runs-later fixture passes.
 
-## 5. WBS projection (needs 2; be-01, fe-01, Dash compute)
+## 5. WBS projection (needs 2; contracts, be-01, fe-01, Dash compute)
 
-- [ ] 5.1 `host_pool` as a fifth `Measure` in `src/compute` and the contracts' binding shape;
-      `report-capacity` reads the ledger's reserved sum, re-observes on admission and exit —
-      test: reporter test with a fixture ledger; the reported chip reads `reserved`.
-- [ ] 5.2 Host jobs as `host_job` resource uses through the authority events with an outbox
-      that survives WBS being down (J10) — test: the WBS-down scenario against a refusing
-      fixture server; negative: make the publish synchronous on the admission path and watch the
-      gate wait on WBS.
-- [ ] 5.3 fe-01: the `reserved by N jobs` state and the job names beside the capacity chip —
+- [ ] 5.1 `reservedUnits` on the capacity report (additive migration with `down.sql`), the
+      `host_pool` binding source in `report-capacity` reading the ledger, re-observed on the
+      ledger's change notification — test: reporter test with a fixture ledger; a pre-change body
+      still stored; negative: let reservations overwrite `usageUnits` and watch the
+      reserved-beside-measured scenario fail.
+- [ ] 5.2 `resourceRuntimeUse` v2 with `kind: 'host_job'`, optional planning links, authority
+      ownership and reservation entries; `registered` from the outbox after admission,
+      `release_verified` only with settlement evidence; deletion of a planning link keeps the use
+      (J10) — test: the WBS-down scenario against a refusing fixture server; a v1 use still
+      accepted; negative: require a planning link and watch a gate without one fail to register.
+- [ ] 5.3 fe-01: reserved units and job names beside the measured figure, states unchanged —
       test: rendering states; eye review per the UI acceptance rule.
 
 ## 6. Transition on the gate hosts (operator and code)
 
-- [ ] 6.1 Shim in `bin/heavy-lock-lib.sh` (J12): enrolled branch execs `ops job run`, type
-      required, fixed path, no variable; the five callers export `HEAVY_LOCK_JOB_TYPE`;
-      `puni-pr-00`'s `build-release.sh` the same — test: new `bin/heavy-lock.test.sh` cases for
-      the enrolled branch; the existing 23 pass unchanged; negative: let an environment variable
-      choose the mechanism and watch the opt-out case fail.
-- [ ] 6.2 Audit the gate for shared mutable state beyond the tree (docker image tag, fixed
-      ports, `/var/tmp` names, Bun and Nx caches); the smoke tag becomes
-      `wbs-be-01:solver-smoke-<job id>`; `bin/h2puni-gate.sh` takes its root from
-      `DASH_JOB_UNIT_GATE_TREE` and refuses 64 on an enrolled host without it (J15) — test: two
-      gates driven concurrently in the model test with distinct trees; negative: share the tag
-      and watch the smoke race.
+- [ ] 6.1 `run_heavy_job` in `bin/heavy-lock-lib.sh` (J12, J13): enrolled branch, type required,
+      fixed path, config-missing-beside-ledger is 70, budgets forwarded as flags, outer shell
+      returning status; the four launchers here and `puni-pr-00`'s `build-release.sh` call it —
+      test: new `bin/heavy-lock.test.sh` cases for the enrolled branch; every existing case
+      passes unchanged against `with_heavy_lock`; the gate's trap-runs-once scenario; negative:
+      let a variable choose the mechanism and watch the opt-out case fail.
+- [ ] 6.2 Five-launcher conflict inventory (J3): canonical paths, ports, release artifacts,
+      caches, build engines, cross-type pairs; each conflict isolated or an exclusive unit; the
+      gate split into outer launcher and admitted payload reading `DASH_JOB_UNIT_GATE_TREE`
+      (J15); the solver smoke's containers bounded and labelled (J16) — test: two gates and a
+      gate beside a release build driven concurrently against real launchers with distinct
+      trees; negative: remove the tree variable and watch the enrolled payload refuse 64.
 - [ ] 6.3 `gate_host` role: linger on, pool config, ledger directory, second gate tree,
       `validate` runs `ops job audit`; h2puni disk cleaned first per the recorded order — proof:
       two converging applies, `changed=0` on the second.
-- [ ] 6.4 Enroll h2puni and h4claw with `legacyLockPath` set (observe phase); run the gate,
-      the release build, the solver publish, `test:queued` and the website build through the
-      shim for a week; calibrate the five types; open the catalogue PR from `propose`.
-- [ ] 6.5 Flip `legacyLockPath` to null on each host after the five-caller checklist; record
-      the first two concurrent gates and their peaks in `verify.md`; update
-      `docs/runbook-h2-heavy-lock-owner.md`, `docs/infra/gate-hosts.md`, `AGENTS.md` Gate and
-      `LLM_README.md`.
-
-## 7. Dash namespaces (J17; mechanical, any time after 2)
-
-- [ ] 7.1 `twilight-dash dev …` and `twilight-dash ops …` dispatcher tables with the old names
-      as aliases for one release; README, `docs/platform-map.md` and the Twilight names page —
-      test: every alias dispatches to the same handler; the alias removal date is in the README.
+- [ ] 6.4 Enroll h2puni and h4claw in observe mode; run every launcher through `run_heavy_job`
+      for a week; calibrate the five types cold and warm; open the catalogue PRs from `propose`.
+- [ ] 6.5 `ops pool switch-mode concurrent` on each host after the five-launcher checklist,
+      with the singleton guard held; two-job concurrent validation recorded in `verify.md`
+      (planned proofs apart from observed evidence); decide when a failing `JOB-CATALOGUE`
+      blocks `ops job run`; update `docs/runbook-h2-heavy-lock-owner.md`,
+      `docs/infra/gate-hosts.md`, `AGENTS.md` Gate and `LLM_README.md`.

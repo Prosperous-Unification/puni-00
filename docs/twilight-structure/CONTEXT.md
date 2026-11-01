@@ -180,7 +180,7 @@ _Avoid_: Budget, availability
 
 **Host pool**:
 The capacity pool of one host, in cores, memory, tmp disk and named exclusive units, that
-Twilight Dash admits host jobs against from a ledger on that host.
+Twilight Dash's managed-resource ledger on that host admits host jobs and worktrees against.
 _Avoid_: Heavy lock, host lock, slot
 
 **Job type**:
@@ -194,8 +194,8 @@ exclusive units it needs, with the provenance of those numbers.
 _Avoid_: Limit, quota, requirement
 
 **Host job**:
-One admitted run of a job type on one host, measured in its own cgroup scope from admission
-to exit.
+One admitted run of a job type on one host: a resource use measured in its own cgroup scope,
+whose reservations settle each on their own terminal evidence.
 _Avoid_: Lock holder, ticket, lane
 
 **Calibration run**:
@@ -205,7 +205,7 @@ _Avoid_: Diagnostic, benchmark, dry run
 
 **Envelope drift**:
 The audit's finding that a job type's declared envelope and its measured history disagree:
-an overrun, waste, an expired estimate or an unlabelled container.
+an overrun, waste, an expired estimate or incomplete attribution.
 _Avoid_: Violation, anomaly
 
 **Budget**:

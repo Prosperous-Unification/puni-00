@@ -12,21 +12,21 @@ none sees a heavy run. Nobody knows what a gate costs, so nobody can say whether
 tmp disk, exclusive units such as a gate tree) and where it was measured. Twilight Burokrat
 validates it; an uncatalogued type is refused.
 
-**A host pool in Twilight Dash** replaces the lock on an enrolled host: `twilight-dash ops job run`
-admits a host job when its envelope fits, oldest first with a starvation barrier, and runs it in
-its own cgroup scope so peak memory, CPU, tmp disk and duration are kept per run. A calibration run
-measures a type alone and proposes an envelope; an audit names drift. The catalogue changes only
-through git.
+**A host pool in Twilight Dash** replaces the lock on an enrolled host: Dash's managed-resource
+ledger gains cores, memory and exclusive units; `twilight-dash ops job run` admits a host job
+from it when its envelope fits, oldest first with a starvation barrier, runs it in its own cgroup
+scope, keeps its peaks per run, and settles each reservation on terminal evidence. A calibration
+run proposes an envelope; an audit names drift. The catalogue changes only through git.
 
-**WBS shows it:** the pool as a compute provider measure, each host job as a resource use. WBS
-never admits a host job.
+**WBS shows it:** reserved units on the capacity report, each host job as a resource use. WBS
+never admits one.
 
-**Dash gains two namespaces**, `dev` and `ops`, the reversible first step of the split Dany weighs.
+**Dash gains `ops job …`**, the first `ops` namespace; the wider split is its own change.
 
 ## Non-Goals
 
 Cross-host scheduling; host jobs taking WBS claims; macOS and unenrolled hosts (they keep the
-shell lock); CPU quotas; unlabelled container memory; billing.
+shell lock); CPU quotas; types whose containers run unbounded (serialised); billing.
 
 ## Constraints
 
@@ -43,8 +43,8 @@ shell lock); CPU quotas; unlabelled container memory; billing.
 
 ### Modified Capabilities
 
-- `compute-provider`: a `host_pool` measure whose usage is reserved units.
-- `heavy-lock-queue`: `bin/with-heavy-lock.sh` defers to the pool on an enrolled host.
+- `compute-provider`: reserved units beside measured usage on the capacity report.
+- `heavy-lock-queue`: one production entry that defers to the pool on an enrolled host.
 
 ## Domain Terms
 
@@ -52,8 +52,8 @@ Job type, Job envelope, Host job, Host pool, Calibration run, Envelope drift.
 
 ## Decisions Recorded
 
-No ADR yet. J1 to J18 in design.md are assumed, overrulable by id; J17 (one tool, two namespaces)
-is Dany's call.
+No ADR yet. J1 to J18 in design.md are assumed, overrulable by id, amended after Codex Astra's
+review of 2026-11-01; J17 is Dany's call.
 
 ## Impact
 
