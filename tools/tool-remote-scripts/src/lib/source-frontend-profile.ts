@@ -27,14 +27,6 @@ const INPUTS = {
     bytes: 3762,
     sha256: '7c8d1168a38f89c4bf3390c12664d769d8d5f447041b7125ec4e99be4366b5b1',
   },
-  'bun.lock': {
-    bytes: 533044,
-    sha256: 'bf54a6c6202a5d8f54f9bb8fe7e76935a8f4c667c660da720db3fd5f16391383',
-  },
-  'package.json': {
-    bytes: 4885,
-    sha256: 'bf45a6e5f8f806d2762dfb22af77375a9ad55d806781a34812812de31f07eb74',
-  },
   'node_modules/vite/package.json': {
     bytes: 5093,
     sha256: '4e41dd20c7a12e7e70915b235c0bf5b5158ec6709c1390804128af0867d6d6d9',
@@ -77,6 +69,31 @@ const INPUTS = {
   },
 };
 
+const PAIRS = [
+  {
+    epoch: 'before-ctt',
+    'package.json': {
+      bytes: 4885,
+      sha256: 'bf45a6e5f8f806d2762dfb22af77375a9ad55d806781a34812812de31f07eb74',
+    },
+    'bun.lock': {
+      bytes: 533044,
+      sha256: 'bf54a6c6202a5d8f54f9bb8fe7e76935a8f4c667c660da720db3fd5f16391383',
+    },
+  },
+  {
+    epoch: 'ctt-0.12.0',
+    'package.json': {
+      bytes: 4930,
+      sha256: '74ba36c471df0f1dd7ca4221a49f1dd9bab2c7feb7d022a5ff6be39a3aff0e8a',
+    },
+    'bun.lock': {
+      bytes: 533521,
+      sha256: 'e3e915704bce2282142eae1f2374cd6217f408d1fed38ae116579a4f6fb1025d',
+    },
+  },
+];
+
 function refuse(): never {
   throw new Error('source frontend input profile unsupported');
 }
@@ -115,7 +132,7 @@ function readFrontendInput(
   return namespace.get(resolved.join('/'));
 }
 
-/** Selects only the reviewed eighteen size/hash inputs from the original already decoded canonical manifest. Private lookup follows declared relative links in its source/dependencies/git namespace, including real ancestors before '..', with the same forty-link ceiling. No live filesystem, response, version fallback or caller digest supplies expectations; this literal grants no readiness or startup authority. */
+/** Selects sixteen common size/hash inputs and one of two exact coupled package/lock epochs from the original already decoded canonical manifest. Private lookup follows declared relative links in its source/dependencies/git namespace, including real ancestors before '..', with the same forty-link ceiling. No live filesystem, response, version fallback or caller digest supplies expectations; this literal grants no readiness or startup authority. */
 export function selectSourceFrontendProfile(
   manifest: SourceStartupManifest,
 ): SourceFrontendProfile {
@@ -137,5 +154,18 @@ export function selectSourceFrontendProfile(
     if (entry?.kind !== 'file' || entry.size !== expected.bytes || entry.sha256 !== expected.sha256)
       refuse();
   }
+  const matches = (path: string, expected: { bytes: number; sha256: string }) => {
+    const entry = readFrontendInput(namespace, path);
+    return (
+      entry?.kind === 'file' && entry.size === expected.bytes && entry.sha256 === expected.sha256
+    );
+  };
+  if (
+    !PAIRS.some(
+      (pair) =>
+        matches('package.json', pair['package.json']) && matches('bun.lock', pair['bun.lock']),
+    )
+  )
+    refuse();
   return 'wbs-source-frontend-wire-v1';
 }

@@ -16,6 +16,8 @@ const CURATED = [
   'libs/shared/adapters/ui-saas-01',
   'package.json',
   'bun.lock',
+  'deploy/dev-src/Dockerfile',
+  'deploy/dev-src/compose.yml',
   'tsconfig.base.json',
   'nx.json',
 ];
@@ -44,14 +46,6 @@ const PINS = {
   'deploy/dev-src/compose.yml': {
     bytes: 3762,
     sha256: '7c8d1168a38f89c4bf3390c12664d769d8d5f447041b7125ec4e99be4366b5b1',
-  },
-  'bun.lock': {
-    bytes: 533044,
-    sha256: 'bf54a6c6202a5d8f54f9bb8fe7e76935a8f4c667c660da720db3fd5f16391383',
-  },
-  'package.json': {
-    bytes: 4885,
-    sha256: 'bf45a6e5f8f806d2762dfb22af77375a9ad55d806781a34812812de31f07eb74',
   },
   'node_modules/vite/package.json': {
     bytes: 5093,
@@ -94,6 +88,31 @@ const PINS = {
     sha256: '4a001feffe9d32b5fb63860d4faa8725f8a4d7a13c2c37b92587234ab3d66c23',
   },
 };
+const PAIRS = [
+  {
+    epoch: 'before-ctt',
+    'package.json': {
+      bytes: 4885,
+      sha256: 'bf45a6e5f8f806d2762dfb22af77375a9ad55d806781a34812812de31f07eb74',
+    },
+    'bun.lock': {
+      bytes: 533044,
+      sha256: 'bf54a6c6202a5d8f54f9bb8fe7e76935a8f4c667c660da720db3fd5f16391383',
+    },
+  },
+  {
+    epoch: 'ctt-0.12.0',
+    'package.json': {
+      bytes: 4930,
+      sha256: '74ba36c471df0f1dd7ca4221a49f1dd9bab2c7feb7d022a5ff6be39a3aff0e8a',
+    },
+    'bun.lock': {
+      bytes: 533521,
+      sha256: 'e3e915704bce2282142eae1f2374cd6217f408d1fed38ae116579a4f6fb1025d',
+    },
+  },
+];
+
 const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 
 function git(args: string[], input?: Buffer): Buffer {
@@ -112,12 +131,39 @@ function git(args: string[], input?: Buffer): Buffer {
     throw new Error('curated producer Git read failed');
   return child.stdout;
 }
-async function inspectPins(): Promise<void> {
-  for (const [path, expected] of Object.entries(PINS)) {
-    const bytes = await readFile(join(ROOT, path));
-    if (bytes.byteLength !== expected.bytes || digest(bytes) !== expected.sha256)
-      throw new Error('unsupported source frontend producer inputs');
+type SelectedInputs = Partial<Record<string, { bytes: number; sha256: string }>>;
+async function inspectPins(
+  root: string,
+): Promise<{ epoch: string; selectedInputs: SelectedInputs }> {
+  const selectedInputs: SelectedInputs = {};
+  for (const path of [...Object.keys(PINS), 'package.json', 'bun.lock']) {
+    const bytes = await readFile(join(root, path));
+    selectedInputs[path] = { bytes: bytes.byteLength, sha256: digest(bytes) };
   }
+  const matches = (path: string, expected: { bytes: number; sha256: string }) => {
+    const observed = selectedInputs[path];
+    return observed?.bytes === expected.bytes && observed.sha256 === expected.sha256;
+  };
+  const pair = PAIRS.find(
+    (pair) =>
+      matches('package.json', pair['package.json']) && matches('bun.lock', pair['bun.lock']),
+  );
+  if (
+    pair === undefined ||
+    !Object.entries(PINS).every(([path, expected]) => matches(path, expected))
+  )
+    throw new Error('unsupported source frontend producer inputs');
+  return { epoch: pair.epoch, selectedInputs };
+}
+function requireSameSelection(original: SelectedInputs, observed: SelectedInputs): void {
+  for (const [path, expected] of Object.entries(original)) {
+    if (expected === undefined) throw new Error('original selected input absent');
+    const selected = observed[path];
+    if (selected?.bytes !== expected.bytes || selected.sha256 !== expected.sha256)
+      throw new Error('source frontend producer selected epoch changed');
+  }
+  if (Object.keys(original).length !== Object.keys(observed).length)
+    throw new Error('source frontend producer selected census changed');
 }
 function readObservation(
   observation: unknown,
@@ -181,20 +227,23 @@ export function requireSourceFrontendProducerSuccess(
     );
 }
 
-/** Captures only tracked public blobs in the admitted layout, then joins the actual Node/Vite child and both pipes before invoking a consumer. Unknown producer/cleanup outcomes retain scratch and throw. */
+/** Captures one immutable Git SHA and binds its selected source blobs to the original admitted live paired epoch through closing, then joins the actual Node/Vite child and both pipes before invoking a consumer. Unknown producer/cleanup outcomes retain scratch and throw. */
 export async function withSourceFrontendProducer<T>(
   consume: (
     observations: { document: ParticipantHttpObservation; entry: ParticipantHttpObservation },
     directory: string,
   ) => Promise<T>,
 ): Promise<T> {
-  await inspectPins();
+  const initial = await inspectPins(ROOT);
+  const sourceSha = git(['rev-parse', 'HEAD']).toString().trim();
+  if (!/^[a-f0-9]{40}$/.test(sourceSha))
+    throw new Error('curated producer source identity malformed');
   const directory = await mkdtemp(join(tmpdir(), 'puni-source-frontend-wire-'));
   let settled = false;
   try {
     const snapshot = join(directory, 'snapshot');
     await mkdir(snapshot);
-    const listing = git(['ls-tree', '-rz', '--full-tree', 'HEAD', ...CURATED]).toString();
+    const listing = git(['ls-tree', '-rz', '--full-tree', sourceSha, ...CURATED]).toString();
     const entries = listing
       .split('\0')
       .filter(Boolean)
@@ -220,7 +269,8 @@ export async function withSourceFrontendProducer<T>(
       Buffer.from(entries.map(({ blob }) => blob + '\n').join('')),
     );
     let offset = 0;
-    const sourcePins: Record<string, { gitBlob: string; bytes: number; sha256: string }> = {};
+    const sourcePins: Partial<Record<string, { gitBlob: string; bytes: number; sha256: string }>> =
+      {};
     for (const { mode, blob, path } of entries) {
       const end = bytes.indexOf(10, offset);
       const header = /^([a-f0-9]{40}) blob (\d+)$/.exec(bytes.subarray(offset, end).toString());
@@ -249,6 +299,15 @@ export async function withSourceFrontendProducer<T>(
     for (const name of await readdir(join(ROOT, 'node_modules')))
       if (!name.startsWith('.'))
         await symlink(join(ROOT, 'node_modules', name), join(snapshot, 'node_modules', name));
+    const selected = await inspectPins(snapshot);
+    requireSameSelection(initial.selectedInputs, selected.selectedInputs);
+    for (const [path, observed] of Object.entries(selected.selectedInputs)) {
+      if (observed === undefined) throw new Error('selected snapshot input absent');
+      if (path.startsWith('node_modules/')) continue;
+      const captured = sourcePins[path];
+      if (captured?.bytes !== observed.bytes || captured.sha256 !== observed.sha256)
+        throw new Error('selected source differs from captured Git blob');
+    }
     const frontend = join(snapshot, 'apps/wbs/fe-01');
     await writeFile(
       join(frontend, '.env'),
@@ -260,9 +319,10 @@ export async function withSourceFrontendProducer<T>(
       join(directory, 'source-manifest.json'),
       JSON.stringify(
         {
-          head: git(['rev-parse', 'HEAD']).toString().trim(),
+          head: sourceSha,
+          epoch: selected.epoch,
           files: sourcePins,
-          selectedInputs: PINS,
+          selectedInputs: selected.selectedInputs,
           excluded: 'all tracked basenames beginning .env; ignored/private env never enumerated',
           fakeEnv: ['VITE_BE_URL=http://127.0.0.1:9', 'VITE_GW_URL=ws://127.0.0.1:9'],
         },
@@ -335,11 +395,27 @@ export async function withSourceFrontendProducer<T>(
     )
       throw new Error('actual frontend producer cleanup unproved');
     for (const [path, expected] of Object.entries(sourcePins)) {
+      if (expected === undefined) throw new Error('captured source pin absent');
       const content = await readFile(join(snapshot, path));
       if (content.byteLength !== expected.bytes || digest(content) !== expected.sha256)
         throw new Error('curated source changed');
     }
-    await inspectPins();
+    const closingSnapshot = await inspectPins(snapshot);
+    const closingLive = await inspectPins(ROOT);
+    requireSameSelection(initial.selectedInputs, closingSnapshot.selectedInputs);
+    requireSameSelection(initial.selectedInputs, closingLive.selectedInputs);
+    await writeFile(
+      join(directory, 'selected-closing.json'),
+      JSON.stringify(
+        {
+          epoch: initial.epoch,
+          snapshot: closingSnapshot.selectedInputs,
+          live: closingLive.selectedInputs,
+        },
+        null,
+        2,
+      ),
+    );
     const document = new TextDecoder('utf-8', { fatal: true }).decode(
       await readFile(join(directory, 'index.response.html')),
     );
