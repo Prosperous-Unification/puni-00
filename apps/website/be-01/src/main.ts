@@ -2,6 +2,7 @@ import { S3JournalRemote } from '@website/store-sqlite';
 
 import { requestBodyByteLimit } from './body-capacity';
 import { replyHttpIdleSeconds } from './conversation/stream';
+import { loadCountryDatabase } from './country-database';
 import { describeAlertWebhook } from './guardrail-alerts';
 import { readRetentionJournalSetting, readWebsiteApiConfig } from './runtime-config';
 import { createWebsiteApi } from './server';
@@ -14,6 +15,8 @@ const journal = readRetentionJournalSetting(process.env);
 const config = readWebsiteApiConfig(process.env);
 const api = createWebsiteApi({
   ...config,
+  // Proof: omitting injection made the actual compiled-main regional package smoke fail.
+  countryDatabase: loadCountryDatabase(),
   retentionJournal:
     journal.mode === 's3'
       ? {

@@ -1,0 +1,17 @@
+DB-IP IP to Country Lite — November 2026
+
+IP Geolocation by DB-IP https://db-ip.com
+Source: https://db-ip.com/db/download/ip-to-country-lite
+Licence: Creative Commons Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+
+Database bytes unchanged; gzip packaging only.
+The accompanying release.json records the provider release and verified identities.
+Country estimates are approximate and do not establish a visitor's legal residence.
+
+This dataset is licensed separately from the surrounding MIT-licensed source.
+Retain this notice and release.json when distributing the server package. Credit
+DB-IP visibly on pages that use its regional decision. CC BY 4.0 permits sharing
+and adaptation with attribution, a licence link, and indication of changes; no
+additional restrictions or provider endorsement are implied. The dataset is
+provided without warranty; see the linked licence for the full terms.

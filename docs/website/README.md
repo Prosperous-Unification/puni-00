@@ -24,6 +24,8 @@ Manual submission does not require a visitor account. Build is a live chat bound
 
 ## Planning and evidence
 
+- [Country database maintenance](country-database.md): monthly DB-IP Lite refresh, retained provenance/licence, and next manual download on 1 December 2026.
+
 - [Analytics account setup](analytics-setup.md): environment mapping, exact custom definitions, key-event setup and three proposed saved analyses; account setup and delivery evidence remain separate from local payload tests.
 
 - [Site revamp plan](site-revamp-plan.md): coordinated release for the conversion questionnaire, model-cost controls, five services, privacy, proposed GA4 measurement, About direction and first blog post; links the two implementation workstreams and their release dependencies.
