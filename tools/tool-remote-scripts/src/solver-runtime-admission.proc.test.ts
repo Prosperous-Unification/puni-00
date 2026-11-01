@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { scratchSync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
+import { initialHandoffLayout } from './fixtures/initial-handoff';
 import { withDependencyOwner, withOwnerSolverRuntime } from './lib/edge-ownership';
 import { initializeOrdinaryEdgePolicy } from './lib/edge-policy';
 import { envLayout } from './lib/env';
@@ -12,6 +13,7 @@ import { withCanonicalLock } from './lib/lock';
 
 const executable = resolve(import.meta.dir, 'solver-supervisor.ts');
 const preload = resolve(import.meta.dir, 'fixtures/solver-runtime-transport.ts');
+const initialLayout = resolve(import.meta.dir, 'fixtures/initial-handoff.ts');
 const image = `registry.example/wbs@sha256:${'a'.repeat(64)}`;
 
 async function fixture() {
@@ -46,10 +48,18 @@ fi
     program = executable,
   ) {
     return Bun.spawn(
-      [process.execPath, ...(transport ? ['--preload', preload] : []), program, ...argv],
+      [
+        process.execPath,
+        '--preload',
+        initialLayout,
+        ...(transport ? ['--preload', preload] : []),
+        program,
+        ...argv,
+      ],
       {
         env: {
           ...process.env,
+          TEST_INITIAL_HANDOFF_LAYOUT: 'owned',
           WBS_EDGE_STATE: directory,
           PATH: `${directory}:${process.env['PATH'] ?? ''}`,
           TEST_SOLVER_SOCKET: `${directory}/s.sock`,
@@ -200,7 +210,11 @@ async function refuses(
 test('installed bundle refuses marker and occupied runtime before config; mapping remains read-only', async () => {
   const { directory, spawn } = await fixture();
   const bundle = `${directory}/supervisor.js`;
-  const build = await Bun.build({ entrypoints: [executable], target: 'bun' });
+  const build = await Bun.build({
+    entrypoints: [executable],
+    target: 'bun',
+    plugins: [initialHandoffLayout(directory)],
+  });
   expect(build.success).toBe(true);
   const output = build.outputs[0];
   await writeFile(bundle, await output.text());
@@ -274,7 +288,7 @@ for (const fault of [
             : fault === 'owner' || fault === 'pending'
               ? 'admission closed'
               : fault === 'active'
-                ? 'invalid ordinary edge policy'
+                ? 'unknown or missing fields'
                 : fault === 'restoring'
                   ? 'invalid restoring edge policy'
                   : 'edge-policy.json',
@@ -396,8 +410,20 @@ for (const fault of [
       `import { mock } from 'bun:test'; mock.module(${JSON.stringify(resolve(import.meta.dir, 'lib/solver-supervisor-runtime.ts'))}, () => ({ startSolverSupervisor() { throw ${fault}; } }));`,
     );
     const child = Bun.spawn(
-      [process.execPath, '--preload', injection, executable, `--config=${directory}/config.json`],
-      { env: { ...process.env, WBS_EDGE_STATE: directory }, stdout: 'pipe', stderr: 'pipe' },
+      [
+        process.execPath,
+        '--preload',
+        initialLayout,
+        '--preload',
+        injection,
+        executable,
+        `--config=${directory}/config.json`,
+      ],
+      {
+        env: { ...process.env, TEST_INITIAL_HANDOFF_LAYOUT: 'owned', WBS_EDGE_STATE: directory },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
     );
     expect(await child.exited).toBe(1);
   });
@@ -424,11 +450,17 @@ for (const admission of ['legacy', 'policy'])
     const child = Bun.spawn(
       [
         process.execPath,
+        '--preload',
+        initialLayout,
         executable,
         `--config=${directory}/absent.json`,
         ...(admission === 'policy' ? ['--admission=policy'] : []),
       ],
-      { env: { ...process.env, WBS_EDGE_STATE: alias }, stdout: 'pipe', stderr: 'pipe' },
+      {
+        env: { ...process.env, TEST_INITIAL_HANDOFF_LAYOUT: 'owned', WBS_EDGE_STATE: alias },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
     );
     expect(await child.exited).toBe(1);
     expect(await new Response(child.stderr).text()).not.toContain('admission closed');
@@ -456,12 +488,18 @@ for (const admission of ['legacy', 'policy'])
       [
         process.execPath,
         '--preload',
+        initialLayout,
+        '--preload',
         injection,
         executable,
         `--config=${directory}/absent.json`,
         ...(admission === 'policy' ? ['--admission=policy'] : []),
       ],
-      { env: { ...process.env, WBS_EDGE_STATE: directory }, stdout: 'pipe', stderr: 'pipe' },
+      {
+        env: { ...process.env, TEST_INITIAL_HANDOFF_LAYOUT: 'owned', WBS_EDGE_STATE: directory },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
     );
     expect(await child.exited).toBe(78);
     expect(await new Response(child.stderr).text()).toContain('admission closed');
@@ -541,17 +579,27 @@ for (const admission of [
           : undefined;
       try {
         const inherited = independent ?? descriptor;
-        const child = Bun.spawn([process.execPath, fixedReader, '--check-edge-policy-inherited'], {
-          env: {
-            ...process.env,
-            WBS_EDGE_STATE: directory,
-            ...(admission === 'missing-descriptor' ? {} : { WBS_EDGE_LOCK_FD: '3' }),
+        const child = Bun.spawn(
+          [
+            process.execPath,
+            '--preload',
+            initialLayout,
+            fixedReader,
+            '--check-edge-policy-inherited',
+          ],
+          {
+            env: {
+              ...process.env,
+              TEST_INITIAL_HANDOFF_LAYOUT: 'owned',
+              WBS_EDGE_STATE: directory,
+              ...(admission === 'missing-descriptor' ? {} : { WBS_EDGE_LOCK_FD: '3' }),
+            },
+            stdio:
+              admission === 'missing-descriptor'
+                ? ['ignore', 'pipe', 'pipe']
+                : ['ignore', 'pipe', 'pipe', inherited],
           },
-          stdio:
-            admission === 'missing-descriptor'
-              ? ['ignore', 'pipe', 'pipe']
-              : ['ignore', 'pipe', 'pipe', inherited],
-        });
+        );
         const [code, stdout, stderr] = await Promise.all([
           child.exited,
           new Response(child.stdout).text(),
@@ -578,10 +626,18 @@ test('production inherited reader refuses a valid foreign state root and held de
   const { directory } = await fixture();
   await initializeOrdinaryEdgePolicy(directory);
   await withCanonicalLock(`${directory}/edge.lock`, async (descriptor) => {
-    const child = Bun.spawn([process.execPath, executable, '--check-edge-policy-inherited'], {
-      env: { ...process.env, WBS_EDGE_STATE: directory, WBS_EDGE_LOCK_FD: '3' },
-      stdio: ['ignore', 'pipe', 'pipe', descriptor],
-    });
+    const child = Bun.spawn(
+      [process.execPath, '--preload', initialLayout, executable, '--check-edge-policy-inherited'],
+      {
+        env: {
+          ...process.env,
+          TEST_INITIAL_HANDOFF_LAYOUT: 'owned',
+          WBS_EDGE_STATE: directory,
+          WBS_EDGE_LOCK_FD: '3',
+        },
+        stdio: ['ignore', 'pipe', 'pipe', descriptor],
+      },
+    );
     const [code, stdout, stderr] = await Promise.all([
       child.exited,
       new Response(child.stdout).text(),

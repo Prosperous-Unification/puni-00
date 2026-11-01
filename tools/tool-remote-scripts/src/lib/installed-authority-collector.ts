@@ -2,7 +2,7 @@
  * It never reads process environments, emits raw configuration, signals participants or reconstructs authority.
  */
 export const AUTHORITY_COLLECTOR = String.raw`
-import os, stat, json, hashlib, time, subprocess, selectors, pwd, errno, re, ctypes
+import os, stat, json, hashlib, time, subprocess, selectors, pwd, errno, re, ctypes, unicodedata
 
 class Refusal(Exception): pass
 
@@ -141,6 +141,7 @@ class Host:
             finally: os.close(descriptor)
         finally:
             for descriptor in reversed(parents): os.close(descriptor)
+    def open_runtime_fragment(self,path): return open_runtime_fragment(self,path)
     def query(self,argv):
         self.check()
         child=subprocess.Popen(argv,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env={'PATH':'/usr/bin:/bin','LC_ALL':'C'})
@@ -171,15 +172,16 @@ def manager_argv(manager,tool):
     if manager=='system': return ['/usr/bin/'+tool]
     return ['/usr/sbin/runuser','-u','puni1','--','/usr/bin/env','XDG_RUNTIME_DIR=/run/user/1000','DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus','/usr/bin/'+tool,'--user']
 
-def typed_property(host,manager,path,interface,property_name):
-    response=json.loads(query_text(host,manager_argv(manager,'busctl')+['--json=short','get-property','org.freedesktop.systemd1',path,interface,property_name]))
+def typed_property(host,manager,path,interface,property_name,strict=False):
+    content=query_text(host,manager_argv(manager,'busctl')+['--json=short','get-property','org.freedesktop.systemd1',path,interface,property_name])
+    response=runtime_json_reply(content.encode('utf-8'),1024*1024) if strict else json.loads(content)
     require(type(response)==dict and set(response)=={'type','data'},'typed unit property malformed')
     return response['type'],response['data']
 
 def unit_path(name):
     return '/org/freedesktop/systemd1/unit/'+''.join(chr(byte) if (65<=byte<=90 or 97<=byte<=122 or 48<=byte<=57) else '_'+format(byte,'02x') for byte in name.encode())
 
-def collect_launch(host,known_paths):
+def _collect_launch_projection(host,known_paths,observations=None):
     cron=[]; retained={}; total=0
     def retain(path):
         nonlocal total
@@ -189,6 +191,7 @@ def collect_launch(host,known_paths):
         else:
             total+=len(content); require(total<=64*1024*1024,'launch byte bound exceeded')
             retained[path]=(key,digest(content)); require(len(retained)<=4096,'configuration membership bound exceeded')
+        if observations is not None:observations.append(['file',path,list(key),runtime_metadata(host.metadata(path,False)),runtime_parents(host,path)])
         check_surface(path,content.decode(),known_paths,path=='/home/puni1/.config/systemd/user/wbs-solver-supervisor.service')
         return content
     def add(source,content):
@@ -223,6 +226,7 @@ def collect_launch(host,known_paths):
         if stat.S_ISLNK(metadata.st_mode):
             target=host.link(path); resolved=host.resolve(path)
             links.append((path,identity(metadata),target,resolved))
+            if observations is not None:observations.append(['link',path,runtime_metadata(metadata),target,resolved,runtime_parents(host,path)])
             if resolved=='/dev/null':
                 require(masked and target=='/dev/null','unbound masked definition')
                 return digest(target.encode())
@@ -240,6 +244,7 @@ def collect_launch(host,known_paths):
         return installed,set(loaded)
     for manager in ['system','user']:
         installed,loaded=inventory(manager)
+        if observations is not None:observations.append([manager,'inventory',sorted(installed.items()),sorted(loaded)])
         roster=set(installed)|loaded; projections={}
         for closure_round in range(3):
             require(len(roster)<=4096,'unit membership bound exceeded')
@@ -248,6 +253,7 @@ def collect_launch(host,known_paths):
                 require(re.fullmatch(r'[A-Za-z0-9:_.@\\-]+',name) is not None,'unit name malformed')
                 argv=manager_argv(manager,'systemctl')+['show',name]+['--property='+key for key in properties]
                 first=query_text(host,argv)
+                if observations is not None:observations.append([manager,name,first])
                 fields={}
                 for line in first.splitlines():
                     key,separator,value=line.partition('=')
@@ -268,12 +274,13 @@ def collect_launch(host,known_paths):
                 require(not masked or fragment is not None,'masked definition identity unavailable')
                 for path in fields['DropInPaths'].split(): drop_ins.append({'path':path,'sha256':definition(path,False)})
                 if '@.' not in name and fields['LoadState']!='masked':
-                    bound=json.loads(query_text(host,manager_argv(manager,'busctl')+['--json=short','call','org.freedesktop.systemd1','/org/freedesktop/systemd1','org.freedesktop.systemd1.Manager','LoadUnit','s',name]))
+                    binding_content=query_text(host,manager_argv(manager,'busctl')+['--json=short','call','org.freedesktop.systemd1','/org/freedesktop/systemd1','org.freedesktop.systemd1.Manager','LoadUnit','s',name])
+                    bound=runtime_json_reply(binding_content.encode('utf-8'),1024*1024) if observations is not None else json.loads(binding_content)
                     # Proof: typed-object guard omission failed native typed unit.
                     require(type(bound)==dict and set(bound)=={'type','data'} and bound['type']=='o' and bound['data']==[unit_path(canonical)],'typed unit object binding differs')
                     expectations={'Id':('s',canonical),'Names':('as',names),'LoadState':('s',fields['LoadState']),'FragmentPath':('s',fields['FragmentPath']),'DropInPaths':('as',fields['DropInPaths'].split()),'Transient':('b',fields['Transient']=='yes'),'NeedDaemonReload':('b',False),'Triggers':('as',fields['Triggers'].split()),'TriggeredBy':('as',fields['TriggeredBy'].split())}
                     for property_name,(expected_type,expected_value) in expectations.items():
-                        signature,value=typed_property(host,manager,unit_path(canonical),'org.freedesktop.systemd1.Unit',property_name)
+                        signature,value=typed_property(host,manager,unit_path(canonical),'org.freedesktop.systemd1.Unit',property_name,observations is not None)
                         # Proof: typed-metadata guard omission failed native typed unit.
                         require(signature==expected_type and type(value)==type(expected_value) and (sorted(value)==sorted(expected_value) if expected_type=='as' else value==expected_value),'typed unit metadata differs')
                 commands=[]; suffix=name.rsplit('.',1)[-1]
@@ -281,7 +288,7 @@ def collect_launch(host,known_paths):
                 if '@.' not in name and fields['LoadState']=='loaded' and suffix in command_types:
                     interface,execution_properties=command_types[suffix]
                     for property_name in execution_properties:
-                        signature,entries=typed_property(host,manager,unit_path(canonical),'org.freedesktop.systemd1.'+interface,property_name)
+                        signature,entries=typed_property(host,manager,unit_path(canonical),'org.freedesktop.systemd1.'+interface,property_name,observations is not None)
                         if signature=='(sasbttttuii)': entries=[entries]
                         else: require(signature=='a(sasbttttuii)','execution property unsupported')
                         require(type(entries)==list,'execution property malformed')
@@ -311,12 +318,278 @@ def collect_launch(host,known_paths):
         else: raise Refusal('loaded unit inventory did not converge')
     for path,inode,target,resolved in links:
         require(identity(host.metadata(path,False))==inode and host.link(path)==target and host.resolve(path)==resolved,'unit alias or mask changed')
+        if observations is not None:observations.append(['link-closing',path,runtime_metadata(host.metadata(path,False)),target,resolved,runtime_parents(host,path)])
     for directory,names in memberships: require(host.listing(directory,4096)==names,'schedule membership changed')
     for path,(key,hash_value) in retained.items():
         content,current=host.regular(path,4*1024*1024)
         require(current==key and digest(content)==hash_value,'launch definition changed')
+        if observations is not None:observations.append(['file-closing',path,list(current),runtime_metadata(host.metadata(path,False)),runtime_parents(host,path)])
+    return {'version':1,'cron':sorted(cron,key=lambda entry:entry['source']),'units':units}
+
+def collect_launch(host,known_paths):
     # Proof: full-static-hash guard omission failed full inventories.
-    return digest(encode({'version':1,'cron':sorted(cron,key=lambda entry:entry['source']),'units':units}))
+    return digest(encode(_collect_launch_projection(host,known_paths)))
+
+RUNTIME_RELATIONSHIPS=['requires','wants','requisite','bindsTo','partOf','upholds','requiredBy','requisiteOf','wantedBy','boundBy','upheldBy','consistsOf','conflicts','conflictedBy','before','after','onSuccess','onSuccessOf','onFailure','onFailureOf','triggers','triggeredBy','propagatesReloadTo','reloadPropagatedFrom','propagatesStopTo','stopPropagatedFrom','joinsNamespaceOf','requiresMountsFor']
+
+class RuntimeFilePort:
+    def __init__(self,descriptor): self.descriptor=descriptor
+    def stat(self): return os.fstat(self.descriptor)
+    def read(self,count): return os.read(self.descriptor,count)
+    def close(self): os.close(self.descriptor)
+
+def open_runtime_fragment(host,path):
+    host.check(); parents=[]; stream=None
+    try:
+        descriptor=os.open('/',os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW); parents.append(('/',RuntimeFilePort(descriptor)))
+        segments=path.split('/')[1:]; prefix=''
+        for segment in segments[:-1]:
+            descriptor=os.open(segment,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=descriptor)
+            prefix+='/'+segment; parents.append((prefix,RuntimeFilePort(descriptor)))
+        stream=RuntimeFilePort(os.open(segments[-1],os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=descriptor))
+        return {'file':stream,'parents':parents}
+    except BaseException:
+        if stream is not None:stream.close()
+        for name,parent in reversed(parents):parent.close()
+        raise
+
+
+class RuntimeBudget:
+    def __init__(self):self.bytes=0
+    def admit(self,value):
+        count=len(encode(value))+2
+        require(self.bytes+count<=8*1024*1024,'runtime retained observation exceeds bound')
+        self.bytes+=count
+
+class RuntimeOrdinary(list):
+    def __init__(self,budget):super().__init__();self.budget=budget
+    def append(self,value):self.budget.admit(value);super().append(value)
+
+def runtime_closed_pairs(pairs):
+    fields={}
+    for key,value in pairs:
+        require(key not in fields,'duplicate runtime reply key');fields[key]=value
+    return fields
+
+def runtime_json_reply(content,limit):
+    require(len(content)<=limit,'runtime typed reply unavailable or oversized')
+    response=json.loads(content.decode('utf-8'),object_pairs_hook=runtime_closed_pairs)
+    require(type(response)==dict and set(response)=={'type','data'},'runtime typed reply malformed');return response
+
+def runtime_reply(host,manager,arguments,signature,method=True,limit=1024*1024):
+    host.check();code,content,stderr=host.query(manager_argv(manager,'busctl')+['--json=short']+arguments)
+    require(code==0 and stderr==b'','runtime typed reply unavailable or oversized')
+    response=runtime_json_reply(content,limit)
+    require(response['type']==signature,'runtime typed reply malformed')
+    value=response['data']
+    if method:
+        require(type(value)==list and len(value)==1,'runtime method return malformed');value=value[0]
+    host.check();return value
+
+def runtime_call(host,manager,service,path,interface,method,signature,arguments=(),limit=1024*1024):
+    return runtime_reply(host,manager,['call',service,path,interface,method]+list(arguments),signature,True,limit)
+
+def runtime_property(host,service,path,interface,name,signature):
+    return runtime_reply(host,'system',['get-property',service,path,interface,name],signature,False)
+
+def runtime_unit_name(value):
+    require(type(value)==str and 1<=len(value.encode('utf-8'))<=255 and re.fullmatch(r'[A-Za-z0-9:_.@\\-]+',value,re.ASCII) is not None,'runtime unit name malformed');return value
+
+def runtime_path(value,prefix=None):
+    require(type(value)==str and len(value.encode('utf-8'))<=4096 and re.fullmatch(r'/(?:[A-Za-z0-9_]+(?:/[A-Za-z0-9_]+)*)?',value,re.ASCII) is not None,'runtime object path malformed')
+    require(prefix is None or value.startswith(prefix) and len(value)>len(prefix),'runtime object namespace differs');return value
+
+def runtime_filesystem_path(value,empty=False):
+    require(type(value)==str and len(value.encode('utf-8'))<=4096 and (empty and value=='' or value.startswith('/') and not value.startswith('//') and os.path.normpath(value)==value and (value=='/' or all(part not in ['', '.', '..'] for part in value.split('/')[1:]))) and all(unicodedata.category(character)!='Cc' for character in value),'runtime filesystem path malformed');return value
+
+def runtime_text(value,empty=False):
+    require(type(value)==str and len(value.encode('utf-8'))<=256 and (empty or len(value)>0) and all(unicodedata.category(character)!='Cc' for character in value),'runtime string malformed');return value
+
+def runtime_bus_ids(host):
+    ids=[]
+    for manager in ['system','user']:
+        bus=runtime_call(host,manager,'org.freedesktop.DBus','/org/freedesktop/DBus','org.freedesktop.DBus','GetId','s')
+        require(type(bus)==str and re.fullmatch(r'[0-9A-Fa-f]{32}',bus,re.ASCII) is not None,'runtime bus identity malformed');ids.append(bus)
+    return ids
+
+def runtime_owners(host):
+    owners=[]
+    for manager,service,uid in [('system','org.freedesktop.systemd1',0),('system','org.freedesktop.login1',0),('user','org.freedesktop.systemd1',1000)]:
+        owner=runtime_call(host,manager,'org.freedesktop.DBus','/org/freedesktop/DBus','org.freedesktop.DBus','GetNameOwner','s',['s',service])
+        require(type(owner)==str and len(owner)<=256 and re.fullmatch(r':[0-9]+\.[0-9]+',owner,re.ASCII) is not None,'runtime service owner malformed')
+        actual=runtime_call(host,manager,'org.freedesktop.DBus','/org/freedesktop/DBus','org.freedesktop.DBus','GetConnectionUnixUser','u',['s',owner])
+        require(type(actual)==int and actual==uid,'runtime service owner uid differs');owners.append([manager,service,owner,actual])
+    return owners
+
+def runtime_accounts():
+    accounts=[]
+    for uid,name in [(0,'root'),(1000,'puni1')]:
+        by_name=pwd.getpwnam(name);by_uid=pwd.getpwuid(uid)
+        require(by_name.pw_uid==uid and by_name.pw_name==name and by_uid.pw_uid==uid and by_uid.pw_name==name,'runtime fixed account differs');accounts.append([uid,name])
+    return accounts
+
+def runtime_sessions(host,budget):
+    service='org.freedesktop.login1';manager='/org/freedesktop/login1';interface=service+'.Manager'
+    rows=runtime_call(host,'system',service,manager,interface,'ListSessions','a(susso)',limit=4*1024*1024)
+    require(type(rows)==list and len(rows)<=4096,'runtime session roster malformed')
+    sessions=[];ids=set();paths=set();scopes=set()
+    for row in rows:
+        require(type(row)==list and len(row)==5,'runtime session tuple malformed')
+        session_id,uid,name,seat,path=row
+        require(type(session_id)==str and re.fullmatch(r'[A-Za-z0-9_-]{1,256}',session_id,re.ASCII) is not None,'runtime session id malformed')
+        require(type(uid)==int and 0<=uid<=4294967294,'runtime session uid malformed')
+        runtime_text(name);runtime_text(seat,True);runtime_path(path,'/org/freedesktop/login1/session/')
+        budget.admit({'tuple':row})
+        require(session_id not in ids and path not in paths,'duplicate runtime session');ids.add(session_id);paths.add(path)
+        selected=runtime_call(host,'system',service,manager,interface,'GetSession','o',['s',session_id]);runtime_path(selected,'/org/freedesktop/login1/session/');require(selected==path,'runtime session association differs');budget.admit({'getSession':selected})
+        fields={}
+        for key,signature in [('Id','s'),('User','(uo)'),('Name','s'),('Scope','s'),('Leader','u')]:
+            value=runtime_property(host,service,path,service+'.Session',key,signature);budget.admit({key:value});fields[key]=value
+        user=fields['User'];require(type(user)==list and len(user)==2 and type(user[0])==int and user[0]==uid,'runtime session user differs');runtime_path(user[1],'/org/freedesktop/login1/user/')
+        require(fields['Id']==session_id and fields['Name']==name,'runtime session tuple differs');scope=runtime_unit_name(fields['Scope'])
+        require(scope not in scopes,'duplicate runtime scope binding');scopes.add(scope)
+        leader=fields['Leader'];require(type(leader)==int and 1<=leader<=2147483647,'runtime leader malformed')
+        start=process_start(host,leader)[0];require(re.fullmatch(r'[0-9]{1,20}',start,re.ASCII) is not None,'runtime leader start malformed')
+        cgroup=runtime_filesystem_path(parse_cgroup(host.read('/proc/'+str(leader)+'/cgroup',4096)))
+        association=runtime_call(host,'system','org.freedesktop.systemd1','/org/freedesktop/systemd1','org.freedesktop.systemd1.Manager','GetUnitByPID','o',['u',str(leader)])
+        runtime_path(association);require(association==unit_path(scope),'runtime leader unit differs')
+        entry={'tuple':row,'getSession':selected,'properties':fields,'leader':{'pid':leader,'startTime':start,'cgroup':cgroup,'unit':association}}
+        budget.admit({'leader':entry['leader']});sessions.append(entry)
+    return sorted(sessions,key=lambda entry:entry['tuple'])
+
+def runtime_parents(host,path):
+    parents=[];parent=os.path.dirname(path)
+    while True:
+        parents.append([parent,runtime_metadata(host.metadata(parent,False))])
+        if parent=='/':return parents
+        parent=os.path.dirname(parent)
+
+def runtime_metadata(metadata):
+    return list(metadata_key(metadata))+[metadata.st_uid,metadata.st_gid]
+
+class RuntimeFragments:
+    def __init__(self,host,budget):self.host=host;self.budget=budget;self.retained={};self.bytes=0
+    def capture(self,path):
+        require(path not in self.retained,'duplicate runtime fragment');opened=self.host.open_runtime_fragment(path)
+        try:
+            parents=[]
+            for name,port in opened['parents']:
+                metadata=port.stat();named=self.host.metadata(name,False)
+                require(stat.S_ISDIR(metadata.st_mode) and runtime_metadata(metadata)==runtime_metadata(named),'runtime fragment parent differs');parents.append([name,runtime_metadata(metadata)])
+            before=opened['file'].stat();require(stat.S_ISREG(before.st_mode) and stat.S_IMODE(before.st_mode)==0o644 and before.st_uid==0 and 0<before.st_size<=4*1024*1024,'runtime fragment mode or size differs')
+            require(runtime_metadata(before)==runtime_metadata(self.host.metadata(path,False)),'runtime fragment named identity differs')
+            chunks=[];count=0
+            while True:
+                self.host.check();chunk=opened['file'].read(min(65536,4*1024*1024+1-count))
+                if not chunk:break
+                count+=len(chunk);require(count<=4*1024*1024,'runtime fragment byte bound exceeded');chunks.append(chunk)
+            content=b''.join(chunks);self.bytes+=count;require(self.bytes<=64*1024*1024 and count==before.st_size,'runtime fragment byte count differs')
+            require(runtime_metadata(opened['file'].stat())==runtime_metadata(before)==runtime_metadata(self.host.metadata(path,False)),'runtime fragment changed')
+            for (name,port),(expected_name,metadata) in zip(opened['parents'],parents):require(name==expected_name and runtime_metadata(port.stat())==metadata==runtime_metadata(self.host.metadata(name,False)),'runtime fragment parent changed during read')
+            self.budget.admit({'path':path,'metadata':runtime_metadata(before),'parents':parents,'contents':content.decode('utf-8')})
+            self.retained[path]=(opened,runtime_metadata(before),parents,content);return content
+        except BaseException:
+            opened['file'].close()
+            for name,port in reversed(opened['parents']):port.close()
+            raise
+    def verify(self):
+        for path,(opened,before,parents,content) in self.retained.items():
+            self.host.check();require(runtime_metadata(opened['file'].stat())==before==runtime_metadata(self.host.metadata(path,False)),'runtime fragment closing identity differs')
+            for (name,port),(expected_name,metadata) in zip(opened['parents'],parents):
+                require(name==expected_name and runtime_metadata(port.stat())==metadata==runtime_metadata(self.host.metadata(name,False)),'runtime fragment closing parent differs')
+            reread=self.host.open_runtime_fragment(path)
+            try:
+                require(runtime_metadata(reread['file'].stat())==before,'runtime fragment reopened identity differs');chunks=[];count=0
+                while True:
+                    self.host.check();chunk=reread['file'].read(min(65536,4*1024*1024+1-count))
+                    if not chunk:break
+                    count+=len(chunk);require(count<=4*1024*1024,'runtime fragment closing bound exceeded');chunks.append(chunk)
+                require(b''.join(chunks)==content and count==before[3] and runtime_metadata(reread['file'].stat())==before==runtime_metadata(self.host.metadata(path,False)),'runtime fragment closing bytes differ')
+                for (name,port),(expected_name,metadata) in zip(reread['parents'],parents):require(name==expected_name and runtime_metadata(port.stat())==metadata==runtime_metadata(self.host.metadata(name,False)),'runtime fragment reopened parent differs')
+            finally:
+                reread['file'].close()
+                for name,port in reversed(reread['parents']):port.close()
+    def close(self):
+        for opened,before,parents,content in self.retained.values():
+            opened['file'].close()
+            for name,port in reversed(opened['parents']):port.close()
+
+def runtime_normalize_fragment(content,session):
+    text=content.decode('utf-8');require('\x00' not in text,'runtime fragment NUL');section=None;count=0;lines=[]
+    for line in text.splitlines(keepends=True):
+        body=line.rstrip('\r\n');ending=line[len(body):]
+        require('\\' not in body,'runtime fragment escape ambiguous')
+        if not body.strip() or body.lstrip().startswith(('#',';')):lines.append(line);continue
+        if body.startswith('['):
+            require(re.fullmatch(r'\[[A-Za-z0-9]+\]',body) is not None,'runtime fragment section malformed');section=body[1:-1]
+        else:
+            key,separator,value=body.partition('=');require(section is not None and separator and re.fullmatch(r'[A-Za-z][A-Za-z0-9]*',key) is not None,'runtime fragment assignment malformed')
+            if key=='Description':
+                count+=1;require(section=='Unit' and value=='Session '+session['tuple'][0]+' of User '+session['tuple'][2],'runtime fragment description differs');line='Description=@logind-session-description'+ending
+        lines.append(line)
+    require(count==1,'runtime fragment description missing or duplicate');return ''.join(lines).encode('utf-8')
+
+def runtime_scope_evidence(host,sessions,budget):
+    evidence=[]
+    for session in sessions:
+        uid=session['tuple'][1];require(uid in [0,1000] and session['tuple'][2]==('root' if uid==0 else 'puni1'),'runtime session account unsupported')
+        path=unit_path(session['properties']['Scope']);fields={}
+        for key,interface,signature in [('Slice','Scope','s'),('ControlGroup','Scope','s'),('SourcePath','Unit','s')]+[(key[0].upper()+key[1:],'Unit','as') for key in RUNTIME_RELATIONSHIPS]:
+            value=runtime_property(host,'org.freedesktop.systemd1',path,'org.freedesktop.systemd1.'+interface,key,signature)
+            if signature=='as':
+                require(type(value)==list and len(value)<=4096 and all(type(entry)==str for entry in value) and len(set(value))==len(value),'runtime relationship malformed')
+                if key=='RequiresMountsFor':
+                    for entry in value:runtime_filesystem_path(entry)
+                else:
+                    for entry in value:runtime_unit_name(entry)
+                value=sorted(value)
+            elif key=='SourcePath':runtime_filesystem_path(value,True)
+            elif key=='Slice':runtime_unit_name(value)
+            else:runtime_filesystem_path(value)
+            budget.admit({key:value});fields[key]=value
+        evidence.append(fields)
+    return evidence
+
+def runtime_classify(host,projection,sessions,evidence,profiles,fragments,known_paths):
+    included=[];scope_names={session['properties']['Scope'] for session in sessions};durable={unit['name'] for unit in projection['units'] if unit['manager']=='system' and unit['name'] not in scope_names};seen=set()
+    for unit in projection['units']:
+        matches=[(session,fields) for session,fields in zip(sessions,evidence) if unit['manager']=='system' and unit['name']==session['properties']['Scope']]
+        if not matches:included.append(unit);continue
+        require(len(matches)==1,'runtime scope ambiguous');session,fields=matches[0];uid=session['tuple'][1];scope=unit['name'];seen.add(scope)
+        require(unit['canonicalId']==scope and unit['names']==[scope] and scope.endswith('.scope') and unit['loadState']=='loaded' and unit['transient'] is True and unit['unitFileState'] in ['loaded-only','transient'],'runtime session scope class differs')
+        require(unit['dropIns']==[] and unit['commands']==[] and unit['triggers']==[] and unit['triggeredBy']==[] and fields['SourcePath']=='','runtime session scope launch surface differs')
+        expected_slice='user-'+str(uid)+'.slice';expected_cgroup='/user.slice/'+expected_slice+'/'+scope
+        require(fields['Slice']==expected_slice and fields['ControlGroup']==expected_cgroup and (session['leader']['cgroup']==expected_cgroup or session['leader']['cgroup'].startswith(expected_cgroup+'/')),'runtime scope leader/slice differs')
+        for key in ['Triggers','TriggeredBy','OnSuccess','OnFailure','Upholds']:require(fields[key]==[],'runtime session activation edge unsupported')
+        for key in ['Requires','Wants','Requisite','BindsTo']:
+            for target in fields[key]:require(target in durable and (target in [expected_slice,'user-runtime-dir@'+str(uid)+'.service','user@'+str(uid)+'.service'] or target.endswith('.mount')),'runtime session activation target unsupported')
+        path='/run/systemd/transient/'+scope;require(unit['fragment'] is not None and unit['fragment']['path']==path,'runtime fragment path differs');content=fragments.capture(path)
+        require(digest(content)==unit['fragment']['sha256'],'runtime fragment ordinary binding differs');check_surface(path,content.decode('utf-8'),known_paths,False)
+        normalized=dict(unit);normalized.update({'name':'@logind-session-scope','canonicalId':'@logind-session-scope','names':['@logind-session-scope'],'fragment':{'path':'@logind-session-fragment','sha256':digest(runtime_normalize_fragment(content,session))}})
+        relationships={'slice':fields['Slice']}
+        for key in RUNTIME_RELATIONSHIPS:relationships[key]=fields[key[0].upper()+key[1:]]
+        profile={'version':1,'uid':uid,'unit':normalized,'relationships':relationships}
+        require(digest(b'wbs-dependency-logind-scope\0v1\0'+encode(profile))==profiles[0 if uid==0 else 1]['sha256'],'runtime session profile differs')
+    require(seen==scope_names,'runtime associated scope absent');return included
+
+def collect_runtime_launch_hash(host,known_paths,session_profiles):
+    host.check();budget=RuntimeBudget();fragments=RuntimeFragments(host,budget)
+    try:
+        ids=runtime_bus_ids(host);owners=runtime_owners(host);accounts=runtime_accounts();budget.admit([ids,owners,accounts]);sessions=runtime_sessions(host,budget)
+        ordinary=RuntimeOrdinary(budget);projection=_collect_launch_projection(host,known_paths,ordinary);evidence=runtime_scope_evidence(host,sessions,budget)
+        opening={'ids':ids,'owners':owners,'accounts':accounts,'sessions':sessions,'scopes':evidence}
+        require(len(encode(opening))<=8*1024*1024,'runtime retained observation exceeds bound')
+        units=runtime_classify(host,projection,sessions,evidence,session_profiles,fragments,known_paths)
+        require(runtime_bus_ids(host)==ids,'runtime opening bus incarnation changed')
+        require(runtime_bus_ids(host)==ids,'runtime closing bus incarnation changed')
+        closing_budget=RuntimeBudget();closing_owners=runtime_owners(host);closing_accounts=runtime_accounts();closing_budget.admit([ids,closing_owners,closing_accounts]);closing_sessions=runtime_sessions(host,closing_budget);closing_evidence=runtime_scope_evidence(host,closing_sessions,closing_budget)
+        closing={'ids':ids,'owners':closing_owners,'accounts':closing_accounts,'sessions':closing_sessions,'scopes':closing_evidence}
+        require(len(encode(closing))<=8*1024*1024 and closing==opening,'runtime session observation changed')
+        closing_ordinary=RuntimeOrdinary(closing_budget);closing_projection=_collect_launch_projection(host,known_paths,closing_ordinary)
+        require(closing_projection==projection and closing_ordinary==ordinary,'runtime ordinary launch observation changed');fragments.verify()
+        require(runtime_owners(host)==owners,'runtime closing owner changed');require(runtime_bus_ids(host)==ids,'runtime final bus incarnation changed');host.check()
+        return digest(b'wbs-dependency-runtime-launch\0v1\0'+encode({'version':1,'cron':projection['cron'],'units':units,'sessionProfiles':session_profiles}))
+    finally:fragments.close()
 
 def check_surface(source,text,known_paths,allowed):
     # Proof: launch surface negatives include differently named wrappers and duplicate units/cron.

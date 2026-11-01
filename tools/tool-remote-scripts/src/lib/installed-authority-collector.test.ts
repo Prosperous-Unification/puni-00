@@ -878,3 +878,40 @@ print('ok')
   expect(observed.code).toBe(0);
   expect(observed.stdout).toBe('ok\n');
 });
+
+test('runtime fragment port retains actual opened bytes and closes descriptors on missing, symlink and class refusal', async () => {
+  const observed = await python(String.raw`
+import tempfile
+with tempfile.TemporaryDirectory(prefix='runtime-fragment-') as directory:
+    path=directory+'/scope';replacement=directory+'/replacement';parent=directory+'/linked'
+    open(path,'wb').write(b'original');os.chmod(path,0o600)
+    host=Host(time.monotonic()+5)
+    before=len(os.listdir('/proc/self/fd'))
+    opened=host.open_runtime_fragment(path)
+    original=runtime_metadata(opened['file'].stat())
+    open(replacement,'wb').write(b'replacement');os.replace(replacement,path)
+    assert opened['file'].read(1024)==b'original'
+    assert runtime_metadata(opened['file'].stat())!=runtime_metadata(host.metadata(path,False))
+    opened['file'].close()
+    for name,port in reversed(opened['parents']):port.close()
+    for selected in [directory+'/missing']:
+        try:host.open_runtime_fragment(selected)
+        except FileNotFoundError:pass
+        else:raise AssertionError('missing fragment accepted')
+    os.symlink(directory,parent)
+    try:host.open_runtime_fragment(parent+'/scope')
+    except OSError:pass
+    else:raise AssertionError('symlink parent accepted')
+    os.chmod(path,0o600)
+    fragments=RuntimeFragments(host,RuntimeBudget())
+    try:fragments.capture(path)
+    except Refusal as cause:assert str(cause)=='runtime fragment mode or size differs',cause
+    else:raise AssertionError('private mode accepted for transient fragment')
+    finally:fragments.close()
+    assert len(os.listdir('/proc/self/fd'))==before
+print('raw-runtime-fragment')
+`);
+  expect(observed.code).toBe(0);
+  expect(observed.stderr).toBe('');
+  expect(observed.stdout).toBe('raw-runtime-fragment\n');
+});

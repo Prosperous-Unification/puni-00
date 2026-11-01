@@ -2085,3 +2085,206 @@ caller overrides or substring-based selection.
 - **THEN** a later inherited case refuses before peer creation or child spawn through the same shared helper
 - **AND** after permitted original normal settlement and safe retirement releases the reservation, inherited execution retains its original300/310/320s timing and fixture semantics
 - **AND** reservation acquisition and release stay policy-only; no global cross-module resource framework is introduced
+
+### Requirement: Initial active runtime consumption is an incomplete private prerequisite
+
+The initial active graph reader and actual solver admission consumers SHALL implement the [closed initial runtime contract](../../active-runtime-graph.md). Their private implementation order MAY precede full policy proof acceptance only under this explicit amendment. They SHALL NOT publish handoff state, reconstruct a live owner, retire fences, expose ingress, admit controllers or claim full handoff/native acceptance.
+
+#### Scenario: Stored graph cannot mint a handoff continuation
+
+- **WHEN** the reader successfully validates an owned fixture or stored initial graph
+- **THEN** only the solver startup consumer can use that observation under its retained lifetime lock
+- **AND** no live original owner, policy continuation, publication permission or general callback grant is constructed
+- **AND** actual original policy closing success and later coupled owner/controller/exposure/retirement obligations remain required
+
+### Requirement: Both actual solver modes jointly select policy and markers
+
+Legacy and required-policy runtime entrypoints SHALL classify policy and both owner markers under their existing solver lifetime lock before effects. They SHALL use fixed canonical adopted state, not a caller-selected empty directory. Missing, unreadable and malformed inputs SHALL remain distinct; no read failure other than explicitly permitted exact ENOENT becomes legacy absence.
+
+#### Scenario: Ordinary and explicit legacy states
+
+- **WHEN** legacy mode observes policy exact ENOENT and both markers exact ENOENT, or either mode observes valid ordinary policy and both markers absent
+- **THEN** its ordinary startup branch may proceed after closing classification readback
+- **AND** required-policy mode with absent policy refuses
+- **AND** either mode with ordinary policy plus either marker refuses
+
+#### Scenario: Missing markers cannot bypass retained phases
+
+- **WHEN** legacy mode sees valid restoring or active policy with both markers absent or present
+- **THEN** it refuses before configuration/startup effects
+- **AND** required mode admits restoring only through the existing full verifier and active only through the new full graph/tuple verifier
+- **AND** active without its matching pointer or restoring without its original pending publication refuses
+
+#### Scenario: Unknown or redirected state is not ordinary
+
+- **WHEN** policy is malformed, unreadable, unknown, aliased, changed between captures, or an adopted CLI attempts state redirection through environment/argv
+- **THEN** startup refuses without reading runtime configuration or starting listener/Docker sweep work
+- **AND** arbitrary parser or I/O errors are not relabeled as observed retained-owner evidence
+- **AND** required ordinary reader modes continue refusing absent, restoring and active policy
+
+### Requirement: Active startup validates the entire initial closed graph
+
+The reader SHALL enforce the five record families, exact envelopes/references, raw-manifest limits, eight archives and cross-record bindings in active-runtime-graph.md. It SHALL close every required reference with exact current bytes and identity; a supplied digest or syntactically valid policy alone SHALL NOT admit startup.
+
+#### Scenario: Permitted prepared and complete states
+
+- **WHEN** required mode observes prepared plus exact original pending and absent pending archive, prepared plus absent pending and exact archive, or complete plus absent pending and exact archive
+- **THEN** startup may proceed only after full graph, completed exposure, all eight archives and installed tuple/image verification
+- **AND** prepared is solver-only and neither phase grants any controller operation through this reader
+
+#### Scenario: Incomplete, mixed or oversized graph
+
+- **WHEN** a required record is absent/unreadable, has unsupported fields/family/version/name/size, mismatched hash/owner/attempt/role/policy/storage link, duplicate/missing fence archive, wrong manifest attribution or invalid pending/archive combination
+- **THEN** startup refuses before effects without repair, fallback, generic size expansion or expected-pin recapture
+- **AND** the initial single-source attribution and twelve-member writer schema remain unchanged
+
+### Requirement: Actual runtime verification keeps the original lifetime and lock order
+
+The built solver CLI SHALL call the real selected admission function, verify its fixed executing runtime/bundle/configuration/unit and complete immutable image mapping, and close all captured graph/tuple/classification observations immediately before its startup callback. It SHALL retain solver-runtime.lock through listener/request lifetime and SHALL NOT acquire edge.lock.
+
+#### Scenario: Original owner holds edge lock while solver starts
+
+- **GIVEN** an owned original edge lock is held and a complete permitted solver graph exists
+- **WHEN** the real required-policy solver entry starts through owned local transports
+- **THEN** it can reach its actual startup/listener path without acquiring edge.lock
+- **AND** a real solver-runtime.lock contender remains excluded while that listener/request lifetime continues
+
+#### Scenario: Tuple or graph drifts before callback
+
+- **WHEN** an executing artifact, image mapping, policy/pointer, reference bytes/inode/parent or phase changes during admission
+- **THEN** the original invocation refuses before startup, with no retry or baseline recapture
+- **AND** original lifetime/child settlement contracts remain intact
+- **AND** historical PID/boot observations are not substituted for verification of the current approved immutable tuple
+
+### Requirement: Initial active graph selects complete activation artifacts
+
+The new handoff intent SHALL select the exact ordered activation entries and all crosslinks specified in active-runtime-graph.md. The new reader SHALL read the complete selected raw captures and binary backups through its retained original-UUID directory, enforce the explicit consumer limits and closed raw capture grammar, and verify the current migration manifest and historical ledger attribution. Existing producer types and caps SHALL NOT be retroactively changed by this contract.
+
+#### Scenario: Actual publisher-shaped closure is selected
+
+- **GIVEN** actual existing capture/backup/intent/committed shapes and one of the three supported environment rosters
+- **WHEN** the active consumer reads an owned complete graph
+- **THEN** its selected capture-envelope and intent refs reach the same raw capture and the intent reaches the exact backup envelope and binary
+- **AND** receipt, participants, committed, restoration, manifest, original attempt and database projections agree
+- **AND** no scan, guessed filename from hash or hash-only omission stands in for reading the selected raw bytes
+
+#### Scenario: Raw artifact or declared ledger cannot be admitted
+
+- **WHEN** an intent/capture/backup ref is missing, unreadable, aliased, mismatched, oversized or replaced, a raw capture has extra fields, or complete ordered ledger attribution differs
+- **THEN** the actual consumer refuses before startup without SQLite/live-DB access or baseline recapture
+- **AND** the backup's declared byte count, opening/closing streaming hashes and retained identities must agree
+- **AND** byte, entry and original deadline ceilings refuse rather than truncating or restarting the budget
+
+### Requirement: Initial active solver readiness uses its actual stored phase
+
+Initial active admission SHALL require restoration.solverReady through the existing dedicated captureSolverRestorationCompletion reader and the exact unversioned ready-only shape. The unchanged general restoration type MAY remain optional for its other callers.
+
+#### Scenario: Ready evidence is bound without inventing a producer field
+
+- **WHEN** a selected solver-ready record has the actual ready phase, exact unit/process/cgroup relationships, original owner and valid intent-ready-restoration predecessor relationships
+- **THEN** it can satisfy that historical edge while current tuple/image/launch checks still run independently
+- **AND** no nonexistent intent-hash/format/version is required or inferred
+- **AND** a missing record, another publication phase, mixed owner or invalid nested observation refuses
+
+### Requirement: Runtime observes current machine and complete launch projection without owner authority
+
+Required active admission SHALL use the new fixed owner-free observation API, independently pinned runtime-launch projection with complete current surface validation, and existing supervised transport under one original120s deadline. It SHALL NOT reuse the full owner-dependent installed observer or compare saved hashes as though they were current observations.
+
+#### Scenario: Current observation changes
+
+- **WHEN** actual machine bytes or a launch definition/effective command changes, or either actual observation disagrees with independently prepared pins
+- **THEN** active admission refuses before the callback
+- **AND** independently prepared hashes are never recaptured from the changed host
+- **AND** policy/pointer, tuple and graph closing comparisons remain required
+
+#### Scenario: Original observation cannot establish cleanup
+
+- **WHEN** the actual supervised transport reports cleanup unknown or original pipe/read settlement remains outstanding
+- **THEN** the original active invocation stays pending with solver-runtime.lock retained while that process lives
+- **AND** no callback, retry, edge.lock acquisition, generic refusal-unlock or new admission token occurs
+- **AND** only a known settled failure follows the ordinary refusal/owned-descriptor-close path
+
+#### Scenario: Original owner and starting solver coexist
+
+- **GIVEN** original edge.lock is held and the owned graph is complete
+- **WHEN** the actual built required-policy CLI uses the fixed scoped worker and real local transports
+- **THEN** its startup does not require a reconstructed owner or a census assertion that the original owner/starting solver are absent
+- **AND** runtime-lock contention and the independently observed runtime-launch projection still constrain startup
+- **AND** local fixture-manager coverage does not claim native systemd or full authority-census qualification
+
+### Requirement: Active supervisor joining checks its actual initial envelope before transmission
+
+The new active observer SHALL opt into the strict initial-envelope join mode specified in active-runtime-graph.md. The joiner SHALL internally observe the actual transport, serialize the actual envelope exactly once including newline, enforce UTF-8 length1..65536 before first write and transmit exactly the checked bytes. It SHALL retain the original absolute deadline and SHALL NOT substitute request-only estimates, caller identities or a downstream receive guard.
+
+#### Scenario: Full envelope exceeds a request-only estimate
+
+- **WHEN** request-only contents fit but the actual serialized transport/budget/framing envelope exceeds65536 bytes, or serialization fails
+- **THEN** no envelope/start payload is transmitted and no worker is started by that invocation
+- **AND** the original child, both streams and actual wait remain under custody
+- **AND** direct exit and EOF without a real clean descendant terminal are cleanup unknown and retain the active runtime lock
+
+#### Scenario: Original deadline expires before request or start
+
+- **WHEN** the original absolute deadline expires after spawn, during initial preparation or before the acknowledged start frame
+- **THEN** the strict mode refuses transmission/start as appropriate without renewing the deadline
+- **AND** only real terminal/descendant settlement plus original child/pipe completion permits a known-settled refusal
+- **AND** outstanding or unprovable disposition remains inside the runtime-lock HOLD path
+
+#### Scenario: Default callers retain their existing contract
+
+- **WHEN** existing collectAuthorityHost or existing owning tests invoke the joiner without the new option
+- **THEN** their established observation, refusal, control/nonce, original-custody and unknown semantics remain unchanged
+- **AND** Python supervisor code, old collector default digest/query/guard semantics and full installed-authority census behavior are unchanged
+- **AND** collector code becomes mutable only through the separately accepted two-file projection amendment; this scenario does not require immutable collector bytes
+- **AND** new strict ordinary tests use actual original pipes/waits and real consumer lock contention rather than fabricated transport success
+
+### Requirement: Runtime launch pins separate verified session identity from durable authority
+
+Initial handoff-admission SHALL use version2 and the exact required runtimeLaunch grammar in active-runtime-graph.md. The old full authority/participant hash meaning and old collect_launch default behavior SHALL remain unchanged. Only logind-associated scopes satisfying the complete class and independently prepared profile SHALL normalize; every other unit and all cron/configuration/typed-command surfaces SHALL retain their complete projection.
+
+#### Scenario: Legitimate session identity differs between coherent passes
+
+- **GIVEN** independently prepared source/writer/machine/runtime and both account profile pins
+- **WHEN** two complete coherent observations contain different qualifying session IDs or counts with the same approved profiles
+- **THEN** both runtime hashes match the same expected pin without recapturing expectations
+- **AND** no old process identity or session lifetime is required permanently
+
+#### Scenario: Changed authority is not session normalization
+
+- **WHEN** a persistent unit, effective command, cron, non-description scope byte, added drop-in, profile or prohibited relationship changes, or a fake scope lacks its actual logind binding
+- **THEN** required active admission refuses through the actual collector/classifier/hash boundary
+- **AND** no generic transient/name/loaded-only filtering or ordinary fallback occurs
+
+### Requirement: Profile transport is bounded data within the fixed supervised worker
+
+The observer SHALL use only the fixed data-slot channel defined in active-runtime-graph.md: exact176-byte canonical JSON, exact352 lowercase hex characters, complete program at most98304 UTF-8 bytes. TS SHALL validate before construction/spawn; Python SHALL decode/closed-validate only inside the actual supervised worker before collection. The original supervisor request, four-entry invocation, transport identity and independently bounded actual initial envelope SHALL remain unchanged.
+
+#### Scenario: Selected data reaches the actual worker
+
+- **WHEN** independently selected profile hashes differ while executable template and request grammar remain fixed
+- **THEN** the actual worker receives precisely those two decoded profiles and a wrong profile refuses actual classification
+- **AND** malformed/duplicate/trailing/noncanonical/oversize data never selects executable syntax or a substitute successful transport
+
+#### Scenario: Failure preserves original custody
+
+- **WHEN** a construction/deadline guard fails before spawn, or the actual supervised worker rejects selected profile data after start
+- **THEN** the first case creates no child and the second retains actual supervisor/descendant/wait/PIPE settlement requirements
+- **AND** unknown post-spawn disposition retains the runtime lock without retry or fabricated clean terminal
+
+### Requirement: All added session evidence closes within each observation
+
+The runtime observer SHALL retain and independently reread the full bounded login1 roster, GetSession/object/User/name/scope/leader associations, all current leader identities/unit associations, system and user bus GetId identities associated with their manager/login1 owner tuples and bracketed through closing, added Scope/SourcePath/typed relationships, ordinary inventories and retained fragment/parent/descriptor evidence. It SHALL enforce the exact per-field/array/response/aggregate limits in active-runtime-graph.md under the original120s deadline.
+
+#### Scenario: Added evidence changes while old show and fragment stay stable
+
+- **WHEN** a session mapping, User tuple, leader binding, Scope property or typed relationship changes after its opening read despite stable bus owner and fragment bytes
+- **THEN** closing comparison refuses without a retry, callback or replacement baseline
+- **AND** the old collector show list alone is not accepted as closure for the new evidence
+
+#### Scenario: Reused owner names do not hide a bus restart
+
+- **GIVEN** equal owner names, Unix UIDs, session associations and raw fragment bytes at opening and closing
+- **WHEN** the actual system-bus ID or puni1 user-bus ID changes within that observation
+- **THEN** the real closed GetId parser and retained bus-incarnation comparison refuse before startup without retry or replacement baseline
+- **AND** malformed, absent or unreadable GetId evidence never becomes a successful owner comparison
+- **AND** independently coherent observations may have different bus IDs while each still matches the same independently prepared runtime/profile pins; no historical bus lifetime is pinned

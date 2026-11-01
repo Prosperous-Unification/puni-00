@@ -182,3 +182,93 @@ test('policy runtime requires policy before callback and shares ordinary lifetim
     'admission closed',
   );
 });
+
+for (const phase of ['restoring', 'active'] as const) {
+  test(`legacy runtime refuses present ${phase} policy without retained markers`, async () => {
+    const directory = scratchSync('solver-runtime-policy-');
+    const reference = {
+      name: `edge-owner-000001-${phase === 'restoring' ? 'solver-restore-intent' : 'handoff-complete'}.json`,
+      sha256: 'b'.repeat(64),
+    };
+    await writeFile(
+      `${directory}/edge-policy.json`,
+      JSON.stringify({
+        format: 'dependency-edge-policy',
+        version: 1,
+        phase,
+        edgeState: directory,
+        ownerPublicationSha256: 'a'.repeat(64),
+        ...(phase === 'restoring' ? { restorationIntent: reference } : { handoff: reference }),
+      }),
+      { mode: 0o600 },
+    );
+    let entered = false;
+    await refuses(
+      withSolverRuntimeAdmission(() => {
+        entered = true;
+        return Promise.resolve();
+      }, directory),
+      'callback entered',
+      true,
+    );
+    expect(entered).toBe(false);
+  });
+}
+
+for (const contents of [
+  '{',
+  '{}',
+  JSON.stringify({ format: 'dependency-edge-policy', version: 1, phase: 'future' }),
+]) {
+  test(`legacy runtime refuses malformed present policy ${contents}`, async () => {
+    const directory = scratchSync('solver-runtime-policy-');
+    await writeFile(`${directory}/edge-policy.json`, contents, { mode: 0o600 });
+    let entered = false;
+    await refuses(
+      withSolverRuntimeAdmission(() => {
+        entered = true;
+        return Promise.resolve();
+      }, directory),
+      'callback entered',
+      true,
+    );
+    expect(entered).toBe(false);
+  });
+}
+for (const publication of ['absent', 'ordinary'] as const) {
+  test(`legacy runtime admits ${publication} policy with both markers absent`, async () => {
+    const directory = scratchSync('solver-runtime-policy-');
+    if (publication === 'ordinary') await initializeOrdinaryEdgePolicy(directory);
+    let entered = false;
+    await withSolverRuntimeAdmission(() => {
+      entered = true;
+      return Promise.resolve();
+    }, directory);
+    expect(entered).toBe(true);
+  });
+}
+
+test('required active mode reaches complete graph reader without manufacturing retained marker evidence', async () => {
+  const directory = scratchSync('solver-runtime-active-dispatch-');
+  await writeFile(
+    directory + '/edge-policy.json',
+    JSON.stringify({
+      format: 'dependency-edge-policy',
+      version: 1,
+      phase: 'active',
+      edgeState: directory,
+      ownerPublicationSha256: 'a'.repeat(64),
+      handoff: { name: 'edge-owner-000001-handoff-complete.json', sha256: 'b'.repeat(64) },
+    }),
+    { mode: 0o600 },
+  );
+  let entered = false;
+  await refuses(
+    withSolverPolicyAdmission(() => {
+      entered = true;
+      return Promise.resolve();
+    }, directory),
+    'edge-owner.json',
+  );
+  expect(entered).toBe(false);
+});

@@ -912,3 +912,56 @@ for (const role of ['policy', 'receipt'] as const)
     if (role === 'receipt') expect(await Bun.file(`${staging}/origin.json`).exists()).toBe(true);
     else expect(await Bun.file(`${staging}/origin.json`).exists()).toBe(false);
   });
+
+test('phase-aware policy captures only the closed initial active handoff and ordinary reader refuses it', async () => {
+  const directory = scratchSync('edge-active-policy-');
+  const active = {
+    format: 'dependency-edge-policy' as const,
+    version: 1 as const,
+    phase: 'active' as const,
+    edgeState: directory,
+    ownerPublicationSha256: 'a'.repeat(64),
+    handoff: { name: 'edge-owner-000001-handoff-complete.json', sha256: 'b'.repeat(64) },
+  };
+  await writeFile(`${directory}/edge-policy.json`, JSON.stringify(active), { mode: 0o600 });
+  expect((await captureEdgePolicy(directory)).policy).toEqual(active);
+  await rejects(readOrdinaryEdgePolicy(directory), /ordinary edge policy/);
+  for (const changed of [
+    { ...active, extra: true },
+    { ...active, version: 2 },
+    { ...active, edgeState: directory + '/other' },
+    { ...active, ownerPublicationSha256: 'A'.repeat(64) },
+    { ...active, handoff: { ...active.handoff, extra: true } },
+    { ...active, handoff: { ...active.handoff, name: 'edge-owner-000001-exposure-complete.json' } },
+    { ...active, handoff: { ...active.handoff, name: 'edge-owner-1-handoff-complete.json' } },
+    { ...active, handoff: { ...active.handoff, sha256: 'B'.repeat(64) } },
+  ]) {
+    await writeFile(`${directory}/edge-policy.json`, JSON.stringify(changed));
+    await rejects(captureEdgePolicy(directory));
+  }
+});
+
+for (const label of [
+  'handoff-admission',
+  'handoff-intent',
+  'exposure-intent',
+  'exposure-complete',
+  'handoff-complete',
+]) {
+  test(`bounded graph reader captures initial ${label} without widening raw manifest families`, async () => {
+    const directory = scratchSync('edge-initial-record-');
+    const name = `edge-owner-000001-${label}.json`;
+    const contents = '{"owned":"fixture"}\n';
+    await writeFile(`${directory}/${name}`, contents, { mode: 0o600 });
+    const { captureEdgeRecord } = await import('./edge-policy');
+    expect((await captureEdgeRecord(directory, name, 65536)).contents).toBe(contents);
+    for (const rejected of [
+      'edge-owner-000001-handoff-writers.json',
+      'edge-owner-000001-handoff-source-manifest.json',
+      'edge-owner-000001-successor-intent.json',
+    ]) {
+      await writeFile(`${directory}/${rejected}`, contents, { mode: 0o600 });
+      await rejects(captureEdgeRecord(directory, rejected, 65536), /unsupported edge record path/);
+    }
+  });
+}

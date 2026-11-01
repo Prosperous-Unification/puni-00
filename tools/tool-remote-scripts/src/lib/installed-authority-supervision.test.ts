@@ -1,12 +1,18 @@
+import { rejects } from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 
 import { scratchSync } from '@tools/test-scratch';
-import { expect, test } from 'bun:test';
+import { expect, spyOn, test } from 'bun:test';
 
 import { AUTHORITY_COLLECTOR } from './installed-authority-collector';
-import { joinAuthoritySupervisor } from './installed-authority-supervision';
+import {
+  AuthorityCleanupUnknown,
+  joinAuthoritySupervisor,
+} from './installed-authority-supervision';
 import { AUTHORITY_SUPERVISOR } from './installed-authority-supervisor';
+import { readClosed } from './managed-cohort';
 import { observeSolverProcess } from './solver-host';
 
 async function request() {
@@ -604,3 +610,405 @@ print('ok')
   expect(stdout).toBe('ok\n');
   expect(stderr).toBe('');
 }, 8000);
+
+for (const fault of ['envelope-size', 'serialization', 'expired'] as const) {
+  test(`strict initial envelope retains unsent child custody: ${fault}`, async () => {
+    const root = scratchSync('authority-strict-');
+    const receivedPath = root + '/received';
+    const child = spawn(
+      '/usr/bin/python3',
+      [
+        '-I',
+        '-c',
+        `
+import select,sys
+ready,_,_=select.select([sys.stdin.buffer],[],[],2)
+contents=sys.stdin.buffer.readline() if ready else b'NO_EOF'
+open(${JSON.stringify(receivedPath)},'wb').write(contents)
+`,
+      ],
+      { stdio: ['pipe', 'pipe', 'pipe'] },
+    );
+    let serializations = 0;
+    const small = { owned: 'deadline-fixture' };
+    let supplied: unknown =
+      fault === 'envelope-size'
+        ? { padding: 'x'.repeat(65480) }
+        : {
+            toJSON() {
+              serializations++;
+              return small;
+            },
+          };
+    if (fault === 'serialization') {
+      const cycle: Record<string, unknown> = {};
+      cycle['self'] = cycle;
+      supplied = cycle;
+    }
+    const deadline = performance.now() + (fault === 'expired' ? -1 : 4000);
+    let refusal: unknown;
+    try {
+      await joinAuthoritySupervisor(child, supplied, 'a'.repeat(64), deadline, undefined, {
+        initialEnvelope: 'bounded',
+      });
+    } catch (cause) {
+      refusal = cause;
+    }
+    expect(refusal).toBeInstanceOf(AuthorityCleanupUnknown);
+    expect((await readFile(receivedPath)).byteLength).toBe(0);
+    if (fault === 'expired') {
+      expect(Buffer.byteLength(JSON.stringify(small))).toBeLessThan(65536);
+      expect(serializations).toBe(0);
+    }
+  }, 10000);
+}
+
+test('strict supervisor cancels an abort delivered after transport observation before listener registration', async () => {
+  const root = scratchSync('authority-strict-abort-');
+  const entryPath = root + '/worker-entry';
+  const inputs = await request();
+  const controller = new AbortController();
+  const supplied = {
+    ...inputs,
+    toJSON() {
+      controller.abort();
+      return inputs;
+    },
+  };
+  const worker = `\ndef fixture_worker(request,host):\n    open(${JSON.stringify(entryPath)},'w').write('entered')\n    return {'observed':'fresh'}\n`;
+  const child = spawn(
+    '/usr/bin/python3',
+    [
+      '-I',
+      '-c',
+      AUTHORITY_COLLECTOR +
+        '\n' +
+        worker +
+        '\n' +
+        AUTHORITY_SUPERVISOR +
+        '\nsupervisor_entry(fixture_worker)\n',
+    ],
+    { stdio: ['pipe', 'pipe', 'pipe'] },
+  );
+  let refused = false;
+  try {
+    await joinAuthoritySupervisor(
+      child,
+      supplied,
+      inputs.nonce,
+      performance.now() + 3000,
+      controller.signal,
+      { initialEnvelope: 'bounded' },
+    );
+  } catch (cause) {
+    expect(String(cause)).toContain('refused after complete descendant cleanup');
+    refused = true;
+  }
+  expect(refused).toBe(true);
+  expect(await Bun.file(entryPath).exists()).toBe(false);
+});
+
+test('strict actual supervisor transmits one exact UTF-8 envelope and joins clean terminal and EOF', async () => {
+  const root = scratchSync('authority-strict-valid-');
+  const receivedPath = root + '/received';
+  const inputs = await request();
+  const needle = inputs.writerPaths.at(7);
+  if (needle === undefined) throw new Error('fixture writer slot missing');
+  needle.path = '/fixture/é"\\launch';
+  let serializations = 0;
+  const supplied = {
+    ...inputs,
+    toJSON() {
+      serializations++;
+      return inputs;
+    },
+  };
+  const fixture = `
+_original_read=os.read
+_initial=bytearray()
+_recorded=False
+def fixture_read(descriptor,limit):
+    global _recorded
+    content=_original_read(descriptor,limit)
+    if descriptor==0 and not _recorded:
+        _initial.extend(content)
+        if b'\\n' in _initial:
+            open(${JSON.stringify(receivedPath)},'wb').write(_initial)
+            _recorded=True
+    return content
+os.read=fixture_read
+def fixture_worker(request,host):return {'observed':'fresh'}
+`;
+  const child = spawn(
+    '/usr/bin/python3',
+    [
+      '-I',
+      '-c',
+      AUTHORITY_COLLECTOR +
+        '\n' +
+        fixture +
+        '\n' +
+        AUTHORITY_SUPERVISOR +
+        '\nsupervisor_entry(fixture_worker)\n',
+    ],
+    { stdio: ['pipe', 'pipe', 'pipe'] },
+  );
+  if (child.pid === undefined) throw new Error('fixture child PID missing');
+  const transport = await observeSolverProcess(child.pid);
+  const output = await joinAuthoritySupervisor(
+    child,
+    supplied,
+    inputs.nonce,
+    performance.now() + 3000,
+    undefined,
+    { initialEnvelope: 'bounded' },
+  );
+  expect(JSON.parse(output)).toEqual({ observed: 'fresh' });
+  expect(serializations).toBe(1);
+  const bytes = await readFile(receivedPath);
+  const decoded: unknown = JSON.parse(bytes.toString('utf8'));
+  const envelope = readClosed(decoded, ['request', 'transport', 'budgetSeconds']);
+  expect(envelope['transport']).toEqual(transport);
+  expect(envelope['request']).toEqual(inputs);
+  expect(
+    bytes.equals(
+      Buffer.from(
+        JSON.stringify({ request: inputs, transport, budgetSeconds: envelope['budgetSeconds'] }) +
+          '\n',
+      ),
+    ),
+  ).toBe(true);
+  expect(bytes.byteLength).toBeGreaterThan(bytes.toString('utf8').length);
+});
+
+test('strict ready expiry cancels without renewing original deadline or entering actual worker', async () => {
+  const root = scratchSync('authority-strict-ready-expiry-');
+  const readyPath = root + '/ready';
+  const entryPath = root + '/entry';
+  const inputs = await request();
+  const fixture = `
+_original_write=os.write
+def fixture_write(descriptor,content):
+    if descriptor==1 and b'"phase":"ready"' in content:open(${JSON.stringify(readyPath)},'w').write('ready')
+    return _original_write(descriptor,content)
+os.write=fixture_write
+def fixture_worker(request,host):
+    open(${JSON.stringify(entryPath)},'w').write('entered')
+    return {'observed':'fresh'}
+`;
+  const child = spawn(
+    '/usr/bin/python3',
+    [
+      '-I',
+      '-c',
+      AUTHORITY_COLLECTOR +
+        '\n' +
+        fixture +
+        '\n' +
+        AUTHORITY_SUPERVISOR +
+        '\nsupervisor_entry(fixture_worker)\n',
+    ],
+    { stdio: ['pipe', 'pipe', 'pipe'] },
+  );
+  const now = performance.now.bind(performance);
+  const deadline = now() + 3000;
+  const clock = spyOn(performance, 'now').mockImplementation(() =>
+    existsSync(readyPath) ? deadline + 1 : now(),
+  );
+  try {
+    await rejects(
+      joinAuthoritySupervisor(child, inputs, inputs.nonce, deadline, undefined, {
+        initialEnvelope: 'bounded',
+      }),
+      /refused after complete descendant cleanup/,
+    );
+    expect(existsSync(readyPath)).toBe(true);
+    expect(existsSync(entryPath)).toBe(false);
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+test('strict original exit retains a real descendant pipe until attended retirement and never fabricates clean terminal', async () => {
+  const root = scratchSync('authority-strict-pipe-');
+  const releasePath = root + '/retire';
+  const child = spawn(
+    '/usr/bin/python3',
+    [
+      '-I',
+      '-c',
+      `
+import os,sys,time
+sys.stdin.buffer.readline()
+if os.fork()==0:
+    while not os.path.exists(${JSON.stringify(releasePath)}):time.sleep(0.01)
+    os._exit(0)
+os._exit(0)
+`,
+    ],
+    { stdio: ['pipe', 'pipe', 'pipe'] },
+  );
+  const exited = new Promise<void>((settle) => {
+    child.once('exit', () => {
+      settle();
+    });
+  });
+  let settled = false;
+  const joined = joinAuthoritySupervisor(
+    child,
+    { owned: 'fixture' },
+    'a'.repeat(64),
+    performance.now() + 200,
+    undefined,
+    { initialEnvelope: 'bounded' },
+  ).then(
+    () => {
+      settled = true;
+      throw new Error('unexpected strict success');
+    },
+    (cause: unknown) => {
+      settled = true;
+      return cause;
+    },
+  );
+  try {
+    await exited;
+    await Bun.sleep(250);
+    expect(settled).toBe(false);
+  } finally {
+    await writeFile(releasePath, 'attended fixture retirement');
+  }
+  expect(await joined).toBeInstanceOf(AuthorityCleanupUnknown);
+});
+
+for (const byteLength of [65536, 65537]) {
+  test(`strict actual envelope accounts for transport budget and newline at ${String(byteLength)} UTF-8 bytes`, async () => {
+    const root = scratchSync('authority-strict-boundary-');
+    const receivedPath = root + '/received';
+    const child = spawn(
+      '/usr/bin/python3',
+      [
+        '-I',
+        '-c',
+        `import sys;open(${JSON.stringify(receivedPath)},'wb').write(sys.stdin.buffer.readline())`,
+      ],
+      { stdio: ['pipe', 'pipe', 'pipe'] },
+    );
+    if (child.pid === undefined) throw new Error('fixture PID missing');
+    const transport = await observeSolverProcess(child.pid);
+    const overhead = Buffer.byteLength(
+      JSON.stringify({ request: { padding: '' }, transport, budgetSeconds: 3 }) + '\n',
+    );
+    const supplied = { padding: 'x'.repeat(byteLength - overhead) };
+    expect(Buffer.byteLength(JSON.stringify(supplied))).toBeLessThan(65536);
+    const clock = spyOn(performance, 'now').mockReturnValue(1000);
+    try {
+      await rejects(
+        joinAuthoritySupervisor(child, supplied, 'a'.repeat(64), 4000, undefined, {
+          initialEnvelope: 'bounded',
+        }),
+        AuthorityCleanupUnknown,
+      );
+      expect((await readFile(receivedPath)).byteLength).toBe(byteLength === 65536 ? 65536 : 0);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+}
+
+test('strict encoding that exhausts original deadline transmits zero bytes after one serialization', async () => {
+  const root = scratchSync('authority-strict-encoding-expiry-');
+  const receivedPath = root + '/received';
+  const child = spawn(
+    '/usr/bin/python3',
+    [
+      '-I',
+      '-c',
+      `import sys;open(${JSON.stringify(receivedPath)},'wb').write(sys.stdin.buffer.readline())`,
+    ],
+    { stdio: ['pipe', 'pipe', 'pipe'] },
+  );
+  let serialized = 0;
+  const clock = spyOn(performance, 'now').mockReturnValue(1000);
+  const supplied = {
+    toJSON() {
+      serialized++;
+      clock.mockReturnValue(4001);
+      return { owned: 'fixture' };
+    },
+  };
+  try {
+    await rejects(
+      joinAuthoritySupervisor(child, supplied, 'a'.repeat(64), 4000, undefined, {
+        initialEnvelope: 'bounded',
+      }),
+      AuthorityCleanupUnknown,
+    );
+    expect(serialized).toBe(1);
+    expect((await readFile(receivedPath)).byteLength).toBe(0);
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+test('strict ready crossing expiry sends cancellation and no actual start frame', async () => {
+  const root = scratchSync('authority-strict-crossing-');
+  const readyPath = root + '/ready';
+  const controlPath = root + '/controls';
+  await writeFile(controlPath, '');
+  const inputs = await request();
+  const fixture = `
+_original_write=os.write
+_original_read=os.read
+_received_initial=False
+def fixture_write(descriptor,content):
+    if descriptor==1 and b'"phase":"ready"' in content:open(${JSON.stringify(readyPath)},'w').write('ready')
+    return _original_write(descriptor,content)
+def fixture_read(descriptor,limit):
+    global _received_initial
+    content=_original_read(descriptor,limit)
+    if descriptor==0:
+        if _received_initial:open(${JSON.stringify(controlPath)},'ab').write(content)
+        elif b'\\n' in content:_received_initial=True
+    return content
+os.write=fixture_write
+os.read=fixture_read
+def fixture_worker(request,host):return {'observed':'fresh'}
+`;
+  const child = spawn(
+    '/usr/bin/python3',
+    [
+      '-I',
+      '-c',
+      AUTHORITY_COLLECTOR +
+        '\n' +
+        fixture +
+        '\n' +
+        AUTHORITY_SUPERVISOR +
+        '\nsupervisor_entry(fixture_worker)\n',
+    ],
+    { stdio: ['pipe', 'pipe', 'pipe'] },
+  );
+  const now = performance.now.bind(performance);
+  const deadline = now() + 3000;
+  let readyReads = 0;
+  const clock = spyOn(performance, 'now').mockImplementation(() => {
+    if (!existsSync(readyPath)) return now();
+    readyReads++;
+    return readyReads === 1 ? deadline - 1 : deadline + 1;
+  });
+  try {
+    await rejects(
+      joinAuthoritySupervisor(child, inputs, inputs.nonce, deadline, undefined, {
+        initialEnvelope: 'bounded',
+      }),
+      /refused after complete descendant cleanup/,
+    );
+    const controls = await readFile(controlPath, 'utf8');
+    expect(readyReads).toBeGreaterThanOrEqual(2);
+    expect(controls).not.toMatch(/^start /m);
+    expect(controls).toMatch(/^cancel /m);
+  } finally {
+    clock.mockRestore();
+  }
+});
