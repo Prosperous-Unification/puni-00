@@ -123,7 +123,7 @@ export function hashActivationBytes(contents: string | Uint8Array): string {
   return createHash('sha256').update(contents).digest('hex');
 }
 
-/** Real SQLite dispatch only through the original complete live interval. Partial commits are retained on every failure. */
+/** Real SQLite dispatch only through the original complete live interval. Partial commits are retained on every failure. Selected intent and commit references preserve actual publication order. */
 export async function activateDependencyStores(
   owner: DependencyOwner,
   token: CompleteDependencyExclusion,
@@ -139,6 +139,7 @@ export async function activateDependencyStores(
   let retainedEvidence = false;
   const committed: { environment: EnvName; receipt: DependencyActivationReceipt }[] = [];
   const commitRecords: { environment: EnvName; reference: { name: string; sha256: string } }[] = [];
+  const intentRecords: { environment: EnvName; reference: { name: string; sha256: string } }[] = [];
   let stage = 'initial-storage';
   let environment: EnvName | undefined;
   let evidence: number | undefined;
@@ -467,7 +468,7 @@ export async function activateDependencyStores(
         activatedAt: Date.now(),
       });
       stage = 'intent';
-      await retain('intent', {
+      const intentRecord = await retain('intent', {
         format: 'dependency-activation-intent',
         version: 1,
         environment: env,
@@ -477,6 +478,7 @@ export async function activateDependencyStores(
         backup: preparation.backup,
         migrationManifestSha256: request.migrations.manifestSha256,
       });
+      intentRecords.push({ environment: env, reference: intentRecord });
       await inspectRetained();
       assertSame(
         preparation.snapshot,
@@ -599,6 +601,7 @@ export async function activateDependencyStores(
       receipts: committed,
       participantRecord,
       commitRecords,
+      intentRecords,
       stores: Object.freeze({ inspect: inspectStores }),
       evidence: {
         inspect: inspectPublications,
