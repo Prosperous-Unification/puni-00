@@ -42,7 +42,7 @@ absolute home path; JSON does not expand `$HOME` or `~`:
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "root": "/home/alex/.local/share/dash/resources",
   "authorityId": "linux-builder-one",
   "epoch": "initial-enrollment",
@@ -52,9 +52,19 @@ absolute home path; JSON does not expand `$HOME` or `~`:
   "diskUnitBytes": 1073741824,
   "diskBudgetUnits": 32,
   "workspaceSlots": 4,
-  "headroomBytes": 10737418240
+  "headroomBytes": 10737418240,
+  "cpuCores": 8,
+  "memoryGib": 15,
+  "headroom": { "cpuCores": 0, "memoryGib": 2 },
+  "exclusiveUnits": {
+    "gate_tree": ["/home/alex/puni-00-gate-tbf", "/home/alex/puni-00-gate-tbf2"]
+  },
+  "enrollmentId": "linux-builder-one-pool"
 }
 ```
+
+The last five fields are the host pool (see [Host pool and host jobs](#host-pool-and-host-jobs));
+a host that runs no host jobs still states its budgets and may name no units (`{}`).
 
 Set its permissions before initialization:
 
@@ -71,7 +81,8 @@ tools `putApiResourceAuthoritiesByAuthorityIdAdmissions`,
 `putApiResourceAuthoritiesByAuthorityIdEvents` and
 `getApiResourceAuthoritiesByAuthorityIdCleanupRequests`
 (`openspec/changes/wbs-mcp-agent-surface` M9: be-01's `/api` refuses the key itself
-`401 machine_bearer_not_accepted`). Schema version 1 named a `wbsOrigin` and is refused. HTTP is
+`401 machine_bearer_not_accepted`). Schema version 1 named a `wbsOrigin` and is refused;
+schema version 2 had no host pool and is refused naming the five fields to add. HTTP is
 accepted only on loopback for an explicit tunnel or test server; other endpoints require HTTPS
 and redirects are refused. `watch` keeps retrying while WBS does not answer, answers `429` or
 mcp-01 leaves a call uncompleted (`rate_limited`, `server_error`, …); a refused credential
@@ -85,7 +96,11 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts resources init -
 
 The sole ledger is `<root>/.dash/resources.sqlite`, with FULL-synchronous SQLite transactions,
 WAL, history and publication outbox. It pins root device/inode, machine identity, authority,
-epoch, provider, disk scale and budget policy. Another configuration cannot silently change
+epoch, provider, disk scale, budget policy and the host pool's budgets, headroom, units and
+enrollment identity. Its schema is `user_version` 1. A ledger written before the host pool
+(`user_version` 0) is migrated forward in one transaction the first time a schema-3
+configuration opens it, only when its pinned binding is exactly that configuration's earlier
+fields; any other version is refused, since nothing here can step a newer schema back. Another configuration cannot silently change
 this binding. Never delete or replace `.dash` to regain capacity. Missing/corrupt state refuses
 normal operation; recovery requires preserving the ledger and reconciling outstanding uses.
 
@@ -243,3 +258,40 @@ retry schedule and retained evidence. A missing path without prior deletion inte
 a replacement inode/symlink is never treated as the old target. Deletion followed by a crash
 before the SQLite commit reconciles the persisted intent, verifies absence/holds, and publishes
 one release. Release, reservation return and outbox insertion commit in one transaction.
+
+## Host pool and host jobs
+
+The same ledger is the host's **host pool** (`openspec/changes/dash-host-jobs`, J4): a **host
+job** (a gate, a release build) is a use of kind `host_job` that reserves from the vector the
+uses above reserve from. A worktree and a host job count against the same disk units and
+workspace slots; a host job also reserves cores, memory and exclusive units.
+
+- **Budgets.** `cpuCores` and `memoryGib` are what the pool may hand out, refused at
+  `resources init` above this host's `nproc` or `MemTotal`. `headroom` is kept back per
+  dimension: `allocatable = budget − headroom`, which must leave at least one core and one GiB.
+- **Exclusive units.** `exclusiveUnits` names, per exclusive id, the units a job may take one
+  of: each an absolute canonical directory outside the managed root, at the top of its own Git
+  work tree, named once across all ids. Init refuses an alias, a duplicate or a non-tree.
+- **Mode and enrollment.** The ledger starts in mode `observe`; `enrollmentId` is pinned in its
+  binding. The mode changes only through the fenced switch of slice 6, never the configuration.
+- **Admission is host-local.** No WBS call precedes a host job's reservation; it runs while WBS
+  is down. Its events wait in the ledger's `host_job_events` outbox for slice 5's projection.
+- **Refusals.** An envelope above `allocatable` in any dimension, or an exclusive id with no
+  units, is refused at once (exit 73) naming the dimension and both figures, without a ticket.
+  Otherwise the caller holds a ticket: waiters are served oldest-fitting-first; a waiter
+  overtaken by three younger admissions becomes a barrier no younger waiter passes, the oldest
+  barrier applying. A waiter past its wait budget is refused 75 naming who is ahead; a
+  wait-zero caller is refused 75 while any live ticket is ahead. A ticket whose process is gone,
+  or whose budget ended over a minute ago, is removed by whoever polls next, named on stderr.
+- **Settlement per entry.** Cores and memory return when the launched process group is
+  terminal (the same `/proc` session inspection as above) and every declared container is gone;
+  the tmp directory after the descriptor-relative removal above; a unit when no process holds
+  the tree, `git status --porcelain` is empty and HEAD is the commit recorded at admission.
+  Each release commits with its event. A launcher that dies leaves its job `unknown` and charged:
+  surviving children keep cores and memory, a dirty or moved tree stays `blocked` naming the
+  file until an operator restores it, and a job never launched returns only after its launcher
+  is gone and the 60-second launch grace has passed. `watch`'s sweep re-reads that evidence each
+  tick; until slice 3 reads Docker, a job that declared containers stays charged.
+
+The `ops job` and `ops pool` commands arrive with slice 3; this slice gives the runtime
+(`ResourceRuntime.admitHostJob`, `settleHostJob`, `hostPoolStatus`) and `resources init`.

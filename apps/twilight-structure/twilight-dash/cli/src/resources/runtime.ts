@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import {
   closeSync,
   constants,
+  existsSync,
   fstatSync,
   lstatSync,
   mkdirSync,
@@ -16,6 +17,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
+import { availableParallelism } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { Writable } from 'node:stream';
 
@@ -33,10 +35,19 @@ import { Database } from 'bun:sqlite';
 import type { WallClock } from '../clock';
 import { ApiKey, type McpEndpoint, mcpEndpointOf } from '../mcp/machine-token';
 import { type ToolAnswer, type WbsTools, WbsUnreachable } from '../mcp/wbs-tools';
+import {
+  chooseWaiter,
+  EXCLUSIVE_ID,
+  type JobTypeDescriptor,
+  jobTypeDescriptor,
+  type PoolVector,
+  TICKET_RECLAIM_AFTER_MS,
+  vectorFits,
+} from './host-pool';
 
 const Identifier = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 const Configuration = type({
-  schemaVersion: '2',
+  schemaVersion: '3',
   root: 'string',
   authorityId: Identifier,
   epoch: Identifier,
@@ -47,6 +58,14 @@ const Configuration = type({
   diskBudgetUnits: 'number.integer > 0',
   workspaceSlots: 'number.integer > 0',
   headroomBytes: 'number.integer >= 0',
+  cpuCores: 'number.integer > 0',
+  memoryGib: 'number.integer > 0',
+  headroom: type({
+    cpuCores: 'number.integer >= 0',
+    memoryGib: 'number.integer >= 0',
+  }).onUndeclaredKey('reject'),
+  exclusiveUnits: 'Record<string, string[]>',
+  enrollmentId: Identifier,
 }).onUndeclaredKey('reject');
 export type ResourceConfiguration = Omit<
   typeof Configuration.infer,
@@ -200,6 +219,165 @@ const ResourceUseShape = type({
   'admission?': resourceRuntimeAdmission,
 }).onUndeclaredKey('reject');
 export type { ResourceRuntimeEvent as ResourceEvent } from '@wbs/contracts';
+export type { ProcessIdentity };
+
+/**
+ * One reservation entry of a host job (J2'): `held` while its evidence is outstanding,
+ * `unknown` while the launcher is gone and the evidence is not yet terminal, `blocked` when the
+ * evidence was read and refuses release, `released` once its terminal evidence committed.
+ */
+export interface HostJobEntry {
+  state: 'held' | 'unknown' | 'blocked' | 'released';
+  reason: string;
+}
+/** An exclusive unit held by a host job, with the commit its tree must rest at to return. */
+export interface HostJobUnit extends HostJobEntry {
+  exclusiveId: string;
+  path: string;
+  restingCommit: string;
+}
+/**
+ * A use of kind `host_job` (J4): admitted host-locally from this ledger with no WBS call,
+ * reserving its declared envelope; each entry settles on its own terminal evidence (J2').
+ * `state` summarizes the entries: `starting` admitted but not launched, `held` launched,
+ * `unknown` launcher gone with evidence outstanding, `blocked` an entry refused release.
+ */
+export interface HostJob {
+  id: string;
+  incarnation: string;
+  revision: number;
+  kind: 'host_job';
+  descriptor: JobTypeDescriptor;
+  label: string;
+  state: 'starting' | 'held' | 'unknown' | 'blocked' | 'released';
+  diskUnits: number;
+  launcher: ProcessIdentity;
+  process: ProcessIdentity | null;
+  descendants: ProcessIdentity[];
+  locator: string;
+  dev: number | null;
+  ino: number | null;
+  tmpDeleteIntent: boolean;
+  admittedAt: number;
+  launchDeadline: number;
+  startedAt: number | null;
+  endedAt: number | null;
+  exitCode: number | null;
+  compute: HostJobEntry;
+  tmpDisk: HostJobEntry;
+  units: HostJobUnit[];
+}
+const HostJobEntryShape = type({
+  state: "'held'|'unknown'|'blocked'|'released'",
+  reason: 'string',
+});
+const HostJobShape = type({
+  id: Identifier,
+  incarnation: Identifier,
+  revision: 'number.integer > 0',
+  kind: "'host_job'",
+  descriptor: jobTypeDescriptor,
+  label: 'string > 0',
+  state: "'starting'|'held'|'unknown'|'blocked'|'released'",
+  diskUnits: 'number.integer >= 0',
+  launcher: ProcessIdentityShape,
+  process: ProcessIdentityShape.or('null'),
+  descendants: ProcessIdentityShape.array(),
+  locator: 'string > 0',
+  dev: 'number | null',
+  ino: 'number | null',
+  tmpDeleteIntent: 'boolean',
+  admittedAt: 'number',
+  launchDeadline: 'number',
+  startedAt: 'number | null',
+  endedAt: 'number | null',
+  exitCode: 'number.integer | null',
+  compute: HostJobEntryShape,
+  tmpDisk: HostJobEntryShape,
+  units: type({
+    '...': HostJobEntryShape,
+    exclusiveId: type(EXCLUSIVE_ID),
+    path: 'string > 0',
+    restingCommit: /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/,
+  }).array(),
+}).onUndeclaredKey('reject');
+
+/** What a caller asks the host pool for; `descriptor` arrives through the catalogue port. */
+export interface HostJobRequest {
+  descriptor: JobTypeDescriptor;
+  label: string;
+  /** Seconds this caller waits for room; 0 refuses while any live ticket is ahead (J6). */
+  waitSeconds: number;
+}
+const HostJobRequestShape = type({
+  descriptor: jobTypeDescriptor,
+  label: /^[ -~]{1,200}$/,
+  waitSeconds: 'number.integer >= 0',
+});
+/** A waiting ticket as `status` and refusals name it. */
+export interface HostJobTicket {
+  sequence: number;
+  label: string;
+  type: string;
+  pid: number;
+  arrivedAt: number;
+  deadline: number;
+  overtakes: number;
+}
+/**
+ * One poll's outcome. `refused` carries the exit code the delivery command returns: 73 for an
+ * envelope the pool can never hold (no ticket was written), 75 for a spent wait budget, a
+ * wait-zero caller with a live ticket ahead, or a ticket someone else reclaimed.
+ */
+export type HostJobAdmission =
+  | { kind: 'admitted'; job: HostJob }
+  | { kind: 'waiting'; ahead: HostJobTicket[] }
+  | { kind: 'refused'; exitCode: 73 | 75; reason: string };
+
+/**
+ * Whether every container a job declared is gone (J16): slice 3 reads Docker for it. Throws
+ * when the reading is unavailable, which keeps the compute entry charged.
+ */
+export interface ContainerEvidence {
+  containersGone(job: HostJob): boolean;
+}
+/**
+ * The only container evidence the watch loop has before slice 3: a job that declared
+ * `containers: none` has none to wait for; a declared bound stays charged until a reading.
+ */
+export const declaredContainersOnly: ContainerEvidence = {
+  containersGone: (job) => job.descriptor.containers === 'none',
+};
+
+/** The host pool as `ops job status` reads it: mode, budget, reservations, jobs and waiters. */
+export interface HostPoolStatus {
+  mode: 'observe' | 'concurrent';
+  enrollmentId: string;
+  allocatable: PoolVector;
+  reserved: PoolVector;
+  units: { exclusiveId: string; path: string; heldBy: string | null }[];
+  jobs: HostJob[];
+  waiters: HostJobTicket[];
+}
+
+/** The ledger schema this Dash writes; {@link ResourceRuntime.open} steps 0 forward to it. */
+const LEDGER_VERSION = 1;
+const LEDGER_V0_TABLES = ['binding', 'cursor', 'events', 'sqlite_sequence', 'uses'];
+const HOST_POOL_SCHEMA =
+  "CREATE TABLE host_jobs (id TEXT PRIMARY KEY, snapshot TEXT NOT NULL); CREATE TABLE host_job_tickets (sequence INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, label TEXT NOT NULL, request TEXT NOT NULL, pid INTEGER NOT NULL, boot TEXT NOT NULL, start TEXT NOT NULL, arrived_at INTEGER NOT NULL, deadline INTEGER NOT NULL, overtakes INTEGER NOT NULL DEFAULT 0); CREATE TABLE host_job_events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, event TEXT NOT NULL, published INTEGER NOT NULL DEFAULT 0); CREATE TABLE host_pool (id INTEGER PRIMARY KEY CHECK(id=1), mode TEXT NOT NULL CHECK(mode IN ('observe','concurrent'))); INSERT INTO host_pool VALUES (1,'observe')";
+interface TicketRow {
+  sequence: number;
+  id: string;
+  label: string;
+  request: string;
+  pid: number;
+  boot: string;
+  start: string;
+  arrived_at: number;
+  deadline: number;
+  overtakes: number;
+}
+const GIB = 1073741824;
 /** Read trusted credentials without following links, exposing JSON parser excerpts, or defaulting missing state. */
 export function loadResourceConfiguration(path: string): ResourceConfiguration {
   const descriptor = openSync(
@@ -235,7 +413,20 @@ export function loadResourceConfiguration(path: string): ResourceConfiguration {
     input.schemaVersion === 1
   )
     throw new Error(
-      "resource configuration malformed: schemaVersion 1 is retired; write schemaVersion 2 with mcpResource (WBS's MCP endpoint) in place of wbsOrigin",
+      "resource configuration malformed: schemaVersion 1 is retired; write schemaVersion 3 with mcpResource (WBS's MCP endpoint) in place of wbsOrigin and the host pool fields",
+    );
+  // Schema 2 had no host pool (`dash-host-jobs` J4): refused, not defaulted, because a pool's
+  // budgets and units are the owner's statement about the host and the ledger pins them.
+  // Proof: without it, `refuses schema 2, naming the host pool fields` (host-jobs.test.ts)
+  // saw only `Validation failed for schemaVersion` (2026-11-01, verify.md Slice 2).
+  if (
+    typeof input === 'object' &&
+    input !== null &&
+    'schemaVersion' in input &&
+    input.schemaVersion === 2
+  )
+    throw new Error(
+      'resource configuration malformed: schemaVersion 2 has no host pool; write schemaVersion 3 adding cpuCores, memoryGib, headroom {cpuCores, memoryGib}, exclusiveUnits and enrollmentId',
     );
   let parsed: typeof Configuration.infer;
   try {
@@ -271,12 +462,92 @@ export function loadResourceConfiguration(path: string): ResourceConfiguration {
   if (!Number.isSafeInteger(parsed.diskUnitBytes * parsed.diskBudgetUnits))
     throw new Error('resource budget exceeds safe integer range');
   checkRoot(parsed.root);
+  checkPoolShape(parsed);
   const { mcpResource, credential, ...settings } = parsed;
   return {
     ...settings,
     endpoint: mcpEndpointOf(mcpResource),
     credential: ApiKey.of(credential, 'resource configuration credential'),
   };
+}
+
+/**
+ * The host pool's statement without touching the host: headroom below each budget, exclusive
+ * ids as {@link EXCLUSIVE_ID}, each unit an absolute normalized path outside the managed root,
+ * no path named twice across all ids. {@link checkHostFacts} checks the host at init.
+ */
+function checkPoolShape(parsed: typeof Configuration.infer): void {
+  if (parsed.headroom.cpuCores >= parsed.cpuCores || parsed.headroom.memoryGib >= parsed.memoryGib)
+    throw new Error('host pool headroom must leave at least one core and one GiB allocatable');
+  const seen = new Set<string>();
+  for (const [id, paths] of Object.entries(parsed.exclusiveUnits)) {
+    if (!EXCLUSIVE_ID.test(id)) throw new Error(`host pool exclusive id ${id} malformed`);
+    if (paths.length === 0)
+      throw new Error(`host pool exclusive id ${id} names no unit; name one or omit the id`);
+    for (const path of paths) {
+      if (!isAbsolute(path) || resolve(path) !== path)
+        throw new Error(`host pool unit ${path} must be an absolute normalized path`);
+      if (samePath(path, parsed.root) || samePath(parsed.root, path))
+        throw new Error(`host pool unit ${path} overlaps the managed root`);
+      // Proof: without it, `init refuses duplicate unit paths, by name and by alias`
+      // (host-jobs.test.ts) loaded a pool naming one tree twice (2026-11-01, verify.md Slice 2).
+      if (seen.has(path)) throw new Error(`host pool unit ${path} is named twice`);
+      seen.add(path);
+    }
+  }
+}
+
+/** What init checks a host pool's budgets against; {@link linuxHostFacts} reads the machine. */
+export interface HostFacts {
+  /** The cores this process may run on (`nproc`). */
+  cpuCores(): number;
+  /** `MemTotal` in GiB. */
+  memoryGib(): number;
+}
+/** `nproc` and `/proc/meminfo`; an unreadable or malformed `MemTotal` throws. */
+export const linuxHostFacts: HostFacts = {
+  cpuCores: () => availableParallelism(),
+  memoryGib: () => {
+    const line = /^MemTotal:\s+(\d+) kB$/m.exec(readFileSync('/proc/meminfo', 'utf8'));
+    if (!line?.[1]) throw new Error('host memory unreadable: /proc/meminfo has no MemTotal');
+    return Number(line[1]) / 1048576;
+  },
+};
+
+/**
+ * The pool against the machine, at init: budgets within `nproc` and `MemTotal`, and every unit
+ * a canonical, distinct directory that is the top of a Git work tree. Settlement can verify
+ * only a Git tree's resting commit (J2'); a unit of another kind has no evidence and is refused.
+ */
+function checkHostFacts(configuration: ResourceConfiguration, host: HostFacts): void {
+  const cores = host.cpuCores();
+  // Proof: without these, `init refuses a budget above MemTotal and nproc` (host-jobs.test.ts)
+  // initialized a ledger promising 1048576 GiB (2026-11-01, verify.md Slice 2).
+  if (configuration.cpuCores > cores)
+    throw new Error(
+      `host pool cpuCores ${String(configuration.cpuCores)} exceeds this host's ${String(cores)}`,
+    );
+  const memory = host.memoryGib();
+  if (configuration.memoryGib > memory)
+    throw new Error(
+      `host pool memoryGib ${String(configuration.memoryGib)} exceeds this host's MemTotal ${memory.toFixed(1)} GiB`,
+    );
+  const identities = new Set<string>();
+  for (const path of Object.values(configuration.exclusiveUnits).flat()) {
+    if (realpathSync(path) !== path) throw new Error(`host pool unit ${path} is not canonical`);
+    const identity = statSync(path);
+    if (!identity.isDirectory()) throw new Error(`host pool unit ${path} is not a directory`);
+    const key = `${String(identity.dev)}:${String(identity.ino)}`;
+    if (identities.has(key)) throw new Error(`host pool unit ${path} is named twice`);
+    identities.add(key);
+    let top: string;
+    try {
+      top = git(['-C', path, 'rev-parse', '--show-toplevel']);
+    } catch (cause) {
+      throw new Error(`host pool unit ${path} is not the top of a Git work tree`, { cause });
+    }
+    if (top !== path) throw new Error(`host pool unit ${path} is not the top of a Git work tree`);
+  }
 }
 
 /** Dedicated canonical directory required; broad host roots and symlink aliases cannot become managed pools. */
@@ -350,8 +621,13 @@ function sessionOf(identity: ProcessIdentity): string | null {
     throw new Error('process session inspection unavailable', { cause });
   }
 }
+/** A launched process group as both a managed use and a host job record it. */
+interface OwnedGroup {
+  process: ProcessIdentity | null;
+  descendants: ProcessIdentity[];
+}
 /** Add session members only while an exact previously known identity brackets the observation. */
-function captureDescendants(use: ResourceUse): ProcessIdentity[] {
+function captureDescendants(use: OwnedGroup): ProcessIdentity[] {
   const leader = use.process;
   if (leader === null) return use.descendants;
   const witnesses = [leader, ...use.descendants].filter(
@@ -410,7 +686,7 @@ for identity in identities:
  finally: os.close(descriptor)
 `;
 /** A known survivor or an unknown member of the original session still prevents release. */
-function ownedProcessesAlive(use: ResourceUse): boolean {
+function ownedProcessesAlive(use: OwnedGroup): boolean {
   return (use.process !== null && ownedGroupAlive(use.process)) || use.descendants.some(alive);
 }
 function samePath(path: string, parent: string): boolean {
@@ -524,17 +800,22 @@ export class ResourceRuntime {
   ) {}
 
   /** Explicit bootstrap refuses existing or nonempty roots; normal opens never recreate missing trusted state. */
-  static initialize(configuration: ResourceConfiguration, clock: WallClock): ResourceRuntime {
+  static initialize(
+    configuration: ResourceConfiguration,
+    clock: WallClock,
+    host: HostFacts,
+  ): ResourceRuntime {
     checkRoot(configuration.root);
     if (readdirSync(configuration.root).length !== 0)
       throw new Error('resource initialization requires an empty root');
+    checkHostFacts(configuration, host);
     const state = join(configuration.root, '.dash');
     mkdirSync(state, { mode: 0o700 });
     const path = join(state, 'resources.sqlite');
     writeFileSync(path, '', { flag: 'wx', mode: 0o600 });
     const db = new Database(path);
     db.run(
-      'PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; CREATE TABLE binding (identity TEXT NOT NULL); CREATE TABLE uses (id TEXT PRIMARY KEY, snapshot TEXT NOT NULL); CREATE TABLE events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, event TEXT NOT NULL, published INTEGER NOT NULL DEFAULT 0); CREATE TABLE cursor (id INTEGER PRIMARY KEY CHECK(id=1), value INTEGER NOT NULL); INSERT INTO cursor VALUES (1,0)',
+      `PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; CREATE TABLE binding (identity TEXT NOT NULL); CREATE TABLE uses (id TEXT PRIMARY KEY, snapshot TEXT NOT NULL); CREATE TABLE events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, event TEXT NOT NULL, published INTEGER NOT NULL DEFAULT 0); CREATE TABLE cursor (id INTEGER PRIMARY KEY CHECK(id=1), value INTEGER NOT NULL); INSERT INTO cursor VALUES (1,0); ${HOST_POOL_SCHEMA}; PRAGMA user_version=${String(LEDGER_VERSION)}`,
     );
     const root = lstatSync(configuration.root);
     db.query('INSERT INTO binding VALUES (?)').run(
@@ -543,7 +824,30 @@ export class ResourceRuntime {
     db.close();
     return ResourceRuntime.open(configuration, clock);
   }
+  /**
+   * The pinned identity: version 0's eleven fields, then the host pool's budgets, headroom,
+   * units and enrollment identity, so another configuration cannot silently change the pool.
+   */
   private static binding(
+    configuration: ResourceConfiguration,
+    root: { dev: number; ino: number },
+  ): string[] {
+    return [
+      ...ResourceRuntime.legacyBinding(configuration, root),
+      String(configuration.cpuCores),
+      String(configuration.memoryGib),
+      String(configuration.headroom.cpuCores),
+      String(configuration.headroom.memoryGib),
+      JSON.stringify(
+        Object.entries(configuration.exclusiveUnits).sort(([left], [right]) =>
+          left.localeCompare(right),
+        ),
+      ),
+      configuration.enrollmentId,
+    ];
+  }
+  /** Version 0's binding, which a migration must find before it extends it. */
+  private static legacyBinding(
     configuration: ResourceConfiguration,
     root: { dev: number; ino: number },
   ): string[] {
@@ -578,6 +882,12 @@ export class ResourceRuntime {
     const db = new Database(path, { create: false, strict: true });
     db.run('PRAGMA busy_timeout=10000; PRAGMA synchronous=FULL');
     const root = lstatSync(configuration.root);
+    try {
+      ResourceRuntime.migrate(db, configuration, root);
+    } catch (cause) {
+      db.close();
+      throw cause;
+    }
     const binding = db.query<{ identity: string }, []>('SELECT identity FROM binding').get();
     // Proof: bypassing binding comparison admitted a competing authority and failed `reopening a ledger` (binding.log).
     if (binding?.identity !== JSON.stringify(ResourceRuntime.binding(configuration, root))) {
@@ -585,6 +895,53 @@ export class ResourceRuntime {
       throw new Error('resource authority binding mismatch');
     }
     return new ResourceRuntime(db, configuration, clock, root);
+  }
+  /**
+   * Step the ledger forward to {@link LEDGER_VERSION} in one `BEGIN IMMEDIATE`, or refuse.
+   * Version 0 (no `user_version`, the four `dash-resource-cleanup` tables) gains the host pool
+   * tables in mode `observe` and the extended binding, only when its binding is exactly this
+   * configuration's version-0 binding. A version this Dash does not know is refused: it may be a
+   * newer schema, and nothing here can step it back.
+   */
+  private static migrate(
+    db: Database,
+    configuration: ResourceConfiguration,
+    root: { dev: number; ino: number },
+  ): void {
+    const version = (): number => {
+      const row = db.query<{ user_version: number }, []>('PRAGMA user_version').get();
+      if (row === null) throw new Error('resource ledger version unreadable');
+      return row.user_version;
+    };
+    if (version() === LEDGER_VERSION) return;
+    db.transaction(() => {
+      const found = version();
+      if (found === LEDGER_VERSION) return;
+      // Proof: without it, `refuses a ledger version it does not know` (host-jobs.test.ts)
+      // treated version 9 as version 0 and refused only on its tables (2026-11-01, Slice 2).
+      if (found !== 0)
+        throw new Error(
+          `resource ledger version ${String(found)} is unknown to this Dash; refusing to guess its schema`,
+        );
+      const tables = db
+        .query<{ name: string }, []>(
+          "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
+        )
+        .all()
+        .map((table) => table.name);
+      if (JSON.stringify(tables) !== JSON.stringify(LEDGER_V0_TABLES))
+        throw new Error(`resource ledger version 0 has unexpected tables: ${tables.join(', ')}`);
+      const binding = db.query<{ identity: string }, []>('SELECT identity FROM binding').get();
+      // Proof: without it, `migrates a version-0 ledger forward, only under its own binding`
+      // (host-jobs.test.ts) rebound another authority's ledger (2026-11-01, verify.md Slice 2).
+      if (binding?.identity !== JSON.stringify(ResourceRuntime.legacyBinding(configuration, root)))
+        throw new Error('resource authority binding mismatch');
+      db.run(HOST_POOL_SCHEMA);
+      db.query('UPDATE binding SET identity=?').run(
+        JSON.stringify(ResourceRuntime.binding(configuration, root)),
+      );
+      db.run(`PRAGMA user_version=${String(LEDGER_VERSION)}`);
+    }).immediate();
   }
   /** Close this connection without altering durable obligations. */
   close(): void {
@@ -766,17 +1123,15 @@ export class ResourceRuntime {
     if (!creator) throw new Error('creator identity unavailable');
     const intent = this.transaction(() => {
       // Proof: charging only active uses failed the replacement-path capacity assertion (held-capacity.log).
-      const held = this.list().filter((existing) => existing.state !== 'released');
-      const disk = held.reduce(
-        (sum, existing) => sum + existing.request.diskUnits,
-        request.diskUnits,
-      );
-      const available = statfsSync(this.configuration.root);
+      // Host jobs reserve from the same vector (J4): their unreleased tmp entries count here.
+      const { vector: charged } = this.reservations();
       if (
-        disk > this.configuration.diskBudgetUnits ||
-        held.length + 1 > this.configuration.workspaceSlots ||
-        disk * this.configuration.diskUnitBytes + this.configuration.headroomBytes >
-          available.bavail * available.bsize
+        !vectorFits(
+          { cpuCores: 0, memoryGib: 0, diskUnits: request.diskUnits, workspaceSlots: 1 },
+          charged,
+          this.allocatable(),
+        ) ||
+        !this.freeSpaceCovers(charged.diskUnits + request.diskUnits)
       )
         throw new Error('resource capacity unavailable');
       if (request.parentId !== undefined) {
@@ -1018,6 +1373,8 @@ export class ResourceRuntime {
       )
         this.cleanup(current.id);
     }
+    for (const job of this.listHostJobs())
+      if (job.state !== 'released') this.settleHostJob(job.id, declaredContainersOnly);
     return this.list();
   }
   /** Record a bounded retry obligation without returning any reservation capacity. */
@@ -1477,5 +1834,614 @@ export class ResourceRuntime {
       this.db.query('UPDATE cursor SET value=? WHERE id=1').run(cursor);
     });
     if (admissionFailure !== undefined) throw admissionFailure;
+  }
+  /** `allocatable[d] = budget[d] − headroom[d]` (J5); disk and slots have no headroom here. */
+  private allocatable(): PoolVector {
+    const configuration = this.configuration;
+    return {
+      cpuCores: configuration.cpuCores - configuration.headroom.cpuCores,
+      memoryGib: configuration.memoryGib - configuration.headroom.memoryGib,
+      diskUnits: configuration.diskBudgetUnits,
+      workspaceSlots: configuration.workspaceSlots,
+    };
+  }
+  /**
+   * Every non-released use's reservation in one vector (J4, J5): a worktree or directory use
+   * whole, a host job per unreleased entry, so a settled compute entry stops charging cores and
+   * memory while its tmp directory or tree is still outstanding. `units` maps each held unit
+   * path to its job.
+   */
+  private reservations(): { vector: PoolVector; units: Map<string, string> } {
+    const vector: PoolVector = { cpuCores: 0, memoryGib: 0, diskUnits: 0, workspaceSlots: 0 };
+    const units = new Map<string, string>();
+    for (const use of this.list()) {
+      if (use.state === 'released') continue;
+      vector.diskUnits += use.request.diskUnits;
+      vector.workspaceSlots += 1;
+    }
+    for (const job of this.listHostJobs()) {
+      if (job.compute.state !== 'released') {
+        vector.cpuCores += job.descriptor.envelope.cpuCores;
+        vector.memoryGib += job.descriptor.envelope.memoryGib;
+      }
+      if (job.tmpDisk.state !== 'released') {
+        vector.diskUnits += job.diskUnits;
+        vector.workspaceSlots += 1;
+      }
+      for (const unit of job.units) if (unit.state !== 'released') units.set(unit.path, job.id);
+    }
+    return { vector, units };
+  }
+  /** Measured free bytes cover every reservation growing to its full size, plus headroom. */
+  private freeSpaceCovers(diskUnits: number): boolean {
+    const available = statfsSync(this.configuration.root);
+    return (
+      diskUnits * this.configuration.diskUnitBytes + this.configuration.headroomBytes <=
+      available.bavail * available.bsize
+    );
+  }
+  private diskUnitsOf(descriptor: JobTypeDescriptor): number {
+    return Math.ceil((descriptor.envelope.tmpDiskGib * GIB) / this.configuration.diskUnitBytes);
+  }
+  /** Persisted host jobs are trusted local state; corruption throws instead of implying absence. */
+  inspectHostJob(id: string): HostJob {
+    const row = this.db
+      .query<{ snapshot: string }, [string]>('SELECT snapshot FROM host_jobs WHERE id=?')
+      .get(id);
+    if (!row) throw new Error('host job not found');
+    // Only this class writes the owner-only ledger; malformed JSON throws rather than defaulting.
+    return HostJobShape.assert(JSON.parse(row.snapshot));
+  }
+  /** Every host job, released history included, oldest admission first. */
+  listHostJobs(): HostJob[] {
+    return this.db
+      .query<{ snapshot: string }, []>('SELECT snapshot FROM host_jobs ORDER BY rowid')
+      .all()
+      .map((row) => HostJobShape.assert(JSON.parse(row.snapshot)));
+  }
+  /**
+   * Record a host job's change with the reservation it leaves, in the caller's transaction:
+   * the local outbox `host_job_events`, which slice 5 publishes to WBS as `resourceRuntimeUse`
+   * v2 (J10). Its `reserved` is read after the change, so the history replays the pool.
+   */
+  private hostJobEvent(job: HostJob, kind: 'admitted' | 'launched' | 'settlement'): void {
+    job.revision += 1;
+    this.db
+      .query(
+        'INSERT INTO host_jobs VALUES (?,?) ON CONFLICT(id) DO UPDATE SET snapshot=excluded.snapshot',
+      )
+      .run(job.id, JSON.stringify(HostJobShape.assert(job)));
+    const { vector } = this.reservations();
+    this.db.query('INSERT INTO host_job_events(event) VALUES (?)').run(
+      JSON.stringify({
+        jobId: job.id,
+        incarnation: job.incarnation,
+        revision: job.revision,
+        kind,
+        observedAt: this.clock.read(),
+        type: job.descriptor.id,
+        label: job.label,
+        state: job.state,
+        compute: job.compute,
+        tmpDisk: job.tmpDisk,
+        units: job.units,
+        reserved: vector,
+        allocatable: this.allocatable(),
+      }),
+    );
+  }
+  private saveHostJob(job: HostJob): void {
+    this.db
+      .query('UPDATE host_jobs SET snapshot=? WHERE id=?')
+      .run(JSON.stringify(HostJobShape.assert(job)), job.id);
+  }
+  /** Unpublished host-job events, oldest first: the payloads slice 5 maps to WBS. */
+  hostJobOutbox(): { sequence: number; event: unknown }[] {
+    return this.db
+      .query<{ sequence: number; event: string }, []>(
+        'SELECT sequence, event FROM host_job_events WHERE published=0 ORDER BY sequence',
+      )
+      .all()
+      .map((row) => ({ sequence: row.sequence, event: JSON.parse(row.event) as unknown }));
+  }
+  private tickets(): TicketRow[] {
+    return this.db.query<TicketRow, []>('SELECT * FROM host_job_tickets ORDER BY sequence').all();
+  }
+  private ticketView(row: TicketRow): HostJobTicket {
+    return {
+      sequence: row.sequence,
+      label: row.label,
+      type: this.ticketRequest(row).descriptor.id,
+      pid: row.pid,
+      arrivedAt: row.arrived_at,
+      deadline: row.deadline,
+      overtakes: row.overtakes,
+    };
+  }
+  private ticketRequest(row: TicketRow): HostJobRequest {
+    // Only this class writes tickets; a malformed request throws rather than defaulting.
+    return HostJobRequestShape.assert(JSON.parse(row.request));
+  }
+  /**
+   * The refusal for an envelope this pool can never hold (J5, exit 73), naming the dimension
+   * and both figures, or null.
+   */
+  private oversize(descriptor: JobTypeDescriptor): string | null {
+    const allocatable = this.allocatable();
+    const name = `host job ${descriptor.id} refused`;
+    for (const dimension of ['cpuCores', 'memoryGib'] as const)
+      if (descriptor.envelope[dimension] > allocatable[dimension])
+        return `${name}: ${dimension} ${String(descriptor.envelope[dimension])} exceeds allocatable ${String(allocatable[dimension])}`;
+    if (this.diskUnitsOf(descriptor) > allocatable.diskUnits)
+      return `${name}: tmpDiskGib ${String(descriptor.envelope.tmpDiskGib)} exceeds allocatable ${String(Math.floor((allocatable.diskUnits * this.configuration.diskUnitBytes) / GIB))}`;
+    for (const id of descriptor.envelope.exclusive)
+      if ((this.configuration.exclusiveUnits[id] ?? []).length === 0)
+        return `${name}: exclusive ${id} has 0 units in this pool`;
+    return null;
+  }
+  /**
+   * Queue a host job for `waiterPid`, the process that polls the ticket and launches the job:
+   * the ticket dies with that process identity (J6). An envelope the pool can never hold is
+   * refused 73 at once and writes no ticket. Arrival order is the ticket's sequence, assigned
+   * under the ledger's write lock; deadlines are epoch milliseconds because other processes
+   * read them, as the shell lock's tickets carry epoch seconds.
+   * @throws when the request is malformed, names an exclusive id twice, or the waiter's
+   * identity cannot be read.
+   */
+  enqueueHostJob(
+    input: HostJobRequest,
+    waiterPid: number,
+  ): { kind: 'queued'; ticket: string } | { kind: 'refused'; exitCode: 73; reason: string } {
+    const request = HostJobRequestShape.assert(input);
+    const exclusive = request.descriptor.envelope.exclusive;
+    if (new Set(exclusive).size !== exclusive.length)
+      throw new Error(`host job ${request.descriptor.id} names an exclusive id twice`);
+    const oversize = this.oversize(request.descriptor);
+    // Proof: without it, `refuses an envelope larger than the host, exit 73 without a ticket`
+    // (host-jobs.test.ts) queued the 14 GiB gate (2026-11-01, verify.md Slice 2).
+    if (oversize !== null) return { kind: 'refused', exitCode: 73, reason: oversize };
+    const waiter = identifyProcess(waiterPid);
+    if (waiter === null) throw new Error('host job waiter identity unavailable');
+    return this.transaction(() => {
+      const ticket = randomUUID();
+      const now = this.clock.read();
+      this.db
+        .query(
+          'INSERT INTO host_job_tickets(id,label,request,pid,boot,start,arrived_at,deadline) VALUES (?,?,?,?,?,?,?,?)',
+        )
+        .run(
+          ticket,
+          request.label,
+          JSON.stringify(request),
+          waiter.pid,
+          waiter.boot,
+          waiter.start,
+          now,
+          now + request.waitSeconds * 1000,
+        );
+      return { kind: 'queued' as const, ticket };
+    });
+  }
+  /** Remove a waiter's own ticket: cancellation leaves scheduling at once. */
+  withdrawHostJob(ticket: string): void {
+    this.transaction(() => {
+      this.db.query('DELETE FROM host_job_tickets WHERE id=?').run(ticket);
+    });
+  }
+  /**
+   * One scheduling decision for `ticket`, in one `BEGIN IMMEDIATE` (J5, J6): remove tickets
+   * whose process is gone or whose budget ended over a minute ago, naming each through
+   * `report`; refuse 75 a waiter past its budget, or a wait-zero waiter with a live ticket
+   * ahead; otherwise admit when this waiter is the one {@link chooseWaiter} serves against every
+   * non-released reservation, counting one overtake on every older live waiter it passes.
+   * Admission reserves the envelope, the tmp disk, one workspace slot and one free unit per
+   * exclusive id, recording each unit's resting commit. No WBS call is made (J4).
+   */
+  pollHostJob(ticket: string, report: (line: string) => void): HostJobAdmission {
+    // Proof: reading the reservations before this transaction let `launcher processes racing
+    // one ledger file never overcommit` (host-jobs.model.test.ts) replay a tree held by two
+    // jobs; a deferred one crashed contenders SQLITE_BUSY and SQLITE_BUSY_SNAPSHOT (2026-11-01).
+    return this.transaction((): HostJobAdmission => {
+      const now = this.clock.read();
+      const mine = this.tickets().find((row) => row.id === ticket);
+      if (mine === undefined)
+        return {
+          kind: 'refused',
+          exitCode: 75,
+          reason: 'host job ticket is no longer queued: it was withdrawn or reclaimed',
+        };
+      for (const row of this.tickets()) {
+        if (row.id === ticket) continue;
+        const gone = !alive({ pid: row.pid, boot: row.boot, start: row.start });
+        if (!gone && now - row.deadline <= TICKET_RECLAIM_AFTER_MS) continue;
+        this.db.query('DELETE FROM host_job_tickets WHERE id=?').run(row.id);
+        report(
+          `host pool: removing ticket ${row.label} (pid ${String(row.pid)}): ${gone ? 'its process is gone' : 'its wait budget ended over a minute ago'}`,
+        );
+      }
+      // A ticket past its budget has left scheduling even before anyone reclaims it.
+      const live = this.tickets().filter((row) => row.id === ticket || now <= row.deadline);
+      const ahead = live.filter((row) => row.sequence < mine.sequence);
+      const request = this.ticketRequest(mine);
+      const named = `host job ${request.descriptor.id} ${request.label} refused`;
+      const aheadText = (): string => {
+        const holders = [
+          ...ahead.map((row) => `${row.label} (pid ${String(row.pid)}, waiting)`),
+          ...this.listHostJobs()
+            .filter((job) => job.state !== 'released')
+            .map((job) => `${job.label} (${job.state})`),
+        ];
+        return holders.length === 0 ? 'nobody' : holders.join(', ');
+      };
+      const refuse = (reason: string): HostJobAdmission => {
+        this.db.query('DELETE FROM host_job_tickets WHERE id=?').run(ticket);
+        return { kind: 'refused', exitCode: 75, reason };
+      };
+      if (now > mine.deadline)
+        return refuse(
+          `${named}: wait budget of ${String(request.waitSeconds)}s spent; ahead: ${aheadText()}`,
+        );
+      if (request.waitSeconds === 0 && ahead.length > 0)
+        return refuse(`${named}: wait budget 0 with live tickets ahead: ${aheadText()}`);
+      const { vector: reserved, units: held } = this.reservations();
+      const allocatable = this.allocatable();
+      const fits = (row: TicketRow): boolean => {
+        const { descriptor } = this.ticketRequest(row);
+        const diskUnits = this.diskUnitsOf(descriptor);
+        return (
+          vectorFits(
+            {
+              cpuCores: descriptor.envelope.cpuCores,
+              memoryGib: descriptor.envelope.memoryGib,
+              diskUnits,
+              workspaceSlots: 1,
+            },
+            reserved,
+            allocatable,
+          ) &&
+          this.freeSpaceCovers(reserved.diskUnits + diskUnits) &&
+          // Proof: without it the model in host-jobs.model.test.ts admitted a third gate onto
+          // a held tree where it expected `waiting` (2026-11-01, verify.md Slice 2).
+          descriptor.envelope.exclusive.every((id) =>
+            (this.configuration.exclusiveUnits[id] ?? []).some((path) => !held.has(path)),
+          )
+        );
+      };
+      const chosen = chooseWaiter(live, fits);
+      if (chosen?.id !== ticket) {
+        if (now >= mine.deadline)
+          return refuse(
+            `${named}: no room within its wait budget of ${String(request.waitSeconds)}s; ahead: ${aheadText()}`,
+          );
+        return { kind: 'waiting', ahead: ahead.map((row) => this.ticketView(row)) };
+      }
+      for (const row of ahead)
+        this.db.query('UPDATE host_job_tickets SET overtakes=overtakes+1 WHERE id=?').run(row.id);
+      this.db.query('DELETE FROM host_job_tickets WHERE id=?').run(ticket);
+      const id = randomUUID();
+      const units = request.descriptor.envelope.exclusive.map((exclusiveId): HostJobUnit => {
+        const path = (this.configuration.exclusiveUnits[exclusiveId] ?? []).find(
+          (candidate) => !held.has(candidate),
+        );
+        if (path === undefined) throw new Error('host pool unit vanished during admission');
+        held.set(path, id);
+        return {
+          exclusiveId,
+          path,
+          restingCommit: git(['-C', path, 'rev-parse', 'HEAD']),
+          state: 'held',
+          reason: 'admitted',
+        };
+      });
+      const job: HostJob = {
+        id,
+        incarnation: randomUUID(),
+        revision: 0,
+        kind: 'host_job',
+        descriptor: request.descriptor,
+        label: request.label,
+        state: 'starting',
+        diskUnits: this.diskUnitsOf(request.descriptor),
+        launcher: { pid: mine.pid, boot: mine.boot, start: mine.start },
+        process: null,
+        descendants: [],
+        locator: join(this.configuration.root, id),
+        dev: null,
+        ino: null,
+        tmpDeleteIntent: false,
+        admittedAt: now,
+        launchDeadline: now + 60000,
+        startedAt: null,
+        endedAt: null,
+        exitCode: null,
+        compute: { state: 'held', reason: 'admitted' },
+        tmpDisk: { state: 'held', reason: 'admitted' },
+        units,
+      };
+      this.hostJobEvent(job, 'admitted');
+      return { kind: 'admitted', job };
+    });
+  }
+  /**
+   * Queue and wait until admitted, refused or cancelled, polling every `pollMs`: the blocking
+   * form slice 3's `ops job run` calls for its own process. Cancellation withdraws the ticket.
+   */
+  async admitHostJob(
+    input: HostJobRequest,
+    options: { pollMs: number; signal: AbortSignal; report: (line: string) => void },
+  ): Promise<HostJobAdmission | { kind: 'cancelled' }> {
+    // Proof: an MCP admission call here made `admits a host job with no WBS call while WBS
+    // refuses everything` (host-jobs.test.ts) fail on the refusing fixture (2026-11-01).
+    const queued = this.enqueueHostJob(input, process.pid);
+    if (queued.kind === 'refused') return queued;
+    try {
+      for (;;) {
+        if (options.signal.aborted) {
+          this.withdrawHostJob(queued.ticket);
+          return { kind: 'cancelled' };
+        }
+        const outcome = this.pollHostJob(queued.ticket, options.report);
+        if (outcome.kind !== 'waiting') return outcome;
+        await Bun.sleep(options.pollMs);
+      }
+    } catch (cause) {
+      this.withdrawHostJob(queued.ticket);
+      throw cause;
+    }
+  }
+  /** Create the job-private tmp directory under the managed root and pin its identity. */
+  prepareHostJob(id: string): HostJob {
+    return this.transaction(() => {
+      const job = this.inspectHostJob(id);
+      if (job.state !== 'starting' || job.dev !== null)
+        throw new Error('host job is not awaiting preparation');
+      mkdirSync(job.locator, { mode: 0o700 });
+      const identity = lstatSync(job.locator);
+      job.dev = identity.dev;
+      job.ino = identity.ino;
+      this.saveHostJob(job);
+      return job;
+    });
+  }
+  /**
+   * Persist the launched process group's leader identity, which slice 3's FD gate requires
+   * before it lets the payload exec; until then no payload can have run (J2').
+   */
+  recordHostJobLaunch(id: string, pid: number): HostJob {
+    return this.transaction(() => {
+      const job = this.inspectHostJob(id);
+      if (job.state !== 'starting' || job.process !== null || job.dev === null)
+        throw new Error('host job is not awaiting launch');
+      const identity = identifyProcess(pid);
+      if (identity === null) throw new Error('host job process identity unavailable');
+      job.process = identity;
+      job.startedAt = this.clock.read();
+      job.state = 'held';
+      this.hostJobEvent(job, 'launched');
+      return job;
+    });
+  }
+  /** The payload's exit status as its launcher saw it: outcome only, never settlement (J2'). */
+  recordHostJobExit(id: string, exitCode: number): HostJob {
+    return this.transaction(() => {
+      const job = this.inspectHostJob(id);
+      if (job.process === null || job.exitCode !== null)
+        throw new Error('host job has no running payload to record');
+      job.exitCode = exitCode;
+      job.endedAt = this.clock.read();
+      this.saveHostJob(job);
+      return job;
+    });
+  }
+  /**
+   * The compute entry's evidence (J2'): the owned process group terminal through the same
+   * `/proc` session inspection worktree cleanup uses, and every declared container gone. A job
+   * never launched is terminal only once its launcher is gone and the launch grace has passed:
+   * the gate opens after the identity is persisted, so no identity means no payload ran.
+   * Launcher death alone releases nothing.
+   */
+  private computeEvidence(job: HostJob, containers: ContainerEvidence): HostJobEntry {
+    const launcherAlive = alive(job.launcher);
+    // Proof: releasing here on launcher death, or on a recorded exit code, let `surviving
+    // children keep the charge` (host-jobs.test.ts) admit a 10 GiB job over the surviving
+    // child; launcher death also broke the model's expected `unknown` (2026-11-01, Slice 2).
+    const pending = launcherAlive ? ('held' as const) : ('unknown' as const);
+    if (job.process === null) {
+      if (launcherAlive) return { state: 'held', reason: 'admitted; launch outstanding' };
+      if (this.clock.read() < job.launchDeadline)
+        return { state: 'unknown', reason: 'launcher ended before launch; launch grace running' };
+    } else {
+      job.descendants = captureDescendants(job);
+      if (ownedProcessesAlive(job)) {
+        const pids = [job.process, ...job.descendants].filter(alive).map((each) => each.pid);
+        return {
+          state: pending,
+          reason: `owned process group of session ${String(job.process.pid)} alive; known live pids ${pids.length === 0 ? 'none (unknown session members)' : pids.join(', ')}`,
+        };
+      }
+    }
+    let gone: boolean;
+    try {
+      gone = containers.containersGone(job);
+    } catch (cause) {
+      return {
+        state: pending,
+        reason: `container evidence unavailable: ${cause instanceof Error ? cause.message : 'unreadable'}`,
+      };
+    }
+    if (!gone) return { state: pending, reason: 'declared containers not verified gone' };
+    return {
+      state: 'released',
+      reason:
+        job.process === null
+          ? 'never launched: launcher gone and launch grace passed'
+          : 'owned process group terminal and declared containers gone',
+    };
+  }
+  /**
+   * A unit's evidence once writers are excluded (J2'): no live hold on the tree, its HEAD the
+   * resting commit recorded at admission and `git status --porcelain` empty. Ignored files are
+   * the tree's caches and do not block.
+   */
+  private unitEvidence(unit: HostJobUnit): HostJobEntry {
+    try {
+      inspectHolds(unit.path);
+      const head = git(['-C', unit.path, 'rev-parse', 'HEAD']);
+      const status = git(['-C', unit.path, 'status', '--porcelain', '--untracked-files=all']);
+      // Proof: without it `a dirty tree is not returned` (host-jobs.test.ts) saw the unit
+      // `released` with stray.txt in the tree (2026-11-01, verify.md Slice 2).
+      if (status !== '')
+        return {
+          state: 'blocked',
+          reason: `tree ${unit.path} is not clean: ${status.split('\n').slice(0, 5).join('; ')}`,
+        };
+      if (head !== unit.restingCommit)
+        return {
+          state: 'blocked',
+          reason: `tree ${unit.path} is at ${head}, not its resting commit ${unit.restingCommit}`,
+        };
+      return { state: 'released', reason: 'tree clean at its resting commit' };
+    } catch (cause) {
+      return {
+        state: 'blocked',
+        reason: `tree ${unit.path} unverified: ${cause instanceof Error ? cause.message : 'inspection failed'}`,
+      };
+    }
+  }
+  /** Summarize the entries into the job's state. */
+  private summarize(job: HostJob): void {
+    const entries = [job.compute, job.tmpDisk, ...job.units];
+    job.state = entries.every((entry) => entry.state === 'released')
+      ? 'released'
+      : entries.some((entry) => entry.state === 'blocked')
+        ? 'blocked'
+        : entries.some((entry) => entry.state === 'unknown')
+          ? 'unknown'
+          : job.process === null
+            ? 'starting'
+            : 'held';
+  }
+  /**
+   * Settle each outstanding reservation entry of a host job on its own terminal evidence
+   * (J2'): compute after {@link computeEvidence}; then each unit after {@link unitEvidence};
+   * then the tmp directory after the runtime's descriptor-relative removal under a persisted
+   * deletion intent. Each release commits with its event in one transaction; anything not
+   * proven stays charged, `unknown` while the launcher is gone, `blocked` when evidence refuses.
+   */
+  settleHostJob(id: string, containers: ContainerEvidence): HostJob {
+    this.transaction(() => {
+      const job = this.inspectHostJob(id);
+      if (job.state === 'released') return;
+      const before = JSON.stringify(job);
+      if (job.compute.state !== 'released') job.compute = this.computeEvidence(job, containers);
+      const excluded = job.compute.state === 'released';
+      const waiting: HostJobEntry = {
+        state: job.compute.state === 'unknown' ? 'unknown' : 'held',
+        reason: 'writers not yet excluded',
+      };
+      for (const [index, unit] of job.units.entries()) {
+        if (unit.state === 'released') continue;
+        job.units[index] = { ...unit, ...(excluded ? this.unitEvidence(unit) : waiting) };
+      }
+      if (job.tmpDisk.state !== 'released') job.tmpDisk = excluded ? this.tmpIntent(job) : waiting;
+      this.summarize(job);
+      if (JSON.stringify(job) !== before) this.hostJobEvent(job, 'settlement');
+    });
+    const intended = this.inspectHostJob(id);
+    if (intended.tmpDisk.state === 'released' || !intended.tmpDeleteIntent) return intended;
+    return this.transaction(() => {
+      const job = this.inspectHostJob(id);
+      if (job.tmpDisk.state === 'released' || !job.tmpDeleteIntent) return job;
+      try {
+        if (this.hostJobTmpPresent(job)) {
+          inspectHolds(job.locator);
+          const removal = Bun.spawnSync(
+            [
+              'python3',
+              '-c',
+              removeDirectory,
+              this.configuration.root,
+              job.id,
+              String(job.dev),
+              String(job.ino),
+            ],
+            { stdout: 'pipe', stderr: 'pipe', timeout: 30000, killSignal: 'SIGKILL' },
+          );
+          if (removal.exitCode !== 0) throw new Error('descriptor-relative removal refused');
+        }
+        if (this.hostJobTmpPresent(job)) throw new Error('tmp directory still present');
+        inspectHolds(job.locator);
+        job.tmpDisk = { state: 'released', reason: 'tmp directory removed and holds verified' };
+      } catch (cause) {
+        job.tmpDisk = {
+          state: 'blocked',
+          reason: `tmp directory cleanup failed: ${cause instanceof Error ? cause.message : 'unknown'}`,
+        };
+      }
+      this.summarize(job);
+      this.hostJobEvent(job, 'settlement');
+      return job;
+    });
+  }
+  /** Whether the job's tmp directory exists as the identity recorded at preparation. */
+  private hostJobTmpPresent(job: HostJob): boolean {
+    let identity;
+    try {
+      identity = lstatSync(job.locator);
+    } catch (cause) {
+      if (isMissing(cause)) return false;
+      throw cause;
+    }
+    if (
+      identity.isSymbolicLink() ||
+      !identity.isDirectory() ||
+      identity.dev !== job.dev ||
+      identity.ino !== job.ino
+    )
+      throw new Error('host job tmp directory identity changed');
+    return true;
+  }
+  /**
+   * The tmp entry before removal: a directory never prepared is released when absent; one
+   * prepared gains a persisted deletion intent once no live hold remains, so a crash after
+   * removal reconciles as absent-with-intent rather than an unexplained absence.
+   */
+  private tmpIntent(job: HostJob): HostJobEntry {
+    try {
+      if (job.dev === null) {
+        if (existsSync(job.locator))
+          return { state: 'blocked', reason: 'tmp directory present without a recorded identity' };
+        return { state: 'released', reason: 'tmp directory never created' };
+      }
+      const present = this.hostJobTmpPresent(job);
+      if (!present && !job.tmpDeleteIntent)
+        return { state: 'blocked', reason: 'tmp directory absent without a deletion intent' };
+      if (present) inspectHolds(job.locator);
+      job.tmpDeleteIntent = true;
+      return { state: 'held', reason: 'tmp directory removal intended' };
+    } catch (cause) {
+      return {
+        state: 'blocked',
+        reason: `tmp directory unverified: ${cause instanceof Error ? cause.message : 'unknown'}`,
+      };
+    }
+  }
+  /** What the host is doing: mode, budget, reservations, units, unreleased jobs, waiters. */
+  hostPoolStatus(): HostPoolStatus {
+    const mode = this.db.query<{ mode: string }, []>('SELECT mode FROM host_pool WHERE id=1').get();
+    if (mode?.mode !== 'observe' && mode?.mode !== 'concurrent')
+      throw new Error('host pool mode unreadable');
+    const { vector, units } = this.reservations();
+    return {
+      mode: mode.mode,
+      enrollmentId: this.configuration.enrollmentId,
+      allocatable: this.allocatable(),
+      reserved: vector,
+      units: Object.entries(this.configuration.exclusiveUnits).flatMap(([exclusiveId, paths]) =>
+        paths.map((path) => ({ exclusiveId, path, heldBy: units.get(path) ?? null })),
+      ),
+      jobs: this.listHostJobs().filter((job) => job.state !== 'released'),
+      waiters: this.tickets().map((row) => this.ticketView(row)),
+    };
   }
 }
