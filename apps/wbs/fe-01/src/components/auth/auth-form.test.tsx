@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -260,7 +260,7 @@ describe('the signed-out screen', () => {
       );
       expect(
         await screen.findByText(
-          'The previous browser session could not be verified. Reload and try again.',
+          'The previous browser session could not be verified. Reset this browser session, then sign in again.',
         ),
       ).toBeDefined();
     },
@@ -645,5 +645,128 @@ describe('a sign-in whose provider sent no groups claim', () => {
     ).toBeDefined();
     expect(window.location.search).not.toContain('auth_error');
     consoleWatch.expectSilent();
+  });
+});
+
+describe('explicit browser session recovery', () => {
+  const freshLogin = 'Browser session reset. Sign in again to continue.';
+  itDom('offers reset for an unverifiable saved session after password refusal', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(response(401, { error: 'unauthenticated' }))
+        .mockResolvedValueOnce(new Response(null, { status: 204 })),
+    );
+    render(<AuthForm methods={NO_METHODS} onSignedIn={vi.fn()} />);
+    fireEvent.submit(
+      screen.getByRole('button', { name: 'Sign in with password' }).closest('form')!,
+    );
+    expect(await screen.findByRole('button', { name: 'Reset browser session' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Reset browser session' }));
+    expect(await screen.findByText(freshLogin)).toBeDefined();
+    expect(screen.queryByText(/previous browser session could not be verified/)).toBeNull();
+  });
+  itDom('successful reset invites a fresh login without authenticating', async () => {
+    arriveWith('?auth_error=browser_session_unverified');
+    const signedIn = vi.fn();
+    const send = vi.fn(() => Promise.resolve(new Response(null, { status: 204 })));
+    vi.stubGlobal('fetch', send);
+    render(<AuthForm methods={NO_METHODS} onSignedIn={signedIn} />);
+    const stale = screen.getByText(/previous browser session could not be verified/);
+    fireEvent.click(screen.getByRole('button', { name: 'Reset browser session' }));
+    expect(await screen.findByText(freshLogin)).toBeDefined();
+    expect(stale).not.toBeInTheDocument();
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(signedIn).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Reset browser session' })).toBeNull();
+  });
+  itDom('reset prevents duplicate requests and sign-in while pending', async () => {
+    arriveWith('?auth_error=browser_session_unverified');
+    let finish: () => void = () => {
+      throw new Error('reset not requested');
+    };
+    const send = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = () => {
+            resolve(new Response(null, { status: 204 }));
+          };
+        }),
+    );
+    vi.stubGlobal('fetch', send);
+    render(<AuthForm methods={{ kind: 'ready', methods: ['google'] }} onSignedIn={vi.fn()} />);
+    const reset = screen.getByRole('button', { name: 'Reset browser session' });
+    const password = screen.getByRole('button', { name: 'Sign in with password' });
+    act(() => {
+      reset.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      reset.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    fireEvent.submit(password.closest('form')!);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(reset).toBeDisabled();
+    expect(password).toBeDisabled();
+    for (const label of ['Continue with Google', 'Continue with SSO']) {
+      const choice = screen.getByText(label);
+      expect(choice).toHaveAttribute('aria-disabled', 'true');
+      expect(choice).not.toHaveAttribute('href');
+    }
+    finish();
+    expect(await screen.findByText(freshLogin)).toBeDefined();
+    expect(password).toBeEnabled();
+    expect(screen.getByRole('link', { name: 'Continue with SSO' })).toHaveAttribute(
+      'href',
+      '/api/auth/login',
+    );
+  });
+  for (const [label, reply, message] of [
+    [
+      'refused',
+      () => Promise.resolve(response(403, { error: 'invalid_origin' })),
+      'Browser session reset was refused. Reload this page and try again.',
+    ],
+    [
+      'malformed',
+      () => Promise.resolve(response(200, {})),
+      'The server returned an unexpected response. Try again.',
+    ],
+    [
+      'network',
+      () => Promise.reject(new Error('offline')),
+      'Could not reach the server. Try again.',
+    ],
+  ] as const) {
+    itDom(`reset failure remains visible and retryable after ${label} response`, async () => {
+      arriveWith('?auth_error=browser_session_unverified');
+      const signedIn = vi.fn();
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockImplementationOnce(reply)
+          .mockResolvedValueOnce(new Response(null, { status: 204 })),
+      );
+      render(<AuthForm methods={NO_METHODS} onSignedIn={signedIn} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Reset browser session' }));
+      expect(await screen.findByText(message)).toBeDefined();
+      expect(screen.queryByText(freshLogin)).toBeNull();
+      expect(signedIn).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole('button', { name: 'Reset browser session' }));
+      expect(await screen.findByText(freshLogin)).toBeDefined();
+    });
+  }
+  itDom('does not offer reset for unrelated provider or credential errors', async () => {
+    arriveWith('?auth_error=access_denied');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response(401, { error: 'invalid_credentials' }))),
+    );
+    render(<AuthForm methods={NO_METHODS} onSignedIn={vi.fn()} />);
+    fireEvent.submit(
+      screen.getByRole('button', { name: 'Sign in with password' }).closest('form')!,
+    );
+    expect(await screen.findByText('Username or password is incorrect.')).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Reset browser session' })).toBeNull();
+    expect(screen.getByText(/SSO sign-in was refused/)).toBeDefined();
   });
 });

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { login, logout, me, register, websocketUrl } from './api';
+import { login, logout, me, register, resetSession, websocketUrl } from './api';
 
 const response = (status: number, body: unknown) => Response.json(body, { status });
 afterEach(() => {
@@ -211,4 +211,32 @@ describe('server-acknowledged browser logout', () => {
 
 it('puts no credential in the websocket URL', () => {
   expect(websocketUrl()).toBe('ws://localhost:3000/ws');
+});
+
+describe('explicit browser session reset', () => {
+  it('uses the shared cookie-only POST and requires validated empty 204', async () => {
+    const send = vi
+      .fn<(url: string, init?: RequestInit) => Promise<Response>>()
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(response(200, {}))
+      .mockResolvedValueOnce(response(403, { error: 'invalid_origin' }))
+      .mockRejectedValueOnce(new Error('offline'));
+    vi.stubGlobal('fetch', send);
+    await expect(resetSession()).resolves.toMatchObject({ kind: 'success', status: 204 });
+    expect(send.mock.calls[0]?.[0]).toBe('/api/auth/reset');
+    const request = send.mock.calls[0]?.[1];
+    expect(request?.method).toBe('POST');
+    expect(request?.body).toBeUndefined();
+    expect(new Headers(request?.headers).has('authorization')).toBe(false);
+    expect(new Headers(request?.headers).has('x-wbs-token')).toBe(false);
+    await expect(resetSession()).resolves.toMatchObject({ kind: 'failure' });
+    await expect(resetSession()).resolves.toMatchObject({
+      kind: 'refusal',
+      body: { error: 'invalid_origin' },
+    });
+    await expect(resetSession()).resolves.toMatchObject({
+      kind: 'failure',
+      failure: { code: 'transport' },
+    });
+  });
 });
