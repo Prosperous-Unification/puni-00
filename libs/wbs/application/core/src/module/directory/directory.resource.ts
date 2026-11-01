@@ -3,6 +3,7 @@ import {
   type LimitCrossed,
   mayBindAccountInOrganization,
   mayRemoveResourceInOrganization,
+  mayStateDirectoryCapacityInOrganization,
   type OrganizationScope,
   PERSON_KINDS,
   type PersonKind,
@@ -590,6 +591,60 @@ export class DirectoryService {
     if (scope !== null) await this.refuseForeignProjects(removed.removal.projectIds, scope);
     await this.announce(removed.removal.projectIds);
     return { ok: true };
+  }
+
+  /**
+   * States (`units`) or clears (`null`) a resource's **Directory capacity**
+   * (`wbs-shared-occupancy` S1, S11), the one function both command
+   * routes take. Under scoped access only an admin or a super-admin may
+   * (`forbidden` otherwise, before the resource is looked up, as a removal is
+   * refused); every agent arrives as at most a member. A foreign or absent
+   * resource is `not_found`; legacy access, and a resource no organization
+   * owns, is `organization_required`. The write
+   * appends one `directory_capacity_changed` audit row and enters no journal;
+   * it then announces `directory_changed` to every project that demands or
+   * states the resource (S7).
+   *
+   * `confirm` is carried for the clearing check of `wbs-organization-limits`
+   * (S10, task 7.1), which is not built yet; nothing reads it here.
+   *
+   * Proof, each watched 2026-10-25: with the role check skipped, `refuses a
+   * member and a viewer on either route`, the agent key case and the MCP
+   * consent case (directory-capacity.controller.db.test.ts) failed (8 pass,
+   * 3 fail); with the stored role answered in place of `organizationRoleOf`'s
+   * in `SqliteOrganizationAccess`, the agent key, consent and preview cases
+   * failed; with the announce skipped, `announces directory_changed to every
+   * project that states or demands the resource`
+   * (directory-capacity.test.ts) found none.
+   */
+  async setDirectoryCapacityWithin(
+    resourceId: string,
+    actorId: string,
+    units: number | null,
+    _confirm: boolean,
+    access: ResourceAccess,
+  ): Promise<DirectoryOutcome<null>> {
+    this.refuseStandaloneResourceWrite();
+    // Legacy access has no organization to state units for, and no role to
+    // check: refused before any read (review S3-1).
+    // Proof: with this refusal replaced by the store write, `refuses legacy
+    // access organization_required, writing nothing`
+    // (directory-capacity.test.ts) failed (3 pass, 1 fail); watched 2026-10-25.
+    if (access.kind === 'legacy') return { ok: false, reason: 'organization_required' };
+    const { scope } = access;
+    if (!mayStateDirectoryCapacityInOrganization(scope.role))
+      return { ok: false, reason: 'forbidden' };
+    if ((await this.ownEntry('resources', resourceId, scope)) === undefined)
+      return { ok: false, reason: 'not_found' };
+    const written = await this.opts.directory.setDirectoryCapacity(resourceId, units, {
+      stamp: this.clock.stampFor(actorId),
+      actor: actorId,
+      auditId: this.clock.newId(),
+    });
+    if (!written.ok) return { ok: false, reason: written.reason };
+    await this.refuseForeignProjects(written.projectIds, scope);
+    await this.announce(written.projectIds);
+    return { ok: true, value: null };
   }
 
   /** One organization's catalog, as {@link DirectoryStore.listInOrganization} reads it. */
@@ -1750,7 +1805,12 @@ export class DirectoryService {
 
 /** Whether anything still names a resource: a demand, a stated capacity or an occupancy. */
 function isResourceInUse(rows: ResourceUsageRows): boolean {
-  return rows.demands.length > 0 || rows.capacities.length > 0 || rows.occupancies > 0;
+  return (
+    rows.demands.length > 0 ||
+    rows.capacities.length > 0 ||
+    rows.occupancies > 0 ||
+    rows.directoryCapacity !== null
+  );
 }
 
 /**

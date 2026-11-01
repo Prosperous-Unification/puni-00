@@ -128,6 +128,8 @@ describe(MIGRATION, () => {
             '20261026130000_widen_organization_audit_machine_tokens',
             '20261028100000_add_agent_pool',
             '20261028100100_widen_organization_audit_agent_pools',
+            '20261101100000_widen_organization_audit_directory_capacity',
+            '20261101100100_add_resource_directory_capacity',
           ].includes(name),
       ),
     );
@@ -135,6 +137,8 @@ describe(MIGRATION, () => {
 
   it('rolls back when empty and comes forward again', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261101100100_add_resource_directory_capacity',
+      '20261101100000_widen_organization_audit_directory_capacity',
       '20261028100100_widen_organization_audit_agent_pools',
       '20261028100000_add_agent_pool',
       '20261026130000_widen_organization_audit_machine_tokens',

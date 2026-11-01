@@ -1,5 +1,7 @@
 import type {
   AssignmentWritten,
+  AuditedAct,
+  DirectoryCapacitySet,
   DirectoryCatalog,
   DirectoryCatalogRows,
   DirectoryRemoved,
@@ -38,7 +40,7 @@ import type {
   WorkItemTypeWritten,
   WriteStamp,
 } from '@wbs/core';
-import type { MeasureDefinition, MeasureUsage } from '@wbs/domain';
+import type { MeasureDefinition, MeasureUsage, ResourceCapacity } from '@wbs/domain';
 import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -71,10 +73,12 @@ import {
   personOrganization,
   personTeam,
   project,
+  projectOrganization,
   projectResourceCapacity,
   projectTeamCapacity,
   resource,
   resourceCapacityReport,
+  resourceDirectoryCapacity,
   resourceOrganization,
   service,
   serviceOrganization,
@@ -1020,6 +1024,104 @@ export class DirectoryRepository implements DirectoryStore {
     });
   }
 
+  /** The stated directory capacities of `resourceIds`, on this repository's connection. */
+  async directoryCapacitiesOf(resourceIds: readonly string[]): Promise<ResourceCapacity[]> {
+    await Promise.resolve();
+    if (resourceIds.length === 0) return [];
+    return this.db
+      .select({
+        resourceId: resourceDirectoryCapacity.resourceId,
+        units: resourceDirectoryCapacity.units,
+      })
+      .from(resourceDirectoryCapacity)
+      .where(inArray(resourceDirectoryCapacity.resourceId, [...resourceIds]))
+      .orderBy(asc(resourceDirectoryCapacity.resourceId))
+      .all();
+  }
+
+  /**
+   * States or clears a directory capacity with its audit row in one
+   * transaction (`wbs-shared-occupancy` S1, S11). The organization is the
+   * resource's own `resource_organization` row: a legacy resource has none
+   * and is refused `organization_required` (S2). The projects it answers for
+   * the announce (S7) are those that demand, state or hold the resource, the
+   * holders being the organization's projects whose claims occupy units of it
+   * (review S3-1): a claim's `resources` can name a resource no demand or
+   * capacity of its project does.
+   *
+   * Proof: with the audit append removed, `writes one audit row per change,
+   * never a journal entry` (directory-capacity.controller.db.test.ts) found no
+   * row; with the organization refusal removed, the SQLite certification's
+   * `directory.setDirectoryCapacity:state-clear-remove` failed on the audit
+   * insert for the unowned stage; watched 2026-10-25.
+   */
+  async setDirectoryCapacity(
+    resourceId: string,
+    units: number | null,
+    act: AuditedAct,
+  ): Promise<DirectoryCapacitySet> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction((tx): DirectoryCapacitySet => {
+        const held = tx
+          .select({ organizationId: resourceOrganization.organizationId })
+          .from(resource)
+          .leftJoin(resourceOrganization, eq(resourceOrganization.resourceId, resource.id))
+          .where(eq(resource.id, resourceId))
+          .get();
+        if (held === undefined) return { ok: false, reason: 'not_found' };
+        const { organizationId } = held;
+        if (organizationId === null) return { ok: false, reason: 'organization_required' };
+        const before =
+          tx
+            .select({ units: resourceDirectoryCapacity.units })
+            .from(resourceDirectoryCapacity)
+            .where(eq(resourceDirectoryCapacity.resourceId, resourceId))
+            .get()?.units ?? null;
+        if (units === null)
+          tx.delete(resourceDirectoryCapacity)
+            .where(eq(resourceDirectoryCapacity.resourceId, resourceId))
+            .run();
+        else
+          tx.insert(resourceDirectoryCapacity)
+            .values({ resourceId, units, ...auditOnCreate(act.stamp) })
+            .onConflictDoUpdate({
+              target: resourceDirectoryCapacity.resourceId,
+              set: { units, ...auditOnUpdate(act.stamp) },
+            })
+            .run();
+        appendOrganizationAudit(tx, {
+          id: act.auditId,
+          organizationId,
+          actorId: act.actor,
+          action: 'directory_capacity_changed',
+          subjectKind: 'resource',
+          subjectId: resourceId,
+          detail: { before, after: units },
+          at: act.stamp.at,
+        });
+        return {
+          ok: true,
+          before,
+          after: units,
+          organizationId,
+          // Proof: with the holders left out, `announces directory_changed to a
+          // project that holds the resource only through a claim`
+          // (directory-capacity.controller.db.test.ts) found no announce for C,
+          // and the SQLite certification's
+          // `directory.setDirectoryCapacity:state-clear-remove` read `[]`;
+          // watched 2026-11-01.
+          projectIds: [
+            ...new Set([
+              ...this.projectsNamingResource(tx, resourceId),
+              ...this.projectsHoldingResource(tx, resourceId, organizationId),
+            ]),
+          ].sort(),
+        };
+      });
+    });
+  }
+
   /**
    * What names one resource right now — a fast path for the confirmation.
    * {@link DirectoryRepository.removeResource} decides.
@@ -1054,7 +1156,10 @@ export class DirectoryRepository implements DirectoryStore {
       return this.db.transaction((tx) => {
         const usage = this.resourceUsageIn(tx, resourceId);
         const inUse =
-          usage.demands.length > 0 || usage.capacities.length > 0 || usage.occupancies > 0;
+          usage.demands.length > 0 ||
+          usage.capacities.length > 0 ||
+          usage.occupancies > 0 ||
+          usage.directoryCapacity !== null;
         // Proof: removing outstandingUses admitted cascade deletion with unresolved runtime responsibility (2026-10-25).
         if ((!cascade && inUse) || (usage.outstandingUses ?? 0) > 0)
           return { ok: false, reason: 'in_use', usage };
@@ -1154,6 +1259,16 @@ export class DirectoryRepository implements DirectoryStore {
       // its removal is refused in_use` in `compute-provider.controller.db.test.ts`
       // read `providerId: null`; watched 2026-10-22.
       providerId: referenced?.providerId ?? null,
+      // Proof: with null answered here, `refuses removing a resource with a
+      // stated directory capacity, counting it` (directory-capacity.controller.db.test.ts)
+      // and the SQLite certification's `directory.setDirectoryCapacity:state-clear-remove`
+      // failed; watched 2026-10-25.
+      directoryCapacity:
+        reader
+          .select({ units: resourceDirectoryCapacity.units })
+          .from(resourceDirectoryCapacity)
+          .where(eq(resourceDirectoryCapacity.resourceId, resourceId))
+          .get()?.units ?? null,
       ...(tracked.count > 0 ? { outstandingUses: tracked.count } : {}),
     };
   }
@@ -1172,6 +1287,37 @@ export class DirectoryRepository implements DirectoryStore {
       .where(eq(projectResourceCapacity.resourceId, resourceId))
       .all();
     return [...new Set(projectsOf([...demanding, ...stating]))].sort();
+  }
+
+  /**
+   * Every project of `organizationId` whose claims hold units of the resource
+   * (`claim_occupancy → claim → work_item → project_organization`), the
+   * holders `ClaimStore.organizationOccupancyOf` counts; a holder in
+   * another organization's project is skipped as that read skips it.
+   *
+   * Proof: with the organization condition removed, the SQLite certification's
+   * `directory.setDirectoryCapacity:state-clear-remove` also announced the
+   * other organization's holder; watched 2026-11-01.
+   */
+  private projectsHoldingResource(
+    reader: Reader,
+    resourceId: string,
+    organizationId: string,
+  ): string[] {
+    const holding = reader
+      .select({ projectId: workItem.projectId })
+      .from(claimOccupancy)
+      .innerJoin(claim, eq(claim.id, claimOccupancy.claimId))
+      .innerJoin(workItem, eq(workItem.id, claim.workItemId))
+      .innerJoin(projectOrganization, eq(projectOrganization.resourceId, workItem.projectId))
+      .where(
+        and(
+          eq(claimOccupancy.resourceId, resourceId),
+          eq(projectOrganization.organizationId, organizationId),
+        ),
+      )
+      .all();
+    return [...new Set(holding.map(({ projectId }) => projectId))];
   }
 
   /** Every tag in the global directory, by name — {@link DirectoryStore.listTeams}' shape. */

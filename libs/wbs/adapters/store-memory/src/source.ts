@@ -105,6 +105,7 @@ function coordinatedStores(
         'addResource',
         'patchResource',
         'setResourceProvider',
+        'setDirectoryCapacity',
         'removeResource',
       ],
       coordinator,
