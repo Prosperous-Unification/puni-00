@@ -105,3 +105,17 @@ clean diagnostic output. Every actual check failure above is retained.
 - No push, deployment, final integration merge or packet publication performed.
 - Batching releases process state between projects. A single project can still
   exceed available memory; no peak-memory ceiling or 609-path acceptance is claimed.
+
+## Task89 acceptance closure
+
+The preceding pending statements describe the Task88 handoff. Independent scoped review
+passed (SHA256 `3726c0c16f82b149490d774ed96e93f166991f1a00bec10be0c7b80ef0ccbb20`).
+The separately authorized Task89 integration then committed all 630 actual staged paths
+with normal hooks at `80d90ffeeed2efe278fef43fde713d8a504f714b`: 507 source paths ran exactly once in 18 serial
+ESLint batches, lint 457.58s, total commit 459.758054s, maximum child RSS 3,065,012 KiB.
+This is the actual observed acceptance, without a heap override or fixed-memory guarantee.
+Task 2.1 is complete; no Task88 test/proof was replayed. Exact parents, trace, limitations,
+subsequent 180-test covering run, production docs target and OpenSpec validation are in
+[the owning Task89 record](../observability-environment-parity/verify.md#task89--reviewed-staged-lint-and-pinned-main-integration-2026-11-01)
+and `/tmp/puni-task89-evidence/`. Full repository/host gates, runtime acceptance, sync/archive,
+root integration review, push and packet publication remain separate and unclaimed.

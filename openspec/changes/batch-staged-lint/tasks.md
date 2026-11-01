@@ -5,4 +5,4 @@
 
 ## 2. Verification and integration handoff
 
-- [ ] 2.1 Run focused tests, the owning tool-git-hooks test target once, affected lint/typecheck/format and OpenSpec validation, retaining output and timings in `verify.md`. Commit normally with all hooks and record any unavailable checks explicitly. Independently review only this bounded repair before attempting the large observability integration; record actual large-commit timings and memory outcome separately in the observability verification record.
+- [x] 2.1 Run focused tests, the owning tool-git-hooks test target once, affected lint/typecheck/format and OpenSpec validation, retaining output and timings in `verify.md`. Commit normally with all hooks and record any unavailable checks explicitly. Independently review only this bounded repair before attempting the large observability integration; record actual large-commit timings and memory outcome separately in the observability verification record.

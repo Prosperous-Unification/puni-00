@@ -5918,3 +5918,99 @@ Full two-instance observability rehearsal, actual admission, live convergence an
 all seven pending main tasks remain open. No new packet, production binary,
 service or store changed. Packet publication still awaits explicit approval after
 automatic review rejected the new payload; host selection is separately pending.
+
+## Task89 — reviewed staged lint and pinned main integration (2026-11-01)
+
+Intent: finish the preserved Task87 source integration using the independently reviewed
+staged-lint repair, retaining upstream behavior and immutable historical packet identity.
+No runtime, deployment, publication or CI-policy change is authorized by this integration.
+
+Before aborting the owned merge, fresh assertions proved HEAD
+`bbc4fe470b14656e11be7f0cd20047180d73aa30`, MERGE_HEAD
+`e05656fcab3c64c8ed44bde461e925a72971dbd4`, exactly 609 staged paths and no unresolved,
+unstaged or untracked paths. The exact 4,468,337-byte binary patch matched the saved SHA256
+`18137aed9283ff4299b71f8056e81bff4fd67d2078f20edc5daf82727dc02423` and was copied into
+new evidence before normal `git merge --abort`.
+
+Reviewed input `ef010d1fcefa52b6d2e2da63dc6e6d6de61e5a93` was applied with
+`git cherry-pick --no-commit`, verified as exactly nine reviewed blobs, and committed with
+normal `git commit -C` hooks as `cc12fb9153cac9fcc6bcf6e1455c5668dbb61354`. Independent review PASS is
+`/tmp/puni-task88-review.md`, SHA256
+`3726c0c16f82b149490d774ed96e93f166991f1a00bec10be0c7b80ef0ccbb20`.
+No Task88 focused/owning tests or mutation proofs were replayed.
+
+Merge `80d90ffeeed2efe278fef43fde713d8a504f714b` has exactly these ordered parents:
+`cc12fb9153cac9fcc6bcf6e1455c5668dbb61354` and `10efe191678bd018aa17ca40d0b9f69466c09da9`.
+The actual fixed-feature automatic tree was `c096c8aaa388a1fd8496cce925992263606f867a`;
+resolved tree `70b0e7bc48d8ce29ee0f1a49cc2f5921a938a6f9` differs only at `.github/workflows/ci.yml`.
+That was the sole actual conflict and sole manual resolution: the entire exact pinned-main
+blob `e29d71b3aae91002dcb0b2ff71eaa70981d789bb`. All other automatic paths survived unchanged,
+including upstream Dash coordination/policy, dependency metadata and devsync tests.
+Frozen installation left the resolved index unchanged. Task86 history fixture and sizing
+fixes remain byte-identical to the initial feature parent.
+
+### Actual acceptance and scoped checks
+
+| Raw receipt           | Exit | Parent elapsed seconds |
+| --------------------- | ---- | ---------------------- |
+| `commit-reviewed-fix` | 0    | 10.492150              |
+| `frozen-install`      | 0    | 0.447120               |
+| `commit-merge`        | 0    | 459.758054             |
+| `covering-tests`      | 0    | 50.939885              |
+| `production-docs`     | 0    | 23.062094              |
+| `openspec-all`        | 0    | 1.422088               |
+
+The ONE repaired large normal commit accepted 630 staged paths. Its actual coordinator
+received 507 source argv entries; raw `execve` records prove every source ran exactly once
+across 18 serial nearest-project/workspace ESLint batches, with each original batch process
+exiting 0 before the next started. Lint reported 457.58s; commit elapsed was 459.758054s.
+Measured maximum child RSS was 3,065,012 KiB (`RUSAGE_CHILDREN.ru_maxrss`), not aggregate
+memory. The commit was instrumented with `strace -f -e trace=execve -s 200000`; no inherited
+environment values were printed. Individual process timestamps were not enabled, so
+per-batch durations are unavailable. No heap increase, hook bypass, cache or rule change
+was used. A single project's dependency closure can still exhaust memory.
+
+Once committed, exactly one covering command ran the three previously unrun files:
+`gate-workflow.test.ts`, `ci-runtime-selection.test.ts` and observability `dev/source.test.ts`,
+with the existing scratch preload and `--timeout=30000`: 180 pass, 0 fail, 604 assertions.
+The real `bunx nx run tool-devsync:check:docs` then passed once, checking current documents,
+ADRs (4 pass, 0 fail across its two test files), retired roots and root-migration provenance.
+`bun node_modules/.bin/openspec validate --all --json` passed 307/307 (288 changes,
+19 specs), with existing warnings retained. Evidence-only Markdown formatting and the
+normal evidence commit are recorded in the Task89 report; no passing test was replayed
+for this metadata append.
+
+### Immutable packet provenance and remaining limits
+
+All 86 files of `/tmp/puni-task82/packet` retain their exact historical hashes. Source
+identity remains `49955ac5c14c410b7d0b035d6946c555abf33480`; prepared publication remains
+`9c57cd6dcae9fb00afd6ba231c9a0205ec94a12d`, denied/pending exact approval. No regeneration,
+revalidation, export, relabeling or publication occurred.
+
+Of its 142 declared generator inputs, 140 match. Exactly `bun.lock` and `package.json`
+differ, both byte-identical to pinned main. Root explicitly authorized retaining this
+upstream metadata drift as a provenance limitation. Commit
+`5fb79e0be2cdbbf4e7de71a3191d081cde5b4db0` added
+`configurable-tree-traversal` 0.12.0 and its `uuid` 14.0.3 lock entry; the earlier brief's
+Optique dependency description was incorrect. The old packet does not certify the new
+HEAD dependency closure. Exact old/new hashes and all 142 comparisons are retained.
+
+Two evidence-oracle corrections are retained: comparing old/new automatic trees also
+needs the expected CI conflict-marker delta; packet snapshot paths bind the retained packet
+root rather than checkout manifests. Their original failed receipts remain intact; corrected
+audits passed without changing production checks or consuming another acceptance attempt.
+Initial optional report-path reads also found absent historical report paths; no required tool
+was missing. No new production safety check or R5 proof was introduced.
+
+Raw commands, cwd, UTC, exits, timings, stdout/stderr and hashes live in
+`/tmp/puni-task89-evidence/index.jsonl`; `manifest.json` indexes finalized evidence.
+The report is `.superpowers/sdd/observability-environment-parity/task-89-report.md`.
+Tool Wiki still reports external activation inactive/certified:false; this is no activation
+certification. Unmatched website/run-store migration hooks were explicitly skipped.
+
+Not run: full repository/host format-test-lint-typecheck-build gates, CI, Fleet/app/browser
+suites, Task83/86/88 passing checks or prior render matrices. No push, main implementation
+merge, deployment, SSH/host, Secret, hardware or workload operation occurred. Runtime
+progress stays 4/11; 1.3, 2.2, 3.1, 3.2, 4.1, 4.2 and 4.3 remain OPEN. Root owns scoped
+integration review and any later feature push; sync/archive and packet publication remain
+separate decisions.
