@@ -23,7 +23,13 @@ import { decodeDependencyMigrationManifest } from './dependency-migration-artifa
 import { readParticipantRestartPolicy } from './dependency-participant-transition';
 import { openDirectoryFile } from './directory-file';
 import { decodeDependencyOwnerPublication } from './edge-ownership';
-import { captureSolverRestorationCompletion, type EdgePolicySnapshot } from './edge-policy';
+import {
+  type ActiveEdgePolicy,
+  captureSolverRestorationCompletion,
+  decodeEdgePolicy,
+  type EdgePolicySnapshot,
+  type EdgeRecordSnapshot,
+} from './edge-policy';
 import { envLayout, type EnvName } from './env';
 import { decodeInstalledAuthorityPins } from './installed-authorities';
 import { decodeWriterManifest, type WriterManifest } from './installed-writers';
@@ -98,6 +104,16 @@ function readDecimal(value: unknown): string {
   if (!/^(0|[1-9][0-9]*)$/.test(text)) refuseGraph('identity malformed');
   return text;
 }
+/** Checks finite cardinality without enumerating or copying any caller entry. */
+function assertRosterCount(
+  value: unknown,
+  minimum: number,
+  maximum: number,
+  reason: string,
+): asserts value is unknown[] {
+  if (!Array.isArray(value) || value.length < minimum || value.length > maximum)
+    refuseGraph(reason);
+}
 function readRoster(value: unknown, maximum = 128): unknown[] {
   if (!Array.isArray(value) || value.length > maximum) refuseGraph('roster malformed');
   return value.map((entry: unknown) => entry);
@@ -149,8 +165,10 @@ class GraphFiles {
   private readonly absences = new Map<string, HeldDirectory>();
   private readonly rosters = new Map<string, readonly string[]>();
   private edges = 0;
+  private closed = false;
   constructor(readonly deadline: number) {}
   assertDeadline(): void {
+    if (this.closed) refuseGraph('observation already closed');
     if (!Number.isFinite(this.deadline) || performance.now() >= this.deadline)
       refuseGraph('original deadline exceeded');
   }
@@ -404,6 +422,8 @@ class GraphFiles {
     this.assertDeadline();
   }
   closeFiles(): void {
+    if (this.closed) return;
+    this.closed = true;
     for (const file of this.files.values()) closeSync(file.descriptor);
     for (const parent of this.directories.values()) closeSync(parent.descriptor);
     this.files.clear();
@@ -424,7 +444,7 @@ export interface InitialHandoffGraph {
 }
 
 interface GraphContext {
-  readonly files: GraphFiles;
+  readonly files: ContentFiles;
   readonly directory: string;
   readonly owner: string;
   readonly publication: ReturnType<typeof decodeDependencyOwnerPublication>;
@@ -435,7 +455,7 @@ function captureReference(
   selected: Reference,
   label: string,
   consumer?: string,
-): { file: CapturedFile & { contents: string }; fields: Fields } {
+): { file: ContentFile; fields: Fields } {
   context.files.retainEdge(selected, consumer);
   const prior = context.labels.get(selected.name);
   const binding = label + ':' + selected.sha256;
@@ -590,32 +610,7 @@ function decodeParticipants(
   const solver = readClosed(fields['solver'], ['pins', 'restorationIntent']);
   assertSame(admission.solver, solver['pins'], 'initial participant solver pins');
   const solverIntent = decodeReference(solver['restorationIntent'], 'solver-restore-intent');
-  const databases = readRoster(fields['databases'], 2).map((value, index): Database => {
-    const fields = readClosed(value, [
-      'environment',
-      'path',
-      'host',
-      'directoryIdentity',
-      'fileIdentity',
-    ]);
-    const environment = index === 0 ? 'prod' : 'dev';
-    if (fields['environment'] !== environment) refuseGraph('database roster differs');
-    const path = readString(fields['path']);
-    const host = readString(fields['host']);
-    const directoryIdentity = readString(fields['directoryIdentity']);
-    const fileIdentity = readString(fields['fileIdentity']);
-    if (
-      ![path, host].every(
-        (path) => isAbsolute(path) && resolve(path) === path && !path.includes('\0'),
-      ) ||
-      ![directoryIdentity, fileIdentity].every((identity) =>
-        /^(0|[1-9][0-9]*):(0|[1-9][0-9]*)$/.test(identity),
-      )
-    )
-      refuseGraph('historical database identity malformed');
-    return { environment, path, host, directoryIdentity, fileIdentity };
-  });
-  if (databases.length !== 2) refuseGraph('database roster incomplete');
+  const databases = decodeDatabases(fields['databases']);
   const fences = readClosed(fields['fences'], [
     'ingressSha256',
     'sourceSha256',
@@ -752,7 +747,7 @@ function isPresent(path: string): boolean {
     throw cause;
   }
 }
-function captureOwnerArchive(context: GraphContext, value: unknown, phase: unknown): void {
+function captureOwnerArchive(context: DiskContext, value: unknown, phase: unknown): void {
   const selected = decodeArchive(value, 'edge', 'pending');
   if (selected.sha256 !== hashBytes(context.owner)) refuseGraph('owner archive hash differs');
   const original = join(context.directory, 'edge-owner.pending');
@@ -768,7 +763,7 @@ function captureOwnerArchive(context: GraphContext, value: unknown, phase: unkno
 }
 
 function captureFences(
-  context: GraphContext,
+  context: DiskContext,
   value: unknown,
   participants: Participants,
   admission: CompleteDependencyActivationRequest,
@@ -791,6 +786,14 @@ function captureFences(
     context.files.requireAbsent(join(envLayout(expected[0]).stateDir, expected[1]));
     captures.set(expected[1], file);
   }
+  validateFenceContents(captures, participants, admission);
+}
+
+function validateFenceContents(
+  captures: ReadonlyMap<string, ContentFile>,
+  participants: Participants,
+  admission: CompleteDependencyActivationRequest,
+): void {
   const captured = (name: string) => {
     const file = captures.get(name);
     if (file === undefined) refuseGraph('required fence archive missing');
@@ -932,7 +935,7 @@ function captureFences(
   }
 }
 
-function captureActivationArtifacts(
+function decodeActivationSelections(
   context: GraphContext,
   selections: readonly {
     environment: EnvName;
@@ -944,79 +947,240 @@ function captureActivationArtifacts(
   }[],
   participants: Participants,
   admission: CompleteDependencyActivationRequest,
+): ArtifactSelection[] {
+  const selectionsForRead = selections.map((selected): ArtifactSelection => {
+    const database = participants.databases.find(
+      ({ environment }) => environment === selected.environment,
+    );
+    if (database === undefined) refuseGraph('selected database missing');
+    const identity = databaseIdentity(database);
+    const capture = decodeRawReference(
+      selected.intent['capture'],
+      selected.environment + '.capture.json',
+    );
+    const backup = decodeBackup(selected.backup['snapshot'], selected.environment);
+    if (
+      selected.capture['databaseIdentity'] !== identity ||
+      selected.backup['databaseIdentity'] !== identity ||
+      selected.receipt.databaseIdentity !== identity
+    )
+      refuseGraph('selected database/capture binding differs');
+    assertSame(capture, selected.capture['capture'], 'initial selected raw capture reference');
+    for (const digest of [
+      selected.backup['captureSha256'],
+      selected.committed['captureSha256'],
+      selected.receipt.migrationCaptureSha256,
+    ])
+      if (readHash(digest) !== capture.sha256) refuseGraph('selected capture digest differs');
+    const image =
+      selected.environment === 'prod'
+        ? admission.prod.backend.image
+        : admission.source.runtimeReference;
+    if (
+      selected.receipt.activationId !== context.publication.attempt + ':' + selected.environment ||
+      selected.receipt.candidateImage !== image ||
+      selected.receipt.rollbackImage !== image
+    )
+      refuseGraph('selected initial receipt attribution differs');
+    return { environment: selected.environment, capture, backup };
+  });
+  assertBackupBudget(selectionsForRead);
+  return selectionsForRead;
+}
+
+/** Fixed parked capture/snapshot selection; these references carry no activation receipt. */
+interface ArtifactSelection {
+  readonly environment: EnvName;
+  readonly capture: Reference;
+  readonly backup: Reference & { readonly bytes: number; readonly migrations: readonly string[] };
+}
+/** Exact supplied inputs for a bounded raw observation, with both original database bindings. */
+export interface InitialHandoffArtifactRequest {
+  readonly edgeState: string;
+  readonly owner: string;
+  readonly activation: CompleteDependencyActivationRequest;
+  readonly databases: readonly Database[];
+  readonly selected: readonly ArtifactSelection[];
+}
+/** Immutable text/hash projection only; binary snapshots are never retained in memory or opened as SQLite. */
+export interface InitialHandoffArtifactContents {
+  readonly migrationManifestContents: string;
+  readonly selected: readonly {
+    readonly environment: EnvName;
+    readonly captureContents: string;
+    readonly backup: Reference & { readonly bytes: number };
+  }[];
+}
+/** Observation owns only its captured descriptors. Close is idempotent, including after deadline expiry. */
+export interface InitialHandoffArtifactObservation {
+  readonly contents: InitialHandoffArtifactContents;
+  verifyClosure(): void;
+  assertStable(): void;
+  closeFiles(): void;
+}
+function assertDeadline(deadline: number): void {
+  if (!Number.isFinite(deadline) || performance.now() >= deadline)
+    refuseGraph('original deadline exceeded');
+}
+function readContents(value: unknown, maximum: number): string {
+  const contents = readString(value);
+  const length = Buffer.byteLength(contents, 'utf8');
+  if (length < 1 || length > maximum) refuseGraph('content UTF-8 or byte bound differs');
+  if (Buffer.from(contents, 'utf8').toString('utf8') !== contents)
+    refuseGraph('content UTF-8 or byte bound differs');
+  return contents;
+}
+function readCanonicalPath(value: unknown): string {
+  const path = readString(value);
+  if (!isAbsolute(path) || resolve(path) !== path || path.includes('\0'))
+    refuseGraph('path is not lexically canonical');
+  return path;
+}
+function decodeRawReference(value: unknown, name: string): Reference {
+  const fields = readClosed(value, ['name', 'sha256']);
+  if (fields['name'] !== name) refuseGraph('raw artifact name differs');
+  return { name, sha256: readHash(fields['sha256']) };
+}
+/** The existing raw-ledger name grammar also bounds standalone backup names before detached retention or I/O. */
+function readMigrationName(value: unknown): string {
+  const name = readString(value);
+  if (name.length > 160 || Buffer.byteLength(name) > 160 || !/^[0-9]{14}_[a-z0-9_]+$/.test(name))
+    refuseGraph('raw migration name differs');
+  return name;
+}
+function readMigrationNames(value: unknown): string[] {
+  assertRosterCount(value, 0, 4096, 'roster malformed');
+  return value.map(readMigrationName);
+}
+function decodeBackup(value: unknown, environment: EnvName): ArtifactSelection['backup'] {
+  const fields = readClosed(value, ['name', 'sha256', 'bytes', 'migrations']);
+  const bytes = readInteger(fields['bytes']);
+  if (fields['name'] !== environment + '.before.sqlite' || bytes < 1 || bytes > 1073741824)
+    refuseGraph('backup byte or name bound differs');
+  return {
+    name: environment + '.before.sqlite',
+    sha256: readHash(fields['sha256']),
+    bytes,
+    migrations: readMigrationNames(fields['migrations']),
+  };
+}
+function decodeArtifactSelections(
+  value: unknown,
+  activation: CompleteDependencyActivationRequest,
+): ArtifactSelection[] {
+  const roster = readRoster(value, 2);
+  if (roster.length !== activation.activate.length) refuseGraph('raw selected roster differs');
+  const selected = roster.map((value, index): ArtifactSelection => {
+    const fields = readClosed(value, ['environment', 'capture', 'backup']);
+    const environment = activation.activate.at(index);
+    if (environment === undefined || fields['environment'] !== environment)
+      refuseGraph('raw selected roster differs');
+    return {
+      environment,
+      capture: decodeRawReference(fields['capture'], environment + '.capture.json'),
+      backup: decodeBackup(fields['backup'], environment),
+    };
+  });
+  assertBackupBudget(selected);
+  return selected;
+}
+function decodeArtifactRequest(value: unknown, deadline: number): InitialHandoffArtifactRequest {
+  assertDeadline(deadline);
+  const fields = readClosed(value, ['edgeState', 'owner', 'activation', 'databases', 'selected']);
+  const owner = readContents(fields['owner'], 65536);
+  assertRosterCount(fields['databases'], 2, 2, 'database roster incomplete');
+  assertRosterCount(fields['selected'], 1, 2, 'raw selected roster differs');
+  const activationFields = readFields(fields['activation']);
+  assertRosterCount(activationFields['activate'], 1, 2, 'raw activation roster differs');
+  const authorities = readFields(activationFields['authorities']);
+  const source = readFields(activationFields['source']);
+  readContents(authorities['writerManifestContents'], 262144);
+  readContents(source['manifestContents'], 67108864);
+  const publication = decodeDependencyOwnerPublication(parseJson(owner));
+  const activation = decodeCompleteDependencyActivationRequest(fields['activation'], deadline);
+  assertSame(publication.plan, activation.owner, 'initial raw owner plan');
+  const databases = decodeDatabases(fields['databases']);
+  const selected = decodeArtifactSelections(fields['selected'], activation);
+  const edgeState = readCanonicalPath(fields['edgeState']);
+  assertDeadline(deadline);
+  return { edgeState, owner, activation, databases, selected };
+}
+function databaseIdentity(database: Database): string {
+  return JSON.stringify({
+    environment: database.environment,
+    host: database.host,
+    directoryIdentity: database.directoryIdentity,
+    fileIdentity: database.fileIdentity,
+  });
+}
+function decodeArtifactContents(
+  value: unknown,
+  selected: readonly ArtifactSelection[],
+): InitialHandoffArtifactContents {
+  const fields = readClosed(value, ['migrationManifestContents', 'selected']);
+  const migrationManifestContents = readContents(fields['migrationManifestContents'], 4 * MIB);
+  const roster = readRoster(fields['selected'], 2);
+  if (roster.length !== selected.length) refuseGraph('raw content roster differs');
+  return {
+    migrationManifestContents,
+    selected: roster.map((value, index) => {
+      const fields = readClosed(value, ['environment', 'captureContents', 'backup']);
+      const expected = selected.at(index);
+      if (expected === undefined || fields['environment'] !== expected.environment)
+        refuseGraph('raw content roster differs');
+      const backupFields = readClosed(fields['backup'], ['name', 'sha256', 'bytes']);
+      const backup = {
+        ...decodeRawReference(
+          { name: backupFields['name'], sha256: backupFields['sha256'] },
+          expected.backup.name,
+        ),
+        bytes: readInteger(backupFields['bytes']),
+      };
+      return {
+        environment: expected.environment,
+        captureContents: readContents(fields['captureContents'], 4 * MIB),
+        backup,
+      };
+    }),
+  };
+}
+function validateArtifactContents(
+  publication: ReturnType<typeof decodeDependencyOwnerPublication>,
+  admission: CompleteDependencyActivationRequest,
+  databases: readonly Database[],
+  selected: readonly ArtifactSelection[],
+  contents: InitialHandoffArtifactContents,
+  deadline: number,
 ): void {
-  const directory = join(context.directory, 'dependency-activation-' + context.publication.attempt);
-  context.files.retainDirectory(context.directory);
-  context.files.requireRoster(
-    directory,
-    selections.flatMap(({ environment }) => [
-      environment + '.capture.json',
-      environment + '.before.sqlite',
-    ]),
+  assertDeadline(deadline);
+  const manifest = decodeDependencyMigrationManifest(
+    contents.migrationManifestContents,
+    admission.migrations,
   );
-  const artifactRoot = join(context.directory, 'dependency-artifacts');
-  context.files.retainDirectory(artifactRoot, [0o700, 0o755]);
-  const artifactDirectory = join(artifactRoot, admission.migrations.manifestSha256);
-  context.files.retainDirectory(artifactDirectory, [0o700, 0o755]);
-  const manifestFile = context.files.captureText(
-    join(artifactDirectory, 'manifest.json'),
-    4 * MIB,
-    [0o600, 0o644],
-  );
-  if (manifestFile.identity.nlink !== 1n) refuseGraph('migration manifest link count differs');
-  const manifest = decodeDependencyMigrationManifest(manifestFile.contents, admission.migrations);
   const applied = manifest.migrations.map(({ name, migration }) => ({
     name,
     hash: migration.sha256,
   }));
   const names = applied.map(({ name }) => name);
-  let backupBytes = 0;
-  for (const selected of selections) {
-    const database = participants.databases.find(
-      (database) => database.environment === selected.environment,
+  for (const [index, selection] of selected.entries()) {
+    assertDeadline(deadline);
+    const observed = contents.selected.at(index);
+    const database = databases.find(({ environment }) => environment === selection.environment);
+    if (observed === undefined || database === undefined)
+      refuseGraph('selected raw content missing');
+    if (hashBytes(observed.captureContents) !== selection.capture.sha256)
+      refuseGraph('raw migration capture hash differs');
+    assertSame(
+      {
+        name: selection.backup.name,
+        sha256: selection.backup.sha256,
+        bytes: selection.backup.bytes,
+      },
+      observed.backup,
+      'initial complete binary backup bytes',
     );
-    if (database === undefined) refuseGraph('selected database missing');
-    const databaseIdentity = JSON.stringify({
-      environment: database.environment,
-      host: database.host,
-      directoryIdentity: database.directoryIdentity,
-      fileIdentity: database.fileIdentity,
-    });
-    const capture = readClosed(selected.intent['capture'], ['name', 'sha256']);
-    const captureName = readString(capture['name']);
-    const captureHash = readHash(capture['sha256']);
-    if (
-      captureName !== selected.environment + '.capture.json' ||
-      selected.capture['databaseIdentity'] !== databaseIdentity ||
-      selected.backup['databaseIdentity'] !== databaseIdentity ||
-      selected.receipt.databaseIdentity !== databaseIdentity
-    )
-      refuseGraph('selected database/capture binding differs');
-    assertSame(capture, selected.capture['capture'], 'initial selected raw capture reference');
-    const snapshot = readClosed(selected.backup['snapshot'], [
-      'name',
-      'sha256',
-      'bytes',
-      'migrations',
-    ]);
-    const backupName = readString(snapshot['name']);
-    const size = readInteger(snapshot['bytes']);
-    if (backupName !== selected.environment + '.before.sqlite' || size < 1 || size > 1073741824)
-      refuseGraph('backup byte or name bound differs');
-    backupBytes += size;
-    if (backupBytes > 2147483648) refuseGraph('combined backup byte bound exceeded');
-    const migrations = readRoster(snapshot['migrations'], 4096).map((value) => readString(value));
-    assertSame(names, migrations, 'initial backup complete migration names');
-    for (const entry of [
-      selected.backup['captureSha256'],
-      selected.committed['captureSha256'],
-      selected.receipt.migrationCaptureSha256,
-    ])
-      if (readHash(entry) !== captureHash) refuseGraph('selected capture digest differs');
-    context.files.retainEdge({ name: captureName, sha256: captureHash });
-    const rawFile = context.files.captureText(join(directory, captureName), 4 * MIB, [0o600], true);
-    if (rawFile.sha256 !== captureHash) refuseGraph('raw migration capture hash differs');
-    const raw = readClosed(parseJson(rawFile.contents), [
+    assertSame(names, selection.backup.migrations, 'initial backup complete migration names');
+    const raw = readClosed(parseJson(observed.captureContents), [
       'format',
       'version',
       'target',
@@ -1035,43 +1199,120 @@ function captureActivationArtifacts(
       refuseGraph('initial complete applied ledger differs');
     for (const entry of rawApplied) {
       const fields = readClosed(entry, ['name', 'hash']);
-      const name = readString(fields['name']);
-      if (!/^[0-9]{14}_[a-z0-9_]+$/.test(name) || Buffer.byteLength(name) > 160)
-        refuseGraph('raw migration name differs');
+      readMigrationName(fields['name']);
       readHash(fields['hash']);
     }
-    for (const entry of pending) {
-      const fields = readClosed(entry, ['name', 'hash', 'downHash']);
-      readHash(fields['hash']);
-      readHash(fields['downHash']);
-    }
-    const image =
-      selected.environment === 'prod'
-        ? admission.prod.backend.image
-        : admission.source.runtimeReference;
-    const attempt = context.publication.attempt + ':' + selected.environment;
     const decoded = parseMigrationSetCapture(raw, {
-      target: databaseIdentity,
-      attempt,
-      candidate: image,
+      target: databaseIdentity(database),
+      attempt: publication.attempt + ':' + selection.environment,
+      candidate:
+        selection.environment === 'prod'
+          ? admission.prod.backend.image
+          : admission.source.runtimeReference,
     });
     assertSame(applied, decoded.applied, 'initial complete applied migration ledger');
-    if (
-      selected.receipt.activationId !== attempt ||
-      selected.receipt.candidateImage !== image ||
-      selected.receipt.rollbackImage !== image
-    )
-      refuseGraph('selected initial receipt attribution differs');
-    context.files.retainEdge({ name: backupName, sha256: readHash(snapshot['sha256']) });
-    const backup = context.files.captureFile(
-      join(directory, backupName),
-      size,
-      false,
-      [0o600],
-      true,
+    assertDeadline(deadline);
+  }
+  assertDeadline(deadline);
+}
+function captureRawArtifacts(
+  files: GraphFiles,
+  directory: string,
+  publication: ReturnType<typeof decodeDependencyOwnerPublication>,
+  admission: CompleteDependencyActivationRequest,
+  databases: readonly Database[],
+  selected: readonly ArtifactSelection[],
+): InitialHandoffArtifactContents {
+  files.assertDeadline();
+  const rawDirectory = join(directory, 'dependency-activation-' + publication.attempt);
+  files.retainDirectory(directory);
+  files.requireRoster(
+    rawDirectory,
+    selected.flatMap(({ capture, backup }) => [capture.name, backup.name]),
+  );
+  const artifactRoot = join(directory, 'dependency-artifacts');
+  files.retainDirectory(artifactRoot, [0o700, 0o755]);
+  const artifactDirectory = join(artifactRoot, admission.migrations.manifestSha256);
+  files.retainDirectory(artifactDirectory, [0o700, 0o755]);
+  const manifestFile = files.captureText(
+    join(artifactDirectory, 'manifest.json'),
+    4 * MIB,
+    [0o600, 0o644],
+  );
+  if (manifestFile.identity.nlink !== 1n) refuseGraph('migration manifest link count differs');
+  const contents: InitialHandoffArtifactContents = {
+    migrationManifestContents: manifestFile.contents,
+    selected: selected.map((selection) => {
+      files.retainEdge(selection.capture);
+      const capture = files.captureText(
+        join(rawDirectory, selection.capture.name),
+        4 * MIB,
+        [0o600],
+        true,
+      );
+      files.retainEdge(selection.backup);
+      const backup = files.captureFile(
+        join(rawDirectory, selection.backup.name),
+        selection.backup.bytes,
+        false,
+        [0o600],
+        true,
+      );
+      return {
+        environment: selection.environment,
+        captureContents: capture.contents,
+        backup: {
+          name: selection.backup.name,
+          sha256: backup.sha256,
+          bytes: Number(backup.identity.size),
+        },
+      };
+    }),
+  };
+  validateArtifactContents(publication, admission, databases, selected, contents, files.deadline);
+  files.assertDeadline();
+  return contents;
+}
+/** Reads only fixed selected raw paths. Refuses expired or closed observations; proves no SQLite integrity or effect. */
+export function captureInitialHandoffArtifacts(
+  request: InitialHandoffArtifactRequest,
+  deadline: number,
+): InitialHandoffArtifactObservation {
+  const admitted = decodeArtifactRequest(request, deadline);
+  const publication = decodeDependencyOwnerPublication(parseJson(admitted.owner));
+  const files = new GraphFiles(deadline);
+  try {
+    const contents = captureRawArtifacts(
+      files,
+      admitted.edgeState,
+      publication,
+      admitted.activation,
+      admitted.databases,
+      admitted.selected,
     );
-    if (backup.identity.size !== BigInt(size) || backup.sha256 !== snapshot['sha256'])
-      refuseGraph('complete binary backup bytes differ');
+    for (const selected of contents.selected) {
+      Object.freeze(selected.backup);
+      Object.freeze(selected);
+    }
+    Object.freeze(contents.selected);
+    Object.freeze(contents);
+    files.assertStable();
+    files.assertDeadline();
+    return {
+      contents,
+      verifyClosure: () => {
+        files.verifyClosure();
+      },
+      assertStable: () => {
+        files.assertStable();
+      },
+      closeFiles: () => {
+        files.closeFiles();
+      },
+    };
+  } catch (cause) {
+    files.closeFiles();
+    throw cause;
   }
 }
 
@@ -1096,23 +1337,7 @@ export async function captureInitialHandoff(
     )
       refuseGraph('opening policy identity changed');
     const pointerFile = files.captureText(join(directory, 'edge-owner.json'), 4096);
-    const pointer = decodeRecord(parseJson(pointerFile.contents), 'dependency-edge-handoff', [
-      'phase',
-      'ownerPublicationSha256',
-      'policySha256',
-      'handoff',
-    ]);
-    if (
-      (pointer['phase'] !== 'prepared' && pointer['phase'] !== 'complete') ||
-      pointer['ownerPublicationSha256'] !== policy.ownerPublicationSha256 ||
-      pointer['policySha256'] !== policyFile.sha256
-    )
-      refuseGraph('pointer/policy binding differs');
-    assertSame(
-      policy.handoff,
-      decodeReference(pointer['handoff'], 'handoff-complete'),
-      'initial pointer handoff',
-    );
+    const pointer = decodePointer(pointerFile.contents, policy, policyFile.contents);
     const rootFile = files.captureText(join(directory, policy.handoff.name), 65536);
     const rootEnvelope = readClosed(parseJson(rootFile.contents), ['owner', 'record']);
     const owner = readString(rootEnvelope['owner']);
@@ -1124,272 +1349,11 @@ export async function captureInitialHandoff(
     );
     if (hashBytes(owner) !== policy.ownerPublicationSha256)
       refuseGraph('policy original owner hash differs');
-    const context: GraphContext = { files, directory, owner, publication, labels: new Map() };
-    const completeCapture = captureReference(context, policy.handoff, 'handoff-complete');
-    const complete = decodeRecord(completeCapture.fields, 'dependency-initial-handoff-complete', [
-      'intent',
-      'exposure',
-      'admission',
-      'ownerPublicationSha256',
-      'fences',
-    ]);
-    if (complete['ownerPublicationSha256'] !== policy.ownerPublicationSha256)
-      refuseGraph('handoff complete owner differs');
-    const intentRef = decodeReference(complete['intent'], 'handoff-intent');
-    const admissionRef = decodeReference(complete['admission'], 'handoff-admission');
-    const exposureRef = decodeReference(complete['exposure'], 'exposure-complete');
-    const intentCapture = captureReference(
-      context,
-      intentRef,
-      'handoff-intent',
-      policy.handoff.name,
-    );
-    const intent = decodeRecord(intentCapture.fields, 'dependency-initial-handoff-intent', [
-      'admission',
-      'participants',
-      'restoration',
-      'restored',
-      'activations',
-      'ownerPublicationSha256',
-      'ownerArchive',
-      'fences',
-      'ingress',
-    ]);
-    if (intent['ownerPublicationSha256'] !== policy.ownerPublicationSha256)
-      refuseGraph('handoff intent owner differs');
-    assertSame(
-      admissionRef,
-      decodeReference(intent['admission'], 'handoff-admission'),
-      'initial admission reference',
-    );
-    assertSame(complete['fences'], intent['fences'], 'initial fence retirement selection');
-    const exposureCapture = captureReference(
-      context,
-      exposureRef,
-      'exposure-complete',
-      policy.handoff.name,
-    );
-    const exposure = decodeRecord(exposureCapture.fields, 'dependency-initial-exposure-complete', [
-      'intent',
-      'diskConfigurationSha256',
-      'liveConfigurationSha256',
-      'selectedRoutesSha256',
-      'unrelatedRoutesSha256',
-    ]);
-    const exposureIntentRef = decodeReference(exposure['intent'], 'exposure-intent');
-    const exposureIntentCapture = captureReference(
-      context,
-      exposureIntentRef,
-      'exposure-intent',
-      exposureRef.name,
-    );
-    const exposureIntent = decodeRecord(
-      exposureIntentCapture.fields,
-      'dependency-initial-exposure-intent',
-      [
-        'handoff',
-        'maintenanceReceiptSha256',
-        'originalSelectedRoutesSha256',
-        'unrelatedRoutesSha256',
-      ],
-    );
-    assertSame(
-      intentRef,
-      decodeReference(exposureIntent['handoff'], 'handoff-intent'),
-      'initial exposure handoff',
-    );
-    files.retainEdge(intentRef, exposureIntentRef.name);
-    if (
-      readHash(exposure['diskConfigurationSha256']) !==
-      readHash(exposure['liveConfigurationSha256'])
-    )
-      refuseGraph('exposure disk/live configuration differs');
-    const ingress = readClosed(intent['ingress'], [
-      'edgeId',
-      'sites',
-      'originalFilesSha256',
-      'selectedRoutesSha256',
-      'unrelatedRoutesSha256',
-    ]);
-    readIdentity(ingress['edgeId']);
-    readHash(ingress['originalFilesSha256']);
-    const sites = readRoster(ingress['sites'], 2).map((value) => {
-      const fields = readClosed(value, ['environment', 'path']);
-      return { environment: fields['environment'], path: fields['path'] };
-    });
-    assertSame(
-      ['prod', 'dev'].map((environment) => ({
-        environment,
-        path: envLayout(environment).siteCaddyPath,
-      })),
-      sites,
-      'initial ingress sites',
-    );
-    const selectedRoutes = readHash(ingress['selectedRoutesSha256']);
-    const unrelatedRoutes = readHash(ingress['unrelatedRoutesSha256']);
-    if (
-      exposureIntent['originalSelectedRoutesSha256'] !== selectedRoutes ||
-      exposureIntent['unrelatedRoutesSha256'] !== unrelatedRoutes ||
-      exposure['selectedRoutesSha256'] !== selectedRoutes ||
-      exposure['unrelatedRoutesSha256'] !== unrelatedRoutes
-    )
-      refuseGraph('initial exposure route projections differ');
-    readHash(exposureIntent['maintenanceReceiptSha256']);
-    const activationRefs = readRoster(intent['activations'], 2).map(
-      (
-        value,
-      ): { environment: EnvName; intent: Reference; capture: Reference; committed: Reference } => {
-        const fields = readClosed(value, ['environment', 'intent', 'capture', 'committed']);
-        const environment = fields['environment'];
-        if (environment !== 'prod' && environment !== 'dev')
-          refuseGraph('activation environment differs');
-        return {
-          environment,
-          intent: decodeReference(fields['intent'], 'activation-intent'),
-          capture: decodeReference(fields['capture'], 'activation-capture'),
-          committed: decodeReference(fields['committed'], 'activation-committed'),
-        };
-      },
-    );
-    if (
-      !['["prod"]', '["dev"]', '["prod","dev"]'].includes(
-        JSON.stringify(activationRefs.map(({ environment }) => environment)),
-      )
-    )
-      refuseGraph('activation roster differs');
-    const admissionCapture = captureReference(
-      context,
-      admissionRef,
-      'handoff-admission',
-      intentRef.name,
-    );
-    const admissionFields = decodeRecord(
-      admissionCapture.fields,
-      'dependency-initial-handoff-admission',
-      [
-        'sourceSha',
-        'solver',
-        'authorities',
-        'writerManifest',
-        'source',
-        'prod',
-        'migrations',
-        'runtimeLaunch',
-      ],
-      2,
-    );
-    if (admissionFields['sourceSha'] !== publication.plan.sha)
-      refuseGraph('initial admission source differs');
-    const authorityPins = decodeInstalledAuthorityPins(admissionFields['authorities']);
-    const runtimeLaunch = decodeRuntimeLaunchPins(
-      admissionFields['runtimeLaunch'],
-      publication.plan.sha,
-      authorityPins,
-    );
-    const sourceFields = readClosed(admissionFields['source'], [
-      'pins',
-      'runtimeReference',
-      'manifest',
-    ]);
-    const sourcePins = decodeSourceDevPins(sourceFields['pins']);
-    const writerRef = decodeReference(admissionFields['writerManifest'], 'handoff-writers');
-    const sourceRef = decodeReference(sourceFields['manifest'], 'handoff-source-manifest');
-    files.retainEdge(writerRef, admissionRef.name);
-    files.retainEdge(sourceRef, admissionRef.name);
-    const writerFile = files.captureText(join(directory, writerRef.name), 262144);
-    if (
-      writerFile.sha256 !== writerRef.sha256 ||
-      writerFile.sha256 !== authorityPins.writerManifestSha256
-    )
-      refuseGraph('writer manifest independent hash differs');
-    const writerManifest = decodeWriterManifest(parseJson(writerFile.contents));
-    if (
-      writerManifest.sourceSha !== publication.plan.sha ||
-      writerManifest.buildSha !== publication.plan.sha
-    )
-      refuseGraph('writer manifest source differs');
-    const sourceFile = files.captureText(join(directory, sourceRef.name), 67108864);
-    if (sourceFile.sha256 !== sourceRef.sha256 || sourceFile.sha256 !== sourcePins.manifestSha256)
-      refuseGraph('source manifest independent hash differs');
-    decodeSourceStartupManifest(sourceFile.contents, sourcePins);
-    const admission = decodeCompleteDependencyActivationRequest(
-      {
-        format: 'complete-dependency-activation',
-        version: 1,
-        owner: publication.plan,
-        activate: activationRefs.map(({ environment }) => environment),
-        solver: admissionFields['solver'],
-        prod: admissionFields['prod'],
-        source: {
-          pins: sourcePins,
-          manifestContents: sourceFile.contents,
-          runtimeReference: sourceFields['runtimeReference'],
-        },
-        authorities: { pins: authorityPins, writerManifestContents: writerFile.contents },
-        migrations: admissionFields['migrations'],
-      },
-      deadline,
-    );
-    const participantsRef = decodeReference(intent['participants'], 'activation-participants');
-    const participantsCapture = captureReference(
-      context,
-      participantsRef,
-      'activation-participants',
-      intentRef.name,
-    );
-    const participants = decodeParticipants(
-      participantsCapture.fields,
-      admission,
-      policy.ownerPublicationSha256,
-    );
-    if (exposureIntent['maintenanceReceiptSha256'] !== participants.fences['ingressSha256'])
-      refuseGraph('exposure original maintenance receipt differs');
-    const restorationRef = decodeReference(
-      intent['restoration'],
-      'activation-participant-restore-intent',
-    );
-    const restoredRef = decodeReference(intent['restored'], 'activation-participants-restored');
-    const restorationCapture = captureReference(
-      context,
-      restorationRef,
-      'activation-participant-restore-intent',
-      intentRef.name,
-    );
-    const restoration = decodeRecord(
-      restorationCapture.fields,
-      'dependency-participant-restore-intent',
-      ['participants', 'committed', 'solverIntent', 'solverReady', 'selected'],
-    );
-    assertSame(
-      participantsRef,
-      decodeReference(restoration['participants'], 'activation-participants'),
-      'initial restoration participants',
-    );
-    files.retainEdge(participantsRef, restorationRef.name);
-    const solverIntentRef = decodeReference(restoration['solverIntent'], 'solver-restore-intent');
-    assertSame(participants.solverIntent, solverIntentRef, 'initial original solver intent');
-    const solverIntentCapture = captureReference(
-      context,
-      solverIntentRef,
-      'solver-restore-intent',
-      restorationRef.name,
-    );
-    files.retainEdge(solverIntentRef, participantsRef.name);
-    const solverIntent = decodeSolverRestoration(parseJson(solverIntentCapture.file.contents));
-    assertSame(
-      admission.solver,
-      solverIntent.record.pins,
-      'initial restoration solver immutable pins',
-    );
-    const readyRef = decodeReference(restoration['solverReady'], 'solver-restore-complete');
-    const readyCapture = captureReference(
-      context,
-      readyRef,
-      'solver-restore-complete',
-      restorationRef.name,
-    );
-    files.retainEdge(solverIntentRef, readyRef.name);
-    decodeReady(readyCapture.fields);
+    const context: DiskContext = { files, directory, owner, publication, labels: new Map() };
+    const validated = validateGraph(context, policy, deadline);
+    const { admission, runtimeLaunch, writerManifest, artifacts, participants, intent } = validated;
+    const readyRef = validated.pointerReady.reference;
+    const readyCapture = { file: files.captureText(join(directory, readyRef.name), 65536) };
     files.assertDeadline();
     const dedicatedReady = await captureSolverRestorationCompletion(directory, readyRef.name);
     files.assertDeadline();
@@ -1401,203 +1365,14 @@ export async function captureInitialHandoff(
       dedicatedReady.parentInode !== String(readyCapture.file.parent.identity.ino)
     )
       refuseGraph('dedicated ready capture changed');
-    const selected = decodeRestorationSelection(restoration['selected'], participants);
-    const committedRoster = readRoster(restoration['committed'], 2).map((value) => {
-      const fields = readClosed(value, ['environment', 'record']);
-      return {
-        environment: fields['environment'],
-        record: decodeReference(fields['record'], 'activation-committed'),
-      };
-    });
-    assertSame(
-      activationRefs.map(({ environment, committed }) => ({ environment, record: committed })),
-      committedRoster,
-      'initial selected committed roster',
+    captureRawArtifacts(
+      files,
+      directory,
+      publication,
+      admission,
+      participants.databases,
+      decodeActivationSelections(context, artifacts, participants, admission),
     );
-    const restoredCapture = captureReference(
-      context,
-      restoredRef,
-      'activation-participants-restored',
-      intentRef.name,
-    );
-    const restored = decodeRecord(restoredCapture.fields, 'dependency-participants-restored', [
-      'restoration',
-      'activated',
-      'ready',
-      'policies',
-      'exposure',
-      'controllers',
-    ]);
-    assertSame(
-      restorationRef,
-      decodeReference(restored['restoration'], 'activation-participant-restore-intent'),
-      'initial restored restoration',
-    );
-    files.retainEdge(restorationRef, restoredRef.name);
-    if (restored['exposure'] !== 'closed' || restored['controllers'] !== 'fenced')
-      refuseGraph('historical participants-restored boundary differs');
-    const activated = readRoster(restored['activated'], 2).map((value) => {
-      const fields = readClosed(value, ['environment', 'receipt']);
-      return {
-        environment: fields['environment'],
-        receipt: parseDependencyReceipt(fields['receipt']),
-      };
-    });
-    assertSame(
-      activationRefs.map(({ environment }) => environment),
-      activated.map(({ environment }) => environment),
-      'initial activated receipt roster',
-    );
-    const ready = readRoster(restored['ready'], 3).map((value) =>
-      decodeReference(value, 'activation-participant-ready'),
-    );
-    const policies = readRoster(restored['policies'], 3).map((value) =>
-      decodeReference(value, 'activation-participant-policy-intent'),
-    );
-    if (ready.length !== 3 || policies.length !== 3) refuseGraph('ready/policy roster incomplete');
-    for (const [index, participant] of selected.entries()) {
-      const readyRef = ready.at(index);
-      const policyRef = policies.at(index);
-      if (readyRef === undefined || policyRef === undefined)
-        refuseGraph('ready/policy selected entry absent');
-      const readyCapture = captureReference(
-        context,
-        readyRef,
-        'activation-participant-ready',
-        restoredRef.name,
-      );
-      const readyFields = decodeRecord(readyCapture.fields, 'dependency-participant-ready', [
-        'restoration',
-        'role',
-        'id',
-        'readinessSha256',
-      ]);
-      assertSame(
-        restorationRef,
-        decodeReference(readyFields['restoration'], 'activation-participant-restore-intent'),
-        'initial participant ready restoration',
-      );
-      files.retainEdge(restorationRef, readyRef.name);
-      if (
-        readyFields['role'] !== participant.role ||
-        readIdentity(readyFields['id']) !== participant.id
-      )
-        refuseGraph('participant ready selection differs');
-      readHash(readyFields['readinessSha256']);
-      const policyCapture = captureReference(
-        context,
-        policyRef,
-        'activation-participant-policy-intent',
-        restoredRef.name,
-      );
-      const policyFields = decodeRecord(
-        policyCapture.fields,
-        'dependency-participant-policy-intent',
-        ['ready', 'role', 'id', 'policySha256'],
-      );
-      assertSame(
-        readyRef,
-        decodeReference(policyFields['ready'], 'activation-participant-ready'),
-        'initial participant policy ready',
-      );
-      files.retainEdge(readyRef, policyRef.name);
-      if (
-        policyFields['role'] !== participant.role ||
-        readIdentity(policyFields['id']) !== participant.id ||
-        readHash(policyFields['policySha256']) !==
-          hashBytes(JSON.stringify(participant.originalPolicy))
-      )
-        refuseGraph('participant original policy digest differs');
-    }
-    const artifacts = activationRefs.map((selection) => {
-      const intentCapture = captureReference(
-        context,
-        selection.intent,
-        'activation-intent',
-        intentRef.name,
-      );
-      const activationIntent = decodeRecord(intentCapture.fields, 'dependency-activation-intent', [
-        'environment',
-        'receipt',
-        'participantRecord',
-        'capture',
-        'backup',
-        'migrationManifestSha256',
-      ]);
-      const captureCapture = captureReference(
-        context,
-        selection.capture,
-        'activation-capture',
-        selection.intent.name,
-      );
-      files.retainEdge(selection.capture, participantsRef.name);
-      const capture = decodeRecord(captureCapture.fields, 'dependency-activation-capture', [
-        'environment',
-        'databaseIdentity',
-        'capture',
-      ]);
-      const backupRef = decodeReference(activationIntent['backup'], 'activation-backup');
-      const backupCapture = captureReference(
-        context,
-        backupRef,
-        'activation-backup',
-        selection.intent.name,
-      );
-      files.retainEdge(backupRef, participantsRef.name);
-      const backup = decodeRecord(backupCapture.fields, 'dependency-activation-backup', [
-        'environment',
-        'databaseIdentity',
-        'snapshot',
-        'captureSha256',
-      ]);
-      const committedCapture = captureReference(
-        context,
-        selection.committed,
-        'activation-committed',
-        restorationRef.name,
-      );
-      files.retainEdge(selection.intent, selection.committed.name);
-      const committed = decodeRecord(committedCapture.fields, 'dependency-activation-committed', [
-        'environment',
-        'receipt',
-        'captureSha256',
-        'migrationManifestSha256',
-      ]);
-      for (const fields of [activationIntent, capture, backup, committed])
-        if (fields['environment'] !== selection.environment)
-          refuseGraph('activation envelope environment differs');
-      assertSame(
-        participantsRef,
-        decodeReference(activationIntent['participantRecord'], 'activation-participants'),
-        'initial activation selected participants',
-      );
-      files.retainEdge(participantsRef, selection.intent.name);
-      for (const fields of [activationIntent, committed])
-        if (fields['migrationManifestSha256'] !== admission.migrations.manifestSha256)
-          refuseGraph('selected activation manifest differs');
-      const receipt = parseDependencyReceipt(activationIntent['receipt']);
-      assertSame(
-        receipt,
-        parseDependencyReceipt(committed['receipt']),
-        'initial committed receipt',
-      );
-      const restoredReceipt = activated.find(
-        ({ environment }) => environment === selection.environment,
-      );
-      if (restoredReceipt === undefined) refuseGraph('restored selected receipt missing');
-      assertSame(receipt, restoredReceipt.receipt, 'initial restored activated receipt');
-      if (receipt.participantProofSha256 !== participantsRef.sha256)
-        refuseGraph('receipt participants proof differs');
-      return {
-        environment: selection.environment,
-        capture,
-        backup,
-        intent: activationIntent,
-        committed,
-        receipt,
-      };
-    });
-    captureActivationArtifacts(context, artifacts, participants, admission);
     captureFences(context, intent['fences'], participants, admission);
     captureOwnerArchive(context, intent['ownerArchive'], pointer['phase']);
     files.assertStable();
@@ -1605,7 +1380,7 @@ export async function captureInitialHandoff(
       admission,
       runtimeLaunch,
       writerManifest,
-      images: solverIntent.record.images,
+      images: validated.images,
       retainExecutingFile: (observed) => {
         const selected = [
           {
@@ -1658,4 +1433,793 @@ export async function captureInitialHandoff(
     files.closeFiles();
     throw cause;
   }
+}
+
+function decodeDatabases(value: unknown): Database[] {
+  assertRosterCount(value, 2, 2, 'database roster incomplete');
+  const databases = value.map((value, index): Database => {
+    const fields = readClosed(value, [
+      'environment',
+      'path',
+      'host',
+      'directoryIdentity',
+      'fileIdentity',
+    ]);
+    const environment = index === 0 ? 'prod' : 'dev';
+    if (fields['environment'] !== environment) refuseGraph('database roster differs');
+    const path = readString(fields['path']);
+    const host = readString(fields['host']);
+    const directoryIdentity = readString(fields['directoryIdentity']);
+    const fileIdentity = readString(fields['fileIdentity']);
+    if (
+      ![path, host].every(
+        (path) => isAbsolute(path) && resolve(path) === path && !path.includes('\0'),
+      ) ||
+      ![directoryIdentity, fileIdentity].every((identity) =>
+        /^(0|[1-9][0-9]*):(0|[1-9][0-9]*)$/.test(identity),
+      )
+    )
+      refuseGraph('historical database identity malformed');
+    return { environment, path, host, directoryIdentity, fileIdentity };
+  });
+  if (databases.length !== 2) refuseGraph('database roster incomplete');
+  return databases;
+}
+
+interface ContentFile {
+  readonly sha256: string;
+  readonly contents: string;
+}
+interface ContentFiles {
+  assertDeadline(): void;
+  retainEdge(selected: Reference, consumer?: string): void;
+  captureText(path: string, maximum: number): ContentFile;
+}
+interface DiskContext extends GraphContext {
+  readonly files: GraphFiles;
+}
+
+function validateGraph(context: GraphContext, policy: ActiveEdgePolicy, deadline: number) {
+  const { files, directory, publication } = context;
+  const completeCapture = captureReference(context, policy.handoff, 'handoff-complete');
+  const complete = decodeRecord(completeCapture.fields, 'dependency-initial-handoff-complete', [
+    'intent',
+    'exposure',
+    'admission',
+    'ownerPublicationSha256',
+    'fences',
+  ]);
+  if (complete['ownerPublicationSha256'] !== policy.ownerPublicationSha256)
+    refuseGraph('handoff complete owner differs');
+  const intentRef = decodeReference(complete['intent'], 'handoff-intent');
+  const admissionRef = decodeReference(complete['admission'], 'handoff-admission');
+  const exposureRef = decodeReference(complete['exposure'], 'exposure-complete');
+  const intentCapture = captureReference(context, intentRef, 'handoff-intent', policy.handoff.name);
+  const intent = decodeRecord(intentCapture.fields, 'dependency-initial-handoff-intent', [
+    'admission',
+    'participants',
+    'restoration',
+    'restored',
+    'activations',
+    'ownerPublicationSha256',
+    'ownerArchive',
+    'fences',
+    'ingress',
+  ]);
+  if (intent['ownerPublicationSha256'] !== policy.ownerPublicationSha256)
+    refuseGraph('handoff intent owner differs');
+  assertSame(
+    admissionRef,
+    decodeReference(intent['admission'], 'handoff-admission'),
+    'initial admission reference',
+  );
+  assertSame(complete['fences'], intent['fences'], 'initial fence retirement selection');
+  const exposureCapture = captureReference(
+    context,
+    exposureRef,
+    'exposure-complete',
+    policy.handoff.name,
+  );
+  const exposure = decodeRecord(exposureCapture.fields, 'dependency-initial-exposure-complete', [
+    'intent',
+    'diskConfigurationSha256',
+    'liveConfigurationSha256',
+    'selectedRoutesSha256',
+    'unrelatedRoutesSha256',
+  ]);
+  const exposureIntentRef = decodeReference(exposure['intent'], 'exposure-intent');
+  const exposureIntentCapture = captureReference(
+    context,
+    exposureIntentRef,
+    'exposure-intent',
+    exposureRef.name,
+  );
+  const exposureIntent = decodeRecord(
+    exposureIntentCapture.fields,
+    'dependency-initial-exposure-intent',
+    [
+      'handoff',
+      'maintenanceReceiptSha256',
+      'originalSelectedRoutesSha256',
+      'unrelatedRoutesSha256',
+    ],
+  );
+  assertSame(
+    intentRef,
+    decodeReference(exposureIntent['handoff'], 'handoff-intent'),
+    'initial exposure handoff',
+  );
+  files.retainEdge(intentRef, exposureIntentRef.name);
+  if (
+    readHash(exposure['diskConfigurationSha256']) !== readHash(exposure['liveConfigurationSha256'])
+  )
+    refuseGraph('exposure disk/live configuration differs');
+  const ingress = readClosed(intent['ingress'], [
+    'edgeId',
+    'sites',
+    'originalFilesSha256',
+    'selectedRoutesSha256',
+    'unrelatedRoutesSha256',
+  ]);
+  readIdentity(ingress['edgeId']);
+  readHash(ingress['originalFilesSha256']);
+  const sites = readRoster(ingress['sites'], 2).map((value) => {
+    const fields = readClosed(value, ['environment', 'path']);
+    return { environment: fields['environment'], path: fields['path'] };
+  });
+  assertSame(
+    ['prod', 'dev'].map((environment) => ({
+      environment,
+      path: envLayout(environment).siteCaddyPath,
+    })),
+    sites,
+    'initial ingress sites',
+  );
+  const selectedRoutes = readHash(ingress['selectedRoutesSha256']);
+  const unrelatedRoutes = readHash(ingress['unrelatedRoutesSha256']);
+  if (
+    exposureIntent['originalSelectedRoutesSha256'] !== selectedRoutes ||
+    exposureIntent['unrelatedRoutesSha256'] !== unrelatedRoutes ||
+    exposure['selectedRoutesSha256'] !== selectedRoutes ||
+    exposure['unrelatedRoutesSha256'] !== unrelatedRoutes
+  )
+    refuseGraph('initial exposure route projections differ');
+  readHash(exposureIntent['maintenanceReceiptSha256']);
+  const activationRefs = readRoster(intent['activations'], 2).map(
+    (
+      value,
+    ): { environment: EnvName; intent: Reference; capture: Reference; committed: Reference } => {
+      const fields = readClosed(value, ['environment', 'intent', 'capture', 'committed']);
+      const environment = fields['environment'];
+      if (environment !== 'prod' && environment !== 'dev')
+        refuseGraph('activation environment differs');
+      return {
+        environment,
+        intent: decodeReference(fields['intent'], 'activation-intent'),
+        capture: decodeReference(fields['capture'], 'activation-capture'),
+        committed: decodeReference(fields['committed'], 'activation-committed'),
+      };
+    },
+  );
+  if (
+    !['["prod"]', '["dev"]', '["prod","dev"]'].includes(
+      JSON.stringify(activationRefs.map(({ environment }) => environment)),
+    )
+  )
+    refuseGraph('activation roster differs');
+  const admissionCapture = captureReference(
+    context,
+    admissionRef,
+    'handoff-admission',
+    intentRef.name,
+  );
+  const admissionFields = decodeRecord(
+    admissionCapture.fields,
+    'dependency-initial-handoff-admission',
+    [
+      'sourceSha',
+      'solver',
+      'authorities',
+      'writerManifest',
+      'source',
+      'prod',
+      'migrations',
+      'runtimeLaunch',
+    ],
+    2,
+  );
+  if (admissionFields['sourceSha'] !== publication.plan.sha)
+    refuseGraph('initial admission source differs');
+  const authorityPins = decodeInstalledAuthorityPins(admissionFields['authorities']);
+  const runtimeLaunch = decodeRuntimeLaunchPins(
+    admissionFields['runtimeLaunch'],
+    publication.plan.sha,
+    authorityPins,
+  );
+  const sourceFields = readClosed(admissionFields['source'], [
+    'pins',
+    'runtimeReference',
+    'manifest',
+  ]);
+  const sourcePins = decodeSourceDevPins(sourceFields['pins']);
+  const writerRef = decodeReference(admissionFields['writerManifest'], 'handoff-writers');
+  const sourceRef = decodeReference(sourceFields['manifest'], 'handoff-source-manifest');
+  files.retainEdge(writerRef, admissionRef.name);
+  files.retainEdge(sourceRef, admissionRef.name);
+  const writerFile = files.captureText(join(directory, writerRef.name), 262144);
+  if (
+    writerFile.sha256 !== writerRef.sha256 ||
+    writerFile.sha256 !== authorityPins.writerManifestSha256
+  )
+    refuseGraph('writer manifest independent hash differs');
+  const writerManifest = decodeWriterManifest(parseJson(writerFile.contents));
+  if (
+    writerManifest.sourceSha !== publication.plan.sha ||
+    writerManifest.buildSha !== publication.plan.sha
+  )
+    refuseGraph('writer manifest source differs');
+  const sourceFile = files.captureText(join(directory, sourceRef.name), 67108864);
+  if (sourceFile.sha256 !== sourceRef.sha256 || sourceFile.sha256 !== sourcePins.manifestSha256)
+    refuseGraph('source manifest independent hash differs');
+  decodeSourceStartupManifest(sourceFile.contents, sourcePins);
+  const admission = decodeCompleteDependencyActivationRequest(
+    {
+      format: 'complete-dependency-activation',
+      version: 1,
+      owner: publication.plan,
+      activate: activationRefs.map(({ environment }) => environment),
+      solver: admissionFields['solver'],
+      prod: admissionFields['prod'],
+      source: {
+        pins: sourcePins,
+        manifestContents: sourceFile.contents,
+        runtimeReference: sourceFields['runtimeReference'],
+      },
+      authorities: { pins: authorityPins, writerManifestContents: writerFile.contents },
+      migrations: admissionFields['migrations'],
+    },
+    deadline,
+  );
+  const participantsRef = decodeReference(intent['participants'], 'activation-participants');
+  const participantsCapture = captureReference(
+    context,
+    participantsRef,
+    'activation-participants',
+    intentRef.name,
+  );
+  const participants = decodeParticipants(
+    participantsCapture.fields,
+    admission,
+    policy.ownerPublicationSha256,
+  );
+  if (exposureIntent['maintenanceReceiptSha256'] !== participants.fences['ingressSha256'])
+    refuseGraph('exposure original maintenance receipt differs');
+  const restorationRef = decodeReference(
+    intent['restoration'],
+    'activation-participant-restore-intent',
+  );
+  const restoredRef = decodeReference(intent['restored'], 'activation-participants-restored');
+  const restorationCapture = captureReference(
+    context,
+    restorationRef,
+    'activation-participant-restore-intent',
+    intentRef.name,
+  );
+  const restoration = decodeRecord(
+    restorationCapture.fields,
+    'dependency-participant-restore-intent',
+    ['participants', 'committed', 'solverIntent', 'solverReady', 'selected'],
+  );
+  assertSame(
+    participantsRef,
+    decodeReference(restoration['participants'], 'activation-participants'),
+    'initial restoration participants',
+  );
+  files.retainEdge(participantsRef, restorationRef.name);
+  const solverIntentRef = decodeReference(restoration['solverIntent'], 'solver-restore-intent');
+  assertSame(participants.solverIntent, solverIntentRef, 'initial original solver intent');
+  const solverIntentCapture = captureReference(
+    context,
+    solverIntentRef,
+    'solver-restore-intent',
+    restorationRef.name,
+  );
+  files.retainEdge(solverIntentRef, participantsRef.name);
+  const solverIntent = decodeSolverRestoration(parseJson(solverIntentCapture.file.contents));
+  assertSame(
+    admission.solver,
+    solverIntent.record.pins,
+    'initial restoration solver immutable pins',
+  );
+  const readyRef = decodeReference(restoration['solverReady'], 'solver-restore-complete');
+  const readyCapture = captureReference(
+    context,
+    readyRef,
+    'solver-restore-complete',
+    restorationRef.name,
+  );
+  files.retainEdge(solverIntentRef, readyRef.name);
+  decodeReady(readyCapture.fields);
+  const selected = decodeRestorationSelection(restoration['selected'], participants);
+  const committedRoster = readRoster(restoration['committed'], 2).map((value) => {
+    const fields = readClosed(value, ['environment', 'record']);
+    return {
+      environment: fields['environment'],
+      record: decodeReference(fields['record'], 'activation-committed'),
+    };
+  });
+  assertSame(
+    activationRefs.map(({ environment, committed }) => ({ environment, record: committed })),
+    committedRoster,
+    'initial selected committed roster',
+  );
+  const restoredCapture = captureReference(
+    context,
+    restoredRef,
+    'activation-participants-restored',
+    intentRef.name,
+  );
+  const restored = decodeRecord(restoredCapture.fields, 'dependency-participants-restored', [
+    'restoration',
+    'activated',
+    'ready',
+    'policies',
+    'exposure',
+    'controllers',
+  ]);
+  assertSame(
+    restorationRef,
+    decodeReference(restored['restoration'], 'activation-participant-restore-intent'),
+    'initial restored restoration',
+  );
+  files.retainEdge(restorationRef, restoredRef.name);
+  if (restored['exposure'] !== 'closed' || restored['controllers'] !== 'fenced')
+    refuseGraph('historical participants-restored boundary differs');
+  const activated = readRoster(restored['activated'], 2).map((value) => {
+    const fields = readClosed(value, ['environment', 'receipt']);
+    return {
+      environment: fields['environment'],
+      receipt: parseDependencyReceipt(fields['receipt']),
+    };
+  });
+  assertSame(
+    activationRefs.map(({ environment }) => environment),
+    activated.map(({ environment }) => environment),
+    'initial activated receipt roster',
+  );
+  const ready = readRoster(restored['ready'], 3).map((value) =>
+    decodeReference(value, 'activation-participant-ready'),
+  );
+  const policies = readRoster(restored['policies'], 3).map((value) =>
+    decodeReference(value, 'activation-participant-policy-intent'),
+  );
+  if (ready.length !== 3 || policies.length !== 3) refuseGraph('ready/policy roster incomplete');
+  for (const [index, participant] of selected.entries()) {
+    const readyRef = ready.at(index);
+    const policyRef = policies.at(index);
+    if (readyRef === undefined || policyRef === undefined)
+      refuseGraph('ready/policy selected entry absent');
+    const readyCapture = captureReference(
+      context,
+      readyRef,
+      'activation-participant-ready',
+      restoredRef.name,
+    );
+    const readyFields = decodeRecord(readyCapture.fields, 'dependency-participant-ready', [
+      'restoration',
+      'role',
+      'id',
+      'readinessSha256',
+    ]);
+    assertSame(
+      restorationRef,
+      decodeReference(readyFields['restoration'], 'activation-participant-restore-intent'),
+      'initial participant ready restoration',
+    );
+    files.retainEdge(restorationRef, readyRef.name);
+    if (
+      readyFields['role'] !== participant.role ||
+      readIdentity(readyFields['id']) !== participant.id
+    )
+      refuseGraph('participant ready selection differs');
+    readHash(readyFields['readinessSha256']);
+    const policyCapture = captureReference(
+      context,
+      policyRef,
+      'activation-participant-policy-intent',
+      restoredRef.name,
+    );
+    const policyFields = decodeRecord(
+      policyCapture.fields,
+      'dependency-participant-policy-intent',
+      ['ready', 'role', 'id', 'policySha256'],
+    );
+    assertSame(
+      readyRef,
+      decodeReference(policyFields['ready'], 'activation-participant-ready'),
+      'initial participant policy ready',
+    );
+    files.retainEdge(readyRef, policyRef.name);
+    if (
+      policyFields['role'] !== participant.role ||
+      readIdentity(policyFields['id']) !== participant.id ||
+      readHash(policyFields['policySha256']) !==
+        hashBytes(JSON.stringify(participant.originalPolicy))
+    )
+      refuseGraph('participant original policy digest differs');
+  }
+  const artifacts = activationRefs.map((selection) => {
+    const intentCapture = captureReference(
+      context,
+      selection.intent,
+      'activation-intent',
+      intentRef.name,
+    );
+    const activationIntent = decodeRecord(intentCapture.fields, 'dependency-activation-intent', [
+      'environment',
+      'receipt',
+      'participantRecord',
+      'capture',
+      'backup',
+      'migrationManifestSha256',
+    ]);
+    const captureCapture = captureReference(
+      context,
+      selection.capture,
+      'activation-capture',
+      selection.intent.name,
+    );
+    files.retainEdge(selection.capture, participantsRef.name);
+    const capture = decodeRecord(captureCapture.fields, 'dependency-activation-capture', [
+      'environment',
+      'databaseIdentity',
+      'capture',
+    ]);
+    const backupRef = decodeReference(activationIntent['backup'], 'activation-backup');
+    const backupCapture = captureReference(
+      context,
+      backupRef,
+      'activation-backup',
+      selection.intent.name,
+    );
+    files.retainEdge(backupRef, participantsRef.name);
+    const backup = decodeRecord(backupCapture.fields, 'dependency-activation-backup', [
+      'environment',
+      'databaseIdentity',
+      'snapshot',
+      'captureSha256',
+    ]);
+    const committedCapture = captureReference(
+      context,
+      selection.committed,
+      'activation-committed',
+      restorationRef.name,
+    );
+    files.retainEdge(selection.intent, selection.committed.name);
+    const committed = decodeRecord(committedCapture.fields, 'dependency-activation-committed', [
+      'environment',
+      'receipt',
+      'captureSha256',
+      'migrationManifestSha256',
+    ]);
+    for (const fields of [activationIntent, capture, backup, committed])
+      if (fields['environment'] !== selection.environment)
+        refuseGraph('activation envelope environment differs');
+    assertSame(
+      participantsRef,
+      decodeReference(activationIntent['participantRecord'], 'activation-participants'),
+      'initial activation selected participants',
+    );
+    files.retainEdge(participantsRef, selection.intent.name);
+    for (const fields of [activationIntent, committed])
+      if (fields['migrationManifestSha256'] !== admission.migrations.manifestSha256)
+        refuseGraph('selected activation manifest differs');
+    const receipt = parseDependencyReceipt(activationIntent['receipt']);
+    assertSame(receipt, parseDependencyReceipt(committed['receipt']), 'initial committed receipt');
+    const restoredReceipt = activated.find(
+      ({ environment }) => environment === selection.environment,
+    );
+    if (restoredReceipt === undefined) refuseGraph('restored selected receipt missing');
+    assertSame(receipt, restoredReceipt.receipt, 'initial restored activated receipt');
+    if (receipt.participantProofSha256 !== participantsRef.sha256)
+      refuseGraph('receipt participants proof differs');
+    return {
+      environment: selection.environment,
+      capture,
+      backup,
+      intent: activationIntent,
+      committed,
+      receipt,
+    };
+  });
+
+  files.assertDeadline();
+  return {
+    admission,
+    runtimeLaunch,
+    writerManifest,
+    images: solverIntent.record.images,
+    artifacts,
+    participants,
+    intent,
+    pointerReady: { reference: readyRef, contents: readyCapture.file.contents },
+  };
+}
+
+function decodePointer(contents: string, policy: ActiveEdgePolicy, policyContents: string): Fields {
+  const pointer = decodeRecord(parseJson(contents), 'dependency-edge-handoff', [
+    'phase',
+    'ownerPublicationSha256',
+    'policySha256',
+    'handoff',
+  ]);
+  if (
+    (pointer['phase'] !== 'prepared' && pointer['phase'] !== 'complete') ||
+    pointer['ownerPublicationSha256'] !== policy.ownerPublicationSha256 ||
+    pointer['policySha256'] !== hashBytes(policyContents)
+  )
+    refuseGraph('pointer/policy binding differs');
+  assertSame(
+    policy.handoff,
+    decodeReference(pointer['handoff'], 'handoff-complete'),
+    'initial pointer handoff',
+  );
+  return pointer;
+}
+
+/** Exact reachable intended byte closure. Supplied snapshots are consistency evidence, never authenticated custody. */
+export interface InitialHandoffPlan {
+  readonly edgeState: string;
+  readonly pending: EdgeRecordSnapshot;
+  readonly handoff: Reference;
+  readonly records: readonly { readonly name: string; readonly contents: string }[];
+  readonly manifests: {
+    readonly writers: { readonly name: string; readonly contents: string };
+    readonly source: { readonly name: string; readonly contents: string };
+  };
+  readonly fences: readonly {
+    readonly environment: EnvName;
+    readonly name: string;
+    readonly snapshot: EdgeRecordSnapshot;
+  }[];
+  readonly artifacts: InitialHandoffArtifactContents;
+  readonly policyContents: string;
+  readonly preparedPointerContents: string;
+  readonly completePointerContents: string;
+}
+/** Finite, private content index; never opens a path or infers disk authority from a supplied byte string. */
+class PlanFiles implements ContentFiles {
+  private readonly entries = new Map<string, ContentFile>();
+  private readonly used = new Set<string>();
+  private edges = 0;
+  constructor(
+    readonly directory: string,
+    readonly deadline: number,
+    records: readonly { readonly name: string; readonly contents: string }[],
+    manifests: InitialHandoffPlan['manifests'],
+    readonly fixedFiles: number,
+  ) {
+    for (const entry of [...records, manifests.writers, manifests.source]) {
+      if (this.entries.has(entry.name)) refuseGraph('duplicate planned record');
+      this.entries.set(entry.name, { contents: entry.contents, sha256: hashBytes(entry.contents) });
+      this.assertDeadline();
+    }
+    if (this.entries.size + fixedFiles > 64) refuseGraph('regular file budget exceeded');
+  }
+  assertDeadline(): void {
+    assertDeadline(this.deadline);
+  }
+  retainEdge(selected: Reference, consumer?: string): void {
+    this.assertDeadline();
+    if (++this.edges > 128) refuseGraph('reference edge budget exceeded');
+    if (consumer !== undefined && readSequence(selected.name) >= readSequence(consumer))
+      refuseGraph('predecessor order differs');
+  }
+  captureText(path: string, maximum: number): ContentFile {
+    this.assertDeadline();
+    if (dirname(path) !== this.directory) refuseGraph('planned record directory differs');
+    const name = basename(path);
+    const file = this.entries.get(name);
+    if (file === undefined) refuseGraph('planned reference absent');
+    readContents(file.contents, maximum);
+    this.used.add(name);
+    return file;
+  }
+  assertExact(): void {
+    if (this.used.size !== this.entries.size) refuseGraph('extraneous planned record');
+    this.assertDeadline();
+  }
+}
+function decodeSnapshot(value: unknown, path: string): EdgeRecordSnapshot {
+  const fields = readClosed(value, [
+    'path',
+    'device',
+    'inode',
+    'parentDevice',
+    'parentInode',
+    'mode',
+    'contents',
+  ]);
+  const contents = readContents(fields['contents'], 65536);
+  if (readCanonicalPath(fields['path']) !== path || fields['mode'] !== 384)
+    refuseGraph('planned snapshot path or mode differs');
+  return {
+    path,
+    contents,
+    mode: 384,
+    device: readDecimal(fields['device']),
+    inode: readDecimal(fields['inode']),
+    parentDevice: readDecimal(fields['parentDevice']),
+    parentInode: readDecimal(fields['parentInode']),
+  };
+}
+function assertPlannedArchive(archive: Archive, snapshot: EdgeRecordSnapshot): void {
+  if (
+    archive.sha256 !== hashBytes(snapshot.contents) ||
+    archive.device !== snapshot.device ||
+    archive.inode !== snapshot.inode ||
+    archive.parentDevice !== snapshot.parentDevice ||
+    archive.parentInode !== snapshot.parentInode ||
+    archive.mode !== snapshot.mode
+  )
+    refuseGraph('planned archive identity or exact bytes differ');
+}
+/**
+ * Validates supplied intended bytes synchronously and returns no authority. Paths are checked only for
+ * absolute normalized NUL-free lexical spelling and fixed layout; no filesystem ownership, existence,
+ * readability, realpath, archive effect or original custody is certified. Preserves exact owner/LF bytes.
+ */
+export function validateInitialHandoffPlan(plan: InitialHandoffPlan, deadline: number): void {
+  assertDeadline(deadline);
+  const fields = readClosed(plan, [
+    'edgeState',
+    'pending',
+    'handoff',
+    'records',
+    'manifests',
+    'fences',
+    'artifacts',
+    'policyContents',
+    'preparedPointerContents',
+    'completePointerContents',
+  ]);
+  const directory = readCanonicalPath(fields['edgeState']);
+  // Bound every original string and roster before hashing, parsing or constructing the finite index.
+  const pending = decodeSnapshot(fields['pending'], join(directory, 'edge-owner.pending'));
+  assertRosterCount(fields['records'], 0, 64, 'roster malformed');
+  const originalFences = fields['fences'];
+  assertRosterCount(originalFences, 8, 8, 'planned fence roster incomplete');
+  for (const original of originalFences) {
+    const fence = readClosed(original, ['environment', 'name', 'snapshot']);
+    readContents(readFields(fence['snapshot'])['contents'], 65536);
+  }
+  const recordRoster = readRoster(fields['records'], 64);
+  const manifestFields = readClosed(fields['manifests'], ['writers', 'source']);
+  const fenceRoster = readRoster(fields['fences'], 8);
+  if (fenceRoster.length !== 8) refuseGraph('planned fence roster incomplete');
+  const fences = fenceRoster.map((value, index) => {
+    const fields = readClosed(value, ['environment', 'name', 'snapshot']);
+    const expected = FENCES.at(index);
+    if (
+      expected === undefined ||
+      fields['environment'] !== expected[0] ||
+      fields['name'] !== expected[1]
+    )
+      refuseGraph('planned fence roster differs');
+    return {
+      environment: expected[0],
+      name: expected[1],
+      snapshot: decodeSnapshot(
+        fields['snapshot'],
+        join(envLayout(expected[0]).stateDir, expected[1]),
+      ),
+    };
+  });
+  const records = recordRoster.map((value) => {
+    const fields = readClosed(value, ['name', 'contents']);
+    const name = readString(fields['name']);
+    if (
+      !/^edge-owner-[0-9]{6,12}-(handoff-(admission|intent|complete)|exposure-(intent|complete)|solver-restore-(intent|complete)|activation-(participants|capture|backup|intent|committed|participant-restore-intent|participant-ready|participant-policy-intent|participants-restored))\.json$/.test(
+        name,
+      )
+    )
+      refuseGraph('planned record family differs');
+    return { name, contents: readContents(fields['contents'], 65536) };
+  });
+  const readManifest = (value: unknown, label: string, maximum: number) => {
+    const fields = readClosed(value, ['name', 'contents']);
+    const name = readString(fields['name']);
+    decodeReference({ name, sha256: '0'.repeat(64) }, label);
+    return { name, contents: readContents(fields['contents'], maximum) };
+  };
+  const manifests = {
+    writers: readManifest(manifestFields['writers'], 'handoff-writers', 262144),
+    source: readManifest(manifestFields['source'], 'handoff-source-manifest', 67108864),
+  };
+  const policyContents = readContents(fields['policyContents'], 4096);
+  const preparedContents = readContents(fields['preparedPointerContents'], 4096);
+  const completeContents = readContents(fields['completePointerContents'], 4096);
+  const publication = decodeDependencyOwnerPublication(parseJson(pending.contents));
+  const policy = decodeEdgePolicy(parseJson(policyContents), directory);
+  if (policy.phase !== 'active') refuseGraph('planned policy requires active phase');
+  const handoff = decodeReference(fields['handoff'], 'handoff-complete');
+  assertSame(handoff, policy.handoff, 'initial planned policy handoff');
+  if (hashBytes(pending.contents) !== policy.ownerPublicationSha256)
+    refuseGraph('policy original owner hash differs');
+  assertSame(
+    [envLayout('prod'), envLayout('dev')],
+    publication.plan.layouts,
+    'initial exact owner layouts',
+  );
+  const prepared = decodePointer(preparedContents, policy, policyContents);
+  const complete = decodePointer(completeContents, policy, policyContents);
+  if (prepared['phase'] !== 'prepared' || complete['phase'] !== 'complete')
+    refuseGraph('planned pointer phases differ');
+  assertSame({ ...prepared, phase: 'complete' }, complete, 'initial planned pointer fields');
+  const artifactFields = readClosed(fields['artifacts'], ['migrationManifestContents', 'selected']);
+  const rawRoster = artifactFields['selected'];
+  assertRosterCount(rawRoster, 1, 2, 'raw content roster differs');
+  const files = new PlanFiles(directory, deadline, records, manifests, 16 + 2 * rawRoster.length);
+  const context: GraphContext = {
+    files,
+    directory,
+    owner: pending.contents,
+    publication,
+    labels: new Map(),
+  };
+  const validated = validateGraph(context, policy, deadline);
+  const selected = decodeActivationSelections(
+    context,
+    validated.artifacts,
+    validated.participants,
+    validated.admission,
+  );
+  const artifacts = decodeArtifactContents(fields['artifacts'], selected);
+  validateArtifactContents(
+    publication,
+    validated.admission,
+    validated.participants.databases,
+    selected,
+    artifacts,
+    deadline,
+  );
+  for (const selection of selected) {
+    files.retainEdge(selection.capture);
+    files.retainEdge(selection.backup);
+  }
+  assertPlannedArchive(decodeArchive(validated.intent['ownerArchive'], 'edge', 'pending'), pending);
+  const retirement = readRoster(validated.intent['fences'], 8);
+  if (retirement.length !== 8) refuseGraph('fence retirement roster incomplete');
+  const captures = new Map<string, ContentFile>();
+  for (const [index, snapshot] of fences.entries()) {
+    files.assertDeadline();
+    const fields = readClosed(retirement.at(index), [
+      'environment',
+      'name',
+      'originalSha256',
+      'archive',
+    ]);
+    if (fields['environment'] !== snapshot.environment || fields['name'] !== snapshot.name)
+      refuseGraph('fence retirement roster differs');
+    const archive = decodeArchive(
+      fields['archive'],
+      snapshot.environment,
+      snapshot.name.slice(0, -5),
+    );
+    if (readHash(fields['originalSha256']) !== archive.sha256)
+      refuseGraph('fence original/archive hash differs');
+    assertPlannedArchive(archive, snapshot.snapshot);
+    captures.set(snapshot.name, {
+      contents: snapshot.snapshot.contents,
+      sha256: hashBytes(snapshot.snapshot.contents),
+    });
+  }
+  validateFenceContents(captures, validated.participants, validated.admission);
+  files.assertExact();
+  assertDeadline(deadline);
+}
+
+function assertBackupBudget(selected: readonly ArtifactSelection[]): void {
+  if (selected.reduce((bytes, selection) => bytes + selection.backup.bytes, 0) > 2147483648)
+    refuseGraph('combined backup byte bound exceeded');
 }

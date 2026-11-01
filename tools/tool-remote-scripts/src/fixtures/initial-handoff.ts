@@ -6,6 +6,7 @@ import { scratchSync } from '@tools/test-scratch';
 import type { BunPlugin } from 'bun';
 
 import { type EnvLayout, envLayout } from '../lib/env';
+import type { InitialHandoffPlan } from '../lib/initial-handoff-graph';
 import type { SolverPins } from '../lib/solver-host';
 
 /** Owned test layout only; production runtime admission retains its literal fixed namespace. */
@@ -58,7 +59,7 @@ const serialize = (value: unknown) => JSON.stringify(value) + '\n';
 
 /** Independently authored owned graph bytes; this fixture claims no original lifecycle or SQLite provenance. */
 export async function initialHandoffFixture(
-  phase: 'H6' | 'H7' | 'H8' = 'H8',
+  phase: 'plan' | 'H6' | 'H7' | 'H8' = 'H8',
   suppliedPins?: SolverPins,
   mutate?: (label: string, fields: Record<string, unknown>) => void,
   options?: Readonly<{
@@ -99,6 +100,9 @@ export async function initialHandoffFixture(
   const gatewayId = 'c'.repeat(64);
   const sourceId = 'f'.repeat(64);
   const paths = new Map<string, string>();
+  const records: { name: string; contents: string }[] = [];
+  const manifests = new Map<string, { name: string; contents: string }>();
+  const originalFences: InitialHandoffPlan['fences'][number][] = [];
   async function publish(
     sequence: number,
     label: string,
@@ -109,8 +113,11 @@ export async function initialHandoffFixture(
     const name = 'edge-owner-' + String(sequence).padStart(6, '0') + '-' + label + '.json';
     const contents = serialize(envelope ? { owner, record: fields } : fields);
     const path = join(root, name);
-    await writeFile(path, contents, { mode: 0o600 });
-    paths.set(label, path);
+    if (envelope) records.push({ name, contents });
+    else manifests.set(label, { name, contents });
+    if (phase !== 'plan' || sequence < 23) await writeFile(path, contents, { mode: 0o600 });
+    if (!paths.has(label)) paths.set(label, path);
+    paths.set(name, path);
     return { name, sha256: digest(contents) };
   }
   async function rawArchive(
@@ -122,11 +129,24 @@ export async function initialHandoffFixture(
     const directory = environment === 'prod' ? root : join(root, 'dev');
     const archiveName =
       'edge-owner-' + String(sequence).padStart(6, '0') + '-retired-' + name.slice(0, -5) + '.json';
-    const path = join(directory, archiveName);
+    const path = join(directory, phase === 'plan' ? name : archiveName);
     await writeFile(path, contents, { mode: 0o600 });
     const status = await lstat(path, { bigint: true });
     const parent = await lstat(directory, { bigint: true });
     paths.set(name, path);
+    originalFences.push({
+      environment,
+      name,
+      snapshot: {
+        path: join(directory, name),
+        contents,
+        device: String(status.dev),
+        inode: String(status.ino),
+        parentDevice: String(parent.dev),
+        parentInode: String(parent.ino),
+        mode: 384,
+      },
+    });
     return {
       environment,
       name,
@@ -268,7 +288,10 @@ export async function initialHandoffFixture(
     rawArchive(47, 'prod', 'dependency-gateway-complete.json', gatewayComplete),
   ]);
   const ownerArchiveName = 'edge-owner-000048-retired-pending.json';
-  const ownerPath = join(root, phase === 'H6' ? 'edge-owner.pending' : ownerArchiveName);
+  const ownerPath = join(
+    root,
+    phase === 'H6' || phase === 'plan' ? 'edge-owner.pending' : ownerArchiveName,
+  );
   await writeFile(ownerPath, owner, { mode: 0o600 });
   const ownerStatus = await lstat(ownerPath, { bigint: true });
   const parent = await lstat(root, { bigint: true });
@@ -436,7 +459,14 @@ export async function initialHandoffFixture(
       paths.set('raw-capture', join(artifacts, captureRaw.name));
       paths.set('raw-backup', join(artifacts, snapshotRaw.name));
     }
-    rawSelections.push({ environment, databaseIdentity: identity, image, captureRaw, snapshotRaw });
+    rawSelections.push({
+      environment,
+      databaseIdentity: identity,
+      image,
+      captureRaw,
+      snapshotRaw,
+      captureContents,
+    });
   }
   const solverIntent = await publish(1, 'solver-restore-intent', {
     format: 'dependency-solver-restoration',
@@ -702,21 +732,95 @@ export async function initialHandoffFixture(
     handoff: complete,
   };
   const policyContents = serialize(policy);
-  await writeFile(join(root, 'edge-policy.json'), policyContents, { mode: 0o600 });
-  await writeFile(
-    join(root, 'edge-owner.json'),
-    serialize({
-      format: 'dependency-edge-handoff',
+  const pointer = {
+    format: 'dependency-edge-handoff',
+    version: 1,
+    ownerPublicationSha256: ownerHash,
+    policySha256: digest(policyContents),
+    handoff: complete,
+  };
+  const preparedPointerContents = serialize({ ...pointer, phase: 'prepared' });
+  const completePointerContents = serialize({ ...pointer, phase: 'complete' });
+  if (phase !== 'plan') {
+    await writeFile(join(root, 'edge-policy.json'), policyContents, { mode: 0o600 });
+    await writeFile(
+      join(root, 'edge-owner.json'),
+      phase === 'H8' ? completePointerContents : preparedPointerContents,
+      { mode: 0o600 },
+    );
+  }
+  const writersManifest = manifests.get('handoff-writers');
+  const sourceManifestEntry = manifests.get('handoff-source-manifest');
+  if (writersManifest === undefined || sourceManifestEntry === undefined)
+    throw new Error('authored manifest roster incomplete');
+  const fenceOrder = fences.map(({ environment, name }) => {
+    const original = originalFences.find(
+      (entry) => entry.environment === environment && entry.name === name,
+    );
+    if (original === undefined) throw new Error('authored original fence absent');
+    return original;
+  });
+  const plan: InitialHandoffPlan = {
+    edgeState: root,
+    handoff: complete,
+    records,
+    pending: {
+      path: join(root, 'edge-owner.pending'),
+      contents: owner,
+      device: String(ownerStatus.dev),
+      inode: String(ownerStatus.ino),
+      parentDevice: String(parent.dev),
+      parentInode: String(parent.ino),
+      mode: 384,
+    },
+    manifests: { writers: writersManifest, source: sourceManifestEntry },
+    fences: fenceOrder,
+    artifacts: {
+      migrationManifestContents: manifestContents,
+      selected: rawSelections.map((selected) => ({
+        environment: selected.environment,
+        captureContents: selected.captureContents,
+        backup: {
+          name: selected.snapshotRaw.name,
+          sha256: selected.snapshotRaw.sha256,
+          bytes: selected.snapshotRaw.bytes,
+        },
+      })),
+    },
+    policyContents,
+    preparedPointerContents,
+    completePointerContents,
+  };
+  const artifactRequest = {
+    edgeState: root,
+    owner,
+    activation: {
+      format: 'complete-dependency-activation',
       version: 1,
-      phase: phase === 'H8' ? 'complete' : 'prepared',
-      ownerPublicationSha256: ownerHash,
-      policySha256: digest(policyContents),
-      handoff: complete,
-    }),
-    { mode: 0o600 },
-  );
+      owner: { sha: pins.sourceSha, layouts },
+      activate,
+      solver: pins,
+      prod: {
+        backend: { color: 'blue', image: backendImage },
+        gateway: { color: 'blue', image: gatewayImage },
+      },
+      source: {
+        pins: sourcePins,
+        manifestContents: sourceManifestEntry.contents,
+        runtimeReference,
+      },
+      authorities: { pins: authorities, writerManifestContents: writersManifest.contents },
+      migrations,
+    },
+    databases,
+    selected: rawSelections.map(({ environment, captureRaw, snapshotRaw }) => ({
+      environment,
+      capture: captureRaw,
+      backup: snapshotRaw,
+    })),
+  };
   await chmod(root, 0o700);
-  return { root, layouts, paths, policy, owner, pins };
+  return { root, layouts, paths, policy, owner, pins, plan, artifactRequest };
 }
 
 /** Independent typed manager/proc/fragment model for owned runtime projection cases; never native account or manager proof. */
