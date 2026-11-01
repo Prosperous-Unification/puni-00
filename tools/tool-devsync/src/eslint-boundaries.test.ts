@@ -58,6 +58,65 @@ function boundaryOf(config: unknown): readonly unknown[] {
 }
 
 describe('the effective production and test boundaries', () => {
+  // Proof: independent source/test allowance removals failed their actual import admissions;
+  // broad alias, relative path and unlisted-peer allowances failed the matching denials
+  // after zero-fatal parser assertions. Each exact restoration passed 36 assertions (2026-10-31).
+  // Proof (Task2): independent facts-consumer removal, facts-only alias/relative
+  // widening and coordinator-peer admission failed semantic policy assertions;
+  // every restored configuration passed 56 assertions.
+  it('Dash coordination topology consumes only the exact public WBS domain at its exact paths', async () => {
+    const peer = 'apps/twilight-structure/twilight-dash/cli/src/runs/prepare-activity.ts';
+    const peerOptions = boundaryOf(await lint.calculateConfigForFile(peer))[1];
+    if (!isRecord(peerOptions)) throw new Error('Dash coordination peer policy malformed');
+    for (const name of ['topology.ts', 'topology.test.ts', 'run-facts.ts']) {
+      const path = 'apps/twilight-structure/twilight-dash/cli/src/coordination/' + name;
+      const [admission] = await lint.lintText("await import('@wbs/domain');", { filePath: path });
+      expect(admission.fatalErrorCount, path).toBe(0);
+      expect(
+        admission.messages.map((message) => message.ruleId),
+        path,
+      ).not.toContain('@nx/enforce-module-boundaries');
+      for (const alias of [
+        '@wbs/domain/step-node',
+        '@wbs/contracts',
+        '@wbs/core',
+        '@wbs/store-memory',
+        relative(dirname(path), 'libs/wbs/domain/domain/src/index.ts'),
+      ]) {
+        const [denial] = await lint.lintText(`await import('${alias}');`, { filePath: path });
+        expect(denial.fatalErrorCount, path + ' ' + alias).toBe(0);
+        expect(
+          denial.messages.map((message) => message.ruleId),
+          path + ' ' + alias,
+        ).toContain('@nx/enforce-module-boundaries');
+      }
+      const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
+      expect(options, path).toEqual({ ...peerOptions, allow: ['^@wbs/domain$'] });
+      const source = await readFile(join(workspace, path), 'utf8');
+      expect(importsAlias(source, '@wbs/domain'), path).toBe(true);
+      const [actual] = await lint.lintText(source, { filePath: path });
+      expect(actual.fatalErrorCount, path).toBe(0);
+      expect(
+        actual.messages.filter((message) => message.ruleId === '@nx/enforce-module-boundaries'),
+        path,
+      ).toEqual([]);
+    }
+    for (const path of [
+      peer,
+      'apps/twilight-structure/twilight-dash/cli/src/coordination/run-coordinator.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/coordination/run-coordinator.test.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/runs/dispatch-turn.test.ts',
+    ]) {
+      await readFile(join(workspace, path), 'utf8');
+      const [denial] = await lint.lintText("await import('@wbs/domain');", { filePath: path });
+      expect(denial.fatalErrorCount, path).toBe(0);
+      expect(
+        denial.messages.map((message) => message.ruleId),
+        path,
+      ).toContain('@nx/enforce-module-boundaries');
+    }
+  }, 30_000);
+
   // Proof: P1 removes the allowance and P2–P5 widen it; this policy test rejects each fault.
   it('Dash runtime-dispatch worker reaches only its exact public factories', async () => {
     const path =
