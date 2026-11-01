@@ -680,3 +680,64 @@ test('region notification hides arrival even after optional vendor failure', asy
     isolated.window.close();
   }
 });
+
+test('failed preference recovery controls return after operator navigation and allow retry', () => {
+  const isolated = new JSDOM('<body></body>', { url: 'https://dev.app.puni.dev/' });
+  Object.assign(isolated.window, { fetch: () => new Promise<Response>(() => undefined) });
+  const analytics = createBrowserAnalytics(isolated.window, {
+    enabled: true,
+    environment: 'development',
+    measurementId: 'G-R0JM3R4SSV',
+  });
+  const root = createRoot(isolated.window.document.body);
+  try {
+    act(() => {
+      root.render(
+        <MilestonesContext.Provider value={createMilestones(analytics)}>
+          <ArrivalChoice />
+          <PrivacyChoices />
+        </MilestonesContext.Provider>,
+      );
+    });
+    Object.defineProperty(isolated.window.document, 'cookie', {
+      configurable: true,
+      get: () => '',
+      set: () => undefined,
+    });
+    act(() => {
+      analytics.reject();
+    });
+    act(() => {
+      isolated.window.history.pushState({}, '', '/operator');
+      analytics.navigate();
+    });
+    expect(isolated.window.document.querySelector('[data-arrival-choice]')).toBeNull();
+    expect(isolated.window.document.querySelector('[aria-label="Analytics privacy"]')).toBeNull();
+    act(() => {
+      isolated.window.history.pushState({}, '', '/');
+      analytics.navigate();
+    });
+    expect(isolated.window.document.querySelector('[data-arrival-choice]')).not.toBeNull();
+    expect(
+      isolated.window.document.querySelector('[aria-label="Analytics privacy"]'),
+    ).not.toBeNull();
+    expect(isolated.window.document.body.textContent).toContain(
+      'We couldn’t read or save your choice',
+    );
+    Reflect.deleteProperty(isolated.window.document, 'cookie');
+    act(() => {
+      [...isolated.window.document.querySelectorAll('button')]
+        .find((button) => button.textContent === 'Disable measurement')
+        ?.click();
+    });
+    expect(analytics.getChoice()).toBe('rejected');
+    expect(analytics.getState().status).toBe('denied');
+    expect(isolated.window.document.querySelector('[data-arrival-choice]')).toBeNull();
+  } finally {
+    act(() => {
+      root.unmount();
+    });
+    analytics.dispose();
+    isolated.window.close();
+  }
+});

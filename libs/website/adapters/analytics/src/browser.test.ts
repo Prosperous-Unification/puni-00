@@ -471,7 +471,11 @@ test('region fetch is one credential-free no-store request to the site with no v
   const analytics = createBrowserAnalytics(window, options);
   expect(requests).toHaveLength(1);
   expect(requests[0]?.url).toBe('https://dev.puni.dev/api/analytics/region');
-  expect(requests[0]?.options).toMatchObject({ credentials: 'omit', cache: 'no-store' });
+  expect(requests[0]?.options).toMatchObject({
+    credentials: 'omit',
+    cache: 'no-store',
+    referrerPolicy: 'no-referrer',
+  });
   expect(requests[0]?.options?.signal).toBeInstanceOf(AbortSignal);
   expect(JSON.stringify(requests)).not.toContain('REGION_SECRET');
   analytics.dispatch({ name: 'funnel_failure', category: 'network' });
@@ -681,5 +685,43 @@ test('disposed operator controller cannot start its first region lookup on navig
   analytics.sync();
   expect(requests).toHaveLength(0);
   expect(analytics.getState().status).toBe('disabled');
+  dom.window.close();
+});
+
+test('failed preference remains recoverable across operator navigation and explicit retry', async () => {
+  const { dom, window } = browser();
+  const preference = JSON.stringify({ version: 1, accepted: true, expires: Date.now() + 60000 });
+  window.document.cookie = `puni_dev_consent_v1=${encodeURIComponent(preference)}; Domain=puni.dev; Path=/`;
+  const analytics = createBrowserAnalytics(window, options);
+  await loaded(window);
+  const cookie = Object.getOwnPropertyDescriptor(window.Document.prototype, 'cookie');
+  if (!cookie?.get) throw new Error('Missing browser cookie boundary');
+  Object.defineProperty(window.document, 'cookie', {
+    configurable: true,
+    get: (): unknown => cookie.get?.call(window.document),
+    set: () => undefined,
+  });
+  analytics.reject();
+  expect(analytics.getChoice()).toBe('unavailable');
+  expect(analytics.getState()).toEqual({ status: 'unavailable', reason: 'storage' });
+  window.history.pushState({}, '', '/operator');
+  analytics.navigate();
+  expect(analytics.getState().status).toBe('disabled');
+  window.history.pushState({}, '', '/');
+  analytics.navigate();
+  expect(analytics.getChoice()).toBe('unavailable');
+  expect(analytics.getState()).toEqual({ status: 'unavailable', reason: 'storage' });
+  expect(window.document.scripts).toHaveLength(1);
+  expect(Reflect.get(window, 'ga-disable-G-R0JM3R4SSV')).toBe(true);
+  expect(queue(window)).toEqual([]);
+  analytics.setRegion('elsewhere');
+  expect(analytics.getChoice()).toBe('unavailable');
+  expect(analytics.getState()).toEqual({ status: 'unavailable', reason: 'storage' });
+  expect(window.document.cookie).toContain(encodeURIComponent(preference));
+  Reflect.deleteProperty(window.document, 'cookie');
+  analytics.reject();
+  expect(analytics.getChoice()).toBe('rejected');
+  expect(analytics.getState().status).toBe('denied');
+  analytics.dispose();
   dom.window.close();
 });

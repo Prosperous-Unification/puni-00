@@ -299,6 +299,8 @@ export function createBrowserAnalytics(window: Window, options: AnalyticsOptions
         response = await window.fetch(`https://${configuration.hosts[0]}/api/analytics/region`, {
           credentials: 'omit',
           cache: 'no-store',
+          // Proof: omitting this policy exposed the current email query in native analytics-region.mjs Referer.
+          referrerPolicy: 'no-referrer',
           signal: aborter.signal,
         });
         // Proof: accepting a valid elsewhere body with HTTP 503 failed region http retains unknown.

@@ -255,7 +255,12 @@ export function createAnalytics(options: AnalyticsOptions, ports: AnalyticsPorts
     }
     // Proof: removing this latch revived an older acceptance after failed rejection in a failed
     // preference write cannot revive old acceptance through a regional answer or sync.
-    if (preferenceWriteFailed) return false;
+    if (preferenceWriteFailed) {
+      // Proof: removing this restoration left public recovery controls hidden after operator
+      // navigation in failed preference recovery controls return after operator navigation.
+      setState({ status: 'unavailable', reason: 'storage' });
+      return false;
+    }
     const preference = ports.readPreference(configuration);
     if (preference.status === 'unavailable') {
       // Proof: injecting unset here failed unreadable-preference assertions for both arrival actions.

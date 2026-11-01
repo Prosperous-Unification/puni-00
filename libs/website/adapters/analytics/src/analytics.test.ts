@@ -858,3 +858,27 @@ test('regional updates after disposal cannot notify or grant', async () => {
   expect(f.permissions).toEqual(['denied']);
   expect(f.analytics.getState().status).toBe('disabled');
 });
+
+test('failed preference restores storage recovery after leaving and returning to a supported route', async () => {
+  const f = fixture(
+    href,
+    JSON.stringify({ version: 1, accepted: true, expires: Date.UTC(2030, 0) }),
+  );
+  await f.complete();
+  f.ports.writePreference = () => ({ status: 'unavailable' });
+  f.analytics.reject();
+  f.setLocation('https://dev.app.puni.dev/operator');
+  f.analytics.navigate();
+  expect(f.analytics.getState().status).toBe('disabled');
+  f.setLocation(href);
+  f.analytics.navigate();
+  expect(f.analytics.getState()).toEqual({ status: 'unavailable', reason: 'storage' });
+  expect(f.analytics.getChoice()).toBe('unavailable');
+  f.analytics.setRegion('elsewhere');
+  expect(f.analytics.getState()).toEqual({ status: 'unavailable', reason: 'storage' });
+  expect(f.permissions).toEqual(['granted']);
+  f.ports.writePreference = () => ({ status: 'ok' });
+  f.analytics.reject();
+  expect(f.analytics.getChoice()).toBe('rejected');
+  expect(f.analytics.getState().status).toBe('denied');
+});
