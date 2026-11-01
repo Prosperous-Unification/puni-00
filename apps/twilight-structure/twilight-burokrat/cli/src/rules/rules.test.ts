@@ -1686,6 +1686,7 @@ describe('rule adapters over real candidates', () => {
       'F1',
       'F7',
       'INV-CLASSIFY',
+      'JOB-CATALOGUE',
       'K2',
       'K3',
       'K4',
