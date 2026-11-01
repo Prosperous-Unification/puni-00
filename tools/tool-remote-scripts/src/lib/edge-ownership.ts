@@ -1,5 +1,14 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { closeSync, constants, fstatSync, fsyncSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  type BigIntStats,
+  closeSync,
+  constants,
+  fstatSync,
+  fsyncSync,
+  readFileSync,
+  readSync,
+  writeFileSync,
+} from 'node:fs';
 import { lstat, open, readdir, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
@@ -629,6 +638,260 @@ export async function retainActivationRecord<Label extends ActivationRecordLabel
     return published;
   } finally {
     await directory.close();
+  }
+}
+
+type InitialHandoffRecordLabel =
+  | 'handoff-admission'
+  | 'handoff-intent'
+  | 'exposure-intent'
+  | 'exposure-complete'
+  | 'handoff-complete';
+type InitialHandoffManifestLabel = 'handoff-writers' | 'handoff-source-manifest';
+
+/**
+ * Retains a bounded ordinary-owner envelope, including the original pending LF.
+ * This byte publication attests live ownership, never the payload's claimed effects.
+ * @throws for expired authority, an unknown label, oversized bytes or changed storage.
+ */
+export async function retainInitialHandoffRecord(
+  owner: DependencyOwner,
+  layouts: { readonly prod: EnvLayout; readonly dev: EnvLayout },
+  label: InitialHandoffRecordLabel,
+  record: object,
+): Promise<EdgeRecordSnapshot> {
+  if (
+    ![
+      'handoff-admission',
+      'handoff-intent',
+      'exposure-intent',
+      'exposure-complete',
+      'handoff-complete',
+    ].includes(label)
+  )
+    throw new Error('unsupported initial handoff record label');
+  const ownership = await requireHandoffOwner(owner, layouts);
+  const contents = `${JSON.stringify({ owner: ownership.publication, record })}\n`;
+  return publishInitialHandoff(owner, layouts, ownership, label, contents, 65536, false);
+}
+
+/**
+ * Retains exact raw manifest bytes in one of two closed families, without an
+ * envelope or newline normalization. Graph/request codecs own semantic admission.
+ * @throws for empty/oversized bytes, unknown labels or loss of original authority/identity.
+ */
+export async function retainInitialHandoffManifest(
+  owner: DependencyOwner,
+  layouts: { readonly prod: EnvLayout; readonly dev: EnvLayout },
+  label: InitialHandoffManifestLabel,
+  contents: string,
+): Promise<EdgeRecordSnapshot> {
+  if (!['handoff-writers', 'handoff-source-manifest'].includes(label))
+    throw new Error('unsupported initial handoff manifest label');
+  const ownership = await requireHandoffOwner(owner, layouts);
+  return publishInitialHandoff(
+    owner,
+    layouts,
+    ownership,
+    label,
+    contents,
+    label === 'handoff-writers' ? 262144 : 67108864,
+    true,
+  );
+}
+
+async function requireHandoffOwner(
+  owner: DependencyOwner,
+  layouts: { readonly prod: EnvLayout; readonly dev: EnvLayout },
+): Promise<Ownership> {
+  await assertDependencyOwner(owner, layouts.prod);
+  await assertDependencyOwner(owner, layouts.dev);
+  const ownership = owners.get(owner);
+  if (ownership === undefined) throw new Error('dependency owner is not live');
+  return ownership;
+}
+
+/** Exclusive, synced publication with admission before creation and original-inode readback. */
+async function publishInitialHandoff(
+  owner: DependencyOwner,
+  layouts: { readonly prod: EnvLayout; readonly dev: EnvLayout },
+  ownership: Ownership,
+  label: InitialHandoffRecordLabel | InitialHandoffManifestLabel,
+  contents: string,
+  maximum: number,
+  raw: boolean,
+): Promise<EdgeRecordSnapshot> {
+  const bytes = Buffer.from(contents, 'utf8');
+  if (bytes.length === 0 || bytes.length > maximum)
+    throw new Error('initial handoff publication size is outside its family bound');
+  if (new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes) !== contents)
+    throw new Error('initial handoff publication is not exact UTF8');
+  if (
+    !Number.isSafeInteger(ownership.sequence) ||
+    ownership.sequence < 0 ||
+    ownership.sequence >= 999999999999
+  )
+    throw new Error('initial handoff publication sequence is exhausted');
+  const name = `edge-owner-${String(++ownership.sequence).padStart(6, '0')}-${label}.json`;
+  const statePath = ownership.directory;
+  const directory = await open(
+    statePath,
+    constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+  );
+  try {
+    const parent = await directory.stat({ bigint: true });
+    async function assertDirectory() {
+      const named = await lstat(statePath, { bigint: true });
+      const retained = await directory.stat({ bigint: true });
+      if (
+        !parent.isDirectory() ||
+        !named.isDirectory() ||
+        !retained.isDirectory() ||
+        named.dev !== parent.dev ||
+        named.ino !== parent.ino ||
+        retained.dev !== parent.dev ||
+        retained.ino !== parent.ino ||
+        (await realpath(statePath)) !== statePath
+      )
+        throw new Error('initial handoff evidence parent changed');
+    }
+    await assertDirectory();
+    await requireHandoffOwner(owner, layouts);
+    await assertDirectory();
+    const descriptor = openDirectoryFile(
+      directory.fd,
+      name,
+      constants.O_CREAT |
+        constants.O_EXCL |
+        constants.O_WRONLY |
+        constants.O_NOFOLLOW |
+        constants.O_NONBLOCK,
+    );
+    try {
+      const opened = fstatSync(descriptor, { bigint: true });
+      if (!opened.isFile() || (opened.mode & 0o777n) !== 0o600n || opened.nlink !== 1n)
+        throw new Error(
+          'initial handoff created evidence is not private single-link regular storage',
+        );
+      writeFileSync(descriptor, bytes);
+      fsyncSync(descriptor);
+      const created = fstatSync(descriptor, { bigint: true });
+      fsyncSync(directory.fd);
+      await assertDirectory();
+      const published = raw
+        ? await captureInitialHandoffManifest(directory.fd, statePath, name, maximum, created)
+        : await captureEdgeRecord(statePath, name, 65536);
+      const final = fstatSync(descriptor, { bigint: true });
+      if (
+        published.device !== String(created.dev) ||
+        published.inode !== String(created.ino) ||
+        published.parentDevice !== String(parent.dev) ||
+        published.parentInode !== String(parent.ino) ||
+        published.mode !== 0o600 ||
+        published.contents !== contents ||
+        !matchesHandoffFile(final, created) ||
+        final.nlink !== 1n
+      )
+        throw new Error('initial handoff evidence original readback differs');
+      await requireHandoffOwner(owner, layouts);
+      await assertDirectory();
+      return published;
+    } finally {
+      closeSync(descriptor);
+    }
+  } finally {
+    await directory.close();
+  }
+}
+
+/** Compares file metadata across the original write and bounded read; never rebases an inode. */
+function matchesHandoffFile(observed: BigIntStats, original: BigIntStats): boolean {
+  return (
+    observed.isFile() &&
+    observed.dev === original.dev &&
+    observed.ino === original.ino &&
+    observed.mode === original.mode &&
+    observed.nlink === original.nlink &&
+    observed.uid === original.uid &&
+    observed.gid === original.gid &&
+    observed.size === original.size &&
+    observed.mtimeNs === original.mtimeNs &&
+    observed.ctimeNs === original.ctimeNs
+  );
+}
+
+/** Reads only the raw handoff families through the original retained parent, in bounded chunks. */
+async function captureInitialHandoffManifest(
+  directory: number,
+  statePath: string,
+  name: string,
+  maximum: number,
+  created: BigIntStats,
+): Promise<EdgeRecordSnapshot> {
+  const writers = /^edge-owner-[0-9]{6,12}-handoff-writers\.json$/.test(name);
+  const source = /^edge-owner-[0-9]{6,12}-handoff-source-manifest\.json$/.test(name);
+  if ((!writers && !source) || maximum !== (writers ? 262144 : 67108864))
+    throw new Error('unsupported initial handoff manifest family');
+  const parent = fstatSync(directory, { bigint: true });
+  const path = join(statePath, name);
+  const relative = `/proc/self/fd/${String(directory)}/${name}`;
+  const descriptor = openDirectoryFile(
+    directory,
+    name,
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+  );
+  try {
+    const opened = fstatSync(descriptor, { bigint: true });
+    const named = await lstat(relative, { bigint: true });
+    if (
+      !matchesHandoffFile(opened, created) ||
+      !matchesHandoffFile(named, created) ||
+      (opened.mode & 0o777n) !== 0o600n ||
+      opened.nlink !== 1n ||
+      opened.size < 1n ||
+      opened.size > BigInt(maximum)
+    )
+      throw new Error('initial handoff manifest identity, type, mode or size differs');
+    const bytes = Buffer.alloc(Number(opened.size));
+    let offset = 0;
+    while (offset < bytes.length) {
+      const count = readSync(
+        descriptor,
+        bytes,
+        offset,
+        Math.min(1048576, bytes.length - offset),
+        offset,
+      );
+      if (count === 0) throw new Error('initial handoff manifest truncated while reading');
+      offset += count;
+    }
+    const final = fstatSync(descriptor, { bigint: true });
+    const current = await lstat(relative, { bigint: true });
+    const namedParent = await lstat(statePath, { bigint: true });
+    const finalParent = fstatSync(directory, { bigint: true });
+    if (
+      !matchesHandoffFile(final, opened) ||
+      !matchesHandoffFile(current, opened) ||
+      !namedParent.isDirectory() ||
+      !finalParent.isDirectory() ||
+      namedParent.dev !== parent.dev ||
+      namedParent.ino !== parent.ino ||
+      finalParent.dev !== parent.dev ||
+      finalParent.ino !== parent.ino ||
+      (await realpath(statePath)) !== statePath
+    )
+      throw new Error('initial handoff manifest file or parent changed while reading');
+    return {
+      path,
+      device: String(opened.dev),
+      inode: String(opened.ino),
+      parentDevice: String(parent.dev),
+      parentInode: String(parent.ino),
+      mode: Number(opened.mode & 0o777n),
+      contents: new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes),
+    };
+  } finally {
+    closeSync(descriptor);
   }
 }
 

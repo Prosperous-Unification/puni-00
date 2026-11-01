@@ -553,3 +553,398 @@ test('initial owner refuses a missing existing edge lock without creating lower 
   expect(await Bun.file(`${root}/deploy.lock`).exists()).toBe(false);
   expect(await Bun.file(`${root}/edge-owner.pending`).exists()).toBe(false);
 });
+
+async function handoffFixture() {
+  const { mkdir } = await import('node:fs/promises');
+  const { root, plan } = fixture();
+  await mkdir(`${root}/dev`);
+  const layouts = {
+    prod: plan.layouts[0],
+    dev: { ...envLayout('dev'), root: `${root}/dev`, stateDir: `${root}/dev` },
+  };
+  return { root, layouts, plan: { sha: plan.sha, layouts: [layouts.prod, layouts.dev] } };
+}
+
+test('initial handoff primitives retain exact pending bytes and share activation sequence', async () => {
+  const { createHash } = await import('node:crypto');
+  const { lstat } = await import('node:fs/promises');
+  const { basename } = await import('node:path');
+  const { retainActivationRecord, retainInitialHandoffRecord, retainInitialHandoffManifest } =
+    await import('./edge-ownership');
+  const { root, layouts, plan } = await handoffFixture();
+  const retained = await withDependencyOwner(
+    plan,
+    async (owner) => {
+      const pending = await readFile(`${root}/edge-owner.pending`, 'utf8');
+      const admission = await retainInitialHandoffRecord(owner, layouts, 'handoff-admission', {
+        primitive: 'byte publication fixture',
+      });
+      const activation = await retainActivationRecord(owner, layouts, 'fenced-complete', {
+        format: 'dependency-activation-fenced-complete',
+        version: 1,
+        activated: [],
+        exposure: 'closed',
+        controllers: 'fenced',
+      });
+      const writers = await retainInitialHandoffManifest(
+        owner,
+        layouts,
+        'handoff-writers',
+        'writers\n\n',
+      );
+      const source = await retainInitialHandoffManifest(
+        owner,
+        layouts,
+        'handoff-source-manifest',
+        'source\r\n',
+      );
+      const complete = await retainInitialHandoffRecord(owner, layouts, 'handoff-complete', {
+        primitive: true,
+      });
+      return { pending, snapshots: [admission, activation, writers, source, complete] };
+    },
+    root,
+  );
+  expect(retained.snapshots.map((snapshot) => basename(snapshot.path))).toEqual([
+    'edge-owner-000001-handoff-admission.json',
+    'edge-owner-000002-activation-fenced-complete.json',
+    'edge-owner-000003-handoff-writers.json',
+    'edge-owner-000004-handoff-source-manifest.json',
+    'edge-owner-000005-handoff-complete.json',
+  ]);
+  const parent = await lstat(root, { bigint: true });
+  for (const snapshot of retained.snapshots) {
+    const bytes = await readFile(snapshot.path);
+    const named = await lstat(snapshot.path, { bigint: true });
+    expect(bytes.toString('utf8')).toBe(snapshot.contents);
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(
+      createHash('sha256').update(snapshot.contents).digest('hex'),
+    );
+    expect(snapshot.device).toBe(String(named.dev));
+    expect(snapshot.inode).toBe(String(named.ino));
+    expect(snapshot.parentDevice).toBe(String(parent.dev));
+    expect(snapshot.parentInode).toBe(String(parent.ino));
+    expect(snapshot.mode).toBe(0o600);
+    expect(named.nlink).toBe(1n);
+  }
+  expect(JSON.parse(retained.snapshots[0].contents)).toEqual({
+    owner: retained.pending,
+    record: { primitive: 'byte publication fixture' },
+  });
+  expect(retained.pending.endsWith('\n')).toBe(true);
+  expect(retained.snapshots[2].contents).toBe('writers\n\n');
+  expect(retained.snapshots[3].contents).toBe('source\r\n');
+});
+
+test('initial handoff envelope admits exact UTF8 byte maximum and refuses overflow before creation', async () => {
+  const { readdir } = await import('node:fs/promises');
+  const { retainInitialHandoffRecord } = await import('./edge-ownership');
+  const { root, layouts, plan } = await handoffFixture();
+  const observed = await withDependencyOwner(
+    plan,
+    async (owner) => {
+      const pending = await readFile(`${root}/edge-owner.pending`, 'utf8');
+      const overhead = Buffer.byteLength(
+        JSON.stringify({ owner: pending, record: { payload: '' } }) + '\n',
+      );
+      const room = 65536 - overhead;
+      const payload = 'é'.repeat(Math.floor(room / 2)) + 'x'.repeat(room % 2);
+      let serializations = 0;
+      const record = {
+        toJSON() {
+          serializations++;
+          return { payload };
+        },
+      };
+      const accepted = await retainInitialHandoffRecord(owner, layouts, 'handoff-intent', record);
+      const before = await readdir(root);
+      await refuses(
+        retainInitialHandoffRecord(owner, layouts, 'exposure-intent', { payload: payload + 'x' }),
+        'size',
+      );
+      const after = await readdir(root);
+      const next = await retainInitialHandoffRecord(owner, layouts, 'exposure-complete', {
+        primitive: true,
+      });
+      return { accepted, serializations, before, after, next };
+    },
+    root,
+  );
+  expect(Buffer.byteLength(observed.accepted.contents)).toBe(65536);
+  expect(observed.serializations).toBe(1);
+  expect(observed.after).toEqual(observed.before);
+  expect(observed.next.path.endsWith('000002-exposure-complete.json')).toBe(true);
+});
+
+for (const [label, maximum] of [
+  ['handoff-writers', 262144],
+  ['handoff-source-manifest', 67108864],
+] as const)
+  test(`initial ${label} enforces exact raw UTF8 limit before exclusive creation`, async () => {
+    const { readdir } = await import('node:fs/promises');
+    const { retainInitialHandoffManifest } = await import('./edge-ownership');
+    const { root, layouts, plan } = await handoffFixture();
+    const observed = await withDependencyOwner(
+      plan,
+      async (owner) => {
+        const contents = 'é'.repeat((maximum - 2) / 2) + '\n\n';
+        const accepted = await retainInitialHandoffManifest(owner, layouts, label, contents);
+        const before = await readdir(root);
+        await refuses(retainInitialHandoffManifest(owner, layouts, label, contents + 'x'), 'size');
+        await refuses(retainInitialHandoffManifest(owner, layouts, label, ''), 'size');
+        const after = await readdir(root);
+        return { accepted, before, after, contents };
+      },
+      root,
+    );
+    expect(Buffer.byteLength(observed.accepted.contents)).toBe(maximum);
+    expect(observed.accepted.contents).toBe(observed.contents);
+    expect(await readFile(observed.accepted.path, 'utf8')).toBe(observed.contents);
+    expect(observed.after).toEqual(observed.before);
+  });
+
+test('initial handoff publishers refuse copied expired wrong-label and replaced owner state', async () => {
+  const { rename, readdir } = await import('node:fs/promises');
+  const { retainInitialHandoffRecord, retainInitialHandoffManifest } =
+    await import('./edge-ownership');
+  const { root, layouts, plan } = await handoffFixture();
+  const owner = await withDependencyOwner(
+    plan,
+    async (owner) => {
+      const before = await readdir(root);
+      await refuses(
+        retainInitialHandoffRecord({ ...owner }, layouts, 'handoff-admission', {}),
+        'live',
+      );
+      await refuses(
+        retainInitialHandoffManifest({ ...owner }, layouts, 'handoff-writers', 'x'),
+        'live',
+      );
+      await refuses(
+        retainInitialHandoffRecord(owner, layouts, '../foreign' as 'handoff-intent', {}),
+        'label',
+      );
+      await refuses(
+        retainInitialHandoffManifest(owner, layouts, 'handoff-intent' as 'handoff-writers', 'x'),
+        'label',
+      );
+      expect(await readdir(root)).toEqual(before);
+      await rename(`${root}/edge-owner.pending`, `${root}/pending.original`);
+      await writeFile(`${root}/edge-owner.pending`, 'replaced pending\n');
+      await refuses(
+        retainInitialHandoffRecord(owner, layouts, 'handoff-intent', {}),
+        'publication',
+      );
+      return owner;
+    },
+    root,
+  );
+  await refuses(retainInitialHandoffRecord(owner, layouts, 'handoff-intent', {}), 'live');
+  await refuses(retainInitialHandoffManifest(owner, layouts, 'handoff-writers', 'x'), 'live');
+});
+
+for (const family of ['envelope', 'raw'] as const)
+  for (const fault of [
+    'file-sync',
+    'directory-sync',
+    'collision',
+    'creation-mode',
+    'absent',
+    'unreadable',
+    'public',
+    'hardlink',
+    'symlink',
+    'fifo',
+    'parent',
+    'changed',
+    'truncated',
+    'same-byte-inode',
+    'lock',
+  ] as const)
+    test(`initial ${family} publication refuses real ${fault} storage fault`, async () => {
+      const { root, layouts, plan } = await handoffFixture();
+      const program = `
+        import * as fs from 'node:fs';
+        import * as relative from ${JSON.stringify(`${import.meta.dir}/directory-file.ts`)};
+        import { mock } from 'bun:test';
+        const root = ${JSON.stringify(root)}, layouts = ${JSON.stringify(layouts)};
+        const fault = ${JSON.stringify(fault)}, family = ${JSON.stringify(family)};
+        const name = family === 'raw' ? 'edge-owner-000001-handoff-writers.json' : 'edge-owner-000001-handoff-intent.json';
+        const path = root + '/' + name;
+        const foreign = root + '/foreign';
+        fs.writeFileSync(foreign, 'FOREIGN ORIGINAL', { mode: 0o600 });
+        let writer, parent, injected = false, entered = false, failure;
+        const openRelative = relative.openDirectoryFile, sync = fs.fsyncSync;
+        mock.module(${JSON.stringify(`${import.meta.dir}/directory-file.ts`)}, () => ({ ...relative,
+          openDirectoryFile(directory, target, flags) {
+            const descriptor = openRelative(directory, target, flags);
+            if (target === name && (flags & fs.constants.O_CREAT)) {
+              writer = descriptor; parent = directory;
+              if (fault === 'creation-mode') { fs.fchmodSync(descriptor, 0o644); injected = true; }
+            }
+            return descriptor;
+          }
+        }));
+        mock.module('node:fs', () => ({ ...fs, fsyncSync(descriptor) {
+          if (descriptor === writer && fault === 'file-sync') {
+            injected = true; throw new Error('injected file sync failure');
+          }
+          sync(descriptor);
+          if (descriptor !== parent || injected) return;
+          if (fault === 'directory-sync') { injected = true; throw new Error('injected directory sync failure'); }
+          if (fault === 'absent') fs.unlinkSync(path);
+          else if (fault === 'unreadable') fs.chmodSync(path, 0);
+          else if (fault === 'public') fs.chmodSync(path, 0o644);
+          else if (fault === 'hardlink') fs.linkSync(path, path + '.link');
+          else if (fault === 'symlink') { fs.renameSync(path, path + '.original'); fs.symlinkSync(foreign, path); }
+          else if (fault === 'fifo') {
+            fs.renameSync(path, path + '.original');
+            const child = Bun.spawnSync(['mkfifo', path], { stdout: 'pipe', stderr: 'pipe' });
+            if (child.exitCode !== 0 || child.stderr.length || child.stdout.length) throw new Error('FIFO fixture creation failed');
+          }
+          else if (fault === 'parent') { fs.renameSync(root, root + '.original'); fs.mkdirSync(root, {mode:0o700}); }
+          else if (fault === 'changed') fs.writeFileSync(path, 'changed bytes');
+          else if (fault === 'truncated') fs.truncateSync(path, 0);
+          else if (fault === 'same-byte-inode') {
+            const bytes = fs.readFileSync(path); fs.renameSync(path, path + '.original');
+            fs.writeFileSync(path, bytes, { flag:'wx', mode:0o600 });
+          }
+          else return;
+          injected = true;
+        }}));
+        const { withDependencyOwner, retainInitialHandoffRecord, retainInitialHandoffManifest } =
+          await import(${JSON.stringify(`${import.meta.dir}/edge-ownership.ts`)});
+        await withDependencyOwner(${JSON.stringify(plan)}, async owner => {
+          entered = true;
+          if (fault === 'collision') { fs.writeFileSync(path, 'FOREIGN COLLISION', {mode:0o600}); injected = true; }
+          if (fault === 'lock') { fs.renameSync(root + '/deploy.lock', root + '/deploy.original'); fs.writeFileSync(root + '/deploy.lock', ''); injected = true; }
+          try {
+            if (family === 'raw') await retainInitialHandoffManifest(owner, layouts, 'handoff-writers', 'primitive raw bytes\\n');
+            else await retainInitialHandoffRecord(owner, layouts, 'handoff-intent', {primitive: 'fixture'});
+          } catch (cause) { failure = String(cause); }
+        }, root);
+        if (!entered || !injected || failure === undefined) throw new Error('required real fault refusal absent: ' + JSON.stringify({entered,injected,failure}));
+        const expected = {
+          'file-sync':'injected file sync', 'directory-sync':'injected directory sync',
+          collision:'relative open failed', 'creation-mode':'private single-link',
+          absent: family === 'raw' ? 'relative open failed' : 'ENOENT',
+          unreadable: family === 'raw' ? 'relative open failed' : 'EACCES',
+          public: family === 'raw' ? 'identity, type, mode or size' : 'identity, type or size',
+          hardlink: family === 'raw' ? 'identity, type, mode or size' : 'original readback differs',
+          symlink: family === 'raw' ? 'relative open failed' : 'ELOOP',
+          fifo: family === 'raw' ? 'identity, type, mode or size' : 'identity, type or size',
+          parent:'parent changed', changed: family === 'raw' ? 'identity, type, mode or size' : 'original readback differs',
+          truncated: family === 'raw' ? 'identity, type, mode or size' : 'identity, type or size',
+          'same-byte-inode': family === 'raw' ? 'identity, type, mode or size' : 'original readback differs',
+          lock:'does not name'
+        }[fault];
+        if (!failure.includes(expected)) throw new Error('wrong boundary: ' + failure + '; expected ' + expected);
+        const retainedRoot = fault === 'parent' ? root + '.original' : root;
+        if (fs.readFileSync(retainedRoot + '/foreign','utf8') !== 'FOREIGN ORIGINAL') throw new Error('foreign bytes changed');
+        if (fault === 'collision' && fs.readFileSync(path,'utf8') !== 'FOREIGN COLLISION') throw new Error('collision overwritten');
+        console.log(JSON.stringify({ entered, injected, failure }));
+      `;
+      const child = Bun.spawn([process.execPath, '-e', program], {
+        stdin: 'ignore',
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      const [code, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      expect(code).toBe(0);
+      expect(stderr).toBe('');
+      expect(JSON.parse(stdout)).toMatchObject({ entered: true, injected: true });
+    });
+
+for (const fault of [
+  'none',
+  'growth',
+  'truncation',
+  'replacement',
+  'invalid-utf8',
+  'changed-buffer',
+] as const)
+  test(`raw manifest bounded read retains original identity for ${fault}`, async () => {
+    const { root, layouts, plan } = await handoffFixture();
+    const program = `
+      import * as fs from 'node:fs';
+      import * as relative from ${JSON.stringify(`${import.meta.dir}/directory-file.ts`)};
+      import { mock } from 'bun:test';
+      const root = ${JSON.stringify(root)}, layouts = ${JSON.stringify(layouts)};
+      const fault = ${JSON.stringify(fault)}, name = 'edge-owner-000001-handoff-source-manifest.json';
+      const path = root + '/' + name, read = fs.readSync, openRelative = relative.openDirectoryFile;
+      let reader, reached = false, failure, chunks = [];
+      mock.module(${JSON.stringify(`${import.meta.dir}/directory-file.ts`)}, () => ({ ...relative,
+        openDirectoryFile(directory, target, flags) {
+          const descriptor = openRelative(directory, target, flags);
+          if (target === name && !(flags & fs.constants.O_CREAT)) reader = descriptor;
+          return descriptor;
+        }
+      }));
+      mock.module('node:fs', () => ({ ...fs, readSync(descriptor, bytes, offset, length, position) {
+        const count = read(descriptor, bytes, offset, length, position);
+        if (descriptor === reader) {
+          chunks.push(length);
+          if (!reached) {
+            reached = true;
+            if (fault === 'growth') fs.appendFileSync(path, 'growth');
+            if (fault === 'truncation') fs.truncateSync(path, 1048576);
+            if (fault === 'replacement') { const original = fs.readFileSync(path); fs.renameSync(path,path+'.original'); fs.writeFileSync(path,original,{flag:'wx',mode:0o600}); }
+            if (fault === 'invalid-utf8') bytes[offset] = 255;
+            if (fault === 'changed-buffer') bytes[offset] = 98;
+          }
+        }
+        return count;
+      }}));
+      const { withDependencyOwner, retainInitialHandoffManifest } = await import(${JSON.stringify(`${import.meta.dir}/edge-ownership.ts`)});
+      await withDependencyOwner(${JSON.stringify(plan)}, async owner => {
+        try { await retainInitialHandoffManifest(owner, layouts, 'handoff-source-manifest', 'a'.repeat(2097153)); }
+        catch (cause) { failure = String(cause); }
+      }, root);
+      if (!reached || chunks.some(length => length > 1048576) || chunks.length > 3) throw new Error('bounded reader not reached');
+      if (fault === 'none' ? failure !== undefined : failure === undefined) throw new Error('read refusal differs: ' + failure);
+      if (fault === 'none' && JSON.stringify(chunks) !== '[1048576,1048576,1]') throw new Error('exact bounded chunks absent');
+      const expected = {growth:'changed while reading', truncation:'truncated while reading', replacement:'changed while reading', 'invalid-utf8':'encoded', 'changed-buffer':'original readback differs'}[fault];
+      if (fault !== 'none' && !failure.toLowerCase().includes(expected)) throw new Error('wrong reader boundary: '+failure);
+      console.log(JSON.stringify({ reached, chunks, failure }));
+    `;
+    const child = Bun.spawn([process.execPath, '-e', program], {
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const [code, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+    expect(code).toBe(0);
+    expect(stderr).toBe('');
+    expect(JSON.parse(stdout)).toMatchObject({ reached: true });
+  });
+
+test('initial envelope refuses serializer mutation of pending state before exclusive creation', async () => {
+  const { readdir } = await import('node:fs/promises');
+  const { retainInitialHandoffRecord } = await import('./edge-ownership');
+  const { root, layouts, plan } = await handoffFixture();
+  const names = await withDependencyOwner(
+    plan,
+    async (owner) => {
+      await refuses(
+        retainInitialHandoffRecord(owner, layouts, 'handoff-intent', {
+          toJSON() {
+            writeFileSync(`${root}/edge-owner.pending`, 'changed during serialization\n');
+            return { primitive: true };
+          },
+        }),
+        'publication',
+      );
+      return readdir(root);
+    },
+    root,
+  );
+  expect(names.filter((name) => name.includes('-handoff-intent.'))).toEqual([]);
+});
