@@ -1,0 +1,44 @@
+from pathlib import Path
+import subprocess,time,json,hashlib
+root=Path('/home/df/.codex/worktrees/aa39/puni-00');src=root/'tools/tool-fleet/src';out=Path('/tmp/task37-proofs');out.mkdir(exist_ok=True)
+proofs=[]
+def fault(label,file,old,new,tests,pattern,expected=1):
+ p=src/file;before=p.read_bytes();text=before.decode();count=text.count(old)
+ if count!=expected: raise RuntimeError(f'{label}: expected {expected} seam, found {count}')
+ p.write_text(text.replace(old,new))
+ started=time.monotonic()
+ try:
+  command=['bun','test','--preload','./tools/test/scratch/preload.ts',*[f'tools/tool-fleet/src/{name}' for name in tests],'--test-name-pattern',pattern]
+  run=subprocess.run(command,cwd=root,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=55)
+  log=run.stdout.decode();(out/f'{label}.log').write_text(log)
+  record={'fault':label,'file':file,'command':command,'exit':run.returncode,'seconds':round(time.monotonic()-started,3),'failedTests':[line for line in log.splitlines() if line.startswith('(fail)')],'restoredSha256':hashlib.sha256(before).hexdigest()}
+  if run.returncode==0 or not record['failedTests'] or 'Unhandled error between tests' in log: raise RuntimeError(f'{label}: fault did not produce assertion failure; see log')
+  proofs.append(record); print(label, len(record['failedTests']),record['seconds'],flush=True)
+ finally:
+  p.write_bytes(before)
+  if p.read_bytes()!=before: raise RuntimeError('Restoration failed')
+  (out/'proofs.json').write_text(json.dumps(proofs,indent=2)+'\n')
+
+fault('selection-boundary','contracts.ts','  const toolchain = ToolchainSchema(input);','  return input as typeof ToolchainSchema.infer;\n  const toolchain = ToolchainSchema(input);',['k3d-helper-images.test.ts'],'Task37 current reader rejects helper')
+fault('preimage-identity','k3d-helper-images.ts','  const selected = [selection.serverlb, selection.tools]', '  return;\n  const selected = [selection.serverlb, selection.tools]',['k3d-resource-caller.test.ts'],'Task37 real up refuses preimage')
+fault('historical-forward','k3d-creation.ts',"throw new Error('Forward creation requires effective version 2 evidence');",'void 0;',['k3d-creation.test.ts'],'Task37 historical closure')
+fault('effective-config','k3d-creation.ts','observed.image !== expected.configId','false',['k3d-creation.test.ts'],'Task37 (forward closure rejects effective-id|transient closure rejects image)')
+for label,message,pattern in [
+('transient-set','Missing or conflicting transient observations','missing|duplicate'),
+('helper-plan','Creation plan helper selection differs','selection'),
+('transient-network','Transient network differs','network'),
+('transient-mount','Transient mount identity differs','mount$'),
+('transient-mount-set','Transient mount inventory differs','mount-set'),
+('serial-overlap','Transient creator lifecycles overlap','overlap')]:
+ fault(label,'k3d-creation.ts',f"throw new Error('{message}');",'void 0;',['k3d-creation.test.ts'],f'Task37 transient closure rejects ({pattern})')
+fault('callback-image','k3d-resource-runtime.ts',"throw new Error('Effective transient image identity differs');",'void 0;',['k3d-resource-runtime.test.ts'],'Task37 callback refuses (config|reference|name)')
+fault('callback-daemon','k3d-resource-runtime.ts',"if (expected.temporary) {\n      await requireCapturedDaemon(identity.daemonId, docker);", "if (expected.temporary) {",['k3d-resource-runtime.test.ts'],'Task37 callback refuses daemon')
+fault('callback-environment','k3d-resource-runtime.ts',"throw new Error('Creation helper environment differs');",'void 0;',['k3d-resource-runtime.test.ts'],'Task37 callback refuses environment')
+fault('observation-fsync','creation-resources.ts','    await descriptor.sync();', "    if (name.startsWith('observation-')) throw new Error('Injected observation fsync failure');\n    await descriptor.sync();",['k3d-resource-runtime.test.ts'],'Task37 callback retains')
+fault('retained-cohort','creation-resources.ts',"  const read = async (name: string): Promise<unknown> =>", "  return;\n  const read = async (name: string): Promise<unknown> =>",['k3d-resource-caller.test.ts'],'Task37 sealed reader refuses')
+fault('retained-hash','contracts.ts',"throw new Error('Retained toolchain source identity differs');",'void 0;',['k3d-helper-images.test.ts'],'Task37 retained historical')
+fault('source-lock','k3d-lab.ts',"throw new Error('Strict creation requires unchanged committed helper source lock');",'void 0;',['k3d-resource-caller.test.ts'],'Task37 strict up rejects changed source')
+fault('forward-plan','k3d-resource-runtime.ts','const plan = EffectiveCreationPlan.assert(input);','const plan = input as EffectiveCreationPlan;',['k3d-resource-runtime.test.ts'],'Task37 actual forward witness')
+fault('helper-linkage','observability-rehearsal-obligations.ts','const exact = image === `${pin.name}@${pin.digest}`;','const exact = true;',['observability-rehearsal-obligations.test.ts'],'Task37 helper image linkage')
+fault('import-config','k3d-resource-runtime.ts','observation.image !== expected.configId ||','false ||',['k3d-resource-runtime.test.ts'],'Task21 import lookup refuses effective-id')
+fault('owned-environment','k3d-lab.ts','...helperEnvironment(toolchain.k3dHelpers),','',['k3d-resource-caller.test.ts'],'Task37 (ordinary up|real up persists)')

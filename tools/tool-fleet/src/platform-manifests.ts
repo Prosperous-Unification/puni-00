@@ -65,7 +65,8 @@ const Workload = type({
   spec: 'object',
 });
 
-function podSpecOf(workload: typeof Workload.infer): unknown {
+/** Select the native PodSpec shape shared by platform pin validation and rehearsal inventory. */
+export function podSpecOf(workload: { kind: string; spec: object }): unknown {
   const spec: Record<string, unknown> = { ...workload.spec };
   if (workload.kind === 'Pod') return spec;
   if (workload.kind === 'CronJob') {
@@ -413,7 +414,8 @@ function collectSecretNames(value: unknown, found: Set<string>): void {
     ) {
       found.add(entry);
     } else if (
-      (key === 'secretKeyRef' || key === 'secretRef') &&
+      // Proof: removing caCertRef dropped the CA-only reference (platform-backup-tls.test.ts).
+      (key === 'secretKeyRef' || key === 'secretRef' || key === 'caCertRef') &&
       typeof entry === 'object' &&
       entry !== null &&
       'name' in entry &&

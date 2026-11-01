@@ -1,0 +1,9 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-helper-images.test.ts:
+(pass) Task37 retained current toolchain still validates complete chart image roles [9.89ms]
+
+ 1 pass
+ 12 filtered out
+ 0 fail
+Ran 1 test across 1 file. [214.00ms]

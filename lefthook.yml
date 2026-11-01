@@ -2,7 +2,7 @@ pre-commit:
   parallel: true
   commands:
     lint:
-      run: bunx eslint {staged_files}
+      run: bun run tools/tool-git-hooks/src/hooks/staged-lint.ts {staged_files}
       glob: '*.{ts,tsx,js,mjs,cjs}'
     format:
       run: bunx prettier --check {staged_files}

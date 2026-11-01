@@ -1,0 +1,239 @@
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  file_storage/queue:
+    directory: /var/lib/otelcol/queue
+    create_directory: true
+    timeout: 5s
+  file_storage/checkpoints:
+    directory: /var/lib/otelcol/checkpoints
+    create_directory: true
+  basicauth/metrics:
+    client_auth:
+      username: writer
+      password_file: /trust/metrics/password
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+        max_request_body_size: 1048576
+        tls:
+          cert_file: /trust/server/tls.crt
+          key_file: /trust/server/tls.key
+          client_ca_file: /trust/clients/ca.crt
+          client_ca_file_reload: true
+          min_version: "1.3"
+          reload_interval: 1m
+  otlp/platform:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:14317
+        max_recv_msg_size_mib: 1
+        tls:
+          cert_file: /trust/server/tls.crt
+          key_file: /trust/server/tls.key
+          client_ca_file: /trust/clients/ca.crt
+          client_ca_file_reload: true
+          min_version: "1.3"
+          reload_interval: 1m
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 384
+    spike_limit_mib: 64
+  batch:
+    timeout: 1s
+    send_batch_size: 128
+    send_batch_max_size: 256
+  filter/source:
+    error_mode: propagate
+    logs:
+      log_record:
+        - (resource.attributes["deployment.environment.name"] != "prod") or
+          resource.attributes["service.name"] == nil or
+          resource.attributes["service.name"] == ""
+    traces:
+      span:
+        - (resource.attributes["deployment.environment.name"] != "prod") or
+          resource.attributes["service.name"] == nil or
+          resource.attributes["service.name"] == ""
+    metrics:
+      datapoint:
+        - (resource.attributes["deployment.environment.name"] != "prod") or
+          resource.attributes["service.name"] == nil or
+          resource.attributes["service.name"] == ""
+  filter/platform:
+    error_mode: propagate
+    logs:
+      log_record:
+        - (resource.attributes["puni.cluster"] != "platform-production" and
+          resource.attributes["puni.cluster"] != "workers-production") or
+          resource.attributes["deployment.environment.name"] != nil
+    traces:
+      span:
+        - (resource.attributes["puni.cluster"] != "platform-production" and
+          resource.attributes["puni.cluster"] != "workers-production") or
+          resource.attributes["deployment.environment.name"] != nil
+    metrics:
+      datapoint:
+        - (resource.attributes["puni.cluster"] != "platform-production" and
+          resource.attributes["puni.cluster"] != "workers-production") or
+          resource.attributes["deployment.environment.name"] != nil
+  transform/redact:
+    log_statements:
+      - context: log
+        statements:
+          - replace_pattern(body, "AGE-SECRET-KEY-1[0-9A-Z]{58}", "[REDACTED]")
+          - replace_pattern(body, "gh[pousr]_[A-Za-z0-9]{36,}", "[REDACTED]")
+          - replace_pattern(body, "AKIA[0-9A-Z]{16}", "[REDACTED]")
+          - replace_pattern(body,
+            "(?i)(authorization:\\s*(bearer|basic)\\s+)[^\\s\"]+",
+            "$$1[REDACTED]")
+          - replace_pattern(body,
+            "(?i)((password|passwd|secret|token|api[_-]?key)[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"',}]+",
+            "$$1[REDACTED]")
+          - replace_pattern(attributes["msg"], "AGE-SECRET-KEY-1[0-9A-Z]{58}",
+            "[REDACTED]")
+          - replace_pattern(attributes["msg"], "gh[pousr]_[A-Za-z0-9]{36,}",
+            "[REDACTED]")
+          - replace_pattern(attributes["msg"], "AKIA[0-9A-Z]{16}", "[REDACTED]")
+          - replace_pattern(attributes["msg"],
+            "(?i)(authorization:\\s*(bearer|basic)\\s+)[^\\s\"]+",
+            "$$1[REDACTED]")
+          - replace_pattern(attributes["msg"],
+            "(?i)((password|passwd|secret|token|api[_-]?key)[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"',}]+",
+            "$$1[REDACTED]")
+  resource/cluster:
+    attributes:
+      - key: puni.cluster
+        value: ${env:PUNI_CLUSTER_ID}
+        action: upsert
+      - key: host.name
+        value: ${env:OTEL_K8S_NODE_NAME}
+        action: upsert
+  resource/host-namespace:
+    attributes:
+      - key: k8s.namespace.name
+        value: observability
+        action: upsert
+exporters:
+  otlp:
+    endpoint: signal-gateway.observability.svc:4317
+    tls: &a1
+      ca_file: /trust/upstream/ca.crt
+      cert_file: /trust/client/tls.crt
+      key_file: /trust/client/tls.key
+      server_name_override: signal-gateway.observability.svc
+      min_version: "1.3"
+      reload_interval: 1m
+    timeout: 10s
+    sending_queue: &a2
+      enabled: true
+      storage: file_storage/queue
+      sizer: bytes
+      queue_size: 16777216
+      num_consumers: 2
+      block_on_overflow: false
+    retry_on_failure: &a3
+      enabled: true
+      initial_interval: 1s
+      max_interval: 5s
+      max_elapsed_time: 30s
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: false
+    metric_expiration: 2m
+  prometheusremotewrite:
+    endpoint: https://signal-metrics.observability.svc:8443/api/v1/write
+    resource_to_telemetry_conversion:
+      enabled: true
+    tls:
+      ca_file: /trust/metrics/ca.crt
+      min_version: "1.3"
+    auth:
+      authenticator: basicauth/metrics
+    timeout: 10s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 5s
+      max_elapsed_time: 30s
+    remote_write_queue:
+      enabled: true
+      queue_size: 256
+      num_consumers: 2
+    wal:
+      directory: /var/lib/otelcol/prometheus
+      buffer_size: 100
+      truncate_frequency: 1m
+  otlp/platform:
+    endpoint: signal-gateway.observability.svc:14317
+    tls: *a1
+    timeout: 10s
+    sending_queue: *a2
+    retry_on_failure: *a3
+service:
+  extensions:
+    - health_check
+    - file_storage/queue
+    - file_storage/checkpoints
+    - basicauth/metrics
+  telemetry:
+    metrics:
+      level: detailed
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
+  pipelines:
+    logs:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - filter/source
+        - transform/redact
+        - batch
+      exporters:
+        - otlp
+    traces:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - filter/source
+        - batch
+      exporters:
+        - otlp
+    metrics:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - filter/source
+        - batch
+      exporters:
+        - prometheus
+    logs/forwarded:
+      receivers:
+        - otlp/platform
+      processors:
+        - memory_limiter
+        - filter/platform
+        - transform/redact
+        - batch
+      exporters:
+        - otlp/platform
+    metrics/forwarded:
+      receivers:
+        - otlp/platform
+      processors:
+        - memory_limiter
+        - filter/platform
+        - batch
+      exporters:
+        - prometheusremotewrite

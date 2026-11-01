@@ -66,3 +66,42 @@ patches:
       - op: replace
         path: /spec/storageClassName
         value: puni-local
+  - target: { kind: CronJob, name: 'sqlite-backup(-verify)?' }
+    patch: |-
+      - op: add
+        path: /spec/jobTemplate/spec/template/spec/containers/0/env/-
+        value: { name: NODE_EXTRA_CA_CERTS, value: /s3-trust/ca.crt }
+      - op: add
+        path: /spec/jobTemplate/spec/template/spec/containers/0/volumeMounts/-
+        value: { name: s3-trust, mountPath: /s3-trust, readOnly: true }
+      - op: add
+        path: /spec/jobTemplate/spec/template/spec/volumes/-
+        value: { name: s3-trust, secret: { secretName: sqlite-backup-s3 } }
+  - target: { kind: CronJob, name: sqlite-backup }
+    patch: |-
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata: { name: sqlite-backup }
+      spec:
+        jobTemplate:
+          spec:
+            template:
+              spec:
+                containers:
+                  - name: backup
+                    env:
+                      - { name: S3_TRUST_MODE, value: system-roots-plus-ca }
+  - target: { kind: CronJob, name: sqlite-backup-verify }
+    patch: |-
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata: { name: sqlite-backup-verify }
+      spec:
+        jobTemplate:
+          spec:
+            template:
+              spec:
+                containers:
+                  - name: verify
+                    env:
+                      - { name: S3_TRUST_MODE, value: system-roots-plus-ca }

@@ -1,0 +1,62 @@
+import { createHash } from 'node:crypto';
+
+import { type } from 'arktype';
+
+import type { PlatformManifest } from './platform-manifests';
+
+const ObjectStoreWorkload = type({
+  kind: "'Deployment' | 'Job'",
+  spec: {
+    template: {
+      spec: {
+        containers: type({
+          command: 'string[]',
+          env: 'object[]',
+          volumeMounts: 'object[]',
+          'readinessProbe?': 'object',
+        })
+          .array()
+          .exactlyLength(1),
+        volumes: 'object[]',
+      },
+    },
+  },
+});
+
+/**
+ * Pin the executable transport contract, including trust mounts and readiness, independently
+ * of image/capacity validation. Changes require a new executable refusal proof before repinning.
+ */
+export function assertBackupTransport(manifests: readonly PlatformManifest[]): void {
+  const fingerprints = {
+    Deployment: 'f5c20225a7058b48791d76a939d757b047a1bbab0567b99883522af826069b77',
+    Job: '9af531f665fab0e20cfe667d5757b62f7c1dabe2b2308c8b755437f1979cc21d',
+  };
+  const seen = new Set<string>();
+  for (const manifest of manifests) {
+    if (manifest.path !== 'backup/local/object-store.yaml') continue;
+    const workload = ObjectStoreWorkload(manifest.document);
+    if (workload instanceof type.errors) continue;
+    const pod = workload.spec.template.spec;
+    const container = pod.containers[0];
+    const digest = createHash('sha256')
+      .update(
+        JSON.stringify([
+          container.command,
+          container.env,
+          container.volumeMounts,
+          pod.volumes,
+          container.readinessProbe,
+        ]),
+      )
+      .digest('hex');
+    // Proof: removing this comparison admitted plaintext mc in validatePlatform (platform.test.ts).
+    // Proof: Task25c3f tls-fingerprint omission admitted plaintext and CA-mode mutations with bounded bucket scratch.
+    if (digest !== fingerprints[workload.kind])
+      throw new Error(`${workload.kind} object-store TLS contract differs`);
+    seen.add(workload.kind);
+  }
+  // Proof: removing this guard accepted the server with its command absent (platform.test.ts).
+  if (seen.size !== 2)
+    throw new Error('object-store TLS contract requires server and bucket initializer');
+}

@@ -1,0 +1,95 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-creation.test.ts:
+480 |     if (fault === 'effective-id') input.snapshots[0].image = 'sha256:' + '9'.repeat(64);
+481 |     if (fault === 'missing-version') Reflect.deleteProperty(input, 'schemaVersion');
+482 |     if (fault === 'unknown-version') input.schemaVersion = 3;
+483 |     if (fault === 'missing-config') Reflect.deleteProperty(input.plan.expected[0], 'configId');
+484 |     if (fault === 'extra-transient') input.transients.push(input.snapshots[0]);
+485 |     expect(() => closeCreation(input, 'forward')).toThrow();
+                                                        ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  containers: [
+    {
+      id: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      name: "registry",
+      image: "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+      configuredImage: "registry@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      networkIds: [ "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" ],
+      mounts: [
+        {
+          kind: "volume",
+          name: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          driver: "local",
+          source: "/var/lib/docker/volumes/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/_data",
+          destination: "/var/lib/registry",
+          rw: true,
+        }
+      ],
+    }
+  ],
+  volumes: [
+    {
+      name: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      driver: "local",
+      mountpoint: "/var/lib/docker/volumes/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/_data",
+      createdAt: "2026-10-27T00:00:00Z",
+      consumers: [ "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" ],
+    }
+  ],
+}
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.test.ts:485:51)
+(fail) Task37 forward closure rejects effective-id [2.68ms]
+555 |     if (fault === 'mount-set') input.transients[0].mounts = [];
+556 |     if (fault === 'overlap')
+557 |       input.events.find(
+558 |         (event) => event.action === 'destroy' && event.id === '1'.repeat(64),
+559 |       )!.time = '21';
+560 |     expect(() => closeCreation(input, 'forward')).toThrow();
+                                                        ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  containers: [
+    {
+      id: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      name: "registry",
+      image: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      configuredImage: "registry@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      networkIds: [ "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" ],
+      mounts: [
+        {
+          kind: "volume",
+          name: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          driver: "local",
+          source: "/var/lib/docker/volumes/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/_data",
+          destination: "/var/lib/registry",
+          rw: true,
+        }
+      ],
+    }
+  ],
+  volumes: [
+    {
+      name: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      driver: "local",
+      mountpoint: "/var/lib/docker/volumes/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd/_data",
+      createdAt: "2026-10-27T00:00:00Z",
+      consumers: [ "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" ],
+    }
+  ],
+}
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-creation.test.ts:560:51)
+(fail) Task37 transient closure rejects image [0.70ms]
+
+ 0 pass
+ 45 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [166.00ms]

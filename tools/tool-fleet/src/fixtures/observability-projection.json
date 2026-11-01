@@ -1,0 +1,1744 @@
+{
+  "observability/eck-operator": [
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "elastic-operator",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Secret",
+      "metadata": {
+        "name": "elastic-operator-webhook-cert",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ConfigMap",
+      "metadata": {
+        "name": "elastic-operator",
+        "namespace": "observability"
+      },
+      "data": {
+        "eck.yaml": "log-verbosity: 0\nmetrics-port: 0\nmetrics-secure: false\ncontainer-registry: docker.elastic.co\nmax-concurrent-reconciles: 3\nca-cert-validity: 8760h\nca-cert-rotate-before: 24h\ncert-validity: 8760h\ncert-rotate-before: 24h\ndisable-config-watch: false\nexposed-node-labels: [topology.kubernetes.io/.*,failure-domain.beta.kubernetes.io/.*]\nset-default-security-context: auto-detect\nkube-client-timeout: 60s\nelasticsearch-client-timeout: 180s\ndisable-telemetry: false\ndistribution-channel: helm\nvalidate-storage-class: true\nenable-webhook: true\nwebhook-name: elastic-operator.observability.k8s.elastic.co\nwebhook-port: 9443\nnamespaces: [observability,observability-dev]\noperator-namespace: observability\nenable-leader-election: true\nelasticsearch-observation-interval: 10s\nubi-only: false\nrestrict-watched-resources: false"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "agents.agent.k8s.elastic.co"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "apmservers.apm.k8s.elastic.co"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "autoopsagentpolicies.autoops.k8s.elastic.co"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "beats.beat.k8s.elastic.co"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "elasticmapsservers.maps.k8s.elastic.co"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "elasticsearchautoscalers.autoscaling.k8s.elastic.co"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "elasticsearches.elasticsearch.k8s.elastic.co"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "enterprisesearches.enterprisesearch.k8s.elastic.co"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "kibanas.kibana.k8s.elastic.co"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "logstashes.logstash.k8s.elastic.co"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "packageregistries.packageregistry.k8s.elastic.co"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "stackconfigpolicies.stackconfigpolicy.k8s.elastic.co"
+      }
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRole",
+      "metadata": {
+        "name": "elastic-operator"
+      }
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRole",
+      "metadata": {
+        "name": "elastic-operator-view"
+      }
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRole",
+      "metadata": {
+        "name": "elastic-operator-edit"
+      }
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRoleBinding",
+      "metadata": {
+        "name": "elastic-operator"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "elastic-operator-webhook",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "StatefulSet",
+      "metadata": {
+        "name": "elastic-operator",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "admissionregistration.k8s.io/v1",
+      "kind": "ValidatingWebhookConfiguration",
+      "metadata": {
+        "name": "elastic-operator.observability.k8s.elastic.co"
+      }
+    }
+  ],
+  "observability/prometheus-controller": [
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "alertmanagerconfigs.monitoring.coreos.com"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "alertmanagers.monitoring.coreos.com"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "podmonitors.monitoring.coreos.com"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "probes.monitoring.coreos.com"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "prometheusagents.monitoring.coreos.com"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "prometheuses.monitoring.coreos.com"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "prometheusrules.monitoring.coreos.com"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "scrapeconfigs.monitoring.coreos.com"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "servicemonitors.monitoring.coreos.com"
+      }
+    },
+    {
+      "apiVersion": "apiextensions.k8s.io/v1",
+      "kind": "CustomResourceDefinition",
+      "metadata": {
+        "name": "thanosrulers.monitoring.coreos.com"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "kps-operator",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRole",
+      "metadata": {
+        "name": "kps-operator"
+      }
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRoleBinding",
+      "metadata": {
+        "name": "kps-operator"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "kps-operator",
+        "namespace": "observability",
+        "labels": {
+          "app.kubernetes.io/managed-by": "Helm",
+          "app.kubernetes.io/instance": "prometheus-controller",
+          "app.kubernetes.io/version": "91.4.1",
+          "app.kubernetes.io/part-of": "kube-prometheus-stack",
+          "chart": "kube-prometheus-stack-91.4.1",
+          "release": "prometheus-controller",
+          "heritage": "Helm",
+          "app": "kube-prometheus-stack-operator",
+          "app.kubernetes.io/name": "kube-prometheus-stack-prometheus-operator",
+          "app.kubernetes.io/component": "prometheus-operator"
+        }
+      },
+      "spec": {
+        "ports": [
+          {
+            "name": "https",
+            "port": 443,
+            "targetPort": "https"
+          }
+        ],
+        "selector": {
+          "app": "kube-prometheus-stack-operator",
+          "release": "prometheus-controller"
+        },
+        "type": "ClusterIP"
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "kps-operator",
+        "namespace": "observability"
+      },
+      "spec": {
+        "replicas": 1,
+        "revisionHistoryLimit": 10,
+        "selector": {
+          "matchLabels": {
+            "app": "kube-prometheus-stack-operator",
+            "release": "prometheus-controller"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/managed-by": "Helm",
+              "app.kubernetes.io/instance": "prometheus-controller",
+              "app.kubernetes.io/version": "91.4.1",
+              "app.kubernetes.io/part-of": "kube-prometheus-stack",
+              "chart": "kube-prometheus-stack-91.4.1",
+              "release": "prometheus-controller",
+              "heritage": "Helm",
+              "app": "kube-prometheus-stack-operator",
+              "app.kubernetes.io/name": "kube-prometheus-stack-prometheus-operator",
+              "app.kubernetes.io/component": "prometheus-operator"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "name": "kube-prometheus-stack",
+                "image": "quay.io/prometheus-operator/prometheus-operator:v0.94.0@sha256:cf153f64d6c38113fceb2cda7642365ea887f71edd7888f054e43e54cf177e55",
+                "imagePullPolicy": "IfNotPresent",
+                "args": [
+                  "--kubelet-service=kube-system/kps-kubelet",
+                  "--kubelet-endpoints=true",
+                  "--kubelet-endpointslice=false",
+                  "--namespaces=observability,observability-dev",
+                  "--localhost=127.0.0.1",
+                  "--prometheus-config-reloader=quay.io/prometheus-operator/prometheus-config-reloader:v0.94.0@sha256:142a1f11df8dd165f00375b0b1826aecb9c9adeb05c39855893138d7c7575ff7",
+                  "--config-reloader-cpu-request=0",
+                  "--config-reloader-cpu-limit=0",
+                  "--config-reloader-memory-request=0",
+                  "--config-reloader-memory-limit=0",
+                  "--alertmanager-instance-namespaces=observability,observability-dev",
+                  "--prometheus-instance-namespaces=observability,observability-dev",
+                  "--thanos-default-base-image=quay.io/thanos/thanos:v0.42.4",
+                  "--secret-field-selector=type!=kubernetes.io/dockercfg,type!=helm.sh/release.v1",
+                  "--web.enable-tls=true",
+                  "--web.cert-file=/cert/cert",
+                  "--web.key-file=/cert/key",
+                  "--web.listen-address=:10250",
+                  "--web.tls-min-version=VersionTLS13"
+                ],
+                "ports": [
+                  {
+                    "containerPort": 10250,
+                    "name": "https"
+                  }
+                ],
+                "env": [
+                  {
+                    "name": "GOGC",
+                    "value": "30"
+                  }
+                ],
+                "resources": {
+                  "limits": {
+                    "cpu": "500m",
+                    "memory": "256Mi"
+                  },
+                  "requests": {
+                    "cpu": "50m",
+                    "memory": "64Mi"
+                  }
+                },
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "capabilities": {
+                    "drop": ["ALL"]
+                  },
+                  "readOnlyRootFilesystem": true
+                },
+                "volumeMounts": [
+                  {
+                    "name": "tls-secret",
+                    "mountPath": "/cert",
+                    "readOnly": true
+                  }
+                ],
+                "readinessProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "https",
+                    "scheme": "HTTPS"
+                  },
+                  "initialDelaySeconds": 0,
+                  "periodSeconds": 10,
+                  "timeoutSeconds": 1,
+                  "successThreshold": 1,
+                  "failureThreshold": 3
+                },
+                "livenessProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "https",
+                    "scheme": "HTTPS"
+                  },
+                  "initialDelaySeconds": 0,
+                  "periodSeconds": 10,
+                  "timeoutSeconds": 1,
+                  "successThreshold": 1,
+                  "failureThreshold": 3
+                }
+              }
+            ],
+            "volumes": [
+              {
+                "name": "tls-secret",
+                "secret": {
+                  "defaultMode": 420,
+                  "secretName": "kps-admission"
+                }
+              }
+            ],
+            "securityContext": {
+              "fsGroup": 65534,
+              "runAsGroup": 65534,
+              "runAsNonRoot": true,
+              "runAsUser": 65534,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "serviceAccountName": "kps-operator",
+            "automountServiceAccountToken": true,
+            "nodeSelector": {
+              "puni.dev/capability-observability": "true"
+            },
+            "terminationGracePeriodSeconds": 30
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "admissionregistration.k8s.io/v1",
+      "kind": "MutatingWebhookConfiguration",
+      "metadata": {
+        "name": "kps-admission"
+      }
+    },
+    {
+      "apiVersion": "admissionregistration.k8s.io/v1",
+      "kind": "ValidatingWebhookConfiguration",
+      "metadata": {
+        "name": "kps-admission"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "kps-admission",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRole",
+      "metadata": {
+        "name": "kps-admission"
+      }
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRoleBinding",
+      "metadata": {
+        "name": "kps-admission"
+      }
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "Role",
+      "metadata": {
+        "name": "kps-admission",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "RoleBinding",
+      "metadata": {
+        "name": "kps-admission",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "batch/v1",
+      "kind": "Job",
+      "metadata": {
+        "name": "kps-admission-create",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "batch/v1",
+      "kind": "Job",
+      "metadata": {
+        "name": "kps-admission-patch",
+        "namespace": "observability"
+      }
+    }
+  ],
+  "observability-dev/kube-prometheus-stack": [
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "kps-alertmanager",
+        "namespace": "observability-dev"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "kps-prometheus",
+        "namespace": "observability-dev"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Secret",
+      "metadata": {
+        "name": "alertmanager-kps-alertmanager",
+        "namespace": "observability-dev"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Secret",
+      "metadata": {
+        "name": "kps-prometheus-token",
+        "namespace": "observability-dev"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "kps-alertmanager",
+        "namespace": "observability-dev"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "kps-prometheus",
+        "namespace": "observability-dev"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "Alertmanager",
+      "metadata": {
+        "name": "kps-alertmanager",
+        "namespace": "observability-dev"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "Prometheus",
+      "metadata": {
+        "name": "kps-prometheus",
+        "namespace": "observability-dev"
+      },
+      "spec": {
+        "automountServiceAccountToken": true,
+        "alerting": {
+          "alertmanagers": [
+            {
+              "namespace": "observability-dev",
+              "name": "kps-alertmanager",
+              "port": "http-web",
+              "pathPrefix": "/",
+              "apiVersion": "v2"
+            }
+          ]
+        },
+        "image": "quay.io/prometheus/prometheus:v3.14.0-distroless@sha256:50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a",
+        "imagePullPolicy": "IfNotPresent",
+        "version": "v3.14.0-distroless",
+        "enableRemoteWriteReceiver": true,
+        "externalUrl": "http://kps-prometheus.observability-dev:9090",
+        "nodeSelector": {
+          "puni.dev/capability-observability": "true"
+        },
+        "paused": false,
+        "replicas": 1,
+        "shards": 1,
+        "logLevel": "info",
+        "logFormat": "logfmt",
+        "listenLocal": false,
+        "enableOTLPReceiver": false,
+        "enableAdminAPI": false,
+        "resources": {
+          "limits": {
+            "cpu": "1",
+            "memory": "1Gi"
+          },
+          "requests": {
+            "cpu": "200m",
+            "memory": "512Mi"
+          }
+        },
+        "retention": "15d",
+        "retentionSize": "8GB",
+        "tsdb": {
+          "outOfOrderTimeWindow": "0s"
+        },
+        "walCompression": true,
+        "routePrefix": "/",
+        "serviceAccountName": "kps-prometheus",
+        "serviceMonitorSelector": {
+          "matchLabels": {
+            "puni.dev/telemetry-instance": "dev"
+          }
+        },
+        "serviceMonitorNamespaceSelector": {
+          "matchLabels": {
+            "kubernetes.io/metadata.name": "observability-dev"
+          }
+        },
+        "podMonitorSelector": {
+          "matchLabels": {
+            "puni.dev/telemetry-instance": "dev"
+          }
+        },
+        "podMonitorNamespaceSelector": {
+          "matchLabels": {
+            "kubernetes.io/metadata.name": "observability-dev"
+          }
+        },
+        "probeSelector": {
+          "matchLabels": {
+            "puni.dev/telemetry-instance": "dev"
+          }
+        },
+        "probeNamespaceSelector": {
+          "matchLabels": {
+            "kubernetes.io/metadata.name": "observability-dev"
+          }
+        },
+        "securityContext": {
+          "fsGroup": 2000,
+          "runAsGroup": 2000,
+          "runAsNonRoot": true,
+          "runAsUser": 1000,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "ruleNamespaceSelector": {
+          "matchLabels": {
+            "kubernetes.io/metadata.name": "observability-dev"
+          }
+        },
+        "ruleSelector": {
+          "matchLabels": {
+            "puni.dev/telemetry-instance": "dev"
+          }
+        },
+        "scrapeConfigSelector": {
+          "matchLabels": {
+            "puni.dev/telemetry-instance": "dev"
+          }
+        },
+        "scrapeConfigNamespaceSelector": {
+          "matchLabels": {
+            "kubernetes.io/metadata.name": "observability-dev"
+          }
+        },
+        "storage": {
+          "volumeClaimTemplate": {
+            "spec": {
+              "accessModes": ["ReadWriteOnce"],
+              "resources": {
+                "requests": {
+                  "storage": "10Gi"
+                }
+              },
+              "storageClassName": "puni-retain"
+            }
+          }
+        },
+        "affinity": {
+          "podAntiAffinity": {
+            "preferredDuringSchedulingIgnoredDuringExecution": [
+              {
+                "weight": 100,
+                "podAffinityTerm": {
+                  "topologyKey": "kubernetes.io/hostname",
+                  "labelSelector": {
+                    "matchExpressions": [
+                      {
+                        "key": "app.kubernetes.io/name",
+                        "operator": "In",
+                        "values": ["prometheus"]
+                      },
+                      {
+                        "key": "app.kubernetes.io/instance",
+                        "operator": "In",
+                        "values": ["kps-prometheus"]
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "portName": "http-web",
+        "ignoreNamespaceSelectors": true,
+        "hostNetwork": false
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "ServiceMonitor",
+      "metadata": {
+        "name": "kps-alertmanager",
+        "namespace": "observability-dev"
+      },
+      "spec": {
+        "selector": {
+          "matchLabels": {
+            "app": "kube-prometheus-stack-alertmanager",
+            "release": "kube-prometheus-stack",
+            "self-monitor": "true"
+          }
+        },
+        "namespaceSelector": {
+          "matchNames": ["observability-dev"]
+        },
+        "endpoints": [
+          {
+            "port": "http-web",
+            "enableHttp2": true,
+            "path": "/metrics"
+          },
+          {
+            "port": "reloader-web",
+            "path": "/metrics"
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "ServiceMonitor",
+      "metadata": {
+        "name": "kps-prometheus",
+        "namespace": "observability-dev"
+      },
+      "spec": {
+        "selector": {
+          "matchLabels": {
+            "app": "kube-prometheus-stack-prometheus",
+            "release": "kube-prometheus-stack",
+            "self-monitor": "true"
+          }
+        },
+        "namespaceSelector": {
+          "matchNames": ["observability-dev"]
+        },
+        "endpoints": [
+          {
+            "port": "http-web",
+            "path": "/metrics"
+          },
+          {
+            "port": "reloader-web",
+            "path": "/metrics"
+          }
+        ]
+      }
+    }
+  ],
+  "observability/kube-prometheus-stack": [
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "kube-prometheus-stack-kube-state-metrics",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "kube-prometheus-stack-prometheus-node-exporter",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "kps-alertmanager",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "kps-prometheus",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Secret",
+      "metadata": {
+        "name": "alertmanager-kps-alertmanager",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Secret",
+      "metadata": {
+        "name": "kps-prometheus-token",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRole",
+      "metadata": {
+        "name": "kube-prometheus-stack-kube-state-metrics"
+      }
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRole",
+      "metadata": {
+        "name": "kps-prometheus"
+      }
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRoleBinding",
+      "metadata": {
+        "name": "kube-prometheus-stack-kube-state-metrics"
+      }
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRoleBinding",
+      "metadata": {
+        "name": "kps-prometheus"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "kube-prometheus-stack-kube-state-metrics",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "kube-prometheus-stack-prometheus-node-exporter",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "kps-alertmanager",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "kps-coredns",
+        "namespace": "kube-system"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "kps-prometheus",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "DaemonSet",
+      "metadata": {
+        "name": "kube-prometheus-stack-prometheus-node-exporter",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "kube-prometheus-stack-kube-state-metrics",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "Alertmanager",
+      "metadata": {
+        "name": "kps-alertmanager",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "ServiceMonitor",
+      "metadata": {
+        "name": "kps-operator",
+        "namespace": "observability"
+      },
+      "spec": {
+        "endpoints": [
+          {
+            "honorLabels": true,
+            "port": "https",
+            "scheme": "https",
+            "tlsConfig": {
+              "ca": {
+                "secret": {
+                  "key": "ca",
+                  "name": "kps-admission",
+                  "optional": false
+                }
+              },
+              "serverName": "kps-operator"
+            }
+          }
+        ],
+        "namespaceSelector": {
+          "matchNames": ["observability"]
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "kube-prometheus-stack-operator",
+            "release": "prometheus-controller"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "Prometheus",
+      "metadata": {
+        "name": "kps-prometheus",
+        "namespace": "observability"
+      },
+      "spec": {
+        "automountServiceAccountToken": true,
+        "alerting": {
+          "alertmanagers": [
+            {
+              "namespace": "observability",
+              "name": "kps-alertmanager",
+              "port": "http-web",
+              "pathPrefix": "/",
+              "apiVersion": "v2"
+            }
+          ]
+        },
+        "image": "quay.io/prometheus/prometheus:v3.14.0-distroless@sha256:50c707e96da5ade383cb1707790576480485e93de06aa60ad8802cb5f744bd0a",
+        "imagePullPolicy": "IfNotPresent",
+        "version": "v3.14.0-distroless",
+        "enableRemoteWriteReceiver": true,
+        "externalUrl": "http://kps-prometheus.observability:9090",
+        "nodeSelector": {
+          "puni.dev/capability-observability": "true"
+        },
+        "paused": false,
+        "replicas": 1,
+        "shards": 1,
+        "logLevel": "info",
+        "logFormat": "logfmt",
+        "listenLocal": false,
+        "enableOTLPReceiver": false,
+        "enableAdminAPI": false,
+        "resources": {
+          "limits": {
+            "cpu": "1",
+            "memory": "1Gi"
+          },
+          "requests": {
+            "cpu": "200m",
+            "memory": "512Mi"
+          }
+        },
+        "retention": "15d",
+        "retentionSize": "8GB",
+        "tsdb": {
+          "outOfOrderTimeWindow": "0s"
+        },
+        "walCompression": true,
+        "routePrefix": "/",
+        "serviceAccountName": "kps-prometheus",
+        "serviceMonitorSelector": {},
+        "serviceMonitorNamespaceSelector": {},
+        "podMonitorSelector": {},
+        "podMonitorNamespaceSelector": {},
+        "probeSelector": {},
+        "probeNamespaceSelector": {},
+        "securityContext": {
+          "fsGroup": 2000,
+          "runAsGroup": 2000,
+          "runAsNonRoot": true,
+          "runAsUser": 1000,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "ruleNamespaceSelector": {},
+        "ruleSelector": {},
+        "scrapeConfigSelector": {
+          "matchLabels": {
+            "release": "kube-prometheus-stack"
+          }
+        },
+        "scrapeConfigNamespaceSelector": {},
+        "storage": {
+          "volumeClaimTemplate": {
+            "spec": {
+              "accessModes": ["ReadWriteOnce"],
+              "resources": {
+                "requests": {
+                  "storage": "10Gi"
+                }
+              },
+              "storageClassName": "puni-retain"
+            }
+          }
+        },
+        "affinity": {
+          "podAntiAffinity": {
+            "preferredDuringSchedulingIgnoredDuringExecution": [
+              {
+                "weight": 100,
+                "podAffinityTerm": {
+                  "topologyKey": "kubernetes.io/hostname",
+                  "labelSelector": {
+                    "matchExpressions": [
+                      {
+                        "key": "app.kubernetes.io/name",
+                        "operator": "In",
+                        "values": ["prometheus"]
+                      },
+                      {
+                        "key": "app.kubernetes.io/instance",
+                        "operator": "In",
+                        "values": ["kps-prometheus"]
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "portName": "http-web",
+        "hostNetwork": false
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-alertmanager.rules",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-config-reloaders",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-general.rules",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-k8s.rules.container-cpu-usage-seconds-total",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-k8s.rules.container-memory-cache",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-k8s.rules.container-memory-rss",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-k8s.rules.container-memory-swap",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-k8s.rules.container-memory-working-set-bytes",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-k8s.rules.container-resource",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-k8s.rules.pod-owner",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-kube-apiserver-availability.rules",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-kube-apiserver-burnrate.rules",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-kube-apiserver-histogram.rules",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-kube-apiserver-slos",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-kube-prometheus-general.rules",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-kube-prometheus-node-recording.rules",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-kube-state-metrics",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-kubelet.rules",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-kubernetes-apps",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-kubernetes-resources",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-kubernetes-storage",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-kubernetes-system-apiserver",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-kubernetes-system-kubelet",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-kubernetes-system",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-node-exporter.rules",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-node-exporter",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-node-network",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-node.rules",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-prometheus-operator",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "PrometheusRule",
+      "metadata": {
+        "name": "kps-prometheus",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "ServiceMonitor",
+      "metadata": {
+        "name": "kube-prometheus-stack-kube-state-metrics",
+        "namespace": "observability"
+      },
+      "spec": {
+        "jobLabel": "app.kubernetes.io/name",
+        "selector": {
+          "matchLabels": {
+            "app.kubernetes.io/name": "kube-state-metrics",
+            "app.kubernetes.io/instance": "kube-prometheus-stack"
+          }
+        },
+        "endpoints": [
+          {
+            "port": "http",
+            "honorLabels": true,
+            "metricRelabelings": [
+              {
+                "action": "replace",
+                "replacement": "platform-production",
+                "targetLabel": "puni_cluster"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "ServiceMonitor",
+      "metadata": {
+        "name": "kube-prometheus-stack-prometheus-node-exporter",
+        "namespace": "observability"
+      },
+      "spec": {
+        "jobLabel": "jobLabel",
+        "selector": {
+          "matchLabels": {
+            "app.kubernetes.io/name": "prometheus-node-exporter",
+            "app.kubernetes.io/instance": "kube-prometheus-stack"
+          }
+        },
+        "attachMetadata": {
+          "node": false
+        },
+        "endpoints": [
+          {
+            "port": "http-metrics",
+            "scheme": "http"
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "ServiceMonitor",
+      "metadata": {
+        "name": "kps-alertmanager",
+        "namespace": "observability"
+      },
+      "spec": {
+        "selector": {
+          "matchLabels": {
+            "app": "kube-prometheus-stack-alertmanager",
+            "release": "kube-prometheus-stack",
+            "self-monitor": "true"
+          }
+        },
+        "namespaceSelector": {
+          "matchNames": ["observability"]
+        },
+        "endpoints": [
+          {
+            "port": "http-web",
+            "enableHttp2": true,
+            "path": "/metrics"
+          },
+          {
+            "port": "reloader-web",
+            "path": "/metrics"
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "ServiceMonitor",
+      "metadata": {
+        "name": "kps-coredns",
+        "namespace": "observability"
+      },
+      "spec": {
+        "jobLabel": "jobLabel",
+        "selector": {
+          "matchLabels": {
+            "app": "kube-prometheus-stack-coredns",
+            "release": "kube-prometheus-stack"
+          }
+        },
+        "namespaceSelector": {
+          "matchNames": ["kube-system"]
+        },
+        "endpoints": [
+          {
+            "port": "http-metrics",
+            "authorization": {
+              "credentials": {
+                "key": "token",
+                "name": "kps-prometheus-token"
+              },
+              "type": "Bearer"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "ServiceMonitor",
+      "metadata": {
+        "name": "kps-apiserver",
+        "namespace": "observability"
+      },
+      "spec": {
+        "endpoints": [
+          {
+            "port": "https",
+            "scheme": "https",
+            "authorization": {
+              "credentials": {
+                "key": "token",
+                "name": "kps-prometheus-token"
+              },
+              "type": "Bearer"
+            },
+            "metricRelabelings": [
+              {
+                "action": "drop",
+                "regex": "(etcd_request|apiserver_request_slo|apiserver_request_sli|apiserver_request)_duration_seconds_bucket;(0\\.15|0\\.2|0\\.3|0\\.35|0\\.4|0\\.45|0\\.6|0\\.7|0\\.8|0\\.9|1\\.25|1\\.5|1\\.75|2|3|3\\.5|4|4\\.5|6|7|8|9|15|20|40|45|50)(\\.0)?",
+                "sourceLabels": ["__name__", "le"]
+              }
+            ],
+            "tlsConfig": {
+              "ca": {
+                "configMap": {
+                  "key": "ca.crt",
+                  "name": "kube-root-ca.crt"
+                }
+              },
+              "insecureSkipVerify": false,
+              "serverName": "kubernetes"
+            }
+          }
+        ],
+        "jobLabel": "component",
+        "namespaceSelector": {
+          "matchNames": ["default"]
+        },
+        "selector": {
+          "matchLabels": {
+            "component": "apiserver",
+            "provider": "kubernetes"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "ServiceMonitor",
+      "metadata": {
+        "name": "kps-kubelet",
+        "namespace": "observability"
+      },
+      "spec": {
+        "attachMetadata": {
+          "node": false
+        },
+        "jobLabel": "k8s-app",
+        "namespaceSelector": {
+          "matchNames": ["kube-system"]
+        },
+        "selector": {
+          "matchLabels": {
+            "app.kubernetes.io/name": "kubelet",
+            "k8s-app": "kubelet"
+          }
+        },
+        "endpoints": [
+          {
+            "port": "https-metrics",
+            "scheme": "https",
+            "tlsConfig": {
+              "ca": {
+                "configMap": {
+                  "key": "ca.crt",
+                  "name": "kube-root-ca.crt"
+                }
+              },
+              "insecureSkipVerify": true
+            },
+            "authorization": {
+              "credentials": {
+                "key": "token",
+                "name": "kps-prometheus-token"
+              },
+              "type": "Bearer"
+            },
+            "honorLabels": true,
+            "honorTimestamps": true,
+            "metricRelabelings": [
+              {
+                "action": "drop",
+                "regex": "(csi_operations|storage_operation_duration)_seconds_bucket;(0.25|2.5|15|25|120|600)(\\.0)?",
+                "sourceLabels": ["__name__", "le"]
+              }
+            ],
+            "relabelings": [
+              {
+                "action": "replace",
+                "sourceLabels": ["__metrics_path__"],
+                "targetLabel": "metrics_path"
+              }
+            ]
+          },
+          {
+            "port": "https-metrics",
+            "scheme": "https",
+            "path": "/metrics/cadvisor",
+            "interval": "10s",
+            "honorLabels": true,
+            "honorTimestamps": true,
+            "trackTimestampsStaleness": true,
+            "tlsConfig": {
+              "ca": {
+                "configMap": {
+                  "key": "ca.crt",
+                  "name": "kube-root-ca.crt"
+                }
+              },
+              "insecureSkipVerify": true
+            },
+            "authorization": {
+              "credentials": {
+                "key": "token",
+                "name": "kps-prometheus-token"
+              },
+              "type": "Bearer"
+            },
+            "metricRelabelings": [
+              {
+                "action": "drop",
+                "regex": "container_cpu_(cfs_throttled_seconds_total|load_average_10s|system_seconds_total|user_seconds_total)",
+                "sourceLabels": ["__name__"]
+              },
+              {
+                "action": "drop",
+                "regex": "container_fs_(io_current|io_time_seconds_total|io_time_weighted_seconds_total|reads_merged_total|sector_reads_total|sector_writes_total|writes_merged_total)",
+                "sourceLabels": ["__name__"]
+              },
+              {
+                "action": "drop",
+                "regex": "container_memory_(mapped_file|swap)",
+                "sourceLabels": ["__name__"]
+              },
+              {
+                "action": "drop",
+                "regex": "container_(file_descriptors|tasks_state|threads_max)",
+                "sourceLabels": ["__name__"]
+              },
+              {
+                "action": "drop",
+                "regex": "container_memory_failures_total;hierarchy",
+                "sourceLabels": ["__name__", "scope"]
+              },
+              {
+                "action": "drop",
+                "regex": "container_network_.*;(cali|cilium|cni|lxc|nodelocaldns|tunl).*",
+                "sourceLabels": ["__name__", "interface"]
+              },
+              {
+                "action": "drop",
+                "regex": "container_spec.*",
+                "sourceLabels": ["__name__"]
+              },
+              {
+                "action": "drop",
+                "regex": ".+;",
+                "sourceLabels": ["id", "pod"]
+              }
+            ],
+            "relabelings": [
+              {
+                "action": "replace",
+                "sourceLabels": ["__metrics_path__"],
+                "targetLabel": "metrics_path"
+              }
+            ]
+          },
+          {
+            "port": "https-metrics",
+            "scheme": "https",
+            "path": "/metrics/probes",
+            "honorLabels": true,
+            "honorTimestamps": true,
+            "tlsConfig": {
+              "ca": {
+                "configMap": {
+                  "key": "ca.crt",
+                  "name": "kube-root-ca.crt"
+                }
+              },
+              "insecureSkipVerify": true
+            },
+            "authorization": {
+              "credentials": {
+                "key": "token",
+                "name": "kps-prometheus-token"
+              },
+              "type": "Bearer"
+            },
+            "relabelings": [
+              {
+                "action": "replace",
+                "sourceLabels": ["__metrics_path__"],
+                "targetLabel": "metrics_path"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "ServiceMonitor",
+      "metadata": {
+        "name": "kps-prometheus",
+        "namespace": "observability"
+      },
+      "spec": {
+        "selector": {
+          "matchLabels": {
+            "app": "kube-prometheus-stack-prometheus",
+            "release": "kube-prometheus-stack",
+            "self-monitor": "true"
+          }
+        },
+        "namespaceSelector": {
+          "matchNames": ["observability"]
+        },
+        "endpoints": [
+          {
+            "port": "http-web",
+            "path": "/metrics"
+          },
+          {
+            "port": "reloader-web",
+            "path": "/metrics"
+          }
+        ]
+      }
+    }
+  ],
+  "observability/otel-collector": [
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "otel-collector",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ConfigMap",
+      "metadata": {
+        "name": "otel-collector-agent",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "otel-collector",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "DaemonSet",
+      "metadata": {
+        "name": "otel-collector-agent",
+        "namespace": "observability"
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "ServiceMonitor",
+      "metadata": {
+        "name": "otel-collector",
+        "namespace": "observability"
+      },
+      "spec": {
+        "selector": {
+          "matchLabels": {
+            "app.kubernetes.io/name": "opentelemetry-collector",
+            "app.kubernetes.io/instance": "otel-collector",
+            "component": "agent-collector"
+          }
+        },
+        "endpoints": [
+          {
+            "port": "metrics"
+          }
+        ]
+      }
+    }
+  ]
+}

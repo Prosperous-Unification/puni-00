@@ -1,0 +1,1 @@
+{"template":{"settings":{"index.lifecycle.name":"puni-prod-traces","index.lifecycle.prefer_ilm":true,"index.number_of_replicas":0,"index.mapping.total_fields.limit":500,"index.mapping.total_fields.ignore_dynamic_beyond_limit":true}}}

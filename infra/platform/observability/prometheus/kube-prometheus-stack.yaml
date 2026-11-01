@@ -48,6 +48,9 @@ spec:
         tag: v0.94.0
         sha: cf153f64d6c38113fceb2cda7642365ea887f71edd7888f054e43e54cf177e55
       prometheusConfigReloader:
+        resources:
+          requests: { cpu: 10m, memory: 32Mi }
+          limits: { cpu: 100m, memory: 64Mi }
         image:
           registry: quay.io
           repository: prometheus-operator/prometheus-config-reloader
@@ -61,14 +64,17 @@ spec:
             tag: v0.94.0
             sha: 83ee9756c83af92060b45254bd3734da6dab14163cdbc45ca32674359e69906b
         patch:
+          resources:
+            requests: { cpu: 100m, memory: 64Mi, ephemeral-storage: 64Mi }
+            limits: { cpu: 500m, memory: 128Mi, ephemeral-storage: 64Mi }
           image:
             registry: ghcr.io
             repository: jkroepke/kube-webhook-certgen
             tag: 1.8.8
             sha: cd85a621724cd9043a5b46a784578fa159437712f920166389fce830554e1c44
       resources:
-        requests: { cpu: 50m, memory: 64Mi }
-        limits: { cpu: 500m, memory: 256Mi }
+        requests: { cpu: 50m, memory: 64Mi, ephemeral-storage: 256Mi }
+        limits: { cpu: 500m, memory: 256Mi, ephemeral-storage: 256Mi }
       nodeSelector:
         puni.dev/capability-observability: 'true'
     prometheus:
@@ -126,8 +132,8 @@ spec:
         tag: v2.20.0
         sha: sha256:42cfe3723a5f058171c627537fb57a3ea0f26e4380fa18555a95cb1a1b4cfc5b
       resources:
-        requests: { cpu: 10m, memory: 64Mi }
-        limits: { cpu: 200m, memory: 256Mi }
+        requests: { cpu: 10m, memory: 64Mi, ephemeral-storage: 16Mi }
+        limits: { cpu: 200m, memory: 256Mi, ephemeral-storage: 64Mi }
     prometheus-node-exporter:
       image:
         registry: quay.io
@@ -140,7 +146,7 @@ spec:
         port: 9101
         targetPort: 9101
       resources:
-        requests: { cpu: 10m, memory: 32Mi }
-        limits: { cpu: 200m, memory: 64Mi }
+        requests: { cpu: 10m, memory: 32Mi, ephemeral-storage: 16Mi }
+        limits: { cpu: 200m, memory: 64Mi, ephemeral-storage: 64Mi }
       tolerations:
         - operator: Exists

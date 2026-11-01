@@ -1,0 +1,80 @@
+bun test v1.4.4 (38afee6c8)
+
+tools/tool-fleet/src/k3d-resource-caller.test.ts:
+528 |
+529 | import { selectedHelpers } from './k3d-helper-images.fixture.test';
+530 | it('Task37 real up persists selection, process environment and every serial effective observation', async () => {
+531 |   const lab = await fixture('serial-tools');
+532 |   const execution = await lab.up();
+533 |   expect(execution).toMatchObject({ exit: 0, stderr: '' });
+                          ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "exit": 0,
+-   "stderr": "",
++   "exit": 1,
++   "stderr":
++ "1179 |         if (witness !== undefined) await witness.stop();
++ 1180 |       }
++ 1181 |     });
++ 1182 |     console.log(announcement);
++ 1183 |   } catch (cause) {
++ 1184 |     throw new Error(
++                      ^
++ error: k3d lab cb1931171666bda6 attempt a6bcd9be-5d77-48d8-a4a1-0ece9ab14abd failed; resource state is unknown and requires manual inspection. Journal /tmp/wbs-test-3487989-Rf6dlR/k3d-resource-caller-gYXToK/.puni/fleet-labs/k3d/.attempts/cb1931171666bda6/a6bcd9be-5d77-48d8-a4a1-0ece9ab14abd.json is not cleanup authority; inspect exact resource identities manually (docs/infra/local.md).
++       at upLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1184:15)
++       at async executeLabRequest (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1327:13)
++       at async runLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1311:29)
++
++ 281 |       const owned = helperEnvironment(plan.helpers);
++ 282 |       if (
++ 283 |         extraEnvironment['K3D_IMAGE_LOADBALANCER'] !== owned.K3D_IMAGE_LOADBALANCER ||
++ 284 |         extraEnvironment['K3D_IMAGE_TOOLS'] !== owned.K3D_IMAGE_TOOLS
++ 285 |       )
++ 286 |         throw new Error('Creation helper environment differs');
++                         ^
++ error: Creation helper environment differs
++       at capture (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-runtime.ts:286:19)
++       at async <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1112:27)
++       at async executeCreationAttempt (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/creation-journal.ts:212:21)
++       at async upLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1006:32)
++       at async executeLabRequest (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1327:13)
++       at async runLab (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-lab.ts:1311:29)
++
++ Bun v1.4.4 (Linux x64)
++ "
++ ,
++   "stdout": "",
+  }
+
+- Expected  - 2
++ Received  + 33
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:533:21)
+(fail) Task37 real up persists selection, process environment and every serial effective observation [1008.30ms]
+603 |       'ordinary',
+604 |       '--worktree-root',
+605 |       lab.directory,
+606 |     ]),
+607 |   ).toMatchObject({ exit: 0, stderr: '' });
+608 |   expect(await Bun.file(join(lab.directory, 'helper-env')).json()).toMatchObject({
+                                                                         ^
+error: expect(received).toMatchObject(expected)
+
+- {
+-   "K3D_IMAGE_TOOLS": "ghcr.io/k3d-io/k3d-tools@sha256:f18c1e21aba123fe6ff315c514a0feffc005f587aa3db773e89489c2118842dd",
+- }
++ {}
+
+- Expected  - 3
++ Received  + 1
+
+      at <anonymous> (/home/df/.codex/worktrees/aa39/puni-00/tools/tool-fleet/src/k3d-resource-caller.test.ts:608:68)
+(fail) Task37 ordinary up propagates the same owned helper references [935.14ms]
+
+ 0 pass
+ 67 filtered out
+ 2 fail
+ 9 expect() calls
+Ran 2 tests across 1 file. [2.15s]

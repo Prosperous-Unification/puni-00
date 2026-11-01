@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { createHash, X509Certificate } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
 import { readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 
@@ -318,10 +318,57 @@ function requireEnv(name: string): string {
   return value;
 }
 
+/**
+ * Validate the runner's transport once before constructing any S3 client.
+ * Private roots must be loaded by Bun at process launch via NODE_EXTRA_CA_CERTS;
+ * changing that environment variable after startup does not establish native S3 trust.
+ */
+export function requireS3Trust(environment: Readonly<Record<string, string | undefined>>): string {
+  const endpoint = environment['S3_ENDPOINT'];
+  // Proof: removing HTTPS validation accepted plaintext in both modes (backup-s3-trust.test.ts).
+  if (endpoint === undefined || new URL(endpoint).protocol !== 'https:')
+    throw new Error('S3 endpoint requires HTTPS');
+  // Proof: deleting this guard accepted the ambient certificate bypass negative.
+  if (environment['NODE_TLS_REJECT_UNAUTHORIZED'] === '0')
+    throw new Error('S3 certificate bypass is forbidden');
+  const mode = environment['S3_TRUST_MODE'];
+  if (mode === 'system-roots') {
+    // Proof: removing this guard accepted a private CA in explicit public-root mode.
+    if (environment['NODE_EXTRA_CA_CERTS'] !== undefined)
+      throw new Error('system-roots forbids NODE_EXTRA_CA_CERTS');
+    return endpoint;
+  }
+  // Proof: deleting this guard lost the unknown-mode refusal.
+  if (mode !== 'system-roots-plus-ca') throw new Error('invalid S3_TRUST_MODE');
+  const path = environment['NODE_EXTRA_CA_CERTS'];
+  // Proof: removing this guard misclassified an absent CA path as unreadable.
+  if (path === undefined) throw new Error('missing TLS input: NODE_EXTRA_CA_CERTS');
+  let pem: Buffer;
+  try {
+    pem = readFileSync(path);
+  } catch (cause) {
+    // Proof: removing ENOENT classification lost the absent-file refusal; passing through the
+    // raw error lost the unreadable-parent/file refusals (backup-s3-trust.test.ts).
+    if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT')
+      throw new Error('missing TLS input: NODE_EXTRA_CA_CERTS', { cause });
+    throw new Error('unreadable TLS input: NODE_EXTRA_CA_CERTS', { cause });
+  }
+  // Proof: dropping this guard misclassified empty trust as malformed.
+  if (pem.length === 0) throw new Error('empty TLS input: NODE_EXTRA_CA_CERTS');
+  try {
+    // Proof: dropping X509 validation accepted malformed CA bytes.
+    if (!new X509Certificate(pem).ca) throw new Error('certificate is not a CA');
+  } catch (cause) {
+    throw new Error('malformed TLS input: NODE_EXTRA_CA_CERTS', { cause });
+  }
+  return endpoint;
+}
+
 function storeFromEnv(): ObjectStore {
   return createS3Store(
     new S3Client({
-      endpoint: requireEnv('S3_ENDPOINT'),
+      // Proof: bypassing this call let the production CLI attempt plaintext S3 access.
+      endpoint: requireS3Trust(process.env),
       bucket: requireEnv('S3_BUCKET'),
       region: requireEnv('S3_REGION'),
       accessKeyId: requireEnv('AWS_ACCESS_KEY_ID'),

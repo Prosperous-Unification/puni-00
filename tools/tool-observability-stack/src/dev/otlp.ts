@@ -2,6 +2,7 @@ import { type } from 'arktype';
 
 import type { ProbeObservation, Publication, PublicationPort } from './probe';
 import { readBounded } from './source';
+import { bindTransport, fetchTransport, type TransportEndpoint } from './transport';
 
 function attribute(key: string, value: string | number | boolean) {
   return {
@@ -159,9 +160,9 @@ export function encodeOtlp(observation: ProbeObservation, previousRevision: stri
   };
 }
 
-/** Loopback tunnel destination only. An OTLP acknowledgement never claims backend storage. */
+/** Legacy loopback HTTP or explicitly authenticated HTTPS. An OTLP acknowledgement never claims backend storage. */
 export function createOtlpPublisher(
-  endpoint: string,
+  endpoint: TransportEndpoint,
   previousRevision: string | null = null,
 ): PublicationPort {
   // Proof: invalid previous revision is accepted if this guard is removed.
@@ -182,31 +183,24 @@ export function createOtlpPublisher(
 }
 
 /** Reuses the pinned OTLP HTTP acknowledgement, size and target policy for bounded batches. */
-export function createOtlpSender(endpoint: string) {
-  const url = new URL(endpoint);
-  // Proof: removing target policy accepts the unsafe publication target negatives.
-  if (
-    url.protocol !== 'http:' ||
-    url.hostname !== '127.0.0.1' ||
-    url.username !== '' ||
-    url.password !== '' ||
-    !['', '/'].includes(url.pathname) ||
-    url.search !== '' ||
-    url.hash !== ''
-  )
-    throw new Error('Invalid loopback OTLP endpoint');
+export function createOtlpSender(endpoint: TransportEndpoint) {
+  const transport = bindTransport(endpoint);
+  const { url, options } = transport;
   return async (
     kind: 'logs' | 'metrics' | 'traces',
     payload: unknown,
     signal: AbortSignal,
   ): Promise<Publication> => {
     try {
-      const response = await fetch(new URL(`/v1/${kind}`, url), {
+      const response = await fetchTransport(new URL(`/v1/${kind}`, url), transport, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        ...options,
+        headers: {
+          ...Object.fromEntries(new Headers(options.headers)),
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(payload),
         signal,
-        redirect: 'manual',
       });
       const text = await readBounded(response, 4096);
       // Proof: actual HTTP 503 and partial-success tests fail with acknowledgement checks removed.

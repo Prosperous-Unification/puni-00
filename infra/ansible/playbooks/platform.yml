@@ -86,6 +86,14 @@
         group: root
         mode: '0600'
 
+    - name: Copy the shared Flux scratch overlay
+      ansible.builtin.copy:
+        src: '{{ playbook_dir }}/../../platform/flux/kustomization.yaml'
+        dest: /var/cache/puni/flux/kustomization.yaml
+        owner: root
+        group: root
+        mode: '0600'
+
     - name: Read the Flux installation digest
       ansible.builtin.command:
         argv: [sha256sum, /var/cache/puni/flux/install.yaml]
@@ -99,7 +107,7 @@
 
     - name: Reconcile Flux controllers
       ansible.builtin.command:
-        argv: [k3s, kubectl, apply, -f, /var/cache/puni/flux/install.yaml]
+        argv: [k3s, kubectl, apply, -k, /var/cache/puni/flux]
       register: puni_flux_install
       changed_when: "' configured' in puni_flux_install.stdout or ' created' in puni_flux_install.stdout"
 

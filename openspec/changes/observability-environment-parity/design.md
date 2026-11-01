@@ -36,11 +36,15 @@ Keep `src/dev/` as the compatibility adapter for the current Compose rollout unt
 
 The existing cluster IDs identify deployment targets, not application environments. Do not rename `platform-production`, repurpose `platform-local` as persistent dev, or relabel incoming application records merely to make a renderer accept them.
 
-### Failure isolation and placement proposal
+### Failure isolation and placement
 
-Default proposal: separate dev and production service/store instances built from the same definitions. This isolates destructive dev rehearsals from production telemetry. The user was offered this choice against one shared instance; the final deployment topology is not yet approved. No provisioning or migration depends on an unanswered choice.
+The user selected separate dev and production service/store instances built from the same definitions. This isolates dev experiments and failure rehearsals from production telemetry. Namespace, storage, credential and source-admission boundaries are instance-specific; the common configuration and lifecycle contracts remain shared. A valid dev identity must be refused by production ingest/query routes even when it reaches their private listeners; different Secret names alone do not prove distinct authority.
 
 Separate instances do not imply new machines automatically. They can share a cluster only after scoped namespace/RBAC/network/storage ownership and coexistence capacity are proven. Cluster-scoped ECK/Prometheus operators and CRDs have one reconciler owner. Refactor controller ownership explicitly before adding another namespaced instance; do not install the full kube-prometheus-stack chart twice with its operator/CRD defaults. Keep host/cluster metrics scoped by their actual source rather than duplicating them under fabricated application environments.
+
+Preserve the existing production namespace, store Helm release, fullname and claim identities. The candidate gives the Prometheus operator and CRDs a separate controller-only owner; transferring their actual Helm ownership is an unexecuted migration prerequisite, never implicit adoption authorized by a render. Keep kube-state-metrics, node exporter, rules and their scrape-token provisioning with the retained production release and sink. Their platform-source role and the production app role can share that one release owner while remaining explicit in validation. Dev depends on the controller role and its own prerequisites, without requiring activation of that production release. ECK retains one controller owner.
+
+Generate additive candidate compositions on demand outside the selected `infra/platform` input tree until target and persistent inputs are reviewed. Keep recursive input scanning strict and preserve the currently referenced graph. Candidate generation takes explicit placement, instance and role inputs; role validation checks actual pinned Helm output, exact resource closure, namespace/reference/claim bindings and owner counts. A declared target name is source intent, not an observed UID or activation authority. Do not invent encrypted persistent Secrets or add an active dev Flux binding to bypass missing inventory. The shared signal concepts stay generic; concrete chart and Flux identities remain Fleet adapter concerns.
 
 If existing capacity cannot safely host the overlap or the required isolation, report the measured shortfall and prepare a separate capacity proposal. Do not weaken limits, stop Victoria or provision infrastructure to hide it.
 
@@ -57,9 +61,17 @@ If existing capacity cannot safely host the overlap or the required isolation, r
 
 The list allows field-specific values, not arbitrary patches. Security disabled in dev, missing trace pipelines, silent telemetry loss, omitted persistent queues and manual-only process recovery are not acceptable steady-state exceptions. A laptop running a small fixture may remain useful for editing, but that result is labelled component evidence, not environment parity.
 
+### Discovered local snapshot transport gap
+
+Actual candidate comparison found the local Elasticsearch snapshot client uses HTTP for the disposable MinIO endpoint while production uses HTTPS. This is an unresolved security/recovery difference, not an approved exception. Converge the local server and affected Elasticsearch, bucket-initialization and backup clients on verified HTTPS with disposable local trust, then rerun comparison. Public-provider system trust and a private rehearsal CA can differ explicitly while certificate verification remains enabled. Preserve existing production inputs; local test identities do not authorize persistent secret changes. The checker must report the candidate failing until this prerequisite is verified.
+
+Executable retention logic must be common across profiles. Policy identities belong in the existing retention configuration; exceptions for complete source-code lines would hide more than a scalar identity and are not acceptable.
+
 ### Validation boundary
 
 Add a semantic comparison of rendered service configuration and effective Helm/workload output. Validate the exception records themselves, reject unused/stale paths and compare siblings after each permitted scalar difference. Do not normalize all annotations, environment variables or URLs away: those can contain routing, auth and ownership behavior.
+
+The comparison adapter keeps a closed destination/value policy independent of supplied difference records. Records describe an allowed difference; matching metadata cannot authorize a null backup endpoint, broader ingress or changed filtering behavior. Source-admission expressions come from the same pure generators as the shared signal builder. Concrete profile bindings stay in this adapter while the shared signal model accepts identities and endpoints as inputs. A new legitimate profile value needs a deliberate policy and record update with its proof.
 
 The comparison complements actual pinned-binary configuration validation, promtool tests and Kubernetes rehearsal. A syntactically equal configuration cannot prove runtime health. Reuse the current observation identity/freshness evaluator through backend adapters; add authenticated query transport instead of changing the domain states.
 
@@ -84,6 +96,624 @@ The Kubernetes path currently lacks proven trace behavior, and completing it req
 
 ## Open Questions
 
-- User choice: separate instances from shared definitions versus a shared observability instance. Separate instances are the recommendation; no live changes depend on an unanswered choice.
-- Read-only cluster inventory is blocked by h4claw sudo authorization. Required observations are cluster identity, nodes/capacity, Flux/controller ownership and readiness, namespace/storage bindings and credential key metadata without values.
+- Separate service/store instances are approved. Physical placement and shared-controller ownership still require the authorized inventory below.
+- Read-only basic inventory now succeeds through the existing configured enrollment operator; the initial non-admin sudo denials remain historical evidence. Exact observations are in `verify.md`. A complete source-bound migration preflight still requires current ownership, node/coexistence capacity, retained storage and credential-key metadata; basic access is not readiness.
 - Persistent dev placement and the exact namespace/controller plan depend on that inventory. No new cluster, credentials, production mutation or capacity purchase is authorized implicitly.
+
+## Disposable graph packaging prerequisite
+
+The full candidate generator is not yet a deployable Flux entry. Prepare a closed disposable graph from an exact Git-exported source revision outside the selected input tree, preserving its required dependency stages, pinned sources and marker checks while substituting the common instances and same-owner diagnostic/backup handoffs. Replace legacy broad ingress rather than combining it with the new policy. Exclude Secret material and unrelated workloads; declare external inputs. Validate actual stage builds, independent closure/policy invariants and deterministic file hashes. Bind source and generator provenance separately, including unreviewed generator state. Fresh resource admission remains mandatory. This source prerequisite does not implement source transport or certify reconciliation/runtime/live readiness; those remain later acceptance work.
+
+### Authenticated source and reconciliation adapter
+
+Consume the validated packet through the existing authenticated Flux bootstrap contract, preserving its source references and dependency stages. Bind the exact published artifact commit/path separately from original source revision and generator provenance, and verify fetched content against the packet. Observe source artifact identity, applied stage revisions, deployed Helm history and actual controller/workload readiness within a bounded deadline. Credential/trust input handling, owned target identity, capacity and prerequisites must refuse before mutation when unresolved. Fixtures and the existing production source can exercise adapter observations but cannot certify a disposable candidate. Do not repoint the production source or unsuspend its withheld stages to make dev readiness pass.
+
+### Native API registration before consumer application
+
+Generate one prerequisite `observability-controllers` Flux stage for the existing `observability/prometheus-controller` HelmRelease, with its original identity/values/source and successful health awaited. The application stage retains its prerequisites and depends on this stage before applying its four native ServiceMonitors. Keep chart-produced Elasticsearch/Prometheus/Alertmanager CR dependencies in their existing HelmRelease graph; no ECK stage move is required for this gap.
+
+Pinned kustomize-controller1.9.5/SSA0.76.2 dry-runs all resources in its final apply stage before applying that stage's HelmReleases, so waiting on a whole mixed stage cannot install a missing ServiceMonitor API. This is a source-derived bootstrap prediction, not a live failure. See [pinned staged apply](https://github.com/fluxcd/pkg/blob/ssa/v0.76.2/ssa/manager_apply.go#L183) and [Flux dependency/health contract](https://fluxcd.io/flux/components/kustomize/kustomizations/#dependencies). Validate declared provider/consumer order independently of generated hashes; actual fresh-cluster readiness and CRD establishment remain runtime acceptance.
+
+### Creation evidence in the existing lab runner
+
+The strict rehearsal path captures actual returned network/registry IDs and pinned k3d ContainerCreate response IDs, corroborates them with a bounded same-daemon event witness and exact resource/mount inspection, and persists exclusive attempt-bound evidence. The required network-create event is the subscription handshake; headers and stream liveness alone are insufficient. Extract only safe IDs/fields: raw debug configuration and arbitrary event labels may contain tokens. Events do not establish caller identity or a complete sequence; every required resource must close against independent creator evidence. Include tools and temporary resources.
+
+Retain weaker volume locator/creation/mount lineage and all partial evidence. A failure leaves global completeness unknown and grants no automatic cleanup. The existing runner gains a receipt-consuming teardown path for exact recorded containers/network while retaining volumes/state; it does not use name-discovering k3d deletion. Fresh exclusive attempt state defines the cooperative noninterference boundary, not an atomic defense against arbitrary privileged daemon writers. Preserve the image cache: pinned startup requires it despite direct object-store import being separate. See [pinned creator IDs](https://github.com/k3d-io/k3d/blob/v5.9.0/pkg/runtimes/docker/container.go#L35-L95) and [Docker event limits](https://docs.docker.com/reference/cli/docker/system/events/). Full resource admission and actual shared-stack acceptance remain mandatory.
+
+### Explicit object-store artifact before strict creation
+
+The strict non-app lab path accepts an explicit prebuilt object-store archive through the existing lab request and bootstrap functions. Before any Docker resource creation, capture its bytes into exclusive private retained state and validate the actual OCI manifest, config, ordered layers, sizes, platform and import references against the committed object-store role. Validate Docker compatibility metadata consistently when present. Bound archive size, entries, paths and types; missing, unreadable, unsafe, malformed or conflicting input refuses without building a replacement. Never extract an unrestricted archive tree or infer availability from a default dist path.
+
+The same retained verified bytes feed direct import on the captured daemon and exact owned node identities; preserve the existing source-target and digest-alias checks. The archive receipt records byte size/hash, locked identities and attempt provenance. Original-path edits after capture cannot change imported content. This avoids implicit Buildx bootstrap in the strict resource closure while ordinary legacy lab behavior remains explicit. The app profile requires no object-store input. Completed creation evidence is not available until bootstrap ends: use the existing in-progress creator observations at import boundaries, never infer ownership from names alone.
+
+This closes one bootstrap input, not full admission. Reserve validation/copy/import/unpack demand in the existing full cold-start evaluator, preserve the independent platform floor, and require effective resource accounting and actual Kubernetes/Flux acceptance. Archive verification creates no authority for live stores, persistent credentials, image publication or automatic cleanup.
+
+### Finite generated-workload inputs
+
+Declare complete positive CPU, memory and ephemeral-storage resource maps for the selected ECK application/init roles, Prometheus/Alertmanager application/reloader/init roles and shared monitoring controller hooks through the pinned providers' supported named overrides. Preserve existing positive requests/limits, store identities, memory/heap policies and security behavior; add missing bounds rather than reducing capacity to fit a host. Treat new values as declared reservations pending actual startup/load verification. Existing initial-copy measurements inform scratch allowances only.
+
+Use shared composition and controller inputs, not duplicated environment manifests or an operator simulator. ECK named scratch volumes can receive supported positive emptyDir size limits. Prometheus Operator appends extra volumes: do not duplicate its generated config-out volume to claim a size limit. Its memory-backed bound needs the separately specified pinned kubelet/complete Pod-memory and enforcement evidence in the existing normalizer/admission path. Unsupported or unobserved bounds remain explicit prerequisites.
+
+Verify real pinned chart output and the CR/operator inputs consumed by the selected provider roles. Keep source contracts distinct from effective generated Pods: actual complete roles, container/init specs, memory cgroups and mounts must still be observed and compared during full rehearsal. Changes to pins or generated role sets require an explicit contract update. No source render alone certifies full capacity or Kubernetes readiness.
+
+### Shared cold-start calculation and source ledger
+
+Reuse the existing workload normalizer and extract provider-neutral quantity parsing and summation/fit arithmetic from preflight into a small Fleet-local capacity module. Preflight retains ownership, placement, UID/Bound/replica, freshness and refusal policy. Memory keeps limit accounting; Kubernetes CPU keeps requests with finite limit evidence and supported overcommit. Preserve quantity syntax, precision, output fields and cutover behavior.
+
+A native cold-start adapter derives replica, init, ephemeral and claim contributions from byte/hash-bound source artifacts with namespace-scoped owners and the same normalizer. Support selected native Deployment/StatefulSet and bounded Job/DaemonSet shapes with explicit scheduling/concurrency. Missing owners, duplicates or changed bytes refuse. Classify known no-demand resources explicitly; unmodeled runnable owners or unresolved demand produce named incomplete entries, never implicit zero. Native-subset completeness or pure fit grants no creation authority.
+
+Later required slices cover operator traits, memory-volume provenance, complete system/transient/image/archive/host-path allowances, fresh host observations and real admission/upLab gates. Full admission needs a complete-input positive, whole-attempt precreation coverage and staged actual enforcement checks. Keep the floor and stores unchanged. Pinned k3d memory options stay disabled because their fake-meminfo path starts an unaccounted unnamed helper and removes volumes; no universal parent quota prerequisite is inferred.
+
+### Selected generated traits and source-only volume policy
+
+Deliver operator capacity support in two reviewed slices after the shared native ledger. First extend the sole workload normalizer with an optional internal source-volume policy; then add the selected-provider adapter and its production source consumer. Shared arithmetic and source-volume concepts contain no vendor names. Keep existing cutover source/observed schemas, default output and first-refusal order unchanged; actual effective-Pod projection remains a later consumer.
+
+The policy identifies supported names, never supplied numeric caps. Standalone downwardAPI retains validated metadata selectors, paths, read-only semantics and effective modes through the existing projection rules. For the selected Memory config-out volume with genuinely absent sizeLimit, derive P from complete app/init limits and Pod overhead inside normalization. Defer the derived volume calculation until those inputs are normalized so P and overhead are charged once. Preserve CPU requests and disk ephemeral arithmetic. Optional output records a conservative source upper bound and unobserved enforcement; it does not write a synthetic sizeLimit or assert a kernel limit. Actual tmpfs size may be lower because of node allocatable memory and still requires matching Pod/cgroup/mount evidence.
+
+Share selected role/resource decoding between source validation and the provider adapter rather than duplicating Task24's role list. Bind ECK3.5.0, Prometheus Operator0.94.0 and the locked k3s runtime contract to source hashes. Derive the eight selected per-replica store traits from actual CR quantities, supported init ordering, scratch and claims. Treat their accounting inputs as source traits, never generated effective PodSpecs. Additional unsupported cost-bearing fields cannot vanish during selection.
+
+The production cold-start wrapper retains native charges and adds generated traits separately. Replace unsupported-kind blockers only for exact successfully processed owner identities, retaining explicit operator-concurrency, projected-input overhead and effective-runtime prerequisites. Include the derivation identities in receipt closure. Keep generated nominal replica costs out of complete native totals and creationAuthority false. Complete transient policy, fresh host/substrate observation, actual admission and runtime acceptance remain later required slices.
+
+### Bounded archive byte facts before measured allowances
+
+Start the remaining transient work with deterministic facts from the existing verified retained object-store archive. Extend its boundary with a separate digest-bound output rather than changing the import receipt's unknown unpack and memory fields. Stream verified gzip layers through a bounded tar inspection; validate complete traversal and supported metadata, links and whiteouts without materializing paths. Record compressed bytes, decoded stream bytes, logical file payload and entry counts separately. Retain contributions across layers conservatively instead of simulating snapshot reuse or granting deletion credits.
+
+Reuse archive identity and parsing seams where appropriate while preserving existing refusals and import behavior. Missing, unreadable, mismatched, truncated, excessive or unsupported input must throw; no partial total certifies complete facts. These facts do not establish physical allocation, inode/metadata amplification, heap, import memory or runtime demand. Those require later bounded component evidence and fresh host/device observations. This slice changes no Docker resources, images, stores, credentials or lab admission authority.
+
+### Retain validated stage and release output before full contributor accounting
+
+Deliver the source inventory in two reviewed units. Task25c2a retains the existing packet validator's actual stage builds, discovers pinned releases through its existing resolution rules and renders each release once with the existing Helm path. A focused inventory adapter consumes those outputs without a second graph traversal or validate-then-rebuild loop. Keep release declarations linked to expansions, including hooks, native images and claim facts. Do not scan disabled values as active workloads or append the old191-resource view to expansions and double count it.
+
+Extract shared structural YAML/List/identity decoding only as needed. The existing observability API and owner-derived default namespace policy remain unchanged for existing callers. The new adapter uses built metadata, verified chart namespace context and known API scope explicitly; unfamiliar scope stays unresolved. Known pin/identity contradictions and malformed trusted structures throw, while valid unclassified provider or helper demand remains named and non-authorizing. Quantities and replica/strategy declarations remain source facts, not new capacity totals.
+
+Authenticate the actual Helm executable through the existing locked-tool archive verification/extraction seam. Helm's lock digest identifies the archive, so it must not be compared directly to executable bytes. A version string or caller-supplied binary hash is insufficient; a substituted same-version executable must refuse before rendering. Preserve source-only tool capabilities separately from live server facts.
+
+Task25c2b later adds exact Flux/topology/policy bootstrap provenance, reconciliation of shared lifecycle origins and explicit external runtime/helper closure. The first inventory keeps these obligations unresolved. New receipts describe transport as not evaluated in their own scope; existing authenticated source binding and legacy receipt fields are preserved. Neither unit creates runtime resources or certifies readiness.
+
+### Bind bootstrap inputs and reconcile lifecycle origins
+
+Task25c2b extends the existing packet collector and validated-build inventory with exact Flux install, local topology and policy bootstrap source evidence. Capture these from the selected Git export before it is removed, retaining original source coordinates separately from generated artifact paths. Do not reread mutable original-checkout infra to fill the inventory. Keep selected source, generator/runner implementation and actual execution binding distinct; the later admission gates must bind actual runner inputs before use.
+
+Reuse the shared structural resource decoder for native Flux templates and bootstrap policy objects. Group an explicitly recognized bootstrap/stage overlap by physical group/kind/namespace/name only after independently comparing full decoded definitions. Retain both lifecycle origins and stage-only generated declarations; the disposable dev Namespace is not a reason to compare whole policy files as equal. Reject incompatible shared definitions and preserve the existing unrelated cross-stage duplicate-owner checks. Dynamic marker creation and trusted-policy lab-label operations remain declared lifecycle actions with unresolved runtime bindings, rather than fabricated native workloads.
+
+Use the existing topology, locked images, creation plan and bootstrap call sites to name system, registry/LB, serial tools, import and provider/provisioning/helper obligations. Keep exact known pins and unresolved roles separate. The disabled k3d memory option remains disabled. Do not scan arbitrary ConfigMap commands as active Pods, simulate providers, add process allowances or create a second runner.
+
+The current four unresolved native image strings use the same repository and digest as tagged chart-lock records. A bounded inventory adapter may link these supported forms while retaining both original strings and lock coordinates; digest equality across arbitrary repositories is insufficient. Preserve the existing strict platform/source pin guards. Explicit known API scope may be added with its own negative proof; unfamiliar APIs keep their existing unresolved/null facts.
+
+Use small production-core fixtures for bootstrap omission/hash drift, native images, equal multi-origin objects, unequal shared definitions, hidden helper obligations and unsupported image linkage. Watch each new safety boundary fail with its injected fault. One final committed public entry is justified because packet contents and bootstrap inventory change; retain outputs once for field-level checks, rather than rerendering each guard or replaying the old source/proof matrices. Source-only success does not close capacity or runtime acceptance.
+
+### Derive supported native ordinal lifecycle charges
+
+Task25c3a starts with the five selected replica-one StatefulSets: the separate instances' signal collectors/gateways and the ECK operator. Their source omits management/update policy; pinned Kubernetes defaulting is OrderedReady/RollingUpdate. Treat this as provider-derived source evidence, with the existing unobserved source capability and intended k3s version retained separately. The native interface remains reusable for supported source shapes rather than hardcoding these owner names or arithmetic.
+
+Expose internal native manifest/template views from the existing validated rehearsal traversal, carrying frame hash, pointer, resolved namespace and exact origins. Do not reread or rerender the graph, blindly widen the legacy observability index, accept caller-filtered summaries as full closure, or create a second quantity/Pod calculator. Factor existing per-owner normalization and claim expansion so the old source entry and new whole-inventory adapter reuse them. Preserve the existing normalizer's application-sum/init-max/overhead rule and CPU-request semantics.
+
+The supported scenario is one exact immutable-source attempt and process recovery or graceful same-template ordinal replacement under cooperative, reachable-controller conditions. Retain a full Pod charge per ordinal rather than zeroing termination; expand and deduplicate claim identities once. Actual termination, owner/template/UID, node and enforcement evidence remain prerequisites before admission. Grace is source/defaulting metadata, not a wall-clock bound. Force deletion, lost-node execution, foreign mutation, unbound old/new template changes and unaccounted generations cannot be granted a bound by a caller assertion. Other valid policies remain explicitly incomplete; malformed recognized values throw before such classification.
+
+Broad inventory legitimately preserves absent/null resource declarations. Validate all supplied known state without manufacturing maps to call a strict decoder; incomplete bounds stay named. Preserve the old selected-input strict boundary and cutover behavior. Keep every unsupported Deployment/DaemonSet/Job/CronJob, generated trait, writer and system/transient contributor visible. This source slice replaces only actually covered ordinal lifecycle blockers and cannot complete a full capacity fit.
+
+Use small shared-production-path fixtures for counts/defaulting, namespace/ordinal/claim identity, template/scenario drift, malformed quantity/volume ordering and zeroed/double charges. Observe new safety-dependency failures and restore them. A retained-input control over the already captured real source must demonstrate all five nonzero owners through the production derivation path and record its current adapter versus captured-source provenance. No unchanged chart/public-entry rendering or old proof matrix is required; runtime acceptance remains later work.
+
+The implemented seam keeps `readRehearsalInventory` and `inventoryObservabilityRehearsal` source-only. Internal `readRehearsalSource` exposes already decoded native views beside that receipt; `prepareRehearsalInventory` shares the existing canonical producer. The companion `readRehearsalNativeCosts` consumes independently bound retained frames, while `deriveObservabilityRehearsalNativeCosts` uses the same canonical producer once and carries its inventory hash, provenance and helper obligations. Neither public inventory JSON nor the legacy selected index gains raw manifests or capacity fields.
+
+`normalizeNativeOwner`, `expandNativeVolumes` and `expandNativeOwner` share the existing normalizer and ordinal/claim arithmetic. The broad declaration schema preserves optional resource/security-context nulls and runs the shared structural, metadata and quantity checks before incomplete classification; strict selected/cutover decoders keep their defaults and output. Supported rolling policy is OrderedReady/RollingUpdate with absent or explicit zero partition, no custom maxUnavailable or ordinals, and a declared positive replica count. The fixed conditional scenario exposes unsupported force/loss/mutation/generation cases without caller authorization inputs. Four signal Pods have absent ephemeral-storage limits and declared read-only roots: their zero normalized ephemeral component is accompanied by owner-specific absent-limit/log/runtime-writer obligations. Explicit unrelated PVCs retain owner/retention obligations; collision with an expanded ordinal claim refuses.
+
+### Derive conditional Deployment replacement contributions
+
+Task25c3b extends the native source companion for the next family without changing the public source-only inventory or the strict selected/cutover boundary. Consume the already validated native views, retain their frame/pointer/namespace/template bindings and reuse the same per-owner normalization, quantity readers and ledger expansion. Kubernetes-specific lifecycle/defaulting stays in the dedicated Fleet adapter; shared capacity concepts stay provider-neutral.
+
+The supported source scenario is a fresh immutable-source attempt with one ReplicaSet and unchanged scale/template, allowing one first replacement wave. For explicit positive replicas R, conservatively retain R original plus R first replacement full normalized Pod charges, including terminating originals. This is a conditional 2R envelope, not a property guaranteed by Recreate or RollingUpdate and not a claim that replicas plus surge bounds terminating demand. The source cannot enforce the absence of further replacements. Its exact event/generation/UID/template restrictions remain unobserved runtime prerequisites; later admission must independently establish the applicable scenario. Process restart is distinct from Pod replacement. Rollouts, multiple generations, repeated replacements, forced deletion, lost-node execution and foreign mutation stay outside this envelope. Grace is metadata rather than a physical reclamation deadline.
+
+Decode supported declared/defaulted strategy metadata against the existing pinned Kubernetes contract. Validate supplied recognized strategy/count/quantity/volume state before unsupported-policy or missing-bound branches. Valid incomplete source stays named; do not manufacture resource maps, zero unbounded demand, loosen legacy input contracts, change workload limits or count referenced shared PVCs once per replacement. Preserve StatefulSet source contributions, exact unrelated blockers and false creation/runtime authority.
+
+The retained actual source contains 16 Deployments. Initial read-only shape inspection identifies six supported bounded owners and ten with independent absent-bound or writable-root/emptyDir obligations; production tests must establish these outcomes rather than assume historical arithmetic. Use new production-path family fixtures, watched changed-safety faults and one committed-adapter retained-source control. Reuse the unchanged captured source and identify the new adapter separately; no graph/chart/public-entry rerender or historical proof-batch replay is required. Full capacity, enforcement, measurements, host admission, runtime/recovery/history and live acceptance remain required.
+
+Keep existing StatefulSet lifecycle records and ordinal-family scope as compatibility fields; add separately typed Deployment lifecycle records and a Deployment scope discriminator. Deployment accounting slots identify an initial or replacement cohort plus a slot number, never an observed Pod name, UID or StatefulSet ordinal. Each record binds the full source template hash, namespace, source frame/pointer and declared/defaulted strategy quantities. Sum both families through the existing capacity helper. A per-owner unresolved runtime-wave binding remains alongside each supported Deployment contribution. Its conditions include a fresh single Deployment/ReplicaSet identity, complete successful or uncertain creation history, no adoption or previous failed attempt, unchanged scale/template, and no replacement of a replacement. A historical snapshot cannot enforce those future restrictions.
+
+The narrow lifecycle boundary validates strategy and rolling object shapes, integer/percentage quantities and contradictory fields before unsupported or resource-bound classification. Recreate with rolling fields refuses. Pinned Deployment maxUnavailable percentages are bounded at 100%, while maxSurge permits larger percentages; both cannot be zero. Deadline/history/default metadata is not a reclamation or demand cap. Do not copy StatefulSet percentage rules blindly or add a generic controller simulator. Exact supported fields and production-path controls follow the current Kubernetes adapter and pinned primary validation/defaulting contracts.
+
+### Bound the shared networking containers
+
+Task25c3c repairs five missing maps as one source/contract unit: three cert-manager controllers, its startup API-check Job and Traefik. These are handwritten shared platform releases, so update their existing YAML and exact typed value branches rather than adding a parallel generator. Keep common environment definitions and all version/image/identity/replica/networking inputs unchanged. Validate through shared quantity readers and request/limit relationships; do not create another workload calculator.
+
+The candidate policy is explicit and unmeasured. It provides finite memory ceilings with request-to-limit burst room and bounded ephemeral storage for logs/runtime state. Runtime acceptance must prove functionality under these ceilings before any live activation; it does not retroactively label them observed requirements or a host purchase specification.
+
+| Container group                                      | CPU request / limit | Memory request / limit | Ephemeral request / limit |
+| ---------------------------------------------------- | ------------------- | ---------------------- | ------------------------- |
+| Each cert-manager controller, cainjector and webhook | 50m / 1             | 128Mi / 512Mi          | 16Mi / 64Mi               |
+| cert-manager startup API-check                       | 50m / 1             | 64Mi / 256Mi           | 16Mi / 64Mi               |
+| Traefik                                              | 100m / 2            | 128Mi / 512Mi          | 64Mi / 256Mi              |
+
+Bound Traefik's existing data and tmp emptyDirs at 64Mi each, without enabling persistence or changing mounts/read-only roots. Accept the pinned chart's existing resource-aware Go behavior: CPU limits produce GOMAXPROCS and the default 0.9 memory percentage produces GOMEMLIMIT. Record their exact rendered values from the pinned template; do not suppress these settings to preserve unbounded behavior. Actual load, TLS/redirect/readiness, CPU throttling and garbage-collection observations remain later runtime criteria. Too-small caps require an explicit source revision and renewed focused acceptance; too-large caps require capacity admission rather than an inferred fit.
+
+Keep strict current-candidate budget validation separate from structural release/image-reference decoding so already captured historical source can remain valid incomplete evidence. Malformed supplied fields still throw at their boundary; do not weaken image pins, legacy selected/cutover contracts, broad absent/null-resource modeling or source-only inventory. New guard negatives must use the production validator/renderer path and be watched failing before restoration.
+
+Use targeted fixtures plus actual locked rendering of the two changed releases, and one clean committed canonical packet/native-accounting control for the changed source. Old 5bd captures and prior adapter evidence remain immutable historical evidence; never relabel them as the new source. Reuse current archive verification/tool preparation and avoid unchanged chart renders beyond the single coherent canonical control. Changes to guards require focused new proofs, not historical matrices.
+
+The sixth missing map, Velero's AWS-plugin init, remains required together with its writable-root/ephemeral and hardcoded plugins/scratch emptyDirs. The pinned chart exposes no replacement size-limit values. A subsequent coherent unit must choose a narrow, equivalently applied Flux/offline patch contract or a reviewed chart amendment; appending duplicate volumes or allowing ignored post-renderers is prohibited. It must preserve component versions and prove rendered/runtime parity. This decomposition does not waive Velero, Flux scratch, other native lifecycle families, generated operators, writers, component allowances, admission gates or any runtime/live acceptance.
+
+### Bind the Velero volume patch to Flux and offline rendering
+
+Task25c3d closes Velero's coupled init/ephemeral/scratch source gap. Keep the original Velero chart archive, versions and image pins unchanged; use one exact standard Flux `postRenderers.kustomize.patches` entry in both existing releases. Do not append duplicate volumes, silently ignore post-renderers, amend an archive under its existing identity or add a general patch framework.
+
+Candidate policy remains explicit and unmeasured. Preserve server CPU/memory requests and limits; add server ephemeral request 128Mi / limit 1Gi. The AWS plugin init requests CPU 50m, memory 64Mi and ephemeral 16Mi, with limits CPU '1', memory 256Mi and ephemeral 128Mi. CPU limits stay quoted quantities for the strict native normalizer. Bound existing plugins emptyDir at 256Mi and scratch at 1Gi. These are ceilings for a candidate requiring actual installation/backup/load acceptance, not measured requirements, physical quotas or host sizing. The node-agent branch and its separate hostPath obligations are unchanged.
+
+Use one shared strict decoder in a dedicated platform adapter module. Require one post-renderer, one Kustomize patches entry and the exact apps/v1 Deployment target velero in puni-backup. Its inline string contains exactly three JSON6902 operations: test `/spec/template/spec/volumes` against the complete pinned ordered array (cloud-credentials Secret referencing velero-credentials, plugins emptyDir {}, scratch emptyDir {}), then add only `/spec/template/spec/volumes/1/emptyDir/sizeLimit` and `/spec/template/spec/volumes/2/emptyDir/sizeLimit` with positive quantity strings. Reject unknown fields, alternate selectors/identities, extra/reordered operations, malformed or multiple documents, duplicate keys, external references and arbitrary patches. Snapshot validated input rather than retaining mutable caller authority. Current candidate validation requires this policy; optional historical structural decoding remains distinct and nonauthorizing.
+
+The direct offline renderer independently enforces the same contract and existing sourceRef/chart/image-role identities. Decode actual Helm output first and require exactly one matching non-hook Deployment with the pinned volume precondition. Apply the original validated patch through the prepared verified locked kubectl in private fixed local Kustomization files. Reuse/factor existing executable/archive/version authentication without introducing a renderer/inventory cycle, changing public wrappers, bypassing preparation or fetching missing tools. Do not synthesize patched output in JavaScript.
+
+After Kustomize, compare the complete parsed resource identity set/cardinality and every semantic field: only the two intended sizeLimit additions may differ. Missing target, duplicates, a failed precondition, ignored patch, wrong sizes, changed images/references or any extra/unrelated mutation refuse. Preserve hooks/CRDs in inventory while excluding them from this target. The pinned helm-controller and kubectl use the same Kustomize API/kyaml 0.21.1; source inspection supports this bounded inline contract, while actual Flux/runtime equivalence still requires rehearsal. JSON target misses can silently no-op in Kustomize, making the explicit offline target/effect checks necessary.
+
+Ordered TDD uses narrow fixtures for decoder/production boundary, exact application and negative output/tool faults. One actual pinned render per distinct local/production declaration is justified; reuse the canonical local capture for its component evidence and render production only where the differing declaration needs proof. Then run one clean committed canonical current-source control, retaining raw frames/receipts before assertions and keeping prior captures immutable. Reuse validated decoding/normalization and current test capture helpers. No old proof matrices or already-passing full render replay. Source patch success does not waive other native/generated/writer/helper/transient/host accounting, admission gates or any stored-signal/view/isolation/history/recovery/live criterion.
+
+### Derive conditional serial Job attempt contributions
+
+Task25c3e adds the next native family through the validated source companion, sharing `normalizeNativeOwner`, `expandNativeOwner` and `sumCapacity`. Keep Kubernetes lifecycle/defaulting in Fleet and shared capacity concepts provider-neutral. Preserve the existing public source-only inventory, selected/cutover contracts, ordinal and Deployment records. Add typed Job scope/lifecycle records and attempt accounting slots rather than simulating a controller or treating slots as observed Pods.
+
+The accepted narrow design is recorded in the implementation workspace as `task-25c3e-job-design.md`. For one fresh unchanged serial NonIndexed Job with one completion/parallel slot, supported replacement/failure behavior and backoff B, retain B+1 full normalized Pod charges. Source/default provenance binds the intended pinned Kubernetes provider independently from unobserved Helm capabilities. Conditions require complete successful/uncertain-create reconciliation, durable nonduplicated failed/finalizer accounting, no adoption, foreign mutation, forced deletion or lost-node execution, and no further creation after success. Container restarts reuse slots but leave cumulative log growth unbounded. Failed and terminating attempts retain their full charges; deadlines, grace, TTL and hook cleanup earn no reclamation credit.
+
+Validate all supplied recognized policy/count/selector and resource/volume state before incomplete or provider-mismatch branches. Valid unsupported scenarios and absent resource/storage bounds remain named. Do not invent scratch caps, reinterpret absent limits as complete zero demand, allocate an uncontrolled number of synthetic attempts, or add a second calculator. Keep the representation and supported range explicit at its boundary.
+
+The adapter materializes at most 256 accounting slots per Job (declared or effective backoff 0..255). This is a computational representation limit, not a Kubernetes, hardware, physical-concurrency or safety bound. Larger valid backoffs remain `job-attempt-expansion-range` incomplete without truncation or allocation; all known malformed state is checked first. Counts use nonnegative int32 domains, while Job deadline metadata uses nonnegative safe JavaScript integers, including zero. The [pinned batch defaults](https://raw.githubusercontent.com/kubernetes/kubernetes/v1.36.4/pkg/apis/batch/v1/defaults.go) default completions to one only when both counts are absent; explicit parallelism with absent completions stays an unsupported work queue. The [pinned Job validation](https://raw.githubusercontent.com/kubernetes/kubernetes/v1.36.4/pkg/apis/batch/validation/validation.go) informs the narrow recognized-policy and selector checks; this decoder does not replace server admission.
+
+The nine actual declarations contain backoff4/6/10. Eight currently normalize, yielding 74 conditional additional slots; five retain absent ephemeral/log/runtime disk obligations and the bucket Job retains its unbounded emptyDir blocker. These are design expectations, not observed acceptance. The current retained source is Task32's clean0e39 capture, whose existing ledger has29entries; the earlier design's27entry networking baseline is historical. One committed-adapter retained-source control must demonstrate actual outcomes and unchanged unrelated contributions without rerendering charts.
+
+Whole-attempt admission additionally needs exact Helm install/upgrade/retry/remediation invocation identities, hook-created JobUID generations, Flux forced-recreation generations and retained predecessor/Pod histories. A single-UID conditional envelope cannot waive that multiplier or bound repeated runtime log/device growth. CronJob/manual recovery, remaining native/generated/writer/system/helper/transient/host admission and full runtime acceptance remain required. Use ordered focused TDD, watched production-path guard faults and scoped statics; do not replay old passing captures or proof matrices.
+
+### Bound the remaining straightforward container storage inputs
+
+Task25c3f applies the next batch of missing source maps using the owning handwritten files and existing common builders, not a parallel generator. Preserve every existing CPU/memory quantity, version/image pin, identity, replica, selector, trust input, endpoint, primary-state PVC and prior floor. This unit adds explicit candidate ephemeral requests/limits and one existing bucket temporary-volume size only. It does not close writer-growth, lifecycle, effective enforcement or complete admission.
+
+| Registered container roles                                                                                   | Ephemeral request / limit |
+| ------------------------------------------------------------------------------------------------------------ | ------------------------- |
+| Signal metrics proxy, blackbox exporter, kube-state-metrics, node exporter and setup/snapshot/bucket clients | 16Mi / 64Mi               |
+| Registry and local MinIO server                                                                              | 32Mi / 256Mi              |
+| Each signal collector and gateway                                                                            | 64Mi / 256Mi              |
+
+The bucket initializer's existing `tmp` emptyDir is16Mi. Lightweight clients hold configuration and bounded expected HTTP responses; services retain primary state on their existing PVCs. These declared caps are unmeasured eviction/reservation candidates. Actual response/log sizes, startup, load, recovery, eviction and headroom must be accepted under them before live use. They are neither universal defaults nor inferred h3mon purchase requirements. Do not assign the append-only receiver, Flux artifact/temp paths or Kopia/node-agent scratch an arbitrary functional cap in this batch; their separate input/retention/customization contracts remain required.
+
+Owning native files include registry/base/registry.yaml, observability/prometheus/blackbox-exporter.yaml, backup/local/object-store.yaml, observability/kibana/objects/job.yaml and backup/elastic/snapshots.yaml. `observability.ts` builds signal roles and the retention Job; regenerate its owned base/signals.yaml, metrics.yaml and elastic/settings/settings.yaml through the existing renderer. `observability-composition.ts` copies common jobs into both instances. The existing kube-prometheus-stack values supply kube-state-metrics/node-exporter maps. Reuse shared quantity/request-limit validation and keep optional historical structural decoding distinct from required current-candidate policy. Do not create a second resource calculator or make an image-reference reader reject valid old absent maps.
+
+Ordered TDD covers production current-policy absence/null/invalid/request-above-limit and bucket scratch boundaries, generated/common instances, pinned output propagation and unchanged unrelated semantics. Watch changed safety dependencies fail and restore them with adjacent Proof comments. Use focused compatibility/statics rather than old proof matrices or unrelated application suites. Source edits justify one new clean committed canonical11stage capture with original raw outputs retained before assertions; its two-instance graph supplies shared-role rendering evidence. Preserve immutable0e39 captures and independently approved4adb Job accounting as historical source/adapter facts, not labels for the new candidate. Reuse captured output for exact field and native accounting checks instead of per-field rerenders. Record any genuine failed capture/source correction and its separate identities rather than relabeling it green. Source and runtime acceptance remain separate.
+
+### Derive conditional DaemonSet first-wave contributions
+
+Task25c3g uses all source-declared candidate nodes, never a guessed eligible subset. For fixed controller/template/node identities, retain N initial and N first-replacement full Pod charges. This conditional2N envelope is not a controller-enforced lifetime maximum. The source cannot enforce its own event restrictions; owner-specific runtime-wave and whole-attempt generation/history bindings remain required even when policy/resources prevent charging. No failed/terminating discount, grace/cleanup credit, selector/taint/pending-state reduction or fabricated Node UID is allowed.
+
+Preserve existing four/five-argument native readers and the legacy source/frame contracts. Add an optional sixth `RehearsalTopologyEvidence` with exact retained bytes, the original source coordinate and selected revision/artifact identity. Only this native overload requires the richer third-argument `NativeSourceContract`: the existing frame contract plus existing bootstrapSources and provenance fields already present in captured inventory receipts. Compare evidence selection/source/path/hash with that independently captured contract before using the existing topology decoder. An evidence object's self-hash or bare caller count is insufficient. Omitted optional evidence is named incomplete; supplied malformed/mismatched trusted state throws. Preserve original-versus-retained path mapping and snapshot validated metadata against caller mutation.
+
+Factor the existing topology decoder in `observability-rehearsal-sources.ts` so bootstrap and native evidence share it; retain topology bytes internally beside already verified source coordinates. Async inventory preparation supplies this companion and existing receipt selection to native accounting. Do not expose raw topology in public source-only inventory or add global fields to legacy frame contracts. N is the safe integer server-plus-agent sum; support1..128 candidate nodes (at most256 accounting slots). Other valid counts are explicitly computationally unsupported before allocation. Keep existing topology schema/default behavior; do not weaken it to manufacture test cases.
+
+Use a focused native DaemonSet policy/lifecycle module and the existing native prepass/orchestration. Share the existing two-cohort arithmetic with Deployment rather than copying it; retain existing Deployment identities/output exactly and use the sole normalizer/expander/capacity sum. Daemon lifecycles retain full-template/source/topology bindings, declared/defaulted policy/placement provenance, structured unobserved conditions and synthetic candidate slots. Known supplied policy/placement state is validated before incomplete/provider branches. The pinned DaemonSet percentage rules differ from Deployment; supported policy is RollingUpdate with zero surge. OnDelete (including supplied rolling fields) and surge cases remain valid unsupported where the pinned API allows them, rather than invented malformed state. Controller-added tolerations are provider-derived metadata, not observed eligibility.
+
+The current0c645d2 source has four native DaemonSets; only Traefik is expected to normalize through currently supported volume/resource contracts. Node-exporter now has its declared ephemeral bounds but still has hostPath obligations; otel/Velero agents retain separate hostPath/writer/scratch facts. Collect independent obligations before the first normalization or topology/policy shortcut, without a second calculator. Preserve old source/selected/cutover behavior and all other families. Defaults1.36.4 and unobserved Helm capabilities1.35.0 remain distinct from actual provider/runtime evidence.
+
+Use ordered focused TDD, watched changed-safety faults and one clean committed-adapter retained-input control against the existing immutable0c645d2 raw capture. The native baseline is116charges/107blockers, five ordinal/eleven Deployment/nine Job lifecycles; new actual outcomes must be established, not inferred from manual arithmetic. No unchanged chart/public-entry rerender or old proof batch is needed. Record source-versus-adapter/capture identities, commands, failures, restoration, timings and conditional/runtime limits. Full capacity, physical enforcement, host admission, Flux, stored signals/views, history/recovery and live acceptance remain required.
+
+### Lock helper selection and retain effective image identities
+
+Task25c4a uses the existing k3d adapter and creator callback. Add a required closed `k3dHelpers` selection to the toolchain, separate from unrelated `ImageLock` consumers: provider k3d, version v5.9.0, primary source revision15dd1e2dbd62c53ed990fce9b7332335e8cb053c, exact GHCR repositories and linux/amd64 index/manifest/config tuples. Require agreement with the existing binary lock. Use the selected manifest in execution references and retain the parent index as provenance. The already verified tuples are:
+
+| Role     | Repository               | Index                                                                   | linux/amd64 manifest                                                    | Config                                                                  |
+| -------- | ------------------------ | ----------------------------------------------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| serverlb | ghcr.io/k3d-io/k3d-proxy | sha256:7be40abfeb6ac9a81d0d4157a7cbf3aacc68a64a1780ca2efb160f1aea915177 | sha256:9181bb55f3c04c86510af3526dda86baa9abc389ef988a3c4bb4879b32d8c21c | sha256:403bc5ae35461509e3e08ee334645f37df3fdc9b391ee924fe533fc6b911ced1 |
+| tools    | ghcr.io/k3d-io/k3d-tools | sha256:c57abce697e66feeb826922718738fe186b47779312d49d4e51e6fb9b8a6f34d | sha256:f18c1e21aba123fe6ff315c514a0feffc005f587aa3db773e89489c2118842dd | sha256:1931b29061730f9c55dca0b88407d914e8794535a11ac0cc492b79b6d2bd9710 |
+
+Completed bounded metadata research verified both index→unique AMD64 child→config chains and17 layer descriptors; root independently rehashed all six bodies and checked platform, sizes and RootFS counts offline. Both configs omit ImageVolumes. Candidate compressed bytes total40,013,014, separately from the30 source-pinned service/system identities; neither sum is expanded, physical, cached or runtime allocation. Selection is a reviewed source change, not mutable tag resolution during creation. Keep the metadata receipt/source provenance with verification evidence. No new domain term or provider assumption enters shared observation/capacity concepts.
+
+Parameterize existing helper naming with the selected lock. Derive plan references and process-scoped `K3D_IMAGE_LOADBALANCER`/`K3D_IMAGE_TOOLS` alongside owned KUBECONFIG from that one selection for ordinary execution and witnessed capture. Preserve all strict inherited-K3D override, binary/config/source checksum, daemon, collision, anonymous-tools-volume, namespace and resource guards. Ordinary creation gains deterministic helpers without acquiring ownership authority.
+
+Precreation helper inspection must corroborate the selected reference/manifest association, platform and effective config digest, retaining safe observations and complete selected/toolchain/source hashes. New creation plans require expected config IDs for all roles. Helpers are independently pinned to researched config IDs; other existing roles retain observed precreation IDs without implying new config provenance. Permanent closure compares both Config.Image and .Image. Temporary closure requires exact unique observation coverage for every creator ID, including serial IDs sharing a tools name; final permanent peers/consumers remain separate from temporary mounts and lifecycle.
+
+Retain the exact old closed plan/inputs/closure formats as explicit historical variants. Add explicit version2 effective formats; keep existing seals, binding and completion markers. Shared record readers validate one complete consistent cohort and dispatch the corresponding validator. Historical receipts retain their former teardown semantics and exact current identity checks, including retained stores/history, but cannot establish new forward acceptance. Every new forward strict creation uses the complete new variant. Unknown/mixed/truncated versions and supplied missing required fields throw; never infer a historical format from absent new fields or fabricate an upgrade.
+
+Use the existing saveCreator/captureCreator persistence callback to retain the creator receipt, recheck the captured daemon, inspect each temporary full ID immediately, validate both image identities and append an exclusive observation record. Sealed closure must bind the identical records and recheck joins when read. Awaiting our callback does not pause k3d. If the container disappears before inspection or evidence persistence fails, preserve partial records and refuse readiness/sealing. Durable retention must precede closure; it need not finish before provider deletion. No name fallback, proxy or helper-cleanup change is justified for scheduling guarantees. Successful live capture remains a later component/rehearsal requirement.
+
+One coherent implementation unit covers lock/schema, selection/environment, effective config joins and versioned transient retention/closure. Ordered focused TDD covers provider/platform/version, propagation, all effective IDs, serial missing/duplicate observations, inspection/persistence failure, authentic historical teardown, historical-forward refusal and mixed/truncated versions. Watch each new or changed safety check fail on its production path and restore it with adjacent Proof. Use only affected checks and focused compatibility; do not replay prior metadata/image downloads, full render/gate suites or unrelated application tests. Actual helper/system/process/physical allowances, host admission, stored signals, recovery and live convergence remain required; memory flags remain disabled.
+
+### Bound the local receiver writer before assigning storage caps
+
+Task40 changes only the existing BusyBox1.36.1 receiver at/cgi-bin/alert. Keep executable bootstrap/CGI in its owning YAML and test extracted actual commands rather than a second server. Introduce a narrow typed current-candidate policy/assertReceiverCandidate through validatePlatform, reusing existing quantity/resource readers. Preserve image/security/CPU/memory/endpoint/prefix and production recipient authority. Narrowly refresh the changed local Deployment fixture digest without weakening whole-semantic comparison or readiness guards.
+
+Candidate policy is65536body bytes,8388608history bytes,10seconds admitted body read and one nonwaiting writer;32Mi disk scratch and32Mi/64Mi ephemeral request/limit. These are finite unmeasured rehearsal input/retention policies, not observed traffic requirements or h3mon sizing. Scratch includes old and replacement8Mi histories, one bounded body and script/metadata headroom. The container-log envelope is provisional; cumulative host-log/transport costs remain obligations.
+
+Acquire mkdir lock before body handling, bound decimal syntax before arithmetic, spool exact bytes without shell substitution, and check length/deadline. Reject visibly with specific400/408/413/500/503/507 outcomes. Construct checked same-directory replacement preserving prior records, rename atomically, require readable retained record and checked stdout before200ok. Do not add fsync/power-loss or Pod-replacement persistence promises. Interrupted lock/pending state refuses until inspection; fresh initialization is exclusive and established missing/unreadable state refuses. Lost acknowledgements can duplicate records. Preserve raw whitespace/labels and current firing/resolved evidence, without new JSON/method/content-type restrictions or rotation.
+
+Ordered TDD first exercises the actual extracted bootstrap/CGI using private scratch and bounded subprocess IO, then current-candidate identity/policy/resource wiring and selected historical/parity compatibility. Watch changed safety dependencies fail and restore them with adjacent Proof comments. Fast host POSIX tests establish application logic only. Exact pinned applets/httpd must later be observed in one owned bounded component after host/context/image/platform/ownership/capacity preflight; no denied local Docker bypass or new normal-test daemon/network dependency. A CGI lock does not bound httpd children/transport/kernel costs.
+
+Owning workload changes justify one new clean committed canonical11stage capture. Preserve immutable0c645d2 output/source/generator identities and reuse new raw capture for semantic and native-ledger checks, without per-field renders or old proof batches. Source/runtime/live states remain separate; canonical3.1 and full admission/history/recovery/dev acceptance stay open.
+
+### Retain image roles across Docker provider projections
+
+Task44 corrects a demonstrated identity mismatch. Current requireHelperImage compares Docker image-inspect.Id with configDigest; creation also assumes the platform inspection object ID equals container.Image. Actual Docker29.7.2/API1.55/containerd observations show index and manifest object IDs, including a container index ID with a corroborating child ImageManifestDescriptor. One pure production-function counterexample refuses a valid selected-helper manifest-ID shape. This is a source contract gap, not a successful helper runtime capture.
+
+Introduce small neutral image-role schemas in image-identity.ts and one dedicated docker-image-identity.ts adapter. Reuse existing source/lock/receipt provenance rather than a parallel proof framework. ImageExpectation distinguishes a helper's existing complete selected tuple from a runtime pin whose config is explicitly unobserved. Keep all concrete engine/store/API/context fields in the adapter binding, not shared domain branches. Detect the supported contract from actual capabilities and projections; reported version alone cannot assign an ID role. Confirm niche API semantics against primary source and the retained real projections before implementing the boundary. Unknown or contradictory profiles refuse.
+
+The adapter inspects the exact pinned reference normally and for the selected platform where required, retaining both object roles and the selected manifest descriptor under one daemon. Helpers bind their existing source-verified index/manifest/config graph. Runtime pins bind the existing source root and provider-observed child; config remains unobserved. Runtime container.Image may differ from the preinspect object ID only when its validated role and ImageManifestDescriptor establish the same content. Preserve exact configured references, platform and repository evidence; normalize only proven provider reference aliases rather than accepting unrelated repositories. No per-creation image-save operation, new pin or broader metadata collection is required.
+
+Emit version3 plans, inputs and permanent/transient observations through ordinary and witnessed creation, node import, closure and retained cohort readers. Keep version1/2 schemas and their original teardown meanings unchanged; only version3 supports new forward acceptance. Reject mixed record versions, missing bindings, altered descriptors and self-attested selection changes. Keep all prior mount/network/volume/daemon/collision, transient-race, uncertain-capture and history checks. No provider deletion barrier, cleanup change or fabricated observation is added.
+
+Ordered TDD covers neutral roles, actual protocol fixtures, production precreation refusals, different object roles with identical bound content, version3 callback/import/closure joins, legacy teardown and forward rejection. Watch each new safety dependency fail on its production path, restore it and record adjacent Proof evidence. Use focused compatibility and scoped statics; do not replay old144-test/21-fault batches or full gates. Workload images and graph semantics do not change, so reuse immutableff0b source capture with the new adapter identity; rerender only if an actual owning input changes. Independently review the source unit, then corroborate exact selected-helper/nonhelper projection paths with a separately owned bounded provider component before broader runtime acceptance. Whole-attempt capacity and actual helper lifecycle races remain open.
+
+Task44 provider support is initially explicit and narrow: new version3 forward identity requests use the observed Docker29.7.2 containerd snapshotter profile and explicitly request API1.55. Retain that requested API separately from reported server maximum/minimum. Classic-store version3 forward acceptance remains unsupported and unverified; neutral config-object representation and authentic version1/2 teardown semantics remain available. Scope the API override to new version3 identity requests; historical teardown does not inherit it.
+
+Version3 retained reads require the original Git source revision and toolchain lock object to be locally available. The thin reader uses the existing repository root, checks the original toolchain hash and existing Toolchain schema, and passes independently decoded source selections to cohort validation. Forward closure reuses its already validated source lock. Missing Git objects/files, changed hashes or malformed locks refuse with a restoration/manual-inspection prerequisite; readers never fetch, mutate Git or fall back to self-attested closure/input copies. Version1/2 readers add no Git prerequisite.
+
+### Preserve optional image-descriptor platform provenance
+
+Task48 follows real helper-cache observations after Task44 source approval. Both selected helper manifests return descriptors without platform in normal and platform-selected Docker inspection; image OS/architecture/variant are independently available. The immutable e635 production adapter rejects that legitimate shape. The corrected safe CLI projection uses native `.ID`, `.Variant` and `.Config.Volumes` fields together; mixed JSON-map/native formatting failed and is not reused. No value is defaulted or supplied from the request. The exact [Moby image inspection implementation](https://raw.githubusercontent.com/moby/moby/docker-v29.7.2/daemon/containerd/image_inspect.go) copies selected config platform fields separately from its target descriptor; [the API response type](https://raw.githubusercontent.com/moby/moby/docker-v29.7.2/api/types/image/image_inspect.go) exposes those image fields. Actual client/server29.7.2/API1.55 and empty image variants were corroborated for both helpers.
+
+Keep neutral image identities unchanged. New Docker binding and container-observation records use closed adapter schemaVersion4 inside unchanged outer creation version3. Preserve the exact old adapter3 schemas and semantics for retained3/3 teardown; never add invented raw observations to old bytes. New forward creation/sealing emits and requires adapter4; mixed3/4 pairs or cohorts and unknown formats refuse. Outer1/2 teardown retains its original API/Git behavior, and outer-v3 source Git/hash/schema/selection checks remain unchanged.
+
+Adapter4 bindings retain mandatory safe normal/selected image inspections: object ID, descriptor digest/media/size and explicit descriptor-platform presence/absence, image OS/architecture/variant, and platform origin from observed image-config fields. Retain present descriptor variant presence explicitly. Normalize known content platform from actual image OS/architecture; require explicit empty image variant, supported platform and exact requested/source agreement. If descriptor platform is present, require its agreement and preserve unsupported-variant refusal. Null/malformed platform is not absence. Normal manifest and selected manifest must join digest/media/size and normalized platform; an index remains an index. Preserve reference/repository/daemon/root/volumes/config-identity joins.
+
+Recompute retained4 normalized identities from their raw safe inspections before consumption; matching copies are insufficient. Adapter4 container records retain the raw safe manifest projection and explicit container-descriptor origin, with the existing mandatory descriptor platform and exact selected manifest equality. Do not broaden runtime platform acceptance from generic OCI optionality: [the exact container inspector](https://raw.githubusercontent.com/moby/moby/docker-v29.7.2/daemon/inspect.go) fills missing manifest platform from the container image platform in this supported profile. Actual helper-container behavior is still unobserved and remains a separate bounded component obligation.
+
+Ordered TDD covers actual retained image projections, old3/new4 round trips, raw/normalized mismatches, missing/null/malformed or contradictory fields, variants, pair/cohort version mixing, real creator/callback/import/retained caller propagation, and selected legacy compatibility. Watch only changed safety dependencies fail, restore bytes and add adjacent Proof comments; reuse the original83ms RED and unchanged old proofs. No new pins, toolchain change, neutral-model expansion, ownership/cleanup barrier, authority/floor change or chart/canonical rerender. Review the scoped source fix before rebinding the private component to its immutable source/dependency hashes and performing actual provider verification.
+
+## Native CronJob syntax and declared horizons — Task54/55 intent
+
+This continues the native Job/DaemonSet accounting path within full task3.1. The terminology is rehearsal horizon: a declared source scenario, not an enforcement receipt. Current implementation BASE before this intent is088fd039b0638a376e9ae8dc7f73b31d4346f4ce. Task42's source shape and Task53's finite independent oracle supply the design evidence; no new workload, image, runner, provider pin or capacity floor changes. Reuse immutableff0b source captures and existing native normalization/ledger. Shared capacity and observation models remain provider-neutral; Kubernetes/Go dialect knowledge stays in the Fleet provider adapter.
+
+Deliver two reviewed TDD slices. Task54 adds the existing production-prepass syntax boundary only; Task55 completes CronJob policy/horizon/lifecycle accounting and only the Job extraction needed for reuse. Neither slice closes full runtime admission. The user-authorized autonomous goal permits routine design choices; no new activation or hardware permission is inferred.
+
+### Task54 syntax boundary
+
+Use `observability-cron-syntax.ts`, `observability-cron-duration.ts` and `observability-cron-zone.ts` beside `observability-native-ordinal.ts`. Keep pinned catalogue bytes beside the owning zone validator as `observability-cron-zones.json`. Document source/version/hash and upstream MIT/BSD attribution on the owning symbols and retain exact license texts in a narrowly scoped notices document. No new runtime package or calendar engine.
+
+`readCronSchedule(value: string)` returns `CronSchedule`: fields with original source, six bigint masks and expression/descriptor origin, or interval with original source, exact intervalNS and normalized delayNS bigint. It is a fresh Kubernetes schedule boundary, not a generic raw robfig API: reject empty and uppercase embedded TZ predicates first, then port only the reachable pinned descriptor/field/duration branches without preliminary trimming. This deliberately omits raw embedded-TZ lookup behavior because Kubernetes itself forbids it. Preserve Unicode whitespace, signed-int64/overflow, empty comma segments, wildcard branch order, names, star bit63, descriptor aliases and negative/subsecond Every normalization. `readCronDuration(value: string): bigint` is the same production @every dependency; preserve Go float64 fractional scaling/truncation with int64 checks, not a different rational calculation.
+
+`readCronTimeZone(value: string | undefined)` returns `CronTimeZone`: absent, known(name), or outside-catalogue(name); known malformed component/empty/Local values throw. Exact catalogue membership is independent of raw host `LoadLocation`; right/UTC demonstrates why a miss is not intrinsic invalidity. `readCronCalendar(spec: unknown)` validates supplied schedule/timeZone once and returns the typed pair. Carry it through the existing all-native prepass; consume its typed zone state in the CronJob branch and retain `cronjob-time-zone-outside-catalogue` alongside the existing lifecycle blocker. No bigint is added to serialized inventory output. Existing other-family paths and counts remain unchanged.
+
+Commit the independent337-case corpus/reference fixture and598-name catalogue with pinned provenance. Compare fresh-source outcomes where knowledge is determined, exact parsed masks/durations and independent catalogue policy for all IDs; retain raw TZ/panic/host-fallback diagnostics without falsely claiming generic raw ParseStandard or runtime timezone equivalence. Use actual `readRehearsalNativeCosts` negatives for malformed CronJob state hidden behind earlier blockers/provider mismatches and unknown-zone preservation. New safety checks need watched production-path faults; helper-only success does not prove caller wiring.
+
+### Task55 lifecycle companion
+
+Preserve existing four/five/six-argument native reader calls. Add native-only seventh `horizons?: RehearsalCronJobHorizons` and optional sixth after helmArchive on the single-pass canonical companion. Closed shape is `{basis:'declared', selection:{sourceRevision,artifactSHA256}, windows:[{owner,frameSHA256,pointer,jobTemplateSHA256,fromExclusive,toInclusive,controllerTimeZone}]}`. Owner is the existing Kind:namespace:name resource identity; contributing source owner remains separately retained. Require the existing native source contract when supplied. Decode/snapshot every supplied binding and all recognized CronJob/nested Job policy before missing/provider/unsupported shortcuts. Reject duplicate/unknown identity, source/template/frame/pointer mismatch or malformed trusted values.
+
+Times use exact millisecond UTC `YYYY-MM-DDTHH:mm:ss.SSSZ` strings that roundtrip to themselves, safe integer milliseconds and L<U. The controllerTimeZone field is required and always structurally decoded/snapshotted. Preserve source-declared timezone when present; declared controllerTimeZone supplies an explicit conditional input only when source timezone is absent. It does not observe the controller and need not equal an explicit source timezone. Source UTC with a different valid declared controller zone still uses source UTC. Unused controller knowledge stays visible without replacing source scheduling. Unknown effective timezone or known non-UTC scheduling, suspended, Replace or other valid recurrence remains named unsupported/incomplete. Only positive divisors of60 in `*/d * * * *` and the all-minute expression are initially chargeable under UTC. Reuse the validated Go-whitespace tokenization for this expression subset; descriptors remain unsupported even if their masks coincide. A small shared tokenization helper is permitted where it avoids copying parser logic.
+
+Reuse actual Job decoder/retry policy/lifecycle expansion and shared normalizer/sumCapacity; extract `observability-native-job.ts` only where needed, retaining standalone Job output and source identity. Parameterize template/source coordinates rather than fabricating Job manifests/UIDs. Validate CronJob counts, enums, nullable presence, nested selector restrictions and safe-int64 deadline fields before incomplete branches. Use pinned default provenance for Allow/false/history3/1 and existing Job defaults; no timezone or lifetime bound is defaulted.
+
+Ticks N=floor(U/P)-floor(L/P), P=60000d; full retry slots S=N(B+1). Check safe arithmetic and S<=256 before allocating. Cron uses this aggregate bound rather than an additional standalone B<=255 restriction: N=0 creates no entries even for a large valid B, while retaining lifecycle facts and independent obligations. Standalone Job bounds remain unchanged. Larger valid envelopes stay computation-incomplete without truncation. Expand full normalized Pod charges through existing cohort APIs, retaining tick/retry/source/template coordinates rather than observed identities. Append CronJob lifecycle facts without changing other contributors. Keep all fresh-creation/clock/calendar/timezone/generation/one-UID conditions, whole-attempt/manual/history/writer/runtime obligations and false authority. Forbid, deadlines, history/TTL and cleanup never reduce the demand.
+
+Each slice records actual RED/covering/selected compatibility/static commands, hashes, new watched faults/restoration and an independent scoped review. Only after changed owning sources require it may a new canonical capture run; this parser/accounting work reuses retained immutable frames. Actual horizon enforcement, generated operators, writers, host admission and complete Flux/Kubernetes/signals/history/recovery/live acceptance remain required.
+
+### Join generated traits to the full rehearsal ledger
+
+Task57 current-state inspection at2d9cbccce confirms the selected generated resource maps and scratch are already implemented (Task24) and `deriveSelectedCapacityInputs` already computes eight partial traits (Task25b2). The next source unit is integration and conditional lifecycle accounting, not another resource-map batch. Preserve all owning values, pins, claims, image/resource policies and floors. Existing copied-tree measurements support retaining current16Mi allowances but do not prove startup, subsequent growth or physical enforcement. No new domain term or hard-to-reverse architectural decision is introduced.
+
+Expose validated provider manifests and release declarations beside `readRehearsalSource.native`; keep the public inventory unchanged. Narrow the selected resource/trait source inputs to the actual consumed namespace and release fields rather than fabricate `ObservabilitySource`. Select application namespaces from validated KPS declarations with both store roles enabled and explicit dev/prod instance labels; require unique environment/namespace and matching ES/Kibana releases plus four CRs each. Preserve explicit provider ownership and existing pin/role closure. Extra/unsupported cost-bearing state cannot disappear through selection. The shared validated index contains the same decoded retained objects; do not reserialize, rerender or use mutable current composition to explain historical bytes.
+
+Add `readRehearsalCapacityCosts(stages, expansions, contract, options)` and a canonical companion alongside native-only APIs. Options carry retained runtime-lock bytes, bootstrap and optional topology/horizons; the full contract also supplies the independently retained packet receipt's file/selection identity. Historical bootstrapSources excludes toolchain.json: bind the unique `infra/versions/toolchain.json` file entry from packet receipt.files, packet sourceRevision/artifactSHA256 and inventory provenance, then use `decodeRetainedToolchain`. Do not trust a caller-supplied decoded lock or create a historical bootstrap coordinate. Factor existing native derivation so both readers use one implementation; combined retained consumption validates source once, and canonical consumption calls the existing producer once with original arguments. Existing native signatures/output and source-only public inventory remain exact.
+
+The combined result separates native facts, generated traits and generated lifecycle/charge facts. Reuse existing full cohort expansion and sumCapacity. Where necessary narrow the arithmetic helper's model type to the normalized amounts it actually consumes; this is reuse, not a second Pod calculator. The supported declared scenario is one fresh immutable-source CR generation, the selected one-replica role, one initial and at most one first-replacement full Pod slot, with no preexisting/adopted children, second replacements, repeated/uncertain creates, scale/template/provider changes or forced/lost-node execution. This is conditional accounting and cannot assert those conditions from source. Logical generated slots are not observed Pod names/UIDs. Keep generated-input/runtime overhead, actual controller/Pod/claim/mount/cgroup/tmpfs/swap equality, initial-copy/load/recovery sufficiency and whole-attempt retained history as concrete missing facts. Unsupported/null traits get no nominal amounts.
+
+Each selected persistent claim template has one logical source-bound claim slot reused across that owner's two Pod cohorts only conditionally; charge requested capacity once. Its coordinate retains owner/namespace/role/template/ordinal/source pointer and unobserved actual PVC binding, rather than fabricate an effective PVC name/UID. Additional or unrelated claim identities receive no deduplication credit; retain new-claim/generation obligations. Preserve every prior native charge/blocker/lifecycle and replace only exactly matched generated-owner generic blockers with concrete requirements. Bind all trait/lifecycle/charge inputs in the combined closure and keep authority false.
+
+Ordered TDD covers a retained-reader feature RED, single-source/producer integration, source-derived selection and independent packet/lock/CR/frame coordinates, conditional full cohorts and single-claim reuse, malformed/unsupported/null traits, no native drift and false authority. Watch only new changed safety dependencies fail and restore exact bytes with adjacent Proof comments. Reuse existing source/trait/native controls rather than replay old role/parser/oracle/fault batches. No owning source or graph changes: one clean committed-adapter retained-input control is justified, while canonical/chart/source capture remains unchanged. Full task3.1 and actual host/runtime/live acceptance stay required.
+
+Task58 retained-input clarification: ff0b application KPS declarations omit `prometheus.enabled` and `alertmanager.enabled`; the controller declaration omits `prometheusOperator.enabled`. The earlier explicit-enablement assumption was incorrect. Root approved modeling these omitted flags from the authenticated KPS91.4.1 archive, SHA256 `1bd5e7a88e758ed3ec22db0fe6e72b1352f3f0e7e5a93c79979f7edf361becdb`: `values.yaml` declares `alertmanager.enabled=true` at402, `prometheusOperator.enabled=true` at2982 and `prometheus.enabled=true` at3784. Preserve explicit/default origin, declaration pointer and exact chart/version/hash; validate malformed/null/nonboolean supplied state before selecting. This is an exact pinned-provider rule, not a generic missing-value fallback. Explicit application controller-disable and provider store-disable remain required, as do all eight exact generated identities and independent runtime obligations. No chart render or owning-source change is required.
+
+### Account selected read-only host-path consumers
+
+Task60 consumes the completed Task59 pinned-source seam research; actual pre-intent BASE is700aea9bf177de6204e06689f0911996ed72d83a, after independently approved generated integration. This closes source accounting for the retained shared node-exporter, not writable storage or runtime admission. No new domain term or hard-to-reverse architecture decision is introduced. Reuse existing normalization, quantities, source views, DaemonSet expansion and combined accounting; keep Kubernetes/provider details in Fleet.
+
+Add a closed hostPath body reader and source-prepass mount checks that validate all supplied recognized state before incomplete shortcuts. Preserve default WorkloadSpec/ObservedWorkloadSpec and cutover behavior; the new permission is an internal SourceVolumePolicy.readOnlyHostPaths list. Each policy row carries exact volume name/path/declared optional type and all referencing mount tuples (containers/initContainers role, container name, target, explicit readOnly true, optional None/HostToContainer propagation). Retain absent versus explicit-empty type and absent versus explicit None; do not normalize source identity. No subPath/subPathExpr, Bidirectional, extra/unmatched/duplicate mount or writable/omitted mode is allowed. Source schemas may recognize a valid unsupported body without granting policy. Known malformed bodies/modes/propagation and volume/reference/cardinality contradictions throw before other unsupported inputs.
+
+Authorize this policy only in the selected native DaemonSet adapter from its validated frame/entry/template and trusted lock. Require apps/v1 DaemonSet, namespace observability, name kube-prometheus-stack-prometheus-node-exporter, release owner observability/kube-prometheus-stack, chart kubePrometheusStack91.4.1 with its reviewed archive identity, and the exact locked nodeExporter role/image `quay.io/prometheus/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0`. Fixed supported tuples are proc:/proc→/host/proc and sys:/sys→/host/sys, plus root:/→/host/root with HostToContainer; all readOnly true and type absent in the retained source. A provider upgrade or changed identity stays unsupported until its contract is reviewed. Names/labels, caller assertions or a caller-supplied template cannot grant permission. Preserve existing full template hash/source provenance and all topology/provider/lifecycle restrictions.
+
+Pass the policy through normalizeNativeOwner only at that source adapter seam, preserving existing callers/default output. Make mount-propagation acceptance specific to the exact authorized tuples. The normalized sourceHostPaths evidence is absent for callers without this policy and preserves a snapshot of accepted identities with consumerIntent read-only and enforcement unobserved. Preserve accepted host path/mount metadata in normalized output. Source intent attributes no additional write reservation to this consumer; it does not make the backing device or external writers free. Native DaemonSet obligations retain exact path/type/propagation, device, writer growth, recursive-readonly/bind/runtime observation and generation/history facts independently of normalization success. An additive native hostPathConsumers field, present only when source host paths exist, retains per-owner/source/template/volume and every app/init mount fact independently of charging; consumer intent and unobserved enforcement remain explicit. Reuse the same closed reader rather than encode metadata into blocker strings or add another resource calculation. Preserve all prior obligation strings and unrelated native fields.
+
+Retained source has one candidate node and complete node-exporter64Mi memory/10m CPU-request/64Mi ephemeral bounds. Static branch inspection found no other source blocker after host-path/propagation support, so existing2N expansion is expected to add two full64Mi/10m/64Mi slots; the actual committed control must establish that delta. OTel has a writable persistent checkpoint path; Velero mounts are writable and retain other missing bounds. Neither whole Pod becomes bounded merely because a reader path can be classified. Do not change persistence, configure a guessed quota, alter maps/limits/claims/images/pins/floors or widen the cutover API projector.
+
+Ordered TDD starts with the actual native-reader missing-contribution RED. Cover closed malformed input before unrelated unsupported state, exact source/provider/template/mount tuples, all app/init read modes, absent/empty/default metadata distinctions, snapshots, no-policy/cutover refusal, full2N charges and preserved independent obligations. Replace the single existing hostPath:{} unsupported sentinel in workload tests with a structurally valid unsupported path so its original metadata guard remains isolated. Watch only new changed production-path safety dependencies fail/restored with adjacent Proof comments; dependency faults and masked attempts stay classified. Run covering tests, selected compatibility and scoped statics, normal source commit, then one changed committed-adapter retained control on immutableff0b frames with new output paths. No canonical/chart rerender or old proof/parser/control replay. Full source/device/physical/host/Flux/runtime/live acceptance remains required.
+
+### Retained packet commitment correction — Task63
+
+Actual pre-intent BASE is `7143383a5ac49d49c17cd403c52d405f1202f2ee`. The frozen Task58 diagnostic confirmed that the retained combined reader accepts a coherently changed toolchain row/bytes with unchanged packet/inventory artifact identity. The canonical producer independently rebuilds and compares full receipts; this finding is the additive retained-reader consistency boundary, not a demonstrated canonical, runtime or admission bypass. Existing valid full-packet controls remain valid.
+
+Reuse or narrowly extract the producer's existing complete ordered files-list commitment: SHA256 of `JSON.stringify(files, null, 2)` plus one newline. Check that identity in `bindRuntimeLock` before decoding. Preserve representation, order and packet format; do not add another serializer, packet version, framework or source-generation pass. The portable one-row unit fixture must carry a self-consistent synthetic artifact identity, while its original retained projection provenance stays separate. Intentionally reseal synthetic packet/inventory selection for tests that need to reach lower coordinate/schema/default-pin guards so the new outer check cannot mask them. A benign lock-checksum change with only the file row updated must refuse against the original independently retained artifact identity.
+
+Ordered TDD and verification are bounded to this correction: new production-reader RED, shared commitment/synthetic fixture change, covering combined-reader tests and necessary affected static checks, one watched removal of the new guard with exact restoration and adjacent Proof. Authentic full84-row ff0b/d96a metadata provides an independent commitment positive without rerunning the historical combined control. No workload or bootstrap graph changes occur, so no old fault matrix, retained control, chart/render/canonical capture, provider probe or full gate is justified. Keep source/runtime authority false; full task3.1 remains open. No new domain term or ADR is needed.
+
+### Shared Flux bootstrap scratch policy — Task62 intent
+
+Actual pre-intent BASE is `0e336dfd9130020b42a6602f0b10e0149e99418d`, after reviewed58/60/63 publication. Task61 established that the locked Flux2.9.5 vendor manifest is generated and must remain byte-identical at SHA256 `80779d11e7f0050ed01a3f072556fdabefa38f5f6cb623e9df44381c9ec1d592`. Use one authored `infra/platform/flux/kustomization.yaml` with resources[install.yaml] and four exact inline JSON6902 patch targets. Preserve raw vendor/toolchain pins and every nonpolicy field. No new patch executor, runner, storage service or environment fork.
+
+Root selects the shared initial containment policy from Task61's cross-environment synthesis: source-controller manager requests2Gi/limits2304Mi ephemeral-storage, data1Gi/tmp1Gi; kustomize-controller1Gi/1280Mi, temp1Gi; helm-controller256Mi/384Mi, temp256Mi; notification-controller16Mi/64Mi, temp16Mi. The larger measured tracked source tree is189020920logical bytes (180.26MiB), whereas the closed rehearsal payload including historical receipt encoding is2.24MiB. Four larger-tree equivalents (721.06MiB) round upward to1Gi, independently allocated to source data, transient checkout and Kustomize intermediates. Helm receives one larger-tree-equivalent tier rounded256Mi; notification uses the existing16Mi/64Mi temporary-work tier. Ephemeral limits add explicitly authored log/other-byte margins256Mi/256Mi/128Mi/48Mi. Single-Pod-per-controller totals3344Mi requests/4032Mi limits precede existing lifecycle multiplication. These allowances are policy choices, not measured concurrency, object retention, compression, physical amplification, mathematical minima, enforced future input ceilings or proof of successful initialization. Functional acceptance must refuse if they are insufficient. This avoids an unsupported small-packet-only production default while retaining one shared configuration. No hardware specification follows.
+
+Preserve all existing CPU/memory/resources, selectors, identities/images/probes/security/read-only roots, volume/mount names/medium, replicas, source Recreate strategy and all grace periods. Only13 scalars are added. Inline patches include exact identity tests before additive operations; a provider upgrade fails closed rather than silently targeting changed indices. Add the narrow overlay-policy boundary to existing validatePlatform, reusing existing YAML and quantity/resource readers. Do not parse arbitrary patch fragments as generic workloads or implement a patch engine. Validate the policy shape/target/reference/operation closure and finite positive bounds. Actual Kustomize output, with exactly the13 additions removed, must independently equal decoded vendor objects.
+
+Propagate the overlay to all existing callers in the same reviewed source task: k3d-lab bootstrap keeps locked vendor hashing and applies-k; platform.yml copies both files, retains raw hash authentication and applies-k; cutover installFlux follows the same directory and preserves its separate existing scale-down behavior. Read callers/tests before changing them. Do not execute production playbooks or alter running clusters.
+
+Retain raw rehearsalBootstrapPaths.flux for independent vendor verification; add the authored overlay directory/file through the existing collector. Require both source identities for new forward preparation and run its actual build through the already authenticated kubectl Kustomize seam, beside the existing policy build. Propagate fluxBytes through the existing canonical/inventory bootstrap seam and emit one bootstrap/flux frame with overlay build coordinates plus both original inputs. Do not count both vendor and overlay as workloads. Historical already-captured raw-vendor frames remain explicit historical source coordinates; do not retrofit hashes or permit missing new overlay state as forward fallback. Existing source63 commitment remains unchanged. Notify root of the smallest typed interface before implementation if compatibility requires a new discriminant rather than existing coordinate distinction.
+
+Ordered TDD: existing validatePlatform missing-policy refusal RED; authored policy/validator; all caller wiring; actual retained source/build/frame integration; malformed/absence/unreadability/substitution and default/historical controls; watched new production-path safety faults/restoration; covering affected tests and scoped statics. All prior passing fault matrices/control/render runs stay retained. A new actual Kustomize build and committed changed-source bootstrap/canonical capture are justified by this owning graph change. Reuse unchanged stage/chart evidence where an existing authenticated seam supports it; if the canonical public API inseparably rebuilds stages, identify that dependency and obtain a recorded root ruling before one necessary capture rather than inventing a cache/second producer. No repeated capture for status. Full host admission, physical/current writers, authenticated Flux runtime, effective Pods/CNI/storage and live signal/recovery acceptance stay open.
+
+### Standalone claim reservations — Task64 intent
+
+Actual pre-intent BASE is `e1d2b497aaee44dade676ffdc882976bbce2c6c7`, after independently approved Task62 source/evidence. Immutable source inspection confirmed standalone `puni-registry/registry`50Gi and `puni-backup/object-store`20Gi remain uncharged by the combined reader. Native ordinal and six generated claims are distinct. The old cold-start reader already charges these declarations; preserve that API/output. Current Task62 combined disk85696Mi omits71680Mi; correcting this yields157376Mi conditional disk with unchanged49984Mi memory/8670m CPU, before other unresolved physical/writer/runtime costs. This is not a host purchase specification.
+
+Extend existing `readRehearsalCapacityCosts` and `deriveObservabilityRehearsalCapacityCosts` through shared `deriveCapacityCosts`, with additive standaloneClaims/claimConsumers/standaloneEntries/subtotal and legitimately updated combined total/blockers/closure. A third wrapper would freeze an intermediate incomplete combined ledger without a compatibility need. Native-only signatures/output, public source inventory and existing native/generated subrecords remain exact. Both entry points reuse the same independently validated source and packet/runtime preparation once; never accept a caller-supplied claim list, decoded lock or precomputed total as authority.
+
+Add a narrow `observability-source-claims.ts` adapter for existing validated resource views. Reuse `ClaimReference`, namespace/duplicate/API/source validation, expose the existing `readClaimStorage` helper as needed, and use existing quantity conversion, CapacityCharge and sumCapacity. Prefer an existing/shared claim constructor if its actual semantics fit; factor only common fields from the existing cold-start helper when needed, preserving its output. Ordinary object construction with shared quantity readers is not a new resource calculator; do not introduce a generic factory/framework or fake ordinal/cohort metadata merely to reuse a wrapper.
+
+Initially charge explicit v1 claims with resolved namespace/name, positive request, explicit storage class, RWO and absent/Filesystem mode, without selector/prebinding/dataSource/dataSourceRef/runtime identity/status. Preserve absence/default provenance rather than observe defaults. Validate all recognized known state completely before incomplete branches; valid unsupported surfaces remain named and uncharged with request evidence. No guessed default class/binding/history or hard PVC quota. Snapshot exact declaration/frame/pointer and source namespace/name. Consumer references come from all existing native-family inventory claims of kind reference, independently of normalization, replica count or bounds. Missing declarations/unresolved namespaces remain named. Unreferenced supported claims still reserve fully. Multiple refs are declared consumers of one logical object, not observed mounts or a physical deduplication guarantee.
+
+Charge each exact logical identity once under explicit fresh-attempt/unchanged-claim assumptions. Detect duplicate/ordinal identity collisions through existing accounting identities; preserve all effective UID/PV/device/ownership/writer/retention/expansion/quota/runtime/history obligations. The embedded native ledger remains unchanged, including its native-only refusal. The combined blockers may replace only each successfully charged PVC's exact generic unaccounted-declaration refusal, retaining independent consumer refusals. Bind exact declarations/consumers/reservations/conditions into the existing closure; authority stays false. No new domain term or ADR is needed: Kubernetes claim details stay in the Fleet adapter.
+
+Ordered TDD starts on the existing combined API: supported declarations must increase its existing disk total; old code must fail that assertion before new-field assertions. Then source/consumer/binding/unsupported/malformed-late/snapshot/collision/closure controls, existing native/generated preservation and canonical single-pass propagation. Watch only new changed production safety dependencies fail/restored with adjacent Proof; no source-text assertions, setup or masked credit. Run covering/necessary selected compatibility/scoped static checks, normal source commit, then one new reader-only retained comparison on Task62's saved765/0a4f frames/packet/lock/topology/horizons. No owning resources or graph change, so no producer, chart/Kustomize/canonical capture or old matrix/control replay. Preserve all previous artifacts/actual revisions. Independent scoped source review precedes publication; complete runtime/live/physical admission stays open.
+
+### Retained DaemonSet ephemeral policy — Task66 intent
+
+Actual pre-intent BASE is `94ee760c80f01de40ef27c7d87b6669edbdf5435`. The published source and saved765/0a4f inventory still identify missing ephemeral limits on observability/otel-collector-agent and puni-backup/node-agent. Close these specific owning-source gaps without pretending their writable persistent host paths become bounded. No new domain term, ADR, runner or resource calculator is required.
+
+Author initial containment policies, not measured minima: collector16Mi request/64Mi ephemeral limit; node-agent256Mi request/2Gi limit with existing scratch1Gi. The latter leaves1Gi of the container envelope for other transient activity but does not establish sufficient Kopia cache capacity. Exhaustion can interrupt backup or collection; actual workload/recovery tests remain mandatory. Preserve every CPU/memory/image/security/endpoint/retention/host-path/persistent identity. Apply the same node-agent policy to local and production placement. Leave the existing Velero Deployment-only postrenderer untouched.
+
+Use pinned provider fields already present: OTel chart0.173.1 copies values.resources; Velero12.2.0 copies nodeAgent.resources and supports useScratchEmptyDir:false plus extraVolumes/extraVolumeMounts. Those three values recreate exactly the same scratch name/path once with emptyDir.sizeLimit1Gi. Narrow the accepted shape at the Fleet boundary rather than add a generic patch executor. Reuse assertCandidatePodResources, existing quantity readers, existing source/render correspondence and placement-parity validation. Structural/image decoding must preserve valid historical absence; current candidate enforcement must require the new fields and compare actual named role/resources/scratch. Distinguish unsupported supplied state from silently ignored configuration.
+
+Ordered TDD: actual current validation accepts missing disk/scratch policy RED; malformed/zero/contradictory/absence controls; shared source values and narrow validation; ignored/changed Helm values and wrong/extra roles; real pinned renders for both placement profiles; exact correspondence/parity and selected existing reader regressions. Watch only new changed safety boundaries fail on their production path with intended faults, restore exact bytes, and add adjacent Proof comments. Keep setup/structural/masked experiments uncredited. One focused covering run and scoped statics suffice; no old proof matrix or unchanged canonical capture/control replay. A real selected-chart render is justified; identify any inseparable full-capture dependency before invoking it. Do not rerender the whole canonical packet solely for status. Normal source commits, independent task review and reviewable evidence precede publication.
+
+Persistent path enforcement is separate. Pinned collector file_storage max_size is per database and cannot certify a directory with multiple identities, old files or independent writers. Do not add it in this slice, move checkpoints into ephemeral scratch, discard history, guess host quotas, lower capacity floors or mutate any host/Secret. Current combined ledger stays an incomplete conditional full-rehearsal budget, not steady monitoring sizing. Full3.1/runtime/live acceptance remains open.
+
+### Resource history through the existing observer — Task74
+
+Read-only inspection on2026-10-31 found complete configured scrape counts for current
+Prometheus/collector/gateway self-metrics over24hours, but no host/container resource
+history in either current dev Prometheus or preserved VictoriaMetrics. Current dev
+memory is about2.83GiB, not the withdrawn64/128GiB hardware recommendation. Retained
+attempt/replacement allocations cannot be treated as observed simultaneous RAM.
+
+Use the existing observer's SSH/OTLP cycle, checkpoint and metric sender. A small
+provider-neutral reading type represents measured host availability and selected
+workload memory charges plus cumulative CPU, observation time and execution generation.
+Keep fixed host/machine/daemon/Compose identity checks and Linux cgroup-v2 reads in
+one dedicated SSH provider adapter/program; no provider assumptions enter the reading
+or encoding. Reuse executeBounded and existing deadline/cancellation semantics. Select
+only existing dev and preserved observability roles, reject a missing/changed selected
+identity, bound counts/output, bind actual startedAt/PID/cgroup paths before and after
+reading, and distinguish current memory charge from process RSS or configured limits.
+Do not sum lifetime peaks. Cumulative CPU carries generation/start provenance so restarts
+do not masquerade as continuous use; stable metric labels contain only bounded roles,
+not raw IDs, environment contents, private keys or diagnostics.
+
+One explicitly optional resource member in the existing health checkpoint keeps old
+checkpoint/readers compatible; new CLI cycles always provide an observation, including
+unavailable in local mode. Publish finite state/checked/observed gauges and measured
+samples only when complete. Preserve current application health/progress acceptance.
+Reuse the current host/probe resource identity while distinguishing measured target
+host/workload group, without relabelling preserved application telemetry as dev.
+
+Alternatives considered: a new exporter/daemon would add lifecycle and access work;
+mounting a Docker socket into OTel expands authority. The existing bounded SSH reader
+already has the needed inspection route and avoids those additions. No new glossary
+term or ADR is needed for this reversible adapter addition. Full runtime admission,
+provider caps, phase concurrency and actual dev deployment remain separate evidence.
+
+Implement with production-boundary TDD, real Python fixture reads and subprocess/OTLP
+integration, new guard-removal negatives/restoration and scoped checks. Do not replay
+old source/chart/component/fault suites. The code slice stops for independent review;
+a live compiled observer rollout needs fresh source-bound preflight and preservation.
+
+### Immutable observer revision selection — Task75
+
+Keep the original runtime snapshot/preflight as the historical ab4f bootstrap
+contract; do not weaken it to accept arbitrary manifests. Extend the existing
+unit renderer and its CLI with an explicit optional full source revision.
+Validate that value at this boundary, derive the same nine-character immutable
+release directory convention, and bind the full revision to --version. Default
+rendering remains byte-identical. No new deployment framework, provider-neutral
+domain type, credential or glossary term is needed.
+
+This source slice only generates unit text. The controller builds a reviewed
+clean commit locally with pinned Bun, hashes its compiled executable and writes
+an immutable manifest. Before reversible dev activation it verifies fresh owned
+units, binary, checkpoints, target identity and the observer account's h3 access;
+preserves the exact prior unit and release; validates candidate syntax; changes
+only the owned observer unit; then verifies effective bounds and stored cycles.
+The old preflight cannot certify a later release. Any immutable path collision
+requires inspection and refusal, never overwriting an earlier binary. Do not
+initialize checkpoints, restart the tunnel or modify h3 stores. A failed update
+restores the saved owned unit and prior executable, retaining failure evidence.
+Full parity, history/recovery and Kubernetes/Flux admission remain open.
+
+### Retained observations before route operations — Task77
+
+Task76 audited the actual seven open main tasks against their owning source.
+The shared instance/security composition already exists; do not rebuild it.
+Task4.1 initially lacked historical witnesses and route operations. Its
+completed first dependency provides: reusable read-only capture/verification instead of relying
+on the private ad hoc history script. Actual cutover/rollback/restore follows
+through existing binding/unit ownership only after its required live inventory;
+this source slice cannot admit a candidate or finish4.1/4.2.
+
+Keep a small provider-neutral retained-observation model under the existing tool,
+reusing ObservationIdentity and the existing signal vocabulary. It contains
+bounded identities, observation/capture time, reference IDs and fingerprints;
+Elastic indexes/document IDs and Prometheus series/sample coordinates belong
+only to the dedicated provider envelope. No new library, backend, runner or
+bulk data-transfer service is needed. Use the spec's existing explicit retained
+backend access option, preserving both old stores and their queryability.
+
+Capture reuses existing source/checkpoint, backend acceptance and verified
+transport/query-authority semantics. Only an actual complete fresh correlated
+observation can be captured; historical verification separately rereads exact
+references without making an old observation fresh. Retain minimal private
+metadata and canonical hashes, not document bodies, raw labels or Secret material.
+Prometheus sample references can bind a digest of the full series labels and
+the exact stored scrape coordinate; the adapter recomputes them from bounded
+historical queries. Do not confuse range-query evaluation times with stored
+sample times. Elasticsearch references bind exact backing document locations
+within the expected namespace and hash only the validated selected projection.
+
+The on-disk provider envelope has an explicit format/version and links every
+reference exactly once. Route commitments include credential-free endpoint,
+verified service/trust identity and principal identity, with no password/private
+key contents or hashes. Verification requires the expected complete receipt
+digest and the same committed read routes. A future migration receipt may link
+this retained evidence; no candidate/store ownership or readiness is inferred here.
+
+Expose bounded capture/verify operations through the existing runtime CLI,
+with owner-private exclusive output files and fixed diagnostic categories.
+Reuse existing transport deadlines, capped reads and read-only privilege checks;
+all local protocol fixtures stay explicit component evidence. The real existing
+dev stores can corroborate the reader after source review without deploying
+anything or replaying a previous outage. No live route is changed in this slice.
+
+## Dev route cutover, rollback and restore
+
+Extend the existing dev runtime flow with one route operation: replace only the
+owned observer unit's ingest/query bindings, preserve its binary and containment,
+reload and restart that unit, then observe the result. Reuse the existing
+transport, backend acceptance, retained-history and Grafana receipt semantics.
+Keep shared operation identities and states provider-neutral; SSH, systemd,
+Kubernetes and concrete binding details belong in dedicated adapters. Fleet
+composes its existing fresh preflight with the observability runtime adapter,
+avoiding a reverse dependency from the observability tool to Fleet.
+
+Forward cutover and restore require an independently pinned, separately reviewed
+full acceptance cohort covering real common-stack rehearsal and staged-dev
+acceptance. Its check evidence binds exact revisions, target identities, source,
+controller/store/claim identities, routes, bounded command outcomes and capture
+digests. Stored signals, operator views, authentication/isolation, alerts,
+process/outage recovery, retained history, backup/restore and required advancing
+freshness windows cannot be replaced by source comparison or component fixtures.
+This is an explicit operator-reviewed evidence boundary, like reviewed preflight
+pins, not a signing framework or an invented automated certification. Full
+acceptance collection in the existing rehearsal path remains required separately.
+The operation reruns fresh real preflight, candidate stored queries, source and
+effective unit inspection and original retained-history verification itself.
+
+Rollback is recovery to the captured healthy retained route. It must work during
+candidate/Kubernetes failure. Reuse the existing retained Docker ownership and
+volume-pin guards through a narrow extraction, with fresh observer/binary/unit,
+source, old-route health and historical queries. Do not reinterpret inventory as
+readiness or whitelist general preflight blockers. Existing full cutover and
+bootstrap-adoption preflight behavior remains unchanged.
+
+The candidate's current checkpoint is not evidence stored in the old backend.
+Explicit rollback may publish one bounded real-source observation through the
+existing probe/publisher to retained OTLP, without initializing or overwriting
+any checkpoint. Bind its current container/application identity and await bounded
+actual stored-query convergence before changing the unit. Publication, transport,
+capture or stored-query failure blocks rollback. Keep this fresh recovery witness
+distinct from the frozen historical witnesses and their original coordinates.
+Forward checks likewise use one bounded candidate-route canary when its stores
+cannot contain the retained observer's checkpoint. Both canaries identify the
+reviewed operation producer revision separately from the unchanged observer
+executable revision. They are stored-signal checks, not full reviewed acceptance.
+
+Each operation reserves an exclusive private receipt location and nonwaiting
+observer ownership lock. Capture and sync exact reversible prior unit ownership,
+credential-free route commitments and linked evidence before mutation; record
+mutation-started durably before the unit write. Inspect loaded ExecStart,
+drop-ins, binary/source and initialized checkpoints rather than only the unit
+file. Recheck expected ownership before replacement. Credentials stay in existing
+private bindings; receipts contain neither their values nor password/private-key
+hashes. Preserve the tunnel, old services/stores, Grafana objects and all prior
+receipts. No deletion or production action belongs in this command.
+
+After restart, validate effective runtime/source, advancing stored health over the
+required windows, preserved services and original historical references. Only a
+complete durable outcome accepts the route. Timeout, lost transport and nonzero
+command outcomes after invocation retain explicit failure/uncertainty evidence.
+A compensating rollback is a separate recorded operation; uncertain ownership or
+failed recovery requires a precise manual inspection/recovery instruction.
+Subsequent restore links a new receipt to its completed rollback and requires
+fresh forward acceptance, preserving every earlier receipt byte-for-byte.
+
+Uncertain operations emit a pinned runnable explicit recovery command for the
+same observer-local executable. Recovery requires the prepared digest, exact
+current/prior unit hashes and explicit operator reconciliation. It proves the
+original owner process inactive, retains the root lock during preparation and
+transfers its owner record only after durable successor preparation, without
+stealing an active or unknown lock. It reuses retained-route/source/history
+inspection and the rollback transaction with a new receipt. Only captured BEFORE
+or AFTER file/loaded-command combinations are recognized, including a known
+NeedDaemonReload state after a lost reload/restart. Unknown third states, changed
+drop-ins/binary/source, tampered pins and active/unknown ownership refuse. The
+original uncertain operation is never relabelled completed.
+
+Task79 source tests use disposable HTTP/process fixtures and remain component
+evidence. Actual shared-stack rehearsal and dev migration stay open until the
+unchanged admission, inventory and persistent-material prerequisites are met.
+
+Application revision is an observed moving value, not long-lived observer or
+physical-source authority. Dev watchers may advance it during any freshness
+window. Keep observer binary/source, container identity and candidate artifact
+pins immutable, while fresh source reads and each stored query bind the actual
+non-null application revision for that observation. Completed observations record
+their own revisions. Staged cohort `observedRevision` and frozen historical
+references remain historical evidence and do not pin later healthy app progress.
+Rollback and manual recovery must work after that progress without an application
+rollback or global delivery freeze; foreign container/producer/invalid-source
+states still refuse. Preserve the original8f component/build evidence as pre-fix
+history and verify only this bounded correction before the first source review.
+
+Route canaries retain real operation-producer provenance but map their three
+gauges to `puni_route_canary_*` and add an exact observation-ID dimension. Existing
+mapped acceptance filters that dimension and validates every returned series;
+legacy observer metric names and uniqueness stay unchanged. Disposable fixtures
+preserve OTLP producer scopes and scrape cached gauges, including coexisting
+versions. No canary zeroes another producer's metric series.
+Retained-route recovery uses two120-second observation windows, including
+compensation and explicit recovery. The existing exporter expires dormant gauges
+after2m; waiting avoids carrying stale old-revision gauges into a healthy resumed
+observer. Actual stored uniqueness is still required, and failure stays uncertain;
+neither expiry nor health is inferred merely from elapsed time.
+Forward windows also use `max(reviewed minimum,120s)`: staged candidate telemetry
+may retain an earlier observer revision when the real application advances before
+switch. The cohort interval remains historical evidence and a minimum, not an
+exact sleep promise. Existing observer binary/default streams remain unchanged.
+The pinned collector0.160.0 [Prometheus accumulator](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/v0.160.0/exporter/prometheusexporter/accumulator.go)
+keys gauges by producer scope/version and attributes, ignores older timestamps,
+and expires from last update with a strict comparison; scrape collection does not
+refresh expiry. This supports the fixture model, not actual live120s timing proof.
+
+Task79 review correction binds a neutral `selection` commitment to concrete
+preflight controller/resource pins, repository source pins, selected node
+name/UID/machine identity and candidate workload/replica identities. Application
+revision remains moving observation evidence. The existing reviewed `maxAgeMs`
+now bounds each member's start; captures/windows must already lie inside that
+interval, conservatively bounding every actual check without a new freshness knob.
+Core check names are controller convergence and effective workload isolation;
+the dedicated adapter requires explicit Flux and effective-Pod projections.
+The repository selection binds kind/name/namespace/UID, excluding only its fetched
+`requiredRevision`. Fresh preflight still validates that live head against an
+independently refreshed pin. Applied `resources[].requiredRevision` stays bound:
+controller/chart/config changes can preserve UIDs and current preflight cannot
+prove semantic equivalence. A fetched but unapplied main advance may reuse the
+cohort; an applied controller revision change requires new reviewed evidence.
+No revision-equivalence framework or relaxed controller convergence is implied.
+The same repository identity projection applies to the parent preflight join:
+restore may refresh only the fetched head, while all other prior pins, including
+source UID and applied resource revisions, remain exact. New reviewed source
+instances cannot be adopted through restore.
+
+Operation/lock creation syncs the state parent before mutation; compensation does
+the same. Explicit recovery retains its original ownership during preparation.
+Only after durable successor preparation does it archive original owner evidence
+durably, atomically transfer the owner record inside the continuously held lock,
+and sync both rename directories before unit invocation. Pending owner bytes stay
+in the successor evidence directory, so interrupted publication cannot obstruct
+later lock release. A refused preparation removes only
+its own lease, leaving the original pinned command retryable. Post-invocation
+uncertainty always emits safe inspection/recovery metadata even if recording it
+fails; fixed typed persistence diagnostics explicitly distinguish undurable
+outcomes. Prepared references are retained from successful preparation, never
+mandatorily reread while constructing an uncertainty error.
+
+Fix2 serializes the complete recovery critical operation with descriptor-held
+Linux `flock(2)`, using the existing Bun FFI mechanism, on one stable private
+guard inode in the observer state root. The inode is never removed/replaced;
+contention refuses immediately, errors never fall back, and kernel process death
+releases exclusion. Logical active/unknown owner and lease checks remain required.
+This adapter mechanism adds no vendor assumption to the core or generic lock service.
+
+Once completed/compensated receipt publication is durable, later required cleanup
+failure is a nonzero explicit cleanup-failed outcome carrying those receipts and
+read-only inspection. It does not invent uncertainty recovery against already
+retired ownership, recreate records or claim exit-zero success. Pre-completion
+uncertainty keeps the existing pinned-retry semantics. The same completion model
+covers successful compensation and explicit recovery.

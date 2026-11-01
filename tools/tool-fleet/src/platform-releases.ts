@@ -1,6 +1,40 @@
+import { createHash } from 'node:crypto';
+
 import { type } from 'arktype';
 
 import type { Toolchain } from './contracts';
+import { readCPUMilli, readMemoryMiB } from './observability-capacity';
+// Proof: Task31 CI fix1 restoring the generated-capacity import reproduced all five fresh projection CLI initialization failures.
+import { assertCandidatePodResources, assertPodResources } from './observability-pod-resources';
+
+/** Standard source envelope; postRenderers require separate exact contextual validation. */
+export const PlatformHelmRelease = type({
+  apiVersion: "'helm.toolkit.fluxcd.io/v2'",
+  kind: "'HelmRelease'",
+  metadata: { name: 'string>0', namespace: 'string>0', '+': 'reject' },
+  spec: {
+    interval: 'string>0',
+    'dependsOn?': type({ name: 'string>0', '+': 'reject' }).array().atLeastLength(1),
+    chart: {
+      spec: {
+        chart: 'string>0',
+        version: 'string>0',
+        sourceRef: {
+          kind: "'GitRepository'",
+          name: "'puni-platform'",
+          namespace: "'flux-system'",
+          '+': 'reject',
+        },
+        '+': 'reject',
+      },
+      '+': 'reject',
+    },
+    values: 'unknown',
+    'postRenderers?': 'unknown',
+    '+': 'reject',
+  },
+  '+': 'reject',
+});
 
 type ChartLockName = keyof Toolchain['charts'];
 
@@ -37,6 +71,58 @@ const Resources = type({
   limits: { cpu: Quantity, memory: Quantity, '+': 'reject' },
   '+': 'reject',
 });
+// Proof: optionalizing ephemeral-storage let both missing ECK/operator bounds pass validatePlatform; platform.test.ts selected provider input negatives failed.
+const DiskResources = type({
+  requests: { cpu: Quantity, memory: Quantity, 'ephemeral-storage': Quantity, '+': 'reject' },
+  limits: { cpu: Quantity, memory: Quantity, 'ephemeral-storage': Quantity, '+': 'reject' },
+  '+': 'reject',
+});
+/** Historical release decoding validates supplied quantities without requiring candidate budgets. */
+const StructuralQuantities = type({
+  'cpu?': Quantity,
+  'memory?': Quantity,
+  'ephemeral-storage?': Quantity,
+  '+': 'reject',
+});
+// Proof: Task25c3c resource-unknown-keys widening admitted foreign resource branches in structural image decoding.
+const StructuralResources = type({
+  'requests?': StructuralQuantities.or('null'),
+  'limits?': StructuralQuantities.or('null'),
+  '+': 'reject',
+})
+  // Proof: Task25c3c historical-null removal broke historical absent/null image-reference controls.
+  .or('null')
+  .narrow((resources) => {
+    // Proof: Task25c3c resource-array bypass admitted outer resource arrays in both release decoders.
+    if (Array.isArray(resources)) return false;
+    // Proof: Task25c3c shared-resource-validation substitution admitted malformed/negative requests and contradictions in current/structural callers.
+    if (resources !== null)
+      assertPodResources({
+        ...(resources.requests == null ? {} : { requests: resources.requests }),
+        ...(resources.limits == null ? {} : { limits: resources.limits }),
+      });
+    return true;
+  });
+function refuseNetworking(reason: string): never {
+  throw new Error(`networking candidate ${reason}`);
+}
+// Proof: Task25c3c scratch-reader removal admitted malformed and negative supplied scratch quantities.
+const ScratchQuantity = Quantity.or('null').narrow((quantity) => {
+  if (quantity !== null) readMemoryMiB(String(quantity), refuseNetworking);
+  return true;
+});
+// Proof: Task25c3c scratch-array and scratch-unknown-keys bypasses admitted array and foreign-medium emptyDirs.
+const Scratch = type({ 'sizeLimit?': ScratchQuantity, '+': 'reject' }).narrow(
+  (scratch) => !Array.isArray(scratch),
+);
+// Proof: Task25c3c tmp-volume-array bypass admitted an array in structural Traefik decoding.
+const TemporaryVolume = type({ 'emptyDir?': Scratch, '+': 'reject' }).narrow(
+  (volume) => !Array.isArray(volume),
+);
+// Proof: Task25c3c persistence-array bypass admitted an array; disabled-persistence widening accepted enabled persistence through validatePlatform.
+const Persistence = type({ 'enabled?': 'false', 'emptyDir?': Scratch, '+': 'reject' }).narrow(
+  (persistence) => !Array.isArray(persistence),
+);
 const ObservabilityNode = type({ 'puni.dev/capability-observability': "'true'", '+': 'reject' });
 const TolerateAll = type({ operator: "'Exists'", '+': 'reject' }).array().exactlyLength(1);
 const Env = type({ name: 'string>0', value: 'string', '+': 'reject' }).array();
@@ -59,9 +145,12 @@ const TraefikValues = type({
     '+': 'reject',
   },
   versionOverride: 'string>0',
+  'resources?': StructuralResources,
+  'persistence?': Persistence,
   deployment: {
     kind: "'DaemonSet'",
     dnsPolicy: "'ClusterFirstWithHostNet'",
+    'tmpVolume?': TemporaryVolume,
     '+': 'reject',
   },
   hostNetwork: 'true',
@@ -99,13 +188,65 @@ const TraefikValues = type({
 
 const CertManagerValues = type({
   crds: { enabled: 'true', '+': 'reject' },
+  'resources?': StructuralResources,
   image: ImageValues,
-  webhook: { image: ImageValues, '+': 'reject' },
-  cainjector: { image: ImageValues, '+': 'reject' },
+  webhook: { image: ImageValues, 'resources?': StructuralResources, '+': 'reject' },
+  cainjector: { image: ImageValues, 'resources?': StructuralResources, '+': 'reject' },
   acmesolver: { image: ImageValues, '+': 'reject' },
-  startupapicheck: { image: ImageValues, '+': 'reject' },
+  startupapicheck: { image: ImageValues, 'resources?': StructuralResources, '+': 'reject' },
   '+': 'reject',
 });
+
+/** Require current shared networking budgets separately from historical image decoding.
+ * Throws for incomplete maps, nonpositive limits/scratch or invalid supplied quantities.
+ * Shared resource validation owns request/limit arithmetic; these are policy inputs, not runtime observations.
+ */
+export function assertNetworkingCandidate(release: string, values: unknown): void {
+  if (release !== 'cert-manager' && release !== 'traefik') return;
+  const requireResources = (input: unknown) => {
+    // Proof: Task25c3c candidate-call/required-container omissions lost each production missing-map refusal.
+    const resources = decode('networking candidate', DiskResources, input);
+    // Proof: Task25c3c shared-resource-validation bypass lost request/limit and supplied-quantity refusals.
+    assertPodResources(resources);
+    for (const dimension of ['cpu', 'memory', 'ephemeral-storage'] as const) {
+      const read = dimension === 'cpu' ? readCPUMilli : readMemoryMiB;
+      // Proof: Task25c3c positive-limits bypass admitted zero CPU/memory/ephemeral limits with zero requests.
+      if (read(String(resources.limits[dimension]), refuseNetworking) <= 0)
+        refuseNetworking(`${release} ${dimension} limit must be positive`);
+    }
+  };
+  if (release === 'cert-manager') {
+    const parsed = decode(release, CertManagerValues, values);
+    // Proof: Task25c3c required-controller/cainjector/webhook/startupapicheck omissions each lost its missing-map negative.
+    for (const resources of [
+      parsed.resources,
+      parsed.cainjector.resources,
+      parsed.webhook.resources,
+      parsed.startupapicheck.resources,
+    ])
+      requireResources(resources);
+  } else {
+    const parsed = decode(release, TraefikValues, values);
+    // Proof: Task25c3c required-traefik omission lost the production missing-map negative.
+    requireResources(parsed.resources);
+    // Proof: Task25c3c required-scratch omission lost both missing sizeLimit negatives.
+    const scratch = decode(
+      'networking candidate',
+      type({
+        persistence: { enabled: 'false', emptyDir: { sizeLimit: Quantity } },
+        deployment: { tmpVolume: { emptyDir: { sizeLimit: Quantity } } },
+      }),
+      parsed,
+    );
+    for (const quantity of [
+      scratch.persistence.emptyDir.sizeLimit,
+      scratch.deployment.tmpVolume.emptyDir.sizeLimit,
+    ])
+      // Proof: Task25c3c positive-scratch bypass admitted zero data/tmp sizeLimits.
+      if (readMemoryMiB(String(quantity), refuseNetworking) <= 0)
+        refuseNetworking('Traefik scratch size must be positive');
+  }
+}
 
 const HcloudCcmValues = type({
   image: { repository: 'string>0', tag: 'string>0', '+': 'reject' },
@@ -155,7 +296,7 @@ const HcloudCsiValues = type({
 
 const EckOperatorValues = type({
   image: ImageValues,
-  resources: Resources,
+  resources: DiskResources,
   nodeSelector: ObservabilityNode,
   config: { containerRegistry: "'docker.elastic.co'", '+': 'reject' },
   '+': 'reject',
@@ -165,23 +306,100 @@ const ElasticContainer = type({
   name: "'elasticsearch'",
   env: Env,
   resources: Resources,
+  volumeMounts: type([
+    {
+      name: "'s3-trust'",
+      mountPath: "'/usr/share/elasticsearch/config/s3-trust'",
+      readOnly: 'true',
+      '+': 'reject',
+    },
+    {
+      name: "'s3-trust'",
+      mountPath: "'/usr/share/elasticsearch/config/jvm.options.d/s3.options'",
+      subPath: "'s3.options'",
+      readOnly: 'true',
+      '+': 'reject',
+    },
+  ]),
   '+': 'reject',
 });
 const ElasticsearchValues = type({
   fullnameOverride: "'elasticsearch'",
   version: 'string>0',
   image: 'string>0',
-  secureSettings: type({ secretName: 'string>0', '+': 'reject' }).array(),
+  // Proof: widening the projected access key admitted ca.crt into the keystore (platform.test.ts).
+  secureSettings: type({
+    secretName: "'elastic-s3-credentials'",
+    entries: type([
+      { key: "'s3.client.default.access_key'", '+': 'reject' },
+      { key: "'s3.client.default.secret_key'", '+': 'reject' },
+    ]),
+    '+': 'reject',
+  })
+    .array()
+    .exactlyLength(1),
   volumeClaimDeletePolicy: "'DeleteOnScaledownOnly'",
   nodeSets: type({
     name: 'string>0',
     count: 'number.integer>0',
     // Elasticsearch settings cannot select a container image.
-    config: 'Record<string, string | number | boolean>',
+    config: {
+      'node.store.allow_mmap': 'false',
+      's3.client.default.endpoint': 'string>0',
+      // Proof: widening this field admitted the plaintext snapshot mutation (platform.test.ts).
+      's3.client.default.protocol': "'https'",
+      's3.client.default.path_style_access': 'true',
+      '+': 'reject',
+    },
     podTemplate: {
       spec: {
         nodeSelector: ObservabilityNode,
+        securityContext: {
+          runAsUser: '1000',
+          runAsGroup: '1000',
+          fsGroup: '1000',
+          runAsNonRoot: 'true',
+          '+': 'reject',
+        },
         containers: ElasticContainer.array().exactlyLength(1),
+        initContainers: type({
+          name: "'prepare-s3-trust'",
+          // Proof: optional fields or widened quantities admitted absent/incomplete/zero/negative init bounds (platform.test.ts).
+          resources: {
+            requests: { cpu: "'100m'", memory: "'128Mi'", '+': 'reject' },
+            limits: { cpu: "'500m'", memory: "'256Mi'", '+': 'reject' },
+            '+': 'reject',
+          },
+          image: 'string>0',
+          command: type(["'bash'", "'-ec'", 'string>0']),
+          env: type({ name: "'S3_TRUST_MODE'", value: "'system-roots'", '+': 'reject' })
+            .array()
+            .exactlyLength(1),
+          volumeMounts: type([
+            {
+              name: "'s3-trust'",
+              mountPath: "'/usr/share/elasticsearch/config/s3-trust'",
+              '+': 'reject',
+            },
+            {
+              name: "'s3-credentials'",
+              mountPath: "'/s3-credentials'",
+              readOnly: 'true',
+              '+': 'reject',
+            },
+          ]),
+          '+': 'reject',
+        })
+          .array()
+          .exactlyLength(1),
+        volumes: type([
+          { name: "'s3-trust'", emptyDir: { '+': 'reject' }, '+': 'reject' },
+          {
+            name: "'s3-credentials'",
+            secret: { secretName: "'elastic-s3-credentials'", defaultMode: '292', '+': 'reject' },
+            '+': 'reject',
+          },
+        ]),
         '+': 'reject',
       },
       '+': 'reject',
@@ -248,13 +466,15 @@ const KubePrometheusStackValues = type({
   defaultRules: { create: 'boolean', rules: 'Record<string, boolean>', '+': 'reject' },
   prometheusOperator: {
     image: HexShaImage,
-    prometheusConfigReloader: { image: HexShaImage, '+': 'reject' },
+    // Proof: optionalizing resources admitted the missing reloader input through validatePlatform (selected provider input negative).
+    prometheusConfigReloader: { image: HexShaImage, resources: Resources, '+': 'reject' },
     admissionWebhooks: {
       deployment: { image: HexShaImage, '+': 'reject' },
-      patch: { image: HexShaImage, '+': 'reject' },
+      // Proof: optionalizing resources admitted the missing webhook input through validatePlatform (selected provider input negative).
+      patch: { image: HexShaImage, resources: DiskResources, '+': 'reject' },
       '+': 'reject',
     },
-    resources: Resources,
+    resources: DiskResources,
     nodeSelector: ObservabilityNode,
     '+': 'reject',
   },
@@ -320,7 +540,8 @@ const KubePrometheusStackValues = type({
       sha: /^sha256:[0-9a-f]{64}$/,
       '+': 'reject',
     },
-    resources: Resources,
+    // Proof: Task25c3f historical-boundary restoration of required maps rejected valid absent/null historical KPS input.
+    'resources?': StructuralResources,
     '+': 'reject',
   },
   'prometheus-node-exporter': {
@@ -333,7 +554,7 @@ const KubePrometheusStackValues = type({
       '+': 'reject',
     },
     service: { port: '9101', targetPort: '9101', '+': 'reject' },
-    resources: Resources,
+    'resources?': StructuralResources,
     tolerations: TolerateAll,
     '+': 'reject',
   },
@@ -413,11 +634,41 @@ const OtelValues = type({
   '+': 'reject',
 });
 
+/** Retained collector history may predate disk policy; worker agent keeps OtelValues unchanged. */
+const CollectorValues = OtelValues.omit('resources').merge({
+  fullnameOverride: "'otel-collector'",
+  // Proof: Task66 collector-history required-map fault rejected valid absent/null retained resource maps.
+  'resources?': StructuralResources,
+});
+
+// Proof: widening the endpoint or deleting unknown keys admitted HTTP and insecureSkipTLSVerify.
+const VeleroConfig = type({
+  region: 'string>0',
+  s3ForcePathStyle: "'true'",
+  s3Url: /^https:\/\/[^\s]+$/,
+  '+': 'reject',
+});
+const VeleroLocation = type({
+  name: "'default'",
+  provider: "'aws'",
+  bucket: "'puni-velero'",
+  default: 'true',
+  config: VeleroConfig,
+  '+': 'reject',
+});
+// Proof: Task66 supplied-scratch-reader bypass admitted malformed historical node-agent scratch.
+const NodeAgentScratchQuantity = Quantity.narrow((quantity) => {
+  readMemoryMiB(String(quantity), (reason) => {
+    throw new Error('Velero scratch ' + reason);
+  });
+  return true;
+});
 const VeleroValues = type({
   image: ImageValues,
   upgradeCRDs: 'false',
   initContainers: type({
     name: "'velero-plugin-for-aws'",
+    'resources?': StructuralResources,
     image: 'string>0',
     volumeMounts: type({ mountPath: "'/target'", name: "'plugins'", '+': 'reject' })
       .array()
@@ -433,16 +684,99 @@ const VeleroValues = type({
     uploaderType: "'kopia'",
     defaultVolumesToFsBackup: 'false',
     // Storage locations name buckets and endpoints only.
-    backupStorageLocation: 'object[]',
+    backupStorageLocation: VeleroLocation.array().atMostLength(1),
     '+': 'reject',
   },
-  resources: Resources,
-  nodeAgent: { resources: Resources, tolerations: TolerateAll, '+': 'reject' },
+  'resources?': StructuralResources,
+  nodeAgent: {
+    // Proof: Task66 node-history required-map fault rejected valid absent/null historical node-agent maps.
+    'resources?': StructuralResources,
+    tolerations: TolerateAll,
+    // Proof: Task66 scratch-switch widening admitted a true supplied switch in historical image decoding.
+    'useScratchEmptyDir?': 'false',
+    // Proof: Task66 scratch-volume schema widening admitted duplicate scratch and foreign medium through assertVeleroCandidate.
+    'extraVolumes?': type({
+      name: "'scratch'",
+      emptyDir: { sizeLimit: NodeAgentScratchQuantity, '+': 'reject' },
+      '+': 'reject',
+    })
+      .array()
+      .exactlyLength(1),
+    // Proof: Task66 scratch-mount schema widening admitted duplicate/wrong-path/read-only mounts through assertVeleroCandidate.
+    'extraVolumeMounts?': type({
+      name: "'scratch'",
+      mountPath: "'/scratch'",
+      '+': 'reject',
+    })
+      .array()
+      .exactlyLength(1),
+    '+': 'reject',
+  },
   metrics: { serviceMonitor: { enabled: 'true', '+': 'reject' }, '+': 'reject' },
+  // Proof: widening kind admitted a Deployment through extraObjects (platform.test.ts).
+  'extraObjects?': type({
+    apiVersion: "'velero.io/v1'",
+    kind: "'BackupStorageLocation'",
+    metadata: { name: "'default'", namespace: "'puni-backup'", '+': 'reject' },
+    spec: {
+      provider: "'aws'",
+      default: 'true',
+      objectStorage: {
+        bucket: "'puni-velero'",
+        caCertRef: { name: "'object-store-ca'", key: "'ca.crt'", '+': 'reject' },
+        '+': 'reject',
+      },
+      config: VeleroConfig,
+      '+': 'reject',
+    },
+    '+': 'reject',
+  })
+    .array()
+    .exactlyLength(1),
   // Backup schedules select namespaces and volumes, never images.
   schedules: 'Record<string, object>',
   '+': 'reject',
 });
+
+/** Require current Velero server/plugin/node-agent budgets and the existing capped scratch without authorizing historical image inventory.
+ * CPU/memory requests may be zero; limits and all retained ephemeral requests must be positive.
+ */
+export function assertVeleroCandidate(values: unknown): void {
+  const parsed = decode('velero', VeleroValues, values);
+  const refuse = (reason: string): never => {
+    throw new Error(`Velero candidate ${reason}`);
+  };
+  // Proof: Task25c3d candidate-server/plugin omissions each admitted its absent current resource map.
+  for (const input of [parsed.resources, parsed.initContainers[0].resources]) {
+    const resources = decode('Velero candidate', DiskResources, input);
+    // Proof: Task25c3d shared-quantities dependency removal admitted request/limit contradictions.
+    assertPodResources(resources);
+    for (const dimension of ['cpu', 'memory', 'ephemeral-storage'] as const) {
+      const read = dimension === 'cpu' ? readCPUMilli : readMemoryMiB;
+      // Proof: Task25c3d positive-limits widening admitted zero CPU/memory/disk limits.
+      if (read(String(resources.limits[dimension]), refuse) <= 0)
+        refuse(`${dimension} limit must be positive`);
+    }
+    // Proof: Task25c3d positive-request widening admitted zero new ephemeral requests.
+    if (readMemoryMiB(String(resources.requests['ephemeral-storage']), refuse) <= 0)
+      refuse('ephemeral request must be positive');
+  }
+  // Proof: Task66 node-candidate bypass admitted absent current node-agent resources through assertVeleroCandidate.
+  const nodeResources = assertCandidatePodResources(parsed.nodeAgent.resources);
+  // Proof: Task66 node-positive bypass admitted zero node-agent disk requests through assertVeleroCandidate.
+  if (readMemoryMiB(String(nodeResources.requests['ephemeral-storage']), refuse) <= 0)
+    refuse('node-agent ephemeral request must be positive');
+  // Proof: Task66 scratch-presence bypass admitted absent node-agent scratch through assertVeleroCandidate.
+  if (
+    parsed.nodeAgent.useScratchEmptyDir !== false ||
+    parsed.nodeAgent.extraVolumes === undefined ||
+    parsed.nodeAgent.extraVolumeMounts === undefined
+  )
+    return refuse('node-agent scratch incomplete');
+  // Proof: Task66 scratch-size dependency bypass admitted zero node-agent scratch through assertVeleroCandidate.
+  if (readMemoryMiB(String(parsed.nodeAgent.extraVolumes[0].emptyDir.sizeLimit), refuse) <= 0)
+    refuse('node-agent scratch must be positive');
+}
 
 function elasticReferences(release: string, version: string, image: string) {
   const tag = /:([^:@]+)@/.exec(image)?.[1];
@@ -475,18 +809,37 @@ const hcloudCsiReferences = (values: unknown) => {
 
 const elasticsearchReferences = (values: unknown) => {
   const parsed = decode('elasticsearch', ElasticsearchValues, values);
+  for (const node of parsed.nodeSets) {
+    // Proof: removing this pin accepted an init with private-CA validation disabled (platform.test.ts).
+    if (
+      createHash('sha256')
+        .update(JSON.stringify(node.podTemplate.spec.initContainers[0].command))
+        .digest('hex') !== '691658bb7c580b458ff990834f7a05a3edb95c3c3cc2d80cf6517f3d72d38c8f'
+    )
+      throw new Error('Elasticsearch trust executable differs');
+    // Proof: removing this guard accepted an unpinned trust-init image (platform.test.ts).
+    if (node.podTemplate.spec.initContainers[0].image !== parsed.image)
+      throw new Error('Elasticsearch trust init image differs from its pinned node image');
+  }
   return elasticReferences('elasticsearch', parsed.version, parsed.image);
 };
 
 const otelReferences = (values: unknown) => {
-  const parsed = decode('otel-collector', OtelValues, values);
+  // Proof: Task66 historical-collector routing fault rejected valid absent/null retained resource maps.
+  const parsed = type({ fullnameOverride: "'otel-collector'" }).allows(values)
+    ? decode('otel-collector', CollectorValues, values)
+    : decode('otel-collector', OtelValues, values);
   return {
     collector: imageReference(parsed.image.repository, parsed.image.tag, parsed.image.digest),
   };
 };
 
-const veleroReferences = (values: unknown) => {
+/** Decode both registered Velero releases through the same strict image/value boundary. */
+export const readVeleroImageReferences = (values: unknown) => {
   const parsed = decode('velero', VeleroValues, values);
+  // Proof: removing this guard admitted two effective default BSLs (platform.test.ts).
+  if (parsed.configuration.backupStorageLocation.length + (parsed.extraObjects?.length ?? 0) !== 1)
+    throw new Error('Velero requires exactly one default backup storage location');
   return {
     server: imageReference(parsed.image.repository, parsed.image.tag, parsed.image.digest),
     pluginAws: parsed.initContainers[0].image,
@@ -575,17 +928,11 @@ export const platformReleases: readonly PlatformRelease[] = [
   {
     name: 'elasticsearch',
     lock: 'elasticsearch',
-    path: 'observability/elastic/local/elasticsearch.yaml',
+    path: 'observability/elastic/base/elasticsearch.yaml',
     chart: 'charts/eck-elasticsearch-0.20.0.tgz',
     imageReferences: elasticsearchReferences,
   },
-  {
-    name: 'elasticsearch',
-    lock: 'elasticsearch',
-    path: 'observability/elastic/production/elasticsearch.yaml',
-    chart: 'charts/eck-elasticsearch-0.20.0.tgz',
-    imageReferences: elasticsearchReferences,
-  },
+
   {
     name: 'kibana',
     lock: 'kibana',
@@ -637,13 +984,37 @@ export const platformReleases: readonly PlatformRelease[] = [
     lock: 'velero',
     path: 'backup/velero/local/velero.yaml',
     chart: 'charts/velero-12.2.0.tgz',
-    imageReferences: veleroReferences,
+    imageReferences: readVeleroImageReferences,
   },
   {
     name: 'velero',
     lock: 'velero',
     path: 'backup/velero/production/velero.yaml',
     chart: 'charts/velero-12.2.0.tgz',
-    imageReferences: veleroReferences,
+    imageReferences: readVeleroImageReferences,
   },
 ];
+
+/** Current exporters and the retained collector require explicit bounds; valid missing historical maps stay image-readable. */
+export function assertCommonHelmResources(release: string, values: unknown): void {
+  if (release === 'otel-collector') {
+    const parsed = decode(release, CollectorValues, values);
+    // Proof: Task66 collector-candidate bypass admitted missing disk policy through validatePlatform.
+    const resources = assertCandidatePodResources(parsed.resources);
+    // Proof: Task66 collector-positive bypass admitted zero disk requests through assertCommonHelmResources.
+    if (
+      readMemoryMiB(String(resources.requests['ephemeral-storage']), (reason) => {
+        throw new Error(reason);
+      }) <= 0
+    )
+      throw new Error('common candidate collector ephemeral request must be positive');
+    return;
+  }
+  if (release !== 'kube-prometheus-stack') return;
+  const parsed = decode(release, KubePrometheusStackValues, values);
+  for (const resources of [
+    parsed['kube-state-metrics'].resources,
+    parsed['prometheus-node-exporter'].resources,
+  ])
+    assertCandidatePodResources(resources);
+}
