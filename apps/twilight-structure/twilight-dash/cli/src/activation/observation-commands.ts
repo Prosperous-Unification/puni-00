@@ -41,8 +41,8 @@ export interface ObservationCommandDependencies {
   readonly write: (text: string) => void;
 }
 
-const bootstrapUsage = 'usage: twilight-dash bootstrap-observation <service.json>';
-const migrateUsage = 'usage: twilight-dash migrate-observation <service.json>';
+export const bootstrapUsage = 'usage: twilight-dash bootstrap-observation <service.json>';
+export const migrateUsage = 'usage: twilight-dash migrate-observation <service.json>';
 
 /** Each step moves the store from `from` to `from + 1` under the observation lock. */
 const migrationSteps = [
