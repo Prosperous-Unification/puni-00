@@ -2556,3 +2556,67 @@ After an initial genuine activation commit, changed bytes, equal-byte inode/pare
 #### Scenario: Original retained context and finalization
 
 Raw observation and exact successful capture/backup/participants/intent/committed snapshots remain privately retained through physical preparation finalization. Mutated returned/nested projections cannot change expected baselines. Copied, foreign, released or incomplete contexts refuse without ordinary-mode fallback. All settled failures and release close owned observations/connections even after expiry; final-deadline failure cannot return prepared success. H1 publication and full handoff authority remain unavailable from this preparation evidence.
+
+## ADDED Requirements
+
+### Requirement: Original UNKNOWN cleanup retains actual caller custody
+
+The platform SHALL classify actual graph cleanup-unknown errors by private identity, enroll original preparation custody in the existing owner before acquisition, and prevent both nested runtime and outer owner lock unwind whenever a required original close remains unknown. UNKNOWN SHALL revoke work while retaining original resources independently of safe-error or prepared-object reachability. Work expiry SHALL permit cleanup only, without renewed work authority. Active admission SHALL decide constructor/final-close HOLD before clearing its keeper or returning from the actual runtime callback.
+
+The following twelve scenarios are planned scenario groups. They are not twelve authored/executed tests; literal owning-file titles and expanded resource/before-or-after variants SHALL be frozen before execution. These obligations do not assert complete backup/scanner/transport custody, retroactive retention of a normally released runtime lock, or implementation of the future ten-path correction.
+
+#### Scenario: Actual construction cleanup identity and lookalikes
+
+Given actual raw graph construction with a primary refusal and unknown original close, its outward error is recognized by `isInitialHandoffCleanupUnknown` while preserving primary and close attribution. Ordinary malformed construction with known successful cleanup and field/prototype/spread lookalikes are not recognized. No raw aggregate is exposed through public failures or logs.
+
+#### Scenario: Transient close identity and stable terminal failure
+
+Given actual reopened-file or directory-stream close failure, the outward error is classified before terminal cleanup. The sweep attempts other unattempted originals once, repeated terminal close rethrows its same retained failure without native retry, and observation remains revoked through expiry.
+
+#### Scenario: Storage constructor UNKNOWN before activation
+
+Given genuine storage preparation under its actual owner and failed raw construction before activation DML, the owner retains the original constructor failure/capsule and actual still-held locks. Independent stores remain DISABLED with null receipts, and prepared success is unavailable.
+
+#### Scenario: Direct close UNKNOWN inside nested runtime scope
+
+Given genuine storage work still inside its nested runtime callback, separately injected close failures before and after real delegation keep original edge/deploy/runtime contenders excluded without a second native close. The original direct resource outcomes and any actual committed prefix remain retained before sanitizer replacement or lock-array removal.
+
+#### Scenario: Finalizer refusal and cleanup UNKNOWN coexist
+
+Given actual source/solver/complete finalizer failure and directly owned cleanup UNKNOWN, private custody preserves the primary and all original cleanup attribution despite replacement by sanitized finalizer errors. No prepared success or enclosing lock unwind occurs while original outcomes remain unknown.
+
+#### Scenario: Consumed preparation cleanup after expiry
+
+Given an actual consumed preparation released after its work deadline, remaining original cleanup still runs once. Known successful cleanup preserves only the original refusal/release outcome; a throwing close poisons the owner before safe release failure escapes and holds actual remaining outer resources. If preparation runtime release already completed normally, it is not retroactively retained, duplicated or reacquired.
+
+#### Scenario: Swallowed safe error cannot restore authorization
+
+Given an action catches/discards/replaces its safe cleanup failure, subsequent actual owner authorization refuses. Returning normally still consults sticky UNKNOWN before both applicable unwind boundaries; no owner deletion, descriptor removal, next effect or startup is authorized.
+
+#### Scenario: Dropped prepared object cannot drop cleanup
+
+Given genuine preparation whose caller drops the prepared object without release, outer owner finalization settles the original pre-acquisition enrollment. Known closes permit normal completion; an injected close UNKNOWN retains original custody and locks independently of object/error reachability. A caller-provided completion boolean cannot remove obligations.
+
+#### Scenario: Runtime graph construction UNKNOWN prevents startup
+
+Given actual required runtime admission and a real disk-graph constructor with semantic refusal plus unknown close, original construction custody remains strongly referenced even without an assigned graph. Startup count remains zero and an independent real runtime contender remains excluded.
+
+#### Scenario: Runtime final graph close UNKNOWN follows settled operation refusal
+
+Given a graph actually acquired by required runtime admission and the next low-level child spawn throwing synchronously before returning a child, the known primary operation refusal is retained. Unknown final graph close is decided before timer clearing and holds the actual runtime callback/lock; startup remains zero. No modeled launch response is represented as successful native observation, and cleanup never races an unsettled authority operation.
+
+#### Scenario: Known cleanup releases without claiming native active success
+
+Given the same actual construction/early-operation refusals with every original graph close known successful, admission rejects normally and the next real contender can acquire the released lock. Existing ordinary-policy success releases after its actual callback. These controls do not establish successful native active admission; no blanket HOLD applies to ordinary errors.
+
+#### Scenario: Expiry of an already held UNKNOWN grants no release
+
+Given legitimate graph UNKNOWN and exact original keeper/deadline handles, the fixed assertion window and work deadline pass with no startup, new observation, release, reclose or budget renewal. A monotonic clock seam can advance the real deadline boundary but cannot discharge production HOLD.
+
+### Requirement: Finite fixtures preserve production UNKNOWN
+
+Local HOLD fixtures SHALL capture original acquisitions/delegation, helper/contender identities and original exits/readers before faults; all contenders/readers SHALL be joined before retirement. They SHALL retain real local files/SQLite/descriptors/lock descriptions and use only existing no-child/owned-child external seams. No fake graph, ready callback, host operation or after-failure census SHALL substitute for originals.
+
+#### Scenario: Test retirement never becomes production settlement
+
+After production HOLD assertions, the fixture may perform the first actual native close only for known-never-delegated originals and separately close exact still-open fixture lock descriptions whose production finally remains permanently parked. It never retries after-delegation UNKNOWN. Only after every original has an accounted fixture outcome may it clear exact retained timer handles and end naturally. It emits distinct production-HOLD and fixture-originals-closed evidence without resolving/rejecting production HOLD, marking custody known or deleting production membership. Unknown fixture/child/reader/delegation outcomes preserve the helper and handles without kill, retry or keeper clearing; expiry and process exit never by themselves authorize abandonment, production HOLD release, signaling or timer retirement and never prove original closure, while remaining unattempted original cleanup must still run once after work expiry without deadline renewal and finite fixture first actual closes remain permitted only under the known-original conditions above.
