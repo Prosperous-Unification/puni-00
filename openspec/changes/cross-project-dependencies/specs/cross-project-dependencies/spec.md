@@ -2478,3 +2478,29 @@ Qualify finite Q0-Q3 as eligibility.md: explicit seeded read-only inputs/actual 
 ## V3 authority-supervision custody correction
 
 The full-entry authority transport uses the owned-original factory/core defined in authority-supervision-custody.md, registering real child/exit/independent reads before any catch. Late read failure after a valid terminal and unavailable original exit remain sticky unknown under the original locks; default generic refusal is not settlement. Exact complete actual envelope is serialized once, admitted against the existing Python65536-byte LF-inclusive bound, with unchanged request/census/96KiB program/original deadline. Existing default and runtime bounded-only semantics remain unchanged. Add installed-authority-supervision.ts and its owning test to proposed original45→47. The ordinary actual full-path late-read/unavailable-exit/prestart and settled-refusal witnesses are required; no omission/runtime grant. All closed store/Q0-Q3/terminal-source decisions are preserved.
+
+## ADDED Requirements
+
+### Requirement: Shared original handoff content validation
+
+The platform SHALL offer an internal content-only prepublication check using the same semantic codecs and crosslinks as actual INITIAL graph admission. It SHALL return no owner, ready token, graph admission or controller permission. The actual reader SHALL retain all existing H6–H8 filesystem and phase evidence.
+
+#### Scenario: Seeded intended plan cannot grant actual admission
+
+Given a complete intended graph for any accepted activation roster, validation succeeds only for its exact closed bounded byte set and structural metadata. The plan-only fixture creates no five new publication files, active policy, terminal pointer or retired archives. Actual graph admission still refuses that disk state. Seeded consistency is not original producer provenance.
+
+#### Scenario: Early bounds and closing deadline
+
+Owner, pending and eight fence strings are well-formed UTF-8-representable and1..65536 encoded bytes before parsing or hashing. The supplied record roster is bounded before enumeration and remains within existing aggregate file/edge accounting. All narrower envelope/manifest/policy/pointer bounds and crosslinks hold. A traversal that reaches expiry before successful return refuses under its original deadline, without renewed budget.
+
+### Requirement: Bounded original handoff raw artifact observation
+
+The platform SHALL separately observe the exact selected parked raw artifacts through fixed canonical paths and existing bounded readers before a future producer's DML. It SHALL preserve complete migration ledgers, original descriptor/path/parent identities and streamed binary hash/size evidence, without opening SQLite or returning binary bodies or authority.
+
+#### Scenario: Original retained baselines and explicit close
+
+Both database bindings and the selected roster are admitted and detached before capture. Returned nested content cannot alias private baselines. Mutating caller or returned structures cannot rebase observation; changed actual files still refuse. Closing is idempotent cleanup of this instance only and remains available after expiry; observation after close refuses.
+
+#### Scenario: Existing reader retains the same raw closure
+
+Actual disk admission reuses the raw capture core within its own retained graph, deadline and existing aggregate budget. It retains all selected raw files through closing/stability verification and still checks actual receipts, ready identity, eight archives/original absences, pending/archive phase matrix and terminal policy/pointers. A separately closed raw observer never substitutes for that closure.
