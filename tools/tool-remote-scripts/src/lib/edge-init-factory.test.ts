@@ -8,6 +8,31 @@ import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { allocateFactoryRoot } from '../fixtures/edge-init-factory-root';
 
 interface FactoryObservation {
+  packetIO: { opens: number; descriptorReads: number; pathReads: number };
+  policyIO: { opens: number; descriptorReads: number; pathReads: number };
+  policyDelivery: { phase: string; path: string; sha256: string | null };
+  earlyDelivery:
+    | { kind: 'none'; ready: true }
+    | {
+        kind: 'forged-lock';
+        ready: true;
+        heldDescriptor: number;
+        selectedDescriptor: number;
+        heldIdentity: string;
+        selectedIdentity: string;
+        canonicalPath: string;
+      }
+    | {
+        kind: 'owner-marker';
+        ready: true;
+        heldDescriptor: number;
+        selectedDescriptor: number;
+        heldIdentity: string;
+        canonicalPath: string;
+        markerPath: string;
+        markerSha256: string;
+        markerMode: number;
+      };
   summary?: {
     stage: string;
     receiptSha256: string | null;
@@ -107,7 +132,9 @@ async function observe(action: string, classification = '', target = '', fault =
 }
 
 /** Keeps unexpected positive failures useful without retaining worker output or arbitrary causes. */
-function failureContext(observation: FactoryObservation): string {
+function failureContext(
+  observation: Pick<FactoryObservation, 'refusal' | 'reads' | 'receiptStages'>,
+): string {
   const bounded = (entries: readonly string[]) =>
     entries
       .slice(-8)
@@ -158,6 +185,13 @@ test('unexpected positive exit retains bounded parsed refusal and last observati
 test('actual production prepare traverses native host, collector, fixed Caddy Exec and authenticated TLS reads without effects or receipts', async () => {
   const { observation, code } = await observe('prepare');
   expect(code, failureContext(observation)).toBe(0);
+  expect(observation.packetIO.opens).toBeGreaterThan(0);
+  expect(observation.packetIO.descriptorReads).toBeGreaterThan(0);
+  expect(observation.packetIO.pathReads).toBeGreaterThan(0);
+  expect(observation.policyDelivery.phase).toBe('ordinary');
+  expect(observation.policyDelivery.sha256).toMatch(/^[a-f0-9]{64}$/);
+  expect(observation.policyIO.opens).toBeGreaterThan(0);
+  expect(observation.policyIO.descriptorReads).toBeGreaterThan(0);
   expect(observation.summary?.stage).toBe('prepared');
   expect(observation.summary?.receiptSha256).toBeNull();
   expect(observation.receiptDirectoryPresent).toBe(false);
@@ -168,6 +202,26 @@ test('actual production prepare traverses native host, collector, fixed Caddy Ex
   expect(observation.reads).toContain('upgrade:/ws');
   expect(observation.reads.filter((read) => read.startsWith('POST /containers/'))).toHaveLength(6);
 }, 120000);
+
+for (const fault of ['policy-missing', 'policy-malformed', 'policy-active', 'policy-restoring']) {
+  test(`actual production prepare refuses ${fault} before packet and native reads`, async () => {
+    const { observation, code } = await observe('prepare', '', '', fault);
+    expect(observation.policyDelivery.path).toBe('/home/puni1/wbs/state/edge-policy.json');
+    expect(observation.policyDelivery.phase).toBe(fault.slice('policy-'.length));
+    if (fault === 'policy-missing') expect(observation.policyDelivery.sha256).toBeNull();
+    else expect(observation.policyDelivery.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(observation.packetIO).toEqual({ opens: 0, descriptorReads: 0, pathReads: 0 });
+    if (fault === 'policy-active' || fault === 'policy-restoring') {
+      expect(observation.policyIO.opens).toBeGreaterThan(0);
+      expect(observation.policyIO.descriptorReads).toBeGreaterThan(0);
+    }
+    expect(code).toBe(2);
+    expect(observation.refusal).toBe('edge Init adoption refused: preparation-failed');
+    expect(observation.reads).toEqual([]);
+    expect(observation.receiptStages).toEqual([]);
+    expect(observation.transcript).toEqual([]);
+  }, 120000);
+}
 
 test('isolated host models UID1000 across raw UID1001 named and held observations', async () => {
   const { observation, code } = await observe('prepare', '', '', 'runner-uid-1001-modeled');
@@ -312,14 +366,33 @@ for (const [fault, reachesNative, reachesCollector] of preparationFaults) {
       expect(observation.reads.includes('native')).toBe(reachesNative);
       expect(observation.reads.includes('collector')).toBe(reachesCollector);
       const last = observation.reads.at(-1);
-      if (
+      if (fault === 'forged-lock' || fault === 'owner-marker') {
+        expect(observation.packetIO).toEqual({ opens: 0, descriptorReads: 0, pathReads: 0 });
+        expect(observation.reads).toEqual([]);
+        expect(observation.transcript).toEqual([]);
+        expect(observation.policyDelivery.phase).toBe('ordinary');
+        expect(observation.policyDelivery.sha256).toMatch(/^[a-f0-9]{64}$/);
+        const delivered = observation.earlyDelivery;
+        expect(delivered.ready).toBe(true);
+        expect(delivered.kind).toBe(fault);
+        if (delivered.kind === 'forged-lock') {
+          expect(delivered.selectedDescriptor).not.toBe(delivered.heldDescriptor);
+          expect(delivered.selectedIdentity).toBe(delivered.heldIdentity);
+          expect(delivered.canonicalPath).toMatch(/\/home\/puni1\/wbs\/state\/edge\.lock$/);
+        } else if (delivered.kind === 'owner-marker') {
+          expect(delivered.selectedDescriptor).toBe(delivered.heldDescriptor);
+          expect(delivered.markerPath).toBe('/home/puni1/wbs/state/edge-owner.pending');
+          expect(delivered.markerMode).toBe(0o600);
+          expect(delivered.markerSha256).toBe(
+            createHash('sha256').update('PRIVATE_FACTORY_SECRET').digest('hex'),
+          );
+        } else throw new Error('early production fault lacks independent delivery receipt');
+      } else if (
         [
           'source-false',
           'source-absent-init',
           'source-duplicate-init',
           'source-anchor',
-          'forged-lock',
-          'owner-marker',
           'queued-job',
           'boot-drift',
         ].includes(fault) ||

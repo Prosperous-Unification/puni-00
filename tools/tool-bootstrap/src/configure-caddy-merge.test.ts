@@ -1,7 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import {
   chmodSync,
-  linkSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -11,6 +10,12 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 
+import {
+  controllerAccountPlugin,
+  copyControllerBun,
+  mapControllerShell,
+  verifyControllerFile,
+} from '@tools/controller-account-fixture';
 import { scratchSync } from '@tools/test-scratch';
 import { afterAll, describe, expect, it } from 'bun:test';
 
@@ -21,6 +26,7 @@ const compiledReader = await Bun.build({
   ],
   target: 'bun',
   plugins: [
+    controllerAccountPlugin(),
     {
       name: 'owned-configure-reader',
       setup(build) {
@@ -362,12 +368,13 @@ const prepareShippedScript = (opts: ShippedScriptOptions): ShippedScriptFixture 
   );
   const bun = join(root, 'fixed-bun');
   const reader = join(root, 'fixed-reader.js');
-  linkSync(process.execPath, bun);
+  copyControllerBun(bun);
   writeFileSync(
     reader,
     readerProgram.replace(JSON.stringify(ownedReaderState), JSON.stringify(state)),
     { mode: 0o755 },
   );
+  verifyControllerFile(reader);
   if (opts.seedCaddyfile !== undefined) {
     // A host that has already been configured once. The script creates this
     // directory itself, well before the block under test; seeding it here just
@@ -395,7 +402,7 @@ const prepareShippedScript = (opts: ShippedScriptOptions): ShippedScriptFixture 
       throw new Error('production fixed configure anchor differs');
   writeFileSync(
     script,
-    text
+    mapControllerShell(text)
       .replaceAll('/home/puni1/.local/lib/wbs-solver/bun', bun)
       .replaceAll('/home/puni1/.local/lib/wbs-solver/solver-supervisor.js', reader),
   );

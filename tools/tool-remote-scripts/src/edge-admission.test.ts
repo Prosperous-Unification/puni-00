@@ -1,21 +1,17 @@
 import { rejects } from 'node:assert/strict';
 import { fstatSync } from 'node:fs';
-import {
-  chmod,
-  copyFile,
-  lstat,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-  symlink,
-  writeFile,
-} from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { afterEach, expect, test } from 'bun:test';
 
+import {
+  controllerAccountPlugin,
+  copyControllerBun,
+  mapControllerShell,
+  verifyControllerFile,
+} from './fixtures/controller-account';
 import { requireInheritedEdgeLock } from './lib/edge-admission';
 import { initializeOrdinaryEdgePolicy } from './lib/edge-policy';
 import { readPhase } from './lib/phase';
@@ -42,11 +38,12 @@ async function prepareInstalledReader(state: string): Promise<{ bun: string; rea
   const preparation = (async () => {
     const bun = join(state, 'fixed-bun');
     const reader = join(state, 'fixed-reader.js');
-    await copyFile(process.execPath, bun);
+    copyControllerBun(bun);
     const compilation = await Bun.build({
       entrypoints: [join(repository, 'tools/tool-remote-scripts/src/solver-supervisor.ts')],
       target: 'bun',
       plugins: [
+        controllerAccountPlugin(),
         {
           name: 'owned-controller-layout',
           setup(build) {
@@ -71,6 +68,7 @@ async function prepareInstalledReader(state: string): Promise<{ bun: string; rea
     if (!compilation.success || compilation.outputs.length !== 1 || output === undefined)
       throw new Error('actual owned reader compilation failed');
     await writeFile(reader, new Uint8Array(await output.arrayBuffer()), { mode: 0o755 });
+    verifyControllerFile(reader);
     return { bun, reader };
   })();
   readers.set(state, preparation);
@@ -95,7 +93,7 @@ async function command(launcher: string, state: string): Promise<string[]> {
       throw new Error(`fixed shell layout anchor differs: ${anchor}`);
   await writeFile(
     script,
-    source
+    mapControllerShell(source)
       .replaceAll('/home/puni1/.local/lib/wbs-solver/bun', installed.bun)
       .replaceAll('/home/puni1/.local/lib/wbs-solver/solver-supervisor.js', installed.reader),
   );
@@ -127,7 +125,7 @@ async function readManualOperation(state: string): Promise<string> {
   const stderr = await new Response(child.stderr).text();
   if ((await child.exited) !== 0 || stderr !== '')
     throw new Error(`manual command construction failed: ${stderr}`);
-  return stdout;
+  return mapControllerShell(stdout);
 }
 
 for (const launcher of launchers) {

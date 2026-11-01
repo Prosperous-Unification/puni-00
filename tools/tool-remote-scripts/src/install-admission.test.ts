@@ -1,7 +1,6 @@
 import { constants } from 'node:fs';
 import {
   chmod,
-  copyFile,
   mkdir,
   mkdtemp,
   open,
@@ -15,6 +14,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, expect, test } from 'bun:test';
+
+import {
+  controllerAccountPlugin,
+  copyControllerBun,
+  verifyControllerFile,
+  writeControllerPreload,
+} from './fixtures/controller-account';
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -53,11 +59,12 @@ async function createHost(preparedReader = true) {
   );
   if (preparedReader) {
     await mkdir(join(root, 'reader-install'));
-    await copyFile(process.execPath, join(root, 'reader-install/bun'));
+    copyControllerBun(join(root, 'reader-install/bun'));
     const compilation = await Bun.build({
       entrypoints: [new URL('./solver-supervisor.ts', import.meta.url).pathname],
       target: 'bun',
       plugins: [
+        controllerAccountPlugin(),
         {
           name: 'owned-install-layout',
           setup(build) {
@@ -87,6 +94,9 @@ async function createHost(preparedReader = true) {
       { mode: 0o755 },
     );
   }
+  if (preparedReader) verifyControllerFile(join(root, 'reader-install/solver-supervisor.js'));
+  const preload = join(root, 'account-preload.ts');
+  writeControllerPreload(preload);
   const scripts = {
     ssh: `#!/bin/bash
 set -eu
@@ -132,7 +142,12 @@ if [ "\${INSTALL_FAULT:-}" = readback ]; then printf corrupt > "\${@: -1}"; fi
     root,
     async install(fault = '') {
       const child = Bun.spawn(
-        [process.execPath, new URL('./install.ts', import.meta.url).pathname, '--execute'],
+        [
+          process.execPath,
+          '--preload=' + preload,
+          new URL('./install.ts', import.meta.url).pathname,
+          '--execute',
+        ],
         {
           cwd: root,
           env: {

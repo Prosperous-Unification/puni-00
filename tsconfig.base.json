@@ -23,6 +23,9 @@
     "resolveJsonModule": true,
     "types": ["bun-types"],
     "paths": {
+      "@tools/controller-account-fixture": [
+        "./tools/tool-remote-scripts/src/fixtures/controller-account.ts"
+      ],
       "@tools/fleet-operation-plan-schema": ["./infra/fleet/schemas/operation-plan.json"],
       "@tools/fleet-plan": ["./tools/tool-fleet/src/plan-facade.ts"],
       "@tools/fleet-ssh-transport": ["./tools/tool-fleet/src/ssh-transport-facade.ts"],

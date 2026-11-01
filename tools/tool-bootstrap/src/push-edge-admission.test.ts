@@ -1,10 +1,43 @@
-import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import {
+  controllerAccount,
+  controllerAccountPlugin,
+  copyControllerBun,
+  mapControllerShell,
+  mapPushSource,
+  verifyControllerFile,
+  writeControllerPreload,
+} from '@tools/controller-account-fixture';
 import { expect, test } from 'bun:test';
 
-for (const mode of ['open', 'marker', 'contended']) {
+/** Records native staging-parent metadata before source-hook or transport launch. */
+async function observeCache(path: string): Promise<void> {
+  const opened = await lstat(path, { bigint: true });
+  const canonical = await realpath(path);
+  expect(opened.isDirectory()).toBe(true);
+  expect(opened.isSymbolicLink()).toBe(false);
+  expect(canonical).toBe(path);
+  expect(opened.uid).toBe(BigInt(controllerAccount.uid));
+  expect(opened.gid).toBe(BigInt(controllerAccount.gid));
+  expect(opened.mode & 0o7777n).toBe(0o700n);
+  console.log(
+    JSON.stringify({
+      witness: 'native provisioning cache before launch',
+      path,
+      canonical,
+      uid: String(opened.uid),
+      gid: String(opened.gid),
+      mode: Number(opened.mode & 0o7777n),
+      device: String(opened.dev),
+      inode: String(opened.ino),
+    }),
+  );
+}
+
+for (const mode of ['open', 'marker', 'contended', 'wrong-parent']) {
   test(`provisioning transport stages base.yml and commits only under configure admission (${mode})`, async () => {
     const root = await mkdtemp(join(tmpdir(), 'bootstrap-edge-'));
     const stageId = root.split('/').at(-1);
@@ -17,6 +50,7 @@ for (const mode of ['open', 'marker', 'contended']) {
       await mkdir(commands);
       await writeFile(join(state, 'edge.lock'), '');
       await mkdir(join(root, 'cache'), { mode: 0o700 });
+      await observeCache(join(root, 'cache'));
       await mkdir(join(root, 'reader-install'));
       await writeFile(
         join(state, 'edge-policy.json'),
@@ -27,13 +61,14 @@ for (const mode of ['open', 'marker', 'contended']) {
           edgeState: state,
         }),
       );
-      await copyFile(process.execPath, join(root, 'reader-install/bun'));
+      copyControllerBun(join(root, 'reader-install/bun'));
       const compilation = await Bun.build({
         entrypoints: [
           new URL('../../tool-remote-scripts/src/solver-supervisor.ts', import.meta.url).pathname,
         ],
         target: 'bun',
         plugins: [
+          controllerAccountPlugin(),
           {
             name: 'owned-push-reader',
             setup(build) {
@@ -62,8 +97,12 @@ for (const mode of ['open', 'marker', 'contended']) {
         new Uint8Array(await output.arrayBuffer()),
         { mode: 0o755 },
       );
+      verifyControllerFile(join(root, 'reader-install/solver-supervisor.js'));
       const relocate = (source: string) =>
-        source.replaceAll('/home/puni1/.local/lib/wbs-solver', join(root, 'reader-install'));
+        mapControllerShell(source).replaceAll(
+          '/home/puni1/.local/lib/wbs-solver',
+          join(root, 'reader-install'),
+        );
 
       await writeFile(join(root, 'base.yml'), 'previous base');
       await writeFile(join(root, 'candidate.yml'), 'candidate base');
@@ -116,6 +155,11 @@ set -eu
 count=0
 if [ -f "$WBS_ROOT/id.calls" ]; then read -r count < "$WBS_ROOT/id.calls"; fi
 count=$((count + 1)); printf '%s\\n' "$count" > "$WBS_ROOT/id.calls"
+if [ "$count" -le 5 ]; then
+  printf '%s:%s' "$count" "$#" >> "$WBS_ROOT/id.arguments"
+  for argument in "$@"; do printf '\\t%s' "$argument" >> "$WBS_ROOT/id.arguments"; done
+  printf '\\n' >> "$WBS_ROOT/id.arguments"
+fi
 # The first two calls validate actual invocation ownership after the real reader.
 # The third is the existing downstream root-only configure guard.
 if [ "$count" -le 2 ]; then exec /usr/bin/id "$@"; fi
@@ -135,13 +179,21 @@ printf '0\\n'
         dryRun: false,
       };
       const runner = join(root, 'runner.ts');
+      const preload = join(root, 'account-preload.ts');
+      writeControllerPreload(
+        preload,
+        pushModule,
+        mode === 'wrong-parent'
+          ? { ...controllerAccount, uid: controllerAccount.uid + 1 }
+          : controllerAccount,
+      );
       await writeFile(
         runner,
         `import { buildPlan, runStep } from ${JSON.stringify(pushModule)};\nfor (const step of buildPlan(${JSON.stringify(args)}, ${JSON.stringify(stageId)})) await runStep(step, { WBS_USER: 'fixture', REGISTRY_USER: 'fixture', REGISTRY_PASS: 'fixture' });\n`,
       );
       const executablePath = process.env['PATH'];
       if (executablePath === undefined) throw new Error('fixture requires PATH');
-      const child = Bun.spawn([executable, runner], {
+      const child = Bun.spawn([executable, '--preload=' + preload, runner], {
         env: {
           ...process.env,
           PATH: `${commands}:${executablePath}`,
@@ -162,6 +214,24 @@ printf '0\\n'
         expect(await Bun.file(join(root, 'base.yml')).text()).toBe('candidate base');
         expect(await Bun.file(stage).exists()).toBe(false);
         expect(await Bun.file(join(root, 'events')).text()).toBe('bootstrapconfigured');
+        expect(await readFile(join(root, 'id.calls'), 'utf8')).toBe('4\n');
+        const argumentTranscript = await readFile(join(root, 'id.arguments'), 'utf8');
+        expect(argumentTranscript).toBe('1:1\t-u\n2:1\t-u\n3:1\t-u\n4:1\tfixture\n');
+        console.log(
+          JSON.stringify({
+            witness: 'bounded downstream identity model',
+            nativeIdentityCalls: 2,
+            configureRootGuardCall: 3,
+            configureAccountExistenceCall: 4,
+            argumentTranscript,
+          }),
+        );
+      } else if (mode === 'wrong-parent') {
+        expect(code).not.toBe(0);
+        expect(stderr).toContain('create exclusive private inert provisioning staging');
+        expect(await Bun.file(join(root, 'base.yml')).text()).toBe('previous base');
+        expect(await Bun.file(stage).exists()).toBe(false);
+        expect(await Bun.file(join(root, 'events')).exists()).toBe(false);
       } else {
         expect(code).not.toBe(0);
         expect(stderr).toMatch(/shared edge (owner admission closed|lock held)|step failed/);
@@ -193,6 +263,7 @@ test('outer provisioning refuses unprepared reader without overwriting a shared 
     const state = join(root, 'state');
     const cache = join(root, 'cache');
     for (const directory of [commands, state, cache]) await mkdir(directory, { mode: 0o700 });
+    await observeCache(cache);
     await writeFile(join(state, 'edge.lock'), 'edge sentinel');
     await writeFile(join(root, 'protected-bootstrap'), 'protected bootstrap sentinel');
     await writeFile(
@@ -225,6 +296,8 @@ process.exit(await child.exited);
     for (const name of ['scp', 'ssh']) await chmod(join(commands, name), 0o755);
     const runner = join(root, 'runner.ts');
     const push = new URL('./push.ts', import.meta.url).pathname;
+    const preload = join(root, 'account-preload.ts');
+    writeControllerPreload(preload, push);
     const args = {
       host: 'owned-fixture',
       user: 'root',
@@ -239,7 +312,7 @@ process.exit(await child.exited);
       runner,
       `import {buildPlan,runStep} from ${JSON.stringify(push)}; for(const step of buildPlan(${JSON.stringify(args)}, 'owned-attempt')) await runStep(step, {REGISTRY_PASS:'fixture'});`,
     );
-    const child = Bun.spawn([process.execPath, runner], {
+    const child = Bun.spawn([process.execPath, '--preload=' + preload, runner], {
       env: {
         ...process.env,
         FIXTURE_ROOT: root,
@@ -261,4 +334,16 @@ process.exit(await child.exited);
   } finally {
     await rm(root, { recursive: true });
   }
+});
+
+test('parent UID translation requires the exact production staging predicate', async () => {
+  const source = await readFile(new URL('./push.ts', import.meta.url), 'utf8');
+  expect(source).toContain('test "$controller_parent_uid" = 1000 || exit 1');
+  const mapped = mapPushSource(source, { uid: 1001, gid: 1001 });
+  expect(
+    mapped.replace(
+      'test "$controller_parent_uid" = 1001 || exit 1',
+      'test "$controller_parent_uid" = 1000 || exit 1',
+    ),
+  ).toBe(source);
 });
