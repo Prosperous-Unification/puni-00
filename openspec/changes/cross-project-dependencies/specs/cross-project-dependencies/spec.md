@@ -1765,7 +1765,7 @@ Pure source frontend HTTP inspectors SHALL require status 200, the observed role
 
 ### Requirement: Original source restart inputs retain one supported frontend profile
 
-Source restart-input capture SHALL select the frontend response profile only from its original decoded canonical manifest using the eighteen fixed public file size/hash tuples. Selection SHALL follow declared relative links in the source/dependencies/git namespace without live filesystem lookup or fallback. Unsupported inputs SHALL refuse. The frozen retained profile literal SHALL grant neither readiness nor startup authority.
+Source restart-input capture SHALL select the frontend response profile only from its original decoded canonical manifest using sixteen fixed common public file size/hash tuples plus one complete reviewed package.json/bun.lock pair (before-ctt or ctt-0.12.0), for eighteen selected files. Independent per-file alternatives SHALL NOT admit a mixed epoch. Selection SHALL follow declared relative links in the source/dependencies/git namespace without live filesystem lookup or fallback. Unsupported inputs SHALL refuse. The frozen retained profile literal SHALL grant neither readiness nor startup authority.
 
 #### Scenario: Supported inputs belong to another source commit
 
@@ -1789,6 +1789,30 @@ Source restart-input capture SHALL select the frontend response profile only fro
 - **WHEN** a selected frontend file changes after a supported original capture
 - **THEN** the existing original cold/running tree monitor refuses
 - **AND** the captured profile cannot be replaced with caller hashes or learned running-frontend responses
+
+#### Scenario: Two supported epochs retain one qualified response identity
+
+- **WHEN** a canonical original manifest has sixteen common tuples and either entire reviewed manifest pair
+- **THEN** selection retains wire-v1 under unchanged namespace/link and authority limits
+- **AND** current inputs qualify only after actual current complete document/entry responses pass unchanged inspectors
+
+#### Scenario: Mixed or unknown manifest inputs refuse
+
+- **WHEN** package and lock belong to different supported pairs or either has unknown kind, size or complete digest
+- **THEN** selection refuses without per-file fallback or learned expectations
+- **AND** independently committed same-length scratch package/lock drift reaches selection through a valid canonical manifest and refuses
+
+#### Scenario: Current producer and canonical capture use the same observed bytes
+
+- **WHEN** the real current Node/Vite producer captures one Git source SHA and its original selected snapshot/installed/live epoch
+- **THEN** captured source inputs match Git blobs and initial observations before launch and through closing
+- **AND** the joint test constructs/decodes a distinct genuine canonical fixture from those eighteen actual captured bytes, independently requires the current pair, and runs the selector and both complete-response inspectors on actual observations
+- **AND** the distinct fixture SHA and selected-byte scope do not claim the producer snapshot was an owner-bound artifact or full installed closure
+
+#### Scenario: Changed responses or closing epoch do not repin
+
+- **WHEN** either complete current response differs from wire-v1 or selected snapshot/live input changes to any different epoch before close
+- **THEN** qualification refuses without normalization, output-hash update, baseline recapture or historical substitution
 
 ### Requirement: Original source context brackets six fixed HTTP observations
 
