@@ -13,11 +13,11 @@
       `puni-pr-00` gets its own catalogue with `website-dev-build` in a companion PR — test: the
       catalogue parses with the shared ArkType shape; an argv outside the argument profile is
       refused.
-- [ ] 1.2 Burokrat rule `JOB-CATALOGUE` in observe mode through the existing rule framework:
+- [x] 1.2 Burokrat rule `JOB-CATALOGUE` in observe mode through the existing rule framework:
       malformed entry, duplicate id, absent entrypoint, expired estimate against the supplied
       instant, envelope below calibrated p95, unbounded containers — test: one fixture per
       failure; negative: drop the `until` comparison and the 2026-12-02 fixture passes.
-- [ ] 1.3 Twilight glossary terms (J1), the names page note that a host pool is a capacity
+- [x] 1.3 Twilight glossary terms (J1), the names page note that a host pool is a capacity
       pool of one host, platform-map lines for reconciliation items 4, 8, 14 and 16, and the
       refactoring queue's heavy-lock item marked closed-for-enrolled-hosts.
 
