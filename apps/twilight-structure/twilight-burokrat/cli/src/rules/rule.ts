@@ -71,6 +71,8 @@ export interface Verdict {
    * so it cannot certify. Only `lint-ci` certifies.
    */
   readonly certifies: false;
+  /** The instant dated rules judged against, as `check --now` supplied it; absent otherwise. */
+  readonly evaluatedAt?: string;
   readonly scenarios?: SpecificationsReport;
 }
 

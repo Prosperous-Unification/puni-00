@@ -9,7 +9,7 @@ import {
 } from '../contracts/job-catalogue';
 import { readSelectedBlob } from '../inventory/read-blob';
 import type { CandidateEntry } from '../inventory/read-candidate';
-import type { RuleEvaluation, RuleObservation } from './rule';
+import type { RuleObservation } from './rule';
 
 const DayMillis = 24 * 60 * 60 * 1000;
 const Dimensions = ['cpuCores', 'memoryGib', 'tmpDiskGib'] as const;
@@ -57,15 +57,16 @@ function entrypointIsPresent(
   const entry = entries.find((candidateEntry) => candidateEntry.path === path);
   if (entry === undefined || !isRegularFile(entry)) return false;
   if (keys === undefined) return true;
+  // Outside the try: a blob the selection cannot supply is a tool failure, never an absence.
+  // Proof (2026-11-01): moving this read inside the try made `cannot judge an entrypoint blob the
+  // repository cannot supply` receive an absent-entrypoint finding instead of an unevaluated rule.
+  const bytes = readSelectedBlob(repository, entries, entry.blob, entry.path);
   let value: unknown;
   try {
-    value = JSON.parse(
-      new TextDecoder('utf-8', { fatal: true }).decode(
-        readSelectedBlob(repository, entries, entry.blob, entry.path),
-      ),
-    ) as unknown;
+    value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown;
   } catch {
-    // Modeled recovery: a JSON entrypoint that does not parse names nothing, so it is absent.
+    // Modeled recovery: a JSON entrypoint that is not UTF-8 or does not parse names nothing, so
+    // the entrypoint is absent at the revision.
     return false;
   }
   for (const key of keys) {
@@ -149,32 +150,30 @@ function judgeMalformed(
  * Judges the candidate's job catalogue (`dash-host-jobs` J2) from its revision and the supplied
  * instant alone. A candidate without a catalogue declares no host jobs and has nothing to judge;
  * a catalogue without an instant cannot be judged, because Burokrat reads no clock.
+ * @throws Error when the instant is absent or a candidate blob cannot be read; the registry turns
+ *   either into an unevaluated rule through `evaluateWrapped`.
  */
 export function judgeJobCatalogue(
   repository: string,
   entries: readonly CandidateEntry[],
   evaluatedAt: Date | undefined,
-): RuleEvaluation {
+): RuleObservation[] {
   const catalogue = entries.find((entry) => entry.path === JobCataloguePath);
-  // Proof (2026-11-01): returning not-evaluated here made `has nothing to judge in a candidate
-  // without a catalogue` fail.
-  if (catalogue === undefined) return { kind: 'observed', observations: [] };
+  // Proof (2026-11-01): throwing here made `has nothing to judge in a candidate without a
+  // catalogue` fail.
+  if (catalogue === undefined) return [];
   // Proof (2026-11-01): disabling this guard made `cannot judge without the evaluation instant`
   // receive the reason "undefined is not an object (evaluating 'evaluatedAt.getTime')".
   if (evaluatedAt === undefined) {
-    return {
-      kind: 'not-evaluated',
-      reason: `${JobCataloguePath} needs the evaluation instant: pass check --now <UTC instant>; Twilight Dash supplies it`,
-    };
+    throw new Error(
+      `${JobCataloguePath} needs the evaluation instant: pass check --now <UTC instant>; Twilight Dash supplies it`,
+    );
   }
   const read = readCatalogueJson(repository, entries, catalogue);
-  if (!read.ok) return { kind: 'observed', observations: [read.observation] };
+  if (!read.ok) return [read.observation];
   const header = JobCatalogueHeader(read.json);
   if (header instanceof type.errors) {
-    return {
-      kind: 'observed',
-      observations: [observe('catalogue', `malformed catalogue: ${header.summary}`)],
-    };
+    return [observe('catalogue', `malformed catalogue: ${header.summary}`)];
   }
   const observations: RuleObservation[] = [];
   const ids: string[] = [];
@@ -195,5 +194,5 @@ export function judgeJobCatalogue(
   for (const id of duplicateJobIds(ids)) {
     observations.push(observe(id, `duplicate job type id ${id}`));
   }
-  return { kind: 'observed', observations };
+  return observations;
 }

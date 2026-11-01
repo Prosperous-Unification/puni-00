@@ -17,7 +17,6 @@ import type { KindGraph } from './kinds';
 import { moduleLayoutObservations } from './kinds';
 import {
   evaluateWrapped,
-  reasonOf,
   type RegisteredRule,
   type RuleContext,
   type RuleObservation,
@@ -294,14 +293,10 @@ const jobCatalogueRule: RegisteredRule = {
   source:
     'openspec/changes/dash-host-jobs/specs/host-jobs/spec.md#requirement-the-job-catalogue-names-every-job-type',
   inputs: ['candidate.entries', 'invocation.evaluatedAt'],
-  evaluate: (context) => {
-    try {
-      return judgeJobCatalogue(context.repository, context.candidate.entries, context.evaluatedAt);
-    } catch (cause) {
-      // Modeled recovery: an unreadable candidate blob is a failure to evaluate, never debt.
-      return { kind: 'not-evaluated', reason: reasonOf(cause) };
-    }
-  },
+  evaluate: (context) =>
+    evaluateWrapped(() =>
+      judgeJobCatalogue(context.repository, context.candidate.entries, context.evaluatedAt),
+    ),
 };
 
 function graphRule(

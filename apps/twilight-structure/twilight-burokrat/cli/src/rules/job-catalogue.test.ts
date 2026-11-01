@@ -18,6 +18,7 @@ afterEach(() => {
 
 interface Verdict {
   allowed: boolean;
+  evaluatedAt?: string;
   ruleIds: string[];
   findings: { ruleId: string; path: string; subject?: string; message: string; effect: string }[];
   unevaluated: { ruleId: string; reason: string }[];
@@ -154,12 +155,15 @@ describe('JOB-CATALOGUE', () => {
       ruleIds: ['JOB-CATALOGUE'],
       findings: [],
       unevaluated: [],
+      evaluatedAt: BeforeUntil,
     });
   });
 
   test('passes on the last millisecond of the until date', async () => {
     const outcome = await judge(createCandidate({}), { now: '2026-12-01T23:59:59.999Z' });
+    expect(outcome.exitCode, outcome.stderr).toBe(0);
     expect(outcome.verdict?.findings).toEqual([]);
+    expect(outcome.verdict?.unevaluated).toEqual([]);
   });
 
   test('fails every estimate on 2026-12-02', async () => {
@@ -243,6 +247,21 @@ describe('JOB-CATALOGUE', () => {
         'test-queued',
         'entrypoint package.json#scripts.test:queued is absent at the revision',
       ),
+    ]);
+  });
+
+  test('cannot judge an entrypoint blob the repository cannot supply', async () => {
+    const candidate = createCandidate({});
+    const blob = git(candidate.repository, 'rev-parse', `${candidate.revision}:package.json`);
+    rmSync(join(candidate.repository, '.git', 'objects', blob.slice(0, 2), blob.slice(2)));
+    const outcome = await judge(candidate, { now: BeforeUntil });
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.verdict?.findings).toEqual([]);
+    expect(outcome.verdict?.unevaluated).toEqual([
+      {
+        ruleId: 'JOB-CATALOGUE',
+        reason: `cannot read selected blob ${blob} for package.json: missing from the repository`,
+      },
     ]);
   });
 

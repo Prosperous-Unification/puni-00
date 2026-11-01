@@ -194,7 +194,7 @@ captured before migrate, step-code backfill before exposure; recovery after expo
 
 ### 5.8 Govern
 
-- **Rule policy:** `docs/code-organization/rule-policy.json` (14 rules, observe mode) and
+- **Rule policy:** `docs/code-organization/rule-policy.json` (15 rules, observe mode) and
   `kinds.json` (33 temporary kind entries until files carry `.feature/.resource/.repository.ts`).
 - **Wiki policy:** `docs/wiki-policy/policy.json` (35 pilot boundaries with pinned baselines,
   binary declarations), `modules.json` (35 module identities with index headers in READMEs),

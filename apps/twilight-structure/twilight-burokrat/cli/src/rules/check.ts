@@ -318,6 +318,11 @@ export function executeCheckCandidate(request: CheckRequest) {
     findings,
     unevaluated,
     certifies: false,
+    // Proof (2026-11-01): dropping this field made `passes the four job types of this repository
+    // before their until date` fail: the verdict no longer said which instant it judged.
+    ...(request.evaluatedAt === undefined
+      ? {}
+      : { evaluatedAt: request.evaluatedAt.toISOString() }),
     ...(scenarioOutcome?.ok ? { scenarios: scenarioOutcome.report } : {}),
   };
   return { verdict, candidate, loadedPolicy, indexes, sizeCeilings };
@@ -369,7 +374,7 @@ export function writeCheckCommand(argv: readonly string[]): void {
     // Proof: removing this forwarding made the complete-check source test leave PERF-THRESHOLD
     // unevaluated with the missing-run-evidence reason (2026-10-15).
     ...(performanceEvidencePath === undefined ? {} : { performanceEvidencePath }),
-    // Proof (2026-11-01): removing this forwarding failed twelve of the sixteen
+    // Proof (2026-11-01): removing this forwarding failed fourteen of the seventeen
     // `rules/job-catalogue.test.ts` cases, every one that supplies --now.
     ...(evaluatedAt === undefined ? {} : { evaluatedAt }),
   });

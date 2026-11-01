@@ -88,20 +88,24 @@ The new rule tests pass alone: `bun test …/rules/job-catalogue.test.ts --timeo
 Each fault was applied by a scratch script, the named test file run with
 `bun test <file> --timeout=60000` (CLAUDECODE unset), and the source restored.
 
-| Fault injected                                               | Test that observed it                                                                                                 | Result             |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| `until` comparison replaced with `false` (task 1.2 negative) | `fails every estimate on 2026-12-02`: exit 0 where 1 expected; 15 others passed                                       | red, then restored |
-| entrypoint presence replaced with `false`                    | `names an entrypoint absent at the revision`, `names a package script entrypoint …`                                   | red, then restored |
-| p95 compared with `<=`                                       | `names an envelope below its own calibrated p95` (at-p95 half)                                                        | red, then restored |
-| p95 comparison replaced with `false`                         | `names an envelope below its own calibrated p95`                                                                      | red, then restored |
-| containers errors folded into malformed                      | `names containers that are neither none nor a bound`                                                                  | red, then restored |
-| malformed entries push nothing                               | `names a malformed entry …`, `names an entry that is not an object …`, containers case                                | red, then restored |
-| duplicate ids judged over `[]`                               | `names a duplicate id`                                                                                                | red, then restored |
-| absent catalogue reported not-evaluated                      | `has nothing to judge in a candidate without a catalogue`                                                             | red, then restored |
-| instant guard disabled                                       | `cannot judge without the evaluation instant`: reason `undefined is not an object (evaluating 'evaluatedAt.getTime')` | red, then restored |
-| `--now` not forwarded by `writeCheckCommand`                 | 12 of 16 rule cases, every one that supplies `--now`                                                                  | red, then restored |
-| `--now`-without-dated-rule refusal disabled                  | `check refuses --now without a dated rule`: empty stderr                                                              | red, then restored |
-| `parseJobArguments` always matches                           | `refuses arguments outside the argument profile`, `the empty profile takes no arguments`                              | red, then restored |
+| Fault injected                                                        | Test that observed it                                                                                                 | Result             |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| `until` comparison replaced with `false` (task 1.2 negative)          | `fails every estimate on 2026-12-02`: exit 0 where 1 expected; 15 others passed                                       | red, then restored |
+| entrypoint presence replaced with `false`                             | `names an entrypoint absent at the revision`, `names a package script entrypoint …`                                   | red, then restored |
+| p95 compared with `<=`                                                | `names an envelope below its own calibrated p95` (at-p95 half)                                                        | red, then restored |
+| p95 comparison replaced with `false`                                  | `names an envelope below its own calibrated p95`                                                                      | red, then restored |
+| containers errors folded into malformed                               | `names containers that are neither none nor a bound`                                                                  | red, then restored |
+| malformed entries push nothing                                        | `names a malformed entry …`, `names an entry that is not an object …`, containers case                                | red, then restored |
+| duplicate ids judged over `[]`                                        | `names a duplicate id`                                                                                                | red, then restored |
+| absent catalogue reported not-evaluated                               | `has nothing to judge in a candidate without a catalogue`                                                             | red, then restored |
+| instant guard disabled                                                | `cannot judge without the evaluation instant`: reason `undefined is not an object (evaluating 'evaluatedAt.getTime')` | red, then restored |
+| verdict `evaluatedAt` dropped (review fix 2)                          | `passes the four job types of this repository before their until date`: verdict lacked `evaluatedAt`                  | red, then restored |
+| entrypoint blob read moved back inside the parse `try` (review fix 3) | `cannot judge an entrypoint blob the repository cannot supply`: exit 0 where 1 expected (absence finding)             | red, then restored |
+| `until` comparison replaced with `false`, architecture level          | `job-catalogue.architecture.test.ts`: exit 0 where 1 expected                                                         | red, then restored |
+| `--now` not forwarded by `writeCheckCommand`, after review fixes      | 14 of 17 rule cases, now including `passes on the last millisecond of the until date` (review fix 5)                  | red, then restored |
+| `--now` not forwarded by `writeCheckCommand`                          | 12 of 16 rule cases, every one that supplies `--now`                                                                  | red, then restored |
+| `--now`-without-dated-rule refusal disabled                           | `check refuses --now without a dated rule`: empty stderr                                                              | red, then restored |
+| `parseJobArguments` always matches                                    | `refuses arguments outside the argument profile`, `the empty profile takes no arguments`                              | red, then restored |
 
 Each is recorded as a `Proof:` comment beside the check it breaks.
 
@@ -119,3 +123,27 @@ checkout after execution`: `Received: "Error: Performance supervisor exited 143"
   lefthook's `lint` passed on each commit.
 - The `puni-pr-00` companion catalogue (`website-dev-build`) is not part of this slice (S1-A12).
 - Every envelope is an estimate read from scripts, not a measurement; slice 6.4 calibrates.
+
+### Review fixes (Fable, PR #806, MERGE AFTER FIXES)
+
+1. `docs/platform-map.md` says 15 rules in both places.
+2. A `check` verdict now records `evaluatedAt` (ISO) when `--now` is supplied. This is additive,
+   and `schemaVersion` stays 1.
+3. `entrypointIsPresent` reads the blob outside the parse `try`. A missing blob makes the rule
+   unevaluated; a non-UTF-8 or unparseable JSON entrypoint is still absent.
+4. The spec scenario reads "passes with no finding and no unevaluated rule".
+5. The last-millisecond case also asserts exit 0 and `unevaluated: []`.
+6. `src/architecture/job-catalogue.architecture.test.ts` is mapped in
+   `architecture-fixtures.json`. Its production negative is the 2026-12-02 case.
+7. The containers bases name every container the suites start. One reviewer item was not
+   adopted: the swap preflight (`swap-mcp-preflight.db.test.ts`) runs the swap's `docker run`
+   script with `sh -c` and starts no container (read 2026-11-01), so it is not listed.
+8. `test-queued`'s basis says its exclusive units wait on task 6.2, because one checkout and one
+   `.nx` cache are shared.
+9. Left as the review asked: the Burokrat README's link to `infra/jobs/README.md` is dead on
+   npmjs.com, like its existing ADR links.
+10. The rule goes through `evaluateWrapped` like the others. `judgeJobCatalogue` returns
+    observations and throws when it cannot judge.
+
+Not in this slice: the scenario "An uncatalogued type" (`ops job run … ` exits 64) belongs to
+slices 2 and 3.

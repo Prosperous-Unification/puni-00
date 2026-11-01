@@ -10,7 +10,7 @@
       "enforcement": "observe",
       "provenance": {
         "kind": "estimated",
-        "basis": "user slice memory.current 2.0 GiB during gate:0a518a42 on h2puni, 2026-11-01; the containers bound is declared for the solver image smoke and the Caddy test container, not yet enforced on either (task 6.2)",
+        "basis": "user slice memory.current 2.0 GiB during gate:0a518a42 on h2puni, 2026-11-01; the containers bound is declared, not enforced: every container the gate starts is unbounded today (the solver smoke's wbs-solver, registry:2 and clients, and Caddy in mcp-body-limit.test.ts); task 6.2 bounds them",
         "until": "2026-12-01"
       }
     },
@@ -41,7 +41,7 @@
       "enforcement": "observe",
       "provenance": {
         "kind": "estimated",
-        "basis": "read, not measured, 2026-11-01: nx run-many -t test at nx.json parallel 4, the test half of the gate without its tree; tool-remote-scripts:test:caddy starts an unbounded Caddy container today, so the bound is declared, not yet enforced (task 6.2)",
+        "basis": "read, not measured, 2026-11-01: nx run-many -t test at nx.json parallel 4, the test half of the gate without its tree; every container the test suite starts is unbounded today (Caddy in mcp-body-limit.test.ts), so the bound is declared, not enforced (task 6.2); exclusive units pending task 6.2 (one checkout and one .nx cache are shared)",
         "until": "2026-12-01"
       }
     },

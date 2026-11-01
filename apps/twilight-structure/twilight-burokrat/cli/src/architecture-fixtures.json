@@ -56,6 +56,10 @@
     {
       "ruleId": "SPEC-SCENARIOS",
       "file": "src/architecture/spec-scenarios.architecture.test.ts"
+    },
+    {
+      "ruleId": "JOB-CATALOGUE",
+      "file": "src/architecture/job-catalogue.architecture.test.ts"
     }
   ]
 }
