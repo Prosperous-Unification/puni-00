@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { appendFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { env } from 'node:process';
@@ -88,10 +88,66 @@ function readOutbound(body) {
     typeof message.content === 'string'
       ? message.content
       : message.content.map((part) => part.text).join('');
+  const contextMessage = messages.find((message) =>
+    text(message).startsWith('Untrusted current scoping context: '),
+  );
+  if (contextMessage) {
+    const context = JSON.parse(
+      text(contextMessage).slice('Untrusted current scoping context: '.length),
+    );
+    return { stage: null, visitor: text(messages.at(-1)), context };
+  }
   const hint = text(messages[0]).split('\n').at(-1) ?? '';
   const stage = /^Stage: (clarify|brief|contact)\./.exec(hint)?.[1];
   if (!stage) throw new Error('Outbound system message lacks its stage hint');
   return { stage, visitor: text(messages.at(-1)) };
+}
+
+/** Deterministic catalogue fixture only; never substitutes model judgment evidence. */
+function scopedReply(context, visitor) {
+  if (/invalid envelope/i.test(visitor)) return '{broken';
+  if (/different starting offer/i.test(visitor))
+    return JSON.stringify({
+      version: 1,
+      message:
+        'Moving reports between tools could fit automation. Choose the starting point that fits.',
+      nextQuestionId: 'route-selection',
+      brief: null,
+    });
+  const starting = context.scoping.startingChoice ?? 'unsure';
+  const first = {
+    launch: 'launch-purpose',
+    improve: 'improve-blocker',
+    similar: 'similar-change',
+    assistant: 'assistant-help',
+    automate: 'automate-task',
+    unsure: 'unsure-reason',
+  };
+  const current = context.scoping.questionId;
+  const nextQuestionId =
+    current === null && context.scoping.candidateBrief === null
+      ? first[starting]
+      : current === 'improve-blocker'
+        ? 'app-area'
+        : current === 'app-area'
+          ? 'improve-outcome'
+          : null;
+  const brief =
+    nextQuestionId === null
+      ? /sign-in/i.test(visitor)
+        ? 'Improve the existing app: inspect sign-in and agree the next milestone. Details need inspection.'
+        : starting === 'improve'
+          ? 'Improve the existing app: recurring bugs affect payments. First milestone: accept payments. Inspect the payment journey before recommending changes.'
+          : 'Explore the requested software goal. Confirm the audience, current workflow and first useful milestone with a person.'
+      : null;
+  return JSON.stringify({
+    version: 1,
+    message: nextQuestionId
+      ? 'Let’s clarify one part of your request.'
+      : 'Here is a starting point to review. We still need to inspect the details.',
+    nextQuestionId,
+    brief,
+  });
 }
 
 function chunk(id, delta, finish = null, usage = null) {
@@ -110,15 +166,19 @@ function refusalChunk(id) {
     object: 'chat.completion.chunk',
     error: { code: 403, message: 'Upstream refused', metadata: { error_type: 'refusal' } },
     choices: [{ index: 0, delta: { content: '' }, finish_reason: 'error' }],
-    usage: { prompt_tokens: 900, completion_tokens: 4, total_tokens: 904 },
+    usage: { cost: 0, prompt_tokens: 900, completion_tokens: 4, total_tokens: 904 },
   })}\n\n`;
 }
 
 /** A scripted OpenRouter SSE response that honours the request's abort signal. */
 function providerFetch(_input, init) {
-  const { stage, visitor } = readOutbound(init.body);
+  const capturePath = env['PUNI_FIXTURE_OUTBOUND_PATH'];
+  if (capturePath) appendFileSync(capturePath, `${init.body}\n`);
+  const { stage, visitor, context } = readOutbound(init.body);
   const isRefused = /refuse/i.test(visitor);
-  const words = (isRefused ? 'I can’t help build' : replies[stage]).split(/(?<= )/);
+  const words = (
+    isRefused ? 'I can’t help build' : context ? scopedReply(context, visitor) : replies[stage]
+  ).split(/(?<= )/);
   const delay = /slowly/i.test(visitor) ? 400 : wordMilliseconds;
   const id = `gen-fixture-${String(Date.now())}`;
   const encoder = new globalThis.TextEncoder();
@@ -145,6 +205,8 @@ function providerFetch(_input, init) {
             isRefused
               ? refusalChunk(id)
               : chunk(id, {}, 'stop', {
+                  // Proof: omitting this synthetic charge left both browser-fixture SDK tests unknown at full reservation.
+                  cost: 0.0007,
                   prompt_tokens: 1200,
                   completion_tokens: 80,
                   total_tokens: 0,
@@ -176,6 +238,8 @@ const api = createWebsiteApi({
   openRouterProvider: 'azure/swedencentral',
   openRouterInputUsdPerMillion: 0.44,
   openRouterOutputUsdPerMillion: 1.76,
+  openRouterInputCeilingUsdPerMillion: 0.44,
+  openRouterOutputCeilingUsdPerMillion: 1.76,
   openRouterPrivacyVerified: true,
   operatorPassword: env['OPERATOR_PASSWORD'],
   providerFetch,

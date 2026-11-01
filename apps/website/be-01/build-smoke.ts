@@ -38,8 +38,14 @@ try {
   if (counts.deletion !== 'disabled' || counts.activation !== 'ready')
     throw new Error('Bundled request retention report returned the wrong state');
   const capabilities: unknown = JSON.parse(readFileSync(join(bundle, 'capabilities.json'), 'utf8'));
-  if (JSON.stringify(capabilities) !== JSON.stringify(['retention-journal/1']))
-    throw new Error('Bundled capabilities.json lacks retention-journal/1');
+  // Proof: with conversion-scoping/1 absent from the actual built output, this refusal
+  // failed test:package on 2026-10-25 before the journal stand-in; restoring it passed.
+  if (
+    JSON.stringify(capabilities) !== JSON.stringify(['retention-journal/1', 'conversion-scoping/1'])
+  )
+    throw new Error(
+      'Bundled capabilities.json must declare retention-journal/1 and conversion-scoping/1',
+    );
   // The bundled journal commands against a local S3 stand-in (dummy credentials, loopback only).
   const standIn = new S3StandIn('journal-smoke');
   try {

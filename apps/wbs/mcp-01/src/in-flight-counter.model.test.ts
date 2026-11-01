@@ -7,7 +7,7 @@ import fc from 'fast-check';
 import type { McpConfig } from './config';
 import { mcpFetchHandler } from './http';
 import { machineGrantClient } from './machine-grant-client';
-import { M10_LIMITS, MachineTrafficLimits } from './machine-limits';
+import { M10_LIMITS, type MachineLimits, MachineTrafficLimits } from './machine-limits';
 import { McpOAuthServer } from './oauth';
 import { readDocument, toolsFromDocument } from './openapi-tools';
 import { createServer } from './server';
@@ -31,7 +31,11 @@ import type { FetchLike } from './wbs-client';
  * Proof: each of five sabotages failed this property at seed 20261027 (counterexamples in
  * verify.md, section 4): `count > limit` in `InFlightCounter.acquire`; a release that deletes
  * the key's whole count; one counter for every organization (`machine-limits.ts`); the release
- * run before the call (`server.ts`); the release skipped for a failed call. Watched 2026-10-27.
+ * run before the call (`server.ts`); the release skipped for a failed call. Rewatched with
+ * admission/release barriers on 2026-10-29 at the same seed; all five faults still failed.
+ * A 25 ms be-01 body delay reproduces the old expected-3/received-2 failure on the reported
+ * command sequence and passes with the barriers. Counts remain backend observations; the
+ * barriers observe the real admission and `finally` release, never supply or alter them.
  */
 const MCP_URL = 'https://wbs.example/mcp';
 const OAUTH = 'https://wbs.example/mcp/oauth';
@@ -71,6 +75,7 @@ interface Model {
 }
 
 interface World {
+  readonly progress: CallProgress;
   readonly held: HeldCall[];
   readonly sent: SentRequest[];
   readonly tokens: Record<Organization, string>;
@@ -81,6 +86,7 @@ const reached = { limited: 0, failedEnd: 0, thrownEnd: 0, single429: 0, crossOrg
 
 async function world(): Promise<World> {
   const held: HeldCall[] = [];
+  const progress = new CallProgress();
   const credentials = ORGANIZATIONS.map((organization) => {
     const id = randomUUID();
     return { id, key: newMachineKey(id).key, organization };
@@ -134,12 +140,15 @@ async function world(): Promise<World> {
         secret: SECRET,
         tokenTtlSeconds: TTL,
         jitter: () => 0,
-        limit: new MachineTrafficLimits(() => NOW, {
-          ...M10_LIMITS,
-          // The per-credential rate never refuses here: only the in-flight limit is modeled.
-          callsPerCredential: { burst: 1_000_000, perSecond: 1_000_000 },
-          callsInFlightPerOrganization: LIMIT,
-        }),
+        limit: observeCalls(
+          new MachineTrafficLimits(() => NOW, {
+            ...M10_LIMITS,
+            // The per-credential rate never refuses here: only the in-flight limit is modeled.
+            callsPerCredential: { burst: 1_000_000, perSecond: 1_000_000 },
+            callsInFlightPerOrganization: LIMIT,
+          }),
+          progress,
+        ),
         reportFault: (fault) => {
           throw fault;
         },
@@ -179,7 +188,7 @@ async function world(): Promise<World> {
       (await response?.json()) as { access_token: string }
     ).access_token;
   }
-  return { held, sent: [], tokens, handle };
+  return { held, sent: [], tokens, handle, progress };
 }
 
 async function callTools(
@@ -217,9 +226,65 @@ async function callTools(
   };
 }
 
-/** Lets every microtask and timer the request path queued run: be-01 holds what it holds. */
-async function settle(): Promise<void> {
-  for (let round = 0; round < 5; round += 1) await Bun.sleep(1);
+type CallEvent = 'admission' | 'release';
+
+/**
+ * Observes the real limit boundary, without supplying an admission or releasing a slot.
+ * A response body may still be streaming after the fixture resolves its fetch, so ending a
+ * held call waits for the production `finally`, including calls inside an unfinished batch.
+ */
+class CallProgress {
+  readonly #counts: Record<CallEvent, number> = { admission: 0, release: 0 };
+  readonly #observers = new Set<() => void>();
+
+  countOf(event: CallEvent): number {
+    return this.#counts[event];
+  }
+
+  advance(event: CallEvent): void {
+    this.#counts[event] += 1;
+    for (const observe of this.#observers) observe();
+  }
+
+  /** The bound detects a missing production transition; it never substitutes for one. */
+  until(event: CallEvent, count: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const observe = () => {
+        if (this.#counts[event] < count) return;
+        clearTimeout(deadline);
+        this.#observers.delete(observe);
+        resolve();
+      };
+      // Proof: skipping the production release failed the model at seed 20261027 on this
+      // missing release observation; see verify.md, launch gate repair.
+      const deadline = setTimeout(() => {
+        this.#observers.delete(observe);
+        reject(
+          new Error(`missing ${event} ${String(count)}; observed ${String(this.#counts[event])}`),
+        );
+      }, 1_000);
+      this.#observers.add(observe);
+      observe();
+    });
+  }
+}
+
+function observeCalls(limits: MachineLimits, progress: CallProgress): MachineLimits {
+  return {
+    reserveIssuance: (attempt) => limits.reserveIssuance(attempt),
+    admitCall: (caller) => {
+      const admission = limits.admitCall(caller);
+      progress.advance('admission');
+      if (admission.kind === 'limited') return admission;
+      return {
+        kind: 'admitted',
+        release: () => {
+          admission.release();
+          progress.advance('release');
+        },
+      };
+    },
+  };
 }
 
 function heldFor(real: World, organization: Organization): number {
@@ -252,6 +317,7 @@ class Send implements fc.AsyncCommand<Model, World> {
     if (other !== undefined && model.inFlight[other] === LIMIT) reached.crossOrg += 1;
     const admitted = Math.min(this.count, LIMIT - model.inFlight[this.organization]);
     if (admitted < this.count) reached.limited += 1;
+    const entered = real.progress.countOf('admission') + this.count;
     const request: SentRequest = {
       organization: this.organization,
       count: this.count,
@@ -259,7 +325,7 @@ class Send implements fc.AsyncCommand<Model, World> {
       remaining: admitted,
       answer: callTools(real.handle, real.tokens[this.organization], this.count),
     };
-    await settle();
+    await real.progress.until('admission', entered);
     expect(heldFor(real, this.organization)).toBe(model.inFlight[this.organization] + admitted);
     model.inFlight[this.organization] += admitted;
     if (admitted === 0) await checkAnswered(request);
@@ -284,6 +350,7 @@ class End implements fc.AsyncCommand<Model, World> {
     const [call] = real.held.splice(index, 1) as [HeldCall];
     if (this.outcome === 'fail') reached.failedEnd += 1;
     if (this.outcome === 'throw') reached.thrownEnd += 1;
+    const released = real.progress.countOf('release') + 1;
     call.end(this.outcome);
     model.inFlight[this.organization] -= 1;
     // be-01's calls of one organization end oldest first, so this one is the oldest request's.
@@ -292,7 +359,7 @@ class End implements fc.AsyncCommand<Model, World> {
     );
     if (owner === undefined) throw new Error('no request owns the call');
     owner.remaining -= 1;
-    await settle();
+    await real.progress.until('release', released);
     if (owner.remaining === 0) {
       real.sent.splice(real.sent.indexOf(owner), 1);
       await checkAnswered(owner);

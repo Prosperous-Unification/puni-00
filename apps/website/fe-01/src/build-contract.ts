@@ -1,3 +1,11 @@
+import {
+  type ConversationScoping,
+  isQuestionId,
+  isStartingChoiceId,
+  parseScopingAnswerRequest,
+  type ScopingAnswerRequest,
+} from '@website/contracts';
+
 export type EntryStatus =
   { available: true; reason: null } | { available: false; reason: 'missing' | 'expired' };
 
@@ -35,6 +43,7 @@ export type ConversationExhaustedReason =
   'turns' | 'conversation_spend' | 'source_spend' | 'site_spend';
 
 export interface ConversationOperation {
+  replyFailure?: 'invalid_scoping_reply' | null;
   state: 'not-started' | 'inflight' | 'completed' | 'unknown';
   idempotencyKey: string;
   truncated: boolean;
@@ -52,6 +61,8 @@ export interface BrowserChallenge {
 
 /** The `GET /conversation` body: the conversation bound to this browser's draft claim. */
 export interface Conversation {
+  expiresAt?: string;
+  scoping: ConversationScoping;
   stage: ConversationStage;
   turns: { role: 'user' | 'assistant'; content: string }[];
   visitorTurnsRemaining: number;
@@ -62,13 +73,15 @@ export interface Conversation {
   description: string;
   csrfToken: string;
   initialOperation: ConversationOperation | null;
-  latestOperation: (ConversationOperation & { message: string }) | null;
+  latestOperation:
+    (ConversationOperation & { message: string; answer?: ScopingAnswerRequest | null }) | null;
   exhaustedReason: ConversationExhaustedReason | null;
   challenge: BrowserChallenge | null;
 }
 
 /** The `GET /draft` body: the manual brief's draft and the conversation provider now. */
 export interface Draft {
+  scoping?: ConversationScoping;
   description: string;
   brief: string;
   csrfToken: string;
@@ -107,7 +120,16 @@ export function parseDraft(value: unknown): Draft {
   const provider = 'provider' in value ? value.provider : undefined;
   const known = providers.find((candidate) => candidate === provider);
   if (known === undefined) throw new InvalidDraft('provider');
-  return { description, brief, csrfToken, expiresAt, provider: known };
+  return {
+    description,
+    brief,
+    csrfToken,
+    expiresAt,
+    provider: known,
+    scoping: Object.hasOwn(value, 'scoping')
+      ? parseScoping('scoping' in value ? value.scoping : undefined)
+      : { version: 'legacy' },
+  };
 }
 
 /** The `GET /conversation` body did not match the API contract. */
@@ -186,10 +208,70 @@ function parseOperation(value: unknown, field: string): ConversationOperation | 
     typeof value.truncated !== 'boolean'
   )
     throw new InvalidConversation(field);
+  const state = pickOne(value.state, operationStates, field);
+  let failure: { replyFailure?: 'invalid_scoping_reply' | null } = {};
+  if ('replyFailure' in value) {
+    // Proof: bypassing this guard accepted unknown codes and an unknown-state failure after refresh.
+    if (
+      value.replyFailure !== null &&
+      (value.replyFailure !== 'invalid_scoping_reply' || state !== 'completed')
+    )
+      throw new InvalidConversation(`${field}.replyFailure`);
+    failure = { replyFailure: value.replyFailure };
+  }
   return {
-    state: pickOne(value.state, operationStates, field),
+    ...failure,
+    state,
     idempotencyKey: value.idempotencyKey,
     truncated: value.truncated,
+  };
+}
+
+/** Validates the shared committed scoping state on conversation, draft and edit responses. */
+export function parseScoping(value: unknown): ConversationScoping {
+  // Proof: bypassing this shape check made the malformed-present-scoping fixture throw TypeError instead of InvalidConversation.
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new InvalidConversation('scoping');
+  const fields: Record<string, unknown> = Object.fromEntries(Object.entries(value));
+  if (fields['version'] === 'legacy' && Object.keys(fields).length === 1)
+    return { version: 'legacy' };
+  const {
+    version,
+    startConversation,
+    startingChoice,
+    questionId,
+    revision,
+    references,
+    candidateBrief,
+    emailInvitationDeclined,
+  } = fields;
+  // Proof: individually bypassing count, version, intent, IDs, safe/nonnegative revision, reference/candidate or invitation validation failed the malformed-present-scoping fixture.
+  if (
+    Object.keys(fields).length !== 8 ||
+    version !== 1 ||
+    typeof startConversation !== 'boolean' ||
+    (startingChoice !== null && !isStartingChoiceId(startingChoice)) ||
+    (questionId !== null && !isQuestionId(questionId)) ||
+    typeof revision !== 'number' ||
+    !Number.isSafeInteger(revision) ||
+    revision < 0 ||
+    (references !== null && (typeof references !== 'string' || references.length > 4000)) ||
+    (candidateBrief !== null &&
+      (typeof candidateBrief !== 'string' ||
+        candidateBrief.length > 4000 ||
+        candidateBrief.trim() === '')) ||
+    typeof emailInvitationDeclined !== 'boolean'
+  )
+    throw new InvalidConversation('scoping');
+  return {
+    version,
+    startConversation,
+    startingChoice,
+    questionId,
+    revision,
+    references,
+    candidateBrief,
+    emailInvitationDeclined,
   };
 }
 
@@ -205,6 +287,9 @@ export function parseConversation(value: unknown): Conversation {
   // Proof: defaulting an absent provider to 'disabled' made the build-page.test.ts
   // missing-provider and malformed-harness cases stop throwing.
   const provider = pickOne(value.provider, providers, 'provider');
+  const scoping = Object.hasOwn(value, 'scoping')
+    ? parseScoping('scoping' in value ? value.scoping : undefined)
+    : { version: 'legacy' as const };
   const stage = pickOne('stage' in value ? value.stage : undefined, stages, 'stage');
   if (
     !('visitorTurnsRemaining' in value) ||
@@ -262,12 +347,41 @@ export function parseConversation(value: unknown): Conversation {
         ? latestRaw.message
         : undefined;
     if (typeof message !== 'string') throw new InvalidConversation('latestOperation');
-    latestOperation = { ...latest, message };
+    const rawAnswer =
+      typeof latestRaw === 'object' && latestRaw !== null && 'answer' in latestRaw
+        ? latestRaw.answer
+        : undefined;
+    const expectsAnswer =
+      scoping.version === 1 &&
+      latest.idempotencyKey !== initialOperation?.idempotencyKey &&
+      message !== '';
+    if (rawAnswer === null || rawAnswer === undefined) {
+      // Proof: bypassing absence validation accepted missing/null raw input in the stopped-selection fixture.
+      if (expectsAnswer) throw new InvalidConversation('latestOperation.answer');
+      latestOperation = { ...latest, message, ...(rawAnswer === null ? { answer: null } : {}) };
+    } else {
+      // Proof: bypassing this branch admitted raw follow-up payloads on legacy/initial responses in the stopped-selection fixture.
+      if (scoping.version !== 1 || latest.idempotencyKey === initialOperation?.idempotencyKey)
+        throw new InvalidConversation('latestOperation.answer');
+      const parsed = parseScopingAnswerRequest(rawAnswer);
+      // Proof: bypassing raw parsing accepted malformed retry payloads in the stopped-selection fixture.
+      if (parsed.kind !== 'valid') throw new InvalidConversation('latestOperation.answer');
+      latestOperation = { ...latest, message, answer: parsed.value };
+    }
   }
   // Proof: defaulting an absent challenge to null made the missing-challenge contract case pass.
   if (!('challenge' in value)) throw new InvalidConversation('challenge');
   const challenge = parseChallenge(value.challenge);
+  const expiresAt = 'expiresAt' in value ? value.expiresAt : undefined;
+  // Proof: bypassing date validation accepted malformed expiry values in build-contract.test.ts.
+  if (
+    Object.hasOwn(value, 'expiresAt') &&
+    (typeof expiresAt !== 'string' || Number.isNaN(Date.parse(expiresAt)))
+  )
+    throw new InvalidConversation('expiresAt');
   return {
+    ...(typeof expiresAt === 'string' ? { expiresAt } : {}),
+    scoping,
     challenge,
     stage,
     turns,
@@ -315,6 +429,9 @@ export interface ConversationAttempt {
   idempotencyKey: string;
   message: string;
   initial: boolean;
+  /** Exact normalized raw answer when retrying a versioned follow-up. */
+  answer?: ScopingAnswerRequest;
+  automatic?: boolean;
 }
 
 /** What the live composer offers; see {@link selectComposerMode}. */
@@ -367,6 +484,7 @@ export function selectStoppedAttempt(conversation: Conversation): ConversationAt
     idempotencyKey: latest.idempotencyKey,
     message: latest.message,
     initial: latest.idempotencyKey === conversation.initialOperation?.idempotencyKey,
+    ...(latest.answer ? { answer: latest.answer } : {}),
   };
 }
 
@@ -376,6 +494,9 @@ export function selectStoppedAttempt(conversation: Conversation): ConversationAt
  * without a brief, so the card does not interrupt the first questions.
  */
 export function offersProposal(conversation: Conversation): boolean {
+  // Proof: legacy stage-only invitation opened contact without a v1 brief in build-contract.test.ts.
+  if (conversation.scoping.version === 1)
+    return conversation.brief.trim() !== '' || conversation.stage === 'exhausted';
   // Proof: returning true unconditionally failed the two no-brief rows of the build-page.test.ts card table.
   return (
     conversation.stage === 'contact' ||
