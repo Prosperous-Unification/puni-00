@@ -1221,6 +1221,8 @@ describe('the root fast tier discovers every eligible project', () => {
     // with `missing: []` and `unexpected: ["tool-devsync"]` (2026-09-10).
     // Proof: before adding the two shared targets, this named
     // `shared-test-evidence` and `shared-test-levels` in `missing`.
+    // Proof: omitting analytics test:unit failed here with missing: ["website-analytics"]
+    // and unexpected: [] (2026-10-26).
     expect({ missing, unexpected }).toEqual({ missing: [], unexpected: [] });
   });
 

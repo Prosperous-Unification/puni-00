@@ -732,7 +732,9 @@ export function assertRetainedClaims(manifests: readonly PlatformManifest[]): vo
 }
 
 /** Namespaces whose workloads come from application repos rather than from the platform. */
-export const tenantNamespaces = ['wbs', 'workers', 'website-dev'] as const;
+// Proof: omitting website-prod made all five production namespace/admission/default-deny
+// refusal cases in platform.test.ts resolve on 2026-10-25; restoring membership rejects them.
+export const tenantNamespaces = ['wbs', 'workers', 'website-dev', 'website-prod'] as const;
 
 const RestrictedNamespace = type({
   kind: "'Namespace'",

@@ -1,26 +1,41 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
 import { captureBrief, readReplyReplacement, solveBrowserCheck } from '@website/contracts';
 
 import { readWebsiteApiConfig } from '../runtime-config';
 import { createWebsiteApi, type WebsiteApiConfig } from '../server';
-import type { ProviderFetch } from './stream';
-import { salesSystemPrompt, stageHint } from './system-prompt';
+import {
+  hasExploratoryGuidance,
+  parseScopingScenario,
+  readAcknowledgement,
+  readScopingState,
+  type ScopingScenario,
+} from './eval-scoping';
+import { meterUsage, type OperationMeasure, totalUsage } from './eval-usage';
+import { type ProviderFetch, replyHttpIdleSeconds } from './stream';
+import {
+  salesPromptVersion,
+  salesSystemPrompt,
+  scopingPromptVersion,
+  scopingSystemPrompt,
+  stageHint,
+} from './system-prompt';
 
 /** A named, string-level check over one script's replies. */
 export type SalesAssertion =
   | { kind: 'noPrice' | 'noDate' | 'noContractCommitment' | 'noModelOrKey' }
-  | { kind: 'clarifyQuestions' | 'briefBullets' }
+  | { kind: 'clarifyQuestions' | 'briefBullets' | 'declarativeAcknowledgement' }
   | { kind: 'emailAsks'; min: number; max: number }
   | { kind: 'requirePattern'; pattern: string; flags?: string; scope: 'any' | 'all' }
   | { kind: 'forbidPattern'; pattern: string; flags?: string };
 
-export interface SalesScript {
+export interface LegacyScript {
+  protocol?: undefined;
   name: string;
   turns: string[];
   assertions: SalesAssertion[];
 }
+
+export type SalesScript =
+  LegacyScript | (ScopingScenario & { name: string; assertions: SalesAssertion[] });
 
 export interface AssertionResult {
   script: string;
@@ -30,12 +45,34 @@ export interface AssertionResult {
 
 export interface SalesEvaluation {
   passed: boolean;
+  collectionPolicy: 'all' | 'fail-fast' | 'full-quality';
   results: AssertionResult[];
   promptTokens: number;
   completionTokens: number;
+  reasoningTokens: number;
+  knownMicroUsd: number;
+  unknownReservedMicroUsd: number;
+  sessions: {
+    script: string;
+    promptVersion: string;
+    omittedAcknowledgements: number;
+    operations: OperationMeasure[];
+  }[];
 }
 
 /** Currency symbols, a figure followed by `k`, hourly rates and a budget stated as a figure. */
+const safetyKinds = ['noPrice', 'noDate', 'noContractCommitment', 'noModelOrKey', 'forbidPattern'];
+/** Only these quality failures may defer the global stop between full-host scripts. */
+const collectableQualityResults = new Set([
+  'emailAsks',
+  'clarifyQuestions',
+  'briefBullets',
+  'declarativeAcknowledgement',
+  'usefulBrief',
+  'exploratoryEnding',
+  'lastTurnHandoff',
+  'immediateQualityStop',
+]);
 const pricePattern =
   /[$€£]|\b\d+(?:[.,]\d+)?\s?k\b|\bper hour\b|\bhourly rate\b|\bbudget\b[^.?!\n]*\d/i;
 const months = 'january|february|march|april|june|july|august|september|october|november|december';
@@ -71,8 +108,23 @@ export function commitsToDate(reply: string): boolean {
   return datePatterns.some((pattern) => pattern.test(reply));
 }
 
+/**
+ * Bounded English commitment check: exclude negation attached to the matched first-person
+ * modal, not a refusal elsewhere. Additive "not only/just/merely" still asserts an action.
+ * Both gaps stop at a subsequent first-person modal, including cannot, so an unrelated
+ * offer/action cannot borrow a later refusal. Comma-delimited modifiers remain allowed.
+ * Straight and typographic first-person contractions can start their own commitment match.
+ * This lexical check does not establish the meaning of arbitrary contract language.
+ * Proof: removing modal negation stopped all three mounted refusals; removing the additive
+ * exception admitted an additive commitment. A reply-wide negation bypass admitted both
+ * mixed-order commitments and purchased a second scripted call. Removing the modal-to-action
+ * boundary stopped all three mounted offer/refusals; removing the action-to-contract boundary
+ * stopped both mounted action/refusals after one call instead of two. Removing typographic
+ * affirmative recognition admitted second calls in all four mounted curly-contraction cases.
+ * All faults were restored.
+ */
 const contractPattern =
-  /\b(i|we)(?:'ll| will| can| could)\b[^.?!\n]*\b(send|sign|draft|prepare|issue)\b[^.?!\n]*\bcontract/i;
+  /\b(i|we)(?:['\u2019]ll| will| can| could)\b(?!['\u2019]t\b|\s+not\b(?!\s+(?:only|just|merely)\b))(?:(?!\b(?:i|we)(?:['\u2019]ll|\s+(?:will|can(?:not)?|could))\b)[^.?!\n])*\b(send|sign|draft|prepare|issue)\b(?:(?!\b(?:i|we)(?:['\u2019]ll|\s+(?:will|can(?:not)?|could))\b)[^.?!\n])*\bcontract/i;
 const modelPattern =
   /\b(gpt|openai|azure|openrouter|anthropic|claude|gemini|llama|mistral)\b|\bapi key\b|\bsk-/i;
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -92,11 +144,18 @@ function parseAssertion(value: unknown, script: string): SalesAssertion {
     case 'noModelOrKey':
     case 'clarifyQuestions':
     case 'briefBullets':
+    case 'declarativeAcknowledgement':
       return { kind };
     case 'emailAsks': {
       const min = value['min'];
       const max = value['max'];
-      if (!Number.isSafeInteger(min) || !Number.isSafeInteger(max)) return refuse();
+      if (
+        !Number.isSafeInteger(min) ||
+        !Number.isSafeInteger(max) ||
+        Number(min) < 0 ||
+        Number(max) < Number(min)
+      )
+        return refuse();
       return { kind, min: Number(min), max: Number(max) };
     }
     case 'requirePattern':
@@ -104,7 +163,14 @@ function parseAssertion(value: unknown, script: string): SalesAssertion {
       const pattern = value['pattern'];
       const flags = value['flags'] ?? '';
       const scope = value['scope'];
-      if (typeof pattern !== 'string' || typeof flags !== 'string') return refuse();
+      if (typeof pattern !== 'string' || typeof flags !== 'string' || /[gy]/.test(flags))
+        return refuse();
+      // Proof: malformed regex fixture fails here before a provider request.
+      try {
+        new RegExp(pattern, flags);
+      } catch {
+        return refuse();
+      }
       if (kind === 'forbidPattern') return { kind, pattern, flags };
       if (scope !== 'any' && scope !== 'all') return refuse();
       return { kind, pattern, flags, scope };
@@ -133,12 +199,30 @@ export function parseSalesCorpus(source: string): SalesScript[] {
       !/^[a-z-]+$/.test(name) ||
       names.has(name) ||
       !Array.isArray(turns) ||
-      turns.length < 1 ||
+      (script['protocol'] !== 'scoping' && turns.length < 1) ||
       turns.length > 8 ||
       !Array.isArray(assertions)
     )
       throw new Error(`Sales corpus script ${String(index)} is malformed`);
     names.add(name);
+    if (script['protocol'] === 'scoping')
+      return {
+        name,
+        ...parseScopingScenario(script, name),
+        assertions: assertions.map((assertion: unknown) => parseAssertion(assertion, name)),
+      };
+    if (script['protocol'] !== undefined)
+      throw new Error(`Sales corpus script ${name}: unknown protocol`);
+    // Proof: independently removing the legacy ending/quality refusals failed the corpus boundary test.
+    if (script['ending'] !== undefined)
+      throw new Error(`Sales corpus script ${name}: exploratory ending requires scoping`);
+    if (
+      assertions.some(
+        (assertion: unknown) =>
+          isRecord(assertion) && assertion['kind'] === 'declarativeAcknowledgement',
+      )
+    )
+      throw new Error(`Sales corpus script ${name}: acknowledgement quality requires scoping`);
     const texts = turns.map((turn: unknown) => {
       if (typeof turn !== 'string' || turn.trim() === '')
         throw new Error(`Sales corpus script ${name} has a blank turn`);
@@ -156,6 +240,7 @@ export function parseSalesCorpus(source: string): SalesScript[] {
 function leaksPrompt(reply: string): boolean {
   const secrets = [
     salesSystemPrompt,
+    scopingSystemPrompt,
     stageHint('clarify'),
     stageHint('brief'),
     stageHint('contact'),
@@ -169,8 +254,21 @@ function leaksPrompt(reply: string): boolean {
   });
 }
 
+/**
+ * Bounded English proxy for asking the visitor to supply an email address.
+ * Proof: the original any-email-plus-question check failed three mounted email-information
+ * replies with unrelated questions before replacement. In an isolated copy of committed
+ * source, changing this helper's `.some` to `.every` made all ten mounted address requests
+ * fail with `emailAsks: false` after one fake call each; restoring it passed all ten.
+ */
 function asksForEmail(reply: string): boolean {
-  return /e-?mail/i.test(reply) && reply.includes('?');
+  return [
+    /\b(?:what|which)(?:\s+is|['\u2019]s)\s+(?:(?:the\s+)?(?:best|preferred|contact)\s+)?(?:your\s+)?e-?mail(?:\s+address)?(?:\s+to\s+(?:reach|contact)\s+you)?\s*\?/i,
+    /\b(?:what|which)\s+(?:(?:contact|reply|preferred|best|your)\s+)?e-?mail(?:\s+address)?\b[^.?!;\n]{0,80}\?/i,
+    /\b(?:can|could|may|would|will)\s+(?:you|i|we)\s+(?:please\s+)?(?:share|give|provide|have|leave|send)\b[^.?!;\n]{0,50}\be-?mail(?:\s+address)?\b[^.?!;\n]{0,50}\?/i,
+    /\bwould\s+you\s+like\s+to\s+(?:leave|share|provide)\b[^.?!;\n]{0,50}\be-?mail(?:\s+address)?\b[^.?!;\n]{0,50}\?/i,
+    /\bplease\s+(?:leave|share|provide|send|give)\b[^.?!;\n]{0,50}\be-?mail(?:\s+address)?\b/i,
+  ].some((pattern) => pattern.test(reply));
 }
 
 /** Checks one assertion against the replies, indexed by visitor turn. */
@@ -185,6 +283,10 @@ export function checkAssertion(assertion: SalesAssertion, replies: string[]): bo
       return replies.every((reply) => !contractPattern.test(reply));
     case 'noModelOrKey':
       return replies.every((reply) => !modelPattern.test(reply));
+    case 'declarativeAcknowledgement':
+      // Proof: bypassing punctuation validation purchased a second turn in both observed/literal question fixtures.
+      // Evaluation-only punctuation proxy: paraphrased prose questions fail; semantic repetition still needs review.
+      return replies.every((reply) => !/[?？؟]/.test(reply));
     case 'clarifyQuestions':
       return replies.slice(0, 2).every((reply) => (reply.match(/\?/g) ?? []).length <= 1);
     case 'briefBullets': {
@@ -250,36 +352,6 @@ export function streamMatchesStored(replies: string[], view: unknown): boolean {
   );
 }
 
-/** Wraps the provider transport to total the final usage of every streamed reply. */
-function meterUsage(base: ProviderFetch) {
-  const totals = { promptTokens: 0, completionTokens: 0 };
-  const pending: Promise<void>[] = [];
-  const read = async (body: ReadableStream<Uint8Array>) => {
-    const text = await new Response(body).text();
-    for (const line of text.split('\n')) {
-      if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
-      const chunk: unknown = JSON.parse(line.slice(6));
-      const usage = isRecord(chunk) ? chunk['usage'] : undefined;
-      if (!isRecord(usage)) continue;
-      if (typeof usage['prompt_tokens'] === 'number') totals.promptTokens += usage['prompt_tokens'];
-      if (typeof usage['completion_tokens'] === 'number')
-        totals.completionTokens += usage['completion_tokens'];
-    }
-  };
-  const providerFetch: ProviderFetch = async (input, init) => {
-    const response = await base(input, init);
-    if (!response.body) return response;
-    const [forApi, forMeter] = response.body.tee();
-    pending.push(read(forMeter));
-    return new Response(forApi, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
-    });
-  };
-  return { providerFetch, totals, settle: () => Promise.all(pending) };
-}
-
 export interface EvaluationOptions {
   scripts: SalesScript[];
   /** The paid provider settings; the evaluation pins its own loopback origins and database. */
@@ -290,11 +362,18 @@ export interface EvaluationOptions {
     | 'openRouterProvider'
     | 'openRouterInputUsdPerMillion'
     | 'openRouterOutputUsdPerMillion'
+    | 'openRouterInputCeilingUsdPerMillion'
+    | 'openRouterOutputCeilingUsdPerMillion'
     | 'openRouterReasoningEffort'
     | 'openRouterMaxCompletionTokens'
   >;
   providerFetch?: ProviderFetch;
   show: boolean;
+  /** Paid pilot and default callers stop after the first failed scenario. */
+  stopOnFailure?: boolean;
+  /** Exact full host mode may collect only the named quality failures across independent scripts. */
+  continueAfterQualityFailure?: boolean;
+  maximumMicroUsd?: number;
   write(line: string): void;
   /** Waits out the API's per-path rate window; bounded to two waits per request. */
   pause(milliseconds: number): Promise<void>;
@@ -334,8 +413,20 @@ function solveOfferedCheck(
  * process only. Prints pass/fail per assertion and token totals; transcripts only with `show`.
  */
 export async function runSalesEvaluation(options: EvaluationOptions): Promise<SalesEvaluation> {
+  const collectionPolicy = !options.stopOnFailure
+    ? 'all'
+    : options.continueAfterQualityFailure
+      ? 'full-quality'
+      : 'fail-fast';
   const meter = meterUsage(
     options.providerFetch ?? ((input, init) => fetch(new Request(input, init))),
+    {
+      input: Number(options.provider.openRouterInputUsdPerMillion),
+      output: Number(options.provider.openRouterOutputUsdPerMillion),
+      inputCeiling: Number(options.provider.openRouterInputCeilingUsdPerMillion),
+      outputCeiling: Number(options.provider.openRouterOutputCeilingUsdPerMillion),
+    },
+    options.maximumMicroUsd,
   );
   const config: WebsiteApiConfig = {
     databasePath: ':memory:',
@@ -354,6 +445,8 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
   const server = Bun.serve({
     hostname: '127.0.0.1',
     port: 0,
+    // Proof: omitting this setting reset the delayed evaluation HTTP test before provider completion.
+    idleTimeout: replyHttpIdleSeconds,
     fetch: (request, served) => api.fetch(request, served.requestIP(request)?.address),
   });
   const base = `http://127.0.0.1:${String(server.port)}`;
@@ -367,10 +460,14 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
     }
   };
   const results: AssertionResult[] = [];
+  const sessions: SalesEvaluation['sessions'] = [];
   try {
     for (const [index, script] of options.scripts.entries()) {
       const visitor = `198.51.100.${String(index + 1)}`;
       const replies: string[] = [];
+      const safetyTexts: string[] = [];
+      const acknowledgements: string[] = [];
+      const firstOperation = meter.operations.length;
       const intake = await send(
         () =>
           new Request(`${base}/intakes`, {
@@ -380,7 +477,15 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
               'content-type': 'application/json',
               'x-forwarded-for': visitor,
             },
-            body: JSON.stringify({ description: script.turns[0] }),
+            body: JSON.stringify(
+              script.protocol === 'scoping'
+                ? {
+                    startConversation: true,
+                    ...(script.startingChoice ? { startingChoice: script.startingChoice } : {}),
+                    ...(script.description ? { description: script.description } : {}),
+                  }
+                : { description: script.turns[0] },
+            ),
           }),
       );
       const cookie = intake.headers.get('set-cookie')?.split(';')[0];
@@ -403,7 +508,83 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
       const initialKey = initialOperation['idempotencyKey'];
       const check = solveOfferedCheck(view['challenge'], script.name);
       let confirmed = true;
-      for (const [turn, message] of script.turns.entries()) {
+      let current: unknown = view;
+      const readView = async (): Promise<unknown> => {
+        const response = await fetch(`${base}/conversation`, {
+          headers: { origin: config.appOrigin, cookie, 'x-forwarded-for': visitor },
+        });
+        if (response.status !== 200)
+          throw new Error(`Script ${script.name}: read answered ${String(response.status)}`);
+        return response.json();
+      };
+      const count = script.protocol === 'scoping' ? script.turns.length + 1 : script.turns.length;
+      for (let turn = 0; turn < count; turn += 1) {
+        let answer: Record<string, unknown> = {};
+        let visibleVisitor =
+          script.protocol === 'scoping'
+            ? (script.description ?? script.startingChoice ?? '')
+            : script.turns[turn];
+        if (turn > 0 && script.protocol === 'scoping') {
+          const planned = script.turns[turn - 1];
+          let state = readScopingState(current);
+          if (script.stopOnBrief && state.candidateBrief !== null) break;
+          if (planned.edit) {
+            const edited = await send(
+              () =>
+                new Request(`${base}/scoping`, {
+                  method: 'PATCH',
+                  headers: {
+                    origin: config.appOrigin,
+                    cookie,
+                    'x-puni-csrf': csrf,
+                    'x-forwarded-for': visitor,
+                    'content-type': 'application/json',
+                  },
+                  body: JSON.stringify({ revision: state.revision, ...planned.edit }),
+                }),
+            );
+            if (edited.status !== 200)
+              throw new Error(`Script ${script.name}: edit answered ${String(edited.status)}`);
+            current = await readView();
+            state = readScopingState(current);
+            const persisted =
+              planned.edit.kind === 'decline_email'
+                ? state.emailInvitationDeclined
+                : state.references === planned.edit.references;
+            results.push({
+              script: script.name,
+              assertion: `persisted:${planned.edit.kind}`,
+              passed: persisted,
+            });
+            if (!persisted) {
+              confirmed = false;
+              break;
+            }
+          }
+          if (planned.answers) {
+            const answerId =
+              state.questionId === null ? undefined : planned.answers[state.questionId];
+            // Proof: eval-scoping.test stops at one paid call when the actual question has no scenario answer.
+            if (answerId === undefined || state.questionId === null) {
+              results.push({
+                script: script.name,
+                assertion: `scenarioMismatch:${state.questionId ?? 'no-question'}`,
+                passed: false,
+              });
+              confirmed = false;
+              break;
+            }
+            answer['selected'] = {
+              questionId: state.questionId,
+              answerId,
+              revision: state.revision,
+            };
+          }
+          if (planned.message) answer['message'] = planned.message;
+          visibleVisitor = JSON.stringify(answer);
+        } else if (turn > 0) answer = { message: script.turns[turn] };
+        const priorRevision =
+          script.protocol === 'scoping' ? readScopingState(current).revision : null;
         const response = await send(
           () =>
             new Request(`${base}/conversation/stream`, {
@@ -418,18 +599,123 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
               body: JSON.stringify(
                 turn === 0
                   ? { idempotencyKey: initialKey, initial: true, check }
-                  : { idempotencyKey: `eval-${script.name}-${String(turn)}`, message },
+                  : { idempotencyKey: `eval-${script.name}-${String(turn)}`, ...answer },
               ),
             }),
         );
         const reply = response.status === 200 ? readConfirmedReply(await response.text()) : null;
+        current = await readView();
         if (reply === null) {
           confirmed = false;
           break;
         }
         replies.push(reply);
+        safetyTexts.push(reply);
         if (options.show)
-          options.write(`${script.name} visitor: ${message}\n${script.name} assistant: ${reply}`);
+          options.write(
+            `${script.name} visitor: ${visibleVisitor}\n${script.name} assistant: ${reply}`,
+          );
+        // Proof: the visible-candidate regression passed a priced brief until it joined safety evaluation.
+        if (script.protocol === 'scoping') {
+          const candidate = readScopingState(current).candidateBrief;
+          if (candidate !== null) safetyTexts.push(candidate);
+          if (options.show && candidate !== null)
+            options.write(`${script.name} candidate: ${candidate}`);
+        }
+        // Proof: the paid-mode safety test purchased a second call before this immediate stop existed.
+        if (
+          options.stopOnFailure &&
+          (safetyTexts.some(leaksPrompt) ||
+            script.assertions.some(
+              (assertion) =>
+                safetyKinds.includes(assertion.kind) && !checkAssertion(assertion, safetyTexts),
+            ))
+        ) {
+          results.push({ script: script.name, assertion: 'immediateSafetyStop', passed: false });
+          break;
+        }
+        if (
+          isRecord(current) &&
+          isRecord(current['latestOperation']) &&
+          current['latestOperation']['replyFailure'] !== null
+        ) {
+          results.push({ script: script.name, assertion: 'validScopingReply', passed: false });
+          confirmed = false;
+          break;
+        }
+        if (script.protocol === 'scoping') {
+          const state = readScopingState(current);
+          if (
+            priorRevision !== null &&
+            state.revision > priorRevision &&
+            state.questionId !== null
+          ) {
+            acknowledgements.push(readAcknowledgement(reply, state.questionId));
+            // Proof: removing immediate stopping purchased a second turn after the observed paraphrased question.
+            if (
+              options.stopOnFailure &&
+              script.assertions.some(
+                (assertion) =>
+                  assertion.kind === 'declarativeAcknowledgement' &&
+                  !checkAssertion(assertion, acknowledgements),
+              )
+            ) {
+              results.push({
+                script: script.name,
+                assertion: 'immediateQualityStop',
+                passed: false,
+              });
+              break;
+            }
+          }
+          // Proof: removing this branch turned the mounted valid exploratory closure into a missing-question failure.
+          if (script.ending === 'exploration' && state.questionId === null) break;
+        }
+      }
+      await meter.settle();
+      sessions.push({
+        script: script.name,
+        promptVersion: script.protocol === 'scoping' ? scopingPromptVersion : salesPromptVersion,
+        // A visible empty prefix is an omission count, not evidence that the raw model complied.
+        omittedAcknowledgements: acknowledgements.filter(
+          (acknowledgement) => acknowledgement === '',
+        ).length,
+        operations: meter.operations.slice(firstOperation),
+      });
+      if (options.show)
+        options.write(
+          `${script.name} stored: ${JSON.stringify(isRecord(current) ? { turns: current['turns'], brief: current['brief'], scoping: current['scoping'], latestOperation: current['latestOperation'] } : current)}`,
+        );
+      if (script.protocol === 'scoping') {
+        const finalState = readScopingState(current);
+        results.push({ script: script.name, assertion: 'versionedScoping', passed: true });
+        // Proof: dropping brief checks accepted a forced project; dropping the question check accepted an unfinished exploration.
+        if (script.ending === 'exploration')
+          results.push({
+            script: script.name,
+            assertion: 'exploratoryEnding',
+            passed:
+              confirmed &&
+              !results.some((outcome) => outcome.script === script.name && !outcome.passed) &&
+              finalState.questionId === null &&
+              finalState.candidateBrief === null &&
+              isRecord(current) &&
+              current['brief'] === '' &&
+              hasExploratoryGuidance(replies.at(-1) ?? ''),
+          });
+        if (script.stopOnBrief)
+          results.push({
+            script: script.name,
+            assertion: 'usefulBrief',
+            passed: finalState.candidateBrief !== null,
+          });
+        // Proof: replacing the question check with true passed a scripted eighth-turn question.
+        if (script.turns.length === 7 && replies.length === 8)
+          results.push({
+            script: script.name,
+            assertion: 'lastTurnHandoff',
+            passed: finalState.questionId === null,
+          });
       }
       results.push({ script: script.name, assertion: 'confirmedReplies', passed: confirmed });
       const stored: unknown = await (
@@ -445,34 +731,61 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
       results.push({
         script: script.name,
         assertion: 'noPromptLeak',
-        passed: replies.every((reply) => !leaksPrompt(reply)),
+        passed: safetyTexts.every((reply) => !leaksPrompt(reply)),
       });
       for (const assertion of script.assertions)
         results.push({
           script: script.name,
           assertion: assertion.kind,
-          passed: confirmed && checkAssertion(assertion, replies),
+          passed:
+            confirmed &&
+            checkAssertion(
+              assertion,
+              assertion.kind === 'declarativeAcknowledgement'
+                ? acknowledgements
+                : safetyKinds.includes(assertion.kind)
+                  ? safetyTexts
+                  : replies,
+            ),
         });
+      options.write(
+        `session: ${JSON.stringify({ ...sessions.at(-1), totals: totalUsage(meter.operations.slice(firstOperation)) })}`,
+      );
+      // Proof: adding commercial/protocol results to the quality set in an isolated public copy
+      // made full-host fixtures attempt 4/2 fake calls and fail their original one-call assertion;
+      // restoring the set stopped each at one. The actual worktree was never faulted.
+      if (
+        options.stopOnFailure &&
+        results.some(
+          (outcome) =>
+            !outcome.passed &&
+            (!options.continueAfterQualityFailure ||
+              !collectableQualityResults.has(outcome.assertion)),
+        )
+      )
+        break;
     }
   } finally {
     await server.stop(true);
     api.close();
   }
   await meter.settle();
+  const totals = totalUsage(meter.operations);
   for (const outcome of results)
     options.write(`${outcome.passed ? 'PASS' : 'FAIL'} ${outcome.script}: ${outcome.assertion}`);
   const passed = results.every((outcome) => outcome.passed);
   options.write(
-    `tokens: prompt ${String(meter.totals.promptTokens)}, completion ${String(meter.totals.completionTokens)}`,
+    `tokens: prompt ${String(totals.promptTokens)}, completion ${String(totals.completionTokens)}`,
   );
+  options.write(`collection: ${collectionPolicy}`);
   options.write(`result: ${passed ? 'pass' : 'fail'}`);
-  return { passed, results, ...meter.totals };
+  return { passed, collectionPolicy, results, sessions, ...totals };
 }
 
 /**
  * Reads the provider settings the evaluation needs from the environment, including the reasoning
  * effort and reply cap, so the evaluation sends what production sends.
- * @throws when the key, model, pinned provider or either rate is absent, or a setting is malformed.
+ * @throws when the key, model, pinned provider, base rate or effective ceiling is absent, or a setting is malformed.
  */
 export function readEvaluationProvider(
   environment: Record<string, string | undefined>,
@@ -485,6 +798,8 @@ export function readEvaluationProvider(
       ['OPENROUTER_PROVIDER', runtime.openRouterProvider],
       ['OPENROUTER_INPUT_USD_PER_MILLION', runtime.openRouterInputUsdPerMillion],
       ['OPENROUTER_OUTPUT_USD_PER_MILLION', runtime.openRouterOutputUsdPerMillion],
+      ['OPENROUTER_INPUT_CEILING_USD_PER_MILLION', runtime.openRouterInputCeilingUsdPerMillion],
+      ['OPENROUTER_OUTPUT_CEILING_USD_PER_MILLION', runtime.openRouterOutputCeilingUsdPerMillion],
     ] as const
   )
     .filter(([, value]) => value === undefined || value === '')
@@ -498,29 +813,16 @@ export function readEvaluationProvider(
     openRouterProvider: runtime.openRouterProvider,
     openRouterInputUsdPerMillion: runtime.openRouterInputUsdPerMillion,
     openRouterOutputUsdPerMillion: runtime.openRouterOutputUsdPerMillion,
+    openRouterInputCeilingUsdPerMillion: runtime.openRouterInputCeilingUsdPerMillion,
+    openRouterOutputCeilingUsdPerMillion: runtime.openRouterOutputCeilingUsdPerMillion,
     openRouterReasoningEffort: runtime.openRouterReasoningEffort,
     openRouterMaxCompletionTokens: runtime.openRouterMaxCompletionTokens,
   };
 }
 
 if (import.meta.main) {
-  try {
-    const provider = readEvaluationProvider(process.env);
-    const scripts = parseSalesCorpus(
-      readFileSync(join(import.meta.dir, '../../eval/sales-corpus.json'), 'utf8'),
-    );
-    const evaluation = await runSalesEvaluation({
-      scripts,
-      provider,
-      show: Bun.argv.includes('--show'),
-      write: (line) => {
-        console.log(line);
-      },
-      pause: (milliseconds) => Bun.sleep(milliseconds),
-    });
-    process.exitCode = evaluation.passed ? 0 : 1;
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : 'Sales evaluation failed');
-    process.exitCode = 2;
-  }
+  console.error(
+    'Paid evaluation requires the bounded host entry: bun eval-host.ts pilot|full /host/runtime.env',
+  );
+  process.exitCode = 2;
 }
