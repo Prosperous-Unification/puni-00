@@ -136,28 +136,32 @@ SHALL pass current revision and state checks even when their facts match an olde
 
 ### Requirement: Coordination uses the unified hints API
 
-The coordinator SHALL rebuild CTT hints from versioned WBS facts and accepted outcomes.
-It SHALL defer unfinished work rather than return successful no-op visitors. It SHALL use
-ID-keyed summary and generation-checked settlement within the existing API, not require a
-second public graph format. Complete WBS topology SHALL be discovered and validated before
-admission; deferral SHALL NOT hide remaining vertices. Summary SHALL invoke no user code
-and SHALL state incomplete discovery for a partial lazy graph. Host wait/running/retry
-facts and WBS eligibility SHALL filter the kernel frontier before admission.
+The coordinator SHALL use CTT 0.12 native materialization, preparation and independent
+`createWorkSession({ completedWork })` sessions seeded only from accepted completion in versioned WBS facts.
+It SHALL use `advance()` work tickets and accepted-WBS-only `completeWork(ticket)` with
+`accepted`/`alreadyAccepted` receipts, without a second public graph format or interpreter.
+Complete declared topology, including disconnected components, SHALL be validated before
+admission. Unfinished work SHALL NOT satisfy dependencies; W/C milestones SHALL stay distinct.
+Callback-free summary SHALL inspect local state without claiming fresh WBS facts. Current
+WBS eligibility and durable wait/running/retry facts SHALL filter native readiness before
+atomic RunStore admission. Admission SHALL NOT complete traversal work. Rebuilt sessions
+SHALL reject old tickets and reconstruct from accepted WBS facts and durable attempt history.
 
 #### Scenario: Parallel join remains blocked
 
 - **WHEN** backend and frontend are ready and backend alone reports accepted success
 - **THEN** verification remains blocked until frontend also has accepted success
 
-#### Scenario: A parent is deferred during inspection
+#### Scenario: Unfinished work does not hide topology
 
-- **WHEN** its declared child or a disconnected cyclic component is not yet inspected
-- **THEN** discovery/validation continues independently and no incomplete summary authorizes work
+- **WHEN** a declared child or disconnected cyclic component remains unvalidated
+- **THEN** complete preparation continues independently of unfinished work and no partial summary authorizes admission
 
-#### Scenario: A stale settlement arrives
+#### Scenario: A stale ticket report arrives
 
-- **WHEN** a result belongs to an old runner or execution generation
-- **THEN** settlement is refused without publishing output or satisfying a dependency
+- **WHEN** a completion report uses a foreign, retargeted or pre-rebuild ticket
+- **THEN** completion is refused without publishing output or satisfying a dependency
+- **AND** an exact repeated accepted report returns `alreadyAccepted` without extra effects
 
 ### Requirement: Admission and outcomes preserve exact authority
 
