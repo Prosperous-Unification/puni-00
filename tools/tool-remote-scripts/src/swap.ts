@@ -95,7 +95,7 @@ import {
 } from './lib/docker';
 import { type RunDocker, runDockerBefore, runDockerCli } from './lib/docker-deadline';
 import { drain } from './lib/drain';
-import { assertNoEdgeOwner, withEdgeAdmission } from './lib/edge-admission';
+import { withEdgeAdmission } from './lib/edge-admission';
 import { fenceGateways, inspectGatewayFence } from './lib/gateway-exclusion';
 import { assertNoGatewayFence } from './lib/gateway-fence';
 import { waitForHealthy } from './lib/health';
@@ -1465,8 +1465,20 @@ export async function execute(
   activateStepBlockage = false,
   acceptBreaking: readonly string[] = [],
 ): Promise<void> {
-  // Proof: removing this guard failed the direct executor retained-owner negative before later IO.
-  await assertNoEdgeOwner();
+  return withEdgeAdmission(() =>
+    executeAdmitted(plan, image, sha, io, activateStepBlockage, acceptBreaking),
+  );
+}
+
+/** Runs only inside the retained joint edge interval owned by {@link execute}. */
+async function executeAdmitted(
+  plan: SwapPlan,
+  image: string,
+  sha: string,
+  io: SwapExecutionIo,
+  activateStepBlockage: boolean,
+  acceptBreaking: readonly string[],
+): Promise<void> {
   // Proof: bypassing this guard let direct fence-present executions write commit/config state; 32 refusal tests failed.
   await assertNoGatewayFence(io.barrierStateDir ?? CURRENT_ENV.stateDir);
   await assertNoBackendFence(io.barrierStateDir ?? CURRENT_ENV.stateDir);

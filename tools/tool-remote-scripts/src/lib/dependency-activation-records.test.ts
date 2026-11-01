@@ -16,6 +16,7 @@ import * as migrationCapture from './migration-capture-file';
 
 test('retains activation evidence under exact live joint owner and refuses copied or expired authority', async () => {
   const root = scratchSync('activation-record-');
+  await writeFile(`${root}/edge.lock`, '');
   const layouts = {
     prod: { ...envLayout('prod'), root: `${root}/prod`, stateDir: `${root}/prod` },
     dev: { ...envLayout('dev'), root: `${root}/dev`, stateDir: `${root}/dev` },
@@ -94,6 +95,7 @@ for (const fault of [
 ] as const)
   test(`actual owner activation publication refuses ${fault}`, async () => {
     const root = scratchSync('activation-publication-fault-');
+    await writeFile(`${root}/edge.lock`, '');
     const layouts = {
       prod: { ...envLayout('prod'), root: `${root}/prod`, stateDir: `${root}/prod` },
       dev: { ...envLayout('dev'), root: `${root}/dev`, stateDir: `${root}/dev` },

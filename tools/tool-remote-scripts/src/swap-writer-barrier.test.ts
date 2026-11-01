@@ -1,10 +1,12 @@
 import { rejects } from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
 import { chmod, link, mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { scratchSync } from '@tools/test-scratch';
 import { Database } from 'bun:sqlite';
-import { afterEach, expect, spyOn, test } from 'bun:test';
+import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test';
 
 import { ROOT } from './lib/docker';
 import { planSwap } from './lib/reconcile';
@@ -17,6 +19,18 @@ import {
   prepareBackend,
   type SwapExecutionIo,
 } from './swap';
+
+let previousControllerState: string | undefined;
+beforeEach(() => {
+  previousControllerState = process.env['WBS_EDGE_STATE'];
+  const controllerState = scratchSync('direct-controller-edge-');
+  writeFileSync(`${controllerState}/edge.lock`, '');
+  process.env['WBS_EDGE_STATE'] = controllerState;
+});
+afterEach(() => {
+  if (previousControllerState === undefined) delete process.env['WBS_EDGE_STATE'];
+  else process.env['WBS_EDGE_STATE'] = previousControllerState;
+});
 
 const roots: string[] = [];
 afterEach(async () => {

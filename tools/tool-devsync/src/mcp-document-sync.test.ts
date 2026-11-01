@@ -1,11 +1,24 @@
+import { writeFileSync } from 'node:fs';
 import { cp, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 
-import { scratchAsync } from '@tools/test-scratch';
-import { beforeAll, expect, test } from 'bun:test';
+import { scratchAsync, scratchSync } from '@tools/test-scratch';
+import { afterEach, beforeAll, beforeEach, expect, test } from 'bun:test';
 
 import { BE_REQUIRED_ENV } from './sync';
+
+let previousControllerState: string | undefined;
+beforeEach(() => {
+  previousControllerState = process.env['WBS_EDGE_STATE'];
+  const controllerState = scratchSync('direct-controller-edge-');
+  writeFileSync(`${controllerState}/edge.lock`, '');
+  process.env['WBS_EDGE_STATE'] = controllerState;
+});
+afterEach(() => {
+  if (previousControllerState === undefined) delete process.env['WBS_EDGE_STATE'];
+  else process.env['WBS_EDGE_STATE'] = previousControllerState;
+});
 
 const root = resolve(import.meta.dir, '../../..');
 let source: string;
@@ -106,7 +119,7 @@ beforeAll(async () => {
   await writeFile(
     join(executables, 'docker'),
     `#!${process.execPath}
-import { appendFileSync } from 'node:fs';
+import {writeFileSync,  appendFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 const args = process.argv.slice(2);
 appendFileSync(${JSON.stringify(commands)}, args.join(' ') + '\\n');

@@ -1,4 +1,8 @@
-import { type BundleFile, bundleFilesFor } from './lib/deploy-contract';
+import {
+  buildInstalledControllerAdmission,
+  type BundleFile,
+  bundleFilesFor,
+} from './lib/deploy-contract';
 import { CURRENT_ENV, type EnvLayout, envLayout } from './lib/env';
 
 export interface InstallArgs {
@@ -72,19 +76,20 @@ export async function buildInstallPlan(
   // Proof: a fixed attempt ID made the second real CLI upload reuse two staging paths.
   const attempt = crypto.randomUUID();
   const hashes = await Promise.all(files.map((file) => sha256File(file.local)));
-  const staged = files.map((file) => `${file.remote}.install-${attempt}`);
+  const staging = `/home/puni1/.cache/wbs-solver/executor-${attempt}`;
+  const staged = files.map((_, index) => `${staging}/${String(index)}`);
   const state = envLayout('prod').stateDir;
   const lock = quoteShell(`${state}/edge.lock`);
   const checkHashes = (paths: readonly string[]) =>
     paths
       .map(
         (path, index) =>
-          `printf '%s  %s\\n' ${quoteShell(hashes[index])} ${quoteShell(path)} | sha256sum -c -`,
+          `printf '%s  %s\\n' ${quoteShell(hashes[index])} ${quoteShell(path)} | sha256sum -c - || exit 1`,
       )
       .join('\n');
   const shell = `set -eu
 publishing=0
-trap 'status=$?; if [ "$status" -ne 0 ] && [ "$publishing" -eq 1 ]; then printf "%s\\n" "partial or uncertain installed-executor replacement; inspect both installed hashes under edge.lock before retry" >&2; fi; rm -f -- ${staged.map(quoteShell).join(' ')}; exit "$status"' EXIT
+trap 'status=$?; if [ "$status" -ne 0 ] && [ "$publishing" -eq 1 ]; then printf "%s\\n" "partial or uncertain installed-executor replacement; inspect both installed hashes under edge.lock before retry" >&2; fi; exit "$status"' EXIT
 # Proof: omitting this state-root guard let symlink state hide either retained marker and publish.
 if [ ! -d ${quoteShell(state)} ] || [ -L ${quoteShell(state)} ]; then
   printf '%s\\n' 'invalid canonical edge state: expected a real directory' >&2
@@ -100,11 +105,27 @@ exec 9< ${lock}
 flock -n 9
 # Listing must succeed: inaccessible trusted state is not marker absence.
 for marker in edge-owner.json edge-owner.pending; do
-  retained=$(find ${quoteShell(state)} -mindepth 1 -maxdepth 1 -name "$marker" -print)
+  retained=$(find ${quoteShell(state)} -mindepth 1 -maxdepth 1 -name "$marker" -print) || exit 1
   # Proof: removing this refusal made retained JSON/pending CLI negatives replace installed bytes.
   if [ -n "$retained" ]; then printf '%s\\n' "shared edge owner admission closed: $marker; no activation" >&2; exit 1; fi
 done
+test -d ${quoteShell(staging)}
+test ! -L ${quoteShell(staging)}
+controller_stage_path=$(realpath -- ${quoteShell(staging)}) || exit 1
+test "$controller_stage_path" = ${quoteShell(staging)} || exit 1
+controller_stage_mode=$(stat -c %a -- ${quoteShell(staging)}) || exit 1
+test "$controller_stage_mode" = 700 || exit 1
+WBS_EDGE_STATE=${quoteShell(state)}; export WBS_EDGE_STATE
+${buildInstalledControllerAdmission('required', 9)}
 # Proof: removing staged verification made corrupted SCP bytes replace both original files.
+${staged
+  .map(
+    (path) => `test -f ${quoteShell(path)} || exit 1
+test ! -L ${quoteShell(path)} || exit 1
+controller_stage_path=$(realpath -- ${quoteShell(path)}) || exit 1
+test "$controller_stage_path" = ${quoteShell(path)} || exit 1`,
+  )
+  .join('\n')}
 ${checkHashes(staged)}
 chmod 0755 -- ${staged.map(quoteShell).join(' ')}
 publishing=1
@@ -112,7 +133,16 @@ ${files.map((file, index) => `mv -- ${quoteShell(staged[index])} ${quoteShell(fi
 # Proof: removing installed readback made post-rename corruption report success.
 ${checkHashes(files.map((file) => file.remote))}
 publishing=0`;
+  const parent = '/home/puni1/.cache/wbs-solver';
   return [
+    {
+      description: `create exclusive private inert executor staging ${staging}`,
+      argv: [
+        'ssh',
+        host,
+        `sh -c ${quoteShell(`set -eu; test -d ${quoteShell(parent)}; test ! -L ${quoteShell(parent)}; controller_parent_path=$(realpath -- ${quoteShell(parent)}) || exit 1; test "$controller_parent_path" = ${quoteShell(parent)} || exit 1; controller_parent_mode=$(stat -c %a -- ${quoteShell(parent)}) || exit 1; test "$controller_parent_mode" = 700 || exit 1; mkdir -m 0700 -- ${quoteShell(staging)} || exit 1`)}`,
+      ],
+    },
     ...files.map((file, index) => ({
       description: `stage ${file.local} -> ${host}:${staged[index]}`,
       argv: ['scp', file.local, `${host}:${staged[index]}`],

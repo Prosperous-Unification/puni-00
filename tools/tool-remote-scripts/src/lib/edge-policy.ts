@@ -764,3 +764,107 @@ export async function initializeOrdinaryEdgePolicy(
     await destination?.directory.close();
   }
 }
+
+/** Retains an invocation's original policy and namespace observations through its protected action. */
+export async function withOrdinaryControllerAdmission<T>(
+  directory: string,
+  mode: 'legacy' | 'required',
+  action: (recheck: () => Promise<void>) => Promise<T>,
+): Promise<T> {
+  const parent = await assertPolicyDirectory(directory);
+  const lockPath = join(directory, 'edge.lock');
+  const lock = await lstat(lockPath, { bigint: true });
+  if (!lock.isFile() || (await realpath(lockPath)) !== lockPath)
+    throw new Error('ordinary controller requires existing canonical edge lock');
+  const path = join(directory, 'edge-policy.json');
+  let present = true;
+  try {
+    await lstat(path);
+  } catch (cause) {
+    if (!(cause instanceof Error && 'code' in cause && cause.code === 'ENOENT')) throw cause;
+    present = false;
+  }
+  if (!present && mode === 'required') throw new Error('ordinary controller requires edge policy');
+  const descriptor = present
+    ? await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
+    : undefined;
+  let live = true;
+  try {
+    const opened = descriptor === undefined ? undefined : await descriptor.stat({ bigint: true });
+    const opening = present ? await captureEdgePolicy(directory) : undefined;
+    if (opening !== undefined && opening.policy.phase !== 'ordinary')
+      throw new Error('ordinary controller refuses active or restoring edge policy');
+    if (
+      opened !== undefined &&
+      opening !== undefined &&
+      (String(opened.dev) !== opening.device || String(opened.ino) !== opening.inode)
+    )
+      throw new Error('ordinary controller opening policy identity changed');
+    const same = (first: BigIntStats, second: BigIntStats) =>
+      first.dev === second.dev &&
+      first.ino === second.ino &&
+      first.mode === second.mode &&
+      first.uid === second.uid &&
+      first.gid === second.gid;
+    const recheck = async () => {
+      if (!live) throw new Error('ordinary controller recheck expired');
+      if (
+        !same(parent, await assertPolicyDirectory(directory)) ||
+        !same(lock, await lstat(lockPath, { bigint: true })) ||
+        (await realpath(lockPath)) !== lockPath
+      )
+        throw new Error('ordinary controller parent or lock changed');
+      await assertNoEdgeOwner(directory);
+      if (opening === undefined) {
+        try {
+          await lstat(path);
+        } catch (cause) {
+          if (!(cause instanceof Error && 'code' in cause && cause.code === 'ENOENT')) throw cause;
+          await assertNoEdgeOwner(directory);
+          if (
+            !same(parent, await assertPolicyDirectory(directory)) ||
+            !same(lock, await lstat(lockPath, { bigint: true }))
+          )
+            throw new Error('ordinary controller absent policy parent or lock changed', { cause });
+          return;
+        }
+        throw new Error('ordinary controller absent policy appeared');
+      }
+      const closing = await captureEdgePolicy(directory);
+      if (
+        JSON.stringify(closing) !== JSON.stringify(opening) ||
+        descriptor === undefined ||
+        opened === undefined
+      )
+        throw new Error('ordinary controller policy changed');
+      const current = await descriptor.stat({ bigint: true });
+      if (
+        !same(opened, current) ||
+        opened.size !== current.size ||
+        opened.mtimeNs !== current.mtimeNs ||
+        opened.ctimeNs !== current.ctimeNs
+      )
+        throw new Error('ordinary controller opened policy changed');
+      await assertNoEdgeOwner(directory);
+      if (
+        !same(parent, await assertPolicyDirectory(directory)) ||
+        !same(lock, await lstat(lockPath, { bigint: true }))
+      )
+        throw new Error('ordinary controller closing parent or lock changed');
+    };
+    await assertNoEdgeOwner(directory);
+    await recheck();
+    return await action(recheck);
+  } finally {
+    live = false;
+    await descriptor?.close();
+  }
+}
+
+/** Checks the same retained joint boundary once; the caller owns the surrounding edge interval. */
+export async function assertOrdinaryControllerAdmission(
+  directory: string,
+  mode: 'legacy' | 'required',
+): Promise<void> {
+  await withOrdinaryControllerAdmission(directory, mode, () => Promise.resolve());
+}

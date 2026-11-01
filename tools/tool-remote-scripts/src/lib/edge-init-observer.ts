@@ -35,6 +35,7 @@ import {
   type SelectedTarget,
   type TargetKind,
 } from './edge-init-operation';
+import { assertOrdinaryControllerAdmission } from './edge-policy';
 import {
   type AuthorityDatabase,
   decodeAuthorityCollection,
@@ -973,6 +974,8 @@ export async function runProductionInitAdoption(
   mode: InitMode,
 ): Promise<SafeInitSummary> {
   try {
+    const admission = await requireInheritedEdgeLock();
+    await assertOrdinaryControllerAdmission(admission.stateDirectory, 'required');
     const packetText = await readPrivateFile(packetPath);
     const packetBytes = await readFile(packetPath);
     if (!packetBytes.equals(Buffer.from(packetText, 'utf8'))) refuse('packet-bytes-invalid');

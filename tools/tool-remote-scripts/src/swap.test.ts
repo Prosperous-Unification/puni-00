@@ -45,6 +45,18 @@ import {
   type SwapRunDeps,
 } from './swap';
 
+let previousControllerState: string | undefined;
+beforeEach(() => {
+  previousControllerState = process.env['WBS_EDGE_STATE'];
+  const controllerState = scratchSync('direct-controller-edge-');
+  writeFileSync(`${controllerState}/edge.lock`, '');
+  process.env['WBS_EDGE_STATE'] = controllerState;
+});
+afterEach(() => {
+  if (previousControllerState === undefined) delete process.env['WBS_EDGE_STATE'];
+  else process.env['WBS_EDGE_STATE'] = previousControllerState;
+});
+
 function captureForStatusCommand(args: readonly string[]): string {
   const flag = (name: string): string =>
     args.find((argument) => argument.startsWith(`--${name}=`))?.slice(name.length + 3) ?? 'legacy';

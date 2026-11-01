@@ -115,7 +115,14 @@ export {
   type DormantDependencyStore,
 } from './dependency-inventory';
 export { observeDependencyCapabilities, probeDependencyCapabilities } from './dependency-preflight';
-export { assertNoEdgeOwner, requireInheritedEdgeLock, withEdgeAdmission } from './edge-admission';
+export {
+  assertInstalledControllerAdmission,
+  assertNoEdgeOwner,
+  buildInstalledControllerAdmission,
+  requireInheritedEdgeLock,
+  retainUnknownControllerObservation,
+  withEdgeAdmission,
+} from './edge-admission';
 export { withLock } from './lock';
 export { parseAcceptBreaking } from './mcp-preflight';
 export { decodeSolverSupervisorConfig } from './solver-supervisor-config';

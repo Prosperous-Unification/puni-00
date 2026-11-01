@@ -2,7 +2,9 @@ import { stat } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 
 import {
+  assertInstalledControllerAdmission,
   requireInheritedEdgeLock,
+  retainUnknownControllerObservation,
   SOLVER_SUPERVISOR_BUN,
   SOLVER_SUPERVISOR_BUNDLE,
   SOLVER_SUPERVISOR_CONFIG,
@@ -73,6 +75,7 @@ export async function runSolverBindingCommand(
 ): Promise<{ exitCode: number; stderr: string }> {
   const admission =
     invocation.edgeLock === 'inherit' ? await requireInheritedEdgeLock() : undefined;
+  if (admission !== undefined) await assertInstalledControllerAdmission('legacy');
   const child = Bun.spawn([...invocation.argv], {
     cwd: invocation.cwd,
     env: {
@@ -89,8 +92,13 @@ export async function runSolverBindingCommand(
         ? ['inherit', 'inherit', 'pipe']
         : ['inherit', 'inherit', 'pipe', admission.descriptor],
   });
-  const [stderr, exitCode] = await Promise.all([new Response(child.stderr).text(), child.exited]);
-  return { exitCode, stderr };
+  const [stderr, wait] = await Promise.allSettled([
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  if (stderr.status !== 'fulfilled' || wait.status !== 'fulfilled')
+    return retainUnknownControllerObservation();
+  return { exitCode: wait.value, stderr: stderr.value };
 }
 
 async function query(
@@ -102,12 +110,14 @@ async function query(
     stdout: 'pipe',
     stderr: 'pipe',
   });
-  const [stdout, stderr, exitCode] = await Promise.all([
+  const [stdout, stderr, wait] = await Promise.allSettled([
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
     child.exited,
   ]);
-  return { exitCode, stdout, stderr };
+  if (stdout.status !== 'fulfilled' || stderr.status !== 'fulfilled' || wait.status !== 'fulfilled')
+    return retainUnknownControllerObservation();
+  return { exitCode: wait.value, stdout: stdout.value, stderr: stderr.value };
 }
 
 /** Distinguishes absent Git metadata from unreadable or malformed metadata. */

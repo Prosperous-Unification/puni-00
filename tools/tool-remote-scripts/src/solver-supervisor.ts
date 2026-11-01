@@ -4,7 +4,7 @@ import {
   isRetainedEdgeOwnerRefusal,
   requireInheritedEdgeLock,
 } from './lib/edge-admission';
-import { readOrdinaryEdgePolicy } from './lib/edge-policy';
+import { assertOrdinaryControllerAdmission, readOrdinaryEdgePolicy } from './lib/edge-policy';
 import {
   withSolverPolicyAdmission,
   withSolverRuntimeAdmission,
@@ -197,51 +197,63 @@ export async function runSolverSupervisor(
 if (import.meta.main) {
   const argv = process.argv.slice(2);
   const operation =
-    argv.length === 1 && argv[0] === '--check-edge-policy-inherited'
+    argv.length === 1 &&
+    (argv[0] === '--check-controller-admission-inherited=legacy' ||
+      argv[0] === '--check-controller-admission-inherited=required')
       ? (async () => {
           if (edgeStateDirectory() !== SOLVER_READER_STATE)
-            throw new Error('inherited reader requires fixed canonical state');
+            throw new Error('inherited controller reader requires fixed canonical state');
           const admission = await requireInheritedEdgeLock();
-          await readOrdinaryEdgePolicy(admission.stateDirectory);
-          await assertNoEdgeOwner(admission.stateDirectory);
-          console.log('[wbs-solver-supervisor] inherited ordinary edge policy ok');
+          await assertOrdinaryControllerAdmission(
+            admission.stateDirectory,
+            argv[0] === '--check-controller-admission-inherited=legacy' ? 'legacy' : 'required',
+          );
         })()
-      : argv.length === 1 && argv[0] === '--check-edge-policy'
+      : argv.length === 1 && argv[0] === '--check-edge-policy-inherited'
         ? (async () => {
-            const directory = edgeStateDirectory();
-            // Proof: readonly-policy-check omission accepted absent policy in
-            // solver-runtime-admission.proc.test.ts (exit 1).
-            await readOrdinaryEdgePolicy(directory);
-            // Proof: readonly-marker omission accepted retained owner in solver-runtime-admission.proc.test.ts (exit 1).
-            await assertNoEdgeOwner(directory);
-            console.log('[wbs-solver-supervisor] ordinary edge policy ok');
+            if (edgeStateDirectory() !== SOLVER_READER_STATE)
+              throw new Error('inherited reader requires fixed canonical state');
+            const admission = await requireInheritedEdgeLock();
+            await readOrdinaryEdgePolicy(admission.stateDirectory);
+            await assertNoEdgeOwner(admission.stateDirectory);
+            console.log('[wbs-solver-supervisor] inherited ordinary edge policy ok');
           })()
-        : argv.some((argument) => argument.startsWith('--preflight='))
-          ? (async (): Promise<void> => {
-              const expected = parseSolverSupervisorMappingPreflight(argv);
-              assertSolverSupervisorMapping(await readConfig(expected.config), expected);
-              console.log(`[wbs-solver-supervisor] ${expected.env} mapping preflight ok`);
-            })()
-          : // Proof: omitted CLI admission reached missing config under retained markers;
-            // solver-runtime-admission.proc.test.ts observed owner callbacks during paused startup.
-            (async () => {
-              const { admission } = parseSolverSupervisorArgs(argv);
-              // Proof: cli-policy-mode omission reached config without a policy in
+        : argv.length === 1 && argv[0] === '--check-edge-policy'
+          ? (async () => {
+              const directory = edgeStateDirectory();
+              // Proof: readonly-policy-check omission accepted absent policy in
               // solver-runtime-admission.proc.test.ts (exit 1).
-              const admit =
-                admission === 'policy' ? withSolverPolicyAdmission : withSolverRuntimeAdmission;
-              await admit(async () => {
-                await runSolverSupervisor(argv);
-                // startSolverSupervisor returns at readiness. Retain the descriptor after
-                // that return and through all listener/request continuations. No signal
-                // handler unlocks it: the kernel closes it only when this process exits.
-                // Proof: removing lifetime wait lets the real ready CLI lose its lock
-                // in solver-runtime-admission.proc.test.ts (SIGTERM/SIGKILL cases).
-                await new Promise<never>(() => {
-                  setInterval(() => undefined, 60_000);
+              await readOrdinaryEdgePolicy(directory);
+              // Proof: readonly-marker omission accepted retained owner in solver-runtime-admission.proc.test.ts (exit 1).
+              await assertNoEdgeOwner(directory);
+              console.log('[wbs-solver-supervisor] ordinary edge policy ok');
+            })()
+          : argv.some((argument) => argument.startsWith('--preflight='))
+            ? (async (): Promise<void> => {
+                const expected = parseSolverSupervisorMappingPreflight(argv);
+                assertSolverSupervisorMapping(await readConfig(expected.config), expected);
+                console.log(`[wbs-solver-supervisor] ${expected.env} mapping preflight ok`);
+              })()
+            : // Proof: omitted CLI admission reached missing config under retained markers;
+              // solver-runtime-admission.proc.test.ts observed owner callbacks during paused startup.
+              (async () => {
+                const { admission } = parseSolverSupervisorArgs(argv);
+                // Proof: cli-policy-mode omission reached config without a policy in
+                // solver-runtime-admission.proc.test.ts (exit 1).
+                const admit =
+                  admission === 'policy' ? withSolverPolicyAdmission : withSolverRuntimeAdmission;
+                await admit(async () => {
+                  await runSolverSupervisor(argv);
+                  // startSolverSupervisor returns at readiness. Retain the descriptor after
+                  // that return and through all listener/request continuations. No signal
+                  // handler unlocks it: the kernel closes it only when this process exits.
+                  // Proof: removing lifetime wait lets the real ready CLI lose its lock
+                  // in solver-runtime-admission.proc.test.ts (SIGTERM/SIGKILL cases).
+                  await new Promise<never>(() => {
+                    setInterval(() => undefined, 60_000);
+                  });
                 });
-              });
-            })();
+              })();
   operation.catch((error: unknown) => {
     const message = error instanceof Error ? error.message : 'unknown failure';
     console.error(`[wbs-solver-supervisor] startup failed: ${message}`);

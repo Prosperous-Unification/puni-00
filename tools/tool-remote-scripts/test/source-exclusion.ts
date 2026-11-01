@@ -469,6 +469,7 @@ async function runIntegratedFixture(fixture: SolverDrainFixture): Promise<void> 
       join(root, 'negative-owner'),
     ])
       await mkdir(directory, { mode: 0o700 });
+    await writeFile(join(root, 'negative-owner', 'edge.lock'), '');
     const substitution = pin('GATEWAY');
     requireProof(
       substitution.id !== sourcePin.id,

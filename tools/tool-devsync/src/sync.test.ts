@@ -1,9 +1,10 @@
+import { writeFileSync } from 'node:fs';
 import { chmod, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { scratchAsync } from '@tools/test-scratch';
+import { scratchAsync, scratchSync } from '@tools/test-scratch';
 import { $ } from 'bun';
-import { describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { readProjects } from '../workspace-projects.mjs';
 import { SOLVER_COMPATIBILITY_PATHS as PREPARATION_PATHS } from './solver-preparation';
@@ -39,6 +40,18 @@ import {
   STALE_BOOT_EXIT_CODE,
   sync,
 } from './sync';
+
+let previousControllerState: string | undefined;
+beforeEach(() => {
+  previousControllerState = process.env['WBS_EDGE_STATE'];
+  const controllerState = scratchSync('direct-controller-edge-');
+  writeFileSync(`${controllerState}/edge.lock`, '');
+  process.env['WBS_EDGE_STATE'] = controllerState;
+});
+afterEach(() => {
+  if (previousControllerState === undefined) delete process.env['WBS_EDGE_STATE'];
+  else process.env['WBS_EDGE_STATE'] = previousControllerState;
+});
 
 const DEV_IMAGE = `registry.example/wbs-be@sha256:${'a'.repeat(64)}`;
 const WORKSPACE = new URL('../../../', import.meta.url);

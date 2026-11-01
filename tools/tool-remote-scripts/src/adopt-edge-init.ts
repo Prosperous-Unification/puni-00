@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { requireInheritedEdgeLock } from './lib/edge-admission';
+import { assertInstalledControllerAdmission, requireInheritedEdgeLock } from './lib/edge-admission';
 import { InitRefusal } from './lib/edge-init';
 import {
   type InitMode,
@@ -109,6 +109,7 @@ if (import.meta.main) {
     invocation = parseInitArguments(process.argv.slice(2));
     // Proof: omitting admission let a foreign descriptor reach the factory; source and bundle binding tests failed.
     await requireInheritedEdgeLock();
+    await assertInstalledControllerAdmission('required');
     // Proof: replacing the factory with a prepared result made the actual source/bundle subprocess negatives return success.
     const summary = await runProductionInitAdoption(invocation.packet, invocation.mode);
     console.log(JSON.stringify(summary));

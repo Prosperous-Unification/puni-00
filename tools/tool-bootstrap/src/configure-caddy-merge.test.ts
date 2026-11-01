@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import {
   chmodSync,
+  linkSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -12,6 +13,39 @@ import { join } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
 import { afterAll, describe, expect, it } from 'bun:test';
+
+const ownedReaderState = '/__owned_configure_edge_state__';
+const compiledReader = await Bun.build({
+  entrypoints: [
+    new URL('../../tool-remote-scripts/src/solver-supervisor.ts', import.meta.url).pathname,
+  ],
+  target: 'bun',
+  plugins: [
+    {
+      name: 'owned-configure-reader',
+      setup(build) {
+        build.onLoad({ filter: /solver-supervisor-install-contract\.ts$/ }, async (file) => {
+          const source = await Bun.file(file.path).text();
+          const anchor = "export const SOLVER_READER_STATE = '/home/puni1/wbs/state';";
+          if (source.split(anchor).length !== 2) throw new Error('production state anchor differs');
+          return {
+            contents: source.replace(
+              anchor,
+              `export const SOLVER_READER_STATE = ${JSON.stringify(ownedReaderState)};`,
+            ),
+            loader: 'ts',
+          };
+        });
+      },
+    },
+  ],
+});
+const readerOutput = compiledReader.outputs.at(0);
+if (!compiledReader.success || compiledReader.outputs.length !== 1 || readerOutput === undefined)
+  throw new Error('actual configure reader build failed');
+const readerProgram = await readerOutput.text();
+if (readerProgram.split(JSON.stringify(ownedReaderState)).length !== 2)
+  throw new Error('compiled owned state anchor differs');
 
 // TASK-160, finding 4. `configure-caddy.test.ts` asserts on configure.sh's
 // SOURCE TEXT, so it catches a wholesale revert to `cat > "$caddyfile"` and
@@ -314,6 +348,26 @@ interface ShippedScriptFixture {
 
 const prepareShippedScript = (opts: ShippedScriptOptions): ShippedScriptFixture => {
   const root = mkdtempSync(join(SHIPPED_FIXTURE_DIRECTORY, 'reach-'));
+  const state = join(root, 'state');
+  mkdirSync(state, { mode: 0o700 });
+  writeFileSync(join(state, 'edge.lock'), '');
+  writeFileSync(
+    join(state, 'edge-policy.json'),
+    JSON.stringify({
+      format: 'dependency-edge-policy',
+      version: 1,
+      phase: 'ordinary',
+      edgeState: state,
+    }),
+  );
+  const bun = join(root, 'fixed-bun');
+  const reader = join(root, 'fixed-reader.js');
+  linkSync(process.execPath, bun);
+  writeFileSync(
+    reader,
+    readerProgram.replace(JSON.stringify(ownedReaderState), JSON.stringify(state)),
+    { mode: 0o755 },
+  );
   if (opts.seedCaddyfile !== undefined) {
     // A host that has already been configured once. The script creates this
     // directory itself, well before the block under test; seeding it here just
@@ -333,7 +387,18 @@ const prepareShippedScript = (opts: ShippedScriptOptions): ShippedScriptFixture 
     throw new Error('a mutation that changed nothing would pass as a kill; check its markers');
   }
   const script = join(root, 'configure.sh');
-  writeFileSync(script, text);
+  for (const anchor of [
+    '/home/puni1/.local/lib/wbs-solver/bun',
+    '/home/puni1/.local/lib/wbs-solver/solver-supervisor.js',
+  ])
+    if (configureSh.split(anchor).length !== 2)
+      throw new Error('production fixed configure anchor differs');
+  writeFileSync(
+    script,
+    text
+      .replaceAll('/home/puni1/.local/lib/wbs-solver/bun', bun)
+      .replaceAll('/home/puni1/.local/lib/wbs-solver/solver-supervisor.js', reader),
+  );
   const overrides = opts.env ?? {};
   // No construction pin is overridable, and this is the whole list rather than
   // WBS_ROOT alone -- Sol's round-10 note, that the old special case left PATH
@@ -495,7 +560,6 @@ describe('configure.sh Caddyfile merge, executed', () => {
       // Proof: removing the state pin failed here before any shell ran.
       expect(held.env['WBS_EDGE_STATE']).toBe(join(held.root, 'state'));
       expect(independent.env['WBS_EDGE_STATE']).toBe(join(independent.root, 'state'));
-      mkdirSync(join(held.root, 'state'));
       const lock = join(held.root, 'state', 'edge.lock');
       const release = join(held.root, 'state', 'release');
       writeFileSync(lock, '');

@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 
 import { scratchSync } from '@tools/test-scratch';
@@ -15,6 +16,7 @@ import { withLock } from './lock';
 
 function fixture() {
   const root = scratchSync('dependency-owner-');
+  writeFileSync(`${root}/edge.lock`, '');
   return {
     root,
     plan: { sha: 'a'.repeat(40), layouts: [{ ...envLayout('prod'), root, stateDir: root }] },
@@ -158,9 +160,10 @@ async function refuses(promise: Promise<unknown>, message?: string): Promise<voi
 }
 
 test('symlink lock refuses before owner publication', async () => {
-  const { symlink } = await import('node:fs/promises');
+  const { symlink, unlink } = await import('node:fs/promises');
   const { root, plan } = fixture();
   await writeFile(`${root}/foreign.lock`, 'retained evidence');
+  await unlink(`${root}/edge.lock`);
   await symlink(`${root}/foreign.lock`, `${root}/edge.lock`);
   await refuses(
     withDependencyOwner(plan, () => Promise.resolve(undefined), root),
@@ -412,4 +415,141 @@ test('shared pending decoder preserves the existing publication and refuses unsc
     },
   ])
     expect(() => decodeDependencyOwnerPublication(value)).toThrow();
+});
+
+test('initial active policy refuses before creating or truncating lower locks', async () => {
+  const { root, plan } = fixture();
+  await writeFile(`${root}/edge.lock`, 'edge sentinel');
+  await writeFile(`${root}/deploy.lock`, 'deploy sentinel');
+  await writeFile(
+    `${root}/edge-policy.json`,
+    JSON.stringify({
+      format: 'dependency-edge-policy',
+      version: 1,
+      phase: 'active',
+      edgeState: root,
+      ownerPublicationSha256: 'a'.repeat(64),
+      handoff: { name: 'edge-owner-123456-handoff-complete.json', sha256: 'b'.repeat(64) },
+    }),
+  );
+  let entered = false;
+  await refuses(
+    withDependencyOwner(
+      plan,
+      async () => {
+        await Promise.resolve();
+        entered = true;
+      },
+      root,
+    ),
+    'ordinary controller',
+  );
+  expect(entered).toBe(false);
+  expect(await readFile(`${root}/edge.lock`, 'utf8')).toBe('edge sentinel');
+  expect(await readFile(`${root}/deploy.lock`, 'utf8')).toBe('deploy sentinel');
+  expect(await Bun.file(`${root}/edge-owner.pending`).exists()).toBe(false);
+});
+
+test('initial owner rechecks its original ordinary policy after real lower-lock writes without rebasing same-byte replacement', async () => {
+  const { root, plan } = fixture();
+  await writeFile(`${root}/edge.lock`, 'edge sentinel');
+  await writeFile(`${root}/deploy.lock`, 'lower sentinel');
+  await writeFile(
+    `${root}/edge-policy.json`,
+    JSON.stringify({
+      format: 'dependency-edge-policy',
+      version: 1,
+      phase: 'ordinary',
+      edgeState: root,
+    }),
+  );
+  const program = `import * as fs from 'node:fs';import{mock}from'bun:test';const truncate=fs.ftruncateSync;let delivered=false;mock.module('node:fs',()=>({...fs,ftruncateSync:(descriptor,length)=>{truncate(descriptor,length);if(!delivered&&fs.readlinkSync('/proc/self/fd/'+descriptor)===${JSON.stringify(`${root}/deploy.lock`)}){const path=${JSON.stringify(`${root}/edge-policy.json`)};const bytes=fs.readFileSync(path);fs.renameSync(path,path+'.original');fs.writeFileSync(path,bytes);fs.writeFileSync(${JSON.stringify(`${root}/replacement-delivered`)},'delivered');delivered=true;}}}));const{withDependencyOwner}=await import(${JSON.stringify(`${import.meta.dir}/edge-ownership.ts`)});let refused=false;try{await withDependencyOwner(${JSON.stringify(plan)},async()=>{fs.writeFileSync(${JSON.stringify(`${root}/callback-entered`)},'entered');},${JSON.stringify(root)});}catch(cause){if(!String(cause).includes('ordinary controller policy changed'))throw cause;refused=true;}if(!delivered||!refused)throw new Error('original policy recheck boundary not observed');`;
+  const child = Bun.spawn([process.execPath, '-e', program], { stdout: 'pipe', stderr: 'pipe' });
+  const stdout = await new Response(child.stdout).text();
+  const stderr = await new Response(child.stderr).text();
+  expect(await child.exited).toBe(0);
+  expect(stdout + stderr).toBe('');
+  expect(await readFile(`${root}/replacement-delivered`, 'utf8')).toBe('delivered');
+  expect(await Bun.file(`${root}/callback-entered`).exists()).toBe(false);
+  expect(await Bun.file(`${root}/edge-owner.pending`).exists()).toBe(false);
+  expect(await readFile(`${root}/edge.lock`, 'utf8')).toBe('edge sentinel');
+  expect(await readFile(`${root}/deploy.lock`, 'utf8')).toBe('');
+});
+
+for (const fault of ['active', 'restoring', 'marker', 'malformed'] as const) {
+  test(`initial ${fault} refusal leaves all missing and existing lower locks unchanged`, async () => {
+    const { root, plan } = fixture();
+    const { mkdir } = await import('node:fs/promises');
+    await mkdir(`${root}/dev`);
+    const dev = { ...envLayout('dev'), root: `${root}/dev`, stateDir: `${root}/dev` };
+    await writeFile(`${root}/edge.lock`, 'edge sentinel');
+    await writeFile(`${root}/deploy.lock`, 'prod sentinel');
+    await writeFile(`${root}/dev/devsync.lock`, 'dev sentinel');
+    const ordinary = {
+      format: 'dependency-edge-policy',
+      version: 1,
+      phase: 'ordinary',
+      edgeState: root,
+    };
+    const value =
+      fault === 'active'
+        ? {
+            ...ordinary,
+            phase: 'active',
+            ownerPublicationSha256: 'a'.repeat(64),
+            handoff: { name: 'edge-owner-123456-handoff-complete.json', sha256: 'b'.repeat(64) },
+          }
+        : fault === 'restoring'
+          ? {
+              ...ordinary,
+              phase: 'restoring',
+              ownerPublicationSha256: 'a'.repeat(64),
+              restorationIntent: {
+                name: 'edge-owner-123456-solver-restore-intent.json',
+                sha256: 'b'.repeat(64),
+              },
+            }
+          : ordinary;
+    await writeFile(
+      `${root}/edge-policy.json`,
+      fault === 'malformed' ? '{bad' : JSON.stringify(value),
+    );
+    if (fault === 'marker') await writeFile(`${root}/edge-owner.pending`, 'retained');
+    let entered = false;
+    await refuses(
+      withDependencyOwner(
+        { ...plan, layouts: [...plan.layouts, dev] },
+        async () => {
+          await Promise.resolve();
+          entered = true;
+        },
+        root,
+      ),
+    );
+    expect(entered).toBe(false);
+    expect(await readFile(`${root}/edge.lock`, 'utf8')).toBe('edge sentinel');
+    expect(await readFile(`${root}/deploy.lock`, 'utf8')).toBe('prod sentinel');
+    expect(await readFile(`${root}/dev/devsync.lock`, 'utf8')).toBe('dev sentinel');
+    expect(await Bun.file(`${root}/dev/poll.lock`).exists()).toBe(false);
+    expect(await Bun.file(`${root}/dev/deploy.lock`).exists()).toBe(false);
+  });
+}
+
+test('initial owner refuses a missing existing edge lock without creating lower locks', async () => {
+  const { root, plan } = fixture();
+  const { unlink } = await import('node:fs/promises');
+  await unlink(`${root}/edge.lock`);
+  await refuses(
+    withDependencyOwner(
+      plan,
+      async () => {
+        await Promise.resolve();
+        throw new Error('unexpected callback');
+      },
+      root,
+    ),
+  );
+  expect(await Bun.file(`${root}/edge.lock`).exists()).toBe(false);
+  expect(await Bun.file(`${root}/deploy.lock`).exists()).toBe(false);
+  expect(await Bun.file(`${root}/edge-owner.pending`).exists()).toBe(false);
 });

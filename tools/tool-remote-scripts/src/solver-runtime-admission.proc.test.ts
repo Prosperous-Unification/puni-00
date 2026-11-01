@@ -18,6 +18,7 @@ const image = `registry.example/wbs@sha256:${'a'.repeat(64)}`;
 
 async function fixture() {
   const directory = scratchSync('solver-runtime-cli-');
+  await writeFile(`${directory}/edge.lock`, '');
   await writeFile(
     `${directory}/config.json`,
     JSON.stringify({

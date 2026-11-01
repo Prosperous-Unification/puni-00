@@ -1,7 +1,11 @@
-import { lstat, readdir } from 'node:fs/promises';
-import { isAbsolute, join, resolve } from 'node:path';
+import { lstat, readdir, realpath } from 'node:fs/promises';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 
-import { assertInheritedLock, withLock } from './lock';
+import { assertInheritedLock, withExistingCanonicalLock } from './lock';
+import {
+  SOLVER_SUPERVISOR_BUN,
+  SOLVER_SUPERVISOR_BUNDLE,
+} from './solver-supervisor-install-contract';
 
 /** Canonical host-wide state; dev and prod share the same Caddy process. */
 export function edgeStateDirectory(): string {
@@ -51,17 +55,15 @@ export async function withEdgeAdmission<T>(action: () => Promise<T>): Promise<T>
   const stateDirectory = edgeStateDirectory();
   const lockPath = join(stateDirectory, 'edge.lock');
   const inherited = process.env['WBS_EDGE_LOCK_FD'];
+  const { assertOrdinaryControllerAdmission } = await import('./edge-policy');
   if (inherited !== undefined) {
-    // Proof: removing token syntax validation failed the bogus inherited-descriptor CLI negative.
     if (!/^[0-9]+$/.test(inherited)) throw new Error('invalid inherited shared edge descriptor');
-    // Proof: skipping descriptor identity and flock failed forged numeric FD and independent-open CLI negatives (3 failures).
-    assertInheritedLock(lockPath, Number(inherited));
-    await assertNoEdgeOwner(stateDirectory);
+    await requireInheritedEdgeLock();
+    await assertOrdinaryControllerAdmission(stateDirectory, 'legacy');
     return action();
   }
-  // Proof: removed this outer lock; the concurrent swap CLI negative reached argument validation.
-  return withLock(lockPath, async (descriptor) => {
-    await assertNoEdgeOwner(stateDirectory);
+  return withExistingCanonicalLock(lockPath, async (descriptor) => {
+    await assertOrdinaryControllerAdmission(stateDirectory, 'legacy');
     process.env['WBS_EDGE_LOCK_FD'] = String(descriptor);
     try {
       return await action();
@@ -152,4 +154,171 @@ export function throwRetainedSolverRefusal(retained: unknown, cause: unknown): n
     `shared edge owner admission closed: ${reason}; retained marker; no activation`,
     { cause: new Error(reason) },
   );
+}
+
+/** Retains fixed artifact/parent observations and makes required captures fatal even in conditional shell contexts. */
+export function buildInstalledControllerAdmission(
+  mode: 'legacy' | 'required',
+  descriptor: 3 | 8 | 9,
+): string {
+  const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
+  return `set -eu
+controller_bun=${quote(SOLVER_SUPERVISOR_BUN)}
+controller_program=${quote(SOLVER_SUPERVISOR_BUNDLE.remote)}
+for controller_reader in "$controller_bun" "$controller_program"; do
+  if [ ! -f "$controller_reader" ] || [ -L "$controller_reader" ] || [ ! -r "$controller_reader" ] || [ ! -x "$controller_reader" ]; then
+    echo 'fixed installed controller reader unavailable; reader preparation or explicit old-reader transition required' >&2
+    exit 1
+  fi
+  controller_file_mode=$(stat -Lc %a -- "$controller_reader") || exit 1
+  controller_file_uid=$(stat -Lc %u -- "$controller_reader") || exit 1
+  controller_file_gid=$(stat -Lc %g -- "$controller_reader") || exit 1
+  controller_file_path=$(realpath -- "$controller_reader") || exit 1
+  if [ "$controller_file_mode" != 755 ] || [ "$controller_file_uid" != 1000 ] || [ "$controller_file_gid" != 1000 ] || [ "$controller_file_path" != "$controller_reader" ]; then
+    echo 'fixed installed controller reader unavailable; reader preparation required' >&2
+    exit 1
+  fi
+done
+controller_bun_parent=$(dirname -- "$controller_bun") || exit 1
+controller_program_parent=$(dirname -- "$controller_program") || exit 1
+for controller_directory in "$controller_bun_parent" "$controller_program_parent"; do
+  test -d "$controller_directory" || exit 1
+  test ! -L "$controller_directory" || exit 1
+  controller_directory_path=$(realpath -- "$controller_directory") || exit 1
+  test "$controller_directory_path" = "$controller_directory" || exit 1
+  ls -A -- "$controller_directory" >/dev/null || exit 1
+done
+controller_bun_parent_identity=$(stat -Lc '%d:%i:%a:%u:%g' -- "$controller_bun_parent") || exit 1
+controller_program_parent_identity=$(stat -Lc '%d:%i:%a:%u:%g' -- "$controller_program_parent") || exit 1
+controller_bun_identity=$(stat -Lc '%d:%i:%a:%u:%g:%s:%Y:%Z' -- "$controller_bun") || exit 1
+controller_program_identity=$(stat -Lc '%d:%i:%a:%u:%g:%s:%Y:%Z' -- "$controller_program") || exit 1
+controller_bun_hash=$(sha256sum -- "$controller_bun") || exit 1
+controller_program_hash=$(sha256sum -- "$controller_program") || exit 1
+for controller_observation in "$controller_bun_parent_identity" "$controller_program_parent_identity" "$controller_bun_identity" "$controller_program_identity" "$controller_bun_hash" "$controller_program_hash"; do
+  if [ -z "$controller_observation" ]; then echo 'required installed controller observation was empty' >&2; exit 1; fi
+done
+WBS_EDGE_LOCK_FD=${String(descriptor)}; export WBS_EDGE_LOCK_FD
+"$controller_bun" "$controller_program" --check-controller-admission-inherited=${mode} || exit 1
+for controller_reader in "$controller_bun" "$controller_program"; do
+  if [ ! -f "$controller_reader" ] || [ -L "$controller_reader" ] || [ ! -r "$controller_reader" ] || [ ! -x "$controller_reader" ]; then
+    echo 'fixed installed controller reader changed during admission' >&2
+    exit 1
+  fi
+  controller_file_path=$(realpath -- "$controller_reader") || exit 1
+  test "$controller_file_path" = "$controller_reader" || exit 1
+done
+for controller_directory in "$controller_bun_parent" "$controller_program_parent"; do
+  test -d "$controller_directory" || exit 1
+  test ! -L "$controller_directory" || exit 1
+  controller_directory_path=$(realpath -- "$controller_directory") || exit 1
+  test "$controller_directory_path" = "$controller_directory" || exit 1
+  ls -A -- "$controller_directory" >/dev/null || exit 1
+done
+controller_current_bun_parent_identity=$(stat -Lc '%d:%i:%a:%u:%g' -- "$controller_bun_parent") || exit 1
+controller_current_program_parent_identity=$(stat -Lc '%d:%i:%a:%u:%g' -- "$controller_program_parent") || exit 1
+controller_current_bun_identity=$(stat -Lc '%d:%i:%a:%u:%g:%s:%Y:%Z' -- "$controller_bun") || exit 1
+controller_current_program_identity=$(stat -Lc '%d:%i:%a:%u:%g:%s:%Y:%Z' -- "$controller_program") || exit 1
+controller_current_bun_hash=$(sha256sum -- "$controller_bun") || exit 1
+controller_current_program_hash=$(sha256sum -- "$controller_program") || exit 1
+if [ "$controller_current_bun_parent_identity" != "$controller_bun_parent_identity" ] || [ "$controller_current_program_parent_identity" != "$controller_program_parent_identity" ] || [ "$controller_current_bun_identity" != "$controller_bun_identity" ] || [ "$controller_current_program_identity" != "$controller_program_identity" ] || [ "$controller_current_bun_hash" != "$controller_bun_hash" ] || [ "$controller_current_program_hash" != "$controller_program_hash" ]; then
+  echo 'fixed installed controller reader changed during admission' >&2
+  exit 1
+fi`;
+}
+
+/** Unknown original wait/read never unwinds the surrounding admission interval. */
+export async function retainUnknownControllerObservation(): Promise<never> {
+  console.error(
+    'controller HOLD: original child/read/EOF remains unknown; retain original edge interval; no retry or cleanup',
+  );
+  for (;;) await Bun.sleep(1000);
+}
+
+/** Checks actual fixed installed files on the caller's original inherited description before candidate execution. */
+export async function assertInstalledControllerAdmission(
+  mode: 'legacy' | 'required',
+): Promise<void> {
+  const admission = await requireInheritedEdgeLock();
+  const { captureSolverReaderArtifact } = await import('./solver-reader-preparation');
+  const parents = [];
+  for (const path of new Set([
+    dirname(SOLVER_SUPERVISOR_BUN),
+    dirname(SOLVER_SUPERVISOR_BUNDLE.remote),
+  ])) {
+    try {
+      const opened = await lstat(path, { bigint: true });
+      if (!opened.isDirectory() || (await realpath(path)) !== path)
+        throw new Error('invalid fixed installed controller reader parent');
+      await readdir(path);
+      parents.push({ path, opened });
+    } catch (cause) {
+      throw new Error(
+        'fixed installed controller reader parent unavailable; reader preparation required',
+        { cause },
+      );
+    }
+  }
+  const openings = [];
+  for (const path of [SOLVER_SUPERVISOR_BUN, SOLVER_SUPERVISOR_BUNDLE.remote]) {
+    let opening;
+    try {
+      opening = await captureSolverReaderArtifact(path);
+    } catch (cause) {
+      throw new Error(
+        'fixed installed controller reader unavailable; reader preparation required',
+        { cause },
+      );
+    }
+    if (
+      opening.uid !== '1000' ||
+      opening.gid !== '1000' ||
+      opening.mode !== 0o755 ||
+      (await realpath(path)) !== path
+    )
+      throw new Error('invalid fixed installed controller reader; reader preparation required');
+    openings.push(opening);
+  }
+  const child = Bun.spawn(
+    [
+      SOLVER_SUPERVISOR_BUN,
+      SOLVER_SUPERVISOR_BUNDLE.remote,
+      `--check-controller-admission-inherited=${mode}`,
+    ],
+    {
+      env: { ...process.env, WBS_EDGE_STATE: admission.stateDirectory, WBS_EDGE_LOCK_FD: '3' },
+      stdio: ['ignore', 'pipe', 'pipe', admission.descriptor],
+    },
+  );
+  const [stdout, stderr, wait] = await Promise.allSettled([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  if (stdout.status !== 'fulfilled' || stderr.status !== 'fulfilled' || wait.status !== 'fulfilled')
+    return retainUnknownControllerObservation();
+  if (wait.value !== 0 || child.signalCode !== null)
+    throw new Error(`fixed installed controller reader refused: ${stderr.value}`);
+  for (const { path, opened } of parents) {
+    const closing = await lstat(path, { bigint: true });
+    if (
+      (await realpath(path)) !== path ||
+      opened.dev !== closing.dev ||
+      opened.ino !== closing.ino ||
+      opened.mode !== closing.mode ||
+      opened.uid !== closing.uid ||
+      opened.gid !== closing.gid
+    )
+      throw new Error(
+        'fixed installed controller reader changed parent before candidate execution',
+      );
+    await readdir(path);
+  }
+  for (const opening of openings) {
+    if (
+      (await realpath(opening.artifact.path)) !== opening.artifact.path ||
+      JSON.stringify(await captureSolverReaderArtifact(opening.artifact.path)) !==
+        JSON.stringify(opening)
+    )
+      throw new Error('fixed installed controller reader changed before candidate execution');
+  }
 }

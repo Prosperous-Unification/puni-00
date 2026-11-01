@@ -1,10 +1,85 @@
-import { chmod, mkdir, readdir, readFile, utimes, writeFile } from 'node:fs/promises';
+import { chmod, link, mkdir, readdir, readFile, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
 import { describe, expect, it } from 'bun:test';
 
 import { STALE_BOOT_EXIT_CODE } from './boot-convergence';
+
+const ownedStateAnchor = '/__owned_poller_edge_state__';
+const readerCompilation = await Bun.build({
+  entrypoints: [
+    new URL('../../tool-remote-scripts/src/solver-supervisor.ts', import.meta.url).pathname,
+  ],
+  target: 'bun',
+  plugins: [
+    {
+      name: 'owned-poller-reader',
+      setup(build) {
+        build.onLoad({ filter: /solver-supervisor-install-contract\.ts$/ }, async (file) => {
+          const source = await Bun.file(file.path).text();
+          const anchor = "export const SOLVER_READER_STATE = '/home/puni1/wbs/state';";
+          if (source.split(anchor).length !== 2) throw new Error('production state anchor differs');
+          return {
+            contents: source.replace(
+              anchor,
+              `export const SOLVER_READER_STATE = ${JSON.stringify(ownedStateAnchor)};`,
+            ),
+            loader: 'ts',
+          };
+        });
+      },
+    },
+  ],
+});
+const readerOutput = readerCompilation.outputs.at(0);
+if (
+  !readerCompilation.success ||
+  readerCompilation.outputs.length !== 1 ||
+  readerOutput === undefined
+)
+  throw new Error('actual poller reader compilation failed');
+const readerProgram = await readerOutput.text();
+if (readerProgram.split(JSON.stringify(ownedStateAnchor)).length !== 2)
+  throw new Error('compiled owned reader state anchor differs');
+
+async function preparePollerCommand(argv: string[], state: string): Promise<string[]> {
+  const sources = [
+    new URL('../../../bin/dev-poll.sh', import.meta.url).pathname,
+    new URL('../../../bin/dev-poll-sync.sh', import.meta.url).pathname,
+  ];
+  if (!argv.some((argument) => sources.some((source) => argument.includes(source)))) return argv;
+  await writeFile(join(state, 'edge.lock'), '');
+  const bun = join(state, 'fixed-bun');
+  const reader = join(state, 'fixed-reader.js');
+  await link(process.execPath, bun);
+  await writeFile(
+    reader,
+    readerProgram.replace(JSON.stringify(ownedStateAnchor), JSON.stringify(state)),
+    { mode: 0o755 },
+  );
+  const relocated = new Map<string, string>();
+  for (const source of sources) {
+    const body = await readFile(source, 'utf8');
+    for (const anchor of [
+      '/home/puni1/.local/lib/wbs-solver/bun',
+      '/home/puni1/.local/lib/wbs-solver/solver-supervisor.js',
+    ])
+      if (body.split(anchor).length !== 2) throw new Error('fixed poller shell anchor differs');
+    const path = join(state, source.split('/').at(-1)!);
+    await writeFile(
+      path,
+      body
+        .replaceAll('/home/puni1/.local/lib/wbs-solver/bun', bun)
+        .replaceAll('/home/puni1/.local/lib/wbs-solver/solver-supervisor.js', reader),
+    );
+    relocated.set(source, path);
+  }
+  return argv.map((argument) => {
+    for (const [source, path] of relocated) argument = argument.replaceAll(source, path);
+    return argument;
+  });
+}
 
 interface CommandResult {
   code: number;
@@ -13,8 +88,9 @@ interface CommandResult {
 }
 
 async function command(argv: string[], env: Record<string, string> = {}): Promise<CommandResult> {
-  const child = Bun.spawn(argv, {
-    env: { ...process.env, WBS_EDGE_STATE: await scratchAsync('edge-state-'), ...env },
+  const state = await scratchAsync('edge-state-');
+  const child = Bun.spawn(await preparePollerCommand(argv, state), {
+    env: { ...process.env, WBS_EDGE_STATE: state, ...env },
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -67,7 +143,10 @@ async function requireOverlappingRuns(
   // Each candidate-race fixture represents an independent host; shared-host exclusion
   // is exercised through the actual writer entrypoints in edge-admission.test.ts.
   const edgeStates = await Promise.all(argvs.map(() => scratchAsync('edge-state-')));
-  const children = argvs.map((argv, index) =>
+  const prepared = await Promise.all(
+    argvs.map((argv, index) => preparePollerCommand(argv, edgeStates[index])),
+  );
+  const children = prepared.map((argv, index) =>
     Bun.spawn(argv, {
       env: { ...process.env, WBS_EDGE_STATE: edgeStates[index], ...env },
       stdout: 'pipe',

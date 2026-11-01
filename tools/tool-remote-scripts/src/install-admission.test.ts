@@ -1,6 +1,7 @@
 import { constants } from 'node:fs';
 import {
   chmod,
+  copyFile,
   mkdir,
   mkdtemp,
   open,
@@ -20,7 +21,7 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-async function createHost() {
+async function createHost(preparedReader = true) {
   const root = await mkdtemp(join(tmpdir(), 'install-admission-'));
   roots.push(root);
   for (const directory of [
@@ -40,21 +41,68 @@ async function createHost() {
     );
   }
   await writeFile(join(root, 'state/edge.lock'), '');
+  await mkdir(join(root, 'cache'), { mode: 0o700 });
+  await writeFile(
+    join(root, 'state/edge-policy.json'),
+    JSON.stringify({
+      format: 'dependency-edge-policy',
+      version: 1,
+      phase: 'ordinary',
+      edgeState: join(root, 'state'),
+    }),
+  );
+  if (preparedReader) {
+    await mkdir(join(root, 'reader-install'));
+    await copyFile(process.execPath, join(root, 'reader-install/bun'));
+    const compilation = await Bun.build({
+      entrypoints: [new URL('./solver-supervisor.ts', import.meta.url).pathname],
+      target: 'bun',
+      plugins: [
+        {
+          name: 'owned-install-layout',
+          setup(build) {
+            build.onLoad({ filter: /solver-supervisor-install-contract\.ts$/ }, async (file) => {
+              const source = await Bun.file(file.path).text();
+              const anchor = "export const SOLVER_READER_STATE = '/home/puni1/wbs/state';";
+              if (source.split(anchor).length !== 2)
+                throw new Error('production state anchor differs');
+              return {
+                contents: source.replace(
+                  anchor,
+                  `export const SOLVER_READER_STATE = ${JSON.stringify(join(root, 'state'))};`,
+                ),
+                loader: 'ts',
+              };
+            });
+          },
+        },
+      ],
+    });
+    const output = compilation.outputs.at(0);
+    if (!compilation.success || compilation.outputs.length !== 1 || output === undefined)
+      throw new Error('actual installed reader build failed');
+    await writeFile(
+      join(root, 'reader-install/solver-supervisor.js'),
+      new Uint8Array(await output.arrayBuffer()),
+      { mode: 0o755 },
+    );
+  }
   const scripts = {
     ssh: `#!/bin/bash
 set -eu
 shift
 command_text="$1"
-command_text="$(printf '%s' "$command_text" | sed "s|/home/puni1/wbs|$TEST_HOST|g")"
+command_text="$(printf '%s' "$command_text" | sed "s|/home/puni1/wbs|$TEST_HOST|g;s|/home/puni1/.cache/wbs-solver|$TEST_HOST/cache|g;s|/home/puni1/.local/lib/wbs-solver|$TEST_HOST/reader-install|g")"
 /bin/bash -c "$command_text"
 `,
     scp: `#!/bin/bash
 set -eu
 remote="\${2#*:}"
-remote="$(printf '%s' "$remote" | sed "s|/home/puni1/wbs|$TEST_HOST|g")"
+remote="$(printf '%s' "$remote" | sed "s|/home/puni1/wbs|$TEST_HOST|g;s|/home/puni1/.cache/wbs-solver|$TEST_HOST/cache|g;s|/home/puni1/.local/lib/wbs-solver|$TEST_HOST/reader-install|g")"
 printf '%s\\n' "$remote" >> "$TEST_HOST/uploads"
 /bin/cp "$1" "$remote"
 if [ "\${INSTALL_FAULT:-}" = staged ]; then printf corrupted > "$remote"; fi
+if [ "\${INSTALL_FAULT:-}" = staged-symlink ]; then /bin/mv "$remote" "$remote.real"; /bin/ln -s "$remote.real" "$remote"; fi
 `,
     sha256sum: `#!/bin/bash
 set -eu
@@ -297,3 +345,18 @@ for (const marker of ['edge-owner.json', 'edge-owner.pending']) {
     await host.expectOriginal();
   });
 }
+
+test('generic installer refuses an unprepared fixed reader before replacing executors', async () => {
+  const host = await createHost(false);
+  const output = await host.install();
+  expect(output.code).not.toBe(0);
+  await host.expectOriginal();
+  expect(output.output).toMatch(/fixed installed controller reader|reader preparation/);
+});
+
+test('generic installer refuses same-byte staged symlinks before replacement', async () => {
+  const host = await createHost();
+  const outcome = await host.install('staged-symlink');
+  expect(outcome.code).not.toBe(0);
+  await host.expectOriginal();
+});

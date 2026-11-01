@@ -12,6 +12,7 @@ test('direct devsync executor refuses retained edge ownership before environment
   const state = await mkdtemp(join(tmpdir(), 'direct-devsync-owner-'));
   const previous = process.env['WBS_EDGE_STATE'];
   try {
+    await writeFile(join(state, 'edge.lock'), '');
     await writeFile(join(state, 'edge-owner.json'), 'closed');
     process.env['WBS_EDGE_STATE'] = state;
     await rejects(sync('a'.repeat(40)), /shared edge owner admission closed/);
@@ -71,6 +72,7 @@ for (const inherited of [false, true]) {
 
 test('production devsync lock child completes with a verifiable inherited edge lock', async () => {
   const state = await mkdtemp(join(tmpdir(), 'devsync-complete-child-'));
+  await writeFile(join(state, 'edge.lock'), '');
   const previous = process.env['WBS_EDGE_STATE'];
   try {
     const childScript = join(state, 'child.ts');
@@ -93,6 +95,38 @@ test('production devsync lock child completes with a verifiable inherited edge l
       ),
     ).toBe(0);
     expect(await Bun.file(reached).text()).toBe('completed');
+  } finally {
+    if (previous === undefined) delete process.env['WBS_EDGE_STATE'];
+    else process.env['WBS_EDGE_STATE'] = previous;
+    await rm(state, { recursive: true });
+  }
+});
+
+test('direct devsync refuses active policy before reading its owned downstream environment', async () => {
+  const state = await mkdtemp(join(tmpdir(), 'direct-devsync-active-'));
+  const previous = process.env['WBS_EDGE_STATE'];
+  await writeFile(join(state, 'edge.lock'), 'edge sentinel');
+  await writeFile(
+    join(state, 'edge-policy.json'),
+    JSON.stringify({
+      format: 'dependency-edge-policy',
+      version: 1,
+      phase: 'active',
+      edgeState: state,
+      ownerPublicationSha256: 'a'.repeat(64),
+      handoff: { name: 'edge-owner-123456-handoff-complete.json', sha256: 'b'.repeat(64) },
+    }),
+  );
+  await writeFile(join(state, 'mcp.env'), 'INVALID_DOWNSTREAM_ENVIRONMENT_SENTINEL', {
+    mode: 0o600,
+  });
+  process.env['WBS_EDGE_STATE'] = state;
+  try {
+    await rejects(
+      sync('a'.repeat(40), { mcpEnvPath: join(state, 'mcp.env') }),
+      /ordinary controller/,
+    );
+    expect(await Bun.file(join(state, 'edge.lock')).text()).toBe('edge sentinel');
   } finally {
     if (previous === undefined) delete process.env['WBS_EDGE_STATE'];
     else process.env['WBS_EDGE_STATE'] = previous;

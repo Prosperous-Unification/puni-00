@@ -58,6 +58,7 @@ export async function createSourceSolverFixture(
   inert = false,
 ) {
   await mkdir(join(root, 'dev'));
+  await writeFile(join(root, 'edge.lock'), '');
   const layouts = {
     prod: { ...envLayout('prod'), root, stateDir: root },
     dev: { ...envLayout('dev'), root: join(root, 'dev'), stateDir: join(root, 'dev') },

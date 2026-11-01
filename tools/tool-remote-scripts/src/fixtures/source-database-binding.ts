@@ -129,6 +129,7 @@ export async function sourceDatabaseFixture(
     };
   }
   const root = await mkdtemp(join(tmpdir(), 'source-database-'));
+  await writeFile(join(root, 'edge.lock'), '');
   roots.push(root);
   const layouts = {
     prod: { ...envLayout('prod'), root: join(root, 'prod'), stateDir: join(root, 'prod') },

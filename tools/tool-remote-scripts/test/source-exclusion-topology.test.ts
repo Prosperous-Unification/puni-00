@@ -15,6 +15,7 @@ import { renderManagedParticipant, renderSourceTopology } from './source-exclusi
 
 async function fixture() {
   const root = scratchSync('source-topology-');
+  await writeFile(`${root}/edge.lock`, '');
   for (const name of ['prod', 'dev', 'prod/db']) await mkdir(`${root}/${name}`);
   await writeFile(`${root}/prod/db/wbs.db`, 'fixture database identity');
   const layouts = renderSourceTopology(root, 'token', {

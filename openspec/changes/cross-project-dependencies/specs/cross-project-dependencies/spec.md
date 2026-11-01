@@ -2288,3 +2288,131 @@ The runtime observer SHALL retain and independently reread the full bounded logi
 - **THEN** the real closed GetId parser and retained bus-incarnation comparison refuse before startup without retry or replacement baseline
 - **AND** malformed, absent or unreadable GetId evidence never becomes a successful owner comparison
 - **AND** independently coherent observations may have different bus IDs while each still matches the same independently prepared runtime/profile pins; no historical bus lifetime is pinned
+
+### Requirement: Ordinary controllers jointly classify policy and retained markers
+
+Ordinary controllers SHALL apply the fixed caller-mode roster in joint-controller-admission-design.md under their actual canonical/inherited edge lock before protected effects. Active controller permission SHALL NOT be derived from ordinary admission.
+
+#### Scenario: Legacy absence is narrow
+
+- **GIVEN** a canonical readable state directory and actual existing canonical lock
+- **WHEN** a statically legacy caller observes exact ENOENT of the fixed policy leaf and both marker leaves
+- **THEN** its ordinary operation may proceed under that same lock
+- **AND** absence of an ancestor, unreadability, symlink, malformed or unknown policy is not absence permission
+
+#### Scenario: Required ordinary policy and closed marker matrix
+
+- **WHEN** a required caller lacks policy, or any caller sees active/restoring/unknown/malformed policy, or either marker is present or unreadable
+- **THEN** ordinary admission refuses before protected effects
+- **AND** active/restoring with BOTH markers absent still refuses
+- **AND** a valid H8 graph/pointer does not authorize bootstrap, configure, install or adoption
+- **AND** ordinary policy with both markers absent succeeds only after current identity/byte/absence closing checks
+
+#### Scenario: Current readback changes
+
+- **WHEN** policy presence, bytes, descriptor/named/parent identity or either marker changes between opening and closing
+- **THEN** the actual boundary refuses without recapturing a successful baseline
+- **AND** direct TypeScript executor entry cannot bypass the retained lock interval
+
+### Requirement: Shell admission uses the actual fixed installed reader
+
+Shell callers SHALL use the two exact inherited-only ordinary-check forms of the existing solver-supervisor CLI, actual fixed Bun/bundle/state paths and actual inherited canonical open description. They SHALL NOT select admission from mutable candidate code, JSON grep, environment permission or a supplied success callback.
+
+#### Scenario: Required reader or description is unavailable
+
+- **WHEN** the fixed tool is absent/unreadable/unsupported, a path aliases trusted state, or the inherited FD is absent/foreign/independently opened
+- **THEN** the actual CLI/shell consumer refuses before candidate or writer commands
+- **AND** it does not initialize policy, create/replace edge.lock, install its own reader or fall back to marker-only admission
+
+#### Scenario: Lock remains through actual use
+
+- **WHEN** an admitted controller calls a nested shell/Bun consumer or enters candidate checkout/reset/restart
+- **THEN** it retains the same exclusive edge-lock description throughout the protected interval and closing checks
+- **AND** a real independent contender cannot acquire it in that interval
+- **AND** controllers never acquire solver-runtime.lock, and solver runtime admission never acquires edge.lock
+- **AND** original reader failure or uncertain child/pipe completion never advances effects or manufactures settlement
+
+### Requirement: Pre-admission staging grants no controller authority
+
+Only the design's exclusive private inert staging exception SHALL precede protected admission. Root/runtime/trusted files and existing candidates SHALL remain unchanged on refusal.
+
+#### Scenario: Upload is inert and owned
+
+- **WHEN** a transport uploads inputs before admission
+- **THEN** it uses an exclusive0700 nonsymlink invocation directory under a validated parent, without replacing an existing path
+- **AND** inputs remain unexecuted and hash-verified again inside the actual admitted interval
+- **AND** a collision, alias, foreign parent or changed bytes refuses before publication
+
+#### Scenario: Staging cannot authorize its own execution
+
+- **WHEN** staged bootstrap, installer input or selected candidate would run
+- **THEN** the fixed installed reader has already completed ordinary admission under the still-held description
+- **AND** staged reader success and earlier detached preflight success do not substitute
+- **AND** only proven owned unpublished input cleanup is allowed on settled refusal; shared candidate cleanup and uncertain partial state are retained
+
+### Requirement: Pristine preparation remains a separate prerequisite
+
+An unprepared host SHALL receive an explicit prerequisite refusal. Genuinely fresh targets use the existing separately selected first-reader preparation; existing ordinary targets use the explicit JC0 reader transition when needed. Neither route SHALL be invoked automatically, inferred from a failed guard, or treated as a host-effect grant.
+
+#### Scenario: Prepared and unprepared hosts are distinct
+
+- **WHEN** the actual first-reader/state/lock prerequisites are absent
+- **THEN** bootstrap/configure refuse and identify separate preparation without performing package/account/runtime writes
+- **WHEN** an owned fixture has genuine prepared ordinary policy, fixed reader and canonical description
+- **THEN** ordinary controller admission can reach its downstream test sentinel
+- **AND** this does not qualify actual host preparation, live handoff, compatible active deploy/sync, native delivery or held R5 campaigns
+
+### Requirement: Explicit pre-controller reader transition
+
+An existing ordinary installation SHALL acquire new controller-reader capability only through the independently selected explicit file-only transition described in joint-controller-admission-design.md and reader-controller-transition.md, or an already independently qualified installed artifact. The transition SHALL retain the exact installed Bun, use the old fixed inherited ordinary-policy check before any new candidate execution or protected publication, replace only the selected reader and independently qualify the installed new singleton checks inside the same original edge interval. It SHALL NOT update/qualify a running solver, invoke first-reader as fallback, delete policy, or restart a service.
+
+#### Scenario: Old reader capability handoff
+
+- **GIVEN** exact independently pinned old Bun/reader, ordinary policy and absent markers
+- **WHEN** the explicitly selected transition executes
+- **THEN** the actual old inherited check precedes staged new capability checks, only the reader is published, fixed installed checks succeed under the original OFD, and Bun/config/unit/state/service sentinels remain unchanged.
+
+#### Scenario: Missing or refused old authority
+
+- **GIVEN** wrong old bytes, unsupported old flag, missing required state, markers or nonordinary policy
+- **WHEN** transition is requested
+- **THEN** it refuses before candidate reader execution/publication, without new-reader fallback, policy deletion or automatic preparation.
+
+#### Scenario: Partial publication or uncertain custody
+
+- **WHEN** a postpublication check fails or original child/pipe settlement is unknown
+- **THEN** no success, retry or inverse is reported; published state/evidence are retained, and uncertain target custody keeps the original target operation/edge interval held.
+
+### Requirement: Owner admission precedes lower lock effects
+
+Initial owner acquisition SHALL take only an existing edge description without holder writes, admit joint legacy state, then acquire lower locks in the existing order and recheck original observations immediately before pending publication. It SHALL never recapture changed policy as permission.
+
+#### Scenario: Active or restoring state without markers
+
+- **GIVEN** active or restoring policy, both markers absent, and a mixture of missing and sentinel-bearing lower locks
+- **WHEN** initial owner acquisition is attempted
+- **THEN** no lower lock is opened for mutation, all sentinel identities/bytes and absences remain exact, edge bytes remain unchanged, pending is absent and callback count is zero.
+
+#### Scenario: Missing edge or closing drift
+
+- **WHEN** edge.lock is absent, or an admitted policy/parent/marker changes before pending publication
+- **THEN** missing edge is not created; closing drift refuses without pending or callback, and no claim is made that already admitted lower-lock effects did not occur.
+
+### Requirement: Operator preparation and meaningful fixtures
+
+The explicit preparation order in docs/runbook-controller-reader-prerequisites.md SHALL be available before controller rollout. Every affected owner fixture SHALL prepare the real existing lock where success requires it, preserving missing-lock negatives. A caught refusal SHALL not count as exercising a later injected boundary unless that boundary was actually reached. Shared fixtures SHALL be corrected at their actual constructors; no production bypass or held/long campaign replay is implied.
+
+#### Scenario: Operator preparation selects the actual prerequisite route
+
+- **GIVEN** a fresh target lacking prepared reader state, or an ordinary target with an independently selected existing reader
+- **WHEN** an operator prepares controller rollout
+- **THEN** the documented order distinguishes account/home prerequisites and explicit first-reader preparation from the separately selected existing-reader transition
+- **AND** guarded controllers do not create their own authority, fall back to candidate code or claim that installing reader bytes qualifies the running service.
+
+#### Scenario: A fixture reaches its intended boundary
+
+- **GIVEN** an owner fixture whose positive operation requires an existing canonical edge lock
+- **WHEN** that fixture exercises an operation or injects a later fault
+- **THEN** its actual constructor supplies the real lock and its assertions independently witness the intended operation or injected boundary
+- **AND** a missing-lock negative preserves absence, while an earlier unrelated refusal cannot pass a later-boundary assertion
+- **AND** fixture preparation grants no production bypass or held campaign execution.

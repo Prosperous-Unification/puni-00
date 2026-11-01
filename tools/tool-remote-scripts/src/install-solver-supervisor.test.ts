@@ -5,8 +5,10 @@ import { describe, expect, it } from 'bun:test';
 import {
   buildSolverSupervisorInstallPlan,
   installSolverSupervisor,
+  parseSolverReaderTransitionArgs,
   parseSolverSupervisorInstallArgs,
   prepareSolverReaderInstallation,
+  runSolverSupervisorInstaller,
   type SolverSupervisorInstallerDependencies,
 } from './install-solver-supervisor';
 import {
@@ -76,7 +78,11 @@ function dependencies(
     hash: () => Promise.resolve('a'.repeat(64)),
     command: (argv) => {
       seen.push(argv.join(' '));
-      return Promise.resolve({ code: 0, stdout: bunVersion, stderr: '' });
+      return Promise.resolve({
+        code: 0,
+        stdout: argv.join(' ').includes('controller_created_stage=') ? '123:456\n' : bunVersion,
+        stderr: '',
+      });
     },
   };
 }
@@ -213,4 +219,95 @@ it('first-reader installation requires independent selected target and never bor
     }),
     /selected/,
   );
+});
+
+it('selects the explicit reader-only transition without requiring service configuration', async () => {
+  const reader = await import('node:fs/promises').then(async (fs) => {
+    const directory = await fs.mkdtemp('/tmp/jc0-public-');
+    const path = `${directory}/reader.js`;
+    await fs.writeFile(path, 'export {};\n');
+    return { directory, path };
+  });
+  try {
+    const plan = await runSolverSupervisorInstaller([
+      '--transition-controller-reader',
+      '--host=selected-host',
+      '--target-hostname=selected-host',
+      '--account=puni1',
+      '--uid=1000',
+      '--gid=1000',
+      `--old-bun-sha256=${'a'.repeat(64)}`,
+      '--old-bun-bytes=123',
+      `--old-reader-sha256=${'b'.repeat(64)}`,
+      '--old-reader-bytes=456',
+      `--reader=${reader.path}`,
+      '--reader-sha256=8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881',
+      '--reader-bytes=11',
+    ]);
+    expect(plan.length).toBeGreaterThan(0);
+    expect(plan.every((step) => step.phase !== 'service')).toBe(true);
+  } finally {
+    await import('node:fs/promises').then((fs) => fs.rm(reader.directory, { recursive: true }));
+  }
+});
+
+it('reader transition public selection refuses a different production account before any build or command', () => {
+  const argv = [
+    '--transition-controller-reader',
+    '--host=selected-host',
+    '--target-hostname=selected-host',
+    '--account=other',
+    '--uid=1000',
+    '--gid=1000',
+    `--old-bun-sha256=${'a'.repeat(64)}`,
+    '--old-bun-bytes=123',
+    `--old-reader-sha256=${'b'.repeat(64)}`,
+    '--old-reader-bytes=456',
+    '--reader=/approved/reader.js',
+    `--reader-sha256=${'c'.repeat(64)}`,
+    '--reader-bytes=789',
+  ];
+  expect(() => parseSolverReaderTransitionArgs(argv)).toThrow('puni1/1000/1000');
+});
+
+it('actual reader transition dry-run prints the selected operation compiler and source pins', async () => {
+  const fs = await import('node:fs/promises');
+  const directory = await fs.mkdtemp('/tmp/reader-transition-dry-run-');
+  try {
+    const path = `${directory}/reader.js`;
+    await fs.writeFile(path, 'export {};\n');
+    const argv = [
+      '--transition-controller-reader',
+      '--host=selected-host',
+      '--target-hostname=selected-host',
+      '--account=puni1',
+      '--uid=1000',
+      '--gid=1000',
+      `--old-bun-sha256=${'a'.repeat(64)}`,
+      '--old-bun-bytes=123',
+      `--old-reader-sha256=${'b'.repeat(64)}`,
+      '--old-reader-bytes=456',
+      `--reader=${path}`,
+      '--reader-sha256=8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881',
+      '--reader-bytes=11',
+    ];
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        new URL('./install-solver-supervisor.ts', import.meta.url).pathname,
+        ...argv,
+      ],
+      { stdout: 'pipe', stderr: 'pipe' },
+    );
+    const stdout = await new Response(child.stdout).text();
+    const stderr = await new Response(child.stderr).text();
+    expect(await child.exited).toBe(0);
+    expect(stderr).toBe('');
+    expect(stdout).toContain('operation=');
+    expect(stdout).toContain('compiler=');
+    expect(stdout).toContain('buildInputs=');
+    expect(stdout).not.toContain('installed, verified, and ready');
+  } finally {
+    await fs.rm(directory, { recursive: true });
+  }
 });
