@@ -184,6 +184,7 @@ async function readResources(username: string) {
       name: string;
       kind: string;
       unitLabel: string;
+      directoryCapacity?: number | null;
       providerId: string | null;
       provider?: { kind: string; name: string };
       report?: Record<string, unknown>;
@@ -482,6 +483,7 @@ describe("a resource's provider reference", () => {
       kind: 'divisible',
       unitLabel: 'GB',
       providerId: null,
+      directoryCapacity: null,
     });
     const listed = (await h.call('dany', 'GET', PATH)).body as {
       computeProviders: { resources: number }[];

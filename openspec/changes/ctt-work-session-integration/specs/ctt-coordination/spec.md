@@ -1,3 +1,9 @@
+## Purpose
+
+Use native CTT topology and process-local work tickets to reconstruct readiness from accepted
+WBS facts, then connect eligible work to the existing guarded RunStore admission boundary.
+Traversal readiness supplies neither remote claim authority nor business completion.
+
 ## ADDED Requirements
 
 ### Requirement: The published dependency supplies coordination

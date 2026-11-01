@@ -131,6 +131,8 @@ const occupancyHolder = type({
   name: 'string',
   runId: 'string | null',
   workItemId: 'string',
+  // `wbs-shared-occupancy` S5: a holder in another project of the organization.
+  'projectId?': 'string',
 });
 /** One short resource of `resources_exhausted`: asked, free and its holders. */
 const resourceShortage = {
@@ -138,6 +140,8 @@ const resourceShortage = {
   asked: 'number',
   free: 'number',
   holders: occupancyHolder.array(),
+  // `wbs-shared-occupancy` S3: only where the resource states a directory capacity.
+  'scope?': "'project' | 'organization'",
 } as const;
 export const commandResults = responseSchema(appliedResults);
 const readPolicies = [{ kind: 'identity', require: 'signed-in' }] as const;
@@ -418,6 +422,8 @@ const batchRefusals = [
           'outstandingUses?': 'number',
           // `compute-providers` P3; absent from an outgoing be-01 mid-swap.
           'providerId?': 'string | null',
+          // `wbs-shared-occupancy` S8; absent from an outgoing be-01 mid-swap.
+          'directoryCapacity?': 'number | null',
         },
       }),
     ),

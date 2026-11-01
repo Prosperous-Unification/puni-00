@@ -260,6 +260,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'postApiClaimsRenew',
     'postApiDirectoryCommands',
     'postApiOrganizationProjectsByIdRank',
+    'postApiOrganizationResourcesByResourceIdDirectory-capacityPreview',
     'postApiProjects',
     'postApiProjectsByIdCalendar-markers',
     'postApiProjectsByIdCommands',

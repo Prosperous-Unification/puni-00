@@ -125,35 +125,30 @@ function FooterWordmark() {
  */
 export type HeaderTone = 'light' | 'night';
 
-/**
- * `flow` reserves the rail's full height on wide screens, as on the site's inner pages;
- * `overlay` lets the rail hang over the page beside a centred column, as on the site's Home.
- */
-export type HeaderRail = 'flow' | 'overlay';
+/** `flow` occupies a page row; `overlay` sits above the Build main's reserved top inset. */
+export type HeaderPlacement = 'flow' | 'overlay';
 
 const navigation = [
-  { index: 1, label: 'Home', href: `${siteOrigin}/` },
-  { index: 2, label: 'Build', href: '/' },
-  { index: 3, label: 'Services', href: `${siteOrigin}/services/` },
-  { index: 4, label: 'Blog', href: `${siteOrigin}/blog/` },
+  { label: 'Home', href: `${siteOrigin}/` },
+  { label: 'Build', href: '/' },
+  { label: 'Services', href: `${siteOrigin}/services/` },
+  { label: 'Blog', href: `${siteOrigin}/blog/` },
 ] as const;
 
 /**
- * The marketing site's header, re-implemented to its measured geometry (see the header-parity
- * check in browser/screens.mjs): from 992px the `[-] Navigation` rail and `[n]` links stack at
- * the left with the moon wordmark centred; below 992px the wordmark sits left and a `Menu ☰`
- * button opens the same links in a panel. Escape closes the panel and returns focus to the
- * button. `buildCurrent` marks Build as the current page (`page`) or as the section the manual
- * brief belongs to (`true`); like the site, the mark is not visual.
+ * The measured landing masthead: left identity, right horizontal desktop links and a narrow
+ * Menu. Escape closes the panel and restores toggle focus. `buildCurrent` marks Build as the
+ * page or the manual brief's section; both tones share geometry. See browser/screens.mjs for
+ * the live reference measurements and bounds. Overlay callers reserve the masthead inset.
  */
 export function SiteHeader({
   buildCurrent,
   tone,
-  rail = 'flow',
+  placement = 'flow',
 }: {
   buildCurrent?: 'page' | 'true';
   tone: HeaderTone;
-  rail?: HeaderRail;
+  placement?: HeaderPlacement;
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -173,13 +168,11 @@ export function SiteHeader({
   }, [open]);
 
   return (
-    <header className={`site-header site-header-${tone} site-header-rail-${rail}`}>
+    <header className={`site-header site-header-${tone} site-header-placement-${placement}`}>
       <a className="skip-link" href="#main">
         Skip to content
       </a>
-      {/* Brand precedes the toggle so mobile focus order matches the visual order; grid
-          placement keeps it centered on desktop. Proof: moving it after the toggle made the
-          screens.mjs tab-order-390 check report skip-link,menu-toggle,brand. */}
+      {/* Proof: moving the identity after Menu failed screens.mjs tab-order-390. */}
       <a className="brand" href={`${siteOrigin}/`} aria-label="PUNI home">
         <Wordmark />
       </a>
@@ -199,19 +192,13 @@ export function SiteHeader({
         </span>
       </button>
       <nav aria-label="Primary" className="site-nav" id={panelId} data-open={open}>
-        <span className="nav-rail-label" aria-hidden="true">
-          [-] Navigation
-        </span>
         <ul>
           {navigation.map((entry) => (
-            <li key={entry.index}>
+            <li key={entry.label}>
               <a
                 href={entry.href}
                 aria-current={entry.label === 'Build' ? buildCurrent : undefined}
               >
-                <span className="nav-index" aria-hidden="true">
-                  [{entry.index}]
-                </span>{' '}
                 {entry.label}
               </a>
             </li>
@@ -225,33 +212,21 @@ export function SiteHeader({
 export function SiteFooter() {
   return (
     <footer className="site-footer">
-      <div className="footer-top">
-        <div className="footer-lead">
-          <FooterWordmark />
-          <p>Clear software starts with a clear request.</p>
-          <a className="button secondary" href={`${siteOrigin}/#request`}>
-            Describe your project
-          </a>
+      <nav aria-label="Footer" className="footer-links">
+        <div>
+          <h2>Explore</h2>
+          <a href={`${siteOrigin}/services/`}>Services</a>
+          <a href={`${siteOrigin}/blog/`}>Blog</a>
         </div>
-        <nav aria-label="Footer" className="footer-links">
-          <div>
-            <h2>Explore</h2>
-            <a href={`${siteOrigin}/services/`}>Services</a>
-            <a href={`${siteOrigin}/blog/`}>Blog</a>
-          </div>
-          <div>
-            <h2>PUNI</h2>
-            <a href={`${siteOrigin}/#request`}>Start a Request</a>
-            <a href={`${siteOrigin}/privacy/`}>Privacy</a>
-          </div>
-        </nav>
-      </div>
-      <p className="footer-mark" aria-hidden="true">
-        PUNI
-      </p>
+        <div>
+          <h2>Get in touch</h2>
+          <a href={`${siteOrigin}/#request`}>Start a Request</a>
+          <a href={`${siteOrigin}/privacy/`}>Privacy</a>
+        </div>
+      </nav>
       <div className="footer-base">
         <span>© {new Date().getFullYear()} PUNI</span>
-        <span>A person reviews every request.</span>
+        <FooterWordmark />
       </div>
     </footer>
   );

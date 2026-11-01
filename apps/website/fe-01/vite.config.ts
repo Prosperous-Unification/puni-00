@@ -9,6 +9,9 @@ export default defineConfig({
   // The dev server does not read tsconfig paths; the contracts barrel's only package is @noble/hashes.
   resolve: {
     alias: {
+      '@website/analytics': fileURLToPath(
+        new URL('../../../libs/website/adapters/analytics/src/index.ts', import.meta.url),
+      ),
       '@website/contracts': fileURLToPath(
         new URL('../../../libs/website/domain/contracts/src/index.ts', import.meta.url),
       ),

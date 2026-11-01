@@ -10,7 +10,9 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
  * import` wrote it, and gets its `Authorization` header the way Claude Code does: by running the
  * config's `headersHelper` through `sh -c` and reading the JSON headers it prints. The helper
  * runs when the client connects, and again (then the request is sent once more) when `/mcp`
- * answers HTTP 401; never on an in-band tool error.
+ * answers HTTP 401; never on an in-band tool error. The SDK's initial real GET probe is
+ * drained before commands run; automatic SSE reconnects are disabled for this foreground
+ * helper scenario. This rehearsal does not cover background notification or SSE recovery.
  *
  *     bun pool-swarm-agent.ts <personId>.mcp.json
  *
@@ -97,7 +99,41 @@ let client: Client | null = null;
 async function connected(): Promise<Client> {
   if (client !== null) return client;
   const fresh = new Client({ name: `pool-agent-${personId}`, version: '1.0.0' });
-  await fresh.connect(new StreamableHTTPClientTransport(new URL(url), { fetch: helperFetch }));
+  const probe = Promise.withResolvers<undefined>();
+  // The SDK starts its GET probe after initialized without awaiting it. This stateless server
+  // closes that 200 SSE stream immediately; reconnects would race the foreground helper's
+  // 401. Drain startup, then exercise foreground calls only. The driver's existing command
+  // deadline bounds the barrier, including a probe whose body never ends.
+  await Promise.all([
+    fresh.connect(
+      new StreamableHTTPClientTransport(new URL(url), {
+        // Proof: re-enabling reconnects and overlapping the real second GET with a re-key
+        // POST failed the driver's exact recovery episode; watched 2026-10-29.
+        // The SDK requires the complete shape; its default delays are unused with zero retries.
+        reconnectionOptions: {
+          maxRetries: 0,
+          initialReconnectionDelay: 1_000,
+          maxReconnectionDelay: 30_000,
+          reconnectionDelayGrowFactor: 1.5,
+        },
+        fetch: async (input, init) => {
+          try {
+            const response = await helperFetch(input, init);
+            if (init?.method === 'GET') {
+              await response.clone().text();
+              emit({ event: 'probe_finished', status: response.status });
+              probe.resolve(undefined);
+            }
+            return response;
+          } catch (cause) {
+            if (init?.method === 'GET') probe.reject(cause);
+            throw cause;
+          }
+        },
+      }),
+    ),
+    probe.promise,
+  ]);
   client = fresh;
   return fresh;
 }

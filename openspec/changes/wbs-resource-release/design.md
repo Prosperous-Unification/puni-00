@@ -31,7 +31,7 @@ and verified release. WBS persists an attributable projection of this history an
 operator requests. It does not inspect paths, run shell commands, trust an ordinary worker's
 claim of deletion, or independently return runtime capacity.
 
-WBS claim occupancy retains its current semantics. An expired claim can disappear while its
+WBS claim occupancy retains its current semantics (superseded for a resource with a directory capacity by `wbs-shared-occupancy` design S9). An expired claim can disappear while its
 checkout remains charged in Dash and visible in WBS as cleanup pending. Undoing a claim
 release may reacquire logical occupancy; it cannot revive a deleted checkout or undo a
 physical release.
@@ -39,7 +39,8 @@ physical release.
 The UI labels **planned capacity**, **claim occupancy**, **runtime reserved** and
 **observed usage** separately. Runtime reservations are not added to claim occupancy: they
 describe different constraints. A WBS step that fits its declared capacity may still wait
-for Dash's host admission. Existing scheduling hashes and saved-plan semantics stay intact.
+for Dash's host admission. Existing scheduling hashes and saved-plan semantics stay intact, except where
+`wbs-shared-occupancy` S7 clamps a pool to a directory capacity.
 
 ## 2. Resource uses bind reservations to real things
 
@@ -182,7 +183,9 @@ reconciliation; no age-based deletion breaks them.
 Each physical host pool has one runtime authority and canonical identity across provider
 aliases. All projects using that pool share its reservation check. Two projects each
 declaring 32 GiB do not create 64 GiB of physical capacity. WBS's project-scoped occupancy
-is unchanged and must not be advertised as this host-wide protection.
+is unchanged and must not be advertised as this host-wide protection. (`wbs-shared-occupancy`
+S9: a resource with a directory capacity is counted across the organization's projects, still
+as declared units, never as this physical protection.)
 
 Every unreleased reservation entry counts: active, pending, blocked, unknown and retained.
 Admission atomically reserves the whole requested vector and requires provider headroom

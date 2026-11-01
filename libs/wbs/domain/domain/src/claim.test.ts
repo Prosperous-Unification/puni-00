@@ -51,6 +51,8 @@ function leafRequest(over: Partial<ClaimRequest> = {}): ClaimRequest {
     resources: null,
     capacities: [],
     occupancy: [],
+    directoryCapacities: [],
+    organizationOccupied: [],
     ...over,
   };
 }

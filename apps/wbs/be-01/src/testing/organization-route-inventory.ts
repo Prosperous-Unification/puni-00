@@ -127,6 +127,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'mutation',
   },
   {
+    operationId: 'postApiOrganizationResourcesByResourceIdDirectory-capacityPreview',
+    method: 'POST',
+    path: '/api/organization/resources/:resourceId/directory-capacity/preview',
+    kind: 'read',
+  },
+  {
     operationId: 'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report',
     method: 'PUT',
     path: '/api/compute-providers/:providerId/resources/:resourceId/capacity-report',
