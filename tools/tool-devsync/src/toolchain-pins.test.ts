@@ -514,8 +514,8 @@ describe('the CI gate scope', () => {
 // Proof (2026-09-26): reverting the manifest's di-bag pin to 0.5.0 failed the exact-pin test
 // with expected 0.5.1 and received 0.5.0; changing this expectation to 0.5.0 made it pass.
 const OWNER_PACKAGES = {
-  'di-bag': '0.5.1',
-  'application-exception': '0.7.0',
+  'di-bag': '0.5.2',
+  'application-exception': '0.8.1',
   'caught-object-report-json': '13.0.0',
 } as const;
 
