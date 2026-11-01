@@ -206,7 +206,7 @@ and returns the built/refused union from design.md. It uses actual fresh state, 
 claim basis. `upgradeSqliteWrites`/`downgradeUnusedSqliteWrites` return the existing
 SqliteFormatTransition type; `FORMAT6_IDENTITY` contains the exact six-name/hash ledger.
 
-- [ ] 2.1 Observe RED then integrate memory and SQLite atomic stage/acceptance with complete
+- [x] 2.1 Observe RED then integrate memory and SQLite atomic stage/acceptance with complete
       public read contracts — test: identical `write-store-contract.ts` through both providers,
       actual verified artifact wrappers and read-only builder, semantic state/revision/capacity
       parity, stale current owner, original acknowledgement replay and global identity collisions.
@@ -214,7 +214,7 @@ SqliteFormatTransition type; `FORMAT6_IDENTITY` contains the exact six-name/hash
       Negative: bypass each direct publication half, current-owner/revision check, scope context,
       request/claim/authority/state association and wrapper verification dependency; observe the
       actual provider or wrapper contract fail, restore exactly and retain original causes.
-- [ ] 2.2 Complete full-history and successor-version consumption — tests:
+- [x] 2.2 Complete full-history and successor-version consumption — tests:
       `write-history.test.ts`, `sqlite/write-store.db.test.ts` and existing history contracts
       remove/alter/reorder reciprocal scope/write/obligation/receipt/original-ack links behind
       otherwise plausible projections; every public read/replay/mutation/reopen throws. Keep
@@ -222,7 +222,7 @@ SqliteFormatTransition type; `FORMAT6_IDENTITY` contains the exact six-name/hash
       histories, claim/generation-floor/recovery verification on the new versions and precise
       non-executing Attempt4 states. Negative: independently bypass each new fold/link/current-row/
       version dispatch dependency; demonstrate a named semantic assertion rather than only a crash.
-- [ ] 2.3 Append complete additive format6 and explicit preserving transition — tests:
+- [x] 2.3 Append complete additive format6 and explicit preserving transition — tests:
       `write-migration.db.test.ts` uses the genuine c12 format5 producer for populated pending,
       terminal, authority/claim/recovery rows and opaque Unicode/NUL identities; compare original
       serialized bytes, acknowledgements and full ledgers. Prove initial private-inspection refusal
@@ -236,7 +236,7 @@ SqliteFormatTransition type; `FORMAT6_IDENTITY` contains the exact six-name/hash
       physical declarations, late DDL/copy/metadata failure rollback and cleanup-phase causes.
       Negative: break each new format/physical/hash/copy/key/usage/down/rollback dependency once
       through the actual transition. Preserve0001–0005 bytes and original4-to5 semantics.
-- [ ] 2.4 Prove genuine old-writer fencing and actual atomic crash cuts — tests:
+- [x] 2.4 Prove genuine old-writer fencing and actual atomic crash cuts — tests:
       `write-migration.db.test.ts` drives already-open, queued, BUSY and callback format5 writers
       across upgrade, preserving the old artifact/refusal-clock exceptions. `write-store.db.test.ts`
       injects late INSERT aborts and separate owned processes before/after actual staging and
@@ -244,7 +244,7 @@ SqliteFormatTransition type; `FORMAT6_IDENTITY` contains the exact six-name/hash
       Negative: remove the format fence or one transaction/publication edge and watch the real
       old writer/crash contract fail. Observe native close, process exit and available stream EOF;
       preserve unavailable observations rather than infer cleanup.
-- [ ] 2.5 Run migration lint, focused new/neighbor contracts and actual affected static/policy
+- [x] 2.5 Run migration lint, focused new/neighbor contracts and actual affected static/policy
       checks under one declared source hold; report counts, commands, full source/index/HEAD
       fingerprints, all retained faults/restorations and limits. Obtain independent task review.
       This is a local storage checkpoint; sender/recovery and final packet gates remain required.
