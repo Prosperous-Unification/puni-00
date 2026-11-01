@@ -1373,6 +1373,10 @@ const ACTIVATION_IMPORTS = [
     'lib/complete-dependency-exclusion.test.ts',
     ['@wbs/store-sqlite/db', '@wbs/store-sqlite/cross-project-dependency-activation'],
   ],
+  [
+    'lib/dependency-activation-storage.test.ts',
+    ['@wbs/store-sqlite/db', '@wbs/store-sqlite/cross-project-dependency-activation'],
+  ],
   ['fixtures/dependency-complete-activation.ts', ['@wbs/store-sqlite/migrate']],
 ] as const;
 
