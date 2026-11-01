@@ -1,3 +1,4 @@
+import { readDashInvocation } from './cli-parser';
 import { monotonicClock, wallClock } from './clock';
 
 /**
@@ -16,34 +17,37 @@ function refusalLine(cause: unknown): string {
   return `error: ${message}${codes.length === 0 ? '' : ` [${codes.join(', ')}]`}\n`;
 }
 
-const argv = process.argv.slice(2);
 try {
-  if (argv[0] === 'mcp') {
+  const invocation = readDashInvocation(process.argv.slice(2), (text) => {
+    process.stdout.write(text);
+  });
+  const command = invocation.kind === 'command' ? invocation.command : undefined;
+  if (command?.command === 'mcp') {
     // `mcp token` runs as Claude Code's `headersHelper`, whose 10 s budget counts from spawn:
     // it loads only its own modules (about 0.1 s), not `cli.ts`'s command graph (about 2.5 s,
     // measured 2026-10-27).
     // Proof: not dispatching `mcp` made `the entrypoint prints only the header map…` see exit 1
     // where 0 was expected (2026-10-27).
     const { runMcpCommand } = await import('./mcp/token-command');
-    await runMcpCommand(argv.slice(1), {
+    await runMcpCommand([command.subcommand, ...command.argv], {
       send: (input, init) => fetch(input, init),
       monotonic: monotonicClock(),
       sleep: (milliseconds) => Bun.sleep(milliseconds),
       environment: process.env,
       write: (text) => process.stdout.write(text),
     });
-  } else if (argv[0] === 'pool') {
+  } else if (command?.command === 'pool') {
     const { runPoolCommand, systemPoolFiles } = await import('./mcp/pool-import');
-    await runPoolCommand(argv.slice(1), {
+    await runPoolCommand([command.subcommand, ...command.argv], {
       send: (input, init) => fetch(input, init),
       write: (text) => process.stdout.write(text),
       helper: [process.execPath, import.meta.path],
       sleep: (milliseconds) => Bun.sleep(milliseconds),
       files: systemPoolFiles,
     });
-  } else {
+  } else if (command !== undefined) {
     const { runDash, runFleetPlan } = await import('./cli');
-    await runDash(argv, {
+    await runDash(command, {
       clock: wallClock(),
       monotonic: monotonicClock(),
       planEnrollment: runFleetPlan,

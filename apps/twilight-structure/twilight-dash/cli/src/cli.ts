@@ -10,6 +10,7 @@ import {
 } from './authority/authority-commands';
 import { submitAdmission } from './authority/submit-admission';
 import { runActivationChecksCommand, spawnCheck } from './check-runs/run-activation-checks';
+import { type DashCommand, parseDashCommand, UsageRefusal } from './cli-parser';
 import type { Monotonic, WallClock } from './clock';
 import { dockerAdapter } from './compute/docker';
 import { kubernetesStubAdapter } from './compute/kubernetes';
@@ -23,17 +24,6 @@ import { accountOutcomes } from './ledger/account-outcomes';
 import { McpWbsTools } from './mcp/wbs-tools';
 import { recordBoundProgress, recordProgress } from './progress/record-progress';
 import { runResources } from './resources/command';
-
-const enrollmentFlags = [
-  '--fleet',
-  '--observation',
-  '--output',
-  '--node',
-  '--cluster',
-  '--inventory-sha256',
-  '--ansible-variables-sha256',
-  '--known-hosts-sha256',
-] as const;
 
 type PlanEnrollment = (argv: readonly string[]) => Promise<void>;
 
@@ -57,107 +47,92 @@ export async function runFleetPlan(argv: readonly string[]): Promise<void> {
   await runPlan(argv);
 }
 
+/** The commands `entrypoint.ts` dispatches itself, so `mcp token` never loads this module. */
+type EntrypointCommand = Extract<DashCommand, { readonly command: 'mcp' | 'pool' }>;
+
+/** A parsed command `runDash` dispatches. */
+export type DispatchedCommand = Exclude<DashCommand, EntrypointCommand>;
+
+type Handlers = {
+  readonly [Name in DispatchedCommand['command']]: (
+    command: Extract<DispatchedCommand, { readonly command: Name }>,
+    deps: DashDependencies,
+  ) => Promise<void> | void;
+};
+
+function commandDependencies(deps: DashDependencies) {
+  return { clock: deps.clock, write: (text: string) => deps.stdout.write(text) };
+}
+
 /**
- * Dispatches Dash's commands: `plan-enrollment` through the fixed fleet planner; the four
- * authority commands (`bootstrap-authority`, `inspect-authority`, `recover-publication`,
- * `submit-admission`) through the runtime admission authority; the two observation store commands
- * (`bootstrap-observation`, `migrate-observation`) through the activation controller's store;
- * `render-observation-units` through the observation unit renderer; and `run-activation-checks`
- * through the stateless check runner, which spawns each check with {@link spawnCheck}.
- * `record-progress` and `record-progress-v2` record explicit operator assertions;
- * `account-outcomes` writes the period's efficiency breakdown; `report-capacity` runs the compute
- * providers' capacity reporter until it exits. Every other command refuses before any effect;
- * `mcp` never reaches here, because `entrypoint.ts` dispatches it before loading this module.
+ * One handler per dispatched command. Every delegated handler parses its whole grammar from
+ * `argv` before any effect: the authority commands before they open or create a store, the
+ * observation store commands before they read state, the check runner before it reads the
+ * candidate, the reporter before any connection, and the ledger before it reads a log.
  */
-export async function runDash(argv: readonly string[], deps: DashDependencies): Promise<void> {
-  // A JavaScript caller can omit what the type requires; refuse rather than reach for a default.
-  // Proof: giving `clock` a `wallClock()` default here failed `only clock.ts reads the wall
-  // clock` naming `cli.ts`; dropping this check let `runDash refuses missing dependencies`
-  // reach the dispatcher (2026-10-11); dropping `monotonic` from it did the same (2026-10-12).
-  for (const name of ['planEnrollment', 'clock', 'monotonic', 'stdout'] as const) {
-    if ((deps as Partial<DashDependencies> | undefined)?.[name] === undefined) {
-      throw new Error(`Dash dependency is required: ${name}`);
-    }
-  }
-  const [command, ...argumentsAfterCommand] = argv;
-  if (command === 'resources') {
-    process.exitCode = await runResources(
-      argumentsAfterCommand,
-      deps.clock,
-      (text) => deps.stdout.write(text),
-      (endpoint, key) =>
-        new McpWbsTools({
-          endpoint,
-          key,
-          send: (input, init) => fetch(input, init),
-          monotonic: deps.monotonic,
-          timeoutMs: RESOURCE_CALL_TIMEOUT_MS,
-          clientName: 'twilight-dash-resources',
-        }),
-    );
-    return;
-  }
-  const commandDependencies = {
-    clock: deps.clock,
-    write: (text: string) => deps.stdout.write(text),
-  };
-  // Proof: injecting a fleet call here failed `dispatcher uses no clocks or fleet planner`
-  // on its real dispatcher dependency canary (2026-10-15).
-  // The ledger command parses its whole grammar before it reads a log, a card or the repository.
-  if (command === 'account-outcomes') {
-    accountOutcomes(argumentsAfterCommand, (text) => deps.stdout.write(text));
-    return;
-  }
-  if (command === 'record-progress-v2') {
-    recordBoundProgress(argumentsAfterCommand, (text) => deps.stdout.write(text));
-    return;
-  }
-  if (command === 'record-progress') {
-    recordProgress(argumentsAfterCommand, (text) => deps.stdout.write(text));
-    return;
-  }
-  // Each authority command parses its whole grammar before it opens or creates a store.
-  if (command === 'bootstrap-authority') {
-    bootstrapAuthorityCommand(argumentsAfterCommand, commandDependencies);
-    return;
-  }
-  if (command === 'inspect-authority') {
-    inspectAuthorityCommand(argumentsAfterCommand, commandDependencies);
-    return;
-  }
-  if (command === 'recover-publication') {
-    recoverPublicationCommand(argumentsAfterCommand, commandDependencies);
-    return;
-  }
-  if (command === 'submit-admission') {
-    submitAdmission(argumentsAfterCommand, commandDependencies);
-    return;
-  }
-  // Each observation store command parses its whole grammar before it reads any state.
-  if (command === 'bootstrap-observation') {
-    await bootstrapObservationCommand(argumentsAfterCommand, commandDependencies);
-    return;
-  }
-  if (command === 'migrate-observation') {
-    await migrateObservationCommand(argumentsAfterCommand, commandDependencies);
-    return;
-  }
-  // The check runner parses its whole grammar before it reads the candidate or spawns anything.
-  if (command === 'run-activation-checks') {
-    runActivationChecksCommand(argumentsAfterCommand, {
+export const dashHandlers: Handlers = {
+  'plan-enrollment': (command, deps) =>
+    deps.planEnrollment([
+      '--operation',
+      'enroll',
+      '--fleet',
+      command.fleet,
+      '--observation',
+      command.observation,
+      '--output',
+      command.output,
+      '--node',
+      command.node,
+      '--cluster',
+      command.cluster,
+      '--inventory-sha256',
+      command.inventorySha256,
+      '--ansible-variables-sha256',
+      command.ansibleVariablesSha256,
+      '--known-hosts-sha256',
+      command.knownHostsSha256,
+    ]),
+  'bootstrap-authority': ({ argv }, deps) => {
+    bootstrapAuthorityCommand(argv, commandDependencies(deps));
+  },
+  'inspect-authority': ({ argv }, deps) => {
+    inspectAuthorityCommand(argv, commandDependencies(deps));
+  },
+  'recover-publication': ({ argv }, deps) => {
+    recoverPublicationCommand(argv, commandDependencies(deps));
+  },
+  'submit-admission': ({ argv }, deps) => {
+    submitAdmission(argv, commandDependencies(deps));
+  },
+  'render-observation-units': ({ argv }, deps) => {
+    renderObservationUnitsCommand(argv, (text) => deps.stdout.write(text));
+  },
+  'run-activation-checks': ({ argv }, deps) => {
+    runActivationChecksCommand(argv, {
       clock: deps.clock,
       execute: spawnCheck,
       write: (text) => deps.stdout.write(text),
     });
-    return;
-  }
-  // The reporter loads its whole configuration before any connection or request.
-  if (command === 'report-capacity') {
+  },
+  'bootstrap-observation': ({ argv }, deps) =>
+    bootstrapObservationCommand(argv, commandDependencies(deps)),
+  'migrate-observation': ({ argv }, deps) =>
+    migrateObservationCommand(argv, commandDependencies(deps)),
+  'record-progress': ({ argv }, deps) => {
+    recordProgress(argv, (text) => deps.stdout.write(text));
+  },
+  'record-progress-v2': ({ argv }, deps) => {
+    recordBoundProgress(argv, (text) => deps.stdout.write(text));
+  },
+  'account-outcomes': ({ argv }, deps) => {
+    accountOutcomes(argv, (text) => deps.stdout.write(text));
+  },
+  'report-capacity': async ({ argv }, deps) => {
     const PATH = process.env['PATH'] ?? '';
     const sshExecutable = Bun.which('ssh', { PATH });
     if (sshExecutable === null) throw new Error('report-capacity needs ssh on PATH');
     await reportCapacityCommand(
-      argumentsAfterCommand,
+      argv,
       {
         ssh_host: sshHostAdapter({ sshExecutable, environment: process.env }),
         // `docker` is required only once a docker instance opens.
@@ -182,50 +157,80 @@ export async function runDash(argv: readonly string[], deps: DashDependencies): 
         write: (text) => deps.stdout.write(text),
       },
     );
-    return;
-  }
-  if (command === 'render-observation-units') {
-    renderObservationUnitsCommand(argumentsAfterCommand, (text) => deps.stdout.write(text));
-    return;
-  }
-  if (command !== 'plan-enrollment') {
-    // Proof: bypassing this allowlist made the unsupported-command dispatcher negative invoke
-    // the fleet planner for apply/discover/build/deploy instead of refusing at the Dash boundary.
-    throw new Error(`Unsupported Dash command: ${command}`);
-  }
+  },
+  resources: async ({ argv }, deps) => {
+    process.exitCode = await runResources(
+      argv,
+      deps.clock,
+      (text) => deps.stdout.write(text),
+      (endpoint, key) =>
+        new McpWbsTools({
+          endpoint,
+          key,
+          send: (input, init) => fetch(input, init),
+          monotonic: deps.monotonic,
+          timeoutMs: RESOURCE_CALL_TIMEOUT_MS,
+          clientName: 'twilight-dash-resources',
+        }),
+    );
+  },
+};
 
-  const allowed = new Set<string>(enrollmentFlags);
-  const values = new Map<string, string>();
-  for (let position = 0; position < argumentsAfterCommand.length; position += 2) {
-    const flag = argumentsAfterCommand.at(position);
-    if (flag === undefined || !allowed.has(flag)) {
-      // Proof: bypassing this allowlist made all four unsupported-flag dispatcher negatives
-      // call the planner instead of refusing `--operation` or executable selection.
-      throw new Error(`Unsupported Dash flag: ${String(flag)}`);
+/**
+ * Dispatches one parsed Dash command (see {@link parseDashCommand}) to its handler in
+ * {@link dashHandlers}: `plan-enrollment` through the fixed fleet planner with only the reviewed
+ * enrollment operation; the four authority commands through the runtime admission authority; the
+ * two observation store commands through the activation controller's store;
+ * `render-observation-units` through the observation unit renderer; `run-activation-checks`
+ * through the stateless check runner, which spawns each check with {@link spawnCheck};
+ * `record-progress` and `record-progress-v2` record explicit operator assertions;
+ * `account-outcomes` writes the period's efficiency breakdown; `report-capacity` runs the compute
+ * providers' capacity reporter until it exits; `resources` runs the managed resource runtime.
+ * `mcp` and `pool` never reach here, because `entrypoint.ts` dispatches them before loading
+ * this module.
+ *
+ * @throws Error `Unsupported Dash command: <name>` for a command no handler takes, which only a
+ * JavaScript caller bypassing the parser can pass.
+ */
+export async function runDash(command: DispatchedCommand, deps: DashDependencies): Promise<void> {
+  // A JavaScript caller can omit what the type requires; refuse rather than reach for a default.
+  // Proof: giving `clock` a `wallClock()` default here failed `only clock.ts reads the wall
+  // clock` naming `cli.ts`; dropping this check let `runDash refuses missing dependencies`
+  // reach the dispatcher (2026-10-11); dropping `monotonic` from it did the same (2026-10-12).
+  for (const name of ['planEnrollment', 'clock', 'monotonic', 'stdout'] as const) {
+    if ((deps as Partial<DashDependencies> | undefined)?.[name] === undefined) {
+      throw new Error(`Dash dependency is required: ${name}`);
     }
-    if (values.has(flag)) {
-      // Proof: bypassing this guard made the duplicate-node dispatcher negative call the fleet
-      // planner with the last node value instead of refusing the ambiguous target.
-      throw new Error(`Duplicate Dash flag: ${flag}`);
-    }
-    const value = argumentsAfterCommand.at(position + 1);
-    if (value === undefined || value.length === 0 || value.startsWith('--')) {
-      // Proof: bypassing this guard made the valueless-flag negative lose its boundary
-      // refusal and pass an undefined value to the required-flag stage.
-      throw new Error(`Dash flag has no value: ${flag}`);
-    }
-    values.set(flag, value);
   }
+  const name: string = command.command;
+  // Proof: deleting this guard made `runDash refuses a command no handler takes` call
+  // `undefined` and throw a TypeError instead of the Dash refusal (2026-11-01).
+  if (!Object.hasOwn(dashHandlers, name)) throw new Error(`Unsupported Dash command: ${name}`);
+  // The handler table is keyed by the same union member that selected the handler, a pairing
+  // TypeScript cannot follow through an indexed access; the mapped type above checks each entry.
+  const handler = dashHandlers[command.command] as (
+    command: DispatchedCommand,
+    deps: DashDependencies,
+  ) => Promise<void> | void;
+  // Proof: injecting a fleet call here failed `dispatcher uses no clocks or fleet planner`
+  // on its real dispatcher dependency canary (2026-10-15).
+  await handler(command, deps);
+}
 
-  const fleetArguments: string[] = ['--operation', 'enroll'];
-  for (const flag of enrollmentFlags) {
-    const value = values.get(flag);
-    if (value === undefined) {
-      // Proof: bypassing this check made all eight missing-flag dispatcher negatives call
-      // the planner with an undefined required argument instead of refusing at Dash.
-      throw new Error(`Missing required Dash flag: ${flag}`);
-    }
-    fleetArguments.push(flag, value);
+/**
+ * Parses `argv` with {@link parseDashCommand} and dispatches it with {@link runDash}, for callers
+ * that hold a command line rather than a parsed command, such as the dispatcher tests.
+ *
+ * @throws UsageRefusal before any handler runs when the line is refused, prints only help, or
+ * names `mcp` or `pool`, which only `entrypoint.ts` dispatches.
+ */
+export async function runDashArguments(
+  argv: readonly string[],
+  deps: DashDependencies,
+): Promise<void> {
+  const command = parseDashCommand(argv);
+  if (command.command === 'mcp' || command.command === 'pool') {
+    throw new UsageRefusal(`${command.command} is dispatched by entrypoint.ts`);
   }
-  await deps.planEnrollment(fleetArguments);
+  await runDash(command, deps);
 }

@@ -2,11 +2,19 @@ import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { Usage } from '@optique/core';
 import { afterAll, describe, expect, test } from 'bun:test';
 
 import { openAuthority } from './authority/authority-store';
 import { acquireClaims } from './authority/claims';
-import { type DashDependencies, runDash } from './cli';
+import {
+  type DashDependencies,
+  dashHandlers,
+  type DispatchedCommand,
+  runDash,
+  runDashArguments,
+} from './cli';
+import { dashParser, readDashInvocation } from './cli-parser';
 
 const scratchRoots: string[] = [];
 
@@ -49,6 +57,8 @@ const enrollmentFlags = [
   'c'.repeat(64),
 ] as const;
 
+const planUsage = 'usage: twilight-dash plan-enrollment --fleet PATH --observation PATH';
+
 function observePlanner() {
   const calls: string[][] = [];
   return {
@@ -67,7 +77,7 @@ async function expectRefusal(
 ) {
   let refusal: unknown;
   try {
-    await runDash(argv, dependencies(planner.run));
+    await runDashArguments(argv, dependencies(planner.run));
   } catch (cause) {
     refusal = cause;
   }
@@ -82,13 +92,27 @@ describe('Dash enrollment planning dispatcher', () => {
     const execution = Bun.spawnSync({
       cmd: [process.execPath, join(import.meta.dir, 'entrypoint.ts'), 'apply', ...enrollmentFlags],
     });
-    expect(execution.exitCode).not.toBe(0);
-    expect(new TextDecoder().decode(execution.stderr)).toContain('Unsupported Dash command: apply');
+    expect(execution.exitCode).toBe(1);
+    expect(execution.stdout.toString('utf8')).toBe('');
+    expect(execution.stderr.toString('utf8')).toBe('error: Unsupported Dash command: apply\n');
+  });
+
+  test('the installed entrypoint refuses a valueless flag with the command usage', () => {
+    const execution = Bun.spawnSync({
+      cmd: [process.execPath, join(import.meta.dir, 'entrypoint.ts'), 'plan-enrollment', '--fleet'],
+    });
+    expect(execution.exitCode).toBe(1);
+    expect(execution.stdout.toString('utf8')).toBe('');
+    const stderr = execution.stderr.toString('utf8');
+    expect(stderr).toMatch(
+      /^error: usage: twilight-dash plan-enrollment --fleet PATH .*\(Dash flag has no value: --fleet\)\n$/,
+    );
+    expect(stderr.split('\n')).toHaveLength(2);
   });
 
   test('delegates only the reviewed enrollment operation and named arguments', async () => {
     const planner = observePlanner();
-    await runDash(
+    await runDashArguments(
       ['plan-enrollment', ...enrollmentFlags.slice(8), ...enrollmentFlags.slice(0, 8)],
       dependencies(planner.run),
     );
@@ -99,7 +123,11 @@ describe('Dash enrollment planning dispatcher', () => {
     'refuses unsupported command %s before planning',
     async (command) => {
       const planner = observePlanner();
-      await expectRefusal([command, ...enrollmentFlags], planner, /command/i);
+      await expectRefusal(
+        [command, ...enrollmentFlags],
+        planner,
+        new RegExp(`^Unsupported Dash command: ${command}$`),
+      );
     },
   );
 
@@ -107,7 +135,11 @@ describe('Dash enrollment planning dispatcher', () => {
     'refuses unsupported flag %s before planning',
     async (flag) => {
       const planner = observePlanner();
-      await expectRefusal(['plan-enrollment', ...enrollmentFlags, flag, 'apply'], planner, /flag/i);
+      await expectRefusal(
+        ['plan-enrollment', ...enrollmentFlags, flag, 'apply'],
+        planner,
+        new RegExp(`^${planUsage}.*\\(Unexpected option or subcommand: \`${flag}\`\\.\\)$`),
+      );
     },
   );
 
@@ -124,7 +156,11 @@ describe('Dash enrollment planning dispatcher', () => {
     const planner = observePlanner();
     const position = enrollmentFlags.indexOf(flag);
     const argv = enrollmentFlags.filter((_, index) => index !== position && index !== position + 1);
-    await expectRefusal(['plan-enrollment', ...argv], planner, new RegExp(flag));
+    await expectRefusal(
+      ['plan-enrollment', ...argv],
+      planner,
+      new RegExp(`^${planUsage}.*\\(Missing required Dash flag: ${flag}\\)$`),
+    );
   });
 
   test('refuses duplicate flags before planning', async () => {
@@ -132,17 +168,21 @@ describe('Dash enrollment planning dispatcher', () => {
     await expectRefusal(
       ['plan-enrollment', ...enrollmentFlags, '--node', 'node-2'],
       planner,
-      /duplicate.*--node/i,
+      new RegExp(`^${planUsage}.*\\(Duplicate Dash flag: --node\\)$`),
     );
   });
 
   test('refuses a valueless or empty flag before planning', async () => {
     const planner = observePlanner();
-    await expectRefusal(['plan-enrollment', ...enrollmentFlags.slice(0, -1)], planner, /value/i);
+    await expectRefusal(
+      ['plan-enrollment', ...enrollmentFlags.slice(0, -1)],
+      planner,
+      new RegExp(`^${planUsage}.*\\(Dash flag has no value: --known-hosts-sha256\\)$`),
+    );
     await expectRefusal(
       ['plan-enrollment', ...enrollmentFlags.slice(0, -1), ''],
       planner,
-      /--known-hosts-sha256/,
+      new RegExp(`^${planUsage}.*\\(Dash flag has no value: --known-hosts-sha256\\)$`),
     );
   });
 });
@@ -155,7 +195,7 @@ test('the fleet planner alias exposes only runPlan', async () => {
 
 async function refusalOf(deps: DashDependencies): Promise<string> {
   try {
-    await runDash(['plan-enrollment', ...enrollmentFlags], deps);
+    await runDashArguments(['plan-enrollment', ...enrollmentFlags], deps);
   } catch (cause) {
     if (cause instanceof Error) return cause.message;
     throw new Error('Dash did not return an Error', { cause });
@@ -202,7 +242,7 @@ function capturingDependencies(): { deps: DashDependencies; output: string[] } {
 
 async function refusalMessage(argv: readonly string[], deps: DashDependencies): Promise<string> {
   try {
-    await runDash(argv, deps);
+    await runDashArguments(argv, deps);
   } catch (cause) {
     if (cause instanceof Error) return cause.message;
     throw new Error('Dash did not return an Error', { cause });
@@ -213,7 +253,7 @@ async function refusalMessage(argv: readonly string[], deps: DashDependencies): 
 test('bootstrap-authority creates the store once and refuses the second time', async () => {
   const root = scratchRepository();
   const first = capturingDependencies();
-  await runDash(['bootstrap-authority', root], first.deps);
+  await runDashArguments(['bootstrap-authority', root], first.deps);
   const databasePath = join(root, '.git', 'module-wiki', 'authority.sqlite');
   expect(first.output).toEqual([
     `${JSON.stringify({ path: databasePath, status: 'bootstrapped' })}\n`,
@@ -233,7 +273,7 @@ test('inspect-authority prints the state and refuses an absent store', async () 
   );
   expect(existsSync(join(root, '.git', 'module-wiki'))).toBe(false);
 
-  await runDash(['bootstrap-authority', root], capturingDependencies().deps);
+  await runDashArguments(['bootstrap-authority', root], capturingDependencies().deps);
   const store = openAuthority(root, { clock: FIXED_CLOCK });
   acquireClaims(store, {
     conflictGroups: [],
@@ -244,16 +284,16 @@ test('inspect-authority prints the state and refuses an absent store', async () 
   store.close();
 
   const whole = capturingDependencies();
-  await runDash(['inspect-authority', root], whole.deps);
+  await runDashArguments(['inspect-authority', root], whole.deps);
   expect(JSON.parse(whole.output.join(''))).toEqual(JSON.parse(JSON.stringify(state)));
 
   const session = capturingDependencies();
-  await runDash(['inspect-authority', root, '--session', 'session-a'], session.deps);
+  await runDashArguments(['inspect-authority', root, '--session', 'session-a'], session.deps);
   expect(JSON.parse(session.output.join(''))).toEqual(
     JSON.parse(JSON.stringify({ generations: state.generations, sessionId: 'session-a' })),
   );
   const unknown = capturingDependencies();
-  await runDash(['inspect-authority', root, '--session', 'session-z'], unknown.deps);
+  await runDashArguments(['inspect-authority', root, '--session', 'session-z'], unknown.deps);
   expect(JSON.parse(unknown.output.join(''))).toEqual({ generations: [], sessionId: 'session-z' });
 });
 
@@ -302,4 +342,81 @@ test('a refused command prints one line on stderr and exits 1', () => {
   expect(execution.stderr.toString('utf8')).toBe(
     `error: authority absent: ${join(root, '.git', 'module-wiki')}; run \`twilight-dash bootstrap-authority <repository>\` to create it [ENOENT]\n`,
   );
+});
+
+test('runDash refuses a command no handler takes', async () => {
+  const planner = observePlanner();
+  // A JavaScript caller bypassing the parser; the type admits only dispatched commands.
+  const bypass = { command: 'apply' } as unknown as DispatchedCommand;
+  let refusal: unknown;
+  try {
+    await runDash(bypass, dependencies(planner.run));
+  } catch (cause) {
+    refusal = cause;
+  }
+  expect(refusal).toBeInstanceOf(Error);
+  expect(refusal instanceof Error && refusal.message).toBe('Unsupported Dash command: apply');
+  expect(planner.calls).toEqual([]);
+});
+
+/** The commands `entrypoint.ts` dispatches before it loads `cli.ts`. */
+const entrypointCommands = ['mcp', 'pool'];
+
+function printedBy(args: readonly string[]): string {
+  let stdout = '';
+  const invocation = readDashInvocation(args, (text) => {
+    stdout += text;
+  });
+  expect(invocation).toEqual({ kind: 'printed' });
+  return stdout;
+}
+
+/** The first word of each top-level command the root parser declares, through nested `or`s. */
+function parserCommands(usage: Usage = dashParser.usage): string[] {
+  return usage.flatMap((term) =>
+    term.type === 'exclusive'
+      ? term.terms.flatMap((branch) => {
+          const [first] = branch;
+          if (first.type === 'command') return [first.name];
+          return first.type === 'exclusive' ? parserCommands([first]) : [];
+        })
+      : [],
+  );
+}
+
+describe('Dash help and completion', () => {
+  test('help names every dispatched command and no other', () => {
+    const help = printedBy(['--help']);
+    const named = new Set(
+      [...help.matchAll(/^(?:Usage:)? +twilight-dash (\S+)/gmu)].map((match) => match[1]),
+    );
+    for (const generated of ['help', 'completion', '--help']) named.delete(generated);
+    const dispatched = [...Object.keys(dashHandlers), ...entrypointCommands].sort();
+    // Proof: removing `report-capacity` from the parser's command list (not from `dashHandlers`)
+    // failed this assertion with `- "report-capacity"` (2026-11-01).
+    expect([...named].sort()).toEqual(dispatched);
+    expect(parserCommands().sort()).toEqual(dispatched);
+  });
+
+  test('help <command> prints that command on stdout', () => {
+    expect(printedBy(['help', 'inspect-authority'])).toContain(
+      'Usage: twilight-dash inspect-authority',
+    );
+    expect(printedBy(['help', 'plan-enrollment'])).toContain('--known-hosts-sha256 SHA256');
+  });
+
+  test('the installed entrypoint prints help and a zsh completion script, exit 0', () => {
+    for (const args of [['--help'], ['help', 'mcp', 'token'], ['completion', 'zsh']]) {
+      const execution = Bun.spawnSync({
+        cmd: [process.execPath, join(import.meta.dir, 'entrypoint.ts'), ...args],
+        stderr: 'pipe',
+        stdout: 'pipe',
+      });
+      expect(execution.exitCode, args.join(' ')).toBe(0);
+      expect(execution.stderr.toString('utf8'), args.join(' ')).toBe('');
+      const stdout = execution.stdout.toString('utf8');
+      if (args[0] === 'completion') expect(stdout).toStartWith('#compdef twilight-dash\n');
+      else expect(stdout, args.join(' ')).toContain('Usage: twilight-dash ');
+    }
+  });
 });

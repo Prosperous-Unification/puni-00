@@ -19,6 +19,14 @@ and exposes the local commands below, plus the managed resource runtime:
 | `mcp token --resource <url> (--key-file <path> \| --assertion-file <path> \| --github-actions-audience <aud>) [--run <id>]`                                               | prints a fresh WBS MCP bearer as a header map for Claude Code's `headersHelper`, from an API key or a workload token; see [`mcp token`](#mcp-token)                                              |
 | `pool import <pool-keys.json> --store <directory>`                                                                                                                        | stores an agent pool's keys for `mcp token`, each agent with its own MCP config and run, after every key issued a token; see [`pool import`](#pool-import)                                       |
 
+`twilight-dash --help` and `twilight-dash help <command>` print help generated from the
+[command-line parser](src/cli-parser.ts) on stdout and exit 0; `twilight-dash completion bash|zsh|fish`
+prints a shell completion script. A refused command line prints one `error: ` line on stderr and
+exits 1: `Unsupported Dash command: <name>`, or the command's `usage: twilight-dash <command> …`
+line with the reason. Every command except `plan-enrollment` hands the words after its name
+(after `mcp token` and `pool import`, their two words) to its own module unchanged, which checks
+them and refuses in its own usage line.
+
 ## Managed resource cleanup
 
 `resources init|create|exec|run|inspect|cleanup|sweep|sync|watch` manages Linux disposable
