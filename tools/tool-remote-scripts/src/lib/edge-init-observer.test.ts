@@ -812,7 +812,8 @@ try:init_proc(Recycled(),os.getpid())
 except Refusal:print('recycled-refused')
 else:raise RuntimeError('recycled PID was admitted')
 `;
-  const child = Bun.spawn(['/usr/bin/python3', '-I', '-c', program], {
+  const child = Bun.spawn(['/usr/bin/python3', '-I', '-'], {
+    stdin: new Blob([program]),
     stdout: 'pipe',
     stderr: 'pipe',
   });

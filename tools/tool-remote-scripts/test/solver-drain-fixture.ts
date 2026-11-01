@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
-import { isRetainedEdgeOwnerRefusal } from '../src/lib/edge-admission';
+import { edgeStateDirectory, isRetainedEdgeOwnerRefusal } from '../src/lib/edge-admission';
 import {
   withSolverPolicyAdmission,
   withSolverRuntimeAdmission,
@@ -47,7 +47,7 @@ async function runCreator(): Promise<void> {
         { mode: 0o600, flag: 'wx' },
       ).catch(reject);
     });
-  });
+  }, edgeStateDirectory());
 }
 
 if (import.meta.main) {
