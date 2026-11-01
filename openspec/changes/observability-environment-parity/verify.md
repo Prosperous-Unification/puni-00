@@ -5821,3 +5821,77 @@ Root checked tested source bytes against5c601c86d before/after, and all142 packe
 generator inputs still match the retained49955 capture. This test-only correction
 needs no new packet or production binary. Current-head CI and all runtime/live
 acceptance remain separate; canonical observability milestones remain4/11.
+
+## Task86 — history fixture presentation and concrete sizing links (2026-11-01)
+
+This bounded R4 precise-contract repair changes only two history test child environments and
+the sizing document's networking references. Both `Bun.spawn` callsites now use the owning
+module's existing `{ ...process.env, FORCE_COLOR: '0', NO_COLOR: '1' }` precedent. Exact diagnostic
+equality, secret checks, FIFO deadline, receipt persistence and actual child/HTTP behavior stay
+intact. The directory reference is replaced with concrete cert-manager and Traefik manifest
+links; quantities and link-checker behavior stay intact. No production safety check was added.
+
+Base: `ceb640d49b67f4026fb8d4b779aebb9bfe24b443`. Source candidate: `f50477b54480d5f4850cefeae41b28b4a4552ca9`. A normal hooked source commit was necessary
+before the unchanged docs fixtures, because those fixtures clone committed HEAD. The appended
+verification is committed separately; both repaired source files retain their tested bytes.
+
+Each command below ran through `/tmp/puni-task86-evidence/capture.py`, which wrote verbatim
+stdout/stderr during execution and retained argv, environment, UTC start, actual exit and parent
+elapsed time in per-command JSON. Test invocations set `FORCE_COLOR=1` and removed inherited
+`NO_COLOR`. Patterns were regex-escaped from `/tmp/puni-ci86/failure-names.json`; actual selected
+names were checked against that list, with exactly 12 history and seven documentation cases.
+
+| Receipt         | Exit | Pass | Fail | Filtered | Assertions | Bun time  | Parent seconds |
+| --------------- | ---: | ---: | ---: | -------: | ---------: | --------- | -------------: |
+| red-history     |    1 |    0 |    1 |       64 |          3 | 693.00ms  |       0.702443 |
+| red-documents   |    1 |    0 |    1 |       14 |          1 | 1248.00ms |       1.269952 |
+| green-history   |    0 |   12 |    0 |       53 |         51 | 5.07s     |       5.079731 |
+| green-documents |    0 |    7 |    0 |       14 |         37 | 103.52s   |     103.525410 |
+
+The single pre-edit history RED failed exact `history-file-absent` equality on inherited ANSI;
+the single documentation RED named the absent `infra/platform/networking` link. The covering
+runs passed all 19 originally failed cases once, including the separate FIFO child boundary.
+
+Exact executed child argv (cwd is the repository root):
+
+```sh
+env -u NO_COLOR FORCE_COLOR=1 bun test --preload ./tools/test/scratch/preload.ts --timeout 30000 tools/tool-observability-stack/src/dev/history-cli.test.ts --test-name-pattern '^trusted request-missing boundary refuses without replacing an earlier output$'
+# red-history: exit 1; parent 0.702443s
+
+env -u NO_COLOR FORCE_COLOR=1 bun test --preload ./tools/test/scratch/preload.ts --timeout 30000 tools/tool-devsync/src/repo-namespacing-handoff.test.ts --test-name-pattern '^every routed current document resolves its local links and anchors$'
+# red-documents: exit 1; parent 1.269952s
+
+env -u NO_COLOR FORCE_COLOR=1 bun test --preload ./tools/test/scratch/preload.ts --timeout 30000 tools/tool-observability-stack/src/dev/history-cli.test.ts --test-name-pattern '^(?:trusted\ request\-missing\ boundary\ refuses\ without\ replacing\ an\ earlier\ output|trusted\ request\-unreadable\ boundary\ refuses\ without\ replacing\ an\ earlier\ output|trusted\ request\-malformed\ boundary\ refuses\ without\ replacing\ an\ earlier\ output|trusted\ request\-big\ boundary\ refuses\ without\ replacing\ an\ earlier\ output|trusted\ request\-public\ boundary\ refuses\ without\ replacing\ an\ earlier\ output|trusted\ checkpoint\-missing\ boundary\ refuses\ without\ replacing\ an\ earlier\ output|trusted\ checkpoint\-unreadable\ boundary\ refuses\ without\ replacing\ an\ earlier\ output|trusted\ occupied\ boundary\ refuses\ without\ replacing\ an\ earlier\ output|request\ unknown\ fields\ and\ empty\ checkpoint\ refuse\ before\ publication|trusted\ request\ symlink\ refuses\ rather\ than\ following\ another\ private\ file|receipt\ encoding\ size\ fault\ refuses\ before\ publication|FIFO\ trusted\ input\ refuses\ promptly\ within\ a\ controlled\ child\ deadline)$'
+# green-history: exit 0; parent 5.079731s
+
+env -u NO_COLOR FORCE_COLOR=1 bun test --preload ./tools/test/scratch/preload.ts --timeout 30000 tools/tool-devsync/src/repo-namespacing-handoff.test.ts tools/tool-devsync/src/check-documents-target.test.ts --test-name-pattern '^(?:every\ routed\ current\ document\ resolves\ its\ local\ links\ and\ anchors|every\ current\ document\ that\ trips\ a\ check\ carries\ an\ exemption\ for\ that\ check|the\ actual\ docs\ target\ executes\ documents,\ ADRs,\ retired\ roots\ and\ root\ provenance|runtime\ selection\ leaves\ the\ actual\ docs\ target\ a\ clean\ candidate\ tree|the\ actual\ docs\ target\ refuses\ broken\ ADR\ numbering|the\ actual\ docs\ target\ refuses\ broken\ retired\ root|the\ actual\ docs\ target\ refuses\ changed\ root\-migration\ payloads)$'
+# green-documents: exit 0; parent 103.525410s
+
+bunx --no-install eslint tools/tool-observability-stack/src/dev/history-cli.test.ts
+# lint: exit 0; parent 6.068584s
+
+bunx --no-install prettier --check tools/tool-observability-stack/src/dev/history-cli.test.ts docs/infra/observability-sizing.md
+# format-source: exit 0; parent 0.930067s
+
+bunx --no-install tsc --project tools/tool-observability-stack/tsconfig.spec.json --noEmit --incremental false
+# test-types: exit 0; parent 0.589730s
+
+```
+
+Scoped lint, formatting and the owning observability test TypeScript project passed. Both
+normal commit hooks are retained in raw receipts; Tool Wiki reports inactive/certified:false
+because its external activation root is unprovisioned. Unmatched migration and doc-cap hooks
+have no relevant staged files. No hook was bypassed. Evidence formatting and final commit
+outcomes are in the task report and machine-readable raw index.
+
+Raw receipts, hashes, selected-name verification and tested/current/Git source identities:
+`/tmp/puni-task86-evidence/index.jsonl`, `test-summary.json`, `tested-source-hashes.json` and
+`manifest.json`. Report: `.superpowers/sdd/observability-environment-parity/task-86-report.md`.
+Historical verification content is preserved byte-for-byte apart from its trailing section
+boundary whitespace; no old passing proof was replayed or relabeled.
+
+Not run: whole suites, full Nx or host gates, unchanged CLI builds, backend/frontend/browser
+checks, CI/provider/SSH/runtime/packet operations and old proof matrices. Current-head CI and
+live observability acceptance remain unverified; canonical runtime progress remains 4/11.
+Publication and independent review remain root-owned. This fixture/doc repair certifies no
+host, Secret, service, store, admission, capacity or runtime milestone.
