@@ -1,0 +1,135 @@
+import {
+  canonicalRuntimeRequest,
+  parseCanonicalRuntimeRequest,
+  type RuntimeState,
+} from '@wbs/contracts';
+
+import type { WriteFacts } from '../plan-writes';
+import { executionCommandId } from '../value-codecs';
+import type { WriteCompletion, WriteStageCommand } from '../write-records';
+import { type OutcomeFixture, prepareTurn } from './fixtures';
+
+/** Real prepared/claimed turn with separately retained current WBS state and caller-approved batch. The caller owns stores.close(). */
+export async function createWriteFixture(stores: OutcomeFixture) {
+  const setup = await prepareTurn(stores);
+  const binding = setup.execution.binding;
+  const claimed = parseCanonicalRuntimeRequest(binding.intent.canonicalRequest).operation;
+  if ('kind' in claimed || claimed.action.kind !== 'claim')
+    throw new Error('fixture requires claim');
+  const { kind: _kind, ...target } = claimed.action;
+  const live = { claimId: binding.projection.claimId, ...target };
+  const state: RuntimeState = {
+    ...setup.state,
+    basis: binding.projection.basisAfter,
+    claims: [
+      {
+        kind: 'runtime',
+        claim: {
+          id: live.claimId,
+          workItemId: live.workItemId,
+          stepId: live.stepId,
+          personId: setup.scope.personId,
+          runId: setup.locator.preparation.identity.runId,
+          parentClaimId: live.parentClaimId,
+          accountId: binding.projection.actorId,
+        },
+        binding: live,
+      },
+    ],
+  };
+  const retained = await stores.artifacts.retainArtifact(
+    new TextEncoder().encode(JSON.stringify(state)),
+    'application/json',
+  );
+  if (retained.kind !== 'retained') throw new Error('fixture write state refused');
+  const canonicalRequest = canonicalRuntimeRequest(setup.scope, {
+    schemaVersion: 1,
+    commandId: 'wire-write',
+    expectedLedgerId: state.ledgerId,
+    authority: claimed.authority,
+    expectedBasis: state.basis,
+    action: {
+      kind: 'write',
+      claim: live,
+      commands: [
+        { kind: 'setProgress', workItemId: live.workItemId, stepId: live.stepId, state: 'done' },
+        {
+          kind: 'releaseWorkItem',
+          workItemId: live.workItemId,
+          personId: setup.scope.personId,
+          steps: [live.stepId],
+        },
+      ],
+    },
+  });
+  const completion: WriteCompletion = {
+    version: 1,
+    outcome: {
+      version: 1,
+      kind: 'succeeded',
+      artifacts: [setup.quiescence.evidence],
+      summary: 'validated output',
+    },
+    quiescence: { ...setup.quiescence, effect: 'succeeded' },
+  };
+  const guard = await setup.scopedGuard();
+  const snapshot = await stores.runs.readRun(guard.runId);
+  const history = await stores.runs.readExecutionHistory(guard.runId, guard.attemptId);
+  const scope = await stores.runs.readRuntimeScope(guard.scope);
+  if (scope.kind !== 'pinned') throw new Error('fixture write scope missing');
+  const command: WriteStageCommand = {
+    version: 1,
+    kind: 'stage_write',
+    commandId: executionCommandId('stage-write'),
+    completion,
+    canonicalRequest,
+    observation: {
+      version: 1,
+      evidence: retained.reference,
+      scope: state.scope,
+      ledgerId: state.ledgerId,
+      basis: state.basis,
+      workItemId: snapshot.run.workItemId,
+      stepId: live.stepId,
+      stepCode: 'plan',
+    },
+  };
+  const facts: WriteFacts = {
+    run: snapshot.run,
+    attempt: history.attempt,
+    manifest: setup.manifest,
+    ownership: {
+      storeId: setup.ownership.storeId,
+      organizationId: setup.ownership.organizationId,
+      epoch: setup.ownership.epoch,
+      owner: setup.ownership,
+    },
+    executions: history.executions,
+    submissions: history.executions,
+    scope,
+    runtime: {
+      scopes: [{ pin: scope.pin, revision: scope.revision }],
+      intents: scope.intents,
+      acceptances: scope.acceptances,
+      recovery: {
+        histories: [],
+        barriers: [],
+        active: [],
+        counts: { journals: 0, fences: 0, observations: 0, closures: 0, barriers: 0, active: 0 },
+      },
+    },
+    writes: [],
+    obligations: [],
+  };
+  return {
+    ...setup,
+    guard,
+    command,
+    facts,
+    state,
+    stateEvidence: retained.reference,
+    completion,
+    canonicalRequest,
+    currentGuard: setup.scopedGuard,
+  };
+}

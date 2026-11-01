@@ -1537,3 +1537,73 @@ describe('recovery dispatch exact consumer boundaries', () => {
     }
   }, 30000);
 });
+
+describe('Dash write value contract boundaries', () => {
+  const root = 'apps/twilight-structure/twilight-dash/cli/src/runs/';
+  for (const name of ['write-records.ts', 'plan-writes.test.ts', 'testing/write-fixture.ts']) {
+    it(
+      name + ' admits only its exact public contract alias with inherited fences',
+      async () => {
+        const path = root + name;
+        const source = await readFile(join(workspace, path), 'utf8');
+        expect(importsAlias(source, '@wbs/contracts')).toBe(true);
+        const [admission] = await lint.lintText(source, { filePath: path });
+        expect(admission.fatalErrorCount).toBe(0);
+        expect(admission.messages.map((message) => message.ruleId)).not.toContain(
+          '@nx/enforce-module-boundaries',
+        );
+        const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
+        const peerOptions = boundaryOf(
+          await lint.calculateConfigForFile(
+            root + (name.endsWith('.test.ts') ? 'plan-admission.test.ts' : 'plan-execution.ts'),
+          ),
+        )[1];
+        if (!isRecord(options)) throw new Error('write contract policy malformed');
+        for (const alias of [
+          '@wbs/store-memory',
+          '@wbs/contracts/solver/supervisor-protocol',
+          '@twilight-burokrat/contracts',
+          relative(
+            dirname(join(workspace, path)),
+            join(workspace, 'libs/wbs/domain/contracts/src/index.ts'),
+          ),
+        ]) {
+          const [denial] = await lint.lintText('await import(' + JSON.stringify(alias) + ');', {
+            filePath: path,
+          });
+          expect(denial.fatalErrorCount).toBe(0);
+          expect(denial.messages.map((message) => message.ruleId)).toContain(
+            '@nx/enforce-module-boundaries',
+          );
+        }
+        expect(options['allow']).toEqual(['^@wbs/contracts$']);
+        const constrainedOptions: unknown = {
+          ...options,
+          allow: isRecord(peerOptions) ? peerOptions['allow'] : undefined,
+        };
+        expect(constrainedOptions).toEqual(peerOptions);
+      },
+      30_000,
+    );
+  }
+  for (const name of [
+    'write-codecs.ts',
+    'plan-writes.ts',
+    'write-codecs.test.ts',
+    'plan-execution.ts',
+  ]) {
+    it(
+      name + ' stays an unlisted peer',
+      async () => {
+        const [denial] = await lint.lintText("await import('@wbs/contracts');", {
+          filePath: root + name,
+        });
+        expect(denial.fatalErrorCount).toBe(0);
+        expect(denial.messages.map((message) => message.ruleId)).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+      },
+      30_000,
+    );
+  }
+});

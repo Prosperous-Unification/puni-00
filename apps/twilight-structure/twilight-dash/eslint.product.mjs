@@ -305,5 +305,16 @@ export default ({
       ],
       rules: boundary(['^@twilight-burokrat/contracts$', '^@wbs/contracts$']),
     },
+    // Proof: T1 policy-remove-* independently removed each exact consumer; its actual-source admission failed with zero fatal errors.
+    // Proof: T1 policy-widen-{alias,relative,subpath,peer,test-peer}-corrected admitted forbidden imports; production ESLint denial assertions failed with zero fatal errors. Exact restoration passed.
+    // Proof: T1 final-relative-consumer repeated relative widening against each resolved real contract path; zero-fatal production denial assertions failed. Exact restoration passed.
+    {
+      files: [
+        'apps/twilight-structure/twilight-dash/cli/src/runs/write-records.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/runs/plan-writes.test.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/runs/testing/write-fixture.ts',
+      ],
+      rules: boundary(['^@wbs/contracts$']),
+    },
   ];
 };

@@ -160,7 +160,7 @@ export const CompletionCodec = type({
   intent: ProgressIntentCodec,
   quiescence: QuiescenceCodec,
 }).onUndeclaredKey('reject');
-const TurnCheckpointCodec = type({
+export const TurnCheckpointCodec = type({
   kind: "'turn_pending'",
   execution: ClaimedCodec,
   turn: TurnIntentCodec,

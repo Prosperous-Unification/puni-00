@@ -97,8 +97,11 @@ are current outbox entries. Accepted history survives in the journal and local w
 
 `WriteStageAck1 = { version: 1; kind: 'write_staged'; intent; obligation; attempt: Attempt4 }`.
 `WriteAcceptAck1 = { version: 1; kind: 'write_accepted'; receipt; attempt: Attempt4 }`.
-`RecordedWrite1` is a discriminated stage/accept record with `runId`, `attemptId`,
-`context: ScopeContext`, the corresponding command and corresponding acknowledgement.
+`RecordedWrite1` is a discriminated stage/accept record with `version: 1`,
+`kind: 'stage_write' | 'accept_write'`, `runId`, `attemptId`, `context: ScopeContext`,
+the corresponding `command` and original acknowledgement under `reply`, matching the
+existing execution-journal naming. Export its exact variants as `RecordedWriteStage`
+and `RecordedWriteAcceptance`.
 
 `ExecutionHistory3` preserves the legacy arrays/nullable generic completion and receipt and
 adds `writes: readonly RecordedWrite[]`. `RunSnapshot4` preserves generic pending intents
