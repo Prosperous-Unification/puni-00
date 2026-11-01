@@ -47,11 +47,14 @@
       stored role in place of `organizationRoleOf` and the admin's agent writes 16; skip the audit write and the audit test finds no row; skip the
       organization check and a legacy resource takes a capacity.
 - [x] 1.3 Announce (S7): every applied `setDirectoryCapacity` publishes `directory_changed`
-      through `DirectoryService.announce` to each project that demands or states the
+      through `DirectoryService.announce` to each project that demands, states or holds the
       resource — test: the spec's roll-up scenario. Fault line: skip the announce and a
       space roll-up serves the stale dates scheduled against 32. (Built: the publication to
       every project that states or demands the resource, proven on the memory twin; the
-      roll-up half of the scenario needs the clamp of 6.1 and is proven there.)
+      roll-up half of the scenario needs the clamp of 6.1 and is proven there. Review S3-1,
+      2026-11-01: a project holding it only through a claim's `resources` is told too, on
+      both stores, proven by the holder case of `directory-capacity.controller.db.test.ts`
+      and the `directory.setDirectoryCapacity:state-clear-remove` certification.)
 - [x] 1.4 Preview endpoint `POST /api/organization/resources/:resourceId/directory-capacity/preview`
       (S12), admin only — test: the spec's preview scenario; row count and audit count
       unchanged; a member and an admin's agent refused `forbidden`. Fault line: write
@@ -121,7 +124,9 @@
       run and work item ids). Fault line: return holders unfiltered and the string search
       finds A's ids. No production-path negative exists until a `wbs-permissions` grant can
       deny (waived in 0.1, 2026-11-01); the negative moves to the production path in the
-      `wbs-permissions` slice that replaces the method's body.
+      `wbs-permissions` slice that replaces the method's body. Follow-up (review S3-4):
+      `previewDirectoryCapacityWithin` hardcodes `hiddenProjects: { count: 0, units: 0 }`
+      and names every project; it must route through the read grant when `wbs-permissions` lands.
 - [ ] 4.2 `GET /api/organization/resources/:resourceId/occupancy` (S12) with
       `releasableBy` — test: the two spec scenarios; a member and an admin's agent
       refused `forbidden`. Fault lines: skip the role check and the member reads other

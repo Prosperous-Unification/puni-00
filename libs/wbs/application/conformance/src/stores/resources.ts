@@ -62,6 +62,28 @@ export async function seedResourceCase(
     const added = await stores.directory.addResource(resource, seed.stamps[0]);
     if (!added.ok) throw new Error(`conformance resource ${resource.id} was refused`);
   }
+  if (caseId === 'directory.setDirectoryCapacity:state-clear-remove') {
+    // A claim holding RAM through its `resources` alone in each project, no
+    // demand and no capacity: the first project is RAM's organization's and is
+    // announced, the second another organization's and is not (review S3-1).
+    const holders = [0, 1].map((index) => ({
+      id: `claim-holding-ram-${String(index)}`,
+      workItemId: seed.workItemIds[index === 0 ? 0 : 1][0],
+      stepId: seed.stepIds[index === 0 ? 0 : 1][0],
+      personId: seed.personIds[0],
+      runId: null,
+      parentClaimId: null,
+      accountId: seed.ownerIds[0],
+    }));
+    const held = await stores.claims.add(
+      holders,
+      [],
+      seed.stamps[0],
+      holders.map(({ id }) => ({ claimId: id, resourceId: RAM.id, units: 2 })),
+    );
+    if (held !== 'written') throw new Error(`conformance occupancy was refused: ${held}`);
+    return;
+  }
   if (caseId !== 'directory.removeResource:in-use-cascade') return;
   if ((await stores.demands.set(seed.workItemIds[0][0], RAM.id, 4, seed.stamps[0])) !== 'written')
     throw new Error('conformance demand was refused');
@@ -231,7 +253,10 @@ export function directoryResourceRegistrations(
     // refusal removed, the memory certification failed here stating the
     // stage's capacity; with its removal check ignoring the directory capacity,
     // it removed RAM unconfirmed; with SQLite's usage answering null, the
-    // SQLite certification failed the same way.
+    // SQLite certification failed the same way. The announce names the
+    // organization's project whose claim holds RAM, not the other
+    // organization's (review S3-1); its fault lines are proven at each
+    // store's `setDirectoryCapacity`.
     storeCase(
       'directory',
       'directory.setDirectoryCapacity:state-clear-remove',
@@ -248,7 +273,7 @@ export function directoryResourceRegistrations(
           before: null,
           after: 16,
           organizationId: SHARED_OCCUPANCY_OWNERSHIP.organizationId,
-          projectIds: [],
+          projectIds: [seed.projectIds[0]],
         });
         expect(await port.setDirectoryCapacity(RAM.id, 0, act('audit-2'))).toMatchObject({
           ok: true,

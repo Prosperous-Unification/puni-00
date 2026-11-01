@@ -365,6 +365,42 @@ describe('previewing and lowering a directory capacity', () => {
     });
   });
 
+  // Proof: with the holders left out of SQLite's `setDirectoryCapacity`
+  // announce set, C's event log gained no `directory_changed` here; watched 2026-11-01.
+  it('announces directory_changed to a project that holds the resource only through a claim', async () => {
+    await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, 16)] });
+    const projectC = await create(h, 'ada', 'C');
+    h.sqlite.run(
+      "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-held', ?, NULL, 0, 'w-held')",
+      [projectC],
+    );
+    const claimed: Answer = await h.call('ada', 'POST', `/api/projects/${projectC}/commands`, {
+      commands: [
+        {
+          kind: 'claimWorkItem',
+          workItemId: 'w-held',
+          personId: 'agent-a',
+          resources: [{ resourceId: ram, units: 6 }],
+        },
+      ],
+    });
+    expect(claimed).toMatchObject({ status: 200 });
+    const toldC = () =>
+      h.sqlite
+        .query<{ message: string }, [string]>(
+          'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
+        )
+        .all(`project:${projectC}`)
+        .filter(
+          ({ message }) => (JSON.parse(message) as { type: string }).type === 'directory_changed',
+        ).length;
+    const before = toldC();
+    expect(await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, 8)] })).toMatchObject({
+      status: 200,
+    });
+    expect(toldC()).toBe(before + 1);
+  });
+
   it('strands nothing when lowered below what is held, refusing new claims until it drains', async () => {
     await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, 16)] });
     await hold([8, 6]);

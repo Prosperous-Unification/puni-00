@@ -485,3 +485,31 @@ wbs-mcp-01 wbs-contracts wbs-domain wbs-conformance --skip-nx-cache --parallel=1
 - Migration lint as CI runs it (`git ls-files '*.sql'`) → exit 0; `migration-lint.test.ts` → 29/0.
 - `bunx prettier --check` on every file differing from main → clean; `openspec validate --all
 --json` → 304/304; `check-indexes working . HEAD` → exit 0.
+
+## Review S3-1 and S3-4 (Fable), addressed 2026-11-01
+
+- S3-1: `setDirectoryCapacity` now also announces to every project of the resource's
+  organization whose claims hold units of it (`claim_occupancy → claim → work_item →
+project_organization`), on SQLite and the memory twin, so the announce set agrees with the
+  preview's project list. Proofs, each watched 2026-11-01: with SQLite's holders left out,
+  `announces directory_changed to a project that holds the resource only through a claim`
+  (`directory-capacity.controller.db.test.ts`) read 0 announces for C (11 pass, 1 fail) and the
+  SQLite certification failed `directory.setDirectoryCapacity:state-clear-remove`; with the
+  organization condition removed, that case failed on the other organization's holder; with
+  the memory twin's holders left out, the memory certification failed the same case.
+- S3-4 recorded as a follow-up under task 4.1 (the preview's hardcoded `hiddenProjects`).
+
+Commands (each with `env -u CLAUDECODE`):
+
+- `bun test` on `directory-capacity.controller.db.test.ts`, `shared-occupancy.db.test.ts`,
+  `directory-capacity.test.ts` → 45/0; `directory.db`, `resource.db`, `resource-occupancy.db`,
+  conformance `existing.test.ts` → 90/0; memory certification → 84/0; SQLite certification →
+  83 pass, 1 fail (`Task 6.3 observes each saved-plan capture boundary fault`, a 5 s timeout
+  under laptop load), 6/0 for that block with `--timeout 30000`; after the lint fix (a plain
+  `select` deduplicated, `Reader` offers no `selectDistinct`) the SQLite certification with
+  `--timeout 30000` → 84/0 and the controller, shared-occupancy, directory and
+  resource-occupancy files → 124/0.
+- `bunx nx run-many -t typecheck,lint -p wbs-store-sqlite wbs-store-memory wbs-conformance
+wbs-be-01 --skip-nx-cache --parallel=1` → exit 0.
+- Prettier on changed files → clean; `openspec validate --all --json` → 304/304;
+  `check-indexes working . HEAD` → exit 0.

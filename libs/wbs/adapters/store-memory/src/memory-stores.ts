@@ -434,12 +434,22 @@ export function bindStores(
         ),
       );
     },
+    // The announce set is SQLite's: the projects that demand, state or hold
+    // the resource, a holder only in the resource's own organization (review S3-1).
+    // Proof: with the holders left out, the memory certification's
+    // `directory.setDirectoryCapacity:state-clear-remove` read `[]`; watched 2026-11-01.
     async setDirectoryCapacity(resourceId, units, act) {
       const written = await fixtureDirectory.setDirectoryCapacity(resourceId, units, act);
       if (!written.ok) return written;
+      const holding = occupyingProjectsOf(resourceId).filter(
+        (id) =>
+          state.tables.organizationLimits.projectOrganization.get(id) === written.organizationId,
+      );
       return {
         ...written,
-        projectIds: [...new Set([...written.projectIds, ...demandProjectsOf(resourceId)])].sort(),
+        projectIds: [
+          ...new Set([...written.projectIds, ...demandProjectsOf(resourceId), ...holding]),
+        ].sort(),
       };
     },
     // Occupancies live in the source's claim table, out of the fixture's sight,

@@ -160,8 +160,8 @@ no contract bump. A saved plan captures the raw facts, `directoryCapacities` bes
 `resourceCapacities` in `PlanInputReads` on the same snapshot, and clamps through the same
 function when it schedules, as it already captures raw project capacities; so a saved plan
 keeps the directory capacity it was captured under. Task 6.1 lists every call site. Every
-`setDirectoryCapacity` publishes `directory_changed` to each project that demands or states
-the resource, through `DirectoryService.announce`, the path every directory resource write
+`setDirectoryCapacity` publishes `directory_changed` to each project that demands, states or
+holds the resource (a claim's `resources` can hold one no demand names), through `DirectoryService.announce`, the path every directory resource write
 takes; the publication moves each project's event sequence, so the `RollUpCache` key and
 open plans recompute. Consequence, stated not hidden: two projects' schedules may each plan
 the whole 16 GB on the same day; the claim path enforces the share. Alternative: portfolio
