@@ -534,3 +534,22 @@ own epoch; current policy8/inherited23 and all required leaves/aggregate remain
 pending. The canonical [integration scope and outstanding obligations](../cross-project-dependencies/verify-participant-policy.md#separate-current-source-integration-2026-10-31)
 records the bindings and held proofs. No omission campaign or frozen input is
 resumed by this documentation reconciliation.
+
+### Complete39 capacity follow-up preparation — 2026-11-01
+
+CI41287825858 attempt1 exact06023bf0 ended21 successful jobs,2 failed(remote
+and aggregate),1 expected docs skip. Remote-rest reached4500seconds/124; artifact
+SHA256973dc3c27d8b692bdca11b545f92e715785e48ed0a4e9b6d30e016e9f4a90602.
+Reviewed fixture-only correction6c943175 is privately published with fresh focused
+drain7/0 and observer1/0; capacity remains unresolved.
+
+The unchanged39-case complete-dependency-exclusion parent passed in both captures,
+1181.00017s baseline and1287.85446s current. This selects an owner, not acceptance.
+Decision SHA256f8d98b25273d7f24ef7f445b7b3298b9b0d98ca7a4566136aa80a91e6cf5124e;
+eight-path scope SHA2565b35f9e7f623b09c7490005592ea528d76c58319f4d8859ab94a12c41d279e6f;
+independent private-contract GO SHA256732215d52f3ba9a2711adb7f0c4f76d1b3caccb8a293e8e55009990429bbab1d.
+
+Only five Root OpenSpec documents are materialized here. Eight-path implementation,
+local checks/builds, new physical omissions, complete39 execution, hosted retry,
+source review and final-candidate capacity qualification remain unperformed/open.
+No native/main/deploy acceptance; previous source/policy history remains intact.

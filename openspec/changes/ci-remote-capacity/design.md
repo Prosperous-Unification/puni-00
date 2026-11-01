@@ -50,3 +50,38 @@ all required leaves/aggregate must finish before current distributed coverage or
 capacity acceptance. No intact31 single-process fit or native qualification is
 inferred. The approved independent CI addendum fixes these exact proof scopes;
 local plumbing does not replace actual policy qualification.
+
+## Complete-activation whole-parent follow-up (2026-11-01)
+
+This current revision supersedes earlier counts with seven fixed leaves and six
+isolated matrix members. Add only complete-activation,
+`tool-remote-scripts:test:ci:complete-activation`, and remote-complete-activation.
+It owns the unchanged whole `src/lib/complete-dependency-exclusion.test.ts`
+(39 registrations), distinct from dependency-complete-activation.test.ts. Rest
+adds only its exact root-relative exclusion. Actual canonical Bun discovery stays
+authoritative: fixed owners and remainder have complete, pairwise-disjoint union,
+including future substring/same-name collisions outside the exact root path.
+
+The new target is noncached, preserves canonical inputs/environment and ^build.
+Its final outer receipt requires39 passes AND tests, one file, without failures,
+skips, todos or outer filters. Nested summaries do not qualify. Required regular
+readable owners and raw target contracts validate before child launch; missing,
+unreadable and alias faults remain distinct. The six-member matrix retains
+logical selection, immutable plan/head/base/mode checks, --skip-nx-cache dispatch,
+serial cases, fail-fast:false, distinct artifacts and strict whole-matrix input.
+Exact pinned Node identities remain source, source-restoration and policy; the
+new owner uses existing Bun/Git/Python/BusyBox tooling. Rest alone retains Caddy
+and static checks. Canonical local/host execution and heavy-lock scripts stay exact.
+
+Both captures completed39 cases:1181.00017s baseline and1287.85446s current.
+These justify owner selection, not capacity acceptance. Retain4500-second phases,
+90-minute jobs,30-second TERM escalation and all current CLI/per-case budgets.
+New complete39/remainder and all peers/aggregate must qualify on one final head.
+Actual original child exit and both output settlements remain required; timeout124
+is not settlement. Preserve earlier histories and unfinished policy qualification.
+
+Verify actual tiny-Bun discovery, exact target/file contracts, affected/full
+routing, parsed sixth membership/execution, complete outer receipts, unchanged
+workflow reducer and toolchain checks. Each new safety boundary still needs a
+separately reviewed finite production-path R5 witness. This materialization grants
+no source omission, held-campaign replay, native acceptance or hosted retry.

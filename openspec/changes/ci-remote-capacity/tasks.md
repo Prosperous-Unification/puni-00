@@ -39,3 +39,10 @@
 - [ ] 22. Extend canonical tiny-Bun union/disjointness, pre-child file/target/ownership refusals and complete23/8 outer receipt checks; add closed leaf/target/affected-full dispatch and fifth isolated matrix member with exact Node/artifact ownership.
 - [ ] 23. Review and execute only sealed finite registration/receipt/workflow/dispatch dependency omissions. Distinguish matrix membership/step proofs from whole-matrix reducer inputs. Complete scoped static/source review.
 - [ ] 24. Require current policy8 and inherited23 full hosted parents, all other required leaves and strict aggregate on one final candidate within75m/90m before accepting capacity. Root owns Git/publication/hosted validation; native/architectural main holds remain.
+
+## Complete-activation whole-parent follow-up
+
+- [ ] 25. Observe actual tiny-Bun ownership/receipt/dispatch/workflow RED; add only the unchanged complete39 parent as seventh disjoint leaf and sixth isolated runner, preserving canonical host execution.
+- [ ] 26. Exercise full discovery/collision coverage, required owner/target absence/unreadability/alias refusals, exact39 outer receipt, affected/full dispatch and parsed membership/execution with fresh tiny children; preserve static/Caddy/Node ownership, bounds and original custody.
+- [ ] 27. Independently review frozen eight-path source and run scoped statics/OpenSpec. Separately prepare/review any new finite R5 dependencies before their execution grant; record only observed adjacent evidence. Preserve all held proof scopes.
+- [ ] 28. Require fresh complete39, remainder, all other required leaves and strict aggregate on one final candidate within unchanged budgets before capacity acceptance. Root owns publication/hosted validation; native and architectural main holds remain.

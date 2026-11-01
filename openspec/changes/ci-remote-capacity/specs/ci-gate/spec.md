@@ -11,15 +11,15 @@ The shared scratch preload SHALL allow its global afterAll 30000 ms while retain
 - **AND** deleting only the explicit allowance makes that replay fail
 - **AND** an ordinary hung test still fails at the command-line deadline
 
-### Requirement: Remote execution has exactly six fixed complete leaves
+### Requirement: Remote execution has exactly seven fixed complete leaves
 
-After immutable plan/head validation, CI SHALL partition canonical remote discovery into exactly six complete disjoint leaves: core model, model continuation, the existing seven-source owner, the inherited23 source-restoration singleton, the policy8 singleton and their exact complement. Logical ownership and canonical local/host execution SHALL remain unchanged.
+After immutable plan/head validation, CI SHALL partition canonical remote discovery into exactly seven complete disjoint leaves: core model, model continuation, the existing seven-source owner, the inherited23 source-restoration singleton, the policy8 singleton, the complete-activation39 singleton and their exact complement. Logical ownership and canonical local/host execution SHALL remain unchanged.
 
 #### Scenario: Fixed source owners retain exact membership
 
 - **WHEN** the accepted source-restoration checkpoint is present
 - **THEN** source retains exactly source-role-process.test.ts, source-inner-command.test.ts, source-inner-program.test.ts, source-inner-transport.test.ts, source-frontend-http.test.ts, source-frontend-profile.test.ts and source-readiness.test.ts
-- **AND** source-restoration owns only `src/lib/dependency-source-restoration.test.ts`, policy restoration owns only `src/lib/dependency-participant-policy-restoration.test.ts`, while rest excludes both exact parents and the other nine fixed parents
+- **AND** source-restoration owns only `src/lib/dependency-source-restoration.test.ts`, policy restoration owns only `src/lib/dependency-participant-policy-restoration.test.ts`, while rest excludes both exact parents, the complete-activation parent and the other nine fixed parents
 - **AND** no prefix selector, alias or missing-file fallback changes coverage
 
 #### Scenario: Discovery adds another canonical test
@@ -35,7 +35,7 @@ After immutable plan/head validation, CI SHALL partition canonical remote discov
 
 ### Requirement: All remote leaves retain gate obligations
 
-All six leaves SHALL retain provisioning, fixed phase/job bounds, source identity, fresh execution and distinct always-upload logs. Remainder SHALL own remote Caddy and static checks once. The required gate SHALL require all selected leaves to succeed and SHALL accept all skipped only when the validated plan explicitly excludes remote or selects docs.
+All seven leaves SHALL retain provisioning, fixed phase/job bounds, source identity, fresh execution and distinct always-upload logs. Remainder SHALL own remote Caddy and static checks once. The required gate SHALL require all selected leaves to succeed and SHALL accept all skipped only when the validated plan explicitly excludes remote or selects docs.
 
 #### Scenario: One leaf is missing or unsuccessful
 
@@ -45,9 +45,9 @@ All six leaves SHALL retain provisioning, fixed phase/job bounds, source identit
 #### Scenario: Model files share fixed fixture ports
 
 - **WHEN** remote is selected
-- **THEN** a closed five-entry isolated-leaf matrix uses separate runners for core, continuation, source, source-restoration and participant-policy, with fail-fast disabled and serial cases within each file
+- **THEN** a closed six-entry isolated-leaf matrix uses separate runners for core, continuation, source, source-restoration, participant-policy and complete-activation, with fail-fast disabled and serial cases within each file
 - **AND** each model allocation retains its existing 75-minute phase, 90-minute job and 30-second termination cleanup, with inherited child and parent bounds preserved and the explicit policy-only D465/M495/A505/P525 profile
-- **AND** each partition has a distinct artifact and phase identity, and the required model aggregate succeeds only after all five matrix jobs succeed
+- **AND** each partition has a distinct artifact and phase identity, and the required model aggregate succeeds only after all six matrix jobs succeed
 
 #### Scenario: Source runtime tooling is explicit
 
@@ -76,3 +76,20 @@ policy8 then inherited23, without prefix or caller-selected partitioning.
 - **THEN** the corresponding membership/step/dispatch consumer refuses
 - **AND** the reducer separately refuses missing/skipped/failed/cancelled/unknown whole-matrix outcomes without claiming awareness of individual members
 - **AND** immutable plan/head, distinct artifacts, exact Node identities and once-only remainder static/Caddy obligations remain required
+
+### Requirement: Complete activation retains exact whole-parent execution
+
+The complete-activation leaf SHALL own only the unchanged root-relative complete-dependency-exclusion.test.ts parent. Its noncached target SHALL retain canonical inputs, environment and dependency builds. Rest SHALL exclude that exact parent only, preserving complete disjoint canonical discovery and future collision coverage.
+
+#### Scenario: Complete owner or receipt is invalid
+
+- **WHEN** its required owner/target is absent, unreadable, aliased or malformed, or its fresh final outer receipt lacks exactly39 passes AND tests in one file with zero failures/skips/todos/outer filtering
+- **THEN** the actual consumer refuses, with owner/target admission failures before child launch
+- **AND** nested summaries or a similarly named test outside the exact root path cannot supply complete39 ownership
+
+#### Scenario: Sixth isolated member is omitted or misrouted
+
+- **WHEN** parsed workflow lacks remote-complete-activation, omits execution, or affected/full dispatch routes it incorrectly
+- **THEN** that consumer refuses
+- **AND** the unchanged reducer requires a successful whole-matrix outcome
+- **AND** execution retains distinct artifacts, original child/output custody and unchanged phase/job/termination bounds
