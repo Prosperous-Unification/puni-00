@@ -6014,3 +6014,29 @@ merge, deployment, SSH/host, Secret, hardware or workload operation occurred. Ru
 progress stays 4/11; 1.3, 2.2, 3.1, 3.2, 4.1, 4.2 and 4.3 remain OPEN. Root owns scoped
 integration review and any later feature push; sync/archive and packet publication remain
 separate decisions.
+
+### Task89 forward compatibility — alias ordering only (2026-11-01)
+
+Main advanced to `1bc28733a03cbad9ce6ba92e4784404ee5a61889`. Root observed exactly one
+synthetic-merge conflict: both parents appended path aliases at the former website tail.
+This mechanical R4 exception moves only the eight existing `@tools/observability-*` keys
+next to the initial tools aliases, preserving their values and relative order. Every other
+alias retains its relative order; the website tail is byte-identical to pinned `10efe`.
+No incoming website alias, reference, import or latest-main integration was introduced.
+
+Installed Bun/Prettier formatting and recursive canonical JSON equality prove all parsed
+keys and values unchanged. Canonical SHA256 before/after is
+`f066fd36578800e533835c1ef72c7afcc197d93c32f8ec0da165de7292c87e25`. The mapping proof retains the exact eight-key list,
+full ordered maps and original/formatted bytes. Normal hooks commit this config reorder
+and this evidence append; final fresh merge-tree output against exact `1bc28733` is recorded
+in the appended Task89 report and `/tmp/puni-task89-forward-compat/`.
+
+Of all 142 packet generator inputs, 139 now match; only the known upstream `package.json`
+and `bun.lock` differences plus this explicitly authorized mapping-identical tsconfig byte
+reorder differ. All 86 retained packet artifacts remain unchanged. Source49955 and prepared
+publication9c57 remain immutable; the historical packet does not certify new HEAD. No
+regeneration, relabeling, validation, export or publication occurred. The original Task89
+raw evidence/manifest and report prefix are preserved; new receipts have a separate manifest.
+No source tests, full gates, runtime checks or main merge were run for this proven identical
+mapping. No push, packet/host/deployment action or runtime acceptance is claimed; 4/11 and
+the seven open observability tasks remain unchanged. Root retains review and push ownership.

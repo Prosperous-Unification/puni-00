@@ -26,6 +26,22 @@
       "@tools/fleet-operation-plan-schema": ["./infra/fleet/schemas/operation-plan.json"],
       "@tools/fleet-plan": ["./tools/tool-fleet/src/plan-facade.ts"],
       "@tools/fleet-ssh-transport": ["./tools/tool-fleet/src/ssh-transport-facade.ts"],
+      "@tools/observability-transport": ["./tools/tool-observability-stack/src/dev/transport.ts"],
+      "@tools/observability-acceptance": ["./tools/tool-observability-stack/src/dev/acceptance.ts"],
+      "@tools/observability-route": ["./tools/tool-observability-stack/src/dev/route-provider.ts"],
+      "@tools/observability-route-contract": ["./tools/tool-observability-stack/src/dev/route.ts"],
+      "@tools/observability-route-fixture": [
+        "./tools/tool-observability-stack/src/dev/route.fixture.test.ts"
+      ],
+      "@tools/observability-parity": [
+        "./tools/tool-observability-stack/src/configuration/parity.ts"
+      ],
+      "@tools/observability-parity/render": [
+        "./tools/tool-observability-stack/src/configuration/parity-render.ts"
+      ],
+      "@tools/observability-signals": [
+        "./tools/tool-observability-stack/src/configuration/signals.ts"
+      ],
       "@twilight-burokrat/contracts": [
         "./apps/twilight-structure/twilight-burokrat/cli/src/contracts/index.ts"
       ],
@@ -131,23 +147,7 @@
       "@wbs/validation": ["./libs/wbs/domain/validation/src/index.ts"],
       "@wbs/validation/fixtures": ["./libs/wbs/domain/validation/src/fixtures/index.ts"],
       "@website/contracts": ["./libs/website/domain/contracts/src/index.ts"],
-      "@website/store-sqlite": ["./libs/website/adapters/store-sqlite/src/store.ts"],
-      "@tools/observability-transport": ["./tools/tool-observability-stack/src/dev/transport.ts"],
-      "@tools/observability-acceptance": ["./tools/tool-observability-stack/src/dev/acceptance.ts"],
-      "@tools/observability-route": ["./tools/tool-observability-stack/src/dev/route-provider.ts"],
-      "@tools/observability-route-contract": ["./tools/tool-observability-stack/src/dev/route.ts"],
-      "@tools/observability-route-fixture": [
-        "./tools/tool-observability-stack/src/dev/route.fixture.test.ts"
-      ],
-      "@tools/observability-parity": [
-        "./tools/tool-observability-stack/src/configuration/parity.ts"
-      ],
-      "@tools/observability-parity/render": [
-        "./tools/tool-observability-stack/src/configuration/parity-render.ts"
-      ],
-      "@tools/observability-signals": [
-        "./tools/tool-observability-stack/src/configuration/signals.ts"
-      ]
+      "@website/store-sqlite": ["./libs/website/adapters/store-sqlite/src/store.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]
