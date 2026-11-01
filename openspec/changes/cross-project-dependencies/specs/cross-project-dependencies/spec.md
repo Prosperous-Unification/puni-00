@@ -2416,3 +2416,65 @@ The explicit preparation order in docs/runbook-controller-reader-prerequisites.m
 - **THEN** its actual constructor supplies the real lock and its assertions independently witness the intended operation or injected boundary
 - **AND** a missing-lock negative preserves absence, while an earlier unrelated refusal cannot pass a later-boundary assertion
 - **AND** fixture preparation grants no production bypass or held campaign execution.
+
+## ADDED Requirements — original-context initial handoff (proposal)
+
+### Requirement: Original closing authority
+
+The full handoff SHALL be driven by one original activation invocation and absolute deadline. Only actual successful participant-policy record publication AND final complete closing observations SHALL mint the private one-use continuation. Stored records, summaries, copied objects and caller callbacks SHALL NOT mint or repair authority.
+
+#### Scenario: Genuine chain and invalid consumers
+
+Given actual prepared activation, solver/backend/gateway/source restoration and policy closing, the genuine context can enter once. Early, copied, released, expired or repeated calls refuse before handoff writes. A failed admitted attempt remains terminal after fixture repair. Ordinary fenced-only entry behavior remains unchanged.
+
+### Requirement: Real bounded graph producer
+
+Actual selected activation intent refs, raw captures/backups, commits/receipts, manifests, participants/restoration/restored and ready records SHALL close the exact accepted V5 graph. Before activation DML the publisher SHALL admit declared raw bounds; before exposure it SHALL preadmit actual publication sizes/rosters. Later success records SHALL follow actual successful effects/readback. No scan, synthetic provenance or future completion fabrication is allowed.
+
+#### Scenario: Actual raw closure
+
+A genuine owned activation produces both selected intent/commit chains and exact raw artifacts; independent graph reading reaches each actual artifact and mandatory solver-ready record. Wrong capture/backup/receipt, local attempt, manifest, selected environment, record bound or initial source attribution refuses at its actual boundary, with no new DML/exposure after failed preadmission.
+
+### Requirement: Full installed eligibility before exposure
+
+H2 SHALL require the independently selected installed tuple and functioning compatible deploy-prod/sync-dev implementation described in eligibility.md. Refusal-only JC, INITIAL-only solver support, matching file hashes, an advertised capability or true callback is insufficient. Missing successor implementation/contract remains a blocking prerequisite to H3, full positive qualification and delivery.
+
+#### Scenario: Missing compatible consumer
+
+With real restored participants but an installed tuple supporting only ordinary refusal/INITIAL admission, the genuine full entry refuses before exposure-intent, site publication or Caddy reload. A capable full positive is not claimed until the separately reviewed real successor consumers exist and qualify.
+
+### Requirement: Restore original ingress with actual readback
+
+The original receipt SHALL retain immutable pre-maintenance file/config/route projections. H3 SHALL restore only selected original contents through retained current maintenance identities. Completion SHALL follow same-Caddy adapt/reload/live readback and full original participant/storage/authority closing. No baseline recapture or early exposed record is allowed.
+
+#### Scenario: Partial restoration
+
+A failure after one site publication retains that actual prefix and current evidence. It does not roll back storage or report exposure-complete. Wrong unrelated route, Caddy identity, disk/live projection, file/parent identity or participant binding refuses; no staged callback can report success.
+
+### Requirement: Dedicated terminal authority and exact state order
+
+H5 SHALL reserve a private one-use terminal operation, disabling ordinary owner effects. It SHALL archive exactly eight existing fences in V5 order without replacement, then publish handoff-complete, actual active policy/prepared pointer, retire original pending, and replace exact prepared pointer by complete. H6/H7/H8 SHALL satisfy the accepted matrix. Retained read-only original-context observations SHALL remain effective after intentional pathname changes; old live assertDependencyOwner SHALL never accept an absent pending marker.
+
+#### Scenario: Actual archive and contenders
+
+Every archive preserves original inode/bytes/mode/parent and independently proves source ENOENT and destination identity. Collision, missing native primitive, EXDEV or drift refuses without fallback. An independent contender cannot take edge.lock before original terminal return; it can only afterward and then observes complete state. Ordinary mutations and a reconstructed terminal token refuse throughout retiring/expired states.
+
+### Requirement: Original custody, deadline and honest restart
+
+Same original solver and participant bindings SHALL remain observed through H0–H8. Every child/read SHALL preserve original wait/pipe custody. Unknown settlement SHALL retain the operation and locks; elapsed time is not settlement. No phase may reset the original deadline. Later restart SHALL use fresh actual active admission, not historical PID equality or stored permission.
+
+#### Scenario: Interrupted terminal sequence
+
+Known failure at each real boundary preserves current policy/pointer/fences/archives/evidence. Uncertain publication/child settlement stays held. A complete pointer that may have been committed is not automatically removed. Attended recovery is distinct from successful acknowledgement of this invocation.
+
+## V2 coupled corrections
+
+All three activation rosters remain valid. The full producer creates receipts only for selected stores; successor consumers preserve ENABLED/exact receipt or DISABLED/null plus actual preservation and full ledgers for both. Unknown/missing authority never becomes DISABLED. Real compiled operations must support source/image changes in single-enabled as well as both-enabled states without semantic activation.
+
+Original whole terminal observers MUST reach the actual fixed metadata/source inner probes through nonreconstructable original-bound read seams after H5/H7. Ordinary live guards still refuse. All original full-entry prefix/terminal children, stream EOF, socket closure and required helper cleanup remain registered before dispatch. A bounded race or sanitized error cannot unlock while any required custody is unknown. A late genuinely settled failure may release only as failure; permanent unknown remains original HOLD.
+
+Qualify finite Q0-Q3 as eligibility.md: explicit seeded read-only inputs/actual successor callers first, then genuine original H0-H8, then selected A->B and B/C operations/restarts from its actual records. Only the whole sequence qualifies the source fixture; native production eligibility remains separately required before real H3. No public test-ready token or owner reconstruction.
+
+## V3 authority-supervision custody correction
+
+The full-entry authority transport uses the owned-original factory/core defined in authority-supervision-custody.md, registering real child/exit/independent reads before any catch. Late read failure after a valid terminal and unavailable original exit remain sticky unknown under the original locks; default generic refusal is not settlement. Exact complete actual envelope is serialized once, admitted against the existing Python65536-byte LF-inclusive bound, with unchanged request/census/96KiB program/original deadline. Existing default and runtime bounded-only semantics remain unchanged. Add installed-authority-supervision.ts and its owning test to proposed original45→47. The ordinary actual full-path late-read/unavailable-exit/prestart and settled-refusal witnesses are required; no omission/runtime grant. All closed store/Q0-Q3/terminal-source decisions are preserved.
