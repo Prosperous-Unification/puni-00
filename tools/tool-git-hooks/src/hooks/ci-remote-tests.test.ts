@@ -20,6 +20,7 @@ const MODEL = 'src/lib/dependency-product-process-model.test.ts';
 const CONTINUATION = 'src/lib/dependency-participant-continuation-model.test.ts';
 const RESTORATION = 'src/lib/dependency-source-restoration.test.ts';
 const POLICY = 'src/lib/dependency-participant-policy-restoration.test.ts';
+const COMPLETE = 'src/lib/complete-dependency-exclusion.test.ts';
 const SOURCE = [
   'src/lib/source-role-process.test.ts',
   'src/lib/source-inner-command.test.ts',
@@ -54,6 +55,9 @@ function fixture(): string {
     CONTINUATION,
     RESTORATION,
     POLICY,
+    COMPLETE,
+    `elsewhere/${COMPLETE}`,
+    'src/lib/complete-dependency-exclusion-extra.test.ts',
     `elsewhere/${POLICY}`,
     'src/lib/dependency-participant-policy-restoration-extra.test.ts',
     `elsewhere/${RESTORATION}`,
@@ -73,7 +77,7 @@ function fixture(): string {
       root,
       `${PROJECT}/${path}`,
       `import { test, expect } from 'bun:test';
-       for (let index = 0; index < ${String(path === RESTORATION ? 23 : path === POLICY ? 8 : 1)}; index++) test(${JSON.stringify(path)} + index, () => {
+       for (let index = 0; index < ${String(path === RESTORATION ? 23 : path === POLICY ? 8 : path === COMPLETE ? 39 : 1)}; index++) test(${JSON.stringify(path)} + index, () => {
          if (index === 0) console.log('EXECUTED=' + ${JSON.stringify(path)});
          expect(process.env.CLAUDECODE).toBe('0'); expect(process.env.AGENT).toBe('0');
        });`,
@@ -158,6 +162,10 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
   expect(policy.exitCode, policy.stderr.toString()).toBe(0);
   const policyCases = executed(policy.stdout.toString());
   expect(policyCases).toEqual([POLICY]);
+  const complete = invoke(root, 'complete-activation');
+  expect(complete.exitCode, complete.stderr.toString()).toBe(0);
+  const completeCases = executed(complete.stdout.toString());
+  expect(completeCases).toEqual([COMPLETE]);
   const rest = invoke(root, 'rest');
   expect(model.exitCode, model.stderr.toString()).toBe(0);
   expect(rest.exitCode, rest.stderr.toString()).toBe(0);
@@ -174,6 +182,9 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
   expect(complement).not.toContain(CONTINUATION);
   expect(complement).not.toContain(RESTORATION);
   expect(complement).not.toContain(POLICY);
+  expect(complement).not.toContain(COMPLETE);
+  expect(complement).toContain(`elsewhere/${COMPLETE}`);
+  expect(complement).toContain('src/lib/complete-dependency-exclusion-extra.test.ts');
   expect(complement).toContain(`elsewhere/${POLICY}`);
   expect(complement).toContain('src/lib/dependency-participant-policy-restoration-extra.test.ts');
   expect(complement).toContain(`elsewhere/${RESTORATION}`);
@@ -187,6 +198,7 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
       ...sourceCases,
       ...restorationCases,
       ...policyCases,
+      ...completeCases,
       ...complement,
     ].sort(),
   ).toEqual(executed(canonical.stdout.toString()));
@@ -197,6 +209,7 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
       ...sourceCases,
       ...restorationCases,
       ...policyCases,
+      ...completeCases,
       ...complement,
     ]).size,
   ).toBe(
@@ -205,6 +218,7 @@ test('fresh fixed leaves preserve real canonical Bun discovery including future 
       sourceCases.length +
       restorationCases.length +
       policyCases.length +
+      completeCases.length +
       complement.length,
   );
   expect(model.stdout.toString()).toContain('"fresh":true');
@@ -299,6 +313,73 @@ test.each([
   expect(invocation.stdout.toString()).not.toContain('"fresh":true');
 });
 
+test('runtime refuses an absent selected raw target before actual Nx canonical fallback', () => {
+  const root = fixture();
+  write(
+    root,
+    'package.json',
+    JSON.stringify({ name: 'remote-target-admission-fixture', private: true }),
+  );
+  symlinkSync(join(ROOT, 'node_modules'), join(root, 'node_modules'), 'dir');
+  for (const name of ['wbs-be-01', 'wbs-fe-01'])
+    write(root, `modules/${name}/project.json`, JSON.stringify({ name, targets: {} }));
+  const marker = join(root, 'canonical-test-started');
+  write(
+    root,
+    `${PROJECT}/test/canonical.test.ts`,
+    `import { writeFileSync } from 'node:fs'; import { test } from 'bun:test';
+     test('canonical fallback child', () => writeFileSync(${JSON.stringify(marker)}, 'started\\n'));`,
+  );
+  const path = join(root, PROJECT, 'project.json');
+  const project = JSON.parse(readFileSync(path, 'utf8')) as {
+    targets: Record<string, unknown>;
+  };
+  project.targets['test'] = {
+    executor: 'nx:run-commands',
+    inputs: ['default', '^production'],
+    options: { command: 'bun test ./test/canonical.test.ts --timeout=10000', cwd: PROJECT },
+  };
+  delete project.targets['test:ci:complete-activation'];
+  writeFileSync(path, JSON.stringify(project));
+  const head = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], { cwd: root, stdout: 'pipe' })
+    .stdout.toString()
+    .trim();
+  const invocation = Bun.spawnSync(
+    [
+      process.execPath,
+      join(ROOT, 'tools/tool-git-hooks/src/hooks/ci-run-runtime.ts'),
+      'remote-complete-activation',
+      '',
+      head,
+      root,
+      'full',
+    ],
+    {
+      cwd: root,
+      env: {
+        ...process.env,
+        NX_DAEMON: 'false',
+        NX_ISOLATE_PLUGINS: 'false',
+        CLAUDECODE: '0',
+        AGENT: '0',
+      },
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 9000,
+    },
+  );
+  if (existsSync(marker))
+    console.error(
+      `CANONICAL_FALLBACK_CHILD_STARTED\n${invocation.stdout.toString()}\n${invocation.stderr.toString()}`,
+    );
+  expect(
+    existsSync(marker),
+    'missing selected target must refuse before canonical test child',
+  ).toBe(false);
+  expect(invocation.exitCode, invocation.stderr.toString()).not.toBe(0);
+  expect(invocation.stderr.toString()).toContain('Unsupported selected remote leaf target');
+}, 10000);
+
 test('actual noncached Nx leaf targets preserve environment and run dependency builds with Caddy only in rest', () => {
   const root = fixture();
   write(root, 'package.json', JSON.stringify({ name: 'remote-ci-leaf-fixture', private: true }));
@@ -350,6 +431,7 @@ test('actual noncached Nx leaf targets preserve environment and run dependency b
     'model-continuation',
     'source-restoration',
     'participant-policy',
+    'complete-activation',
     'rest',
   ]) {
     const child = Bun.spawnSync(
@@ -382,7 +464,7 @@ test('actual noncached Nx leaf targets preserve environment and run dependency b
     expect(child.stdout.toString()).toContain('"fresh":true');
     if (leaf !== 'rest') expect(existsSync(caddyMarker)).toBe(false);
   }
-  expect(readFileSync(dependencyMarker, 'utf8').trim().split('\n')).toHaveLength(5);
+  expect(readFileSync(dependencyMarker, 'utf8').trim().split('\n')).toHaveLength(6);
   expect(readFileSync(caddyMarker, 'utf8')).toBe('caddy\n');
 }, 20000);
 
@@ -769,6 +851,71 @@ test.each(['absent', 'inputs', 'environment'])(
       'source',
       'source-restoration',
       'participant-policy',
+      'complete-activation',
+      'rest',
+    ]) {
+      const refused = invoke(root, leaf, starts.preload);
+      if (existsSync(starts.marker))
+        console.error(
+          `RESTORATION_TARGET_CHILD: ${JSON.stringify({ leaf, executed: executed(refused.stdout.toString()) })}`,
+        );
+      expect(refused.exitCode).not.toBe(0);
+      expect(executed(refused.stdout.toString())).toEqual([]);
+      expect(existsSync(starts.marker), 'no test child before required-target validation').toBe(
+        false,
+      );
+    }
+  },
+);
+
+test.each(['missing', 'unreadable', 'alias'] as const)(
+  'complete-activation owner refuses invalid parent before actual child selection: %s',
+  (fault) => {
+    const root = fixture();
+    const path = join(root, PROJECT, COMPLETE);
+    if (fault === 'missing') rmSync(path);
+    if (fault === 'unreadable') chmodSync(path, 0);
+    if (fault === 'alias') {
+      renameSync(path, `${path}.owned`);
+      symlinkSync(`${path}.owned`, path);
+    }
+    const starts = recordChildStarts(root);
+    for (const leaf of ['complete-activation', 'rest']) {
+      const refused = invoke(root, leaf, starts.preload);
+      if (existsSync(starts.marker))
+        console.error(
+          `RESTORATION_PARENT_CHILD: ${JSON.stringify({ leaf, executed: executed(refused.stdout.toString()) })}`,
+        );
+      expect(refused.exitCode, fault).not.toBe(0);
+      expect(executed(refused.stdout.toString())).toEqual([]);
+      expect(existsSync(starts.marker), 'no test child before required-parent validation').toBe(
+        false,
+      );
+    }
+    if (fault === 'unreadable') chmodSync(path, 0o644);
+  },
+);
+
+test.each(['absent', 'inputs', 'environment'])(
+  'all leaves refuse malformed complete-activation target before actual children: %s',
+  (fault) => {
+    const root = fixture();
+    const path = join(root, PROJECT, 'project.json');
+    const project = JSON.parse(readFileSync(path, 'utf8')) as {
+      targets: Record<string, { inputs?: string[]; options?: Record<string, unknown> }>;
+    };
+    if (fault === 'absent') delete project.targets['test:ci:complete-activation'];
+    if (fault === 'inputs') project.targets['test:ci:complete-activation'].inputs = ['default'];
+    if (fault === 'environment') project.targets['test:ci:complete-activation'].options = {};
+    writeFileSync(path, JSON.stringify(project));
+    const starts = recordChildStarts(root);
+    for (const leaf of [
+      'model',
+      'model-continuation',
+      'source',
+      'source-restoration',
+      'participant-policy',
+      'complete-activation',
       'rest',
     ]) {
       const refused = invoke(root, leaf, starts.preload);
@@ -788,11 +935,37 @@ test.each(['absent', 'inputs', 'environment'])(
 test.each([
   ['source-restoration', RESTORATION, 23],
   ['participant-policy', POLICY, 8],
+  ['complete-activation', COMPLETE, 39],
 ] as const)(
   'complete %s outer receipts reject successful but incomplete execution',
   (leaf, owner, count) => {
     for (const fault of ['passes', 'tests', 'files', 'skip', 'todo', 'filtered', 'malformed']) {
       const root = fixture();
+      if (leaf === 'complete-activation') {
+        const nested = join(root, 'nested-complete-child.test.ts');
+        writeFileSync(
+          nested,
+          `import { test } from 'bun:test'; for (let index = 0; index < 39; index++) test('nested-' + index, () => {});`,
+        );
+        writeFileSync(
+          join(root, PROJECT, owner),
+          `
+          import { test, expect } from 'bun:test';
+          for (let index = 0; index < 39; index++) test('outer-' + index, () => {
+            if (index !== 0) return;
+            const child = Bun.spawnSync([process.execPath, 'test', ${JSON.stringify(nested)}, '--timeout=10000'], {
+              stdout: 'pipe', stderr: 'pipe', timeout: 5000
+            });
+            process.stdout.write(child.stdout);
+            process.stderr.write(child.stderr);
+            expect(child.exitCode).toBe(0);
+            expect(child.signalCode).toBeUndefined();
+            console.log('EXECUTED=' + ${JSON.stringify(owner)});
+            console.error('NESTED_COMPLETE_CHILD_JOINED');
+          });
+          `,
+        );
+      }
       const preload = join(root, 'outer-receipt-view.ts');
       writeFileSync(
         preload,
@@ -829,6 +1002,8 @@ test.each([
       );
       const refused = invoke(root, leaf, preload);
       expect(executed(refused.stdout.toString()), fault).toEqual([owner]);
+      if (leaf === 'complete-activation')
+        expect(refused.stderr.toString(), fault).toContain('NESTED_COMPLETE_CHILD_JOINED');
       expect(refused.stderr.toString(), fault).toContain(
         'SUCCESSFUL_ORIGINAL_OUTER_TRANSFORMED_ONCE',
       );
@@ -844,6 +1019,7 @@ test.each([
 test.each([
   ['source-restoration', RESTORATION, 23],
   ['participant-policy', POLICY, 8],
+  ['complete-activation', COMPLETE, 39],
 ] as const)(
   'complete %s outer receipt permits expected nested child filtering',
   (leaf, owner, count) => {

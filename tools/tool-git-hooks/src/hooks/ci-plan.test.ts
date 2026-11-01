@@ -48,8 +48,37 @@ function history(path: string, content?: string) {
     );
     if (project === 'twilight-burokrat')
       Object.assign(targets['lint'], { inputs: ['{workspaceRoot}/**/*'] });
+    if (project === 'tool-remote-scripts') {
+      Object.assign(targets['test'], { inputs: ['default', '^production'] });
+      for (const leaf of [
+        'model',
+        'model-continuation',
+        'source',
+        'source-restoration',
+        'participant-policy',
+        'complete-activation',
+        'rest',
+      ])
+        Object.assign(targets, {
+          [`test:ci:${leaf}`]: {
+            executor: 'nx:run-commands',
+            cache: false,
+            inputs: ['default', '^production'],
+            options: {
+              command: `bun run tools/tool-remote-scripts/test/ci-leaf.ts . ${leaf}`,
+              cwd: '.',
+              env: { CLAUDECODE: '0', AGENT: '0' },
+            },
+            dependsOn: ['^build', ...(leaf === 'rest' ? ['test:caddy'] : [])],
+          },
+        });
+    }
     const directory =
-      project === 'website-contracts' ? 'libs/website/domain/contracts' : `modules/${project}`;
+      project === 'website-contracts'
+        ? 'libs/website/domain/contracts'
+        : project === 'tool-remote-scripts'
+          ? 'tools/tool-remote-scripts'
+          : `modules/${project}`;
     write(root, `${directory}/project.json`, JSON.stringify({ name: project, targets }));
     const source =
       project === 'website-contracts' ? `${directory}/src/source.ts` : `${directory}/source.ts`;
@@ -231,7 +260,11 @@ describe('production CI plan and execution', () => {
   ])(
     'plans %s only in its dedicated %s partition',
     (project, partition) => {
-      const candidate = history(`modules/${project}/source.ts`);
+      const candidate = history(
+        project === 'tool-remote-scripts'
+          ? 'tools/tool-remote-scripts/source.ts'
+          : `modules/${project}/source.ts`,
+      );
       const planned = invokePlan(candidate);
       expect(planned.exitCode, planned.stderr.toString()).toBe(0);
       const plan = JSON.parse(planned.stdout.toString()) as {
@@ -347,7 +380,7 @@ describe('production CI plan and execution', () => {
   }, 20000);
 
   test('fixed remote leaves retain one logical owner and explicit static/dependency execution', () => {
-    const candidate = history('modules/tool-remote-scripts/source.ts');
+    const candidate = history('tools/tool-remote-scripts/source.ts');
     for (const mode of ['affected', 'full']) {
       for (const part of [
         'remote-rest',
@@ -356,6 +389,7 @@ describe('production CI plan and execution', () => {
         'remote-source',
         'remote-source-restoration',
         'remote-participant-policy',
+        'remote-complete-activation',
       ]) {
         const { invocation, calls } = invokeRuntime(candidate, part, '0', mode);
         expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
@@ -367,7 +401,7 @@ describe('production CI plan and execution', () => {
             .filter((line) => line.includes(':test:ci:')),
         ).toHaveLength(1);
         expect(commands).toContain(
-          `run tool-remote-scripts:test:ci:${part === 'remote-rest' ? 'rest' : part === 'remote-model' ? 'model' : part === 'remote-source' ? 'source' : part === 'remote-source-restoration' ? 'source-restoration' : part === 'remote-participant-policy' ? 'participant-policy' : 'model-continuation'} --head=${candidate.head} --skip-nx-cache --parallel=2`,
+          `run tool-remote-scripts:test:ci:${part === 'remote-rest' ? 'rest' : part === 'remote-model' ? 'model' : part === 'remote-source' ? 'source' : part === 'remote-source-restoration' ? 'source-restoration' : part === 'remote-participant-policy' ? 'participant-policy' : part === 'remote-complete-activation' ? 'complete-activation' : 'model-continuation'} --head=${candidate.head} --skip-nx-cache --parallel=2`,
         );
         expect(commands).not.toContain('-t test ');
         if (part === 'remote-rest')
@@ -380,7 +414,7 @@ describe('production CI plan and execution', () => {
   }, 20000);
 
   test('each fixed remote leaf rejects wrong head, unknown mode and an excluded plan', () => {
-    const candidate = history('modules/tool-remote-scripts/source.ts');
+    const candidate = history('tools/tool-remote-scripts/source.ts');
     for (const part of [
       'remote-rest',
       'remote-model',
@@ -388,6 +422,7 @@ describe('production CI plan and execution', () => {
       'remote-source',
       'remote-source-restoration',
       'remote-participant-policy',
+      'remote-complete-activation',
     ]) {
       expect(
         invokeRuntime({ ...candidate, head: candidate.base }, part, '0', 'full').invocation

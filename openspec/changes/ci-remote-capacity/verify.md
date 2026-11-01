@@ -553,3 +553,46 @@ Only five Root OpenSpec documents are materialized here. Eight-path implementati
 local checks/builds, new physical omissions, complete39 execution, hosted retry,
 source review and final-candidate capacity qualification remain unperformed/open.
 No native/main/deploy acceptance; previous source/policy history remains intact.
+
+### Complete39 source checkpoint and selected-target admission — 2026-11-01
+
+Dany explicitly approved the reviewed eight-file CI implementation after automatic
+approval review rejected its initial edit. The rejection preceded all edits/tests;
+there was no workaround. Approval receipt SHA256
+8f4b81915f026880524783c511fb79bff61a38024256251c7cb14b634c72322f.
+The approved change adds only the fixed complete-activation39 owner/target/runtime
+identity and sixth isolated matrix member, preserving all canonical ownership,
+source/toolchain identities, fresh receipts, original custody and existing bounds.
+
+Initial ordinary TDD showed174pass/12fail. After implementation and a nested-final
+receipt refinement, six explicit owning suites passed186/0. Independent source
+review found a further boundary: absent compound Nx targets could resolve to the
+canonical test target before ci-leaf's validator ran. An actual tiny-Nx fixture
+reproduced the canonical child marker; runtime now validates the selected raw leaf
+contract before its first Nx invocation. The identical negative passed with that
+marker absent and a raw-target refusal. This is a fixture-input fault, not a
+production-source omission. The original all-target validation remains in ci-leaf.
+
+Final fresh six-suite command passed187tests/0fail/1776assertions in92.27seconds:
+ci-remote-tests, ci-plan, ci-capacity-workflow, pr-merge-base, unchanged gate-workflow
+and toolchain-pins. Targeted formatting/lint, configured remote+hooks typechecks
+and configured remote build all exited0; original command/stream handles joined.
+Only eight approved implementation paths changed. The actual39-case parent and
+its fixtures, canonical host gates, global Nx settings and the five Root documents
+remained pinned during source validation. Root subsequently updates only this
+verification record and the two completed ordinary implementation task boxes.
+
+V3 source/evidence manifest SHA256
+23cc836ce2f9d118a83a65b51b73ce9405d07fc49059b18e811b45e41ef066f8;
+patch SHA25687a26615de14a9d7a847999af50d4d1b37258d644320aea4f8d33ae3fa0efac9.
+Independent Astra repair review GO SHA256
+feea1d19dafb4e52e2816ffc80a5d2535defc1064897b4870ae16366c01cd4d4
+resolved the fallback finding without further blocking source issues. Earlier
+freezes and failures remain separately retained; they are not current success.
+
+Tasks25/26 record implemented ordinary behavior only. Task27's new physical R5
+necessity work and task28's expensive complete39/remainder/peers/aggregate
+qualification remain open. No heavy complete39, full remainder, hosted retry,
+native qualification, architectural main adoption or deployment ran in this
+source checkpoint. A later same-candidate hosted run must actually fit unchanged
+bounds before capacity acceptance; source tests alone do not establish it.

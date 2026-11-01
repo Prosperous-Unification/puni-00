@@ -209,7 +209,7 @@ test('remote retains finite rest and model runners under one selection bit', () 
 });
 
 // Proof: dropping remote-source failed this parsed matrix consumer; exact restoration passed (2026-10-29).
-test('isolated remote matrix is exactly five independent whole-file runners', () => {
+test('isolated remote matrix is exactly six independent whole-file runners', () => {
   const runtime = job('gate_remote_model');
   expect(runtime.strategy).toEqual({
     'fail-fast': false,
@@ -220,6 +220,7 @@ test('isolated remote matrix is exactly five independent whole-file runners', ()
         'remote-source',
         'remote-source-restoration',
         'remote-participant-policy',
+        'remote-complete-activation',
       ],
     },
   });

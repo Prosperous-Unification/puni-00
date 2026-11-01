@@ -42,7 +42,7 @@
 
 ## Complete-activation whole-parent follow-up
 
-- [ ] 25. Observe actual tiny-Bun ownership/receipt/dispatch/workflow RED; add only the unchanged complete39 parent as seventh disjoint leaf and sixth isolated runner, preserving canonical host execution.
-- [ ] 26. Exercise full discovery/collision coverage, required owner/target absence/unreadability/alias refusals, exact39 outer receipt, affected/full dispatch and parsed membership/execution with fresh tiny children; preserve static/Caddy/Node ownership, bounds and original custody.
+- [x] 25. Observe actual tiny-Bun ownership/receipt/dispatch/workflow RED; add only the unchanged complete39 parent as seventh disjoint leaf and sixth isolated runner, preserving canonical host execution.
+- [x] 26. Exercise full discovery/collision coverage, required owner/target absence/unreadability/alias refusals, exact39 outer receipt, affected/full dispatch and parsed membership/execution with fresh tiny children; preserve static/Caddy/Node ownership, bounds and original custody.
 - [ ] 27. Independently review frozen eight-path source and run scoped statics/OpenSpec. Separately prepare/review any new finite R5 dependencies before their execution grant; record only observed adjacent evidence. Preserve all held proof scopes.
 - [ ] 28. Require fresh complete39, remainder, all other required leaves and strict aggregate on one final candidate within unchanged budgets before capacity acceptance. Root owns publication/hosted validation; native and architectural main holds remain.

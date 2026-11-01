@@ -8,6 +8,7 @@ const MODEL = 'src/lib/dependency-product-process-model.test.ts';
 const CONTINUATION = 'src/lib/dependency-participant-continuation-model.test.ts';
 const RESTORATION = 'src/lib/dependency-source-restoration.test.ts';
 const POLICY = 'src/lib/dependency-participant-policy-restoration.test.ts';
+const COMPLETE = 'src/lib/complete-dependency-exclusion.test.ts';
 const SOURCE = [
   'src/lib/source-role-process.test.ts',
   'src/lib/source-inner-command.test.ts',
@@ -31,7 +32,13 @@ const DISCOVERY = [
 const OPTIONS = ['--preload', '../test/scratch/preload.ts', '--timeout=10000'];
 
 type Leaf =
-  'model' | 'model-continuation' | 'source' | 'source-restoration' | 'participant-policy' | 'rest';
+  | 'model'
+  | 'model-continuation'
+  | 'source'
+  | 'source-restoration'
+  | 'participant-policy'
+  | 'complete-activation'
+  | 'rest';
 
 class TestFailure extends Error {
   constructor(readonly status: number) {
@@ -132,6 +139,7 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
     'source',
     'source-restoration',
     'participant-policy',
+    'complete-activation',
     'rest',
   ] as const) {
     const target = requireRecord(targets[`test:ci:${name}`]);
@@ -171,7 +179,15 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
   // Proof: omitting SOURCE presence admitted an aliased parent in the actual source-owner refusal (2026-10-29).
   // Proof: omitting RESTORATION launched Bun for its missing parent. The actual
   // child marker broke the pre-dispatch assertion, then passed restored; Bun's later refusal is separate.
-  for (const path of [MODEL, CONTINUATION, ...SOURCE, RESTORATION, POLICY, ...DISCOVERY.slice(1)])
+  for (const path of [
+    MODEL,
+    CONTINUATION,
+    ...SOURCE,
+    RESTORATION,
+    POLICY,
+    COMPLETE,
+    ...DISCOVERY.slice(1),
+  ])
     requireFile(join(repository, PROJECT, path));
   requireFile(join(repository, 'tools/test/scratch/preload.ts'));
   // Proof: dotted/widened ignores and a dropped discovery token broke real canonical union/disjointness.
@@ -189,18 +205,21 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
           ? ['test', `./${RESTORATION}`, ...OPTIONS]
           : leaf === 'participant-policy'
             ? ['test', `./${POLICY}`, ...OPTIONS]
-            : [
-                'test',
-                ...DISCOVERY,
-                ...OPTIONS,
-                `--path-ignore-patterns=${MODEL}`,
-                `--path-ignore-patterns=${CONTINUATION}`,
-                ...SOURCE.map((path) => `--path-ignore-patterns=${path}`),
-                // Proof: omitting this literal duplicated the actual restoration parent
-                // in rest; disjointness failed, then passed after exact restoration.
-                `--path-ignore-patterns=${RESTORATION}`,
-                `--path-ignore-patterns=${POLICY}`,
-              ];
+            : leaf === 'complete-activation'
+              ? ['test', `./${COMPLETE}`, ...OPTIONS]
+              : [
+                  'test',
+                  ...DISCOVERY,
+                  ...OPTIONS,
+                  `--path-ignore-patterns=${MODEL}`,
+                  `--path-ignore-patterns=${CONTINUATION}`,
+                  ...SOURCE.map((path) => `--path-ignore-patterns=${path}`),
+                  // Proof: omitting this literal duplicated the actual restoration parent
+                  // in rest; disjointness failed, then passed after exact restoration.
+                  `--path-ignore-patterns=${RESTORATION}`,
+                  `--path-ignore-patterns=${POLICY}`,
+                  `--path-ignore-patterns=${COMPLETE}`,
+                ];
 }
 
 /**
@@ -208,7 +227,7 @@ function executionArguments(repository: string, leaf: Leaf): string[] {
  * summary tail retained in memory. The final contiguous outer summary keeps pass, fail and
  * file counts together after nested parent-child output; its terminal boundary refuses
  * malformed final output rather than falling back to an earlier child. A successful child must have
- * actually run nonempty tests. The inherited23 and policy8 singleton receipts require their
+ * actually run nonempty tests. The inherited23, policy8 and complete39 singleton receipts require their
  * complete assigned pass/test counts and no outer skip, todo or filtering; nested summaries
  * cannot supply that terminal receipt.
  */
@@ -225,6 +244,7 @@ export async function runRemoteTests(
     leafName !== 'source' &&
     leafName !== 'source-restoration' &&
     leafName !== 'participant-policy' &&
+    leafName !== 'complete-activation' &&
     leafName !== 'rest'
   )
     throw new Error('Unknown remote test leaf');
@@ -277,7 +297,13 @@ export async function runRemoteTests(
       summary,
     );
   const expectedCases =
-    leafName === 'source-restoration' ? 23 : leafName === 'participant-policy' ? 8 : undefined;
+    leafName === 'source-restoration'
+      ? 23
+      : leafName === 'participant-policy'
+        ? 8
+        : leafName === 'complete-activation'
+          ? 39
+          : undefined;
   // Proof: bypassing the source file count admitted an actual six-parent receipt transformed exactly once from six to five (2026-10-29).
   // Proof: dropping the positive-pass check accepted an actual empty Bun file as fresh success.
   if (
@@ -308,7 +334,7 @@ if (import.meta.main) {
     headFlag?.startsWith('--head=') !== true
   )
     throw new Error(
-      'Usage: ci-leaf.ts <repository> <model|model-continuation|source|source-restoration|participant-policy|rest> --head=<sha>',
+      'Usage: ci-leaf.ts <repository> <model|model-continuation|source|source-restoration|participant-policy|complete-activation|rest> --head=<sha>',
     );
   try {
     await runRemoteTests(repository, leaf, headFlag.slice('--head='.length));

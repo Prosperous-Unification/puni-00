@@ -704,6 +704,7 @@ jobs:
             remote-source,
             remote-source-restoration,
             remote-participant-policy,
+            remote-complete-activation,
           ]
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and

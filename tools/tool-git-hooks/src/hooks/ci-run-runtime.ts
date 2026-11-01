@@ -1,3 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
+
 import { createGatePlan } from './ci-plan';
 import {
   DEDICATED_RUNTIME_PROJECTS,
@@ -40,6 +44,41 @@ async function runNx(repository: string, args: string[]): Promise<void> {
   if (status !== 0) throw new CommandFailure(status);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Refuses raw target drift before Nx can resolve an absent compound target as canonical test. */
+function requireRemoteTarget(repository: string, leaf: string): void {
+  const project: unknown = JSON.parse(
+    readFileSync(join(repository, 'tools/tool-remote-scripts/project.json'), 'utf8'),
+  );
+  if (!isRecord(project) || !isRecord(project['targets']))
+    throw new Error('Unsupported selected remote leaf target');
+  const targets = project['targets'];
+  const canonical = targets['test'];
+  if (!isRecord(canonical)) throw new Error('Unsupported selected remote leaf target');
+  const inputs = canonical['inputs'];
+  if (
+    !Array.isArray(inputs) ||
+    !inputs.every((input: unknown) => typeof input === 'string') ||
+    !inputs.includes('default') ||
+    !inputs.includes('^production') ||
+    !isDeepStrictEqual(targets[`test:ci:${leaf}`], {
+      executor: 'nx:run-commands',
+      cache: false,
+      inputs,
+      options: {
+        command: `bun run tools/tool-remote-scripts/test/ci-leaf.ts . ${leaf}`,
+        cwd: '.',
+        env: { CLAUDECODE: '0', AGENT: '0' },
+      },
+      dependsOn: ['^build', ...(leaf === 'rest' ? ['test:caddy'] : [])],
+    })
+  )
+    throw new Error('Unsupported selected remote leaf target');
+}
+
 /** Schedules only the reviewed remote execution exception after logical owner validation. */
 async function runRemoteLeaf(
   repository: string,
@@ -50,6 +89,7 @@ async function runRemoteLeaf(
     | 'source'
     | 'source-restoration'
     | 'participant-policy'
+    | 'complete-activation'
     | 'rest',
   mode: string,
 ): Promise<void> {
@@ -103,6 +143,7 @@ export async function runRuntime(
       'remote-source',
       'remote-source-restoration',
       'remote-participant-policy',
+      'remote-complete-activation',
       'frontend',
       'twilight',
     ].includes(partition)
@@ -125,9 +166,12 @@ export async function runRuntime(
             ? 'source-restoration'
             : partition === 'remote-participant-policy'
               ? 'participant-policy'
-              : partition === 'remote-rest'
-                ? 'rest'
-                : undefined;
+              : partition === 'remote-complete-activation'
+                ? 'complete-activation'
+                : partition === 'remote-rest'
+                  ? 'rest'
+                  : undefined;
+  if (remoteLeaf !== undefined) requireRemoteTarget(repository, remoteLeaf);
   const owner = remoteLeaf === undefined ? partition : 'remote';
   if (mode === 'full') {
     if (partition === 'twilight') throw new Error('Twilight retains its existing full runner');
@@ -287,7 +331,7 @@ if (import.meta.main) {
     repository === undefined
   ) {
     throw new Error(
-      'Usage: ci-run-runtime.ts <workspace|backend|remote|remote-rest|remote-model|remote-model-continuation|remote-source|remote-source-restoration|frontend|twilight> <base-sha> <head-sha> <repository> [affected|full]',
+      'Usage: ci-run-runtime.ts <workspace|backend|remote|remote-rest|remote-model|remote-model-continuation|remote-source|remote-source-restoration|remote-participant-policy|remote-complete-activation|frontend|twilight> <base-sha> <head-sha> <repository> [affected|full]',
     );
   }
   try {
