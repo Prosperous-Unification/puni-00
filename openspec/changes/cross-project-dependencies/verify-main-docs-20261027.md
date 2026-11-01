@@ -4,7 +4,7 @@ The private integration branch incorporates main `2e3c035ad5bee90ed9329bd476bc29
 
 Main advanced from the initially observed `77d970776697b9c26c38a29299d8d88c424ae996` before merge preparation. The actual `MERGE_HEAD` above, rather than the earlier remote observation, defines this packet. All sixteen added main document files are byte-identical to that parent; the merged glossary preserves both parents' term headings.
 
-Main owns [ADR 0062: a question is a satellite fact](../../../docs/adr/0062-a-question-is-a-satellite-fact-judged-by-the-plan.md). The private proposed root-authority followup moved from number 0062 to [ADR 0065](../../../docs/adr/0065-root-authority-publishes-live-supervisor-identity.md), with its content unchanged and three current links repaired. The historical verification entries retain the numbers recorded in those earlier packets; this mapping identifies the current followup. ADRs 0063/0064 and the proposed broker's delivery scope are unchanged.
+Main owns [ADR 0062: a question is a satellite fact](../../../docs/adr/0062-a-question-is-a-satellite-fact-judged-by-the-plan.md). The private proposed root-authority followup moved from number 0062 to number 0065 (now [ADR 0070](../../../docs/adr/0070-root-authority-publishes-live-supervisor-identity.md)), with its content unchanged and three current links repaired. The historical verification entries retain the numbers recorded in those earlier packets; this mapping identifies the current followup. ADRs 0063/0064 and the proposed broker's delivery scope are unchanged.
 
 Fresh bounded verification before this evidence file was added:
 
