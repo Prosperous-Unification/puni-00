@@ -504,8 +504,8 @@ describe('the CI gate scope', () => {
 });
 
 /**
- * The three owner-maintained libraries are pinned exactly, because their report formats are
- * stored data: the diagnostic format changed twice in two days in September 2026.
+ * The owner-maintained libraries are pinned exactly: report formats are stored data, and
+ * coordination consumes the native CTT work-session contract.
  *
  * The second test reads lock KEYS and the version each key resolves, which is what the
  * lockfile can say. That the copies a duplicate would produce are actually one module at
@@ -517,6 +517,7 @@ const OWNER_PACKAGES = {
   'di-bag': '0.5.2',
   'application-exception': '0.8.1',
   'caught-object-report-json': '13.0.0',
+  'configurable-tree-traversal': '0.12.0',
 } as const;
 
 // Proof: `"di-bag": "^0.4.0"` failed `are pinned to exact versions in the root manifest` on the
@@ -539,6 +540,8 @@ describe('the owner-maintained libraries', () => {
     // Proof: on 2026-09-25, pinning di-bag to 0.4.0 failed 'are pinned to exact
     // versions in the root manifest' on `expect(received).toEqual(expected)`;
     // weakening this assertion to an object type check made the same fault pass.
+    // Proof: changing only the CTT manifest pin to ^0.12.0 failed this exact-map
+    // assertion with expected 0.12.0 and received ^0.12.0 (2026-10-31).
     expect(pinned).toEqual({ ...OWNER_PACKAGES });
   });
 
@@ -555,6 +558,28 @@ describe('the owner-maintained libraries', () => {
       return entry === null ? [] : [`${entry[1]}@${entry[2]}`];
     });
     expect(copies).toEqual(['caught-object-report-json@13.0.0']);
+  });
+
+  it('resolves to one copy of the coordination library, at the pinned version', async () => {
+    const lock = await read('bun.lock');
+    const copies = lock.split('\n').flatMap((line) => {
+      const entry =
+        /^ {4}"((?:[^"]+\/)?configurable-tree-traversal)": \["configurable-tree-traversal@([^"]+)"/.exec(
+          line,
+        );
+      return entry === null ? [] : [`${entry[1]}@${entry[2]}`];
+    });
+    // Proof: changing only CTT's locked identity to @0.11.0 failed this assertion
+    // with expected @0.12.0 and received @0.11.0 (2026-10-31).
+    expect(copies).toEqual(['configurable-tree-traversal@0.12.0']);
+  });
+
+  it('installs the coordination library at the pinned version', () => {
+    const fromRoot = createRequire(new URL('package.json', WORKSPACE));
+    const { version } = fromRoot('configurable-tree-traversal/package.json') as { version: string };
+    // Proof: changing only installed CTT package metadata to 0.11.0 failed this
+    // runtime-resolution assertion with expected 0.12.0 and received 0.11.0 (2026-10-31).
+    expect(version).toBe(OWNER_PACKAGES['configurable-tree-traversal']);
   });
 
   /**

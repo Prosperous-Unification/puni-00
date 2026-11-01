@@ -252,7 +252,11 @@ export function createRunGuard(guard: AttemptGuard) {
 /** Admits a real accepted binding and schema-valid WBS observation without preparing a session. */
 export async function admitExecution(
   stores: OutcomeFixture,
-  context?: { readonly ownership: Ownership; readonly suffix: string },
+  context?: {
+    readonly ownership: Ownership;
+    readonly suffix: string;
+    readonly occurrenceId?: string;
+  },
   manifestChanges: Partial<Manifest> = {},
 ) {
   const suffix = context === undefined ? '' : '-' + context.suffix;
@@ -293,7 +297,7 @@ export async function admitExecution(
     identity: {
       version: 1,
       runId: run.runId,
-      occurrenceId: 'occurrence',
+      occurrenceId: context?.occurrenceId ?? 'occurrence',
       operationKey: 'operation',
     },
     ordinal: 1,
@@ -487,7 +491,11 @@ export async function retainClaimReceipt(stores: OutcomeFixture, intent: Runtime
 /** Prepares a retained session through the verified binding and target operation. */
 export async function prepareSession(
   stores: OutcomeFixture,
-  context?: { readonly ownership: Ownership; readonly suffix: string },
+  context?: {
+    readonly ownership: Ownership;
+    readonly suffix: string;
+    readonly occurrenceId?: string;
+  },
 ) {
   const setup = await admitExecution(stores, context);
   const guard = await setup.currentGuard();
@@ -508,7 +516,11 @@ export async function prepareSession(
 /** Builds a claim through the real canonical stage and verified receipt acceptance. */
 export async function prepareClaimed(
   stores: OutcomeFixture,
-  context?: { readonly ownership: Ownership; readonly suffix: string },
+  context?: {
+    readonly ownership: Ownership;
+    readonly suffix: string;
+    readonly occurrenceId?: string;
+  },
 ) {
   const setup = await prepareSession(stores, context);
   const staged = unwrapReply(
@@ -562,7 +574,11 @@ export async function stageFixtureTurn(
 
 export async function prepareTurn(
   stores: OutcomeFixture,
-  context?: { readonly ownership: Ownership; readonly suffix: string },
+  context?: {
+    readonly ownership: Ownership;
+    readonly suffix: string;
+    readonly occurrenceId?: string;
+  },
 ) {
   const setup = await prepareClaimed(stores, context);
   const turn = await stageFixtureTurn(setup);

@@ -147,18 +147,8 @@ export function planAdmission(
     undefined,
   );
   if (predecessor !== undefined) {
-    const state = predecessor.state;
     // Proof: bypassing retry predecessor enforcement failed 'memory execution > waiting requires exact claim unique choices and determinate quiescence'.
-    // Proof: bypassing retry settled effect enforcement failed 'memory execution edges > successful effects cannot retry and missing attempts throw without mutations'.
-    if (
-      state.kind !== 'interrupted' ||
-      predecessor.holdsCapacity ||
-      state.quiescence.effect !== 'absent' ||
-      (state.checkpoint.kind !== 'queued' &&
-        state.checkpoint.kind !== 'preparing' &&
-        state.checkpoint.kind !== 'prepared')
-    )
-      return { kind: 'refused', reason: 'attempt_active' };
+    if (!permitsRetry(predecessor)) return { kind: 'refused', reason: 'attempt_active' };
   }
   // Proof: bypassing capacity comparison made `capacity one admits exactly one concurrent run without changing the loser` admit both runs.
   if (facts.capacity.reserved >= facts.capacity.limit)
@@ -180,4 +170,20 @@ export function planAdmission(
       reserveSlot: true,
     },
   };
+}
+
+/** Only a determinate, absent pre-claim interruption can admit another attempt. */
+export function permitsRetry(attempt: Attempt): boolean {
+  const state = attempt.state;
+  // Proof: independently bypassing the absent-effect requirement failed both
+  // `memory execution edges > successful effects cannot retry` and coordination's
+  // `durable failed interruption` with an unwanted admission/ready ticket.
+  return (
+    state.kind === 'interrupted' &&
+    !attempt.holdsCapacity &&
+    state.quiescence.effect === 'absent' &&
+    (state.checkpoint.kind === 'queued' ||
+      state.checkpoint.kind === 'preparing' ||
+      state.checkpoint.kind === 'prepared')
+  );
 }
