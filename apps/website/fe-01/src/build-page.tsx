@@ -10,7 +10,14 @@ import {
   resolveHarness,
   startOverUrl,
 } from './build-contract';
-import { HeroMedia, SiteHeader, siteOrigin, useHeadingFocus, usePageTitle } from './chrome';
+import {
+  AnalyticsCredit,
+  HeroMedia,
+  SiteHeader,
+  siteOrigin,
+  useHeadingFocus,
+  usePageTitle,
+} from './chrome';
 import { LiveHarness, PausedHarness } from './conversation-harness';
 import { ArrivalChoice, PrivacyChoices } from './privacy-choices';
 import { clearRequestEditor, RequestEditor } from './request-editor';
@@ -321,6 +328,9 @@ export function BuildPage() {
         )}
       </main>
       <PrivacyChoices />
+      <footer className="build-credit">
+        <AnalyticsCredit />
+      </footer>
     </div>
   );
 }

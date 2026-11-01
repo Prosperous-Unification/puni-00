@@ -131,6 +131,9 @@ test('mounted consent has equal choices, visible optional failure and no StrictM
     dispatchLead: () => 'dropped',
     getState: () => state,
     getChoice: () => 'accepted',
+    getRegion: () => 'unknown',
+    subscribeRegion: () => () => undefined,
+    setRegion: () => undefined,
     subscribeChoice: () => () => undefined,
     subscribe: (next: typeof listener) => {
       listener = (updated) => {
@@ -212,6 +215,9 @@ for (const action of ['Allow analytics cookies', 'Disable measurement'])
       '<body><button id="request">Request</button><div id="choices"></div></body>',
       { url: 'https://dev.app.puni.dev/' },
     );
+    Object.assign(isolated.window, {
+      fetch: () => Promise.resolve(Response.json({ region: 'unknown', database: null })),
+    });
     const analytics = createBrowserAnalytics(isolated.window, {
       enabled: true,
       environment: 'development',
@@ -272,6 +278,9 @@ for (const [preference, visible] of [
     const isolated = new JSDOM('<body><div></div></body>', { url: 'https://dev.app.puni.dev/' });
     if (preference !== null)
       isolated.window.document.cookie = `puni_dev_consent_v1=${encodeURIComponent(preference)}; Domain=puni.dev; Path=/; Secure`;
+    Object.assign(isolated.window, {
+      fetch: () => Promise.resolve(Response.json({ region: 'unknown', database: null })),
+    });
     const analytics = createBrowserAnalytics(isolated.window, {
       enabled: true,
       environment: 'development',
@@ -324,6 +333,9 @@ for (const action of ['Allow analytics cookies', 'Disable measurement'])
         throw new isolated.window.DOMException('blocked', 'SecurityError');
       },
       set: () => undefined,
+    });
+    Object.assign(isolated.window, {
+      fetch: () => Promise.resolve(Response.json({ region: 'unknown', database: null })),
     });
     const analytics = createBrowserAnalytics(isolated.window, {
       enabled: true,
@@ -395,6 +407,9 @@ for (const [enabled, url] of [
 ] as const)
   test(`arrival choice absent when disabled or unsupported: ${String(enabled)} ${url}`, () => {
     const isolated = new JSDOM('<body></body>', { url });
+    Object.assign(isolated.window, {
+      fetch: () => Promise.resolve(Response.json({ region: 'unknown', database: null })),
+    });
     const analytics = createBrowserAnalytics(isolated.window, {
       enabled,
       environment: 'development',
@@ -421,6 +436,9 @@ for (const [enabled, url] of [
 
 test('focus sync observes another host choice while vendor stays loading', () => {
   const isolated = new JSDOM('<body></body>', { url: 'https://dev.app.puni.dev/' });
+  Object.assign(isolated.window, {
+    fetch: () => Promise.resolve(Response.json({ region: 'unknown', database: null })),
+  });
   const analytics = createBrowserAnalytics(isolated.window, {
     enabled: true,
     environment: 'development',
@@ -459,6 +477,9 @@ test('focus sync observes another host choice while vendor stays loading', () =>
 for (const action of ['Allow analytics cookies', 'Disable measurement'])
   test(`fresh footer can persist a choice directly: ${action}`, () => {
     const isolated = new JSDOM('<body></body>', { url: 'https://dev.app.puni.dev/' });
+    Object.assign(isolated.window, {
+      fetch: () => Promise.resolve(Response.json({ region: 'unknown', database: null })),
+    });
     const analytics = createBrowserAnalytics(isolated.window, {
       enabled: true,
       environment: 'development',
@@ -498,3 +519,164 @@ for (const action of ['Allow analytics cookies', 'Disable measurement'])
       isolated.window.close();
     }
   });
+
+test('regional arrival visibility updates during vendor loading while footer rejection remains reachable', async () => {
+  const isolated = new JSDOM('<body></body>', { url: 'https://dev.app.puni.dev/' });
+  const pending = Promise.withResolvers<Response>();
+  Object.assign(isolated.window, { fetch: () => pending.promise });
+  const analytics = createBrowserAnalytics(isolated.window, {
+    enabled: true,
+    environment: 'development',
+    measurementId: 'G-R0JM3R4SSV',
+  });
+  const root = createRoot(isolated.window.document.body);
+  try {
+    act(() => {
+      root.render(
+        <MilestonesContext.Provider value={createMilestones(analytics)}>
+          <ArrivalChoice />
+          <PrivacyChoices />
+        </MilestonesContext.Provider>,
+      );
+    });
+    const arrival = () => isolated.window.document.querySelector('[data-arrival-choice]');
+    expect(arrival()).not.toBeNull();
+    await act(async () => {
+      pending.resolve(
+        Response.json({
+          region: 'elsewhere',
+          database: { month: '2026-11', refreshDue: '2026-12-01', updateDue: false },
+        }),
+      );
+      for (let turn = 0; turn < 8; turn++) await Promise.resolve();
+    });
+    expect(analytics.getState().status).toBe('loading');
+    expect(arrival()).toBeNull();
+    const footer = isolated.window.document.querySelector('[aria-label="Analytics privacy"]');
+    if (!footer) throw new Error('Missing privacy controls');
+    act(() => footer.querySelector('button')?.click());
+    expect(footer.textContent).toContain('approximate country');
+    expect(footer.textContent).toContain('regional default');
+    expect(footer.textContent).not.toContain('Analytics cookies require your permission');
+    act(() =>
+      [...footer.querySelectorAll('button')]
+        .find((button) => button.textContent === 'Disable measurement')
+        ?.click(),
+    );
+    act(() => {
+      analytics.setRegion('unknown');
+    });
+    act(() => {
+      analytics.setRegion('elsewhere');
+    });
+    expect(analytics.getChoice()).toBe('rejected');
+    expect(analytics.getState().status).toBe('denied');
+    expect(arrival()).toBeNull();
+  } finally {
+    act(() => {
+      root.unmount();
+    });
+    analytics.dispose();
+    isolated.window.close();
+  }
+});
+
+test('regional grant cannot hide a failed preference write and unknown remains actionable', () => {
+  const isolated = new JSDOM('<body></body>', { url: 'https://dev.app.puni.dev/' });
+  Object.assign(isolated.window, { fetch: () => new Promise<Response>(() => undefined) });
+  const analytics = createBrowserAnalytics(isolated.window, {
+    enabled: true,
+    environment: 'development',
+    measurementId: 'G-R0JM3R4SSV',
+  });
+  const root = createRoot(isolated.window.document.body);
+  try {
+    act(() => {
+      root.render(
+        <MilestonesContext.Provider value={createMilestones(analytics)}>
+          <ArrivalChoice />
+          <PrivacyChoices />
+        </MilestonesContext.Provider>,
+      );
+    });
+    const arrival = () => isolated.window.document.querySelector('[data-arrival-choice]');
+    act(() => {
+      analytics.setRegion('consent-required');
+    });
+    expect(arrival()).not.toBeNull();
+    act(() => {
+      analytics.setRegion('unknown');
+    });
+    expect(arrival()).not.toBeNull();
+    act(() => {
+      analytics.setRegion('elsewhere');
+    });
+    expect(arrival()).toBeNull();
+    Object.defineProperty(isolated.window.document, 'cookie', {
+      get: () => '',
+      set: () => undefined,
+    });
+    act(() => {
+      analytics.reject();
+    });
+    expect(analytics.getChoice()).toBe('unavailable');
+    expect(arrival()).not.toBeNull();
+    expect(arrival()?.textContent).toContain('We couldn’t read or save your choice');
+  } finally {
+    act(() => {
+      root.unmount();
+    });
+    analytics.dispose();
+    isolated.window.close();
+  }
+});
+
+test('region notification hides arrival even after optional vendor failure', async () => {
+  const isolated = new JSDOM('<body></body>', { url: 'https://dev.app.puni.dev/' });
+  const pending = Promise.withResolvers<Response>();
+  Object.assign(isolated.window, { fetch: () => pending.promise });
+  const analytics = createBrowserAnalytics(isolated.window, {
+    enabled: true,
+    environment: 'development',
+    measurementId: 'G-R0JM3R4SSV',
+  });
+  const root = createRoot(isolated.window.document.body);
+  try {
+    act(() => {
+      root.render(
+        <MilestonesContext.Provider value={createMilestones(analytics)}>
+          <ArrivalChoice />
+          <PrivacyChoices />
+        </MilestonesContext.Provider>,
+      );
+    });
+    await act(async () => {
+      isolated.window.document
+        .querySelector('script')
+        ?.dispatchEvent(new isolated.window.Event('error'));
+      for (let turn = 0; turn < 8; turn++) await Promise.resolve();
+    });
+    expect(analytics.getState().status).toBe('unavailable');
+    expect(isolated.window.document.querySelector('[data-arrival-choice]')).not.toBeNull();
+    await act(async () => {
+      pending.resolve(
+        Response.json({
+          region: 'elsewhere',
+          database: { month: '2026-11', refreshDue: '2026-12-01', updateDue: false },
+        }),
+      );
+      for (let turn = 0; turn < 8; turn++) await Promise.resolve();
+    });
+    expect(analytics.getState().status).toBe('unavailable');
+    expect(isolated.window.document.querySelector('[data-arrival-choice]')).toBeNull();
+    expect(
+      isolated.window.document.querySelector('[aria-label="Analytics privacy"]'),
+    ).not.toBeNull();
+  } finally {
+    act(() => {
+      root.unmount();
+    });
+    analytics.dispose();
+    isolated.window.close();
+  }
+});

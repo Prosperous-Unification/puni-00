@@ -1775,55 +1775,57 @@ body:has(.night-shell) {
 .arrival-choice {
   position: relative;
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--space-5);
-  width: min(1100px, 100% - 2 * var(--gutter));
-  margin: var(--space-3) auto var(--space-5);
+  display: grid;
+  gap: var(--space-3);
+  width: min(20rem, 100% - 2 * var(--gutter));
+  margin: var(--space-3) auto var(--space-5) var(--gutter);
   padding: var(--space-4);
-  border: 1px solid #756c61;
+  border: 1px solid var(--on-night-muted);
   border-radius: var(--radius-field);
-  background: #211b20;
-  color: #f4eee6;
+  background: var(--night-2);
+  color: var(--on-night);
 }
 .arrival-choice p {
   margin: 0 0 var(--space-2);
   font-size: var(--text-small);
-  line-height: 1.5;
+  line-height: 1.45;
 }
 .arrival-choice a {
-  color: #f6c985;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+.arrival-choice :is(a, button):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 .arrival-actions {
-  display: flex;
-  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--space-2);
 }
 .arrival-actions .glass-button {
-  min-height: 44px;
-  padding: var(--space-3) var(--space-4);
-  border-color: #9b8d7c;
-  color: #f4eee6;
-  background: #30272c;
+  min-width: 0;
+  min-height: var(--target);
+  padding: var(--space-2);
+  border-color: var(--on-night-muted);
+  color: var(--on-night);
+  background: var(--night-2);
+  font-size: var(--text-small);
+  line-height: 1.4;
   white-space: normal;
 }
-@media (max-width: 900px) {
-  .arrival-choice {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-3);
-  }
-  .arrival-actions {
-    flex-wrap: wrap;
-  }
-  .arrival-actions .glass-button {
-    flex: 1;
-  }
+.analytics-credit a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target);
+  color: inherit;
 }
-@media (max-width: 480px) {
-  .arrival-actions .glass-button {
-    padding-inline: var(--space-2);
-  }
+.build-credit {
+  flex-shrink: 0;
+  padding: 0 var(--gutter) var(--space-3);
+  font-size: var(--text-micro);
+  color: var(--on-night-muted);
 }
 
 /* The arrival invitation shares the existing shell scroll with the full conversation until a
