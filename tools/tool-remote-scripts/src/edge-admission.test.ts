@@ -1,7 +1,9 @@
 import { rejects } from 'node:assert/strict';
+import { fstatSync } from 'node:fs';
 import {
   chmod,
   copyFile,
+  lstat,
   mkdir,
   mkdtemp,
   readFile,
@@ -14,6 +16,9 @@ import { join, resolve } from 'node:path';
 
 import { afterEach, expect, test } from 'bun:test';
 
+import { requireInheritedEdgeLock } from './lib/edge-admission';
+import { initializeOrdinaryEdgePolicy } from './lib/edge-policy';
+import { readPhase } from './lib/phase';
 import { execute } from './swap';
 
 const roots: string[] = [];
@@ -667,3 +672,136 @@ for (const fault of ['stat-failure', 'hash-failure', 'hash-empty'] as const) {
     expect(code).not.toBe(0);
   });
 }
+
+test('direct swap executor retains original edge description throughout paused owned IO', async () => {
+  const state = await mkdtemp(join(tmpdir(), 'direct-swap-interval-'));
+  roots.push(state);
+  const lock = join(state, 'edge.lock');
+  const phase = join(state, 'owned.phase');
+  await writeFile(lock, '');
+  await writeFile(phase, 'committed\n');
+  await initializeOrdinaryEdgePolicy(state);
+  await writeFile(lock, 'original edge bytes');
+  expect(await readFile(lock, 'utf8')).toBe('original edge bytes');
+  const openingLock = await lstat(lock, { bigint: true });
+  let releasePause: (() => void) | undefined;
+  const pause = new Promise<void>((release) => {
+    releasePause = release;
+  });
+  if (releasePause === undefined) throw new Error('owned pause was not initialized');
+  const release = releasePause;
+  const previousState = process.env['WBS_EDGE_STATE'];
+  const previousDescriptor = process.env['WBS_EDGE_LOCK_FD'];
+  process.env['WBS_EDGE_STATE'] = state;
+  delete process.env['WBS_EDGE_LOCK_FD'];
+  let entered = false;
+  let settled = false;
+  let observedPhase: Awaited<ReturnType<typeof readPhase>> | undefined;
+  let binding: { descriptor: number; device: string; inode: string } | undefined;
+  const unexpected = (): Promise<never> => Promise.reject(new Error('unexpected external IO port'));
+  const invocation = execute(
+    { tier: 'fe', from: null, to: 'blue', steps: [] },
+    'owned-image',
+    'owned-sha',
+    {
+      barrierStateDir: state,
+      sh: unexpected,
+      writePhase: unexpected,
+      writeAtomic: unexpected,
+      readPhase: async () => {
+        const inherited = await requireInheritedEdgeLock();
+        if (inherited.stateDirectory !== state)
+          throw new Error('direct invocation inherited another state');
+        const original = fstatSync(inherited.descriptor, { bigint: true });
+        binding = {
+          descriptor: inherited.descriptor,
+          device: String(original.dev),
+          inode: String(original.ino),
+        };
+        await writeFile(join(state, 'io-entered'), 'owned protected IO');
+        entered = true;
+        await pause;
+        observedPhase = await readPhase(phase);
+        return observedPhase;
+      },
+    },
+  ).then(
+    () => {
+      settled = true;
+      return { status: 'fulfilled' as const };
+    },
+    (cause: unknown) => {
+      settled = true;
+      return { status: 'rejected' as const, cause };
+    },
+  );
+  const contend = async () => {
+    const child = Bun.spawn(['flock', '-n', lock, 'sh', '-c', 'exit 0'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const [stdout, stderr, exit] = await Promise.allSettled([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ] as const);
+    if (
+      stdout.status !== 'fulfilled' ||
+      stderr.status !== 'fulfilled' ||
+      exit.status !== 'fulfilled'
+    ) {
+      console.error(
+        '[direct interval fixture] HOLD: original contender wait/read/EOF remains unknown',
+      );
+      for (;;) await Bun.sleep(1000);
+    }
+    expect(child.signalCode).toBeNull();
+    expect(stdout.value + stderr.value).toBe('');
+    return exit.value;
+  };
+  const hasEntered = () => entered;
+  const hasSettled = () => settled;
+  try {
+    for (let attempt = 0; attempt < 200 && !hasEntered() && !hasSettled(); attempt++)
+      await Bun.sleep(5);
+    expect(entered).toBe(true);
+    expect(await readFile(join(state, 'io-entered'), 'utf8')).toBe('owned protected IO');
+    expect(binding).toMatchObject({
+      device: String(openingLock.dev),
+      inode: String(openingLock.ino),
+    });
+    expect(binding?.descriptor).toBeGreaterThanOrEqual(3);
+    expect(settled).toBe(false);
+    expect(observedPhase).toBeUndefined();
+    const blocked = await contend();
+    expect(blocked).toBe(1);
+    expect(settled).toBe(false);
+    release();
+    const outcome = await invocation;
+    if (outcome.status === 'rejected') throw outcome.cause;
+    expect(settled).toBe(true);
+    expect(observedPhase).toBe('committed');
+    const available = await contend();
+    expect(available).toBe(0);
+    expect(await readFile(lock, 'utf8')).toBe('original edge bytes');
+    console.log(
+      '[direct interval fixture] ' +
+        JSON.stringify({
+          binding,
+          blocked,
+          available,
+          invocation: outcome.status,
+          contenderExitAndBothEOF: true,
+        }),
+    );
+  } finally {
+    release();
+    try {
+      await invocation;
+    } finally {
+      if (previousState === undefined) delete process.env['WBS_EDGE_STATE'];
+      else process.env['WBS_EDGE_STATE'] = previousState;
+      if (previousDescriptor === undefined) delete process.env['WBS_EDGE_LOCK_FD'];
+      else process.env['WBS_EDGE_LOCK_FD'] = previousDescriptor;
+    }
+  }
+});

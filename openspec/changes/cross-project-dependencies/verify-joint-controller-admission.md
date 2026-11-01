@@ -112,3 +112,32 @@ architectural adoption and deployment remain open. Full original publisher/
 terminal custody and compatible successors are separate unfinished requirements;
 ordinary refusal is not compatible active-operation support. No task box is closed
 from these scoped facts.
+
+### Direct-execute interval follow-up after f99 — 2026-11-01
+
+The remaining direct-swap Minor evidence gap is closed for the ordinary owned
+fixture. Actual imported execute and its real shared guards admit ordinary state
+under the existing edge lock, reach a paused owned phase-read IO sentinel, and
+validate the actual inherited descriptor against its original inode/device. An
+independent real flock contender refuses during that IO. After the owned pause
+is released and original invocation completes, a fresh contender acquires.
+Both contenders' original exit/stdout/stderr observations settle; fixture cleanup
+restores the environment and joins the invocation on every path. No production
+IO port, Docker, remote host, service or source guard omission is involved.
+
+The first3-case run was2pass/1fail solely because the new fixture wrote expected
+lock bytes before the real policy initializer legitimately wrote/cleared holder
+metadata. The fixture now seeds and asserts its opening bytes after initialization;
+the final bytes assertion stays intact. That earlier failure remains separately
+retained, not interval proof. Fresh corrected3pass/0fail with41filtered and19
+assertions establishes the actual matched descriptor, blocked status1 and released
+status0. One-file format/lint and configured remote typecheck exited0.
+
+Freeze SHA2569f01182ea8368ccecf6a34466b567cab684ec31d283e3212ff083da8cff05990;
+sole test SHA256aa499904440700391f6f44b025c4a739f110e3e81c2b92497763a1142bffe8a4;
+independent Astra GO SHA256
+979906c45c579e9b529a2e61075ecbaec64622df32121f012c87c3e159f0dcd8.
+Other70 source/data and11 dependencies remain exact; all8 document comparisons
+use the actual f99 Root-owned append rather than the earlier pre-append snapshot.
+No full source71 gate, necessity/native qualification, active-compatible operation,
+full original publisher, architectural main adoption or deployment is inferred.
