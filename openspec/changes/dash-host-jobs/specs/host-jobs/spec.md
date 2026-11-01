@@ -20,7 +20,7 @@ catalogue does not name or whose argument profile the argv does not match.
 - **WHEN** the rule judges a puni-00 revision whose catalogue names `gate`, `release-build`,
   `test-queued` and `solver-image-publish`, each estimated until 2026-12-01, at an instant before
   that date
-- **THEN** the rule passes and names the four types; `website-dev-build` is judged from
+- **THEN** the rule passes with no finding and no unevaluated rule; `website-dev-build` is judged from
   `puni-pr-00`'s own catalogue and revision
 
 #### Scenario: An estimate outlives its date

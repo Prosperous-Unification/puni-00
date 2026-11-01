@@ -1,5 +1,6 @@
 import type { RelationshipRequest } from '../contracts/records';
 import { hashCanonical } from '../evidence/content-manifest';
+import { readEvaluationInstant } from '../evidence/manual';
 import { checkIndexes } from '../indexes/check-indexes';
 import {
   type CandidateRequest,
@@ -89,6 +90,8 @@ export interface CheckRequest {
   /** When present, only this rule runs. The verdict still says which rules ran. */
   ruleId?: string;
   performanceEvidencePath?: string;
+  /** The instant dated rules judge against; see {@link RuleContext.evaluatedAt}. */
+  evaluatedAt?: Date;
 }
 
 function readPerformanceEvidence(path: string): PerformanceEvidence {
@@ -219,6 +222,14 @@ export function executeCheckCandidate(request: CheckRequest) {
   ) {
     throw new Error('Performance evidence was supplied without selecting PERF-THRESHOLD');
   }
+  // Proof (2026-11-01): disabling this check made `check refuses --now without a dated rule`
+  // receive empty stderr instead of this refusal.
+  if (
+    request.evaluatedAt !== undefined &&
+    !selected.some((rule) => rule.inputs.includes('invocation.evaluatedAt'))
+  ) {
+    throw new Error('an evaluation instant was supplied without selecting a dated rule');
+  }
   const candidate = readCandidate(candidateRoot, request.candidate);
   const candidateDigest = digestCandidate(candidate);
   const performanceEvidence =
@@ -275,6 +286,7 @@ export function executeCheckCandidate(request: CheckRequest) {
     ...(performanceEvidence === undefined ? {} : { performanceEvidence }),
     performancePolicyDigest: loadedPolicy.digest,
     candidateDigest,
+    ...(request.evaluatedAt === undefined ? {} : { evaluatedAt: request.evaluatedAt }),
     indexes,
     kinds: readKindOutcome(candidateRoot, candidate, policy.kindInventory?.path),
     relationships,
@@ -306,6 +318,11 @@ export function executeCheckCandidate(request: CheckRequest) {
     findings,
     unevaluated,
     certifies: false,
+    // Proof (2026-11-01): dropping this field made `passes the four job types of this repository
+    // before their until date` fail: the verdict no longer said which instant it judged.
+    ...(request.evaluatedAt === undefined
+      ? {}
+      : { evaluatedAt: request.evaluatedAt.toISOString() }),
     ...(scenarioOutcome?.ok ? { scenarios: scenarioOutcome.report } : {}),
   };
   return { verdict, candidate, loadedPolicy, indexes, sizeCeilings };
@@ -321,7 +338,7 @@ function candidateRequest(kind: string, revision: string): CandidateRequest {
   // unrelated missing-classification-policy diagnostic.
   if (kind !== 'committed' && kind !== 'staged' && kind !== 'working') {
     throw new Error(
-      'usage: twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>]',
+      'usage: twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>] [--performance-evidence <json>] [--now <UTC instant>]',
     );
   }
   return kind === 'committed' ? { kind, revision } : { kind, base: revision };
@@ -332,6 +349,7 @@ export function writeCheckCommand(argv: readonly string[]): void {
   const [, kind, repository, revision, rulePolicyPath] = argv;
   let ruleId: string | undefined;
   let performanceEvidencePath: string | undefined;
+  let evaluatedAt: Date | undefined;
   // Proof: removing either duplicate guard or bypassing the unknown-flag refusal made the
   // complete-check source test lose its required check-flag diagnostic (2026-10-15).
   for (let index = 5; index < argv.length; index += 2) {
@@ -340,9 +358,11 @@ export function writeCheckCommand(argv: readonly string[]): void {
     if (flag === '--rule' && ruleId === undefined) ruleId = value;
     else if (flag === '--performance-evidence' && performanceEvidencePath === undefined)
       performanceEvidencePath = value;
+    else if (flag === '--now' && evaluatedAt === undefined)
+      evaluatedAt = readEvaluationInstant(value, 'check');
     else {
       throw new Error(
-        `invalid or duplicate check flag: ${flag}; expected --rule <rule-id> or --performance-evidence <json> once each`,
+        `invalid or duplicate check flag: ${flag}; expected --rule <rule-id>, --performance-evidence <json> or --now <UTC instant> once each`,
       );
     }
   }
@@ -354,6 +374,9 @@ export function writeCheckCommand(argv: readonly string[]): void {
     // Proof: removing this forwarding made the complete-check source test leave PERF-THRESHOLD
     // unevaluated with the missing-run-evidence reason (2026-10-15).
     ...(performanceEvidencePath === undefined ? {} : { performanceEvidencePath }),
+    // Proof (2026-11-01): removing this forwarding failed fourteen of the seventeen
+    // `rules/job-catalogue.test.ts` cases, every one that supplies --now.
+    ...(evaluatedAt === undefined ? {} : { evaluatedAt }),
   });
   process.stdout.write(`${JSON.stringify(verdict)}\n`);
   // A refused or unevaluated verdict must fail the caller's shell while the record still reaches
