@@ -36,6 +36,46 @@ describe('capacity report words', () => {
     });
   });
 
+  // `dash-host-jobs` 5.3, "Reserved by two jobs".
+  it('reads reserved units and both job names beside the measured usage', () => {
+    const reserved = reportOf({
+      outcome: { kind: 'measured', capacityUnits: 15, usageUnits: 8, reservedUnits: 12 },
+    });
+    expect(
+      readReport(reserved, 'GiB', NOW, [{ label: 'gate 1a2b3c4' }, { label: 'gate 5d6e7f8' }]),
+    ).toEqual({
+      state: 'measured',
+      headline: 'Measured 15 GiB, 8 in use, 12 reserved by 2 jobs',
+      detail: 'Reserved by gate 1a2b3c4 and gate 5d6e7f8. Observed 2 min ago.',
+      capacityUnits: 15,
+    });
+    expect(readReport(reserved, 'GiB', NOW, [{ label: 'gate 1a2b3c4' }]).headline).toBe(
+      'Measured 15 GiB, 8 in use, 12 reserved by 1 job',
+    );
+    // Reserved units whose jobs WBS has not heard of yet, and an idle pool.
+    expect(readReport(reserved, 'GiB', NOW)).toMatchObject({
+      headline: 'Measured 15 GiB, 8 in use, 12 reserved',
+      detail: 'Dash has not published the jobs holding it yet. Observed 2 min ago.',
+    });
+    expect(
+      readReport(
+        reportOf({
+          outcome: { kind: 'measured', capacityUnits: 15, usageUnits: 8, reservedUnits: 0 },
+        }),
+        'GiB',
+        NOW,
+      ),
+    ).toMatchObject({ headline: 'Measured 15 GiB, 8 in use, none reserved' });
+    // Stale reads as before, whatever the jobs.
+    expect(
+      readReport({ ...reserved, observedAt: NOW - 3_600_000 }, 'GiB', NOW, [
+        { label: 'gate 1a2b3c4' },
+      ]).detail,
+    ).toBe(
+      'Dash reports every 5 min; a report is stale after 15 min (3 × cadence). It measured 15 GiB, 8 in use.',
+    );
+  });
+
   it('reads an unreachable report with the adapter’s reason', () => {
     const reading = readReport(
       reportOf({ outcome: { kind: 'unreachable', reason: 'ssh: connection timed out' } }),

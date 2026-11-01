@@ -4,6 +4,13 @@ import { parseSecretsOrThrow, type } from '@shared/validation';
 
 import { ApiKey, type McpEndpoint, mcpEndpointOf } from '../mcp/machine-token';
 import {
+  type HostPoolDimension,
+  HostPoolDimensionShape,
+  type HostPoolLedger,
+  isCountedDimension,
+  openHostPoolLedger,
+} from './host-pool-ledger';
+import {
   type ComputeProvider,
   type Measure,
   MEASURES,
@@ -50,6 +57,11 @@ export interface ReporterConfiguration {
   readonly credential: ApiKey;
   readonly cadenceSeconds: number;
   readonly instances: readonly ReporterInstance[];
+  /**
+   * This host's managed-resource ledger, present exactly when a binding's source is the host
+   * pool (`dash-host-jobs` J10); the loader refuses either without the other.
+   */
+  readonly hostPool?: HostPoolLedger;
 }
 
 /** One instance's settings as the file states them, shape-checked, for its adapter to open. */
@@ -104,7 +116,16 @@ const Binding = type({
   'path?': AbsolutePath,
   'slots?': '1 <= number.integer <= 10000',
   'ceilingGib?': '1 <= number.integer <= 1000000',
+  'source?': "'host_pool'",
+  'dimension?': HostPoolDimensionShape,
 }).onUndeclaredKey('reject');
+
+/** The measure a `host_pool` dimension's reserved units sit beside (`dash-host-jobs` J10). */
+const DIMENSION_MEASURES: Readonly<Record<HostPoolDimension, Measure>> = {
+  cpuCores: 'cpu_cores',
+  memoryGib: 'memory_gib',
+  tmpDiskGib: 'disk_gib',
+};
 
 const Instance = type({
   instanceId: Identifier,
@@ -122,6 +143,7 @@ const Configuration = type({
   credential: MachineKey,
   'cadenceSeconds?': '30 <= number.integer <= 86400',
   instances: Instance.array().atLeastLength(1),
+  'hostPool?': type({ ledger: AbsolutePath }).onUndeclaredKey('reject'),
 }).onUndeclaredKey('reject');
 
 /**
@@ -238,6 +260,24 @@ function checkBinding(
       `${path}: instance ${instanceId} resource ${binding.resourceId} measure ${binding.measure} takes ${wanted}`,
     );
   }
+  // Proof: dropping this pairing made `refuses a host pool binding whose dimension does not
+  // match its measure config_malformed` (report-capacity.test.ts) load memoryGib beside
+  // cpu_cores (2026-11-01, verify.md Slice 5).
+  if ((binding.source === undefined) !== (binding.dimension === undefined))
+    throw new ConfigurationRefusal(
+      'config_malformed',
+      `${path}: instance ${instanceId} resource ${binding.resourceId} names source and dimension together or neither`,
+    );
+  if (binding.dimension !== undefined) {
+    const paired = isCountedDimension(binding.dimension)
+      ? DIMENSION_MEASURES[binding.dimension]
+      : 'agent_slots';
+    if (binding.measure !== paired)
+      throw new ConfigurationRefusal(
+        'config_malformed',
+        `${path}: instance ${instanceId} resource ${binding.resourceId} dimension ${binding.dimension} pairs with measure ${paired}`,
+      );
+  }
 }
 
 /**
@@ -245,12 +285,15 @@ function checkBinding(
  * (`compute-providers` P10, P11): the owner-only file, its shape (field paths only, never
  * values), one binding per resource across the file, and per instance its kind's availability,
  * the adapter's measures, then the adapter's own local inputs.
+ * A `hostPool.ledger` is opened read-only through `openLedger` after every instance opened,
+ * and only when a binding names the host pool.
  * @throws ConfigurationRefusal naming the first unusable input; an adapter's own refusal (an SSH
- * transport refusal) propagates as it is.
+ * transport refusal) and the ledger's own refusal propagate as they are.
  */
 export async function loadReporterConfiguration(
   path: string,
   adapters: ProviderAdapters,
+  openLedger: (ledger: string) => HostPoolLedger = openHostPoolLedger,
 ): Promise<ReporterConfiguration> {
   const source = readOwnerOnly(path);
   let input: unknown;
@@ -335,10 +378,19 @@ export async function loadReporterConfiguration(
       bindings: instance.bindings,
     });
   }
+  const pooled = parsed.instances.some((instance) =>
+    instance.bindings.some((binding) => binding.source === 'host_pool'),
+  );
+  if (pooled !== (parsed.hostPool !== undefined))
+    throw new ConfigurationRefusal(
+      'config_malformed',
+      `${path}: hostPool.ledger is ${pooled ? 'required by' : 'unused without'} a binding whose source is host_pool`,
+    );
   return {
     endpoint,
     credential: ApiKey.of(parsed.credential, `${path}: credential`),
     cadenceSeconds: parsed.cadenceSeconds ?? DEFAULT_CADENCE_SECONDS,
     instances,
+    ...(parsed.hostPool === undefined ? {} : { hostPool: openLedger(parsed.hostPool.ledger) }),
   };
 }

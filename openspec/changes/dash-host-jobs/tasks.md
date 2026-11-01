@@ -77,18 +77,19 @@
 
 ## 5. WBS projection (needs 2; contracts, be-01, fe-01, Dash compute)
 
-- [ ] 5.1 `reservedUnits` on the capacity report (additive migration with `down.sql`), the
+- [x] 5.1 `reservedUnits` on the capacity report (additive migration with `down.sql`), the
       `host_pool` binding source in `report-capacity` reading the ledger, re-observed on the
       ledger's change notification — test: reporter test with a fixture ledger; a pre-change body
       still stored; negative: let reservations overwrite `usageUnits` and watch the
       reserved-beside-measured scenario fail.
-- [ ] 5.2 `resourceRuntimeUse` v2 with `kind: 'host_job'`, optional planning links, authority
+- [x] 5.2 `resourceRuntimeUse` v2 with `kind: 'host_job'`, optional planning links, authority
       ownership and reservation entries; `registered` from the outbox after admission,
       `release_verified` only with settlement evidence; deletion of a planning link keeps the use
       (J10) — test: the WBS-down scenario against a refusing fixture server; a v1 use still
       accepted; negative: require a planning link and watch a gate without one fail to register.
 - [ ] 5.3 fe-01: reserved units and job names beside the measured figure, states unchanged —
-      test: rendering states; eye review per the UI acceptance rule.
+      test: rendering states; eye review per the UI acceptance rule. Code and rendering tests
+      landed in slice 5 (verify.md Slice 5, S5-A16); open only for Dany's eye review.
 
 ## 6. Transition on the gate hosts (operator and code)
 

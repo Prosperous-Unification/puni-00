@@ -1,3 +1,4 @@
+import { resourceRuntimeHostJobUse } from '@wbs/contracts';
 import {
   type AuditedAct,
   type CapacityReports,
@@ -5,6 +6,7 @@ import {
   type ComputeProviderDraft,
   type ComputeProviderPatch,
   type ComputeProviderSummary,
+  type HostJobReading,
   type MachineCredentialActorRefusal,
   type ResourceProviderReading,
 } from '@wbs/core';
@@ -34,6 +36,7 @@ import {
   resource,
   resourceCapacityReport,
   type ResourceCapacityReportRow,
+  resourceHostJobRecord,
   resourceOrganization,
 } from './schema';
 
@@ -141,7 +144,13 @@ function reportOf(row: ResourceCapacityReportRow): CapacityReport {
   if (row.outcome === 'measured' && row.capacityUnits !== null && row.usageUnits !== null)
     return {
       ...common,
-      outcome: { kind: 'measured', capacityUnits: row.capacityUnits, usageUnits: row.usageUnits },
+      outcome: {
+        kind: 'measured',
+        capacityUnits: row.capacityUnits,
+        usageUnits: row.usageUnits,
+        // Absent, not null, for a report sent without it: the pre-change answer byte for byte.
+        ...(row.reservedUnits === null ? {} : { reservedUnits: row.reservedUnits }),
+      },
     };
   if (row.outcome === 'unreachable' && row.reason !== null)
     return { ...common, outcome: { kind: 'unreachable', reason: row.reason } };
@@ -390,6 +399,8 @@ export class ComputeProviderRepository implements ComputeProviderAdministration,
         outcome: report.outcome.kind,
         capacityUnits: report.outcome.kind === 'measured' ? report.outcome.capacityUnits : null,
         usageUnits: report.outcome.kind === 'measured' ? report.outcome.usageUnits : null,
+        reservedUnits:
+          report.outcome.kind === 'measured' ? (report.outcome.reservedUnits ?? null) : null,
         reason: report.outcome.kind === 'unreachable' ? report.outcome.reason : null,
         reportedByPersonId: report.reportedBy,
         reportedAt: report.reportedAt,
@@ -433,11 +444,49 @@ export class ComputeProviderRepository implements ComputeProviderAdministration,
         // it, so one naming another instance is malformed trusted state.
         if (report !== null && report.providerId !== row.providerId)
           throw new Error(`capacity report of resource ${row.id} names another instance`);
-        readings.set(row.id, { provider: providerOf(row), report });
+        readings.set(row.id, {
+          provider: providerOf(row),
+          report,
+          hostJobs: row.providerId === null ? [] : hostJobsOf(tx, row.providerId),
+        });
       }
       return readings;
     });
   }
+}
+
+/**
+ * The host jobs the authority bound to `providerId` published and has not
+ * returned (`dash-host-jobs` J10), oldest registration first.
+ *
+ * @throws when a stored declaration is not a host job use: ingestion stored it
+ * after the contract accepted it, so anything else is broken trusted state.
+ */
+function hostJobsOf(
+  tx: Pick<SQLiteBunDatabase, 'select'>,
+  providerId: string,
+): readonly HostJobReading[] {
+  return tx
+    .select({ useId: resourceHostJobRecord.useId, declaration: resourceHostJobRecord.declaration })
+    .from(resourceHostJobRecord)
+    .where(
+      and(
+        eq(resourceHostJobRecord.providerId, providerId),
+        eq(resourceHostJobRecord.state, 'registered'),
+      ),
+    )
+    .orderBy(asc(resourceHostJobRecord.registeredAt), asc(resourceHostJobRecord.useId))
+    .all()
+    .map((row) => {
+      const use = resourceRuntimeHostJobUse.assert(JSON.parse(row.declaration));
+      return {
+        useId: row.useId,
+        label: use.label,
+        type: use.type,
+        host: use.host,
+        reservations: use.reservations,
+      };
+    });
 }
 
 /**

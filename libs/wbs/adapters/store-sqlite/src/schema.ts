@@ -4277,6 +4277,8 @@ export const resourceCapacityReport = sqliteTable(
     outcome: text('outcome', { enum: CAPACITY_REPORT_OUTCOMES }).notNull(),
     capacityUnits: integer('capacity_units'),
     usageUnits: integer('usage_units'),
+    /** What a host pool's ledger reserves, beside `usageUnits` (`dash-host-jobs` J10). */
+    reservedUnits: integer('reserved_units'),
     reason: text('reason'),
     reportedByPersonId: text('reported_by_person_id')
       .notNull()
@@ -4414,6 +4416,28 @@ export const resourceRuntimeEventRecord = sqliteTable('resource_runtime_event', 
     .$type<{ acceptedSequence: number; useId: string; revision: number }>()
     .notNull(),
 });
+/**
+ * One host job its resource authority published (`dash-host-jobs` J10): owned by the
+ * authority and its organization, never by a planning row, so no deletion strands it.
+ * `declaration` is the use exactly as sent; `evidence` the settlement evidence once returned.
+ */
+export const resourceHostJobRecord = sqliteTable(
+  'resource_host_job',
+  {
+    useId: text('use_id').primaryKey(),
+    authorityId: text('authority_id').notNull(),
+    organizationId: text('organization_id').notNull(),
+    providerId: text('provider_id').notNull(),
+    incarnation: text('incarnation').notNull(),
+    revision: integer('revision').notNull(),
+    declaration: text('declaration').notNull(),
+    state: text('state', { enum: ['registered', 'release_verified'] }).notNull(),
+    registeredAt: integer('registered_at').notNull(),
+    releasedAt: integer('released_at'),
+    evidence: text('evidence'),
+  },
+  (t) => [index('resource_host_job_provider').on(t.organizationId, t.providerId, t.state)],
+);
 /** Durable request queue; only an accepted matching runtime event acknowledges a request. */
 export const resourceCleanupRequestRecord = sqliteTable(
   'resource_cleanup_request',

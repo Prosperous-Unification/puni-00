@@ -13,6 +13,7 @@ const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.ur
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const AGENT_POOL = '20261028100000_add_agent_pool';
 const AGENT_POOL_AUDIT = '20261028100100_widen_organization_audit_agent_pools';
+const HOST_JOB_PROJECTION = '20261101120000_add_host_job_projection';
 const MACHINE_TOKENS = '20261026130000_widen_organization_audit_machine_tokens';
 /** 2026-10-28T09:00:00Z, a real-epoch instant, as task 1.2's own test uses. */
 const MORNING = Date.UTC(2026, 9, 28, 9, 0, 0);
@@ -155,7 +156,9 @@ describe(AGENT_POOL, () => {
     const down = await rollBack(root, dbPath, MACHINE_TOKENS);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${AGENT_POOL_AUDIT}, ${AGENT_POOL}\n`);
+    expect(down.stdout).toContain(
+      `rolled back: ${HOST_JOB_PROJECTION}, ${AGENT_POOL_AUDIT}, ${AGENT_POOL}\n`,
+    );
     expect(
       count(
         dbPath,
@@ -224,7 +227,7 @@ describe(AGENT_POOL_AUDIT, () => {
     const down = await rollBack(root, dbPath, AGENT_POOL);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${AGENT_POOL_AUDIT}\n`);
+    expect(down.stdout).toContain(`rolled back: ${HOST_JOB_PROJECTION}, ${AGENT_POOL_AUDIT}\n`);
     expect(await recordIssuance(dbPath, 'run-a')).toBe('recorded');
     expect(() => {
       run(dbPath, [auditRow('x1', 'agent_pool_created', 'agent_pool')]);

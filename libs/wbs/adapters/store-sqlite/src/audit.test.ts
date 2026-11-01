@@ -162,6 +162,9 @@ const EXEMPT = new Set([
   'resourceRuntimeUseRecord',
   'resourceRuntimeEventRecord',
   'resourceCleanupRequestRecord',
+  // A host job's projection is a runtime attestation: its authority and the
+  // accepted event envelope carry who sent it and when (`dash-host-jobs` J10).
+  'resourceHostJobRecord',
 ]);
 
 /**

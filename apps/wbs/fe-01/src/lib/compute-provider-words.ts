@@ -97,10 +97,36 @@ export type ReportReading =
   | { readonly state: 'stale'; readonly headline: string; readonly detail: string };
 
 /**
+ * `, 12 reserved by 2 jobs` after the measured usage (`dash-host-jobs` J10),
+ * and the sentence naming those jobs; nothing when the report carries no
+ * reserved units. Reserved units WBS has no job for yet (Dash publishes the
+ * jobs through its outbox, the figure through the reporter) say so.
+ */
+function reservationWords(
+  reservedUnits: number | undefined,
+  hostJobs: readonly { readonly label: string }[],
+): { readonly figure: string; readonly holders: string } {
+  if (reservedUnits === undefined) return { figure: '', holders: '' };
+  if (hostJobs.length === 0)
+    return {
+      figure: reservedUnits === 0 ? ', none reserved' : `, ${String(reservedUnits)} reserved`,
+      holders: reservedUnits === 0 ? '' : 'Dash has not published the jobs holding it yet. ',
+    };
+  const count = `${String(hostJobs.length)} ${hostJobs.length === 1 ? 'job' : 'jobs'}`;
+  return {
+    figure: `, ${String(reservedUnits)} reserved by ${count}`,
+    holders: `Reserved by ${listOf(hostJobs.map((job) => job.label))}. `,
+  };
+}
+
+/**
  * Reads `report` at `now`, in the resource's unit. A missing report is
  * `no_report` and never a number. The state is the domain's
  * {@link capacityReportStateOf}, the rule be-01 states the read with, so a
- * section left open goes stale on its own clock without a reread.
+ * section left open goes stale on its own clock without a reread. A measured
+ * report carrying `reservedUnits` reads them beside its usage with the names of
+ * `hostJobs`, the unreturned host jobs the resources read lists for it
+ * (`dash-host-jobs` J10); `stale`, `unreachable` and `no_report` read as before.
  *
  * @throws When the report's outcome is a kind the contract does not have.
  */
@@ -108,6 +134,7 @@ export function readReport(
   report: CapacityReport | undefined,
   unitLabel: string,
   now: number,
+  hostJobs: readonly { readonly label: string }[] = [],
 ): ReportReading {
   // Proof: 2026-10-23, reading a missing report as `{ measured 0 }` failed
   // `never reads a missing report as a number` in compute-provider-words.test.ts
@@ -132,15 +159,21 @@ export function readReport(
     };
   const outcome = report.outcome;
   switch (outcome.kind) {
-    case 'measured':
+    case 'measured': {
+      // Proof: 2026-11-01, dropping the reserved figure from the headline
+      // failed `reads reserved units and both job names beside the measured
+      // usage` here and `renders reserved units and the two gates holding them`
+      // in resources-panel.test.tsx (verify.md Slice 5).
+      const reservation = reservationWords(outcome.reservedUnits, hostJobs);
       return {
         state: 'measured',
         headline: `Measured ${unitsWords(outcome.capacityUnits, unitLabel)}, ${String(
           outcome.usageUnits,
-        )} in use`,
-        detail: `Observed ${age} ago.`,
+        )} in use${reservation.figure}`,
+        detail: `${reservation.holders}Observed ${age} ago.`,
         capacityUnits: outcome.capacityUnits,
       };
+    }
     case 'unreachable':
       return {
         state: 'unreachable',

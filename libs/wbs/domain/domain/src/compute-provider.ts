@@ -26,10 +26,17 @@ export const STALE_AFTER_CADENCES = 3;
 /**
  * What the provider answered: a measurement in the resource's own unit label,
  * never converted by WBS, or the adapter's typed reason it could not reach
- * the host.
+ * the host. A measurement may carry `reservedUnits` (`dash-host-jobs` J10):
+ * what a host pool's ledger reserves, beside and never inside `usageUnits`;
+ * absent, the outcome is the pre-change one byte for byte.
  */
 export type CapacityOutcome =
-  | { readonly kind: 'measured'; readonly capacityUnits: number; readonly usageUnits: number }
+  | {
+      readonly kind: 'measured';
+      readonly capacityUnits: number;
+      readonly usageUnits: number;
+      readonly reservedUnits?: number;
+    }
   | { readonly kind: 'unreachable'; readonly reason: string };
 
 /** One report as a reporter sends it. */
@@ -180,7 +187,8 @@ function isSameOutcome(left: CapacityOutcome, right: CapacityOutcome): boolean {
     return (
       right.kind === 'measured' &&
       left.capacityUnits === right.capacityUnits &&
-      left.usageUnits === right.usageUnits
+      left.usageUnits === right.usageUnits &&
+      left.reservedUnits === right.reservedUnits
     );
   return right.kind === 'unreachable' && left.reason === right.reason;
 }

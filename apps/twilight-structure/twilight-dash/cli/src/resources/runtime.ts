@@ -29,6 +29,7 @@ import {
   resourceRuntimeAdmissionReceipt,
   type ResourceRuntimeEvent as ResourceEvent,
   resourceRuntimeEvent,
+  type ResourceRuntimeHostJobUse,
 } from '@wbs/contracts';
 import { Database } from 'bun:sqlite';
 
@@ -369,6 +370,41 @@ export interface HostPoolStatus {
   units: { exclusiveId: string; path: string; heldBy: string | null }[];
   jobs: HostJob[];
   waiters: HostJobTicket[];
+}
+
+/** The fields of a `host_job_events` row its move to the authority outbox reads. */
+const HostJobChangeShape = type({
+  jobId: Identifier,
+  revision: 'number.integer > 0',
+  kind: "'admitted'|'launched'|'settlement'",
+  observedAt: 'number.integer >= 0',
+  state: "'starting'|'held'|'unknown'|'blocked'|'released'",
+});
+
+/**
+ * A host job as WBS sees it (`resourceRuntimeUse` v2, J10): no planning link, since the pool
+ * admitted it alone; one reservation entry per dimension of the declared envelope, an exclusive
+ * id once per unit it names; the pool's enrollment as its host. The launcher records no payload
+ * commit yet, so `payloadSha` is null. Built from immutable fields, so `registered` and
+ * `release_verified` carry the same declaration.
+ */
+function hostJobDeclaration(job: HostJob, host: string): ResourceRuntimeHostJobUse {
+  const { envelope } = job.descriptor;
+  const exclusive = new Map<string, number>();
+  for (const id of envelope.exclusive) exclusive.set(id, (exclusive.get(id) ?? 0) + 1);
+  return {
+    kind: 'host_job',
+    type: job.descriptor.id,
+    label: job.label,
+    host,
+    payloadSha: null,
+    reservations: [
+      { dimension: 'cpuCores', units: envelope.cpuCores },
+      { dimension: 'memoryGib', units: envelope.memoryGib },
+      { dimension: 'tmpDiskGib', units: envelope.tmpDiskGib },
+      ...[...exclusive].map(([dimension, units]) => ({ dimension, units })),
+    ],
+  };
 }
 
 /** What a settlement event reports: entries, state and the evidence identities. */
@@ -1119,7 +1155,7 @@ export class ResourceRuntime {
       .query('INSERT INTO events(sequence,event) VALUES (?,?)')
       .run(event.sequence, JSON.stringify(event));
   }
-  private declaration(use: ResourceUse): ResourceEvent['use'] {
+  private declaration(use: ResourceUse): ResourceRuntimeAdmission['use'] {
     const attribution = use.request;
     return {
       projectId: attribution.projectId,
@@ -1820,9 +1856,14 @@ export class ResourceRuntime {
     if (!cursor) throw new Error('resource request cursor missing');
     return cursor.value;
   }
-  /** Ordered publication retries exact bytes; request acceptance and cursor advancement share one SQLite transaction. */
+  /**
+   * Ordered publication retries exact bytes; request acceptance and cursor advancement share one
+   * SQLite transaction. Host-job changes join the outbox first ({@link moveHostJobEvents}), so a
+   * WBS that answers nothing only delays them and they publish in order on the next tick it does.
+   */
   async synchronize(tools: WbsTools): Promise<void> {
     const authorityId = this.configuration.authorityId;
+    this.moveHostJobEvents();
     let admissionFailure: Error | undefined;
     // Proof: recovering a live in-flight admission failed the watcher/creator race fixture (2026-10-25).
     for (const pending of this.list().filter(
@@ -2000,7 +2041,77 @@ export class ResourceRuntime {
       .query('UPDATE host_jobs SET snapshot=? WHERE id=?')
       .run(JSON.stringify(HostJobShape.assert(job)), job.id);
   }
-  /** Unpublished host-job events, oldest first: the payloads slice 5 maps to WBS. */
+  /**
+   * Moves the unmoved `host_job_events` rows into the authority outbox `events` as
+   * `resourceRuntimeUse` v2 (`dash-host-jobs` J10), oldest first and in one transaction, so they
+   * take the authority's one sequence beside the worktree uses' events: `admitted` becomes
+   * `registered`; the settlement that leaves every entry released becomes `release_verified`
+   * with its evidence (J2'): the SHA-256 of that ledger row, its durable locator and disposition
+   * `returned`. A launch, a partial settlement or a blocked retry stays local. A moved row is
+   * `published=1`; from there its delivery is the outbox's. The host pool admitted the job
+   * already, so nothing here waits on WBS.
+   * @throws when a row or its job is malformed: only this class writes the owner-only ledger.
+   */
+  private moveHostJobEvents(): void {
+    this.transaction(() => {
+      const rows = this.db
+        .query<{ sequence: number; event: string }, []>(
+          'SELECT sequence, event FROM host_job_events WHERE published=0 ORDER BY sequence',
+        )
+        .all();
+      // Proof: moving the rows newest first made `a gate run while WBS is down publishes
+      // registered then returned, in order` (host-job-publication.test.ts) find release_verified
+      // ahead of registered in the outbox (2026-11-01, verify.md Slice 5).
+      for (const row of rows) {
+        const change = HostJobChangeShape.assert(JSON.parse(row.event));
+        const kind =
+          change.kind === 'admitted'
+            ? 'registered'
+            : change.kind === 'settlement' && change.state === 'released'
+              ? 'release_verified'
+              : null;
+        if (kind !== null) {
+          const job = this.inspectHostJob(change.jobId);
+          const next = this.db
+            .query<{ sequence: number }, []>(
+              'SELECT COALESCE(MAX(sequence),0)+1 AS sequence FROM events',
+            )
+            .get();
+          if (!next) throw new Error('resource event sequence unavailable');
+          const event: ResourceEvent = {
+            eventId: randomUUID(),
+            epoch: this.configuration.epoch,
+            sequence: next.sequence,
+            useId: job.id,
+            incarnation: job.incarnation,
+            revision: kind === 'registered' ? 1 : 2,
+            kind,
+            observedAt: change.observedAt,
+            reason:
+              kind === 'registered'
+                ? `admitted by host pool ${this.configuration.enrollmentId}`
+                : 'every reservation entry returned on its terminal evidence',
+            use: hostJobDeclaration(job, this.configuration.enrollmentId),
+            ...(kind === 'release_verified'
+              ? {
+                  evidence: {
+                    digest: createHash('sha256').update(row.event).digest('hex'),
+                    locator: `dash-host-job://${this.configuration.authorityId}/${job.id}/${String(change.revision)}`,
+                    disposition: 'returned' as const,
+                    reclaimedBytes: null,
+                  },
+                }
+              : {}),
+          };
+          this.db
+            .query('INSERT INTO events(sequence,event) VALUES (?,?)')
+            .run(event.sequence, JSON.stringify(resourceRuntimeEvent.assert(event)));
+        }
+        this.db.query('UPDATE host_job_events SET published=1 WHERE sequence=?').run(row.sequence);
+      }
+    });
+  }
+  /** Host-job events not yet moved to the authority outbox, oldest first ({@link moveHostJobEvents}). */
   hostJobOutbox(): { sequence: number; event: unknown }[] {
     return this.db
       .query<{ sequence: number; event: string }, []>(
