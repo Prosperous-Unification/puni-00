@@ -12,6 +12,7 @@ import { envLayout } from './env';
 const edgeId = 'e'.repeat(64);
 async function fixture() {
   const root = scratchSync('dependency-ingress-');
+  await writeFile(`${root}/edge.lock`, '');
   const caddy = `${root}/caddy`;
   await mkdir(caddy);
   const layout = {

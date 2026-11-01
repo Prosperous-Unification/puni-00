@@ -2,11 +2,23 @@ import { chmodSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from '
 import { join } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
-import { expect, test } from 'bun:test';
+import { afterEach, beforeEach, expect, test } from 'bun:test';
 
 import type { SwapPlan } from './lib/reconcile';
 import type { Tier } from './lib/state';
 import { execute, runSwaps, type SwapExecutionIo } from './swap';
+
+let previousControllerState: string | undefined;
+beforeEach(() => {
+  previousControllerState = process.env['WBS_EDGE_STATE'];
+  const controllerState = scratchSync('direct-controller-edge-');
+  writeFileSync(`${controllerState}/edge.lock`, '');
+  process.env['WBS_EDGE_STATE'] = controllerState;
+});
+afterEach(() => {
+  if (previousControllerState === undefined) delete process.env['WBS_EDGE_STATE'];
+  else process.env['WBS_EDGE_STATE'] = previousControllerState;
+});
 
 const marker = '{"format":"dependency-backend-fence","version":1}\n';
 const selections: Tier[][] = [['gw'], ['fe'], ['be'], ['be', 'gw', 'fe']];

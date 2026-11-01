@@ -49,6 +49,7 @@ for (const fault of ['absent', 'unreadable', 'alias'] as const) {
 
 test('owner cannot reach protected callback while prior runtime holds its description', async () => {
   const directory = scratchSync('solver-runtime-');
+  await writeFile(`${directory}/edge.lock`, '');
   const layout = { ...envLayout('prod'), root: directory, stateDir: directory };
   let protectedWork = false;
   await withSolverRuntimeAdmission(async () => {
@@ -71,6 +72,7 @@ test('owner cannot reach protected callback while prior runtime holds its descri
 
 test('owner callback retains runtime lock and checks descriptor on every owner boundary', async () => {
   const directory = scratchSync('solver-runtime-');
+  await writeFile(`${directory}/edge.lock`, '');
   const layout = { ...envLayout('prod'), root: directory, stateDir: directory };
   await withDependencyOwner(
     { sha: 'a'.repeat(40), layouts: [layout] },
@@ -93,6 +95,7 @@ test('owner callback retains runtime lock and checks descriptor on every owner b
 
 test('expired owner cannot acquire runtime admission', async () => {
   const directory = scratchSync('solver-runtime-');
+  await writeFile(`${directory}/edge.lock`, '');
   const layout = { ...envLayout('prod'), root: directory, stateDir: directory };
   const owner = await withDependencyOwner(
     { sha: 'a'.repeat(40), layouts: [layout] },
@@ -108,6 +111,7 @@ test('expired owner cannot acquire runtime admission', async () => {
 for (const boundary of ['before', 'after'] as const) {
   test(`runtime owner checks retained publication ${boundary} protected callback`, async () => {
     const directory = scratchSync('solver-runtime-');
+    await writeFile(`${directory}/edge.lock`, '');
     const layout = { ...envLayout('prod'), root: directory, stateDir: directory };
     await withDependencyOwner(
       { sha: 'a'.repeat(40), layouts: [layout] },

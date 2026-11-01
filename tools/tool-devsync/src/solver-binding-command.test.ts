@@ -1,4 +1,14 @@
-import { chmod, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
@@ -10,14 +20,61 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-async function fixture() {
+async function fixture(preparedReader = true) {
   const root = await mkdtemp(join(tmpdir(), 'solver-edge-command-'));
   roots.push(root);
   const state = join(root, 'state');
   await mkdir(state);
   await writeFile(join(state, 'edge.lock'), '');
   await writeFile(join(root, 'foreign.lock'), '');
-  const runner = new URL('./solver-binding-runtime.ts', import.meta.url).pathname;
+  const fixed = join(root, 'fixed');
+  await mkdir(fixed);
+  const bun = join(fixed, 'bun');
+  const reader = join(fixed, 'solver-supervisor.js');
+  if (preparedReader) await copyFile(process.execPath, bun);
+  const runner = join(root, 'solver-binding-runtime.js');
+  for (const [source, destination] of [
+    [new URL('./solver-binding-runtime.ts', import.meta.url).pathname, runner],
+    ...(preparedReader
+      ? [
+          [
+            new URL('../../tool-remote-scripts/src/solver-supervisor.ts', import.meta.url).pathname,
+            reader,
+          ],
+        ]
+      : []),
+  ]) {
+    const compilation = await Bun.build({
+      entrypoints: [source],
+      target: 'bun',
+      plugins: [
+        {
+          name: 'owned-binding-layout',
+          setup(build) {
+            build.onLoad({ filter: /solver-supervisor-install-contract\.ts$/ }, async (file) => {
+              let source = await Bun.file(file.path).text();
+              for (const [before, after] of [
+                ["'/home/puni1/wbs/state'", state],
+                ["'/home/puni1/.local/lib/wbs-solver/bun'", bun],
+                ["'/home/puni1/.local/lib/wbs-solver/solver-supervisor.js'", reader],
+              ]) {
+                if (source.split(before).length !== 2)
+                  throw new Error('production fixed layout anchor differs');
+                source = source.replace(before, JSON.stringify(after));
+              }
+              return { contents: source, loader: 'ts' };
+            });
+          },
+        },
+      ],
+    });
+    const output = compilation.outputs.at(0);
+    if (!compilation.success || compilation.outputs.length !== 1 || output === undefined)
+      throw new Error('actual binding/reader build failed');
+    await writeFile(destination, new Uint8Array(await output.arrayBuffer()), {
+      mode: 0o755,
+    });
+  }
   const admission = new URL('../../tool-remote-scripts/src/lib/edge-admission.ts', import.meta.url)
     .pathname;
   const child = join(root, 'child.ts');
@@ -179,3 +236,56 @@ test('relative state spelling refuses before solver child launch', async () => {
   );
   await host.expectUnreached();
 });
+
+test('inherited candidate launcher refuses an unprepared fixed installed reader before candidate execution', async () => {
+  const host = await fixture(false);
+  const outcome = await host.run();
+  expect(outcome.code).not.toBe(0);
+  expect(await Bun.file(join(host.root, 'launched')).exists()).toBe(false);
+  expect(outcome.output).toMatch(/fixed installed controller reader|reader preparation/);
+});
+
+test('failed original candidate stderr observation retains the real edge interval after actual child completion', async () => {
+  const host = await fixture();
+  const preload = join(host.root, 'read-fault.ts');
+  await writeFile(
+    preload,
+    `const spawn=Bun.spawn.bind(Bun);const streams=new Set();Bun.spawn=(argv,options)=>{const child=spawn(argv,options);if(Array.isArray(argv)&&argv.includes(${JSON.stringify(join(host.root, 'child.ts'))}))streams.add(child.stderr);return child;};const Original=Response;globalThis.Response=class extends Original{constructor(body,init){super(body,init);this.inject=streams.has(body);}async text(){const text=await super.text();if(this.inject)throw new Error('injected observation failure after actual stderr read');return text;}};`,
+  );
+  const child = Bun.spawn(
+    [
+      'bash',
+      '-c',
+      'exec 8<"$WBS_EDGE_STATE/edge.lock"; flock -n 8; export WBS_EDGE_LOCK_FD=8; exec "$@"',
+      'owned',
+      process.execPath,
+      '--preload=' + preload,
+      join(host.root, 'launcher.ts'),
+    ],
+    { env: { ...process.env, WBS_EDGE_STATE: host.state }, stdout: 'pipe', stderr: 'pipe' },
+  );
+  let stderr = '';
+  const errorTask = (async () => {
+    for await (const chunk of child.stderr) stderr += new TextDecoder().decode(chunk);
+  })();
+  const outputTask = new Response(child.stdout).text();
+  let settled = false;
+  const waitTask = child.exited.then((code) => {
+    settled = true;
+    return code;
+  });
+  try {
+    for (let attempt = 0; attempt < 400 && !stderr.includes('controller HOLD:'); attempt++)
+      await Bun.sleep(10);
+    expect(await Bun.file(join(host.root, 'reached')).text()).toBe('locked');
+    expect(stderr).toContain('controller HOLD: original child/read/EOF remains unknown');
+    expect(settled).toBe(false);
+    expect(await Bun.spawn(['flock', '-n', join(host.state, 'edge.lock'), 'true']).exited).toBe(1);
+  } finally {
+    // Explicit external fixture teardown supplies no successful operation settlement.
+    child.kill('SIGTERM');
+    await waitTask;
+    await outputTask;
+    await errorTask;
+  }
+}, 10000);

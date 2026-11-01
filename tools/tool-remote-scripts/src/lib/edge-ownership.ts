@@ -10,7 +10,7 @@ import type {
 import { openDirectoryFile, renameDirectoryFile } from './directory-file';
 import type { RunDocker } from './docker-deadline';
 import type { DockerExec } from './docker-exec';
-import { assertNoEdgeOwner, edgeStateDirectory } from './edge-admission';
+import { edgeStateDirectory } from './edge-admission';
 import {
   captureEdgePolicy,
   captureEdgeRecord,
@@ -18,9 +18,10 @@ import {
   type EdgePolicySnapshot,
   type EdgeRecordSnapshot,
   type RestoringEdgePolicy,
+  withOrdinaryControllerAdmission,
 } from './edge-policy';
 import type { EnvLayout } from './env';
-import { assertInheritedLock, withCanonicalLock } from './lock';
+import { assertInheritedLock, withCanonicalLock, withExistingCanonicalLock } from './lock';
 import { publishRecord, readClosed, readRecord, readString } from './managed-cohort';
 import type { RunSolverHost } from './solver-host';
 import {
@@ -164,21 +165,21 @@ export async function withDependencyOwner<T>(
   // Proof: omitted overlap guard; overlapping-environment negative lost its refusal before nested flock (exit 1).
   if (new Set(paths).size !== paths.length) throw new Error('dependency owner lock paths overlap');
   const locks: Ownership['locks'] = [];
-  async function acquire(index: number): Promise<T> {
+  async function acquire(index: number, recheck: () => Promise<void>): Promise<T> {
     const path = paths.at(index);
     if (path !== undefined)
       // Proof: substituting legacy withLock truncates retained foreign symlink evidence before refusal (exit 1).
       return withCanonicalLock(path, async (descriptor) => {
         locks.push({ path, descriptor });
         try {
-          return await acquire(index + 1);
+          return await acquire(index + 1, recheck);
         } finally {
           locks.pop();
         }
       });
     for (const lock of locks) assertInheritedLock(lock.path, lock.descriptor);
     // Proof: omitted admission; retained committed-owner negative reached callback (exit 1).
-    await assertNoEdgeOwner(directory);
+    await recheck();
     const publication = `${JSON.stringify({ format: 'dependency-edge-owner', version: 1, attempt: randomUUID(), plan: { sha, layouts } })}\n`;
     // Proof: omitted publication; real callback could not read required pending marker (exit 1).
     await publishRecord(join(directory, 'edge-owner.pending'), publication);
@@ -191,7 +192,19 @@ export async function withDependencyOwner<T>(
       owners.delete(owner);
     }
   }
-  return acquire(0);
+  const edgePath = join(directory, 'edge.lock');
+  if (!(await lstat(edgePath)).isFile() || (await realpath(edgePath)) !== edgePath)
+    throw new Error(`invalid existing canonical lock: ${edgePath}`);
+  return withExistingCanonicalLock(edgePath, async (descriptor) => {
+    locks.push({ path: edgePath, descriptor });
+    try {
+      return await withOrdinaryControllerAdmission(directory, 'legacy', (recheck) =>
+        acquire(1, recheck),
+      );
+    } finally {
+      locks.pop();
+    }
+  });
 }
 
 /** Checks live identity, exact selected layout, all kernel descriptions and retained bytes. */

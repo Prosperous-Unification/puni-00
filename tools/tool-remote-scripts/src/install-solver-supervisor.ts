@@ -1,14 +1,21 @@
-import { dirname } from 'node:path';
+import { builtinModules } from 'node:module';
+import { dirname, extname } from 'node:path';
 
 import type { BundleFile } from './lib/deploy-contract';
-import { requireInheritedEdgeLock } from './lib/edge-admission';
+import { requireInheritedEdgeLock, retainUnknownControllerObservation } from './lib/edge-admission';
 import {
   captureSolverReaderArtifact,
   decodeSolverReaderSelection,
+  readSolverReaderBuildInput,
   runSolverReaderTransport,
+  type SolverReaderArtifactObservation,
   type SolverReaderLayout,
   type SolverReaderSelection,
 } from './lib/solver-reader-preparation';
+import {
+  decodeSolverReaderTransition,
+  type SolverReaderTransition,
+} from './lib/solver-reader-transition';
 import {
   assertSolverSupervisorBunVersion,
   SOLVER_READER_STATE,
@@ -127,7 +134,7 @@ export function buildSolverSupervisorInstallPlan(
       // Proof: changing mkdir to 0755 failed real SCP privacy validation before the first upload.
       description: 'create unique private supervisor staging',
       argv: shell(
-        `set -eu; install -d -m 0700 /home/puni1/.cache/wbs-solver; mkdir -m 0700 -- ${quoteInstallShell(staging)}`,
+        `set -eu; test -d /home/puni1/.cache/wbs-solver; test ! -L /home/puni1/.cache/wbs-solver; controller_parent_path=$(realpath -- /home/puni1/.cache/wbs-solver) || exit 1; test "$controller_parent_path" = /home/puni1/.cache/wbs-solver || exit 1; controller_parent_mode=$(stat -c %a -- /home/puni1/.cache/wbs-solver) || exit 1; test "$controller_parent_mode" = 700 || exit 1; mkdir -m 0700 -- ${quoteInstallShell(staging)} || exit 1; controller_created_stage=$(stat -c '%d:%i' -- ${quoteInstallShell(staging)}) || exit 1; test -n "$controller_created_stage" || exit 1; printf '%s\\n' "$controller_created_stage"`,
       ),
     },
     ...files.map((file, index) => ({
@@ -140,7 +147,16 @@ export function buildSolverSupervisorInstallPlan(
     {
       phase: 'service',
       description: 'admit, publish, read back and ready supervisor under canonical edge.lock',
-      argv: shell(buildSolverSupervisorInstallOperation(files, hashes, staging, socketPath, local)),
+      argv: shell(
+        buildSolverSupervisorInstallOperation(
+          files,
+          hashes,
+          staging,
+          socketPath,
+          local,
+          '__INSTALL_CREATED_STAGE_IDENTITY__',
+        ),
+      ),
     },
   ];
   const failureContext = describeSolverSupervisorInstallEvidence(files, hashes, staging);
@@ -166,12 +182,14 @@ export async function runSolverSupervisorInstallCommand(
         ? ['ignore', 'pipe', 'pipe']
         : ['ignore', 'pipe', 'pipe', admission.descriptor],
   });
-  const [stdout, stderr, code] = await Promise.all([
+  const [stdout, stderr, wait] = await Promise.allSettled([
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
     child.exited,
   ]);
-  return { code, signal: child.signalCode, stdout, stderr };
+  if (stdout.status !== 'fulfilled' || stderr.status !== 'fulfilled' || wait.status !== 'fulfilled')
+    return retainUnknownControllerObservation();
+  return { code: wait.value, signal: child.signalCode, stdout: stdout.value, stderr: stderr.value };
 }
 
 const DEFAULT_DEPENDENCIES: SolverSupervisorInstallerDependencies = {
@@ -257,17 +275,45 @@ export async function installSolverSupervisor(
   // the preflight is the only command reached.
   assertSolverSupervisorBunVersion((await requireCommand(preflight, dependencies)).stdout);
 
+  let createdStageIdentity: string | undefined;
   for (const step of plan.filter((candidate) => candidate.phase !== 'preflight')) {
-    await requireCommand(step, dependencies, args.local === true);
+    if (step.phase === 'service') {
+      if (createdStageIdentity === undefined)
+        throw new Error('solver supervisor staging creation identity is missing');
+      const identity = createdStageIdentity;
+      const marker = '__INSTALL_CREATED_STAGE_IDENTITY__';
+      if (step.argv.join(' ').split(marker).length !== 2)
+        throw new Error('solver supervisor staging identity boundary differs');
+      await requireCommand(
+        { ...step, argv: step.argv.map((argument) => argument.replace(marker, identity)) },
+        dependencies,
+        args.local === true,
+      );
+    } else {
+      const output = await requireCommand(step, dependencies, args.local === true);
+      if (createdStageIdentity === undefined) {
+        const identity = output.stdout.trim();
+        if (!/^[0-9]+:[0-9]+$/.test(identity))
+          throw new Error(
+            `solver supervisor staging creation identity is invalid; ${step.failureContext}`,
+          );
+        createdStageIdentity = identity;
+      }
+    }
   }
   return plan;
 }
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
-  if (argv[0] === '--prepare-first-reader') {
+  if (argv[0] === '--prepare-first-reader' || argv[0] === '--transition-controller-reader') {
     const plan = await runSolverSupervisorInstaller(argv);
     for (const step of plan) console.log(`  ${step.description}`);
+    if (argv[0] === '--transition-controller-reader') {
+      const operation = plan.at(-1);
+      if (operation === undefined) throw new Error('missing selected reader transition operation');
+      console.log(operation.failureContext);
+    }
     return;
   }
   const args = parseSolverSupervisorInstallArgs(argv);
@@ -511,6 +557,12 @@ export async function runSolverSupervisorInstaller(
   dependencies: SolverSupervisorInstallerDependencies = DEFAULT_DEPENDENCIES,
   construction?: SolverReaderLayout,
 ): Promise<readonly SolverSupervisorInstallStep[]> {
+  if (argv[0] === '--transition-controller-reader')
+    return transitionSolverReaderInstallation(
+      parseSolverReaderTransitionArgs(argv),
+      dependencies,
+      construction,
+    );
   if (argv[0] === '--prepare-first-reader')
     return prepareSolverReaderInstallation(
       parseSolverReaderInstallArgs(argv),
@@ -518,4 +570,331 @@ export async function runSolverSupervisorInstaller(
       construction,
     );
   return installSolverSupervisor(parseSolverSupervisorInstallArgs(argv), dependencies);
+}
+
+export interface SolverReaderTransitionInstallation {
+  readonly host: string;
+  readonly execute: boolean;
+  readonly selection: SolverReaderTransition;
+}
+
+/** Closed separately selected operation; normal and fresh-reader flags never enter this branch. */
+export function parseSolverReaderTransitionArgs(
+  argv: readonly string[],
+): SolverReaderTransitionInstallation {
+  if (argv[0] !== '--transition-controller-reader')
+    throw new Error('expected explicit reader transition');
+  const fields = new Map<string, string>();
+  let execute = false;
+  let selectedMode = false;
+  for (const argument of argv.slice(1)) {
+    if (argument === '--execute' || argument === '--dry-run') {
+      if (selectedMode) throw new Error('duplicate reader transition execution mode');
+      selectedMode = true;
+      execute = argument === '--execute';
+      continue;
+    }
+    const match = /^--([a-z0-9-]+)=(.+)$/.exec(argument);
+    if (match === null) throw new Error(`unexpected reader transition argument ${argument}`);
+    const key = match[1];
+    if (fields.has(key)) throw new Error(`duplicate reader transition --${key}`);
+    fields.set(key, match[2]);
+  }
+  const required = [
+    'host',
+    'target-hostname',
+    'account',
+    'uid',
+    'gid',
+    'old-bun-sha256',
+    'old-bun-bytes',
+    'old-reader-sha256',
+    'old-reader-bytes',
+    'reader',
+    'reader-sha256',
+    'reader-bytes',
+  ];
+  if (fields.size !== required.length || required.some((key) => !fields.has(key)))
+    throw new Error(
+      'reader transition requires complete closed selected target/account and artifact inputs',
+    );
+  const text = (key: string) => {
+    const value = fields.get(key);
+    if (value === undefined) throw new Error(`missing reader transition --${key}`);
+    return value;
+  };
+  const integer = (key: string) => {
+    const value = text(key);
+    if (!/^(0|[1-9][0-9]*)$/.test(value) || !Number.isSafeInteger(Number(value)))
+      throw new Error(`invalid reader transition --${key}`);
+    return Number(value);
+  };
+  const pin = (name: string) => ({
+    sha256: text(`${name}-sha256`),
+    byteLength: integer(`${name}-bytes`),
+  });
+  const host = text('host');
+  if (!HOST.test(host)) throw new Error('reader transition requires explicit selected host');
+  const selection = decodeSolverReaderTransition({
+    target: {
+      hostname: text('target-hostname'),
+      account: { name: text('account'), uid: integer('uid'), gid: integer('gid') },
+    },
+    oldBun: pin('old-bun'),
+    oldReader: pin('old-reader'),
+    reader: { path: text('reader'), ...pin('reader') },
+  });
+  if (
+    selection.target.account.name !== 'puni1' ||
+    selection.target.account.uid !== 1000 ||
+    selection.target.account.gid !== 1000
+  )
+    throw new Error('reader transition requires selected production account puni1/1000/1000');
+  return { host, execute, selection };
+}
+
+/** Pins the actual compiler and every input consumed by this separately selected operation. */
+async function buildSolverReaderTransitionBundle(
+  selection: SolverReaderTransition,
+  layout: SolverReaderLayout,
+) {
+  const compiler = await captureSolverReaderArtifact(process.execPath);
+  const source = new URL('./lib/solver-reader-transition.ts', import.meta.url).pathname;
+  const entrypoint = 'solver-reader-transition-entry';
+  const contents = `import { transitionSolverReader } from ${JSON.stringify(source)}; await transitionSolverReader(${JSON.stringify(selection)}, ${JSON.stringify(layout)});`;
+  const inputs: SolverReaderArtifactObservation[] = [];
+  const externals = new Set<string>();
+  const compilation = await Bun.build({
+    entrypoints: [entrypoint],
+    target: 'bun',
+    packages: 'bundle',
+    plugins: [
+      {
+        name: 'reader-transition',
+        setup(build) {
+          build.onResolve({ filter: /.*/ }, (file) => {
+            if (file.path === entrypoint) return { path: entrypoint, namespace: 'transition' };
+            if (
+              file.path.startsWith('bun:') ||
+              file.path.startsWith('node:') ||
+              builtinModules.includes(file.path)
+            ) {
+              const name =
+                file.path.startsWith('bun:') || file.path.startsWith('node:')
+                  ? file.path
+                  : `node:${file.path}`;
+              if (
+                (name.startsWith('bun:') && !['bun:ffi', 'bun'].includes(name)) ||
+                (name.startsWith('node:') &&
+                  !builtinModules.includes(name) &&
+                  !builtinModules.includes(name.slice(5)))
+              )
+                throw new Error(`unsupported reader transition external ${name}`);
+              externals.add(name);
+              return { path: name, external: true };
+            }
+            return undefined;
+          });
+          build.onLoad({ filter: /.*/, namespace: 'file' }, async (file) => {
+            const loaded = await readSolverReaderBuildInput(file.path);
+            inputs.push(loaded.observation);
+            const extension = extname(file.path);
+            const loader =
+              extension === '.ts'
+                ? 'ts'
+                : extension === '.json'
+                  ? 'json'
+                  : ['.js', '.mjs', '.cjs'].includes(extension)
+                    ? 'js'
+                    : undefined;
+            if (loader === undefined)
+              throw new Error(`unsupported reader transition build file ${file.path}`);
+            return { contents: loaded.bytes, loader };
+          });
+          build.onLoad({ filter: /.*/, namespace: 'transition' }, () => ({
+            contents,
+            loader: 'ts',
+          }));
+        },
+      },
+    ],
+  });
+  const output = compilation.outputs.at(0);
+  if (!compilation.success || compilation.outputs.length !== 1 || output === undefined)
+    throw new Error(
+      `reader transition operation build failed: ${compilation.logs.map(String).join('; ')}`,
+    );
+  if (!inputs.some((input) => input.artifact.path === source))
+    throw new Error('reader transition source closure unobserved');
+  for (const observed of [compiler, ...inputs]) {
+    if (
+      JSON.stringify(await captureSolverReaderArtifact(observed.artifact.path)) !==
+      JSON.stringify(observed)
+    )
+      throw new Error(`reader transition build input changed: ${observed.artifact.path}`);
+  }
+  return {
+    bytes: new Uint8Array(await output.arrayBuffer()),
+    compiler,
+    inputs,
+    externals: [...externals].sort(),
+    virtualEntry: {
+      sha256: new Bun.CryptoHasher('sha256').update(contents).digest('hex'),
+      byteLength: Buffer.byteLength(contents),
+    },
+    bunVersion: Bun.version,
+  };
+}
+
+/** Builds a reader-only attended transport with no service/configuration step or fallback. */
+export async function transitionSolverReaderInstallation(
+  request: SolverReaderTransitionInstallation,
+  dependencies: SolverSupervisorInstallerDependencies = DEFAULT_DEPENDENCIES,
+  construction?: SolverReaderLayout,
+): Promise<readonly SolverSupervisorInstallStep[]> {
+  const selection = decodeSolverReaderTransition(request.selection);
+  if (
+    !HOST.test(request.host) ||
+    (construction === undefined &&
+      (selection.target.account.name !== 'puni1' ||
+        selection.target.account.uid !== 1000 ||
+        selection.target.account.gid !== 1000))
+  )
+    throw new Error('reader transition requires selected production account puni1/1000/1000');
+  const observed = await captureSolverReaderArtifact(selection.reader.path);
+  if (
+    observed.artifact.sha256 !== selection.reader.sha256 ||
+    observed.artifact.byteLength !== selection.reader.byteLength
+  )
+    throw new Error('selected new reader bytes differ');
+  const staging =
+    construction?.staging ?? `/home/puni1/.cache/wbs-solver/transition-${crypto.randomUUID()}`;
+  const layout = construction ?? {
+    state: SOLVER_READER_STATE,
+    staging,
+    bun: SOLVER_SUPERVISOR_BUN,
+    reader: SOLVER_SUPERVISOR_BUNDLE.remote,
+  };
+  const transported = { ...selection, reader: { ...selection.reader, path: `${staging}/reader` } };
+  const built = await buildSolverReaderTransitionBundle(transported, layout);
+  const operation = {
+    path: `${staging}/operation`,
+    sha256: new Bun.CryptoHasher('sha256').update(built.bytes).digest('hex'),
+    byteLength: built.bytes.byteLength,
+  };
+  const failureContext = `reader transition attempt=${staging}; operation=${JSON.stringify(operation)}; oldBun=${JSON.stringify(selection.oldBun)}; oldReader=${JSON.stringify(selection.oldReader)}; newReader=${JSON.stringify(selection.reader)}; compiler=${JSON.stringify(built.compiler)}; buildInputs=${JSON.stringify(built.inputs)}; virtualEntry=${JSON.stringify(built.virtualEntry)}; externals=${JSON.stringify(built.externals)}; buildBun=${built.bunVersion}; retain evidence and partial state; no automatic retry/inverse`;
+  const quote = quoteInstallShell;
+  const shell = (script: string) => ['ssh', request.host, `sh -c ${quote(script)}`];
+  const steps: SolverSupervisorInstallStep[] = [
+    {
+      phase: 'files',
+      description: 'create exclusive private inert transition staging',
+      argv: shell(
+        `set -eu; test -d ${quote(dirname(staging))}; test ! -L ${quote(dirname(staging))}; controller_parent_path=$(realpath -- ${quote(dirname(staging))}) || exit 1; test "$controller_parent_path" = ${quote(dirname(staging))} || exit 1; controller_parent_mode=$(stat -c %a -- ${quote(dirname(staging))}) || exit 1; test "$controller_parent_mode" = 700 || exit 1; controller_parent_uid=$(stat -c %u -- ${quote(dirname(staging))}) || exit 1; test "$controller_parent_uid" = ${quote(String(selection.target.account.uid))} || exit 1; mkdir -m 0700 -- ${quote(staging)} || exit 1`,
+      ),
+      failureContext,
+    },
+    {
+      phase: 'files',
+      description: 'stage selected inert reader',
+      argv: ['scp', selection.reader.path, `${request.host}:${transported.reader.path}`],
+      failureContext,
+    },
+    {
+      phase: 'files',
+      description: 'stage selected transient operation',
+      argv: shell(
+        `set -eu; (set -C; printf %s ${quote(Buffer.from(built.bytes).toString('base64'))} | base64 -d > ${quote(operation.path)}); chmod 0600 -- ${quote(operation.path)}`,
+      ),
+      failureContext,
+    },
+    {
+      phase: 'files',
+      description: 'transition only the fixed reader under original existing edge.lock',
+      argv: shell(`set -eu
+${[
+  ...new Set([
+    dirname(layout.bun),
+    dirname(layout.reader),
+    layout.state,
+    dirname(layout.state),
+    staging,
+  ]),
+]
+  .map(
+    (parent, index) => `test -d ${quote(parent)} || exit 1
+test ! -L ${quote(parent)} || exit 1
+test -r ${quote(parent)} && test -x ${quote(parent)} || exit 1
+controller_parent_path=$(realpath -- ${quote(parent)}) || exit 1
+test "$controller_parent_path" = ${quote(parent)} || exit 1
+controller_parent_owner=$(stat -c '%u:%g' -- ${quote(parent)}) || exit 1
+test "$controller_parent_owner" = ${quote(`${String(selection.target.account.uid)}:${String(selection.target.account.gid)}`)} || exit 1
+controller_parent_${String(index)}=$(stat -c '%d:%i:%f:%u:%g' -- ${quote(parent)}) || exit 1
+test -n "$controller_parent_${String(index)}" || exit 1`,
+  )
+  .join('\n')}
+${[layout.bun, layout.reader]
+  .map(
+    (
+      path,
+      index,
+    ) => `test -f ${quote(path)} && test ! -L ${quote(path)} && test -r ${quote(path)} || exit 1
+controller_artifact_path=$(realpath -- ${quote(path)}) || exit 1
+test "$controller_artifact_path" = ${quote(path)} || exit 1
+controller_artifact_owner=$(stat -c '%a:%u:%g' -- ${quote(path)}) || exit 1
+test "$controller_artifact_owner" = ${quote(`755:${String(selection.target.account.uid)}:${String(selection.target.account.gid)}`)} || exit 1
+controller_old_${String(index)}=$(stat -c '%d:%i:%f:%u:%g:%s:%y:%z' -- ${quote(path)}) || exit 1
+test -n "$controller_old_${String(index)}" || exit 1`,
+  )
+  .join('\n')}
+${[{ path: layout.bun, ...selection.oldBun }, { path: layout.reader, ...selection.oldReader }, transported.reader, operation].map((artifact) => `test -f ${quote(artifact.path)}; test ! -L ${quote(artifact.path)}; controller_artifact_bytes=$(stat -c %s -- ${quote(artifact.path)}) || exit 1; test "$controller_artifact_bytes" = ${quote(String(artifact.byteLength))} || exit 1; printf '%s  %s\\n' ${quote(artifact.sha256)} ${quote(artifact.path)} | sha256sum -c - || exit 1`).join('\n')}
+${[
+  ...new Set([
+    dirname(layout.bun),
+    dirname(layout.reader),
+    layout.state,
+    dirname(layout.state),
+    staging,
+  ]),
+]
+  .map(
+    (parent, index) => `controller_parent_path=$(realpath -- ${quote(parent)}) || exit 1
+test "$controller_parent_path" = ${quote(parent)} || exit 1
+controller_parent_closing=$(stat -c '%d:%i:%f:%u:%g' -- ${quote(parent)}) || exit 1
+test "$controller_parent_closing" = "$controller_parent_${String(index)}" || exit 1`,
+  )
+  .join('\n')}
+${[layout.bun, layout.reader]
+  .map(
+    (path, index) => `test ! -L ${quote(path)} || exit 1
+controller_artifact_path=$(realpath -- ${quote(path)}) || exit 1
+test "$controller_artifact_path" = ${quote(path)} || exit 1
+controller_old_closing=$(stat -c '%d:%i:%f:%u:%g:%s:%y:%z' -- ${quote(path)}) || exit 1
+test "$controller_old_closing" = "$controller_old_${String(index)}" || exit 1`,
+  )
+  .join('\n')}
+exec ${quote(layout.bun)} ${quote(operation.path)}`),
+      failureContext,
+    },
+  ];
+  if (request.execute) {
+    const command = dependencies.readerCommand;
+    if (command === undefined)
+      throw new Error('reader transition requires observed original transport');
+    console.log(failureContext);
+    for (const [index, step] of steps.entries()) {
+      let output: CommandOutput;
+      try {
+        output = await command(step.argv, index === steps.length - 1);
+      } catch (cause) {
+        throw new Error(
+          `reader transition transport failed; remote settlement is unknown; ${failureContext}`,
+          { cause },
+        );
+      }
+      if (output.code !== 0 || output.signal !== null)
+        throw new Error(`reader transition transport abnormal or unknown; ${failureContext}`);
+    }
+  }
+  return steps;
 }

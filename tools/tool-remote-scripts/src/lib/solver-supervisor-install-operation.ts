@@ -2,6 +2,7 @@ import { builtinModules } from 'node:module';
 import { basename, dirname, extname } from 'node:path';
 
 import type { BundleFile } from './deploy-contract';
+import { buildInstalledControllerAdmission } from './edge-admission';
 import {
   captureSolverReaderArtifact,
   readSolverReaderBuildInput,
@@ -46,6 +47,7 @@ export function buildSolverSupervisorInstallOperation(
   staging: string,
   socketPath: string,
   local: boolean,
+  createdStageIdentity = '',
 ): string {
   const quote = quoteInstallShell;
   const staged = files.map((_, index) => `${staging}/${String(index)}`);
@@ -68,15 +70,20 @@ export function buildSolverSupervisorInstallOperation(
     paths
       .map(
         (path, index) =>
-          `printf '%s  %s\\n' ${quote(hashes[index])} ${quote(path)} | sha256sum -c -`,
+          `printf '%s  %s\\n' ${quote(hashes[index])} ${quote(path)} | sha256sum -c - || exit 1`,
       )
       .join('\n');
   return `set -eu
 installation_evidence=${quote(describeSolverSupervisorInstallEvidence(files, hashes, staging))}
 publishing=0
+status=0
+cleanup_failed=0
+current_stage_identity=''
+owned=''
+owned_stage_identity=${quote(createdStageIdentity)}
 ${siblingDirectories.map((_, index) => `sibling_${String(index)}=''`).join('\n')}
 # Proof: cleanup failure cannot report success; collision cleanup must preserve uncreated sibling directories.
-trap 'status=$?; if [ "$status" -ne 0 ]; then printf "%s\\n" "$installation_evidence" >&2; fi; if [ "$status" -ne 0 ] && [ "$publishing" -eq 1 ]; then printf "%s\\n" "partial or uncertain solver supervisor installation; inspect all four installed hashes and service readiness under edge.lock before retry; no automatic rollback" >&2; fi; cleanup_failed=0; for owned in ${siblingDirectories.map((_, index) => `"$sibling_${String(index)}"`).join(' ')} ${quote(staging)}; do if [ -n "$owned" ]; then if ! rm -rf -- "$owned"; then printf "%s\\n" "failed to remove invocation staging: $owned" >&2; cleanup_failed=1; fi; fi; done; if [ "$cleanup_failed" -ne 0 ]; then printf "%s\\n" "$installation_evidence" "partial or uncertain solver supervisor staging cleanup; inspect invocation-owned paths before retry" >&2; if [ "$status" -eq 0 ]; then status=1; fi; fi; exit "$status"' EXIT
+trap 'status=$?; if [ "$status" -ne 0 ]; then printf "%s\\n" "$installation_evidence" >&2; fi; if [ "$status" -ne 0 ] && [ "$publishing" -eq 1 ]; then printf "%s\\n" "partial or uncertain solver supervisor installation; inspect all four installed hashes and service readiness under edge.lock before retry; no automatic rollback" >&2; fi; cleanup_failed=0; for owned in ${siblingDirectories.map((_, index) => `"$sibling_${String(index)}"`).join(' ')}; do if [ -n "$owned" ]; then if ! rm -rf -- "$owned"; then printf "%s\\n" "failed to remove invocation staging: $owned" >&2; cleanup_failed=1; fi; fi; done; if [ -n "$owned_stage_identity" ]; then if [ ! -L ${quote(staging)} ] && current_stage_identity=$(stat -c "%d:%i" -- ${quote(staging)}) && [ "$current_stage_identity" = "$owned_stage_identity" ] && [ "$(realpath -- ${quote(staging)})" = ${quote(staging)} ]; then if ! rm -rf -- ${quote(staging)}; then cleanup_failed=1; fi; else printf "%s\\n" "retaining drifted invocation staging" >&2; cleanup_failed=1; fi; fi; if [ "$cleanup_failed" -ne 0 ]; then printf "%s\\n" "$installation_evidence" "partial or uncertain solver supervisor staging cleanup; inspect invocation-owned paths before retry" >&2; if [ "$status" -eq 0 ]; then status=1; fi; fi; exit "$status"' EXIT
 # Proof: omitting each directory/symlink/regular-file guard independently failed its named generated-shell negative.
 if [ ! -d ${state} ]; then echo 'invalid canonical edge state: expected directory' >&2; exit 1; fi
 if [ -L ${state} ]; then echo 'invalid canonical edge state: symlink' >&2; exit 1; fi
@@ -88,20 +95,42 @@ ${
   local
     ? `# The Bun boundary verifies the inherited open description and maps it to FD3.
 # Proof: omitting comparison admitted shell-foreign FD3; separate assignments refuse broken stat instead of comparing two empty strings.
-inherited_identity=$(stat -Lc '%d:%i' /proc/self/fd/3)
-canonical_identity=$(stat -Lc '%d:%i' ${lock})
-test "$inherited_identity" = "$canonical_identity"`
+inherited_identity=$(stat -Lc '%d:%i' /proc/self/fd/3) || exit 1
+test -n "$inherited_identity" || exit 1
+canonical_identity=$(stat -Lc '%d:%i' ${lock}) || exit 1
+test -n "$canonical_identity" || exit 1
+test "$inherited_identity" = "$canonical_identity" || exit 1`
     : `exec 9< ${lock}
 # Proof: omitting flock let the real mv/hash/service competitors take edge.lock.
 flock -n 9`
 }
 for marker in edge-owner.json edge-owner.pending; do
   # Proof: replacing this listing with absence admitted execute-only trusted state.
-  retained=$(find ${state} -mindepth 1 -maxdepth 1 -name "$marker" -print)
+  retained=$(find ${state} -mindepth 1 -maxdepth 1 -name "$marker" -print) || exit 1
   # Proof: omitting refusal admitted all eight retained marker shapes.
   if [ -n "$retained" ]; then printf '%s\\n' "shared edge owner admission closed: $marker; no activation" >&2; exit 1; fi
 done
+test -d ${quote(staging)}
+test ! -L ${quote(staging)}
+controller_stage_path=$(realpath -- ${quote(staging)}) || exit 1
+test "$controller_stage_path" = ${quote(staging)} || exit 1
+controller_stage_mode=$(stat -c %a -- ${quote(staging)}) || exit 1
+test "$controller_stage_mode" = 700 || exit 1
+controller_stage_identity=$(stat -c "%d:%i" -- ${quote(staging)}) || exit 1
+test -n "$controller_stage_identity" || exit 1
+WBS_EDGE_STATE=${state}; export WBS_EDGE_STATE
+${buildInstalledControllerAdmission('required', local ? 3 : 9)}
+test -n "$owned_stage_identity" || exit 1
+test "$controller_stage_identity" = "$owned_stage_identity" || exit 1
 # Proof: omitting staged hashes admitted corrupted config bytes in the generated operation.
+${staged
+  .map(
+    (path) => `test -f ${quote(path)} || exit 1
+test ! -L ${quote(path)} || exit 1
+controller_stage_path=$(realpath -- ${quote(path)}) || exit 1
+test "$controller_stage_path" = ${quote(path)} || exit 1`,
+  )
+  .join('\n')}
 ${checkHashes(staged)}
 # Proof: omitting version refusal admitted a correctly hashed unsupported staged runtime.
 case "$(${quote(staged[0])} --version)" in

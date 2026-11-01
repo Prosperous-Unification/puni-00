@@ -64,6 +64,7 @@ async function refuses(promise: Promise<unknown>, message?: string): Promise<Err
 
 async function fixture() {
   const root = scratchSync('gateway-exclusion-');
+  await writeFile(`${root}/edge.lock`, '');
   const layout = { ...envLayout('prod'), root, stateDir: root };
   await mkdir(`${root}/db`);
   await writeFile(`${root}/db/wbs.db`, 'sqlite fixture');

@@ -32,7 +32,7 @@ import { realpathSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import {
-  assertNoEdgeOwner,
+  retainUnknownControllerObservation,
   SOLVER_SUPERVISOR_BUN,
   SOLVER_SUPERVISOR_BUNDLE,
   SOLVER_SUPERVISOR_CONFIG,
@@ -518,7 +518,11 @@ export async function runDevSyncLock(
           : ['inherit', 'inherit', 'inherit', Number(inherited)],
     },
   );
-  return child.exited;
+  try {
+    return await child.exited;
+  } catch {
+    return retainUnknownControllerObservation();
+  }
 }
 
 /**
@@ -862,8 +866,11 @@ export interface DevSyncOptions extends Partial<DevSyncPaths> {
 }
 
 export async function sync(sha: string, options: DevSyncOptions = {}): Promise<void> {
-  // Proof: removing this guard failed the direct executor retained-owner negative before later IO.
-  await assertNoEdgeOwner();
+  return withEdgeAdmission(() => syncAdmitted(sha, options));
+}
+
+/** Runs only inside the retained edge interval owned by {@link sync}. */
+async function syncAdmitted(sha: string, options: DevSyncOptions): Promise<void> {
   const paths = devSyncPathsOf(options);
   await assertMcpEnv(options.mcpEnvPath ?? `${paths.sourcePath}/apps/wbs/mcp-01/.env`);
   await assertBeEnv(options.beEnvPath ?? `${paths.sourcePath}/apps/wbs/be-01/.env`);

@@ -117,6 +117,7 @@ test.each([
   'launch',
 ] as const)('real owner and actual fixture collector enforce %s', async (fault) => {
   const directory = scratchSync('authority-observer-');
+  await writeFile(join(directory, 'edge.lock'), '');
   await mkdir(join(directory, 'prod'));
   await mkdir(join(directory, 'dev'));
   const layouts = {

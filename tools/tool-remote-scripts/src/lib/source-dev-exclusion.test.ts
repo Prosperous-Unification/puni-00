@@ -19,6 +19,7 @@ import {
 
 async function fixture(reorder = false) {
   const root = scratchSync('source-dev-');
+  await writeFile(`${root}/edge.lock`, '');
   await mkdir(`${root}/dev`);
   const layouts = {
     prod: { ...envLayout('prod'), root, stateDir: root },

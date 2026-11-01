@@ -1,9 +1,23 @@
+import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { expect, test } from 'bun:test';
+import { scratchSync } from '@tools/test-scratch';
+import { afterEach, beforeEach, expect, test } from 'bun:test';
 
 import { createEdgeEnvironment } from '../test/edge-state';
 import { parseGatewayFenceInvocation } from './swap';
+
+let previousControllerState: string | undefined;
+beforeEach(() => {
+  previousControllerState = process.env['WBS_EDGE_STATE'];
+  const controllerState = scratchSync('direct-controller-edge-');
+  writeFileSync(`${controllerState}/edge.lock`, '');
+  process.env['WBS_EDGE_STATE'] = controllerState;
+});
+afterEach(() => {
+  if (previousControllerState === undefined) delete process.env['WBS_EDGE_STATE'];
+  else process.env['WBS_EDGE_STATE'] = previousControllerState;
+});
 
 const sha = 'a'.repeat(40);
 

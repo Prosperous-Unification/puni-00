@@ -965,3 +965,151 @@ for (const label of [
     }
   });
 }
+
+test('ordinary controller admission refuses active policy before callback under existing edge lock', async () => {
+  const directory = scratchSync('controller-policy-');
+  await writeFile(`${directory}/edge.lock`, 'original lock bytes');
+  await writeFile(
+    `${directory}/edge-policy.json`,
+    JSON.stringify({
+      format: 'dependency-edge-policy',
+      version: 1,
+      phase: 'active',
+      edgeState: directory,
+      ownerPublicationSha256: 'a'.repeat(64),
+      handoff: { name: 'edge-owner-123456-handoff-complete.json', sha256: 'b'.repeat(64) },
+    }),
+  );
+  const original = process.env['WBS_EDGE_STATE'];
+  process.env['WBS_EDGE_STATE'] = directory;
+  let entered = false;
+  try {
+    const { withEdgeAdmission } = await import('./edge-admission');
+    await rejects(
+      withEdgeAdmission(async () => {
+        await Promise.resolve();
+        entered = true;
+      }),
+      /ordinary controller/,
+    );
+    expect(entered).toBe(false);
+    expect(await readFile(`${directory}/edge.lock`, 'utf8')).toBe('original lock bytes');
+  } finally {
+    if (original === undefined) delete process.env['WBS_EDGE_STATE'];
+    else process.env['WBS_EDGE_STATE'] = original;
+  }
+});
+
+for (const mode of ['legacy', 'required'] as const) {
+  for (const shape of [
+    'absent',
+    'ordinary',
+    'active',
+    'restoring',
+    'malformed',
+    'dangling',
+    'directory',
+    'unreadable',
+    'marker',
+  ] as const) {
+    test(`joint ordinary controller matrix ${mode}/${shape}`, async () => {
+      const directory = scratchSync('controller-matrix-');
+      await writeFile(`${directory}/edge.lock`, 'lock sentinel');
+      const path = `${directory}/edge-policy.json`;
+      if (shape === 'ordinary' || shape === 'marker' || shape === 'unreadable')
+        await writeFile(path, JSON.stringify(policy(directory)));
+      if (shape === 'active')
+        await writeFile(
+          path,
+          JSON.stringify({
+            ...policy(directory),
+            phase: 'active',
+            ownerPublicationSha256: 'a'.repeat(64),
+            handoff: { name: 'edge-owner-123456-handoff-complete.json', sha256: 'b'.repeat(64) },
+          }),
+        );
+      if (shape === 'restoring')
+        await writeFile(
+          path,
+          JSON.stringify({
+            ...policy(directory),
+            phase: 'restoring',
+            ownerPublicationSha256: 'a'.repeat(64),
+            restorationIntent: {
+              name: 'edge-owner-123456-solver-restore-intent.json',
+              sha256: 'b'.repeat(64),
+            },
+          }),
+        );
+      if (shape === 'malformed') await writeFile(path, '{bad UTF-8\ufffd');
+      if (shape === 'dangling') await symlink(`${directory}/missing`, path);
+      if (shape === 'directory') await mkdir(path);
+      if (shape === 'unreadable') await chmod(path, 0);
+      if (shape === 'marker') await writeFile(`${directory}/edge-owner.pending`, 'retained');
+      const { assertOrdinaryControllerAdmission } = await import('./edge-policy');
+      const { withExistingCanonicalLock } = await import('./lock');
+      try {
+        const admission = withExistingCanonicalLock(`${directory}/edge.lock`, () =>
+          assertOrdinaryControllerAdmission(directory, mode),
+        );
+        if (shape === 'ordinary' || (shape === 'absent' && mode === 'legacy')) await admission;
+        else await rejects(admission);
+        expect(await readFile(`${directory}/edge.lock`, 'utf8')).toBe('lock sentinel');
+      } finally {
+        if (shape === 'unreadable') await chmod(path, 0o600);
+      }
+    });
+  }
+}
+
+for (const fault of [
+  'policy-replacement',
+  'policy-appearance',
+  'marker-appearance',
+  'parent-replacement',
+  'lock-replacement',
+] as const) {
+  test(`invocation-bound ordinary controller recheck refuses ${fault}`, async () => {
+    const root = scratchSync('controller-recheck-');
+    const directory = `${root}/state`;
+    await mkdir(directory);
+    await writeFile(`${directory}/edge.lock`, 'original');
+    if (fault !== 'policy-appearance')
+      await writeFile(`${directory}/edge-policy.json`, JSON.stringify(policy(directory)));
+    const { withOrdinaryControllerAdmission } = await import('./edge-policy');
+    const { withExistingCanonicalLock } = await import('./lock');
+    await withExistingCanonicalLock(`${directory}/edge.lock`, () =>
+      withOrdinaryControllerAdmission(directory, 'legacy', async (recheck) => {
+        if (fault === 'policy-replacement') {
+          const bytes = await readFile(`${directory}/edge-policy.json`);
+          await rename(`${directory}/edge-policy.json`, `${root}/original-policy`);
+          await writeFile(`${directory}/edge-policy.json`, bytes);
+        }
+        if (fault === 'policy-appearance')
+          await writeFile(`${directory}/edge-policy.json`, JSON.stringify(policy(directory)));
+        if (fault === 'marker-appearance')
+          await writeFile(`${directory}/edge-owner.pending`, 'appeared');
+        if (fault === 'parent-replacement') {
+          await rename(directory, `${root}/retained`);
+          await mkdir(directory);
+        }
+        if (fault === 'lock-replacement') {
+          await rename(`${directory}/edge.lock`, `${root}/retained-lock`);
+          await writeFile(`${directory}/edge.lock`, 'original');
+        }
+        await rejects(recheck());
+      }),
+    );
+  });
+}
+
+test('ordinary controller recheck expires when its original action settles', async () => {
+  const directory = scratchSync('controller-expiry-');
+  await writeFile(`${directory}/edge.lock`, '');
+  const { withOrdinaryControllerAdmission } = await import('./edge-policy');
+  const { withExistingCanonicalLock } = await import('./lock');
+  const recheck = await withExistingCanonicalLock(`${directory}/edge.lock`, () =>
+    withOrdinaryControllerAdmission(directory, 'legacy', (recheck) => Promise.resolve(recheck)),
+  );
+  await rejects(recheck(), /expired/);
+});

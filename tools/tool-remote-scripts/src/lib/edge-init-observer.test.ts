@@ -827,9 +827,33 @@ else:raise RuntimeError('recycled PID was admitted')
 });
 
 test('production factory rejects a non-private packet with redacted diagnostics', async () => {
-  await rejects(runProductionInitAdoption('/no-such-private-secret-marker', 'prepare'), {
-    message: 'edge Init adoption refused: preparation-failed',
-  });
+  const root = await mkdtemp('/tmp/adoption-private-packet-');
+  const previousState = process.env['WBS_EDGE_STATE'];
+  const previousDescriptor = process.env['WBS_EDGE_LOCK_FD'];
+  try {
+    await writeFile(
+      join(root, 'edge-policy.json'),
+      JSON.stringify({
+        format: 'dependency-edge-policy',
+        version: 1,
+        phase: 'ordinary',
+        edgeState: root,
+      }),
+    );
+    await withCanonicalLock(join(root, 'edge.lock'), async (descriptor) => {
+      process.env['WBS_EDGE_STATE'] = root;
+      process.env['WBS_EDGE_LOCK_FD'] = String(descriptor);
+      await rejects(runProductionInitAdoption('/no-such-private-secret-marker', 'prepare'), {
+        message: 'edge Init adoption refused: preparation-failed',
+      });
+    });
+  } finally {
+    if (previousState === undefined) delete process.env['WBS_EDGE_STATE'];
+    else process.env['WBS_EDGE_STATE'] = previousState;
+    if (previousDescriptor === undefined) delete process.env['WBS_EDGE_LOCK_FD'];
+    else process.env['WBS_EDGE_LOCK_FD'] = previousDescriptor;
+    await rm(root, { recursive: true });
+  }
 });
 
 test('real HTTP probe binds raw body, status and exact redirect without following it', async () => {
@@ -1593,4 +1617,47 @@ for (const [wall, monotonic] of [
         monotonic,
       ),
     ).toThrow();
+  });
+
+for (const phase of ['ordinary', 'active'] as const)
+  test(`production adoption factory checks ${phase} policy before reading its packet`, async () => {
+    const root = await mkdtemp('/tmp/adoption-policy-boundary-');
+    const packet = join(root, 'packet.json');
+    try {
+      await writeFile(packet, '{}', { mode: 0o600 });
+      await writeFile(
+        join(root, 'edge-policy.json'),
+        JSON.stringify({
+          format: 'dependency-edge-policy',
+          version: 1,
+          phase,
+          edgeState: root,
+          ...(phase === 'active'
+            ? {
+                ownerPublicationSha256: 'a'.repeat(64),
+                handoff: {
+                  name: 'edge-owner-123456-handoff-complete.json',
+                  sha256: 'b'.repeat(64),
+                },
+              }
+            : {}),
+        }),
+      );
+      const { withCanonicalLock } = await import('./lock');
+      await withCanonicalLock(join(root, 'edge.lock'), async (descriptor) => {
+        const program = `import * as fs from 'node:fs/promises'; import {mock} from 'bun:test'; const read=fs.readFile; mock.module('node:fs/promises',()=>({...fs,readFile:async(path,...options)=>{if(path===${JSON.stringify(packet)})await fs.writeFile(${JSON.stringify(join(root, 'packet-read'))},'read');return read(path,...options);}})); const {runProductionInitAdoption}=await import(${JSON.stringify(new URL('./edge-init-observer.ts', import.meta.url).pathname)}); await fs.writeFile(${JSON.stringify(join(root, 'factory-entered'))},'entered'); try{await runProductionInitAdoption(${JSON.stringify(packet)},'prepare');throw new Error('unexpected factory success');}catch(cause){if(cause.message!=='edge Init adoption refused: preparation-failed')throw cause;}`;
+        const child = Bun.spawn([process.execPath, '-e', program], {
+          env: { ...process.env, WBS_EDGE_STATE: root, WBS_EDGE_LOCK_FD: '3' },
+          stdio: ['ignore', 'pipe', 'pipe', descriptor],
+        });
+        const stdout = await new Response(child.stdout).text();
+        const stderr = await new Response(child.stderr).text();
+        expect(await child.exited).toBe(0);
+        expect(stdout + stderr).toBe('');
+        expect(await readFile(join(root, 'factory-entered'), 'utf8')).toBe('entered');
+        expect(await Bun.file(join(root, 'packet-read')).exists()).toBe(phase === 'ordinary');
+      });
+    } finally {
+      await rm(root, { recursive: true });
+    }
   });

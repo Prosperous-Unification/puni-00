@@ -17,6 +17,7 @@ import { envLayout } from './env';
 
 function fixture() {
   const root = scratchSync('product-metadata-');
+  writeFileSync(`${root}/edge.lock`, '');
   const layout = { ...envLayout('prod'), root, stateDir: root };
   return { root, layout, plan: { sha: 'a'.repeat(40), layouts: [layout] } };
 }

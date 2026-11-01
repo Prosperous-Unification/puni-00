@@ -8,6 +8,7 @@ import { envLayout } from './env';
 for (const replacement of ['symlink', 'directory'] as const) {
   test(`parent ${replacement} replacement never redirects site publication into foreign directory`, async () => {
     const root = scratchSync('owner-parent-race-');
+    await writeFile(`${root}/edge.lock`, '');
     const parent = `${root}/caddy`;
     const foreign = `${root}/foreign`;
     const retained = `${root}/retained`;
@@ -34,6 +35,7 @@ for (const replacement of ['symlink', 'directory'] as const) {
         if (${JSON.stringify(replacement)} === 'symlink') filesystem.symlinkSync(${JSON.stringify(foreign)}, ${JSON.stringify(parent)});
         else filesystem.renameSync(${JSON.stringify(foreign)}, ${JSON.stringify(parent)});
         filesystem.writeFileSync(join(${JSON.stringify(parent)}, basename(source)), 'foreign staged sibling');
+        filesystem.writeFileSync(${JSON.stringify(`${root}/parent-replaced`)}, 'delivered');
       }
       mock.module(${JSON.stringify(`${import.meta.dir}/directory-file.ts`)}, () => ({
         ...relative,
@@ -55,6 +57,7 @@ for (const replacement of ['symlink', 'directory'] as const) {
       let refused = false;
       try {
         await withDependencyOwner({ sha: 'a'.repeat(40), layouts: [layout] }, async owner => {
+          filesystem.writeFileSync(${JSON.stringify(`${root}/callback-entered`)}, 'entered');
           await publishOwnedSiteFile(owner, layout, await captureOwnedSiteFile(layout.siteCaddyPath), 'maintenance');
         }, ${JSON.stringify(root)});
       } catch { refused = true; }
@@ -64,6 +67,8 @@ for (const replacement of ['symlink', 'directory'] as const) {
     const [code, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
     expect(stderr).toBe('');
     expect(code).toBe(0);
+    expect(await readFile(`${root}/callback-entered`, 'utf8')).toBe('entered');
+    expect(await readFile(`${root}/parent-replaced`, 'utf8')).toBe('delivered');
     expect(
       await readFile(`${replacement === 'symlink' ? foreign : parent}/site.caddy`, 'utf8'),
     ).toBe('foreign original');

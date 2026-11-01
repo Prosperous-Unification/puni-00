@@ -1,37 +1,19 @@
-// Provisions a fresh host end to end, in the order the pieces actually
-// depend on each other. Before the cross-review fix that added this file's
-// real body, `--execute` printed "not wired to a real SSH call" and every
-// step below had only ever been run by hand — see
-// docs/superpowers/plans/2026-08-02-compose-blue-green-HANDOVER.md's
-// "configure.sh has never been executed as a script" note.
-//
-// Five steps, strictly ordered:
-//   1. scp bootstrap.sh to the host, run it as root — installs docker/bun,
-//      creates the /srv/wbs tree (tools/tool-bootstrap/src/bootstrap.sh).
-//   2. scp deploy/compose/base.yml to a unique staging path; configure.sh
-//      commits it under shared-edge admission before its `chown -R`.
-//   3. Run configure.sh as root, piped over stdin (not written to a temp
-//      file, not passed on the command line) together with WBS_USER,
-//      REGISTRY_USER, and REGISTRY_PASS: writes Caddy/registry/per-tier
-//      config, brings up the base compose stack, and (breaking the
-//      login-before-registry-exists circularity — cross-review item 2) logs
-//      the host in to the registry only AFTER that stack is up.
-//   4. Installs the executor bundles (swap.js, smoke.js) by shelling out to
-//      the already-committed `tool-remote-scripts:install --execute` — see
-//      that project's install.ts. Requires a separate `--wbs-host`: steps
-//      1-3 need a ROOT-authenticated SSH target, this step needs one
-//      authenticated as $WBS_USER (e.g. the `h2puni` alias in an operator's
-//      own ~/.ssh/config, which this repo does not and should not manage).
-//      Skipped, with an explicit instruction printed instead, if --wbs-host
-//      is not given.
-//
-// REGISTRY_PASS is read from this process's own environment (never a CLI
-// flag — never wanted on a command line or in shell history) and reaches
-// configure.sh only via the piped stdin payload of step 3, never as part of
-// any argv this process spawns — argv is visible to any local user via `ps`,
-// stdin content is not. Never printed in full by this file; --dry-run and
-// the printed plan show its EXISTENCE (an env var name), never its value.
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import {
+  closeSync,
+  constants,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readSync,
+  realpathSync,
+} from 'node:fs';
+import { resolve } from 'node:path';
+
+import {
+  buildInstalledControllerAdmission,
+  retainUnknownControllerObservation,
+} from '@tools/deploy-contract';
 
 import { REGISTRY_PASS_ENV_VAR, requireRegistryPassword } from './lib/secrets';
 
@@ -109,58 +91,167 @@ export type PushStep =
       /** The remote command whose stdin the script is piped to — e.g. `'sh -s'` or `'sudo sh -s'`; decided once in buildPlan from `args.user`, not re-derived from `target`. */
       remoteCommand: string;
       scriptPath: string;
+      sha256: string;
+      byteLength: number;
       /** Env var NAMES exported ahead of the script on stdin — never values (see module doc comment). */
       envKeys: string[];
       /** Non-secret per-invocation settings delivered with the script. */
       env: Record<string, string>;
     };
 
-/**
- * The ordered plan, pure and secret-free — nothing here ever holds
- * `REGISTRY_PASS`'s value, only the fact that step 3 will need it (by name,
- * in `envKeys`). Testable without a real secret for exactly that reason.
- */
-export function buildPlan(args: PushArgs, stageId: string): PushStep[] {
-  const stagedBase = `/tmp/wbs-base-${stageId}.yml`;
-  const target = `${args.user}@${args.host}`;
-  // A truly fresh minimal cloud image may not have `sudo` installed yet
-  // (bootstrap.sh's own install_packages() is what installs it) — prefixing
-  // `sudo` unconditionally, as this used to, would make a root SSH session
-  // depend on a binary root itself is about to install. Only prefix it when
-  // NOT already root.
-  const sudo = args.user === 'root' ? '' : 'sudo ';
+/** Captures bounded regular input bytes and refuses source identity or metadata drift. */
+function capturePushFile(path: string): { bytes: Buffer; sha256: string; byteLength: number } {
+  const canonical = resolve(path);
+  if (realpathSync(canonical) !== canonical)
+    throw new Error('provisioning input must be canonical');
+  const descriptor = openSync(
+    canonical,
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+  );
+  try {
+    const opened = fstatSync(descriptor, { bigint: true });
+    if (!opened.isFile() || opened.size < 1n || opened.size > 1048576n)
+      throw new Error('invalid bounded provisioning input');
+    const bytes = Buffer.alloc(Number(opened.size) + 1);
+    let length = 0;
+    while (length < bytes.length) {
+      const read = readSync(descriptor, bytes, length, bytes.length - length, length);
+      if (read === 0) break;
+      length += read;
+    }
+    for (const closing of [
+      fstatSync(descriptor, { bigint: true }),
+      lstatSync(canonical, { bigint: true }),
+    ]) {
+      if (
+        opened.dev !== closing.dev ||
+        opened.ino !== closing.ino ||
+        opened.mode !== closing.mode ||
+        opened.uid !== closing.uid ||
+        opened.gid !== closing.gid ||
+        opened.size !== closing.size ||
+        opened.mtimeNs !== closing.mtimeNs ||
+        opened.ctimeNs !== closing.ctimeNs ||
+        BigInt(length) !== opened.size
+      )
+        throw new Error('provisioning input changed while capturing selected bytes');
+    }
+    const selected = bytes.subarray(0, length);
+    return {
+      bytes: selected,
+      sha256: createHash('sha256').update(selected).digest('hex'),
+      byteLength: length,
+    };
+  } finally {
+    closeSync(descriptor);
+  }
+}
 
+function quotePushShell(value: string): string {
+  return "'" + value.replaceAll("'", "'\\''") + "'";
+}
+
+/** Obtains actual installed-reader authority before interpreting either staged script or stdin. */
+function buildPushAdmission(staging: string): string {
+  const state = '/home/puni1/wbs/state';
+  const quote = quotePushShell;
+  return `set -eu
+WBS_EDGE_STATE=${quote(state)}; export WBS_EDGE_STATE
+test -d ${quote(state)}
+test ! -L ${quote(state)}
+controller_state_path=$(realpath -- ${quote(state)}) || exit 1
+test "$controller_state_path" = ${quote(state)} || exit 1
+test -f ${quote(`${state}/edge.lock`)}
+test ! -L ${quote(`${state}/edge.lock`)}
+exec 8<${quote(`${state}/edge.lock`)}
+flock -n 8
+${buildInstalledControllerAdmission('required', 8)}
+test -d ${quote(staging)}
+test ! -L ${quote(staging)}
+controller_stage_path=$(realpath -- ${quote(staging)}) || exit 1
+test "$controller_stage_path" = ${quote(staging)} || exit 1
+controller_stage_mode=$(stat -c %a -- ${quote(staging)}) || exit 1
+test "$controller_stage_mode" = 700 || exit 1
+controller_stage_uid=$(stat -c %u -- ${quote(staging)}) || exit 1
+controller_actor_uid=$(id -u) || exit 1
+test -n "$controller_actor_uid" || exit 1
+test "$controller_stage_uid" = "$controller_actor_uid" || exit 1`;
+}
+
+/** Captures input pins and builds an ordered, secret-free plan; private staging grants no execution authority. */
+export function buildPlan(args: PushArgs, stageId: string): PushStep[] {
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(stageId))
+    throw new Error('invalid provisioning invocation identity');
+  const parent = '/home/puni1/.cache/wbs-solver';
+  const staging = `${parent}/provision-${stageId}`;
+  const bootstrap = `${staging}/bootstrap.sh`;
+  const stagedBase = `${staging}/base.yml`;
+  const bootstrapPin = capturePushFile(args.bootstrapPath);
+  const basePin = capturePushFile(args.baseComposePath);
+  const configurePin = capturePushFile(args.configurePath);
+  const target = `${args.user}@${args.host}`;
+  const sudo = args.user === 'root' ? '' : 'sudo -C 9 ';
+  const quote = quotePushShell;
+  const shell = (script: string) => `sh -c ${quote(script)}`;
+  const verify = (
+    path: string,
+    pin: { sha256: string; byteLength: number },
+  ) => `test -f ${quote(path)}
+test ! -L ${quote(path)}
+controller_input_path=$(realpath -- ${quote(path)}) || exit 1
+test "$controller_input_path" = ${quote(path)} || exit 1
+controller_input_bytes=$(stat -c %s -- ${quote(path)}) || exit 1
+test "$controller_input_bytes" = ${String(pin.byteLength)} || exit 1
+printf '%s  %s\\n' ${quote(pin.sha256)} ${quote(path)} | sha256sum -c - || exit 1`;
   const steps: PushStep[] = [
     {
       kind: 'run',
-      description: `scp ${args.bootstrapPath} -> ${target}:/tmp/bootstrap.sh`,
-      argv: ['scp', args.bootstrapPath, `${target}:/tmp/bootstrap.sh`],
+      description: `create exclusive private inert provisioning staging ${staging}`,
+      argv: [
+        'ssh',
+        target,
+        shell(
+          `set -eu; test -d ${quote(parent)}; test ! -L ${quote(parent)}; controller_parent_path=$(realpath -- ${quote(parent)}) || exit 1; test "$controller_parent_path" = ${quote(parent)} || exit 1; controller_parent_mode=$(stat -c %a -- ${quote(parent)}) || exit 1; test "$controller_parent_mode" = 700 || exit 1; controller_parent_uid=$(stat -c %u -- ${quote(parent)}) || exit 1; test "$controller_parent_uid" = 1000 || exit 1; mkdir -m 0700 -- ${quote(staging)} || exit 1`,
+        ),
+      ],
     },
     {
       kind: 'run',
-      description: `ssh ${target} '${sudo}sh /tmp/bootstrap.sh' (root: docker+bun install, /srv/wbs tree)`,
-      argv: ['ssh', target, `${sudo}sh /tmp/bootstrap.sh`],
+      description: `scp ${args.bootstrapPath} -> ${target}:${bootstrap}`,
+      argv: ['scp', args.bootstrapPath, `${target}:${bootstrap}`],
     },
     {
       kind: 'run',
-      description: `scp ${args.baseComposePath} -> ${target}:${stagedBase} (staged until configure admission)`,
+      description: 'admit through fixed installed reader before executing staged bootstrap.sh',
+      argv: [
+        'ssh',
+        target,
+        shell(
+          `${buildPushAdmission(staging)}\n${verify(bootstrap, bootstrapPin)}\nexec ${sudo}sh ${quote(bootstrap)}`,
+        ),
+      ],
+    },
+    {
+      kind: 'run',
+      description: `scp ${args.baseComposePath} -> ${target}:${stagedBase} (inert until configure admission)`,
       argv: ['scp', args.baseComposePath, `${target}:${stagedBase}`],
     },
     {
       kind: 'script-over-stdin',
       description:
-        `ssh ${target} '${sudo}sh -s' < ${args.configurePath} ` +
-        '(root: writes Caddy/registry/per-tier config, brings up base.yml, then logs in — ' +
-        'see configure.sh for why login is last)',
+        'admit through fixed installed reader before interpreting configure.sh stdin and committing base.yml',
       target,
-      remoteCommand: `${sudo}sh -s`,
+      remoteCommand: shell(
+        `${buildPushAdmission(staging)}\n${verify(stagedBase, basePin)}\nexec ${sudo}sh -s`,
+      ),
       scriptPath: args.configurePath,
+      sha256: configurePin.sha256,
+      byteLength: configurePin.byteLength,
       envKeys: ['WBS_USER', 'REGISTRY_USER', REGISTRY_PASS_ENV_VAR, 'WBS_BASE_COMPOSE_STAGE'],
       env: { WBS_BASE_COMPOSE_STAGE: stagedBase },
     },
   ];
-
-  if (args.wbsHost !== undefined) {
+  if (args.wbsHost !== undefined)
     steps.push({
       kind: 'run',
       description: `nx run tool-remote-scripts:install --host=${args.wbsHost} --execute (installs swap.js, smoke.js)`,
@@ -173,8 +264,6 @@ export function buildPlan(args: PushArgs, stageId: string): PushStep[] {
         '--execute',
       ],
     });
-  }
-
   return steps;
 }
 
@@ -199,7 +288,12 @@ export function buildStdinPayload(env: Record<string, string>, scriptText: strin
 export async function runStep(step: PushStep, secretEnv: Record<string, string>): Promise<void> {
   if (step.kind === 'run') {
     const p = Bun.spawn(step.argv, { stdout: 'inherit', stderr: 'inherit' });
-    const code = await p.exited;
+    let code;
+    try {
+      code = await p.exited;
+    } catch {
+      return retainUnknownControllerObservation();
+    }
     if (code !== 0) {
       throw new Error(`step failed (exit ${String(code)}): ${step.description}`);
     }
@@ -210,14 +304,22 @@ export async function runStep(step: PushStep, secretEnv: Record<string, string>)
   // `ssh <target> '<remoteCommand>'` — see buildStdinPayload's doc comment
   // for why this, rather than a temp file or command-line env vars, is how
   // the secret travels.
-  const scriptText = await Bun.file(step.scriptPath).text();
+  const selected = capturePushFile(step.scriptPath);
+  if (selected.sha256 !== step.sha256 || selected.byteLength !== step.byteLength)
+    throw new Error('selected configure input bytes changed before stdin transport');
+  const scriptText = new TextDecoder('utf-8', { fatal: true }).decode(selected.bytes);
   const payload = buildStdinPayload({ ...secretEnv, ...step.env }, scriptText);
   const p = Bun.spawn(['ssh', step.target, step.remoteCommand], {
     stdin: new Blob([payload]),
     stdout: 'inherit',
     stderr: 'inherit',
   });
-  const code = await p.exited;
+  let code;
+  try {
+    code = await p.exited;
+  } catch {
+    return retainUnknownControllerObservation();
+  }
   if (code !== 0) {
     throw new Error(`step failed (exit ${String(code)}): ${step.description}`);
   }

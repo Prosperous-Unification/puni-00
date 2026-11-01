@@ -40,6 +40,7 @@ afterEach(async () => {
 async function fixture() {
   const prepared = await artifact();
   const root = await mkdtemp(join(tmpdir(), 'source-owner-'));
+  await writeFile(join(root, 'edge.lock'), '');
   roots.push(root);
   await mkdir(join(root, 'dev'), { mode: 0o755 });
   const layouts = {

@@ -1,5 +1,6 @@
 import {
   chmod,
+  copyFile,
   mkdir,
   mkdtemp,
   readdir,
@@ -25,13 +26,90 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-async function fixture() {
+async function fixture(preparedReader = true) {
   const root = await mkdtemp(join(tmpdir(), 'solver-install-operation-'));
   roots.push(root);
   const state = join(root, 'state');
   const staging = join(root, 'stage');
-  for (const directory of [state, staging, join(root, 'commands')]) await mkdir(directory);
+  for (const directory of [state, staging, join(root, 'commands')])
+    await mkdir(directory, { mode: 0o700 });
+  const createdStage = await stat(staging);
+  const createdStageIdentity = `${String(createdStage.dev)}:${String(createdStage.ino)}`;
   await writeFile(join(state, 'edge.lock'), '');
+  if (preparedReader) {
+    const directory = join(root, 'home/.local/lib/wbs-solver');
+    await mkdir(directory, { recursive: true });
+    await copyFile(process.execPath, join(directory, 'bun'));
+    const compilation = await Bun.build({
+      entrypoints: [new URL('./solver-supervisor.ts', import.meta.url).pathname],
+      target: 'bun',
+      plugins: [
+        {
+          name: 'owned-solver-install-layout',
+          setup(build) {
+            build.onLoad({ filter: /solver-supervisor-install-contract\.ts$/ }, async (file) => {
+              const source = await Bun.file(file.path).text();
+              const anchor = "export const SOLVER_READER_STATE = '/home/puni1/wbs/state';";
+              if (source.split(anchor).length !== 2)
+                throw new Error('production state anchor differs');
+              return {
+                contents: source.replace(
+                  anchor,
+                  `export const SOLVER_READER_STATE = ${JSON.stringify(state)};`,
+                ),
+                loader: 'ts',
+              };
+            });
+          },
+        },
+      ],
+    });
+    const output = compilation.outputs.at(0);
+    if (!compilation.success || compilation.outputs.length !== 1 || output === undefined)
+      throw new Error('actual fixed reader build failed');
+    await writeFile(
+      join(directory, 'solver-supervisor.js'),
+      new Uint8Array(await output.arrayBuffer()),
+      { mode: 0o755 },
+    );
+    const binding = await Bun.build({
+      entrypoints: [
+        new URL('../../tool-devsync/src/solver-binding-runtime.ts', import.meta.url).pathname,
+      ],
+      target: 'bun',
+      plugins: [
+        {
+          name: 'owned-binding-layout',
+          setup(build) {
+            build.onLoad({ filter: /solver-supervisor-install-contract\.ts$/ }, async (file) => {
+              let source = await Bun.file(file.path).text();
+              for (const [before, after] of [
+                ["'/home/puni1/wbs/state'", state],
+                ["'/home/puni1/.local/lib/wbs-solver/bun'", join(directory, 'bun')],
+                [
+                  "'/home/puni1/.local/lib/wbs-solver/solver-supervisor.js'",
+                  join(directory, 'solver-supervisor.js'),
+                ],
+              ]) {
+                if (source.split(before).length !== 2)
+                  throw new Error('production fixed layout anchor differs');
+                source = source.replace(before, JSON.stringify(after));
+              }
+              return { contents: source, loader: 'ts' };
+            });
+          },
+        },
+      ],
+    });
+    const bindingOutput = binding.outputs.at(0);
+    if (!binding.success || binding.outputs.length !== 1 || bindingOutput === undefined)
+      throw new Error('actual binding build failed');
+    await writeFile(
+      join(root, 'solver-binding-runtime.js'),
+      new Uint8Array(await bindingOutput.arrayBuffer()),
+      { mode: 0o755 },
+    );
+  }
   await initializeOrdinaryEdgePolicy(state);
   await writeFile(join(root, 'foreign.lock'), '');
   const files = [0, 1, 2, 3].map((index) => ({
@@ -127,7 +205,14 @@ if [ "\${FAULT:-}" = readiness ] && [[ "$*" = *is-active* ]]; then exit 1; fi
     await chmod(join(root, 'commands', name), 0o755);
   }
   const shell = (local: boolean) =>
-    buildSolverSupervisorInstallOperation(files, hashes, staging, socket, local)
+    buildSolverSupervisorInstallOperation(
+      files,
+      hashes,
+      staging,
+      socket,
+      local,
+      createdStageIdentity,
+    )
       .replaceAll('/home/puni1/wbs/state', state)
       .replaceAll('/home/puni1/', `${root}/home/`);
   return {
@@ -149,8 +234,7 @@ if [ "\${FAULT:-}" = readiness ] && [[ "$*" = *is-active* ]]; then exit 1; fi
       let argv = ['sh', '-c', shell(false)];
       if (localMode !== undefined) {
         const runner = new URL('./install-solver-supervisor.ts', import.meta.url).pathname;
-        const outer = new URL('../../tool-devsync/src/solver-binding-runtime.ts', import.meta.url)
-          .pathname;
+        const outer = join(root, 'solver-binding-runtime.js');
         const child = join(root, 'child.ts');
         const launch = join(root, 'launch.ts');
         const innerFault =
@@ -351,9 +435,13 @@ for (const [local, fault] of [
   test(`real ${local ? 'local inherited' : 'remote'} CLI transport ${fault || 'positive'} retains captured hashes`, async () => {
     const host = await fixture();
     const root = host.root;
+    await mkdir(join(root, 'home/.cache/wbs-solver'), { recursive: true, mode: 0o700 });
     for (const directory of ['dist/tool-remote-scripts', 'deploy/solver-supervisor'])
       await mkdir(join(root, directory), { recursive: true });
-    const reviewedBundle = `import { readOrdinaryEdgePolicy } from ${JSON.stringify(new URL('./lib/edge-policy.ts', import.meta.url).pathname)}; if(process.argv[2] !== '--check-edge-policy') throw new Error('expected policy preflight'); await readOrdinaryEdgePolicy(process.env.WBS_EDGE_STATE);`;
+    const reviewedBundle = await readFile(
+      join(root, 'home/.local/lib/wbs-solver/solver-supervisor.js'),
+      'utf8',
+    );
     await writeFile(join(root, 'dist/tool-remote-scripts/solver-supervisor.js'), reviewedBundle);
     await writeFile(
       join(root, 'deploy/solver-supervisor/wbs-solver-supervisor.service'),
@@ -431,8 +519,7 @@ if [ "\${FAULT:-}" = staged-config ] && [[ "$remote" = */2 ]]; then printf corru
       ];
       if (local) {
         const launcher = join(root, 'cli-launch.ts');
-        const outer = new URL('../../tool-devsync/src/solver-binding-runtime.ts', import.meta.url)
-          .pathname;
+        const outer = join(root, 'solver-binding-runtime.js');
         await writeFile(
           launcher,
           `import { runSolverBindingCommand } from ${JSON.stringify(outer)}; const attempt = await runSolverBindingCommand({cwd: ${JSON.stringify(root)}, argv: ${JSON.stringify(argv)}, edgeLock: 'inherit'}); if(attempt.exitCode !== 0) throw new Error(attempt.stderr);`,
@@ -641,4 +728,52 @@ test('policy refusal precedes every installed replacement; successful install pr
   const original = await stat(acceptedPath);
   expect((await accepted.run()).code).toBe(0);
   expect((await stat(acceptedPath)).ino).toBe(original.ino);
+});
+
+test('normal solver publication refuses an unprepared fixed reader before executing staged runtime', async () => {
+  const host = await fixture(false);
+  const outcome = await host.run();
+  expect(outcome.code).not.toBe(0);
+  expect(outcome.output).toMatch(/fixed installed controller reader|reader preparation/);
+  expect(await Bun.file(join(host.root, 'service')).exists()).toBe(false);
+  expect(await Bun.file(join(host.root, 'policy.checked')).exists()).toBe(false);
+});
+
+test('normal solver install refuses same-byte staged runtime symlink before execution', async () => {
+  const host = await fixture();
+  const source = join(host.staging, '0');
+  await rename(source, join(host.root, 'selected-runtime'));
+  await symlink(join(host.root, 'selected-runtime'), source);
+  const outcome = await host.run();
+  expect(outcome.code).not.toBe(0);
+  expect(await Bun.file(join(host.root, 'policy.checked')).exists()).toBe(false);
+  await host.expectOriginal();
+});
+
+test('normal install retains foreign stage replacement before actual fixed reader refusal', async () => {
+  const host = await fixture();
+  const original = host.staging + '-original';
+  const originalRuntime = await readFile(join(host.staging, '0'));
+  await rename(host.staging, original);
+  await mkdir(host.staging, { mode: 0o700 });
+  const foreign = join(host.staging, 'foreign-owner');
+  await writeFile(foreign, 'independent foreign stage');
+  await writeFile(
+    join(host.state, 'edge-policy.json'),
+    JSON.stringify({
+      format: 'dependency-edge-policy',
+      version: 1,
+      phase: 'active',
+      edgeState: host.state,
+      ownerPublicationSha256: 'a'.repeat(64),
+      handoff: { name: 'edge-owner-123456-handoff-complete.json', sha256: 'b'.repeat(64) },
+    }),
+  );
+  expect(await readFile(foreign, 'utf8')).toBe('independent foreign stage');
+  const outcome = await host.run();
+  expect(outcome.code).not.toBe(0);
+  expect(outcome.output).toContain('ordinary controller');
+  expect(await readFile(foreign, 'utf8')).toBe('independent foreign stage');
+  expect(await readFile(join(original, '0'))).toEqual(originalRuntime);
+  await host.expectOriginal();
 });

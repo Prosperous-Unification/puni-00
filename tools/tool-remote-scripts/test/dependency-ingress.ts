@@ -38,6 +38,7 @@ export async function runDependencyIngressAcceptance(): Promise<void> {
   const attempt = randomUUID();
   const name = `dependency-ingress-${attempt}`;
   const directory = await mkdtemp(join(tmpdir(), 'dependency-ingress-acceptance-'));
+  await writeFile(join(directory, 'edge.lock'), '');
   const caddy = join(directory, 'caddy');
   await mkdir(caddy, { mode: 0o700 });
   const layout = {

@@ -42,3 +42,73 @@ Exact eight-file Prettier checking also exited 0. These opening checks qualify
 this private contract only. JC0–JC3 implementation, ordinary consumer tests,
 new necessity witnesses, real host transition, compatible active controllers
 and full handoff/native/main/deployment acceptance are not supplied here.
+
+### Private controller implementation and historical reader — 2026-11-01
+
+The ordinary controller prerequisite is implemented in the private branch. Its
+70-path scope has64 tracked changes and2 new modules; four allowed existing paths
+remain unchanged. Three independent source findings were corrected: the originally
+created reader sibling now binds the opening publication inode; old Bun's canonical
+parent/file ownership, mode, bytes and opening/closing identity are checked before
+execution; normal installation retains its own mkdir identity and refuses to delete
+a replacement stage. Actual owned dependency faults each failed before correction
+and passed afterward. Final focused transition5/0 and installer4/0, six-path
+format/lint/generated ShellCheck, configured remote typecheck/build all passed.
+Independent code repair reviews: control SHA256
+00594a54d990ddf5d9c51cdef3a1e4e7d167a9e90561af6c272aa73e8418d634;
+shell/install SHA2568c4f8f4445006c2d952e81921fa1c3c8a9d7e6f668bbb49acaa50f8cb347a08a.
+Actual actor checks remain at the operation's initial read-only entry; the shell's
+prelaunch ownership check describes filesystem metadata, not an actor attestation.
+
+Earlier broader ordinary groups are separate epochs:376pass/1 known baseline
+observer fixture failure,615/0 direct callers and88/0 outer tests. The observer
+fixture correction is independently accepted in private6c943175 but is not yet
+composed into this source tree. The backend fixture group95748 was aborted143
+after an unsupported title-based scope inference; its preserved argv, output and
+three absent PID observation are not a successful suite, native qualification or
+all-descendant cleanup proof. No full replay or fresh whole70 runtime is claimed.
+
+The historical coverage gap is closed for one actual tuple. A separate immutable
+17cce118 build produced the whole old reader with only the reviewed layout literal
+transformed. The readonly JSON fixture SHA256 is
+722fc501dbf5cad8a5ce4cad2059f579d0154c1921883682c9a708cc6dad4d48;
+its decoded445789-byte bundle SHA256 is
+c719ebe11a20687621a444ecc6e13be5064e273868ef416e59c5247741a6382a.
+Its257 consumed inputs, implicit metadata capture and emitted initialization were
+independently reviewed (SHA256acf7fc49746bd09681393661bd9464dcc75b5117a8ca08b2fdbe6d8881c65f55).
+Metadata postbuild hashing and semantic-index limits remain documented. This is
+old17 logical closure with a test-layout transform, not a byte-exact historical
+production binary or a claim that another installed Bun works.
+
+The test verifies external container/bundle pins and one quoted token byte span,
+changes only that span to canonical owned state, preserves prefix/suffix bytes and
+derives the actual selected oldReader pin. WBS_ENV is explicitly prod and
+WBS_EDGE_STATE is that owned state. Old bytes have no tracing instrumentation;
+passive child observations delegate actual execution and preserve original output
+and wait custody. The old inherited command succeeds under the real held FD,
+new controller forms refuse on the old artifact, and actual old policy/marker/
+missing/foreign/independent descriptor failures are observed. Direct and generated
+transport positives run old check, staged legacy/required, installed legacy/
+required in order with independent contender exclusions. Corrupt fixture refuses
+before any child. No Git/history/network fallback exists in runtime tests.
+
+Final exact19 selected tests passed with7 filtered,257 assertions,28.54seconds;
+format/lint and configured remote types passed. Actual unchanged Bun1.4.4 SHA256
+10702245766b225e70bbf6235fd6b47214fd94b4760d00ffaed8ab0df57ac235
+is the only measured runtime tuple. Compiler-only artifact construction did not
+execute the reader; later contained tests did. The retained libc/SQLite/env
+initialization is explicitly acknowledged and does not establish privileged native
+supervisor qualification.
+
+Current71-source/data freeze SHA256
+1682b70867caaa626b0961d1d52d121f547903b8156e4f6f49b839e002607d39;
+independent historical coverage review GO SHA256
+de1d56dac2abf79e35be7b43c3ea33c4d6da655d2e2e4d06883446da110830c3.
+Only the historical test changed after the repaired70 freeze; the new JSON,69
+other old source paths,11 dependencies/eight documents and prior evidence stayed
+exact until Root appends this verification record. The direct-swap interval Minor
+follow-up, new safety necessity, full source71 exact-candidate gates, main
+architectural adoption and deployment remain open. Full original publisher/
+terminal custody and compatible successors are separate unfinished requirements;
+ordinary refusal is not compatible active-operation support. No task box is closed
+from these scoped facts.

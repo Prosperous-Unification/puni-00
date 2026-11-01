@@ -172,6 +172,7 @@ async function withInstalledArtifact(
   if (snapshot) writeFileSync(join(prepared, names[0], 'snapshot.json'), '{}\n', { mode: 0o644 });
   const artifact = await createDependencyMigrationManifest(prepared, { ...expected, sourceSha });
   const state = mkdtempSync(join(tmpdir(), 'migration-owner-'));
+  writeFileSync(join(state, 'edge.lock'), '');
   roots.push(state);
   mkdirSync(join(state, 'dev'), { mode: 0o755 });
   const layouts = {

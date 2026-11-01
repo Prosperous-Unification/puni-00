@@ -1,4 +1,5 @@
 import { rejects } from 'node:assert/strict';
+import { writeFile } from 'node:fs/promises';
 import { mkdir } from 'node:fs/promises';
 
 import { scratchSync } from '@tools/test-scratch';
@@ -21,6 +22,7 @@ import {
 async function fixture(substitute = false, startedBinding = false) {
   const token = 'c55155d0-ade9-4905-8c43-024b3f331acd';
   const root = scratchSync(`source-native-${token}-`);
+  await writeFile(`${root}/edge.lock`, '');
   for (const directory of ['prod', 'dev', 'runtime']) await mkdir(`${root}/${directory}`);
   const layouts = {
     prod: { ...envLayout('prod'), root: `${root}/prod`, stateDir: `${root}/prod` },

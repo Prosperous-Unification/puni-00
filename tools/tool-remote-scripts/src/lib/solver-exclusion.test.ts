@@ -66,6 +66,7 @@ function unit(active: boolean, edgeState: string) {
 }
 async function fixture() {
   const root = scratchSync('solver-drain-');
+  await writeFile(join(root, 'edge.lock'), '');
   await mkdir(join(root, 'dev'));
   const layouts = {
     prod: { ...envLayout('prod'), root, stateDir: root },

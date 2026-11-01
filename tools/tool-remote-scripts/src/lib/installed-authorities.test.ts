@@ -1,3 +1,5 @@
+import { writeFile } from 'node:fs/promises';
+
 import { scratchSync } from '@tools/test-scratch';
 import { expect, test } from 'bun:test';
 
@@ -113,6 +115,7 @@ test.each(['manifest-hash', 'source', 'location', 'database', 'owner-source'] as
     const { envLayout } = await import('./env');
     const { WRITER_MEMBERS } = await import('./installed-writers');
     const directory = scratchSync('authority-owner-');
+    await writeFile(`${directory}/edge.lock`, '');
     await mkdir(directory + '/prod');
     await mkdir(directory + '/dev');
     const layouts = {

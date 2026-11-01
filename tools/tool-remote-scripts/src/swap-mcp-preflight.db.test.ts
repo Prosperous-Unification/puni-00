@@ -1,13 +1,26 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import { scratchSync } from '@tools/test-scratch';
 import { Database } from 'bun:sqlite';
-import { afterEach, describe, expect, it, setDefaultTimeout } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, setDefaultTimeout } from 'bun:test';
 
 import { ROOT, tierEnvFiles, tierSecretsFile } from './lib/docker';
 import { planSwap } from './lib/reconcile';
 import { execute, type SwapExecutionIo } from './swap';
+
+let previousControllerState: string | undefined;
+beforeEach(() => {
+  previousControllerState = process.env['WBS_EDGE_STATE'];
+  const controllerState = scratchSync('direct-controller-edge-');
+  writeFileSync(`${controllerState}/edge.lock`, '');
+  process.env['WBS_EDGE_STATE'] = controllerState;
+});
+afterEach(() => {
+  if (previousControllerState === undefined) delete process.env['WBS_EDGE_STATE'];
+  else process.env['WBS_EDGE_STATE'] = previousControllerState;
+});
 
 const BACKEND = join(import.meta.dir, '../../../apps/wbs/be-01');
 const SERVER = 'https://wbs.example/mcp/oauth';
