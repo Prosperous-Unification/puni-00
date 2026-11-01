@@ -2504,3 +2504,31 @@ Both database bindings and the selected roster are admitted and detached before 
 #### Scenario: Existing reader retains the same raw closure
 
 Actual disk admission reuses the raw capture core within its own retained graph, deadline and existing aggregate budget. It retains all selected raw files through closing/stability verification and still checks actual receipts, ready identity, eight archives/original absences, pending/archive phase matrix and terminal policy/pointers. A separately closed raw observer never substitutes for that closure.
+
+### Requirement: Bounded genuine parked activation preparation
+
+The platform SHALL provide a fixed internal initial-handoff preparation path through its existing original owner/exclusion/preparation identity maps. Before semantic activation it SHALL retain actual bounded parked raw evidence and original successful publication snapshots. The shared SQLite backup leaf SHALL offer named additive bounded snapshot/verification APIs while preserving existing APIs and defaults.
+
+#### Scenario: Actual three-roster preparation and legacy behavior
+
+For actual selected prod, dev and prod-then-dev rosters, genuine owner preparation and consumption retain actual captures, backups, complete migration ledgers and ordered successful publication snapshots. Unselected stores remain DISABLED/null. Existing fenced and restoration callers and the exact39-case complete-exclusion CI owner remain unchanged; all new preparation cases use the existing storage integration test.
+
+#### Scenario: Actual oversized or invalid backup before publication
+
+A real owned descriptor reporting1073741825 bytes refuses the fixed1GiB full-mode limit before semantic SQLite open or backup-sized allocation. Generic bounded snapshots verify the produced partial copy before final publication using at most1MiB read buffers and independent byte counts. Absent, unreadable, nonregular, corrupt, missing/empty-ledger, changed-file/parent or expired evidence refuses through the actual bounded path. Native SQLite stages remain real and can overrun until their next deadline boundary; no successful1GiB capacity or universal ABA claim follows.
+
+#### Scenario: Incomplete roster cannot fall back to whole-file reads
+
+While preparing a second selected environment, all inspection of its first completed backup remains bounded with the original deadline. Final raw observation does not excuse earlier whole-file reads. Exact LF-inclusive UTF-8 capture/envelope bounds are admitted before each related publication, including fenced-complete; actual returned serialization must match the preadmitted bytes.
+
+#### Scenario: Initial parked-state refusal precedes activation DML
+
+A fault delivered to the actual retained graph observer after parked outputs exist and before participants/activation intents refuses with both independently inspected stores DISABLED and null receipts. No activation intent/commit appears. Derivation uses actual original pending/database/ordered output bindings rather than directory discovery or seeded H8 records.
+
+#### Scenario: Closing before the second dispatch preserves the actual prefix
+
+After an initial genuine activation commit, changed bytes, equal-byte inode/parent replacement, extra/unselected evidence, absence/unreadability or expiry detected after an intervening barrier refuses immediately before the next synchronous dispatch. The first actual receipt/commit remains, the next store remains disabled, and its intent may remain. No retry, compensation or fabricated all-or-none outcome is reported.
+
+#### Scenario: Original retained context and finalization
+
+Raw observation and exact successful capture/backup/participants/intent/committed snapshots remain privately retained through physical preparation finalization. Mutated returned/nested projections cannot change expected baselines. Copied, foreign, released or incomplete contexts refuse without ordinary-mode fallback. All settled failures and release close owned observations/connections even after expiry; final-deadline failure cannot return prepared success. H1 publication and full handoff authority remain unavailable from this preparation evidence.
