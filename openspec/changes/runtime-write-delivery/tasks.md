@@ -147,18 +147,21 @@ expect(stage.value.ack.obligation.disposition).toEqual({ kind: 'pending' });
 `build-write-request.test.ts`, `testing/write-store-contract.ts`, `write-store.test.ts`,
 `sqlite/write-store.db.test.ts`, `sqlite/read-writes.ts`, `sqlite/write-store.ts`,
 `sqlite/write-usage.ts`, `sqlite/migrate-writes.ts`,
-`sqlite/write-migration.db.test.ts`,
+`sqlite/write-migration.db.test.ts`, `testing/format5-lifetime-preload.ts`,
 `sqlite/migrations/0006-runtime-write/{migration.sql,down.sql}` and genuine pinned
 `testing/format5-{fixture,provider,protocol,worker}.ts` with focused lifecycle/protocol tests.
 
 **Modify:** `records.ts`, `execution-records.ts`, `record-codecs.ts`, `run-store.ts`,
 `runtime-records.ts`, `plan-execution.ts`, `plan-admission.ts`, `plan-runtime.ts`,
+`build-claim-request.ts`, `plan-recovery.ts`, `dispatch-recovery.ts` only for known scope2/3
+dispatch with all existing floor/recovery checks and unknown-version refusal preserved;
 `plan-recovery-history.ts`, `validate-history.ts`, `claim-history.ts`, `runtime-history.ts`,
 `testing/memory-stores.ts`; SQLite `format.ts`, `schema.ts`, `open-stores.ts`,
 `run-store.ts`, `runtime-store.ts`, `read-history.ts`, `read-outcomes.ts`,
 `read-executions.ts`, `read-signals.ts`, `read-runtime.ts`, `row-codecs.ts`;
 `testing/predecessor-fixture.ts` only for a precise format5 source/protocol route;
-the exact export/policy/test owners reached by these new modules. Historical tests use
+`apps/twilight-structure/twilight-dash/cli/project.json` for the exact format5 lifetime preload,
+and the exact export/policy/test owners reached by these new modules. Historical tests use
 the new genuine format5 bridge where they require5; preserve their behavior/assertions.
 
 **Interfaces:** Add the two RunStore operations in design.md, ExecutionHistory3,
