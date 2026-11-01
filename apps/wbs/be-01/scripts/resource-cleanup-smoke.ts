@@ -23,6 +23,7 @@ import type {
 // Proof: Nx rejected this cross-application import; this executable smoke intentionally composes the real WBS and Dash applications.
 // eslint-disable-next-line @nx/enforce-module-boundaries
 import {
+  linuxHostFacts,
   loadResourceConfiguration,
   ResourceRuntime,
 } from '../../../twilight-structure/twilight-dash/cli/src/resources/runtime';
@@ -177,7 +178,7 @@ try {
   writeFileSync(
     config,
     JSON.stringify({
-      schemaVersion: 2,
+      schemaVersion: 3,
       root,
       authorityId,
       epoch,
@@ -188,12 +189,21 @@ try {
       diskBudgetUnits: 2,
       workspaceSlots: 2,
       headroomBytes: 0,
+      cpuCores: 1,
+      memoryGib: 1,
+      headroom: { cpuCores: 0, memoryGib: 0 },
+      exclusiveUnits: {},
+      enrollmentId: 'enrollment-one',
     }),
     { mode: 0o600 },
   );
-  runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), {
-    read: () => Date.now(),
-  });
+  runtime = ResourceRuntime.initialize(
+    loadResourceConfiguration(config),
+    {
+      read: () => Date.now(),
+    },
+    linuxHostFacts,
+  );
   const send = forwardedTools(issued.key);
   const use = await runtime.create(
     {
