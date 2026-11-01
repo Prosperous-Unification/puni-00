@@ -1,4 +1,4 @@
-import { readDashInvocation } from './cli-parser';
+import { readDashInvocation, UsageRefusal } from './cli-parser';
 import { monotonicClock, wallClock } from './clock';
 
 /**
@@ -56,5 +56,7 @@ try {
   }
 } catch (cause) {
   process.stderr.write(refusalLine(cause));
-  process.exitCode = 1;
+  // `ops` keeps the shell lock's exit codes (`dash-host-jobs` J13), where a usage error is 64.
+  // Proof: exiting 1 here failed `an ops usage refusal exits 64` (cli.test.ts) (2026-11-01).
+  process.exitCode = cause instanceof UsageRefusal && process.argv[2] === 'ops' ? 64 : 1;
 }

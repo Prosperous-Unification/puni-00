@@ -47,7 +47,7 @@
 
 ## 3. Measured runs (needs 2)
 
-- [ ] 3.1 `ops job run`: scope through the runtime's FD-gated launch, counters read and identity
+- [x] 3.1 `ops job run`: scope through the runtime's FD-gated launch, counters read and identity
       persisted before the gate opens, `MemoryHigh`/`MemoryMax`, private `TMPDIR`, the
       environment of J7, ten-second samples, observation boundary alive through the final
       sample and durable record, telemetry and ledger-write failures recorded apart, exit code
@@ -55,13 +55,17 @@
       `memory.peak`; a one-second payload; negative: stub `systemd-run` answering "Failed to
       connect to bus" and watch exit 70 before the payload (J8); make `memory.peak` unreadable
       at the gate and watch 70; tear the scope down early and watch the recording failure.
-- [ ] 3.2 Declared container bounds (J16): labelled and bounded containers sampled through the
+- [x] 3.2 Declared container bounds (J16): labelled and bounded containers sampled through the
       docker adapter's reading as advisory evidence; unlabelled or unbounded starts during the
       window recorded `attribution_incomplete` — test: a real short-lived bounded container and
       an unbounded one against a local daemon; negative: drop the bound check and the unbounded
-      run counts as complete.
-- [ ] 3.3 `ops job status` (J13) — test: the one-running-one-waiting scenario, exact lines,
-      settlement state shown.
+      run counts as complete. The reading is `src/ops/containers.ts` over the compute module's
+      exported client helpers: the docker adapter's parsers are module-private and
+      `src/compute` belonged to slice 5's worker (verify.md Slice 3, S3-A9). `watch` still
+      settles a declared-bound job with `declaredContainersOnly` (S3-A10).
+- [x] 3.3 `ops job status` (J13) — test: the one-running-one-waiting scenario, exact lines,
+      settlement state shown. The scenario's `with-heavy-lock.sh status` half needs J12's
+      observe-mode queue protocol, which lands with `run_heavy_job` in 6.1 (S3-A12).
 
 ## 4. Calibration, proposal, audit (needs 3)
 
