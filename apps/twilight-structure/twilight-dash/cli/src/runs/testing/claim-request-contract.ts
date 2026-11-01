@@ -20,7 +20,7 @@ import {
   unwrapReply,
 } from './fixtures';
 
-type Prepared = Awaited<ReturnType<typeof prepareSession>>;
+type Prepared = Awaited<ReturnType<typeof prepareSession<RunStore>>>;
 type BuildStores = Pick<RunStore, 'readExecutionHistory' | 'readManifest' | 'readRuntimeScope'>;
 
 async function scenario(

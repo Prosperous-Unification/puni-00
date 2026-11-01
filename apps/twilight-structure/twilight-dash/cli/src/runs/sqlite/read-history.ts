@@ -6,6 +6,7 @@ import { type HistoryCatalog, validateHistory } from '../validate-history';
 import { readOutcomes } from './read-outcomes';
 import { readRuntimeCatalogForFormat } from './read-runtime';
 import { decodeConsumptionRow, decodeDecisionRow, decodeReceiptRow } from './read-signals';
+import { readWrites } from './read-writes';
 import {
   decodeAttemptRow,
   decodeCompletionRow,
@@ -28,6 +29,7 @@ export function readHistoryForFormat(database: Database, format: FormatDescripto
     ownership: meta.ownership,
     runtime,
     capacity: meta.capacity,
+    ...readWrites(database, format),
     manifests: database.query('SELECT * FROM run_manifest').all().map(decodeManifestRow),
     runs: database
       .query(`SELECT * FROM ${format.family.record}`)

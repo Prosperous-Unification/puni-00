@@ -20,12 +20,15 @@ import {
   stageFixtureTurn,
 } from '../testing/fixtures';
 import { createManifest, createRun, FixtureClock, unwrapReply } from '../testing/fixtures';
+import {
+  bootstrapFormat5Stores as bootstrapSqliteStores,
+  openFormat5Stores as openSqliteStores,
+} from '../testing/format5-fixture';
 import { createMemoryStores } from '../testing/memory-stores';
 import { createRecoveryResolveCall } from '../testing/recovery-contract';
 import { authorityRequest, runtimePin, runtimeScope } from '../testing/runtime-history-contract';
 import { createStoreDirectory } from '../testing/store-directory';
 import { MIGRATIONS } from './format';
-import { bootstrapSqliteStores, openSqliteStores } from './open-stores';
 
 const identities = ['\ud800', '\ud801', '\udc00', '\ufffd', '\\ud800', '\0', '🪁'];
 const boundedIdentities = [...identities, ' ', ' \t\n ', 'x'.repeat(256), '🪁'.repeat(128)];
@@ -77,7 +80,7 @@ async function createIdentityFixture(provider: 'memory' | 'sqlite' = 'sqlite', c
   const stores = retain(
     provider === 'memory' ? createMemoryStores(options) : await bootstrapSqliteStores(options),
   );
-  function retain(bundle: Awaited<ReturnType<typeof bootstrapSqliteStores>>) {
+  function retain<Bundle extends { close(): Promise<void> }>(bundle: Bundle) {
     let closing: Promise<void> | undefined;
     return owner.retainStore({
       ...bundle,

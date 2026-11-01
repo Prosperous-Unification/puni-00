@@ -255,7 +255,7 @@ for (const epoch of [1, 2])
       expect(Object.hasOwn(prefix, 'recoveries')).toBe(false);
     }
     expect(reconstructRuntimeScope(retained, catalog, ownership)).toMatchObject({
-      version: 2,
+      version: 3,
       pendingCommandId: null,
       generationFloor: 4,
       activeRecoveryId: null,
@@ -409,6 +409,9 @@ async function claimCatalog(accepted: boolean, epoch = 1) {
     },
   });
   const catalog: HistoryCatalog = {
+    writes: [],
+    obligations: [],
+    writeReceipts: [],
     ownership: { ...stores.ownership, epoch, owner: { ...setup.ownership, epoch } },
     runtime: {
       scopes: [{ pin: scope.pin, revision: accepted ? 5 : 4 }],
@@ -467,7 +470,7 @@ for (const accepted of [true, false])
       }
       const histories = validateHistory(catalog);
       expect(histories[0].attempt).toEqual(held);
-      expect(histories[0].version).toBe(2);
+      expect(histories[0].version).toBe(3);
       expect(histories[0].attempt.holdsCapacity).toBe(true);
       if (accepted)
         expect(

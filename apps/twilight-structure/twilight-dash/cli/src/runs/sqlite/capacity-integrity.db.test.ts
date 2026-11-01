@@ -54,15 +54,15 @@ async function createFixture(capacity = 3) {
 function readRows(database: Database) {
   return [
     'run_meta',
-    'run5_record',
-    'run5_attempt',
-    'run5_reservation',
-    'run5_execution',
-    'run5_completion',
-    'run5_outbox',
-    'run5_decision',
-    'run5_consumption',
-    'run5_receipt',
+    'run6_record',
+    'run6_attempt',
+    'run6_reservation',
+    'run6_execution',
+    'run6_completion',
+    'run6_outbox',
+    'run6_decision',
+    'run6_consumption',
+    'run6_receipt',
   ].map((table) => database.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
 }
 
@@ -157,10 +157,10 @@ for (const route of [
           }
         };
         if (fault === 'missing')
-          fixture.database.run('DELETE FROM run5_reservation WHERE attempt_id=\'"other"\'');
+          fixture.database.run('DELETE FROM run6_reservation WHERE attempt_id=\'"other"\'');
         else
           fixture.database
-            .query('INSERT INTO run5_reservation(attempt_id) VALUES (?)')
+            .query('INSERT INTO run6_reservation(attempt_id) VALUES (?)')
             .run(encodeKey(fault === 'orphan' ? 'absent' : 'other'));
         const damaged = readRows(fixture.database);
         if (route !== 'read')
@@ -173,10 +173,10 @@ for (const route of [
         );
         expect(readRows(fixture.database)).toEqual(damaged);
         if (fault === 'missing')
-          fixture.database.run('INSERT INTO run5_reservation(attempt_id) VALUES (\'"other"\')');
+          fixture.database.run('INSERT INTO run6_reservation(attempt_id) VALUES (\'"other"\')');
         else
           fixture.database
-            .query('DELETE FROM run5_reservation WHERE attempt_id=?')
+            .query('DELETE FROM run6_reservation WHERE attempt_id=?')
             .run(encodeKey(fault === 'orphan' ? 'absent' : 'other'));
         const restored = await operation();
         if ('kind' in restored) expect(restored.kind).toBe('applied');
@@ -208,11 +208,11 @@ test('capacity one rejects cross-run admission after a live reservation disappea
       attemptId: 'target',
       identity: { ...setup.admission.identity, runId: target.runId },
     });
-    fixture.database.run('DELETE FROM run5_reservation');
+    fixture.database.run('DELETE FROM run6_reservation');
     const damaged = readRows(fixture.database);
     await rejects(fixture.runs.admitAttempt(guard, admission), /corrupt attempt reservation/);
     expect(readRows(fixture.database)).toEqual(damaged);
-    fixture.database.run('INSERT INTO run5_reservation(attempt_id) VALUES (\'"attempt"\')');
+    fixture.database.run('INSERT INTO run6_reservation(attempt_id) VALUES (\'"attempt"\')');
     expect(await fixture.runs.admitAttempt(guard, admission)).toEqual({
       kind: 'refused',
       reason: 'capacity_full',
@@ -248,16 +248,16 @@ for (const route of ['execution', 'outcome', 'receipt'] as const) {
       };
       fixture.database.run(
         route === 'receipt'
-          ? 'INSERT INTO run5_reservation(attempt_id) VALUES (\'"attempt"\')'
-          : 'DELETE FROM run5_reservation',
+          ? 'INSERT INTO run6_reservation(attempt_id) VALUES (\'"attempt"\')'
+          : 'DELETE FROM run6_reservation',
       );
       const damaged = readRows(fixture.database);
       await rejects(operation(), /corrupt attempt reservation/);
       expect(readRows(fixture.database)).toEqual(damaged);
       fixture.database.run(
         route === 'receipt'
-          ? 'DELETE FROM run5_reservation'
-          : 'INSERT INTO run5_reservation(attempt_id) VALUES (\'"attempt"\')',
+          ? 'DELETE FROM run6_reservation'
+          : 'INSERT INTO run6_reservation(attempt_id) VALUES (\'"attempt"\')',
       );
       expect((await operation()).kind).toBe('applied');
       const snapshot = await fixture.runs.readRun(setup.run.runId);

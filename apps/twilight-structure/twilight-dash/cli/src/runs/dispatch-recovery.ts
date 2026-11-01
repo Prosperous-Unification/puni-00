@@ -142,7 +142,7 @@ export async function dispatchRecovery(
   const discovered = await (async () => {
     try {
       const snapshot = structuredClone(await runs.readRuntimeScope(scope));
-      if (snapshot.version !== 2 || snapshot.kind !== 'pinned')
+      if ((snapshot.version !== 2 && snapshot.version !== 3) || snapshot.kind !== 'pinned')
         throw new Error('recovery scope is not current and pinned');
       const retained = snapshot.recoveries.find((entry) => entry.intent.recoveryId === recoveryId);
       if (retained === undefined) throw new Error('recovery journal does not exist');

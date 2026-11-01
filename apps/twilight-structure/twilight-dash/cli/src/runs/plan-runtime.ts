@@ -24,7 +24,7 @@ import type {
   RuntimePin,
   RuntimeScope,
   RuntimeScopeSnapshot,
-  RuntimeScopeSnapshot2,
+  RuntimeScopeSnapshot3,
 } from './runtime-records';
 
 export interface RuntimeScopeRecord {
@@ -43,11 +43,12 @@ export function reconstructRuntimeScope(
   retained: RuntimeScopeRecord,
   catalog: RuntimeCatalog,
   ownership: OwnershipStatus,
-): Extract<RuntimeScopeSnapshot2, { kind: 'pinned' }> {
+): Extract<RuntimeScopeSnapshot3, { kind: 'pinned' }> {
   auditRecoveryCatalog(catalog, ownership);
   const prefix = reconstructRuntimePrefix(retained, catalog, ownership, retained.revision);
   return {
     ...prefix,
+    version: 3,
     recoveries: catalog.recovery.histories.filter((history) =>
       equalRuntimeScopes(
         readRuntimeRequest(history.intent.target.original.canonicalRequest).scope,
@@ -77,14 +78,24 @@ export function auditRuntimeCatalog(catalog: RuntimeCatalog, ownership: Ownershi
     const intent = decodeRuntimeIntent(candidate);
     const request = readRuntimeRequest(intent.canonicalRequest);
     // Proof: F62 ignored an orphan intent after concealed scope loss; 'trusted runtime lost scope concealed' failed and exact restoration passed.
-    if (!scopes.has(runtimeScopeKey(request.scope)) || commands.has(intent.commandId))
+    const retained = scopes.get(runtimeScopeKey(request.scope));
+    if (retained === undefined || commands.has(intent.commandId))
       throw new Error('corrupt runtime intent scope or command');
+    // Proof: T2 current-scope-cut RED retained a plausible pending write while its physical current scope trailed the stage journal; the public read resolved before this bound was enforced.
+    if (intent.stagedRevision > retained.revision)
+      throw new Error('runtime intent exceeds current scope revision');
     commands.set(intent.commandId, intent);
   }
   for (const candidate of catalog.acceptances) {
     const acceptance = decodeRuntimeAcceptance(candidate);
-    if (!commands.has(acceptance.commandId) || accepted.has(acceptance.commandId))
+    const intent = commands.get(acceptance.commandId);
+    if (intent === undefined || accepted.has(acceptance.commandId))
       throw new Error('corrupt runtime acceptance command');
+    const retained = scopes.get(runtimeScopeKey(readRuntimeRequest(intent.canonicalRequest).scope));
+    if (retained === undefined) throw new Error('runtime acceptance scope does not exist');
+    // Proof: T2 current-scope-cut RED retained a plausible terminal write while its physical current scope trailed the acceptance journal; the public read resolved before this bound was enforced.
+    if (acceptance.acceptedRevision > retained.revision)
+      throw new Error('runtime acceptance exceeds current scope revision');
     accepted.add(acceptance.commandId);
   }
   auditRecoveryCatalog(catalog, ownership);
@@ -108,7 +119,7 @@ export function inspectRuntimeScope(
   );
   if (retained === undefined)
     return {
-      version: 2,
+      version: 3,
       kind: 'uninitialized',
       scope: structuredClone(scope),
       ownerEpoch,
@@ -178,7 +189,7 @@ export function planRuntimeStage(
   if (snapshot.pendingCommandId !== null) return { kind: 'refused', reason: 'state_conflict' };
   // Proof: R2F44 removed only floor comparison; expected3 staged behind barrier4 while exact original replay remained valid. Exact restoration passed.
   if (
-    snapshot.version === 2 &&
+    (snapshot.version === 2 || snapshot.version === 3) &&
     snapshot.generationFloor !== null &&
     (operation.expectedGeneration === null ||
       operation.expectedGeneration < snapshot.generationFloor)
@@ -249,7 +260,7 @@ export function planRuntimeAcceptance(
   if (snapshot.revision !== guard.expectedRevision)
     return { kind: 'refused', reason: 'revision_conflict' };
   // Proof: T3I1 removed this interlock; both public acceptance calls applied behind an active journal. Exact restoration passed.
-  if (snapshot.version === 2 && snapshot.activeRecoveryId !== null)
+  if ((snapshot.version === 2 || snapshot.version === 3) && snapshot.activeRecoveryId !== null)
     return { kind: 'refused', reason: 'state_conflict' };
   if (snapshot.pendingCommandId !== retained.commandId)
     return { kind: 'refused', reason: 'state_conflict' };

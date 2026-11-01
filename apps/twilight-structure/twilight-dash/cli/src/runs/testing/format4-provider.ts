@@ -1,14 +1,14 @@
 import { rmSync } from 'node:fs';
 
-import type * as SqliteStoreModule from '../sqlite/open-stores';
 import { format4SourceEntries } from './format4-protocol';
+import type { HistoricalSqliteModule } from './predecessor-fixture';
 import { extractPredecessorSource, verifyPredecessorSource } from './predecessor-fixture';
 
 const commit = 'b3b594dab4f0153d2ef00a2989bbeb02ea0cbbda';
 let isInstalled = false;
 let closing: Promise<void> | undefined;
 let archive: ReturnType<typeof extractPredecessorSource> | undefined;
-let provider: Promise<typeof SqliteStoreModule> | undefined;
+let provider: Promise<HistoricalSqliteModule> | undefined;
 let loads = 0;
 const leases = new Map<symbol, { readonly owner: string; cause?: unknown }>();
 
@@ -27,7 +27,7 @@ export function requireFormat4Lifetime(): void {
 /** A source lease precedes import/open and is released only after positive native closure. Failure retains its exact source and cause through suite teardown. */
 export interface Format4SourceLease {
   readonly directory: string;
-  load(): Promise<typeof SqliteStoreModule>;
+  load(): Promise<HistoricalSqliteModule>;
   release(): void;
   retain(cause: unknown): Error;
 }
@@ -54,11 +54,11 @@ export function retainFormat4Provider(owner: string): Format4SourceLease {
         // Proof: Task3 074 omitted this recheck; tampering the owned archive after extraction reached native open and released its lease instead of rejecting changed source.
         verifyPredecessorSource(source.directory, commit, format4SourceEntries);
         loads += 1;
-        // Boundary: the exact pinned archive was verified immediately before import; this unchanged native store port is shared by historical tests.
+        // Boundary: the exact pinned archive was verified immediately before import; this historical24-method port excludes successor write operations.
         provider = import(
           source.directory +
             '/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/open-stores.ts'
-        ) as Promise<typeof SqliteStoreModule>;
+        ) as Promise<HistoricalSqliteModule>;
       }
       return await provider;
     },

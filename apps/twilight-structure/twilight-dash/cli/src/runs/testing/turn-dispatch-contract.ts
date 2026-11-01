@@ -848,7 +848,7 @@ export function turnDispatchContract(name: string, create: () => Promise<Outcome
               async readExecutionHistory(...args) {
                 const history = await setup.runs.readExecutionHistory(...args);
                 if (
-                  history.version !== 2 ||
+                  (history.version !== 2 && history.version !== 3) ||
                   history.attempt.version !== 2 ||
                   history.attempt.state.kind !== 'ready'
                 )

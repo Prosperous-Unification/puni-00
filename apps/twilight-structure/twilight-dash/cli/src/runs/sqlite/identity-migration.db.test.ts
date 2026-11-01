@@ -14,6 +14,7 @@ import { constructFixture, settleFixture } from '../testing/construct-fixture';
 import { createManifest, FixtureClock, unwrapReply } from '../testing/fixtures';
 import { bootstrapFormat4Stores, openFormat4Stores } from '../testing/format4-fixture';
 import { createFormat4Fixture, type Format4Capture } from '../testing/format4-fixture';
+import { openFormat5Stores as openSqliteStores } from '../testing/format5-fixture';
 import {
   createRecoveryFenceCall,
   createRecoveryObservationCall,
@@ -24,7 +25,6 @@ import { createStoreDirectory } from '../testing/store-directory';
 import { FORMAT4_IDENTITY, FORMAT5_IDENTITY } from './format';
 import { downgradeUnusedSqliteIdentityKeys, upgradeSqliteIdentityKeys } from './migrate-identities';
 import { SqliteFormatTransitionError } from './migrate-recovery';
-import { openSqliteStores } from './open-stores';
 
 async function createPredecessor() {
   const directory = mkdtempSync(join(tmpdir(), 'identity-predecessor-'));
@@ -452,7 +452,12 @@ for (const method of [
           resolver: { ownerId: ownership.ownerId, epoch: ownership.epoch },
         },
       };
-      let invoke: (runs: RunStore) => Promise<unknown> = (runs) => runs.beginRecovery(begin);
+      let invoke: (
+        runs: Pick<
+          RunStore,
+          'beginRecovery' | 'stageRecoveryFence' | 'recordRecoveryFence' | 'resolveRecovery'
+        >,
+      ) => Promise<unknown> = (runs) => runs.beginRecovery(begin);
       if (method !== 'beginRecovery') {
         unwrapReply(await old.runs.beginRecovery(begin));
         if (method === 'resolveRecovery' || method === 'closed round trip') {

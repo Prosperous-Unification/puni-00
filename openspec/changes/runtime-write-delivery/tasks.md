@@ -147,22 +147,44 @@ expect(stage.value.ack.obligation.disposition).toEqual({ kind: 'pending' });
 `build-write-request.test.ts`, `testing/write-store-contract.ts`, `write-store.test.ts`,
 `sqlite/write-store.db.test.ts`, `sqlite/read-writes.ts`, `sqlite/write-store.ts`,
 `sqlite/write-usage.ts`, `sqlite/migrate-writes.ts`,
-`sqlite/write-migration.db.test.ts`, `testing/format5-lifetime-preload.ts`,
+`sqlite/write-migration.db.test.ts`, `sqlite/inspect-format.ts`,
+`sqlite/inspect-format.db.test.ts`, `testing/format5-lifetime-preload.ts`,
 `sqlite/migrations/0006-runtime-write/{migration.sql,down.sql}` and genuine pinned
 `testing/format5-{fixture,provider,protocol,worker}.ts` with focused lifecycle/protocol tests.
 
 **Modify:** `records.ts`, `execution-records.ts`, `record-codecs.ts`, `run-store.ts`,
 `runtime-records.ts`, `plan-execution.ts`, `plan-admission.ts`, `plan-runtime.ts`,
-`build-claim-request.ts`, `plan-recovery.ts`, `dispatch-recovery.ts` only for known scope2/3
+`build-claim-request.ts`, `plan-recovery.ts`, `dispatch-recovery.ts` for known scope2/3
 dispatch with all existing floor/recovery checks and unknown-version refusal preserved;
+`plan-recovery.ts` also gains reciprocal legacy recovery/fence exclusions against global local
+write submission IDs. Existing execution publication gains the same reciprocal local-command
+exclusions; generic completion/receipt and unrelated local/wire namespaces stay independent.
+No write-recovery branch is introduced in Task2;
 `plan-recovery-history.ts`, `validate-history.ts`, `claim-history.ts`, `runtime-history.ts`,
-`testing/memory-stores.ts`; SQLite `format.ts`, `schema.ts`, `open-stores.ts`,
+`testing/memory-stores.ts`, `testing/write-fixture.ts` for optional existing ownership/suffix
+context and suffix-derived write IDs only; SQLite `format.ts`, `schema.ts`, `open-stores.ts`,
 `run-store.ts`, `runtime-store.ts`, `read-history.ts`, `read-outcomes.ts`,
 `read-executions.ts`, `read-signals.ts`, `read-runtime.ts`, `row-codecs.ts`;
 `testing/predecessor-fixture.ts` only for a precise format5 source/protocol route;
 `apps/twilight-structure/twilight-dash/cli/project.json` for the exact format5 lifetime preload,
 and the exact export/policy/test owners reached by these new modules. Historical tests use
 the new genuine format5 bridge where they require5; preserve their behavior/assertions.
+
+The write fixture forwards its optional ownership/suffix context unchanged to `prepareTurn`.
+Use returned `setup.suffix` for `wire-write${suffix}` and `stage-write${suffix}`; an empty suffix
+preserves the original fixture bytes and identities. Its original one-argument overload keeps
+the fresh single-target pure-plan `facts` witness; explicit context arguments, including an explicit `undefined`, return
+only the actual prepared target members and omit `facts` from both their type and runtime shape.
+No incomplete global catalog or new global-list port is introduced. Cross-attempt tests establish two
+independently eligible actual targets, then isolate local-ID and wire-association collisions.
+The private inspection helper is advisory, never authority to bypass the actual-path complete
+audit or ignore live WAL. The approved portable contract preserves PUNI records/schema/migration
+identities/persistent settings on incompatible admission; engine bookkeeping is allowed. Closed
+predecessors retain SQLite's stronger initial-inspection byte/sidecar guarantee. A real6-to5 race
+must prove logical-state refusal; retain its original strict-sidecar RED separately. Authoritative
+admission and persistent journal-mode conversion require native exclusion across any handoff;
+preserve supported non-WAL opening. PostgreSQL feasibility is documented in design.md; no
+PostgreSQL adapter or conformance completion is implied by this SQLite task.
 
 **Interfaces:** Add the two RunStore operations in design.md, ExecutionHistory3,
 RunSnapshot4 and RuntimeScopeSnapshot3. Keep complete generic legacy fields and add write
@@ -198,8 +220,14 @@ SqliteFormatTransition type; `FORMAT6_IDENTITY` contains the exact six-name/hash
 - [ ] 2.3 Append complete additive format6 and explicit preserving transition — tests:
       `write-migration.db.test.ts` uses the genuine c12 format5 producer for populated pending,
       terminal, authority/claim/recovery rows and opaque Unicode/NUL identities; compare original
-      serialized bytes, acknowledgements and full ledgers. Prove ordinary readonly refusal before
-      sidecars, exact unused down, used down refusal, changed applied artifact refusal, partial
+      serialized bytes, acknowledgements and full ledgers. Prove initial private-inspection refusal
+      leaves closed predecessor bytes/sidecars intact; a real supported6-to5 race preserves PUNI
+      state/schema/ledger/persistent settings while refusing, even if WAL/SHM appears. Prove native
+      compatibility/configuration exclusion, supported non-WAL admission and its configuration
+      handoff under a competing transition both before the protected audit and after valid supported
+      conversion/close. Re-audit on normal reconnect; distinguish committed supported configuration
+      from later incompatible refusal. Retain original strict-race RED and independent guard
+      faults. Prove exact unused down, used down refusal, changed applied artifact refusal, partial
       physical declarations, late DDL/copy/metadata failure rollback and cleanup-phase causes.
       Negative: break each new format/physical/hash/copy/key/usage/down/rollback dependency once
       through the actual transition. Preserve0001–0005 bytes and original4-to5 semantics.

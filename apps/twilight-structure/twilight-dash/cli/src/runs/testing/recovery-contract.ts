@@ -237,7 +237,10 @@ export async function createRecoveryObservationCall(
 /** Exercises the same recovery admission and immutable replay contract against independent providers. */
 /** Commits the fence observation before retaining and verifying a simulated original lookup. */
 export async function createRecoveryResolveCall(
-  stores: { runs: RunStore; artifacts: ArtifactStore },
+  stores: {
+    runs: Pick<RunStore, 'stageRecoveryFence' | 'recordRecoveryFence'>;
+    artifacts: ArtifactStore;
+  },
   begin: RecoveryBeginCall,
   accepted: boolean,
   claimReceipt?: ArtifactRef,
@@ -428,7 +431,7 @@ export function recoveryContract(
         expect(
           await readRuntimeHistory(fixture.runs, fixture.artifacts, runtimeScope),
         ).toMatchObject({
-          version: 2,
+          version: 3,
           pendingCommandId: null,
           activeRecoveryId: null,
           grant: null,
@@ -516,7 +519,7 @@ export function recoveryContract(
           });
           const scope = await fixture.runs.readRuntimeScope(call.guard.scope);
           expect(scope).toMatchObject({
-            version: 2,
+            version: 3,
             pendingCommandId: null,
             activeRecoveryId: null,
             grant: null,
@@ -1034,9 +1037,9 @@ export function recoveryContract(
             const scope = await stores.runs.readRuntimeScope(call.guard.scope);
             if (
               scope.kind !== 'pinned' ||
-              scope.version !== 2 ||
+              (scope.version !== 2 && scope.version !== 3) ||
               before.kind !== 'pinned' ||
-              before.version !== 2
+              (before.version !== 2 && before.version !== 3)
             )
               throw new Error('fixture recovery scope missing');
             expect(
@@ -1358,7 +1361,11 @@ export function recoveryContract(
       const second = await createRecoveryFenceCall(stores.artifacts, stores.call, 3, staged);
       unwrapReply(await stores.runs.stageRecoveryFence(second));
       const after = await stores.runs.readRuntimeScope(call.guard.scope);
-      if (before.kind !== 'pinned' || after.kind !== 'pinned' || after.version !== 2)
+      if (
+        before.kind !== 'pinned' ||
+        after.kind !== 'pinned' ||
+        (after.version !== 2 && after.version !== 3)
+      )
         throw new Error('fixture pin missing');
       expect(after.revision).toBe(before.revision);
       expect(after.pendingCommandId).toBe(before.pendingCommandId);
@@ -1767,10 +1774,10 @@ export function recoveryContract(
     test('claim begin preserves target and capacity while refusing fresh acceptance', async () => {
       const setup = await createClaimFixture();
       const before = await setup.runs.readRun(setup.run.runId);
-      expect(before).toMatchObject({ version: 3, recoveries: [] });
+      expect(before).toMatchObject({ version: 4, recoveries: [] });
       expect(
         await setup.runs.readExecutionHistory(setup.run.runId, setup.admission.attemptId),
-      ).toMatchObject({ version: 2, recoveries: [] });
+      ).toMatchObject({ version: 3, recoveries: [] });
       unwrapReply(await setup.runs.beginRecovery(setup.call));
       expect(await setup.runs.readRun(setup.run.runId)).toEqual(before);
       const evidence = await retainClaimReceipt(setup, setup.staged.intent);
@@ -2170,7 +2177,7 @@ export function recoveryContract(
         ),
       ).toEqual({ kind: 'refused', reason: 'state_conflict' });
       expect(await stores.runs.readRuntimeScope(runtimeScope)).toMatchObject({
-        version: 2,
+        version: 3,
         revision: 1,
         pendingCommandId: 'original',
         activeRecoveryId: 'recover-authority',

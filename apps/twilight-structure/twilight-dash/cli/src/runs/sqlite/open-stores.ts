@@ -17,14 +17,17 @@ import { Database } from 'bun:sqlite';
 import type { WallClock } from '../../clock';
 import { assertInteger, organizationId, storeId } from '../record-codecs';
 import type { OrganizationId, OwnershipStatus } from '../records';
+import { inspectFormat, SqliteInspectionError } from './inspect-format';
 import { createSqliteRunStore, isBusy, RunStoreContentionError } from './run-store';
 import {
   assertCompatibleFormat,
+  configureAdmissionConnection,
   configureDatabase,
   DOWN_HASH,
   FORMAT_HASH,
   MIGRATION_HASH,
   MIGRATIONS,
+  readJournalMode,
   readMeta,
   SCHEMA_VERSION,
   validateDatabase,
@@ -104,33 +107,107 @@ export function assertConfiguration(database: Database, options: SqliteOptions):
   )
     throw new SqliteOpenError('configuration', options.path);
 }
+/** Reads native transaction state after SQL effects without relying on property narrowing. */
+function admissionTransactionIsOpen(database: Database): boolean {
+  return database.inTransaction;
+}
+/** Native exclusion owns complete current-format/config/history admission. The configuration phase retains EXCLUSIVE locks after COMMIT; final normal admission publishes no semantic work. */
+function auditAdmission(
+  database: Database,
+  options: SqliteOptions,
+  begin = 'BEGIN IMMEDIATE',
+): OwnershipStatus {
+  database.run(begin);
+  // Proof: admission-full-history broke “nonwal protected admission refuses history before persistent conversion”; exact source hash restored.
+  try {
+    assertCompatibleFormat(database);
+    validateDatabase(database);
+    // Proof: admission-configuration bypassed this dependency; the actual non-WAL capacity mismatch lost refusal before conversion. Exact hash restored.
+    assertConfiguration(database, options);
+    const ownership = readMeta(database).ownership;
+    database.run('COMMIT');
+    return ownership;
+  } catch (cause) {
+    // Proof: native-cleanup-rollback-observation broke “nonwal configuration retains rollback_ignored cause and exact native closure boundary”; exact source hash restored.
+    if (database.inTransaction) {
+      try {
+        // Proof: native-cleanup-rollback-dispatch omitted this call; audit_commit observed inTransaction at native close. Exact hash restored.
+        database.run('ROLLBACK');
+        // Proof: current-rollback-observation omitted this native readback; rollback_ignored lost the expected diagnostic. Native close still rolls back; diagnostic-only. Exact hash restored.
+        if (admissionTransactionIsOpen(database))
+          throw new Error('sqlite admission remains open after rollback', { cause });
+      } catch (rollbackCause) {
+        // Proof: current-rollback-cause discarded the rollback dependency; the named rollback case lost its original cleanup cause. Exact hash restored.
+        throw new AggregateError([cause, rollbackCause], 'sqlite admission and rollback failed', {
+          cause: rollbackCause,
+        });
+      }
+    }
+    throw cause;
+  }
+}
 async function connect(options: SqliteOptions) {
   assertExisting(options.path);
   for (let attempt = 1; ; attempt += 1) {
     let database: Database | undefined;
     try {
-      const inspection = new Database(options.path, {
-        readonly: true,
-        create: false,
-        strict: true,
-      });
-      try {
+      // Proof: inspector-public-preflight broke “ordinary opener refuses genuine format5 before creating sidecars or changing bytes”; exact source hash restored.
+      await inspectFormat(options, (inspection) => {
         // Proof: F24b removed pre-configuration compatibility inspection and changed original bytes; 'genuine format1' failed and exact restoration passed.
         // Proof: F177 omitted this inspection refusal; the genuine format2 test still refused later but detected changed original database bytes. Restored test passed.
         assertCompatibleFormat(inspection);
-      } finally {
-        inspection.close();
-      }
+      });
       database = new Database(options.path, { create: false, strict: true });
-      configureDatabase(database);
-      database.run('BEGIN');
-      validateDatabase(database);
-      assertConfiguration(database, options);
-      const ownership = readMeta(database).ownership;
-      database.run('COMMIT');
+      configureAdmissionConnection(database);
+      if (readJournalMode(database) !== 'wal') {
+        // Proof: admission-native-lease broke “supported DELETE configuration retains exclusion then fresh normal admission refuses a later down”; exact source hash restored.
+        database.run('PRAGMA locking_mode=EXCLUSIVE');
+        // Proof: admission-protected-check broke “raced incompatible DELETE admission preserves logical state and persistent settings”; exact source hash restored.
+        auditAdmission(database, options, 'BEGIN EXCLUSIVE');
+        configureDatabase(database);
+        const configured = database;
+        database = undefined;
+        // Proof: admission-close-cause broke “nonwal configuration retains configuration_close cause and exact native closure boundary”; exact source hash restored.
+        try {
+          configured.close();
+        } catch (cause) {
+          throw new SqliteOpenError(
+            'corrupt',
+            options.path,
+            new Error('configuration connection closure unestablished: ' + options.path, { cause }),
+          );
+        }
+        database = new Database(options.path, { create: false, strict: true });
+        configureAdmissionConnection(database);
+      }
+      // Proof: admission-final-normal-check broke “supported DELETE configuration retains exclusion then fresh normal admission refuses a later down”; exact source hash restored.
+      const ownership = auditAdmission(database, options);
+      if (readJournalMode(database) !== 'wal')
+        throw new SqliteOpenError(
+          'configuration',
+          options.path,
+          new Error('sqlite required foreign_keys WAL FULL settings unavailable'),
+        );
       return { ...createSqliteRunStore(database, options), ownership };
     } catch (cause) {
-      database?.close();
+      // Proof: native-cleanup-combined-cause broke “nonwal configuration retains conversion_and_close cause and exact native closure boundary”; exact source hash restored.
+      try {
+        database?.close();
+      } catch (closeCause) {
+        throw new SqliteOpenError(
+          'corrupt',
+          options.path,
+          new AggregateError([cause, closeCause], 'sqlite admission and native close failed', {
+            cause,
+          }),
+        );
+      }
+      // Proof: inspector-public-category broke “ordinary opener preserves private inspection main_unreadable”; exact source hash restored.
+      if (cause instanceof SqliteInspectionError) {
+        if (cause.failure === 'contention')
+          throw new RunStoreContentionError(options.maxBusyAttempts, cause);
+        throw new SqliteOpenError(cause.failure, options.path, cause);
+      }
       // Proof: bypassing this branch mislabeled a real exclusive SQLite lock as corruption instead of exhausting the bounded contention budget.
       if (isBusy(cause)) {
         if (attempt === options.maxBusyAttempts) throw new RunStoreContentionError(attempt, cause);

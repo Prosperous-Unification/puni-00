@@ -13,6 +13,7 @@ import {
 import { readIdentityUsage } from './identity-usage';
 import { readRecoveryCatalog } from './read-recovery';
 import { CURRENT_FORMAT, type FormatDescriptor, validateFormatSchema } from './schema';
+import { readWriteUsage } from './write-usage';
 
 const integer = type('number.integer >= 0').atMost(Number.MAX_SAFE_INTEGER);
 const markerCodec = type({
@@ -53,8 +54,23 @@ export function readRuntimeCatalogForFormat(
   if (marker.bundle_hash !== format.identity.bundleHash)
     throw new Error('incompatible sqlite format bundle hash');
   // Proof: Task3 035 omitted this audit; public manifest reads accepted absent, invalid and extra usage markers. Restored 042 passed.
-  if (format.identity.version === 5) readIdentityUsage(database);
-  const counts = format.identity.version === 5 ? readRuntimeCounts(database, format) : marker;
+  switch (format.identity.version) {
+    case 3:
+    case 4:
+      break;
+    case 5:
+      readIdentityUsage(database);
+      break;
+    case 6:
+      readWriteUsage(database);
+      break;
+    default:
+      throw new Error('unsupported sqlite runtime format');
+  }
+  const counts =
+    format.identity.version === 5 || format.identity.version === 6
+      ? readRuntimeCounts(database, format)
+      : marker;
   const scopes = database
     .query(`SELECT * FROM ${format.family.runtime_scope}`)
     .all()

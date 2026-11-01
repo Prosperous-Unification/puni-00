@@ -1,5 +1,5 @@
 import { decodeRecordedExecution } from './execution-codecs';
-import type { ExecutionHistory2, RecordedExecution } from './execution-records';
+import type { ExecutionHistory3, RecordedExecution } from './execution-records';
 import { claimAcceptTransition, claimStageTransition, turnStageTransition } from './plan-claims';
 import {
   advanceAttempt,
@@ -9,9 +9,11 @@ import {
 } from './plan-execution';
 import { planOutcomeTransition, type RecordedCompletion } from './plan-outcome';
 import { planReceiptTransition, type RecordedReceipt } from './plan-receipt';
+import { findRecoveryCommand } from './plan-recovery-history';
 import { reconstructRuntimePrefix } from './plan-recovery-history';
 import { auditRuntimeCatalog, type RuntimeCatalog } from './plan-runtime';
 import { planDecision, type RecordedConsumption } from './plan-signals';
+import { writeAcceptanceTransition, writeStageTransition } from './plan-writes';
 import {
   addInteger,
   decodeAdmission,
@@ -35,6 +37,8 @@ import type {
 } from './records';
 import { equalRuntimeScopes, readRuntimeRequest } from './runtime-codecs';
 import type { RuntimeScope } from './runtime-records';
+import { decodeRecordedWrite, decodeWriteObligation, decodeWriteReceipt } from './write-codecs';
+import type { RecordedWrite, WriteObligation, WriteReceipt } from './write-records';
 
 export interface HistoryCatalog {
   readonly ownership: OwnershipStatus;
@@ -49,6 +53,9 @@ export interface HistoryCatalog {
   readonly decisions: readonly Decision[];
   readonly reservations: readonly AttemptId[];
   readonly capacity: number;
+  readonly writes: readonly RecordedWrite[];
+  readonly obligations: readonly WriteObligation[];
+  readonly writeReceipts: readonly WriteReceipt[];
 }
 /** Reconstructs a complete consecutive historical prefix from independent scope events; today's projected grant is never historical input. */
 function scopePrefix(catalog: HistoryCatalog, scope: RuntimeScope, revision: number) {
@@ -62,8 +69,8 @@ function scopePrefix(catalog: HistoryCatalog, scope: RuntimeScope, revision: num
   return reconstructRuntimePrefix(retained, catalog.runtime, catalog.ownership, revision);
 }
 
-/** Folds scopes first, then every original attempt acknowledgement at its true predecessor, and finally cross-links/projections/reservations. Every execution is decoded before dispatch; {@link decodeRecordedExecution} owns command/context/reply correlation, so null context precisely selects ordinary execution. Coherent replacement of every independent fact is outside this local integrity claim. */
-export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHistory2[] {
+/** Folds scopes first, then every original attempt acknowledgement at its true predecessor, and finally cross-links/projections/reservations. Every execution is decoded before dispatch; {@link decodeRecordedExecution} owns command/context/reply correlation, so null context precisely selects ordinary execution. {@link decodeRecordedWrite} likewise owns write command/target/reply correlation. Coherent replacement of every independent fact is outside this local integrity claim. */
+export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHistory3[] {
   // Proof: F158 removed this sampled check; 'retained history owner scope audit precedes attempts' accepted its positive then lost rejection. Exact restoration passed.
   auditRuntimeCatalog(catalog.runtime, catalog.ownership);
   const runs = new Map(catalog.runs.map((entry) => [entry.run.runId, entry]));
@@ -81,6 +88,45 @@ export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHist
   )
     throw new Error('duplicate history identity');
   const executions = catalog.executions.map(decodeRecordedExecution);
+  const writes = catalog.writes.map(decodeRecordedWrite);
+  const obligations = catalog.obligations.map(decodeWriteObligation);
+  const writeReceipts = catalog.writeReceipts.map(decodeWriteReceipt);
+  const executionIds = new Set(executions.map((entry) => entry.command.commandId));
+  const writeIds = writes.map((entry) => entry.command.commandId);
+  if (
+    // Proof: catalog-local-duplicates broke “history owner duplicate write local diagnostic uses an actual provider catalog”; later fold guards still refuse. Diagnostic only; exact hash restored.
+    new Set(writeIds).size !== writeIds.length ||
+    // Proof: catalog-execution-reservation omitted this guard; a coherent actual legacy execution collision lost its named refusal. Exact hash restored.
+    writeIds.some((identity) => executionIds.has(identity))
+  )
+    throw new Error('duplicate local submission identity');
+  if (
+    // Proof: catalog-settlement-duplicates broke “history owner duplicate write settlement diagnostic uses an actual provider catalog”; later settlement guards still refuse. Diagnostic only; exact hash restored.
+    new Set(obligations.map((entry) => entry.stageCommandId)).size !== obligations.length ||
+    new Set(writeReceipts.map((entry) => entry.stageCommandId)).size !== writeReceipts.length
+  )
+    throw new Error('duplicate write settlement identity');
+  for (const entry of writes) {
+    const target = attempts.get(entry.attemptId);
+    // Proof: catalog-foreign-write broke “complete catalog rejects a genuine foreign write journal instead of hiding it behind another valid run”; exact source hash restored.
+    if (target?.attempt.identity.runId !== entry.runId) throw new Error('orphan write history');
+    // Proof: catalog-recovery-reservation omitted this guard; the coherent actual recovery reservation collision lost refusal. Exact hash restored.
+    if (findRecoveryCommand(catalog.runtime.recovery, entry.command.commandId) !== undefined)
+      throw new Error('corrupt write recovery command collision');
+  }
+  const writeStages = writes.filter((entry) => entry.kind === 'stage_write');
+  for (const obligation of obligations)
+    if (!writeStages.some((entry) => entry.command.commandId === obligation.stageCommandId))
+      // Proof: fold-orphan-obligation broke “every public entry audits extra orphan obligation with agreeing count behind plausible current write state”; exact source hash restored.
+      throw new Error('orphan write obligation');
+  for (const receipt of writeReceipts)
+    if (
+      !writes.some(
+        (entry) => entry.kind === 'accept_write' && equalRecords(entry.reply.receipt, receipt),
+      )
+    )
+      // Proof: fold-orphan-receipt broke “every public entry audits extra orphan local receipt with agreeing count behind plausible current write state”; exact source hash restored.
+      throw new Error('orphan local write receipt');
   const commandIds = new Set(executions.map((entry) => entry.command.commandId));
   // Proof: F165 removed this sampled check; 'retained history owner duplicate execution diagnostic' accepted its positive then received corrupt attempt event revision instead of its named error; diagnostic-only, not acceptance safety. Exact restoration passed.
   if (commandIds.size !== executions.length) throw new Error('duplicate execution identity');
@@ -178,7 +224,7 @@ export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHist
   }
   const staged = new Set<string>();
   const accepted = new Set<string>();
-  const histories: ExecutionHistory2[] = [];
+  const histories: ExecutionHistory3[] = [];
   for (const retained of catalog.attempts) {
     const attempt = decodeCurrentAttempt(retained.attempt);
     const admission = decodeAdmission(retained.admission);
@@ -223,7 +269,16 @@ export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHist
         ? [history.closure]
         : [],
     );
+    const ownWrites = writes.filter((entry) => entry.attemptId === attempt.attemptId);
+    let pendingWrite: WriteObligation | undefined;
+    let terminalWrite: WriteReceipt | undefined;
+    const foldedWrites: RecordedWrite[] = [];
     const events = [
+      ...ownWrites.map((write) => ({
+        kind: 'write' as const,
+        revision: write.reply.attempt.revision,
+        write,
+      })),
       ...recoveries.map((closure) => {
         // Proof: R2D06 removed this refinement; 'recovery missing hold retains its diagnostic after audited local value changes' received a null-revision TypeError. Earlier hold-closure association (R2F03) owns admission. Exact restoration passed; diagnostic-only.
         if (closure.attemptReply === null) throw new Error('claim closure has no hold');
@@ -277,6 +332,76 @@ export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHist
           ...folded,
         ],
       };
+      if (event.kind === 'write') {
+        const entry = event.write;
+        const revision = entry.context.scopeRevision;
+        if (revision < scopeLowerBound) throw new Error('write scope context moves backward');
+        const checkpoint = executionCheckpoint(predecessor);
+        if (!('execution' in checkpoint)) throw new Error('write predecessor has no claimed turn');
+        const scope = scopePrefix(
+          catalog,
+          checkpoint.execution.session.preparation.target.observation.scope,
+          revision,
+        );
+        const scoped = {
+          ...facts,
+          scope,
+          runtime: catalog.runtime,
+          submissions: executions,
+          writes: foldedWrites,
+          obligations: pendingWrite === undefined ? [] : [pendingWrite],
+        };
+        if (entry.kind === 'stage_write') {
+          const intent = catalog.runtime.intents.find(
+            (candidate) => candidate.commandId === entry.reply.intent.commandId,
+          );
+          if (
+            intent === undefined ||
+            staged.has(intent.commandId) ||
+            intent.stagedRevision !== addInteger(revision, 1) ||
+            intent.canonicalRequest !== entry.command.canonicalRequest
+          )
+            // Proof: fold-stage-link-diagnostic broke “every public entry audits independent stage scope link diagnostic behind plausible current write state”; exact source hash restored.
+            throw new Error('corrupt write stage link');
+          const transition = writeStageTransition(scoped, entry.command, intent.localOwner);
+          if (
+            transition.kind === 'refused' ||
+            !equalRecords(transition.value, entry.reply) ||
+            !equalRecords(transition.value.intent, intent)
+          )
+            // Proof: fold-stage-consequence broke “every public entry audits stage acknowledgement checkpoint substitution behind plausible current write state”; exact source hash restored.
+            throw new Error('corrupt write stage consequence');
+          pendingWrite = transition.value.obligation;
+          staged.add(intent.commandId);
+          scopeLowerBound = intent.stagedRevision;
+        } else {
+          const acceptance = catalog.runtime.acceptances.find(
+            (candidate) => candidate.commandId === entry.command.intent.commandId,
+          );
+          if (
+            acceptance === undefined ||
+            accepted.has(acceptance.commandId) ||
+            acceptance.acceptedRevision !== addInteger(revision, 1)
+          )
+            // Proof: fold-acceptance-link-diagnostic broke “every public entry audits independent acceptance scope link diagnostic behind plausible current write state”; exact source hash restored.
+            throw new Error('corrupt write acceptance link');
+          const transition = writeAcceptanceTransition(scoped, entry.command);
+          if (
+            transition.kind === 'refused' ||
+            !equalRecords(transition.value, entry.reply) ||
+            !equalRecords(transition.value.receipt.acceptance, acceptance)
+          )
+            // Proof: fold-acceptance-consequence broke “every public entry audits acceptance acknowledgement checkpoint substitution behind plausible current write state”; exact source hash restored.
+            throw new Error('corrupt write acceptance consequence');
+          terminalWrite = transition.value.receipt;
+          pendingWrite = undefined;
+          accepted.add(acceptance.commandId);
+          scopeLowerBound = acceptance.acceptedRevision;
+        }
+        predecessor = decodeCurrentAttempt(entry.reply.attempt);
+        foldedWrites.push(entry);
+        continue;
+      }
       if (predecessor.version !== 2)
         // Proof: R2D04 removed this diagnostic; 'recovery subsequent event retains its precise hold diagnostic' instead reached ordinary hold refusal (R2F08). Exact restoration passed; no admission-safety credit.
         throw new Error('recovery hold has a subsequent attempt event');
@@ -483,8 +608,25 @@ export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHist
         throw new Error('corrupt decision wait provenance');
     // Proof: F152 removed only this sampled check; 'retained history owner current attempt differs' retained its positive and lost the expected rejection. Exact restoration passed; direct owner proof.
     if (!equalRecords(predecessor, attempt)) throw new Error('corrupt current attempt provenance');
+    const ownObligations = obligations.filter((entry) =>
+      ownWrites.some(
+        (write) => write.kind === 'stage_write' && write.command.commandId === entry.stageCommandId,
+      ),
+    );
+    const ownReceipts = writeReceipts.filter((entry) =>
+      ownWrites.some(
+        (write) => write.kind === 'stage_write' && write.command.commandId === entry.stageCommandId,
+      ),
+    );
+    if (
+      // Proof: fold-pending-obligation broke “every public entry audits missing obligation with agreeing count behind plausible current write state”; exact source hash restored.
+      !equalRecords(ownObligations, pendingWrite === undefined ? [] : [pendingWrite]) ||
+      !equalRecords(ownReceipts, terminalWrite === undefined ? [] : [terminalWrite])
+    )
+      throw new Error('corrupt write settlement provenance');
     histories.push({
-      version: 2,
+      version: 3,
+      writes: foldedWrites,
       recoveries,
       run,
       attempt,
@@ -499,7 +641,7 @@ export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHist
   }
   for (const intent of catalog.runtime.intents) {
     const operation = readRuntimeRequest(intent.canonicalRequest).operation;
-    if (!('kind' in operation) && operation.action.kind === 'claim') {
+    if (!('kind' in operation)) {
       // Proof: F147 removed only this sampled check; 'retained history owner unlinked runtime claim stage' retained its positive and lost the expected rejection. Exact restoration passed; direct owner proof.
       if (!staged.has(intent.commandId)) throw new Error('runtime claim has no execution stage');
       // Proof: F148 removed only this sampled check; 'retained history owner unlinked runtime claim acceptance' retained its positive and lost the expected rejection. Exact restoration passed; direct owner proof.
@@ -507,6 +649,7 @@ export function validateHistory(catalog: HistoryCatalog): readonly ExecutionHist
         catalog.runtime.acceptances.some(
           (acceptance) => acceptance.commandId === intent.commandId,
         ) &&
+        // Proof: fold-unlinked-acceptance broke “every public entry audits unlinked conditional write acceptance behind pending predecessor behind plausible current write state”; exact source hash restored.
         !accepted.has(intent.commandId)
       )
         throw new Error('runtime claim has no execution acceptance');

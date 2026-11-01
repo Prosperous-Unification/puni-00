@@ -21,6 +21,7 @@ import { verifyRuntimeReceipt } from './runtime-receipt';
 import type { RuntimeIntent, RuntimeScope } from './runtime-records';
 import { ArtifactRefCodec, ExecutionCommandIdCodec } from './value-codecs';
 import { verifyArtifacts } from './verify-artifacts';
+import { verifyWriteHistory } from './write-history';
 
 const stageInputCodec = type({
   commandId: ExecutionCommandIdCodec,
@@ -197,7 +198,8 @@ export async function readExecutionHistory(
     ]);
   if (history.receipt !== null)
     await verifyArtifacts(artifacts, [history.receipt.receipt.evidence]);
-  if (history.version === 2) {
+  // Proof: remaining-history3-witnesses broke “verified execution read checks active journals even before a closure exists on scope2”; exact source hash restored.
+  if (history.version === 2 || history.version === 3) {
     const scopes = new Map<string, RuntimeScope>();
     for (const entry of history.executions) {
       if (
@@ -215,7 +217,7 @@ export async function readExecutionHistory(
     for (const scope of scopes.values()) {
       // Proof: R2F13 replaced only this new verified read with raw scope inspection; active witness substitution lost rejection. Exact restoration passed.
       const runtime = await readRuntimeHistory(runs, artifacts, scope);
-      if (runtime.version !== 2 || runtime.kind !== 'pinned')
+      if ((runtime.version !== 2 && runtime.version !== 3) || runtime.kind !== 'pinned')
         // Proof: R2F50 removed only this check; 'verified successor execution refuses predecessor scope without recovery witnesses' lost rejection. Exact restoration passed.
         throw new Error('execution recovery scope differs from complete runtime history');
       for (const closure of history.recoveries) {
@@ -228,5 +230,6 @@ export async function readExecutionHistory(
       }
     }
   }
+  await verifyWriteHistory(artifacts, history);
   return history;
 }

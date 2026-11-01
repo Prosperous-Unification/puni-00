@@ -1,5 +1,4 @@
 import { FORMAT4_IDENTITY } from '../sqlite/format';
-import type * as SqliteStoreModule from '../sqlite/open-stores';
 import type { SqliteOptions } from '../sqlite/open-stores';
 import { constructFixture } from './construct-fixture';
 import {
@@ -12,6 +11,7 @@ import {
   requireFormat4Lifetime,
   retainFormat4Provider,
 } from './format4-provider';
+import type { HistoricalSqliteModule } from './predecessor-fixture';
 import { createPredecessorFixture, verifyPredecessorSource } from './predecessor-fixture';
 
 const commit = 'b3b594dab4f0153d2ef00a2989bbeb02ea0cbbda';
@@ -76,11 +76,11 @@ export async function openVerifiedFormat4Stores(
   return await openNativeFormat4Stores(fixture, options, {
     directory: fixture.sourceDirectory,
     async load() {
-      // Boundary: the pinned module was hash-verified by the worker handshake; the historical public store port is unchanged.
+      // Boundary: the pinned module was hash-verified by the worker handshake; the historical24-method port excludes successor write operations.
       return (await import(
         fixture.sourceDirectory +
           '/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/open-stores.ts'
-      )) as typeof SqliteStoreModule;
+      )) as HistoricalSqliteModule;
     },
     release,
     retain(cause) {

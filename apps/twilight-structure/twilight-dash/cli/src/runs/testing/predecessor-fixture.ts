@@ -16,6 +16,8 @@ import { parseOrThrow, type } from '@shared/validation';
 
 import type { RunStore } from '../run-store';
 import type { SqliteFormatIdentity } from '../sqlite/format';
+import type * as SqliteStoreModule from '../sqlite/open-stores';
+import { format3MutationCodec } from './format3-protocol';
 import {
   type decodeFormat3Envelope,
   type decodeFormat3Response,
@@ -27,6 +29,13 @@ import {
   type Format3Population,
   type Format3Request,
 } from './format3-protocol';
+import type { decodeFormat5Envelope, decodeFormat5Response } from './format5-protocol';
+import {
+  type Format5Command,
+  type Format5Expected,
+  type Format5Payload,
+  type Format5Population,
+} from './format5-protocol';
 /** Verifies extracted predecessor provider, format and legacy codecs before the worker can create or open SQLite. */
 export function verifyPredecessorSource(
   directory: string,
@@ -69,17 +78,50 @@ function reviveCell(_key: string, value: unknown): unknown {
 }
 
 /** Pins the archive and its wrapper-owned protocol decoder without selecting production behavior. */
-export interface PredecessorSource {
+export type HistoricalRunStore = Omit<RunStore, 'stageWrite' | 'recordWriteAcceptance'>;
+export type HistoricalSqliteStores = Omit<
+  Awaited<ReturnType<typeof SqliteStoreModule.openSqliteStores>>,
+  'runs'
+> & { readonly runs: HistoricalRunStore };
+export interface HistoricalSqliteModule {
+  openSqliteStores(
+    options: Parameters<typeof SqliteStoreModule.openSqliteStores>[0],
+  ): Promise<HistoricalSqliteStores>;
+}
+interface PredecessorSourceBase {
   readonly commit: string;
-  readonly label: 'format3' | 'format4';
+
   readonly identity: SqliteFormatIdentity;
   readonly sourceEntries: readonly string[];
   readonly workerFiles: readonly string[];
-  readonly decodeEnvelope: typeof decodeFormat3Envelope;
-  readonly decodeResponse: typeof decodeFormat3Response;
+}
+export type PredecessorSource = PredecessorSourceBase &
+  (
+    | {
+        readonly label: 'format3' | 'format4';
+        readonly decodeEnvelope: typeof decodeFormat3Envelope;
+        readonly decodeResponse: typeof decodeFormat3Response;
+      }
+    | {
+        readonly label: 'format5';
+        readonly decodeEnvelope: typeof decodeFormat5Envelope;
+        readonly decodeResponse: typeof decodeFormat5Response;
+      }
+  );
+function legacyExpected(request: Format3Expected | Format5Expected): Format3Expected {
+  if (request.kind === 'invoke')
+    return { kind: 'invoke', method: parseOrThrow(format3MutationCodec, request.method) };
+  if (request.kind === 'populate')
+    return {
+      kind: 'populate',
+      ...(request.mutation === undefined
+        ? {}
+        : { mutation: parseOrThrow(format3MutationCodec, request.mutation) }),
+    };
+  return request;
 }
 /** Owns an immutable git archive, pinned-module worker, bounded request IDs, drained pipes and final child cleanup. The worker is loaded before the caller can migrate its database. Terminal failures survive idle periods and are reported after cleanup, including on repeated close. Read-only worker metadata lets lifecycle tests await actual process termination without timing guesses. */
-export async function createPredecessorFixture(
+async function startPredecessorWorker(
   source: PredecessorSource,
   path: string,
   mode: 'bootstrap' | 'open' = 'bootstrap',
@@ -113,8 +155,8 @@ export async function createPredecessorFixture(
   const pending = new Map<
     string,
     {
-      resolve(value: Format3Payload): void;
-      expected: Format3Expected;
+      resolve(value: Format3Payload | Format5Payload): void;
+      expected: Format3Expected | Format5Expected;
       reject(cause: unknown): void;
       timer: ReturnType<typeof setTimeout>;
     }
@@ -158,7 +200,18 @@ export async function createPredecessorFixture(
       }
       const request = pending.get(response.requestId);
       if (request === undefined) throw new Error(`unknown ${source.label} response request`);
-      const decoded = source.decodeResponse(response, request.expected);
+      let decoded;
+      if (source.label === 'format5') {
+        const envelope = source.decodeEnvelope(JSON.parse(line, reviveCell));
+        if (envelope.kind === 'ready')
+          throw new Error('unexpected duplicate predecessor readiness');
+        decoded = source.decodeResponse(envelope, request.expected);
+      } else {
+        const envelope = source.decodeEnvelope(JSON.parse(line, reviveCell));
+        if (envelope.kind === 'ready')
+          throw new Error('unexpected duplicate predecessor readiness');
+        decoded = source.decodeResponse(envelope, legacyExpected(request.expected));
+      }
       clearTimeout(request.timer);
       pending.delete(response.requestId);
       if (decoded.kind === 'error')
@@ -179,16 +232,20 @@ export async function createPredecessorFixture(
   const sourceOwners = new Map<symbol, string>();
   function requestWorker(
     command:
-      | Omit<Extract<Format3Request, { kind: 'populate' }>, 'requestId'>
-      | ({ readonly kind: 'invoke' } & Format3Command)
+      | {
+          readonly kind: 'populate';
+          readonly population: Format3Population | Format5Population;
+          readonly mutation?: Format3Mutation | Format5Command['method'];
+        }
+      | ({ readonly kind: 'invoke' } & (Format3Command | Format5Command))
       | Omit<Extract<Format3Request, { kind: 'retain_artifact' }>, 'requestId'>
       | Omit<Extract<Format3Request, { kind: 'advance_clock' }>, 'requestId'>
       | Omit<Extract<Format3Request, { kind: 'arm_busy' }>, 'requestId'>
       | { readonly kind: 'capture' | 'hold_write' | 'release_write' | 'arm_callback' | 'close' },
-  ): Promise<Format3Payload> {
+  ): Promise<Format3Payload | Format5Payload> {
     nextId += 1;
     const requestId = String(nextId);
-    const response = Promise.withResolvers<Format3Payload>();
+    const response = Promise.withResolvers<Format3Payload | Format5Payload>();
     const timer = setTimeout(() => {
       failWorker(new Error(`${source.label} request ${requestId} timed out`));
       child.kill('SIGKILL');
@@ -341,7 +398,7 @@ export async function createPredecessorFixture(
         return child.stderr.closed;
       },
     }),
-    async populate(population: Format3Population) {
+    async populate(population: Format3Population | Format5Population) {
       const payload = await requestWorker({ kind: 'populate', population });
       if (payload.action !== 'populate') throw new Error(`${source.label} internal action differs`);
       return payload.value;
@@ -351,7 +408,9 @@ export async function createPredecessorFixture(
       if (payload.action !== 'capture') throw new Error(`${source.label} internal action differs`);
       return payload.value;
     },
-    async prepareMutation(method: Format3Mutation): Promise<Format3Command> {
+    async prepareMutation(
+      method: Format3Mutation | Format5Command['method'],
+    ): Promise<Format3Command | Format5Command> {
       const payload = await requestWorker({
         kind: 'populate',
         population: 'receipt_settled',
@@ -361,7 +420,7 @@ export async function createPredecessorFixture(
       const { action: _action, ...command } = payload;
       return command;
     },
-    async invoke(command: Format3Command) {
+    async invoke(command: Format3Command | Format5Command) {
       const payload = await requestWorker({ ...command, kind: 'invoke' });
       if (payload.action !== 'invoke') throw new Error(`${source.label} internal action differs`);
       return payload.value;
@@ -404,6 +463,36 @@ export async function createPredecessorFixture(
   };
 }
 
+type WorkerFixture = Awaited<ReturnType<typeof startPredecessorWorker>>;
+type LegacyFixture = Omit<WorkerFixture, 'populate' | 'prepareMutation' | 'invoke'> & {
+  populate(population: Format3Population): ReturnType<WorkerFixture['populate']>;
+  prepareMutation(method: Format3Mutation): Promise<Format3Command>;
+  invoke(command: Format3Command): Promise<Extract<Format3Payload, { action: 'invoke' }>['value']>;
+};
+type Format5Fixture = Omit<WorkerFixture, 'populate' | 'prepareMutation' | 'invoke'> & {
+  populate(population: Format5Population): ReturnType<WorkerFixture['populate']>;
+  prepareMutation(method: Format5Command['method']): Promise<Format5Command>;
+  invoke(command: Format5Command): Promise<Extract<Format5Payload, { action: 'invoke' }>['value']>;
+};
+/** The pinned label selects the actual transport domain: original3/4 workers keep their legacy command port, while5 adds recovery tuples. Runtime decoders still verify every response against that source's own protocol. */
+// Proof: T2 historical-route-types failed its legacyRoutes compile-time assertion while3/4 accepted recovery methods; the actual uncached typecheck passed after label-specific overloads.
+export function createPredecessorFixture(
+  source: Extract<PredecessorSource, { label: 'format3' | 'format4' }>,
+  path: string,
+  mode?: 'bootstrap' | 'open',
+): Promise<LegacyFixture>;
+export function createPredecessorFixture(
+  source: Extract<PredecessorSource, { label: 'format5' }>,
+  path: string,
+  mode?: 'bootstrap' | 'open',
+): Promise<Format5Fixture>;
+export async function createPredecessorFixture(
+  source: PredecessorSource,
+  path: string,
+  mode: 'bootstrap' | 'open' = 'bootstrap',
+) {
+  return await startPredecessorWorker(source, path, mode);
+}
 /** Extracts and verifies one explicitly pinned archive; its caller owns removal after every native or worker owner closes. */
 export function extractPredecessorSource(
   source: Pick<PredecessorSource, 'commit' | 'label' | 'sourceEntries' | 'workerFiles'>,

@@ -10,8 +10,11 @@ import type { WriteCompletion, WriteStageCommand } from '../write-records';
 import { type OutcomeFixture, prepareTurn } from './fixtures';
 
 /** Real prepared/claimed turn with separately retained current WBS state and caller-approved batch. The caller owns stores.close(). */
-export async function createWriteFixture(stores: OutcomeFixture) {
-  const setup = await prepareTurn(stores);
+async function prepareWriteTarget(
+  stores: OutcomeFixture,
+  context?: Parameters<typeof prepareTurn>[1],
+) {
+  const setup = await prepareTurn(stores, context);
   const binding = setup.execution.binding;
   const claimed = parseCanonicalRuntimeRequest(binding.intent.canonicalRequest).operation;
   if ('kind' in claimed || claimed.action.kind !== 'claim')
@@ -44,7 +47,7 @@ export async function createWriteFixture(stores: OutcomeFixture) {
   if (retained.kind !== 'retained') throw new Error('fixture write state refused');
   const canonicalRequest = canonicalRuntimeRequest(setup.scope, {
     schemaVersion: 1,
-    commandId: 'wire-write',
+    commandId: 'wire-write' + setup.suffix,
     expectedLedgerId: state.ledgerId,
     authority: claimed.authority,
     expectedBasis: state.basis,
@@ -80,7 +83,7 @@ export async function createWriteFixture(stores: OutcomeFixture) {
   const command: WriteStageCommand = {
     version: 1,
     kind: 'stage_write',
-    commandId: executionCommandId('stage-write'),
+    commandId: executionCommandId('stage-write' + setup.suffix),
     completion,
     canonicalRequest,
     observation: {
@@ -94,6 +97,56 @@ export async function createWriteFixture(stores: OutcomeFixture) {
       stepCode: 'plan',
     },
   };
+  const prepared = {
+    ...setup,
+    guard,
+    command,
+    state,
+    stateEvidence: retained.reference,
+    completion,
+    canonicalRequest,
+    currentGuard: setup.scopedGuard,
+  };
+  return {
+    target: prepared,
+    setup,
+    snapshot,
+    history,
+    scope,
+    guard,
+    command,
+    state,
+    stateEvidence: retained.reference,
+    completion,
+    canonicalRequest,
+  };
+}
+type WriteTarget = Awaited<ReturnType<typeof prepareWriteTarget>>['target'];
+type WriteFixture = WriteTarget & { readonly facts: WriteFacts };
+/** Original one-argument calls construct a fresh single-target pure-plan witness. Explicit context arguments produce only an actual prepared target; they cannot claim to enumerate a complete global catalog. Empty suffixes and explicit undefined select the context form by argument presence. */
+export function createWriteFixture(
+  stores: OutcomeFixture,
+  context: Parameters<typeof prepareTurn>[1],
+): Promise<WriteTarget>;
+export function createWriteFixture(stores: OutcomeFixture): Promise<WriteFixture>;
+export async function createWriteFixture(
+  stores: OutcomeFixture,
+  ...contexts: [] | [Parameters<typeof prepareTurn>[1]]
+): Promise<WriteTarget | WriteFixture> {
+  const prepared = await prepareWriteTarget(stores, contexts[0]);
+  if (contexts.length !== 0) return prepared.target;
+  const {
+    setup,
+    snapshot,
+    history,
+    scope,
+    guard,
+    command,
+    state,
+    stateEvidence,
+    completion,
+    canonicalRequest,
+  } = prepared;
   const facts: WriteFacts = {
     run: snapshot.run,
     attempt: history.attempt,
@@ -127,7 +180,7 @@ export async function createWriteFixture(stores: OutcomeFixture) {
     command,
     facts,
     state,
-    stateEvidence: retained.reference,
+    stateEvidence,
     completion,
     canonicalRequest,
     currentGuard: setup.scopedGuard,

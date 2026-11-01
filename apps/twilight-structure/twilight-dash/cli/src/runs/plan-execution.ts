@@ -59,7 +59,10 @@ export function isExecuting(state: Attempt['state']): boolean {
     state.kind !== 'interrupted' &&
     state.kind !== 'waiting_for_person' &&
     state.kind !== 'outcome_pending_progress' &&
-    state.kind !== 'terminal'
+    state.kind !== 'terminal' &&
+    state.kind !== 'write_pending' &&
+    state.kind !== 'write_nonaccepted' &&
+    state.kind !== 'write_terminal'
   );
 }
 export function advanceAttempt(

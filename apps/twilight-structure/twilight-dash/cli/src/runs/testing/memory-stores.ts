@@ -56,6 +56,7 @@ import {
   replayConsumption,
   replayDecision,
 } from '../plan-signals';
+import { planWriteAcceptance, planWriteStage, type WriteFacts } from '../plan-writes';
 import { decodeCurrentAttempt } from '../record-codecs';
 import { decisionId, decodeAttempt, decodeDecision, decodeReceipt } from '../record-codecs';
 import {
@@ -77,6 +78,7 @@ import {
   runId,
   storeId,
 } from '../record-codecs';
+import type { ScopedAttemptGuard } from '../records';
 import type { Decision } from '../records';
 import type {
   Admission,
@@ -104,6 +106,8 @@ import {
 } from '../runtime-codecs';
 import type { RuntimeAcceptance, RuntimeIntent } from '../runtime-records';
 import { validateHistory } from '../validate-history';
+import { decodeWriteAcceptCommand, decodeWriteStageCommand } from '../write-codecs';
+import type { RecordedWrite, WriteObligation, WriteReceipt } from '../write-records';
 
 export interface MemoryOptions {
   readonly organizationId: OwnershipStatus['organizationId'];
@@ -138,7 +142,7 @@ export function createMemoryStores(options: MemoryOptions): {
   let isClosed = false;
   let reserved = 0;
   let runtimeScopes = new Map<string, RuntimeScopeRecord>();
-  const runtimeIntents = new Map<string, RuntimeIntent>();
+  let runtimeIntents = new Map<string, RuntimeIntent>();
   let runtimeAcceptances = new Map<string, RuntimeAcceptance>();
   let recoveries = new Map<string, RecoveryHistory>();
   let recoveryBarriers = new Map<string, RecoveryBarrier>();
@@ -180,6 +184,10 @@ export function createMemoryStores(options: MemoryOptions): {
     if (retained === undefined) throw new Error('runtime scope is not pinned');
     runtimeScopes.set(key, { ...retained, revision });
   }
+  let writes = new Map<string, RecordedWrite>();
+  let obligations = new Map<string, WriteObligation>();
+  let writeReceipts = new Map<string, WriteReceipt>();
+  let writeCounts = { records: 0, obligations: 0, receipts: 0 };
   const decisions = new Map<string, Decision>();
   const consumptions = new Map<string, RecordedConsumption>();
   const receipts = new Map<string, RecordedReceipt>();
@@ -193,6 +201,12 @@ export function createMemoryStores(options: MemoryOptions): {
   const admissions = new Map<Admission['attemptId'], Admission>();
 
   function readHistoryCatalog() {
+    if (
+      writes.size !== writeCounts.records ||
+      obligations.size !== writeCounts.obligations ||
+      writeReceipts.size !== writeCounts.receipts
+    )
+      throw new Error('corrupt memory write counts');
     const held = [...attempts.values()]
       .filter((attempt) => attempt.holdsCapacity)
       .map((attempt) => attempt.attemptId);
@@ -218,6 +232,9 @@ export function createMemoryStores(options: MemoryOptions): {
       decisions: [...decisions.values()],
       reservations: held,
       capacity,
+      writes: [...writes.values()],
+      obligations: [...obligations.values()],
+      writeReceipts: [...writeReceipts.values()],
     });
   }
   function auditHistory() {
@@ -281,7 +298,159 @@ export function createMemoryStores(options: MemoryOptions): {
     // Proof: T6H01 actual resolver-produced hold made fresh execution throw in strict Attempt2 decoding; current-row dispatch restores typed refusal.
     return decodeCurrentAttempt(structuredClone(attempt));
   }
+  function writeFacts(guard: ScopedAttemptGuard): WriteFacts {
+    const catalog = readHistoryCatalog();
+    const run = readRun(guard.runId);
+    const attempt = requireAttempt(guard.attemptId);
+    const scope = inspectRuntimeScope(catalog.runtime, guard.scope, status);
+    if (scope.kind !== 'pinned') throw new Error('runtime scope is not pinned');
+    return {
+      run,
+      attempt,
+      manifest: readManifest(run.manifestDigest),
+      ownership: status,
+      scope,
+      runtime: catalog.runtime,
+      executions: catalog.executions.filter(
+        (entry) => entry.reply.attempt.attemptId === guard.attemptId,
+      ),
+      submissions: catalog.executions,
+      // Proof: legacy-memory-global-write-facts broke “memory writes > second actual write target independently refuses a global local identity collision”; exact source hash restored.
+      writes: catalog.writes,
+      obligations: catalog.obligations,
+    };
+  }
   const port: RunStore = {
+    async stageWrite(inputGuard, inputCommand) {
+      // Proof: T2 memory-stage-snapshot-{guard,command} independently used caller references; the real clock-mutation contract lost its original applied command. Exact restoration passed source hashes.
+      const guardSnapshot = structuredClone(inputGuard);
+      const commandSnapshot = structuredClone(inputCommand);
+      const observedAt = observeClock();
+      const ownership = decodeOwnership(guardSnapshot.ownership);
+      // Proof: T2 memory-stage-current-owner removed this gate; expired original replay lost owner_stale. Exact source restoration was observed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      auditHistory();
+      const guard = decodeScopedAttemptGuard(guardSnapshot);
+      const command = decodeWriteStageCommand(commandSnapshot);
+      const facts = writeFacts(guard);
+      // Proof: T2 memory-stage-submitted-{run,attempt,scope} independently replaced one submitted cut with today’s value; its real stale-cut assertion observed applied instead of revision_conflict.
+      const planned = planWriteStage(facts, guard, command);
+      if (planned.kind === 'refused') return finishReply(planned, observedAt);
+      if (planned.kind === 'duplicate')
+        return finishReply({ kind: 'duplicate', value: planned.value.ack }, observedAt);
+      const change = planned.value;
+      const intents = new Map(runtimeIntents).set(
+        change.intent.commandId,
+        structuredClone(change.intent),
+      );
+      const scopes = new Map(runtimeScopes).set(runtimeScopeKey(guard.scope), {
+        pin: structuredClone(facts.scope.pin),
+        revision: change.intent.stagedRevision,
+      });
+      const attemptRows = new Map(attempts).set(
+        change.ack.attempt.attemptId,
+        structuredClone(change.ack.attempt),
+      );
+      const runRows = new Map(runs).set(facts.run.runId, {
+        ...facts.run,
+        revision: change.runRevision,
+      });
+      const writeRows = new Map(writes).set(command.commandId, structuredClone(change.record));
+      const pending = new Map(obligations).set(
+        command.commandId,
+        structuredClone(change.obligation),
+      );
+      const counts = { ...runtimeCounts, intents: addInteger(runtimeCounts.intents, 1) };
+      const retainedCounts = {
+        ...writeCounts,
+        records: addInteger(writeCounts.records, 1),
+        obligations: addInteger(writeCounts.obligations, 1),
+      };
+      const held = reserved - (facts.attempt.holdsCapacity ? 1 : 0);
+      const response = structuredClone({ kind: 'applied' as const, value: change.ack });
+      // Proof: T2 memory stage journal/reply clone faults rejected with the original cause and retained the exact readable run, execution and scope predecessor after all preparation moved before publication.
+      // Proof: T2 publication-memory-stage independently omitted every assignment below except the refusal clock; the actual coupled-bundle assertion failed. Scope omission also exposed the current-catalog bound gap, then failed after that audit was fixed. All source restorations matched.
+      runtimeIntents = intents;
+      runtimeScopes = scopes;
+      attempts = attemptRows;
+      // Proof: publication-memory-stage-runs broke “memory writes > coupled stage and acceptance publish exact original replies and histories once”; exact source hash restored.
+      runs = runRows;
+      writes = writeRows;
+      obligations = pending;
+      // Proof: publication-memory-stage-runtimeCounts broke “memory writes > coupled stage and acceptance publish exact original replies and histories once”; exact source hash restored.
+      runtimeCounts = counts;
+      writeCounts = retainedCounts;
+      reserved = held;
+      lastObservedAt = observedAt;
+      return await Promise.resolve(response);
+    },
+    async recordWriteAcceptance(inputGuard, inputCommand) {
+      // Proof: T2 memory-accept-snapshot-{guard,command} independently used caller references; the real clock-mutation contract lost its original applied command. Exact restoration passed source hashes.
+      const guardSnapshot = structuredClone(inputGuard);
+      const commandSnapshot = structuredClone(inputCommand);
+      const observedAt = observeClock();
+      const ownership = decodeOwnership(guardSnapshot.ownership);
+      // Proof: T2 memory-accept-current-owner removed this gate; expired original replay lost owner_stale. Exact source restoration was observed.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      auditHistory();
+      const guard = decodeScopedAttemptGuard(guardSnapshot);
+      const command = decodeWriteAcceptCommand(commandSnapshot);
+      const facts = writeFacts(guard);
+      // Proof: T2 memory-accept-submitted-{run,attempt,scope} independently replaced one submitted cut with today’s value; its real stale-cut assertion observed applied instead of revision_conflict.
+      const planned = planWriteAcceptance(facts, guard, command);
+      if (planned.kind === 'refused') return finishReply(planned, observedAt);
+      if (planned.kind === 'duplicate')
+        return finishReply({ kind: 'duplicate', value: planned.value.ack }, observedAt);
+      const change = planned.value;
+      const acceptances = new Map(runtimeAcceptances).set(
+        change.acceptance.commandId,
+        structuredClone(change.acceptance),
+      );
+      const scopes = new Map(runtimeScopes).set(runtimeScopeKey(guard.scope), {
+        pin: structuredClone(facts.scope.pin),
+        revision: change.acceptance.acceptedRevision,
+      });
+      const attemptRows = new Map(attempts).set(
+        change.ack.attempt.attemptId,
+        structuredClone(change.ack.attempt),
+      );
+      const runRows = new Map(runs).set(facts.run.runId, {
+        ...facts.run,
+        revision: change.runRevision,
+      });
+      const writeRows = new Map(writes).set(command.commandId, structuredClone(change.record));
+      const receipts = new Map(writeReceipts).set(
+        change.obligationKey,
+        structuredClone(change.receipt),
+      );
+      const pending = new Map(
+        [...obligations].filter(([identity]) => identity !== change.obligationKey),
+      );
+      const counts = { ...runtimeCounts, acceptances: addInteger(runtimeCounts.acceptances, 1) };
+      const retainedCounts = {
+        records: addInteger(writeCounts.records, 1),
+        obligations: writeCounts.obligations - 1,
+        receipts: addInteger(writeCounts.receipts, 1),
+      };
+      const response = structuredClone({ kind: 'applied' as const, value: change.ack });
+      // Proof: T2 memory acceptance journal/reply clone faults rejected with the original cause and retained the exact readable pending obligation and all three original views before publication.
+      // Proof: T2 publication-memory-accept independently omitted every assignment below except the refusal clock; the actual coupled-bundle assertion failed. The original scope omission was an observed false-green until current-catalog bounds were enforced. All source restorations matched.
+      runtimeAcceptances = acceptances;
+      runtimeScopes = scopes;
+      attempts = attemptRows;
+      // Proof: publication-memory-accept-runs broke “memory writes > coupled stage and acceptance publish exact original replies and histories once”; exact source hash restored.
+      runs = runRows;
+      writes = writeRows;
+      obligations = pending;
+      // Proof: publication-memory-accept-writeReceipts broke “memory writes > coupled stage and acceptance publish exact original replies and histories once”; exact source hash restored.
+      writeReceipts = receipts;
+      runtimeCounts = counts;
+      writeCounts = retainedCounts;
+      lastObservedAt = observedAt;
+      return await Promise.resolve(response);
+    },
     async resolveRecovery(input) {
       // Proof: T6M01 using caller input let clock/queue mutation change the submitted closure and reject its original valid input. Restoration passed.
       const snapshot = structuredClone(input);
@@ -581,7 +750,13 @@ export function createMemoryStores(options: MemoryOptions): {
       const run = readRun(runId(identity));
       return await Promise.resolve(
         structuredClone({
-          version: 3,
+          version: 4,
+          writeObligations: [...obligations.values()].filter(
+            (entry) => writes.get(entry.stageCommandId)?.runId === run.runId,
+          ),
+          writeReceipts: [...writeReceipts.values()].filter(
+            (entry) => writes.get(entry.stageCommandId)?.runId === run.runId,
+          ),
           run,
           recoveries: readRuntimeCatalog().recovery.histories.flatMap((history) =>
             history.intent.target.kind === 'claim' &&
@@ -753,6 +928,9 @@ export function createMemoryStores(options: MemoryOptions): {
       auditHistory();
       const guard = decodeAttemptGuard(guardSnapshot);
       const command = decodeExecutionCommand(commandSnapshot);
+      // Proof: legacy-memory-recordExecution broke “memory writes independent fresh legacy submission excludes write local ID and accepts unrelated wire label”; exact source hash restored.
+      if ([...writes.values()].some((entry) => entry.command.commandId === command.commandId))
+        return finishReply({ kind: 'refused', reason: 'identity_conflict' }, observedAt);
       // Proof: T3NMEX withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
       const replay = replayExecution(
         executions.get(command.commandId),
@@ -813,6 +991,9 @@ export function createMemoryStores(options: MemoryOptions): {
       auditHistory();
       const guard = decodeScopedAttemptGuard(guardSnapshot);
       const command = decodeClaimStageCommand(commandSnapshot);
+      // Proof: legacy-memory-stageClaim broke “memory writes each fresh legacy coupled submission excludes an audited write local while its unrelated identity applies”; exact source hash restored.
+      if ([...writes.values()].some((entry) => entry.command.commandId === command.commandId))
+        return finishReply({ kind: 'refused', reason: 'identity_conflict' }, observedAt);
       // Proof: T3NMCS withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
       const replay = replayExecution(
         executions.get(command.commandId),
@@ -873,6 +1054,9 @@ export function createMemoryStores(options: MemoryOptions): {
       auditHistory();
       const guard = decodeScopedAttemptGuard(guardSnapshot);
       const command = decodeClaimAcceptCommand(commandSnapshot);
+      // Proof: legacy-memory-recordClaimAcceptance broke “memory writes each fresh legacy coupled submission excludes an audited write local while its unrelated identity applies”; exact source hash restored.
+      if ([...writes.values()].some((entry) => entry.command.commandId === command.commandId))
+        return finishReply({ kind: 'refused', reason: 'identity_conflict' }, observedAt);
       // Proof: T3NMCA withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
       const replay = replayExecution(
         executions.get(command.commandId),
@@ -933,6 +1117,9 @@ export function createMemoryStores(options: MemoryOptions): {
       auditHistory();
       const guard = decodeScopedAttemptGuard(guardSnapshot);
       const command = decodeTurnStageCommand(commandSnapshot);
+      // Proof: legacy-memory-stageTurn broke “memory writes each fresh legacy coupled submission excludes an audited write local while its unrelated identity applies”; exact source hash restored.
+      if ([...writes.values()].some((entry) => entry.command.commandId === command.commandId))
+        return finishReply({ kind: 'refused', reason: 'identity_conflict' }, observedAt);
       // Proof: T3NMTS withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
       const replay = replayExecution(
         executions.get(command.commandId),

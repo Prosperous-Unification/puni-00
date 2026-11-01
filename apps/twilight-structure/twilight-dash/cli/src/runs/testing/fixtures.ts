@@ -50,6 +50,7 @@ import type { AttemptGuard, RunStore, StoreReply } from '../run-store';
 import { acceptRuntimeReceipt } from '../runtime-history';
 import type { RuntimeIntent } from '../runtime-records';
 import { createMemoryStores } from './memory-stores';
+import type { HistoricalRunStore } from './predecessor-fixture';
 
 export class FixtureClock implements WallClock {
   #timestamp = 1000;
@@ -129,15 +130,17 @@ export async function createAdmissionFixture(options: {
   };
 }
 
-export interface OutcomeFixture {
-  readonly runs: RunStore;
+export interface OutcomeFixture<Runs extends HistoricalRunStore = RunStore> {
+  readonly runs: Runs;
   readonly artifacts: ArtifactStore;
   readonly ownership: { readonly epoch: number };
   readonly clock: FixtureClock;
   close(): Promise<void>;
 }
 
-export async function prepareAttempt(stores: OutcomeFixture) {
+export async function prepareAttempt<Runs extends HistoricalRunStore = RunStore>(
+  stores: OutcomeFixture<Runs>,
+) {
   const ownership = unwrapReply(
     await stores.runs.acquireOwnership(ownerId('owner'), stores.ownership.epoch),
   );
@@ -250,8 +253,8 @@ export function createRunGuard(guard: AttemptGuard) {
 }
 
 /** Admits a real accepted binding and schema-valid WBS observation without preparing a session. */
-export async function admitExecution(
-  stores: OutcomeFixture,
+export async function admitExecution<Runs extends HistoricalRunStore = RunStore>(
+  stores: OutcomeFixture<Runs>,
   context?: { readonly ownership: Ownership; readonly suffix: string },
   manifestChanges: Partial<Manifest> = {},
 ) {
@@ -457,7 +460,10 @@ export async function admitExecution(
   };
 }
 
-export async function retainClaimReceipt(stores: OutcomeFixture, intent: RuntimeIntent) {
+export async function retainClaimReceipt(
+  stores: Pick<OutcomeFixture, 'artifacts'>,
+  intent: RuntimeIntent,
+) {
   const { scope, operation } = parseCanonicalRuntimeRequest(intent.canonicalRequest);
   if ('kind' in operation || operation.action.kind !== 'claim')
     throw new Error('fixture claim required');
@@ -485,8 +491,8 @@ export async function retainClaimReceipt(stores: OutcomeFixture, intent: Runtime
 }
 
 /** Prepares a retained session through the verified binding and target operation. */
-export async function prepareSession(
-  stores: OutcomeFixture,
+export async function prepareSession<Runs extends HistoricalRunStore = RunStore>(
+  stores: OutcomeFixture<Runs>,
   context?: { readonly ownership: Ownership; readonly suffix: string },
 ) {
   const setup = await admitExecution(stores, context);
@@ -506,8 +512,8 @@ export async function prepareSession(
 }
 
 /** Builds a claim through the real canonical stage and verified receipt acceptance. */
-export async function prepareClaimed(
-  stores: OutcomeFixture,
+export async function prepareClaimed<Runs extends HistoricalRunStore = RunStore>(
+  stores: OutcomeFixture<Runs>,
   context?: { readonly ownership: Ownership; readonly suffix: string },
 ) {
   const setup = await prepareSession(stores, context);
@@ -560,8 +566,8 @@ export async function stageFixtureTurn(
   );
 }
 
-export async function prepareTurn(
-  stores: OutcomeFixture,
+export async function prepareTurn<Runs extends HistoricalRunStore = RunStore>(
+  stores: OutcomeFixture<Runs>,
   context?: { readonly ownership: Ownership; readonly suffix: string },
 ) {
   const setup = await prepareClaimed(stores, context);

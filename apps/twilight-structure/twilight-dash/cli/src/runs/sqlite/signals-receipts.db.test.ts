@@ -43,7 +43,7 @@ test('probe current claim corruption against intact historical execution', async
     const database = owner.retainProbe(new Database(fixture.options.path));
     const setup = await prepareTurn(fixture);
     database.run(
-      "UPDATE run5_attempt SET record=json_set(record,'$.state.execution.binding.projection.actorId','corrupt-person')",
+      "UPDATE run6_attempt SET record=json_set(record,'$.state.execution.binding.projection.actorId','corrupt-person')",
     );
     await rejects(fixture.runs.readRun(setup.run.runId), /corrupt current attempt provenance/);
     await fixture.close();
@@ -101,15 +101,15 @@ async function currentGuard(
 function physicalSnapshot(database: Database) {
   return [
     'run_meta',
-    'run5_record',
-    'run5_attempt',
-    'run5_reservation',
-    'run5_decision',
-    'run5_consumption',
-    'run5_completion',
-    'run5_outbox',
-    'run5_receipt',
-    'run5_execution',
+    'run6_record',
+    'run6_attempt',
+    'run6_reservation',
+    'run6_decision',
+    'run6_consumption',
+    'run6_completion',
+    'run6_outbox',
+    'run6_receipt',
+    'run6_execution',
   ].map((table) => database.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
 }
 for (const fault of ['receipt', 'consumption', 'reservation'] as const)
@@ -126,10 +126,10 @@ for (const fault of ['receipt', 'consumption', 'reservation'] as const)
       const physical = physicalSnapshot(database);
       const table =
         fault === 'receipt'
-          ? 'run5_receipt'
+          ? 'run6_receipt'
           : fault === 'consumption'
-            ? 'run5_consumption'
-            : 'run5_reservation';
+            ? 'run6_consumption'
+            : 'run6_reservation';
       database.run(
         `CREATE TRIGGER injected_abort BEFORE INSERT ON ${table} BEGIN SELECT RAISE(ABORT,'injected ${fault} fault'); END`,
       );

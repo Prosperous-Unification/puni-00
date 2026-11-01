@@ -32,6 +32,10 @@ executable requests automatically. Local determinate completion retains its exis
 capacity release; a receiver fence proves neither physical quiescence nor business success.
 Memory and SQLite share semantic tests; actual receiver crash/reopen, transaction-abort and
 independent production-path R5 proofs are required alongside reviews and exact-source gates.
+Incompatible admission preserves PUNI records, schema, migration identities and persistent
+settings while allowing engine bookkeeping. Closed predecessors detected by SQLite's private
+inspection retain byte/sidecar protection. The shared admission contract must remain feasible
+on PostgreSQL; its adapter and conformance are separate required foundation work.
 
 ## Capabilities
 

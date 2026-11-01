@@ -148,6 +148,12 @@ export function planAdmission(
   );
   if (predecessor !== undefined) {
     const state = predecessor.state;
+    if (
+      state.kind === 'write_pending' ||
+      state.kind === 'write_nonaccepted' ||
+      state.kind === 'write_terminal'
+    )
+      return { kind: 'refused', reason: 'attempt_active' };
     // Proof: bypassing retry predecessor enforcement failed 'memory execution > waiting requires exact claim unique choices and determinate quiescence'.
     // Proof: bypassing retry settled effect enforcement failed 'memory execution edges > successful effects cannot retry and missing attempts throw without mutations'.
     if (

@@ -377,7 +377,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
               observation: { kind: 'failure', failure: { cause: failure } },
             });
           const history = await stores.runs.readRuntimeScope(receiver.scope);
-          if (history.version !== 2 || history.kind !== 'pinned')
+          if ((history.version !== 2 && history.version !== 3) || history.kind !== 'pinned')
             throw new Error('history missing');
           const journal = history.recoveries[0];
           const fence = journal.fences[0];
@@ -479,7 +479,8 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
         ).toEqual([]);
         if (replacement === undefined) throw new Error('takeover absent');
         const scope = await stores.runs.readRuntimeScope(receiver.scope);
-        if (scope.kind !== 'pinned' || scope.version !== 2) throw new Error('scope missing');
+        if (scope.kind !== 'pinned' || (scope.version !== 2 && scope.version !== 3))
+          throw new Error('scope missing');
         const fence = scope.recoveries[0].fences[0];
         expect(
           await dispatchRecovery(
@@ -737,7 +738,7 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
               ...(lostThird ? { cause: transportFailure } : {}),
             });
             const snapshot = await stores.runs.readRuntimeScope(receiver.scope);
-            if (snapshot.version !== 2 || snapshot.kind !== 'pinned')
+            if ((snapshot.version !== 2 && snapshot.version !== 3) || snapshot.kind !== 'pinned')
               throw new Error('scope missing');
             const journal = snapshot.recoveries[0];
             expect(
@@ -884,7 +885,8 @@ export function recoveryDispatchContract(name: string, create: () => Promise<Out
         );
         expect(pending).toEqual({ kind: 'refused', reason: 'revision_conflict' });
         const current = await stores.runs.readRuntimeScope(receiver.scope);
-        if (current.kind !== 'pinned' || current.version !== 2) throw new Error('scope missing');
+        if (current.kind !== 'pinned' || (current.version !== 2 && current.version !== 3))
+          throw new Error('scope missing');
         expect(current).toMatchObject({
           activeRecoveryId: setup.call.recoveryId,
           recoveries: [{ closure: null }],

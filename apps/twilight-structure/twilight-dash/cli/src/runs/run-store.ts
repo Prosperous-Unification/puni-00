@@ -48,6 +48,12 @@ import type {
   RuntimeScope,
   RuntimeScopeSnapshot,
 } from './runtime-records';
+import type {
+  WriteAcceptAck,
+  WriteAcceptCommand,
+  WriteStageAck,
+  WriteStageCommand,
+} from './write-records';
 
 export type { AttemptGuard, RunGuard, ScopedAttemptGuard } from './records';
 
@@ -68,6 +74,16 @@ export type StoreReply<T> =
   | { readonly kind: 'refused'; readonly reason: StoreRefusal };
 /** Async semantic persistence boundary; conflicts refuse, missing/corrupt trusted state throws. */
 export interface RunStore {
+  /** Atomically retains a validated completion, exact write request, obligation and original acknowledgement, releasing local capacity once. */
+  stageWrite(
+    guard: ScopedAttemptGuard,
+    command: WriteStageCommand,
+  ): Promise<StoreReply<WriteStageAck>>;
+  /** Trusted boundary: complete original receipt bytes and projection were verified before the transaction. Publishes one terminal acknowledgement and removes its obligation atomically. */
+  recordWriteAcceptance(
+    guard: ScopedAttemptGuard,
+    command: WriteAcceptCommand,
+  ): Promise<StoreReply<WriteAcceptAck>>;
   /** Atomically closes recovery with its scope barrier and target consequences while retaining capacity. Exact replay returns the immutable original closure without reapplying consequences. */
   resolveRecovery(call: RecoveryResolveCall): Promise<StoreReply<RecoveryClosure>>;
   /** Retains an immutable recovery journal without advancing scope or target revisions. */

@@ -8,6 +8,7 @@ import {
 } from './execution-codecs';
 import type { Attempt } from './execution-records';
 import { Attempt3Codec } from './recovery-codecs';
+import { decodeWriteAttempt } from './write-codecs';
 export {
   AttemptCodec,
   AttemptOutcomeCodec,
@@ -168,6 +169,13 @@ export function decodeAttempt(value: unknown) {
 }
 /** Decodes a current row without widening immutable predecessor acknowledgements. */
 export function decodeCurrentAttempt(candidate: unknown): Attempt {
+  if (
+    typeof candidate === 'object' &&
+    candidate !== null &&
+    'version' in candidate &&
+    candidate.version === 4
+  )
+    return decodeWriteAttempt(candidate);
   if (
     typeof candidate === 'object' &&
     candidate !== null &&

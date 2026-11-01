@@ -84,7 +84,8 @@ for (const cut of ['before-send', 'lost-reply'] as const)
       );
       expect(reply).toMatchObject({ kind: 'pending' });
       const before = await stores.runs.readRuntimeScope(receiver.scope);
-      if (before.kind !== 'pinned' || before.version !== 2) throw new Error('scope absent');
+      if (before.kind !== 'pinned' || (before.version !== 2 && before.version !== 3))
+        throw new Error('scope absent');
       await stores.close();
       stores = await openSqliteStores(options);
       expect(await stores.runs.readRuntimeScope(receiver.scope)).toEqual(before);

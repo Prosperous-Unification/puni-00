@@ -15,9 +15,9 @@ import {
   type Format3Command,
   settleFixture,
 } from '../testing/format3-fixture';
+import { decodeFormat3Command } from '../testing/format3-protocol';
 import { bootstrapFormat4Stores, openFormat4Stores } from '../testing/format4-fixture';
 import { downgradeUnusedSqliteStores, upgradeSqliteStores } from './migrate-recovery';
-import type { openSqliteStores } from './open-stores';
 test('loaded original BB14 writer refuses fresh manifest on physically version4 successor', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'recovery-old-writer-'));
   const path = join(directory, 'runs.sqlite');
@@ -75,7 +75,6 @@ import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { Database } from 'bun:sqlite';
 
 import { FORMAT4_IDENTITY } from './format';
-import type { bootstrapSqliteStores } from './open-stores';
 const workspaceRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], {
   cwd: import.meta.dirname,
   encoding: 'utf8',
@@ -93,7 +92,7 @@ for (const artifact of ['migration.sql', 'down.sql'] as const)
       maxBusyAttempts: 2,
       busyDelayMilliseconds: 1,
     };
-    let stores: Awaited<ReturnType<typeof bootstrapSqliteStores>> | undefined;
+    let stores: Awaited<ReturnType<typeof bootstrapFormat4Stores>> | undefined;
     let observer: Database | undefined;
     let child: ReturnType<typeof Bun.spawn> | undefined;
     let output: Promise<string> | undefined;
@@ -264,7 +263,7 @@ for (const method of legacyMutations)
       const before = await old.capture();
       await rejects(old.invoke(invocation), /incompatible/);
       expect(await old.capture()).toEqual(before);
-      const stale = staleInvocation(invocation);
+      const stale = staleInvocation(decodeFormat3Command(invocation));
       await old.advanceClock(101);
       if (method === 'acquireOwnership') {
         await rejects(old.invoke(stale), /incompatible/);
@@ -503,7 +502,7 @@ test('old artifact insertion duplicate and metadata conflict preserve successor 
       },
     ],
   );
-  let current: Awaited<ReturnType<typeof openSqliteStores>> | undefined;
+  let current: Awaited<ReturnType<typeof openFormat4Stores>> | undefined;
   await settleFixture(async () => {
     await old.populate('prepared');
     await upgradeSqliteStores(legacyOptions(path));

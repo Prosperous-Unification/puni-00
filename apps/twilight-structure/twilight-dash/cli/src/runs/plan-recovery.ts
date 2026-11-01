@@ -60,7 +60,8 @@ export function planRecoveryBegin(
       : { kind: 'refused', reason: 'identity_conflict' };
   const snapshot = inspectRuntimeScope(catalog.runtime, guard.scope, catalog.ownership);
   if (snapshot.kind !== 'pinned') throw new Error('runtime scope is not pinned');
-  if (snapshot.version !== 2) throw new Error('recovery requires current runtime scope');
+  if (snapshot.version !== 2 && snapshot.version !== 3)
+    throw new Error('recovery requires current runtime scope');
   // Proof: T3B4 removed only this new dependency; acceptance before begin admitted the forbidden begin; exact restoration passed.
   if (snapshot.pendingCommandId !== target.original.commandId || snapshot.activeRecoveryId !== null)
     return { kind: 'refused', reason: 'state_conflict' };
@@ -89,6 +90,8 @@ export function planRecoveryBegin(
   const occupied = new Set([
     ...catalog.runtime.intents.map((entry) => entry.commandId),
     ...catalog.executions.map((entry) => entry.command.commandId),
+    // Proof: T2 recovery-write-reservations omitted these IDs; both real providers admitted colliding begin/acceptance reservations. Exact restoration passed.
+    ...catalog.writes.map((entry) => entry.command.commandId),
     ...catalog.runtime.recovery.histories.flatMap((history) => [
       history.intent.recoveryId,
       ...(history.intent.target.kind === 'claim'
@@ -206,7 +209,9 @@ export function planRecoveryFence(
   if (
     findRecoveryCommand(catalog.runtime.recovery, commandId) !== undefined ||
     catalog.runtime.intents.some((entry) => entry.commandId === commandId) ||
-    catalog.executions.some((entry) => entry.command.commandId === commandId)
+    catalog.executions.some((entry) => entry.command.commandId === commandId) ||
+    // Proof: T2 recovery-fence-write-reservation omitted this dependency; both real providers admitted a fence with a retained write local ID. Exact restoration passed.
+    catalog.writes.some((entry) => entry.command.commandId === commandId)
   )
     return { kind: 'refused', reason: 'identity_conflict' };
   // Proof: T4F08 removing owner correspondence admitted fresh foreign provenance. Exact restoration passed.
@@ -215,7 +220,7 @@ export function planRecoveryFence(
   )
     return { kind: 'refused', reason: 'authority_conflict' };
   const snapshot = inspectRuntimeScope(catalog.runtime, guard.scope, catalog.ownership);
-  if (snapshot.kind !== 'pinned' || snapshot.version !== 2)
+  if (snapshot.kind !== 'pinned' || (snapshot.version !== 2 && snapshot.version !== 3))
     throw new Error('recovery scope is not current and pinned');
   // Proof: T4F10 removing revision correspondence admitted stale guards and an incorrect staged revision. Exact restoration passed.
   if (
@@ -400,7 +405,7 @@ export function planRecoveryObservation(
   if (history.fences.at(-1)?.ordinal !== fence.ordinal || history.revision !== fence.stagedRevision)
     return { kind: 'refused', reason: 'state_conflict' };
   const snapshot = inspectRuntimeScope(catalog.runtime, guard.scope, catalog.ownership);
-  if (snapshot.kind !== 'pinned' || snapshot.version !== 2)
+  if (snapshot.kind !== 'pinned' || (snapshot.version !== 2 && snapshot.version !== 3))
     throw new Error('recovery scope is not current and pinned');
   // Proof: T5O08 removing revision correspondence admitted stale recovery/scope guards. Exact restoration passed.
   if (
@@ -527,7 +532,7 @@ export function planRecoveryResolution(
   const original = target.original;
   const request = readRuntimeRequest(original.canonicalRequest);
   const snapshot = inspectRuntimeScope(catalog.runtime, call.guard.scope, catalog.ownership);
-  if (snapshot.kind !== 'pinned' || snapshot.version !== 2)
+  if (snapshot.kind !== 'pinned' || (snapshot.version !== 2 && snapshot.version !== 3))
     throw new Error('recovery scope is not current and pinned');
   const observation = history.observations.at(-1);
   // Proof: T6C06 removing retained accepted-fence equality admitted an altered immutable observation. Restoration passed.

@@ -155,12 +155,33 @@ counting coupled consequences twice. New read versions MUST preserve strict hist
 
 ### Requirement: Storage upgrade preserves genuine format5
 
-Ordinary open MUST refuse predecessor formats without changing SQLite or creating sidecars.
+Incompatible ordinary access MUST refuse before changing PUNI records, physical schema,
+migration identities or persistent database settings. Database-engine bookkeeping is permitted;
+it MUST NOT establish compatibility, ownership or permission to publish. Compatibility and
+complete trusted-state checks MUST be authoritative under the database transaction or native
+lock that excludes a conflicting format transition through the protected operation.
+As an additional SQLite property, a closed predecessor detected by initial private inspection
+MUST retain its original bytes and sidecar set. If a supported inspection races a committed
+format transition, later incompatible refusal MAY create SQLite WAL/SHM bookkeeping files,
+but MUST preserve the logical-state and persistent-settings guarantees above.
 An explicit additive format5-to-successor transition MUST validate full migration identities,
 physical declarations and complete histories before and after atomic copy. It MUST preserve
 original payload bytes, JSON private identities and migration artifacts. Semantic use of the
 successor MUST refuse destructive downgrade. Actual old open, queued and BUSY writers MUST be
 fenced while the existing compatible artifact/refusal-clock exceptions remain precise.
+
+#### Scenario: A downgrade wins between inspection and authoritative admission
+
+- **WHEN** private inspection observes supported format6 and a legitimate unused downgrade commits before source admission
+- **THEN** ordinary opening refuses without changing the resulting predecessor's records, schema, migration identities or persistent settings
+- **AND** WAL/SHM bookkeeping may appear without granting access or changing the predecessor's semantic state.
+
+#### Scenario: Supported non-WAL state retains safe admission
+
+- **WHEN** a supported SQLite store uses a supported non-WAL journal mode
+- **THEN** ordinary opening retains its existing supported behavior
+- **AND** any persistent journal-mode conversion follows authoritative compatibility checks with native exclusion retained across the configuration handoff
+- **AND** a separate normal-connection admission revalidates complete state before exposing stores; a later incompatible transition cannot authorize another configuration change or undo an earlier conversion validly completed on supported state.
 
 #### Scenario: Genuine populated predecessor round-trips while unused
 
@@ -178,6 +199,23 @@ fenced while the existing compatible artifact/refusal-clock exceptions remain pr
 - **WHEN** an actual already-open, queued or BUSY format5 writer reaches its locked operation after upgrade
 - **THEN** incompatible semantic writes refuse before touching stale predecessor state
 - **AND** captured predecessor protocols and permitted compatibility exceptions retain their behavior.
+
+### Requirement: Storage admission is feasible on PostgreSQL
+
+The shared refusal contract MUST concern PUNI state and persistent settings rather than
+physical engine files. The design MUST document a feasible PostgreSQL transaction-scoped
+guard that excludes conflicting format transitions, checks complete format and current
+ownership, and retains protection through the corresponding workflow mutation. A read-only
+transaction alone MUST NOT be treated as proof of zero disk writes or as a migration-admission
+guard. This packet MUST distinguish that feasibility argument from an implemented adapter
+or completed conformance; exact locking, isolation, schema and driver choices remain future
+adapter work under the full foundation goal.
+
+#### Scenario: The design maps admission to PostgreSQL transaction locks
+
+- **WHEN** the shared admission contract is reviewed for PostgreSQL feasibility
+- **THEN** the design describes shared operation and exclusive migration guards, bounded contention and validation of the actual state under the guard
+- **AND** physical zero-write promises are excluded and actual PostgreSQL adapter conformance remains explicitly unproved.
 
 ### Requirement: Both providers prove the same behavior
 

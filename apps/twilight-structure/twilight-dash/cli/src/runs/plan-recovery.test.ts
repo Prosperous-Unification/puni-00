@@ -40,6 +40,9 @@ async function createPlannerFixture() {
   };
   const history = unwrapReply(await stores.runs.beginRecovery(begin));
   const catalog: HistoryCatalog = {
+    writes: [],
+    obligations: [],
+    writeReceipts: [],
     ownership: {
       storeId: ownership.storeId,
       organizationId: ownership.organizationId,

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 export const MIGRATION = readFileSync(
   new URL('./migrations/0001-run-store/migration.sql', import.meta.url),
   'utf8',
@@ -34,6 +34,14 @@ const recoveryForward = readFileSync(
 );
 const recoveryDown = readFileSync(
   new URL('./migrations/0004-runtime-recovery/down.sql', import.meta.url),
+  'utf8',
+);
+const writeForward = readFileSync(
+  new URL('./migrations/0006-runtime-write/migration.sql', import.meta.url),
+  'utf8',
+);
+const writeDown = readFileSync(
+  new URL('./migrations/0006-runtime-write/down.sql', import.meta.url),
   'utf8',
 );
 const identityForward = readFileSync(
@@ -101,6 +109,17 @@ export const MIGRATIONS = [
     forwardHash: createHash('sha256').update(identityForward).digest('hex'),
     downHash: createHash('sha256').update(identityDown).digest('hex'),
   },
+  {
+    name: '0006-runtime-write',
+    forwardStatements: writeForward
+      .split('--> statement-breakpoint')
+      .map((statement) => statement.trim())
+      .filter((statement) => statement.length > 0),
+    forward: writeForward,
+    down: writeDown,
+    forwardHash: createHash('sha256').update(writeForward).digest('hex'),
+    downHash: createHash('sha256').update(writeDown).digest('hex'),
+  },
 ] as const;
 export interface SqliteMigrationIdentity {
   readonly name: string;
@@ -108,12 +127,12 @@ export interface SqliteMigrationIdentity {
   readonly downHash: string;
 }
 export interface SqliteFormatIdentity {
-  readonly version: 3 | 4 | 5;
+  readonly version: 3 | 4 | 5 | 6;
   readonly bundleHash: string;
   readonly migrations: readonly SqliteMigrationIdentity[];
 }
 function createFormatIdentity(
-  version: 3 | 4 | 5,
+  version: 3 | 4 | 5 | 6,
   migrations: readonly SqliteMigrationIdentity[],
 ): SqliteFormatIdentity {
   return Object.freeze({
@@ -146,4 +165,5 @@ export const FORMAT4_IDENTITY = createFormatIdentity(4, MIGRATIONS.slice(0, 4));
 export const FORMAT5_IDENTITY = createFormatIdentity(5, MIGRATIONS.slice(0, 5));
 
 /** Complete compiled current bundle used by bootstrap and semantic admission. */
-export const FORMAT_HASH = FORMAT5_IDENTITY.bundleHash;
+export const FORMAT6_IDENTITY = createFormatIdentity(6, MIGRATIONS.slice(0, 6));
+export const FORMAT_HASH = FORMAT6_IDENTITY.bundleHash;

@@ -34,6 +34,7 @@ import {
   planRuntimeStage,
 } from '../plan-runtime';
 import { planConsumption, planDecision, replayConsumption, replayDecision } from '../plan-signals';
+import { planWriteAcceptance, planWriteStage, type WriteFacts } from '../plan-writes';
 import { addInteger, decisionId, decodeDecision, decodeReceipt } from '../record-codecs';
 import {
   decodeAdmission,
@@ -48,6 +49,7 @@ import {
   ownerId,
   runId,
 } from '../record-codecs';
+import type { ScopedAttemptGuard } from '../records';
 import type { Ownership, OwnershipStatus, Run } from '../records';
 import {
   decodeRecoveryBeginCall,
@@ -62,6 +64,7 @@ import {
   decodeRuntimePin,
   decodeRuntimeScope,
 } from '../runtime-codecs';
+import { decodeWriteAcceptCommand, decodeWriteStageCommand } from '../write-codecs';
 import { createSqliteArtifactStore } from './artifact-store';
 import { markIdentityUsage } from './identity-usage';
 import { findExecution, validateAttempt } from './read-executions';
@@ -79,6 +82,8 @@ import { decodeCompletionRow } from './row-codecs';
 import { insertRuntimeAcceptance, insertRuntimeIntent, insertRuntimePin } from './runtime-store';
 import { CURRENT_FORMAT } from './schema';
 import { readCapacity, readMeta } from './schema';
+import { insertWriteAcceptance, insertWriteStage } from './write-store';
+import { markWriteUsage } from './write-usage';
 
 export interface TransactionOptions {
   readonly clock: WallClock;
@@ -184,8 +189,22 @@ export function createSqliteRunStore(
     // Proof: omitting refused observations accepted clock 1049 after owner_busy at 1050 in the shared contract.
     database.query('UPDATE run_meta SET last_observed_at=? WHERE singleton=1').run(observedAt);
     // Proof: Task3 038 removed this call; applied ownership left a genuine upgraded store eligible for downgrade. Restored 042 passed.
-    if (reply.kind === 'applied' && CURRENT_FORMAT.identity.version === 5)
-      markIdentityUsage(database);
+    if (reply.kind === 'applied') {
+      switch (CURRENT_FORMAT.identity.version) {
+        case 3:
+        case 4:
+          break;
+        case 5:
+          markIdentityUsage(database);
+          break;
+        case 6:
+          // Proof: usage-published-marker broke “used successor refuses down and preserves the complete committed format”; exact source hash restored.
+          markWriteUsage(database);
+          break;
+        default:
+          throw new Error('unsupported sqlite mutation format');
+      }
+    }
     return reply;
   }
   function publishOwnership(
@@ -251,7 +270,100 @@ export function createSqliteRunStore(
         .query(`DELETE FROM ${CURRENT_FORMAT.family.reservation} WHERE attempt_id=?`)
         .run(CURRENT_FORMAT.encode(change.attempt.attemptId));
   }
+  function writeFacts(
+    guard: ScopedAttemptGuard,
+    snapshot: ReturnType<typeof readHistory>,
+    ownership: OwnershipStatus,
+  ): WriteFacts {
+    const { run } = requireRun(guard.runId);
+    const attempt = requireAttempt(guard.attemptId);
+    const scope = inspectRuntimeScope(snapshot.catalog.runtime, guard.scope, ownership);
+    if (scope.kind !== 'pinned') throw new Error('runtime scope is not pinned');
+    return {
+      run,
+      attempt,
+      manifest: requireManifest(run.manifestDigest),
+      ownership,
+      scope,
+      runtime: snapshot.catalog.runtime,
+      executions: snapshot.catalog.executions.filter(
+        (entry) => entry.reply.attempt.attemptId === guard.attemptId,
+      ),
+      submissions: snapshot.catalog.executions,
+      // Proof: legacy-sqlite-global-write-facts broke “sqlite writes > second actual write target independently refuses a global local identity collision”; exact source hash restored.
+      writes: snapshot.catalog.writes,
+      obligations: snapshot.catalog.obligations,
+    };
+  }
   const runs: RunStore = {
+    async stageWrite(inputGuard, inputCommand) {
+      // Proof: T2 sqlite-stage-snapshot-{guard,command} independently used caller references; the real clock-mutation contract lost its original applied command. Exact restoration passed source hashes.
+      const guardSnapshot = structuredClone(inputGuard);
+      const commandSnapshot = structuredClone(inputCommand);
+      const ownership = decodeOwnership(guardSnapshot.ownership);
+      // Proof: T2 publication-sqlite-stage-transaction omitted this transaction; the real late journal abort left an unreadable partial bundle. Exact restoration passed.
+      return await transact(true, () => {
+        const { meta, authority } = readAuthority(ownership);
+        // Proof: T2 sqlite-stage-current-owner removed this gate; expired original replay lost owner_stale. Exact source restoration was observed.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        const snapshot = readHistory(database);
+        const guard = decodeScopedAttemptGuard(guardSnapshot);
+        const command = decodeWriteStageCommand(commandSnapshot);
+        const facts = writeFacts(guard, snapshot, meta.ownership);
+        // Proof: T2 sqlite-stage-submitted-{run,attempt,scope} independently replaced one submitted cut with today’s value; its real stale-cut assertion observed applied instead of revision_conflict.
+        const planned = planWriteStage(facts, guard, command);
+        if (planned.kind === 'refused') return finish(planned, authority.observedAt);
+        if (planned.kind === 'duplicate')
+          return finish({ kind: 'duplicate', value: planned.value.ack }, authority.observedAt);
+        const change = planned.value;
+        // Proof: T2 publication-sqlite-stage independently omitted runtime intent, current attempt/run/capacity, and local journal publication; the actual readable-bundle assertion failed each time. Exact restorations passed.
+        insertRuntimeIntent(
+          database,
+          guard.scope,
+          change.intent,
+          snapshot.catalog.runtime.intents.length,
+        );
+        // Proof: publication-sqlite-stage-applyChange broke “sqlite writes > coupled stage and acceptance publish exact original replies and histories once”; exact source hash restored.
+        applyChange(facts.run, { attempt: change.ack.attempt, runRevision: change.runRevision });
+        insertWriteStage(database, change, snapshot.catalog);
+        return finish({ kind: 'applied', value: change.ack }, authority.observedAt);
+      });
+    },
+    async recordWriteAcceptance(inputGuard, inputCommand) {
+      // Proof: T2 sqlite-accept-snapshot-{guard,command} independently used caller references; the real clock-mutation contract lost its original applied command. Exact restoration passed source hashes.
+      const guardSnapshot = structuredClone(inputGuard);
+      const commandSnapshot = structuredClone(inputCommand);
+      const ownership = decodeOwnership(guardSnapshot.ownership);
+      // Proof: T2 publication-sqlite-accept-transaction omitted this transaction; the real late journal abort left an unreadable partial bundle. Exact restoration passed.
+      return await transact(true, () => {
+        const { meta, authority } = readAuthority(ownership);
+        // Proof: T2 sqlite-accept-current-owner removed this gate; expired original replay lost owner_stale. Exact source restoration was observed.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        const snapshot = readHistory(database);
+        const guard = decodeScopedAttemptGuard(guardSnapshot);
+        const command = decodeWriteAcceptCommand(commandSnapshot);
+        const facts = writeFacts(guard, snapshot, meta.ownership);
+        // Proof: T2 sqlite-accept-submitted-{run,attempt,scope} independently replaced one submitted cut with today’s value; its real stale-cut assertion observed applied instead of revision_conflict.
+        const planned = planWriteAcceptance(facts, guard, command);
+        if (planned.kind === 'refused') return finish(planned, authority.observedAt);
+        if (planned.kind === 'duplicate')
+          return finish({ kind: 'duplicate', value: planned.value.ack }, authority.observedAt);
+        const change = planned.value;
+        // Proof: T2 publication-sqlite-accept independently omitted runtime acceptance, current attempt/run, and local journal/settlement publication; the actual readable-bundle assertion failed each time. Exact restorations passed.
+        insertRuntimeAcceptance(
+          database,
+          guard.scope,
+          change.acceptance,
+          snapshot.catalog.runtime.acceptances.length,
+        );
+        // Proof: publication-sqlite-accept-applyChange broke “sqlite writes > coupled stage and acceptance publish exact original replies and histories once”; exact source hash restored.
+        applyChange(facts.run, { attempt: change.ack.attempt, runRevision: change.runRevision });
+        insertWriteAcceptance(database, change, snapshot.catalog);
+        return finish({ kind: 'applied', value: change.ack }, authority.observedAt);
+      });
+    },
     async resolveRecovery(input) {
       // Proof: T6S01 using caller input let clock/queue mutation change the submitted closure and reject its original valid input. Restoration passed.
       const snapshot = structuredClone(input);
@@ -503,7 +615,23 @@ export function createSqliteRunStore(
         const snapshot = readHistory(database);
         const { run } = requireRun(runId(identity));
         return {
-          version: 3,
+          version: 4,
+          writeObligations: snapshot.catalog.obligations.filter((entry) =>
+            snapshot.catalog.writes.some(
+              (write) =>
+                write.kind === 'stage_write' &&
+                write.command.commandId === entry.stageCommandId &&
+                write.runId === run.runId,
+            ),
+          ),
+          writeReceipts: snapshot.catalog.writeReceipts.filter((entry) =>
+            snapshot.catalog.writes.some(
+              (write) =>
+                write.kind === 'stage_write' &&
+                write.command.commandId === entry.stageCommandId &&
+                write.runId === run.runId,
+            ),
+          ),
           run,
           recoveries: snapshot.catalog.runtime.recovery.histories.flatMap((history) =>
             history.intent.target.kind === 'claim' &&
@@ -736,6 +864,9 @@ export function createSqliteRunStore(
         const snapshot = readHistory(database);
         const guard = decodeAttemptGuard(guardSnapshot);
         const command = decodeExecutionCommand(commandSnapshot);
+        // Proof: legacy-sqlite-recordExecution broke “sqlite writes independent fresh legacy submission excludes write local ID and accepts unrelated wire label”; exact source hash restored.
+        if (snapshot.catalog.writes.some((entry) => entry.command.commandId === command.commandId))
+          return finish({ kind: 'refused', reason: 'identity_conflict' }, authority.observedAt);
         // Proof: T3NSEX withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
         const replay = replayExecution(
           findExecution(database, command.commandId),
@@ -802,6 +933,9 @@ export function createSqliteRunStore(
         const snapshot = readHistory(database);
         const guard = decodeScopedAttemptGuard(guardSnapshot);
         const command = decodeClaimStageCommand(commandSnapshot);
+        // Proof: legacy-sqlite-stageClaim broke “sqlite writes each fresh legacy coupled submission excludes an audited write local while its unrelated identity applies”; exact source hash restored.
+        if (snapshot.catalog.writes.some((entry) => entry.command.commandId === command.commandId))
+          return finish({ kind: 'refused', reason: 'identity_conflict' }, authority.observedAt);
         // Proof: T3NSCS withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
         const replay = replayExecution(
           findExecution(database, command.commandId),
@@ -873,6 +1007,9 @@ export function createSqliteRunStore(
         const snapshot = readHistory(database);
         const guard = decodeScopedAttemptGuard(guardSnapshot);
         const command = decodeClaimAcceptCommand(commandSnapshot);
+        // Proof: legacy-sqlite-recordClaimAcceptance broke “sqlite writes each fresh legacy coupled submission excludes an audited write local while its unrelated identity applies”; exact source hash restored.
+        if (snapshot.catalog.writes.some((entry) => entry.command.commandId === command.commandId))
+          return finish({ kind: 'refused', reason: 'identity_conflict' }, authority.observedAt);
         // Proof: T3NSCA withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
         const replay = replayExecution(
           findExecution(database, command.commandId),
@@ -944,6 +1081,9 @@ export function createSqliteRunStore(
         const snapshot = readHistory(database);
         const guard = decodeScopedAttemptGuard(guardSnapshot);
         const command = decodeTurnStageCommand(commandSnapshot);
+        // Proof: legacy-sqlite-stageTurn broke “sqlite writes each fresh legacy coupled submission excludes an audited write local while its unrelated identity applies”; exact source hash restored.
+        if (snapshot.catalog.writes.some((entry) => entry.command.commandId === command.commandId))
+          return finish({ kind: 'refused', reason: 'identity_conflict' }, authority.observedAt);
         // Proof: T3NSTS withholding this call's recovery witnesses admitted the colliding fresh command; exact restoration passed.
         const replay = replayExecution(
           findExecution(database, command.commandId),

@@ -275,7 +275,7 @@ records. Descriptors explicitly distinguish raw predecessors and keyed formats5/
 `version === 5` fallback can select raw keys, counters or usage semantics for6.
 
 `upgradeSqliteWrites(options)` and `downgradeUnusedSqliteWrites(options)` use the existing
-`transitionFormat` lifecycle with exact FORMAT5/FORMAT6 descriptors. Readonly preflight and
+`transitionFormat` lifecycle with exact FORMAT5/FORMAT6 descriptors. Advisory preflight and
 locked complete audits surround all finite DDL/copy/metadata writes. A new successor usage
 marker is set by semantic changes; used downgrade refuses. Full known-family physical
 validation detects partial successor declarations, including empty tables/indexes. Preserve
@@ -287,6 +287,58 @@ workers byte-identical. Historical compatibility tests use genuine historical pr
 they do not relabel newly bootstrapped6 as5. Test populated pending/terminal/runtime/recovery
 rows, opaque IDs, old open/queued/BUSY writers and permitted artifact/refusal-clock exceptions.
 Ordinary open never upgrades; operator transitions and production remain held.
+
+### Admission protects logical state across database engines
+
+Incompatible admission preserves PUNI records, schema, migration identities and persistent
+database settings. Engine bookkeeping is allowed. Private paired main/WAL inspection is
+bounded advisory classification, never an atomic snapshot or publication authority; it never
+copies source SHM, ignores live WAL, or deletes source sidecars. Closed genuine predecessors
+detected there retain the stronger SQLite byte/sidecar-set guarantee.
+
+After private inspection, authoritative complete compatibility/configuration/history checks
+must run under native database exclusion. An inspection that observed6 may race a legitimate
+unused downgrade to5: actual admission must then refuse without semantic or persistent-setting
+changes, while SQLite may create WAL/SHM. Preserve the original strict no-sidecar race failure
+as evidence of the rejected stronger contract; prove the new logical-state contract separately.
+Connection-local settings and persistent journal-mode conversion have different lifecycles.
+Already-WAL admission must not convert journal mode before the authoritative check. Supported
+non-WAL opening remains supported: any conversion requires compatibility validation and native
+exclusion retained across the transaction/configuration handoff, followed by complete admission
+before exposing stores. A stale advisory result cannot authorize conversion. Use no new external
+file-lock protocol; the native handoff needs an observed concurrency proof before acceptance.
+
+The non-WAL path may use a short-lived native-exclusive connection for the supported-state
+audit and conversion, positively close it, then perform fresh normal-connection admission.
+The exclusion must span the compatibility check and persistent conversion; it need not transfer
+between connections. A downgrade before the protected configuration check must leave settings
+unchanged. A downgrade after a valid supported conversion may cause final admission to refuse:
+that refusal preserves the post-downgrade state, while the earlier supported conversion remains
+committed. Tests retain both independent cuts rather than claiming zero writes for the whole
+call across a successful configuration phase. No provider or workflow mutation escapes the
+final audit; normal connection concurrency and per-operation format fencing remain required.
+
+This contract is feasible on PostgreSQL using a transaction-scoped schema guard shared by
+workflow operations and exclusively held by format transitions, with format/current-ownership
+validation and mutation under that same guard. A stable guard row with native shared/exclusive
+row locks or a cooperative transaction-level advisory lock can supply the exclusion; the exact
+mechanism and fresh-state isolation remain adapter design choices. Every migration/operation
+entry point must participate; a stale transaction snapshot must fail or reread current state,
+never authorize old-format mutation. Guard waiting and retries must be bounded. PostgreSQL
+[read-only transactions](https://www.postgresql.org/docs/current/sql-set-transaction.html)
+do not prohibit all disk writes; its [transaction locks](https://www.postgresql.org/docs/current/explicit-locking.html)
+provide the relevant exclusion. This is a feasibility argument, not an implemented PostgreSQL
+adapter, selected driver/schema/index, or completed conformance proof. Those remain required
+under the full foundation goal.
+
+PostgreSQL feasibility also preserves the existing opaque-ID and original-byte contracts.
+Its [JSON types](https://www.postgresql.org/docs/18/datatype-json.html) are not interchangeable
+with exact serialized records: `jsonb` rejects escaped NUL and malformed surrogate pairs and
+normalizes representation. Escaped JSON retained as uninterpreted text, or exact bytes in
+[`bytea`](https://www.postgresql.org/docs/current/datatype-binary.html), provide feasible storage
+boundaries without narrowing domain IDs. Exact comparison, long wire-ID indexing, integer
+conversion, unknown-COMMIT reconciliation and backend-quiescence proofs remain PostgreSQL
+adapter obligations; this packet selects none of their physical implementations.
 
 ## Risks / Trade-offs
 

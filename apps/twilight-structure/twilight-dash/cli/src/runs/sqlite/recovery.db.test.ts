@@ -13,8 +13,8 @@ import {
 } from '../testing/recovery-contract';
 import { createRecoveryInspection, createRecoveryStores } from '../testing/sqlite-fixture';
 import { encodeKey } from './identity-key';
-import { downgradeUnusedSqliteIdentityKeys } from './migrate-identities';
-import { FORMAT4, FORMAT5 } from './schema';
+import { downgradeUnusedSqliteWrites } from './migrate-writes';
+import { FORMAT4, FORMAT6 } from './schema';
 
 recoveryContract('sqlite recovery', async (capacity = 1) => {
   const directory = mkdtempSync(join(tmpdir(), 'recovery-'));
@@ -102,7 +102,7 @@ async function createPhysicalFixture(
     maxBusyAttempts: 2,
     busyDelayMilliseconds: 1,
   };
-  const descriptor = format === 'historical' ? FORMAT4 : FORMAT5;
+  const descriptor = format === 'historical' ? FORMAT4 : FORMAT6;
   const { stores, database, close } = await (
     format === 'historical' ? createFormat4Inspection : createRecoveryInspection
   )(directory, options);
@@ -265,9 +265,9 @@ for (const format of ['current', 'historical'] as const)
           await reopened.close();
         }
         await rejects(
-          (format === 'historical'
-            ? downgradeUnusedSqliteStores
-            : downgradeUnusedSqliteIdentityKeys)(fixture.options),
+          (format === 'historical' ? downgradeUnusedSqliteStores : downgradeUnusedSqliteWrites)(
+            fixture.options,
+          ),
           (cause: unknown) => {
             expect(cause).toMatchObject({ failure: 'used_history', phase: 'transaction' });
             return true;
@@ -281,29 +281,29 @@ for (const format of ['current', 'historical'] as const)
   );
 
 for (const [fault, sql, closed] of [
-  ['missing marker', 'DELETE FROM run5_recovery_format', false],
+  ['missing marker', 'DELETE FROM run6_recovery_format', false],
   [
     'extra marker',
-    'PRAGMA ignore_check_constraints=ON; INSERT INTO run5_recovery_format VALUES (2,1,0,0,0,0,1)',
+    'PRAGMA ignore_check_constraints=ON; INSERT INTO run6_recovery_format VALUES (2,1,0,0,0,0,1)',
     false,
   ],
-  ['journal count', 'UPDATE run5_recovery_format SET journal_count=2', false],
-  ['journal command key', 'UPDATE run5_recovery_journal SET command_id=\'"wrong"\'', false],
-  ['journal scope key', "UPDATE run5_recovery_journal SET scope_key='wrong'", false],
-  ['active key', "UPDATE run5_recovery_active SET scope_key='wrong'", false],
-  ['active journal', 'UPDATE run5_recovery_active SET recovery_id=\'"wrong"\'', false],
-  ['lost journal family', 'DELETE FROM run5_recovery_journal', false],
-  ['lost active family', 'DELETE FROM run5_recovery_active', false],
-  ['lost fence family', 'DELETE FROM run5_recovery_fence', true],
-  ['lost observation family', 'DELETE FROM run5_recovery_observation', true],
-  ['lost closure family', 'DELETE FROM run5_recovery_closure', true],
-  ['lost barrier family', 'DELETE FROM run5_recovery_barrier', true],
-  ['fence command key', 'UPDATE run5_recovery_fence SET command_id=\'"wrong"\'', true],
-  ['fence ordinal', 'UPDATE run5_recovery_fence SET ordinal=2', true],
-  ['observation ordinal', 'UPDATE run5_recovery_observation SET ordinal=2', true],
-  ['closure revision', 'UPDATE run5_recovery_closure SET revision=4', true],
-  ['barrier scope key', "UPDATE run5_recovery_barrier SET scope_key='wrong'", true],
-  ['barrier scope revision', 'UPDATE run5_recovery_barrier SET scope_after=3', true],
+  ['journal count', 'UPDATE run6_recovery_format SET journal_count=2', false],
+  ['journal command key', 'UPDATE run6_recovery_journal SET command_id=\'"wrong"\'', false],
+  ['journal scope key', "UPDATE run6_recovery_journal SET scope_key='wrong'", false],
+  ['active key', "UPDATE run6_recovery_active SET scope_key='wrong'", false],
+  ['active journal', 'UPDATE run6_recovery_active SET recovery_id=\'"wrong"\'', false],
+  ['lost journal family', 'DELETE FROM run6_recovery_journal', false],
+  ['lost active family', 'DELETE FROM run6_recovery_active', false],
+  ['lost fence family', 'DELETE FROM run6_recovery_fence', true],
+  ['lost observation family', 'DELETE FROM run6_recovery_observation', true],
+  ['lost closure family', 'DELETE FROM run6_recovery_closure', true],
+  ['lost barrier family', 'DELETE FROM run6_recovery_barrier', true],
+  ['fence command key', 'UPDATE run6_recovery_fence SET command_id=\'"wrong"\'', true],
+  ['fence ordinal', 'UPDATE run6_recovery_fence SET ordinal=2', true],
+  ['observation ordinal', 'UPDATE run6_recovery_observation SET ordinal=2', true],
+  ['closure revision', 'UPDATE run6_recovery_closure SET revision=4', true],
+  ['barrier scope key', "UPDATE run6_recovery_barrier SET scope_key='wrong'", true],
+  ['barrier scope revision', 'UPDATE run6_recovery_barrier SET scope_after=3', true],
 ] as const)
   test(`physical recovery ${fault} refuses read mutation and reopen without repair`, async () => {
     const fixture = await createPhysicalFixture(closed);
@@ -327,11 +327,11 @@ for (const [fault, sql, closed] of [
 test('late begin marker abort rolls back journal and active index before reopen', async () => {
   const fixture = await createPhysicalFixture(false);
   try {
-    fixture.database.run('DELETE FROM run5_recovery_active');
-    fixture.database.run('DELETE FROM run5_recovery_journal');
-    fixture.database.run('UPDATE run5_recovery_format SET journal_count=0,active_count=0');
+    fixture.database.run('DELETE FROM run6_recovery_active');
+    fixture.database.run('DELETE FROM run6_recovery_journal');
+    fixture.database.run('UPDATE run6_recovery_format SET journal_count=0,active_count=0');
     fixture.database.run(
-      "CREATE TRIGGER begin_marker_abort BEFORE UPDATE ON run5_recovery_format WHEN (SELECT count(*) FROM run5_recovery_journal)=1 AND (SELECT count(*) FROM run5_recovery_active)=1 BEGIN SELECT RAISE(ABORT,'late begin marker injected'); END",
+      "CREATE TRIGGER begin_marker_abort BEFORE UPDATE ON run6_recovery_format WHEN (SELECT count(*) FROM run6_recovery_journal)=1 AND (SELECT count(*) FROM run6_recovery_active)=1 BEGIN SELECT RAISE(ABORT,'late begin marker injected'); END",
     );
     const before = captureRecovery(fixture.database);
     await rejects(fixture.stores.runs.beginRecovery(fixture.call), /late begin marker injected/);
@@ -404,7 +404,7 @@ for (const format of ['current', 'historical'] as const)
         maxBusyAttempts: 2,
         busyDelayMilliseconds: 1,
       };
-      const descriptor = format === 'historical' ? FORMAT4 : FORMAT5;
+      const descriptor = format === 'historical' ? FORMAT4 : FORMAT6;
       const { stores, database, close } = await (
         format === 'historical' ? createFormat4Inspection : createRecoveryInspection
       )(directory, options);
@@ -566,7 +566,7 @@ for (const format of ['current', 'historical'] as const)
         database.run(`UPDATE ${descriptor.family.runtime_scope} SET revision=5`);
         database.run('COMMIT');
         expect(await stores.runs.readRun(setup.run.runId)).toMatchObject({
-          version: 3,
+          version: format === 'historical' ? 3 : 4,
           attempts: [held],
           capacity: { reserved: 1 },
         });
@@ -585,9 +585,9 @@ for (const format of ['current', 'historical'] as const)
           await reopened.close();
         }
         await rejects(
-          (format === 'historical'
-            ? downgradeUnusedSqliteStores
-            : downgradeUnusedSqliteIdentityKeys)(options),
+          (format === 'historical' ? downgradeUnusedSqliteStores : downgradeUnusedSqliteWrites)(
+            options,
+          ),
           (cause: unknown) => {
             expect(cause).toMatchObject({ failure: 'used_history', phase: 'transaction' });
             return true;
@@ -605,7 +605,7 @@ test('recovery fence late marker abort rolls back exact predecessor and resumes 
   try {
     const call = await createRecoveryFenceCall(fixture.stores.artifacts, fixture.call, 2);
     fixture.database.run(
-      "CREATE TRIGGER fence_marker_abort BEFORE UPDATE ON run5_recovery_format WHEN NEW.fence_count=1 BEGIN SELECT RAISE(ABORT,'late fence marker injected'); END",
+      "CREATE TRIGGER fence_marker_abort BEFORE UPDATE ON run6_recovery_format WHEN NEW.fence_count=1 BEGIN SELECT RAISE(ABORT,'late fence marker injected'); END",
     );
     const before = captureRecovery(fixture.database);
     await rejects(fixture.stores.runs.stageRecoveryFence(call), /late fence marker injected/);
@@ -642,7 +642,7 @@ test('recovery fence complete audit precedes replay and decoding', async () => {
   try {
     const call = await createRecoveryFenceCall(fixture.stores.artifacts, fixture.call, 2);
     unwrapReply(await fixture.stores.runs.stageRecoveryFence(call));
-    fixture.database.run('UPDATE run5_recovery_format SET fence_count=2');
+    fixture.database.run('UPDATE run6_recovery_format SET fence_count=2');
     await rejects(fixture.stores.runs.stageRecoveryFence(call), /corrupt recovery physical counts/);
     Object.assign(call.input, { fence: null });
     await rejects(fixture.stores.runs.stageRecoveryFence(call), /corrupt recovery physical counts/);
@@ -655,7 +655,7 @@ test('recovery fence closed journal refuses a fresh identity but retains exact r
   const fixture = await createPhysicalFixture(true);
   try {
     const snapshot = await fixture.stores.runs.readRuntimeScope(runtimeScope);
-    if (snapshot.kind !== 'pinned' || snapshot.version !== 2)
+    if (snapshot.kind !== 'pinned' || (snapshot.version !== 2 && snapshot.version !== 3))
       throw new Error('fixture scope missing');
     const history = snapshot.recoveries[0];
     const previous = history.fences[0];
@@ -684,7 +684,7 @@ test('recovery observation late marker abort rolls back exact predecessor and re
     unwrapReply(await fixture.stores.runs.stageRecoveryFence(staged));
     const call = await createRecoveryObservationCall(fixture.stores.artifacts, staged);
     fixture.database.run(
-      "CREATE TRIGGER observation_marker_abort BEFORE UPDATE ON run5_recovery_format WHEN NEW.observation_count=1 BEGIN SELECT RAISE(ABORT,'late observation marker injected'); END",
+      "CREATE TRIGGER observation_marker_abort BEFORE UPDATE ON run6_recovery_format WHEN NEW.observation_count=1 BEGIN SELECT RAISE(ABORT,'late observation marker injected'); END",
     );
     const before = captureRecovery(fixture.database);
     await rejects(
@@ -723,7 +723,7 @@ test('recovery observation complete audit precedes replay and decoding', async (
     unwrapReply(await fixture.stores.runs.stageRecoveryFence(staged));
     const call = await createRecoveryObservationCall(fixture.stores.artifacts, staged);
     unwrapReply(await fixture.stores.runs.recordRecoveryFence(call));
-    fixture.database.run('UPDATE run5_recovery_format SET observation_count=2');
+    fixture.database.run('UPDATE run6_recovery_format SET observation_count=2');
     await rejects(
       fixture.stores.runs.recordRecoveryFence(call),
       /corrupt recovery physical counts/,
@@ -742,7 +742,7 @@ test('recovery observation closed journal retains exact old replay', async () =>
   const fixture = await createPhysicalFixture(true);
   try {
     const snapshot = await fixture.stores.runs.readRuntimeScope(runtimeScope);
-    if (snapshot.kind !== 'pinned' || snapshot.version !== 2)
+    if (snapshot.kind !== 'pinned' || (snapshot.version !== 2 && snapshot.version !== 3))
       throw new Error('fixture scope missing');
     const observation = snapshot.recoveries[0].observations[0];
     const input =
@@ -780,7 +780,7 @@ test('recovery observation coherent same-reference receipt rewrite passes raw au
     const observed = unwrapReply(await fixture.stores.runs.recordRecoveryFence(call));
     Object.assign(observed.reply.body.value, { actorId: 'forged' });
     fixture.database
-      .query('UPDATE run5_recovery_observation SET record=?')
+      .query('UPDATE run6_recovery_observation SET record=?')
       .run(JSON.stringify(observed));
     expect(await fixture.stores.runs.readRuntimeScope(runtimeScope)).toMatchObject({
       recoveries: [{ observations: [observed] }],
@@ -811,7 +811,7 @@ for (const field of ['actorId', 'body', 'observedRevision', 'fence'] as const)
       else if (field === 'body') Reflect.deleteProperty(observed.reply.envelope.value, field);
       else Reflect.deleteProperty(observed, field);
       fixture.database
-        .query('UPDATE run5_recovery_observation SET record=?')
+        .query('UPDATE run6_recovery_observation SET record=?')
         .run(JSON.stringify(observed));
       await rejects(fixture.stores.runs.readRuntimeScope(runtimeScope));
       await rejects(fixture.stores.runs.recordRecoveryFence(call));
@@ -927,28 +927,28 @@ for (const family of ['authority', 'claim'] as const)
         const commandId = fixture.call.intent.target.original.commandId;
         const beforeTrigger = captureClosure(fixture.database);
         const acceptance =
-          "EXISTS(SELECT 1 FROM run5_runtime_acceptance WHERE command_id='" +
+          "EXISTS(SELECT 1 FROM run6_runtime_acceptance WHERE command_id='" +
           encodeKey(commandId).replaceAll("'", "''") +
           "')";
         const execution =
           family === 'claim'
-            ? ' AND EXISTS(SELECT 1 FROM run5_execution WHERE command_id=\'"accept-claim"\')'
+            ? ' AND EXISTS(SELECT 1 FROM run6_execution WHERE command_id=\'"accept-claim"\')'
             : '';
         const hold =
           family === 'claim'
-            ? " AND EXISTS(SELECT 1 FROM run5_attempt WHERE json_extract(record,'$.version')=3 AND json_extract(record,'$.holdsCapacity')=1) AND (SELECT count(*) FROM run5_reservation)=1"
+            ? " AND EXISTS(SELECT 1 FROM run6_attempt WHERE json_extract(record,'$.version')=3 AND json_extract(record,'$.holdsCapacity')=1) AND (SELECT count(*) FROM run6_reservation)=1"
             : '';
         fixture.database.run(
           cut === 'acceptance'
-            ? 'CREATE TRIGGER closure_abort BEFORE INSERT ON run5_recovery_closure WHEN ' +
+            ? 'CREATE TRIGGER closure_abort BEFORE INSERT ON run6_recovery_closure WHEN ' +
                 acceptance +
                 execution +
                 " BEGIN SELECT RAISE(ABORT,'late closure acceptance injected'); END"
-            : 'CREATE TRIGGER closure_abort BEFORE UPDATE ON run5_recovery_journal WHEN ' +
+            : 'CREATE TRIGGER closure_abort BEFORE UPDATE ON run6_recovery_journal WHEN ' +
                 acceptance +
                 execution +
                 hold +
-                " AND EXISTS(SELECT 1 FROM run5_recovery_closure) AND EXISTS(SELECT 1 FROM run5_recovery_barrier) AND EXISTS(SELECT 1 FROM run5_recovery_active) AND (SELECT closure_count FROM run5_recovery_format)=0 BEGIN SELECT RAISE(ABORT,'late closure finalization injected'); END",
+                " AND EXISTS(SELECT 1 FROM run6_recovery_closure) AND EXISTS(SELECT 1 FROM run6_recovery_barrier) AND EXISTS(SELECT 1 FROM run6_recovery_active) AND (SELECT closure_count FROM run6_recovery_format)=0 BEGIN SELECT RAISE(ABORT,'late closure finalization injected'); END",
         );
         const before = captureClosure(fixture.database);
         await rejects(
@@ -980,7 +980,7 @@ for (const family of ['authority', 'claim'] as const)
             await persisted.close();
           }
           const used = captureClosure(fixture.database);
-          await rejects(downgradeUnusedSqliteIdentityKeys(fixture.options), (cause: unknown) => {
+          await rejects(downgradeUnusedSqliteWrites(fixture.options), (cause: unknown) => {
             expect(cause).toMatchObject({ failure: 'used_history' });
             return true;
           });
@@ -1002,9 +1002,9 @@ test('recovery closure application performs no history reads between its first w
   let applying = false;
   let marking = false;
   function inspectStatement(sql: string) {
-    if (sql.startsWith('INSERT INTO run5_runtime_acceptance')) applying = true;
+    if (sql.startsWith('INSERT INTO run6_runtime_acceptance')) applying = true;
     if (!applying) return;
-    if (sql === 'UPDATE run5_usage SET used=1 WHERE singleton=1 AND used IN (0,1)') {
+    if (sql === 'UPDATE run6_usage SET used=1 WHERE singleton=1 AND used IN (0,1)') {
       marking = true;
       return;
     }
@@ -1016,7 +1016,7 @@ test('recovery closure application performs no history reads between its first w
     )
       throw new Error('semantic write after usage finalization');
     // Proof: Task3 063 inserted a raw history-table SELECT between real writes; this oracle rejected it without relying on an independent history audit.
-    if (/^SELECT/i.test(sql) && !(marking && sql === 'SELECT * FROM run5_usage'))
+    if (/^SELECT/i.test(sql) && !(marking && sql === 'SELECT * FROM run6_usage'))
       throw new Error('history read during partial closure publication');
   }
   try {
@@ -1044,7 +1044,7 @@ test('recovery closure complete audit precedes malformed input and immutable rep
   const fixture = await createClosureFixture('claim');
   try {
     unwrapReply(await fixture.stores.runs.resolveRecovery(fixture.resolve));
-    fixture.database.run('UPDATE run5_recovery_format SET closure_count=2');
+    fixture.database.run('UPDATE run6_recovery_format SET closure_count=2');
     await rejects(
       fixture.stores.runs.resolveRecovery(fixture.resolve),
       /corrupt recovery physical counts/,
@@ -1125,7 +1125,7 @@ for (const family of ['authority', 'claim'] as const)
       expect(unwrapReply(replies[0])).toEqual(unwrapReply(replies[1]));
       expect(
         fixture.database
-          .query('SELECT closure_count,barrier_count,active_count FROM run5_recovery_format')
+          .query('SELECT closure_count,barrier_count,active_count FROM run6_recovery_format')
           .get(),
       ).toEqual({ closure_count: 1, barrier_count: 1, active_count: 0 });
     } finally {
@@ -1141,16 +1141,16 @@ for (const fault of ['stage', 'session', 'fence_epoch', 'resolver_epoch'] as con
       if (fault === 'stage' || fault === 'resolver_epoch') {
         fixture.database.run(
           fault === 'stage'
-            ? "UPDATE run5_recovery_journal SET record=json_set(record,'$.target.stageCommandId','missing-stage')"
-            : "UPDATE run5_recovery_journal SET record=json_set(record,'$.resolver.epoch',2)",
+            ? "UPDATE run6_recovery_journal SET record=json_set(record,'$.target.stageCommandId','missing-stage')"
+            : "UPDATE run6_recovery_journal SET record=json_set(record,'$.resolver.epoch',2)",
         );
       } else if (fault === 'session') {
         fixture.database.run(
-          "UPDATE run5_attempt SET record=json_set(record,'$.state.session.attachment.owner.epoch',2)",
+          "UPDATE run6_attempt SET record=json_set(record,'$.state.session.attachment.owner.epoch',2)",
         );
       } else {
         fixture.database.run(
-          "UPDATE run5_recovery_fence SET record=json_set(record,'$.owner.epoch',2)",
+          "UPDATE run6_recovery_fence SET record=json_set(record,'$.owner.epoch',2)",
         );
       }
       const corrupted = captureClosure(fixture.database);

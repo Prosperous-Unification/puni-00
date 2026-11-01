@@ -40,6 +40,15 @@ export async function readRuntimeHistory(
 ): Promise<RuntimeScopeSnapshot> {
   const snapshotScope = decodeRuntimeScope(scope);
   const snapshot = structuredClone(await runs.readRuntimeScope(snapshotScope));
+  // Proof: remaining-scope3-dispatch broke “memory writes > coupled stage and acceptance publish exact original replies and histories once”; exact source hash restored.
+  switch (snapshot.version) {
+    case 1:
+    case 2:
+    case 3:
+      break;
+    default:
+      throw new Error('unsupported runtime history version');
+  }
   if (snapshot.kind === 'pinned')
     for (const acceptance of snapshot.acceptances) {
       const intent = snapshot.intents.find(
@@ -56,7 +65,7 @@ export async function readRuntimeHistory(
       );
     }
   // Proof: R2F12 omitted only recovery verification; 'verified runtime read checks active' accepted a same-reference value rewrite. Exact restoration passed.
-  if (snapshot.version === 2)
+  if (snapshot.version === 2 || snapshot.version === 3)
     for (const history of snapshot.recoveries) await verifyRecoveryHistory(artifacts, history);
   return snapshot;
 }

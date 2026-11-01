@@ -131,16 +131,16 @@ for (const kind of ['interrupted', 'waiting', 'outcome'] as const)
           );
         const guard = await setup.currentGuard();
         setup.database.run(
-          "UPDATE run5_attempt SET record=json_set(record,'$.state.quiescence.operationKey','other-operation')",
+          "UPDATE run6_attempt SET record=json_set(record,'$.state.quiescence.operationKey','other-operation')",
         );
         if (kind === 'outcome')
           setup.database.run(
-            "UPDATE run5_completion SET record=json_set(record,'$.completion.quiescence.operationKey','other-operation')",
+            "UPDATE run6_completion SET record=json_set(record,'$.completion.quiescence.operationKey','other-operation')",
           );
         const before = {
-          attempts: setup.database.query('SELECT * FROM run5_attempt').all(),
-          runs: setup.database.query('SELECT * FROM run5_record').all(),
-          reservations: setup.database.query('SELECT * FROM run5_reservation').all(),
+          attempts: setup.database.query('SELECT * FROM run6_attempt').all(),
+          runs: setup.database.query('SELECT * FROM run6_record').all(),
+          reservations: setup.database.query('SELECT * FROM run6_reservation').all(),
         };
         if (operation === 'open') {
           await setup.stores.close();
@@ -163,9 +163,9 @@ for (const kind of ['interrupted', 'waiting', 'outcome'] as const)
             /corrupt attempt quiescence operation/,
           );
         expect({
-          attempts: setup.database.query('SELECT * FROM run5_attempt').all(),
-          runs: setup.database.query('SELECT * FROM run5_record').all(),
-          reservations: setup.database.query('SELECT * FROM run5_reservation').all(),
+          attempts: setup.database.query('SELECT * FROM run6_attempt').all(),
+          runs: setup.database.query('SELECT * FROM run6_record').all(),
+          reservations: setup.database.query('SELECT * FROM run6_reservation').all(),
         }).toEqual(before);
       } finally {
         await setup.close();
@@ -253,7 +253,7 @@ for (const [kind, path, replacement] of replyFaults)
         const guard = await setup.currentGuard();
         expect((await setup.runs.readRun(guard.runId)).attempts).toHaveLength(1);
         const projection = () =>
-          ['run5_record', 'run5_attempt', 'run5_reservation'].map((table) =>
+          ['run6_record', 'run6_attempt', 'run6_reservation'].map((table) =>
             setup.database.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
           );
         const before = projection();
@@ -262,7 +262,7 @@ for (const [kind, path, replacement] of replyFaults)
             ? 'scoped execution predecessor has no session'
             : 'corrupt execution command reply';
         setup.database
-          .query('UPDATE run5_execution SET reply=json_set(reply,?,?) WHERE command_id=?')
+          .query('UPDATE run6_execution SET reply=json_set(reply,?,?) WHERE command_id=?')
           .run(path, replacement, encodeKey(command.commandId));
         if (operation === 'open') {
           await setup.stores.close();
@@ -283,7 +283,7 @@ for (const field of ['scope.projectId', 'workItemId'] as const)
       await setup.record(setup.claimCommand);
       setup.database
         .query(
-          'UPDATE run5_execution SET record=json_set(record,?,?),reply=json_set(reply,?,?) WHERE command_id=?',
+          'UPDATE run6_execution SET record=json_set(record,?,?),reply=json_set(reply,?,?) WHERE command_id=?',
         )
         .run(
           `$.command.fact.intent.target.observation.${field}`,
@@ -469,9 +469,9 @@ test('required indexed command cannot disappear behind a reset admitted projecti
     if (admitted === undefined) throw new Error('missing fixture attempt');
     await setup.record(setup.claimCommand);
     const guard = await setup.currentGuard();
-    setup.database.run("UPDATE run5_record SET record=json_set(record,'$.revision',1)");
+    setup.database.run("UPDATE run6_record SET record=json_set(record,'$.revision',1)");
     setup.database
-      .query('UPDATE run5_attempt SET record=? WHERE attempt_id=?')
+      .query('UPDATE run6_attempt SET record=? WHERE attempt_id=?')
       .run(JSON.stringify(admitted), encodeKey(admitted.attemptId));
     Object.defineProperty(Database.prototype, 'query', {
       ...descriptor,

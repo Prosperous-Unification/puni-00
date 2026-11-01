@@ -134,7 +134,6 @@ export function reconstructRuntimePrefix(
       const intent = decodeRuntimeIntent(event.intent);
       const { scope, operation } = readRuntimeRequest(intent.canonicalRequest);
       if (
-        (!('kind' in operation) && operation.action.kind !== 'claim') ||
         !equalRuntimeScopes(scope, pin.scope) ||
         // Proof: F11 removed retained ledger correspondence; 'trusted runtime scope ledger' failed and exact restoration passed.
         operation.expectedLedgerId !== pin.ledgerId ||
@@ -193,8 +192,7 @@ export function reconstructRuntimePrefix(
         };
         latestAuthority = { intent: pending, grant: acceptedGrant };
         grant = pending.localOwner.epoch === ownerEpoch ? acceptedGrant : null;
-      } else if (operation.action.kind !== 'claim')
-        throw new Error('corrupt runtime unsupported acceptance');
+      }
       orderedAcceptances.push(acceptance);
       pending = null;
     }

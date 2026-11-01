@@ -1,8 +1,9 @@
 import type { ClaimRef } from './claim-records';
-import type { Attempt, Attempt2 } from './execution-records';
+import type { Attempt, Attempt2, Attempt3 } from './execution-records';
 import type * as codecs from './record-codecs';
 import type { RecoveryClosure } from './recovery-records';
 import type { RuntimeScope } from './runtime-records';
+import type { WriteObligation, WriteReceipt } from './write-records';
 export type {
   Attempt,
   Attempt2,
@@ -168,10 +169,16 @@ export interface Admission {
   readonly ordinal: Ordinal;
 }
 /** Consistent run state and store-wide local capacity, independent of ownership. */
-export type RunSnapshot = RunSnapshot2 | RunSnapshot3;
+export type RunSnapshot = RunSnapshot2 | RunSnapshot3 | RunSnapshot4;
+export interface RunSnapshot4 extends Omit<RunSnapshot3, 'version' | 'attempts'> {
+  readonly version: 4;
+  readonly attempts: readonly Attempt[];
+  readonly writeObligations: readonly WriteObligation[];
+  readonly writeReceipts: readonly WriteReceipt[];
+}
 export interface RunSnapshot3 extends Omit<RunSnapshot2, 'version' | 'attempts'> {
   readonly version: 3;
-  readonly attempts: readonly Attempt[];
+  readonly attempts: readonly (Attempt2 | Attempt3)[];
   readonly recoveries: readonly RecoveryClosure[];
 }
 export interface RunSnapshot2 {

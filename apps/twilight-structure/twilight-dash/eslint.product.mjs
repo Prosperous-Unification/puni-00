@@ -316,5 +316,13 @@ export default ({
       ],
       rules: boundary(['^@wbs/contracts$']),
     },
+    {
+      files: [
+        // Proof: remaining-policy-build-write-request-ts broke “Dash write publication contract boundaries > build-write-request.ts admits only its exact public contract alias with inherited fences”; exact source hash restored.
+        'apps/twilight-structure/twilight-dash/cli/src/runs/build-write-request.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/runs/write-history.test.ts',
+      ],
+      rules: boundary(['^@wbs/contracts$']),
+    },
   ];
 };

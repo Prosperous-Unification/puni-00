@@ -33,6 +33,7 @@ import type {
 } from './records';
 import type { Attempt3, RecoveryClosure } from './recovery-records';
 import type { RuntimeAcceptance, RuntimeIntent } from './runtime-records';
+import type { Attempt4, RecordedWrite } from './write-records';
 
 /** Nonrecursive retained execution checkpoint; wrappers preserve it through uncertainty and settlement. */
 export type Checkpoint =
@@ -90,7 +91,7 @@ export type AttemptState =
       readonly receipt: CommandReceipt;
       readonly quiescence: Quiescence;
     };
-export type Attempt = Attempt2 | Attempt3;
+export type Attempt = Attempt2 | Attempt3 | Attempt4;
 export type { Attempt3 } from './recovery-records';
 export interface Attempt2 {
   readonly version: 2;
@@ -208,10 +209,15 @@ export type RecordedExecution =
       readonly context: ScopeContext;
       readonly reply: TurnStageAck;
     };
-export type ExecutionHistory = ExecutionHistory1 | ExecutionHistory2;
+export type ExecutionHistory = ExecutionHistory1 | ExecutionHistory2 | ExecutionHistory3;
+export interface ExecutionHistory3 extends Omit<ExecutionHistory2, 'version' | 'attempt'> {
+  readonly version: 3;
+  readonly attempt: Attempt;
+  readonly writes: readonly RecordedWrite[];
+}
 export interface ExecutionHistory2 extends Omit<ExecutionHistory1, 'version' | 'attempt'> {
   readonly version: 2;
-  readonly attempt: Attempt;
+  readonly attempt: Attempt2 | Attempt3;
   readonly recoveries: readonly RecoveryClosure[];
 }
 export interface ExecutionHistory1 {

@@ -45,7 +45,13 @@ export interface RuntimeGrant {
   readonly authority: RuntimeAuthority;
 }
 /** Raw inspection validates local history; independent receipt artifacts require {@link readRuntimeHistory}. */
-export type RuntimeScopeSnapshot = RuntimeScopeSnapshot1 | RuntimeScopeSnapshot2;
+export type RuntimeScopeSnapshot =
+  RuntimeScopeSnapshot1 | RuntimeScopeSnapshot2 | RuntimeScopeSnapshot3;
+export type RuntimeScopeSnapshot3 = RuntimeScopeSnapshot2 extends infer Snapshot
+  ? Snapshot extends RuntimeScopeSnapshot2
+    ? Omit<Snapshot, 'version'> & { readonly version: 3 }
+    : never
+  : never;
 export type RuntimeScopeSnapshot2 =
   | (Omit<Extract<RuntimeScopeSnapshot1, { kind: 'uninitialized' }>, 'version'> & {
       readonly version: 2;

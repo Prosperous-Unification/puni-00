@@ -106,54 +106,66 @@ import { readExecutionHistory } from './claim-history';
 import { readRuntimeHistory } from './runtime-history';
 import { prepareSession } from './testing/fixtures';
 
-test('verified runtime read checks active recovery witnesses', async () => {
-  const { stores, history } = await fixture();
-  const rewritten = structuredClone(history);
-  Object.assign(rewritten.fences[0].basis.state.body.value, { basis: 'rb1:' + 'b'.repeat(64) });
-  const runs = {
-    readRuntimeScope: () =>
-      Promise.resolve({
-        version: 2 as const,
-        kind: 'pinned' as const,
-        pin: { version: 1 as const, scope: runtimeScope, ledgerId: 'ledger' },
-        revision: 1,
-        ownerEpoch: 1,
-        intents: [history.intent.target.original],
-        acceptances: [],
-        pendingCommandId: history.intent.target.original.commandId,
-        grant: null,
-        generationFloor: null,
-        activeRecoveryId: history.intent.recoveryId,
-        recoveries: [rewritten],
-      }),
-  };
-  await rejects(readRuntimeHistory(runs, stores.artifacts, runtimeScope));
-});
-test('verified execution read checks active journals even before a closure exists', async () => {
-  const { stores, history: recovery } = await fixture();
-  const setup = await prepareSession({ ...stores, clock: new FixtureClock() });
-  const history = await stores.runs.readExecutionHistory(setup.run.runId, setup.attempt.attemptId);
-  const scope = await stores.runs.readRuntimeScope(setup.scope);
-  if (scope.kind !== 'pinned') throw new Error('expected pinned scope');
-  const rewritten = structuredClone(recovery);
-  Object.assign(rewritten.fences[0].basis.state.body.value, { basis: 'rb1:' + 'b'.repeat(64) });
-  const runs = {
-    ...stores.runs,
-    readExecutionHistory: () =>
-      Promise.resolve({ ...history, version: 2 as const, recoveries: [] }),
-    readRuntimeScope: () =>
-      Promise.resolve({
-        ...scope,
-        version: 2 as const,
-        generationFloor: 1,
-        activeRecoveryId: recovery.intent.recoveryId,
-        recoveries: [rewritten],
-      }),
-  };
-  await rejects(
-    readExecutionHistory(runs, stores.artifacts, setup.run.runId, setup.attempt.attemptId),
+for (const version of [2, 3] as const)
+  test(
+    'verified runtime read checks active recovery witnesses on scope' + String(version),
+    async () => {
+      const { stores, history } = await fixture();
+      const rewritten = structuredClone(history);
+      Object.assign(rewritten.fences[0].basis.state.body.value, { basis: 'rb1:' + 'b'.repeat(64) });
+      const runs = {
+        readRuntimeScope: () =>
+          Promise.resolve({
+            version,
+            kind: 'pinned' as const,
+            pin: { version: 1 as const, scope: runtimeScope, ledgerId: 'ledger' },
+            revision: 1,
+            ownerEpoch: 1,
+            intents: [history.intent.target.original],
+            acceptances: [],
+            pendingCommandId: history.intent.target.original.commandId,
+            grant: null,
+            generationFloor: null,
+            activeRecoveryId: history.intent.recoveryId,
+            recoveries: [rewritten],
+          }),
+      };
+      await rejects(readRuntimeHistory(runs, stores.artifacts, runtimeScope));
+    },
   );
-});
+for (const version of [2, 3] as const)
+  test(
+    'verified execution read checks active journals even before a closure exists on scope' +
+      String(version),
+    async () => {
+      const { stores, history: recovery } = await fixture();
+      const setup = await prepareSession({ ...stores, clock: new FixtureClock() });
+      const history = await stores.runs.readExecutionHistory(
+        setup.run.runId,
+        setup.attempt.attemptId,
+      );
+      const scope = await stores.runs.readRuntimeScope(setup.scope);
+      if (scope.kind !== 'pinned') throw new Error('expected pinned scope');
+      const rewritten = structuredClone(recovery);
+      Object.assign(rewritten.fences[0].basis.state.body.value, { basis: 'rb1:' + 'b'.repeat(64) });
+      const runs = {
+        ...stores.runs,
+        readExecutionHistory: () =>
+          Promise.resolve({ ...history, version: 3 as const, writes: [], recoveries: [] }),
+        readRuntimeScope: () =>
+          Promise.resolve({
+            ...scope,
+            version,
+            generationFloor: 1,
+            activeRecoveryId: recovery.intent.recoveryId,
+            recoveries: [rewritten],
+          }),
+      };
+      await rejects(
+        readExecutionHistory(runs, stores.artifacts, setup.run.runId, setup.attempt.attemptId),
+      );
+    },
+  );
 
 test('verified recovery compares allowed public extensions against actual bytes', async () => {
   const { stores, history } = await fixture();
@@ -184,7 +196,7 @@ test('verified successor execution refuses predecessor scope without recovery wi
       };
     },
     readExecutionHistory: () =>
-      Promise.resolve({ ...history, version: 2 as const, recoveries: [] }),
+      Promise.resolve({ ...history, version: 3 as const, writes: [], recoveries: [] }),
   };
   await rejects(
     readExecutionHistory(runs, stores.artifacts, setup.run.runId, setup.attempt.attemptId),
