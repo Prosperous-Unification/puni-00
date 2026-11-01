@@ -64,9 +64,8 @@ const usage = type({
     }).array(),
   }).array(),
   members: named.array(),
-  // Optional on the wire: an outgoing be-01 mid-swap counts no pins.
-  'pinnedCredentials?': 'number',
-  // Optional on the wire for the same reason (`wbs-machine-credentials`).
+  // Optional on the wire: a be-01 older than `wbs-machine-credentials`
+  // slice 2 omits it; every later release sends it, 0 for a team.
   'machineCredentials?': 'number',
 });
 /**
@@ -210,6 +209,8 @@ const batchRefusals = [
           // `claimWorkItem`/`releaseWorkItem`: the caller may not act as the person named.
           'person_not_bound',
           'credential_not_for_person',
+          // An opted-in run's claim or release for its own person under another run.
+          'run_mismatch',
           'parent_claim_foreign',
         ),
       ),

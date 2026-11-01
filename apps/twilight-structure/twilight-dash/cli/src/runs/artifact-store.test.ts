@@ -55,6 +55,6 @@ test('memory retention requires readback after a failed map write', async () => 
     );
   } finally {
     Object.defineProperty(Map.prototype, 'set', descriptor);
-    stores.close();
+    await stores.close();
   }
 });

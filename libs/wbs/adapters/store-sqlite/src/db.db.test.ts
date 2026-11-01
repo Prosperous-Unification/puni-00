@@ -5,8 +5,18 @@ import { join } from 'node:path';
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- switchToWal is tested on a file not yet in WAL, which openDatabase would already have switched
 import { Database, SQLiteError } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { sql } from 'drizzle-orm';
 
-import { assertPragmas, openDatabase, switchToWal } from './db';
+import {
+  assertPragmas,
+  type Connection,
+  observeCommitted,
+  openDatabase,
+  openReadOnlyConnection,
+  poolReadConnections,
+  STATEMENT_CACHE_SIZE,
+  switchToWal,
+} from './db';
 
 let dir: string;
 
@@ -76,6 +86,214 @@ describe('openDatabase', () => {
       assertPragmas(db);
     }).toThrow(/foreign_keys/);
     db.close();
+  });
+});
+
+describe('statement cache', () => {
+  // Proof: with the `Database.MAX_QUERY_CACHE_SIZE` assignment in db.ts removed, Bun's default
+  // of 20 recompiled the first statement and this test failed `toBe` (watched 2026-10-28).
+  it('keeps a request-sized set of statements compiled', () => {
+    const db = openDatabase(join(dir, 'test.db'));
+    db.run('CREATE TABLE t (a INTEGER)');
+    const first = db.query('SELECT a FROM t WHERE a = 0');
+    for (let n = 1; n < 200; n += 1) db.query(`SELECT a FROM t WHERE a = ${String(n)}`).all();
+    expect(db.query('SELECT a FROM t WHERE a = 0')).toBe(first);
+    expect(STATEMENT_CACHE_SIZE).toBeGreaterThanOrEqual(200);
+    db.close();
+  });
+
+  it('never shares a compiled statement with a replaced handle', () => {
+    const path = join(dir, 'test.db');
+    const before = openDatabase(path);
+    before.run('CREATE TABLE t (a INTEGER)');
+    const statement = before.query('SELECT a FROM t');
+    before.close();
+    const after = openDatabase(path);
+    expect(after.query('SELECT a FROM t')).not.toBe(statement);
+    expect(after.query('SELECT a FROM t').all()).toEqual([]);
+    after.close();
+  });
+
+  it('answers in the new shape after another connection changed the schema', () => {
+    const path = join(dir, 'test.db');
+    const db = openDatabase(path);
+    db.run('CREATE TABLE t (a INTEGER)');
+    db.run('INSERT INTO t VALUES (1)');
+    expect(db.query('SELECT * FROM t').all()).toEqual([{ a: 1 }]);
+    const other = openDatabase(path);
+    other.run('ALTER TABLE t ADD COLUMN b INTEGER DEFAULT 7');
+    other.close();
+    expect(db.query('SELECT * FROM t').all()).toEqual([{ a: 1, b: 7 }]);
+    db.close();
+  });
+});
+
+describe('poolReadConnections', () => {
+  /** A file with one row, its writer, and a factory that counts the connections still open. */
+  function seeded() {
+    const path = join(dir, 'test.db');
+    const writer = openDatabase(path);
+    writer.run('CREATE TABLE t (a INTEGER)');
+    writer.run('INSERT INTO t VALUES (1)');
+    const opened = { now: 0, ever: 0 };
+    const open = (): Connection => {
+      const connection = openReadOnlyConnection(path);
+      opened.now += 1;
+      opened.ever += 1;
+      return {
+        db: connection.db,
+        close: () => {
+          connection.close();
+          opened.now -= 1;
+        },
+      };
+    };
+    return { writer, opened, open };
+  }
+
+  /** The Bun client under a lent handle, read through drizzle's `$client`. */
+  function clientOf(lent: Connection): unknown {
+    return (lent.db as unknown as { $client: unknown }).$client;
+  }
+
+  /** Whether a full checkpoint ran: a reader's snapshot blocks it. */
+  function checkpointed(writer: Database): boolean {
+    const row = writer.query<{ busy: number }, []>('PRAGMA wal_checkpoint(TRUNCATE);').get();
+    return row?.busy === 0;
+  }
+
+  it('lends one connection again, reading what was committed since', () => {
+    const { writer, opened, open } = seeded();
+    const pool = poolReadConnections(open);
+    const first = pool.acquire();
+    expect(first.db.all<{ a: number }>(sql`SELECT a FROM t`)).toEqual([{ a: 1 }]);
+    first.close();
+    writer.run('INSERT INTO t VALUES (2)');
+    const second = pool.acquire();
+    second.db.run(sql.raw('BEGIN DEFERRED'));
+    expect(second.db.all<{ a: number }>(sql`SELECT a FROM t ORDER BY a`)).toEqual([
+      { a: 1 },
+      { a: 2 },
+    ]);
+    second.db.run(sql.raw('COMMIT'));
+    second.close();
+    expect(opened.ever).toBe(1);
+    expect(checkpointed(writer)).toBe(true);
+    pool.close();
+    expect(opened.now).toBe(0);
+    writer.close();
+  });
+
+  it('lends a connection to one caller at a time', () => {
+    const { writer, opened, open } = seeded();
+    const pool = poolReadConnections(open);
+    const first = pool.acquire();
+    const second = pool.acquire();
+    const secondClient = clientOf(second);
+    expect(secondClient).not.toBe(clientOf(first));
+    first.close();
+    first.close();
+    second.close();
+    expect(opened).toEqual({ now: 2, ever: 2 });
+    expect(clientOf(pool.acquire())).toBe(secondClient);
+    pool.close();
+    writer.close();
+  });
+
+  // Proof: handing out the connection's own `db` made this read through the released handle
+  // (watched 2026-10-28).
+  it('refuses a pooled handle used after its release', () => {
+    const { writer, open } = seeded();
+    const pool = poolReadConnections(open);
+    const lent = pool.acquire();
+    const kept = lent.db;
+    lent.close();
+    expect(() => kept.all(sql`SELECT a FROM t`)).toThrow(
+      'a pooled read connection was used after its release',
+    );
+    const next = pool.acquire();
+    expect(next.db.all<{ a: number }>(sql`SELECT a FROM t`)).toEqual([{ a: 1 }]);
+    next.close();
+    pool.close();
+    writer.close();
+  });
+
+  // Proof: closing every released connection made this count { now: 0, ever: 2 }; with
+  // `observeCommitted`'s rollback omitted, the connection was released inside its transaction,
+  // closed, and a second opened ({ now: 1, ever: 2 }) (watched 2026-10-28).
+  it('reuses a connection after a failed read and sees later commits', async () => {
+    const { writer, opened, open } = seeded();
+    const pool = poolReadConnections(open);
+    const failed = await observeCommitted(
+      () => pool.acquire(),
+      (db) => {
+        db.all(sql`SELECT a FROM t`);
+        throw new Error('the read failed');
+      },
+    ).catch((cause: unknown) => cause);
+    expect((failed as Error).message).toBe('the read failed');
+    writer.run('INSERT INTO t VALUES (2)');
+    const rows = await observeCommitted(
+      () => pool.acquire(),
+      (db) => db.all<{ a: number }>(sql`SELECT a FROM t ORDER BY a`),
+    );
+    expect(rows).toEqual([{ a: 1 }, { a: 2 }]);
+    expect(opened).toEqual({ now: 1, ever: 1 });
+    expect(checkpointed(writer)).toBe(true);
+    pool.close();
+    writer.close();
+  });
+
+  // Proof: rethrowing the read's failure alone lost the rollback's (watched 2026-10-28).
+  it('reports a read failure and its failed rollback together', async () => {
+    const { writer, opened, open } = seeded();
+    const pool = poolReadConnections(open);
+    const failure = await observeCommitted(
+      () => pool.acquire(),
+      (db) => {
+        db.run(sql.raw('COMMIT'));
+        throw new Error('the read failed');
+      },
+    ).catch((cause: unknown) => cause);
+    expect(failure).toBeInstanceOf(AggregateError);
+    const [read, rollback] = (failure as AggregateError).errors as [Error, Error];
+    expect(read.message).toBe('the read failed');
+    expect(String(rollback.cause)).toContain('no transaction is active');
+    expect(opened.now).toBe(1);
+    pool.close();
+    writer.close();
+  });
+
+  it('closes a connection released inside a transaction', () => {
+    const { writer, opened, open } = seeded();
+    const pool = poolReadConnections(open);
+    const reader = pool.acquire();
+    reader.db.run(sql.raw('BEGIN DEFERRED'));
+    reader.db.all(sql`SELECT a FROM t`);
+    writer.run('INSERT INTO t VALUES (2)');
+    reader.close();
+    expect(opened.now).toBe(0);
+    expect(checkpointed(writer)).toBe(true);
+    pool.close();
+    writer.close();
+  });
+
+  // Proof: with the `idle.length >= idleLimit` test dropped, this counted three open
+  // connections; with the `closed` test dropped, one stayed open after the pool closed
+  // (watched 2026-10-28).
+  it('keeps at most its idle limit, and nothing after it closed', () => {
+    const { writer, opened, open } = seeded();
+    const pool = poolReadConnections(open, 2);
+    const lent = [pool.acquire(), pool.acquire(), pool.acquire()];
+    for (const connection of lent) connection.close();
+    expect(opened.now).toBe(2);
+    const late = pool.acquire();
+    pool.close();
+    expect(opened.now).toBe(1);
+    late.close();
+    expect(opened.now).toBe(0);
+    expect(() => pool.acquire()).toThrow('the read connection pool is closed');
+    writer.close();
   });
 });
 

@@ -1,16 +1,31 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import {
+  discoverAuthorizationServerMetadata,
+  exchangeAuthorization,
+  refreshAuthorization,
+  registerClient,
+} from '@modelcontextprotocol/sdk/client/auth.js';
 import { JwksTokenVerifier } from '@wbs/auth';
+import { newMachineKey } from '@wbs/core';
+import { Database } from 'bun:sqlite';
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 
 import type { McpConfig } from './config';
 import { mcpFetchHandler } from './http';
-import { McpOAuthServer } from './oauth';
-import { readDocument, toolsFromDocument } from './openapi-tools';
+import { machineGrantClient } from './machine-grant-client';
+import { NO_MACHINE_LIMITS } from './machine-limits';
+import { ActivationMarkersDisagree, McpOAuthServer } from './oauth';
+import { HUMAN_ONLY_OPERATIONS, readDocument, toolsFromDocument } from './openapi-tools';
 import { organizationAuthority } from './organization-authority';
-import { createServer } from './server';
+import { createServer, describeTool } from './server';
+import { McpSessionStore } from './session-store';
+import { CLIENT_CREDENTIALS_GRANT } from './token-request';
+import type { FetchLike } from './wbs-client';
 
 /**
  * Tasks 2.5, 6.4 and 6.6 end to end: mcp-01's real OAuth front, tool surface
@@ -33,6 +48,28 @@ const MCP_URL = 'https://mcp.test/mcp';
 const OAUTH = 'https://mcp.test/mcp/oauth';
 const CALLBACK = 'https://claude.ai/api/mcp/auth_callback';
 const VERIFIER = 'v'.repeat(43);
+/**
+ * The machine token of task 5.2's parity test. This be-01 holds no grant keys, so a stand-in
+ * answers the grant route; `tools/list` asks be-01 nothing, so the token is never sent there.
+ */
+const MACHINE_SECRET = randomBytes(32).toString('base64url');
+const MACHINE_CREDENTIAL = '6f1c2b3a-4d5e-4f60-8a7b-9c0d1e2f3a4b';
+const MACHINE_KEY = newMachineKey(MACHINE_CREDENTIAL).key;
+const grantStandIn: FetchLike = (url) => {
+  if (new URL(url).pathname !== '/internal/mcp/machine-grants')
+    return Promise.reject(new Error(`the grant stand-in answers no ${url}`));
+  return Promise.resolve(
+    Response.json({
+      grant: 'grant-parity',
+      credentialId: MACHINE_CREDENTIAL,
+      personId: 'claire',
+      organizationId: 'org-default',
+      scopes: ['read', 'write'],
+      expiresAt: Math.floor(Date.now() / 1000) + 3_600 + 60,
+      runId: null,
+    }),
+  );
+};
 
 let upstreamKeys: CryptoKeyPair;
 let jwks: ReturnType<typeof Bun.serve>;
@@ -43,6 +80,10 @@ let handle: (request: Request) => Promise<Response>;
 /** Who the fake provider signs the next login and refresh as, and for how long. */
 const login = { subject: 'auth0|dany', lifetimeSeconds: 900 };
 let refreshes = 0;
+/** Deployment faults mcp-01 reported. */
+const faults: Error[] = [];
+let config: McpConfig;
+let verifier: JwksTokenVerifier;
 
 function upstreamToken(subject: string, lifetimeSeconds: number): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
@@ -89,13 +130,14 @@ beforeAll(async () => {
   const { port } = JSON.parse(printed.split('\n')[0] ?? '') as { port: number };
   beUrl = `http://127.0.0.1:${String(port)}`;
 
-  const config: McpConfig & { readonly INTERNAL_AUTH_SECRET: string } = {
+  config = {
     MCP_AUTH_MODE: 'standalone',
     MCP_PUBLIC_URL: MCP_URL,
+    MCP_TRUSTED_PROXY_HOPS: 1,
     WBS_API_URL: beUrl,
     INTERNAL_AUTH_SECRET: BOOTED_INTERNAL_SECRET,
   };
-  const verifier = new JwksTokenVerifier({
+  verifier = new JwksTokenVerifier({
     audience: AUDIENCE,
     issuer: ISSUER,
     jwksUri: new URL(jwksUrl),
@@ -126,6 +168,18 @@ beforeAll(async () => {
       groupPrefix: 'dev',
       verifyUpstream: (token) => verifier.verify(token),
       organizations: organizationAuthority(config),
+      reportFault: (fault) => faults.push(fault),
+      machineGrants: {
+        client: machineGrantClient(
+          { ...config, MCP_BE_INTERNAL_SECRET: MACHINE_SECRET },
+          grantStandIn,
+        ),
+        secret: MACHINE_SECRET,
+        tokenTtlSeconds: 3_600,
+        jitter: () => 0,
+        limit: NO_MACHINE_LIMITS,
+        reportFault: (fault) => faults.push(fault),
+      },
     },
   );
   const tools = toolsFromDocument(readDocument());
@@ -178,28 +232,7 @@ async function connect(
     }),
   );
   const clientId = ((await registered.json()) as { client_id: string }).client_id;
-  const authorize = new URL(`${OAUTH}/authorize`);
-  authorize.search = new URLSearchParams({
-    client_id: clientId,
-    code_challenge: createHash('sha256').update(VERIFIER).digest('base64url'),
-    code_challenge_method: 'S256',
-    redirect_uri: CALLBACK,
-    response_type: 'code',
-    scope: 'wbs:read wbs:write',
-  }).toString();
-  const started = await oauthCall(new Request(authorize));
-  const binding = started.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
-  const state = new URL(started.headers.get('location') ?? '').searchParams.get('state') ?? '';
-  let callback = await oauthCall(
-    new Request(`${OAUTH}/callback?code=upstream&state=${state}`, { headers: { cookie: binding } }),
-  );
-  if (callback.status === 200) callback = await choose(callback, options.agent);
-  else if (options.agent !== undefined) throw new Error('no choice page offered the agent');
-  if (callback.status !== 302)
-    throw new Error(`consent did not redirect: ${String(callback.status)}`);
-  const code = new URL(callback.headers.get('location') ?? '').searchParams.get('code');
-  if (code === null)
-    throw new Error(`consent refused: ${String(callback.headers.get('location'))}`);
+  const code = await consentCode(clientId, options.agent);
   const token = await oauthCall(
     new Request(`${OAUTH}/token`, {
       method: 'POST',
@@ -215,6 +248,33 @@ async function connect(
   );
   const body = (await token.json()) as { access_token: string; refresh_token: string };
   return { access: body.access_token, refresh: body.refresh_token, clientId };
+}
+
+/** Authorization through consent for `clientId`, with {@link VERIFIER}'s challenge; the code. */
+async function consentCode(clientId: string, agent: string | undefined): Promise<string> {
+  const authorize = new URL(`${OAUTH}/authorize`);
+  authorize.search = new URLSearchParams({
+    client_id: clientId,
+    code_challenge: createHash('sha256').update(VERIFIER).digest('base64url'),
+    code_challenge_method: 'S256',
+    redirect_uri: CALLBACK,
+    response_type: 'code',
+    scope: 'wbs:read wbs:write',
+  }).toString();
+  const started = await oauthCall(new Request(authorize));
+  const binding = started.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+  const state = new URL(started.headers.get('location') ?? '').searchParams.get('state') ?? '';
+  let callback = await oauthCall(
+    new Request(`${OAUTH}/callback?code=upstream&state=${state}`, { headers: { cookie: binding } }),
+  );
+  if (callback.status === 200) callback = await choose(callback, agent);
+  else if (agent !== undefined) throw new Error('no choice page offered the agent');
+  if (callback.status !== 302)
+    throw new Error(`consent did not redirect: ${String(callback.status)}`);
+  const code = new URL(callback.headers.get('location') ?? '').searchParams.get('code');
+  if (code === null)
+    throw new Error(`consent refused: ${String(callback.headers.get('location'))}`);
+  return code;
 }
 
 /** The agent labels of the last choice page, in page order. */
@@ -316,6 +376,47 @@ async function tool(
   };
 }
 
+/** One listed tool as `tools/list` answers it. */
+interface ListedTool {
+  readonly name: string;
+  readonly description: string;
+  readonly inputSchema: unknown;
+}
+
+/** `tools/list` through mcp-01's HTTP surface with `access`. */
+async function listTools(access: string): Promise<ListedTool[]> {
+  rpcId += 1;
+  const response = await handle(
+    new Request(MCP_URL, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${access}`,
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: rpcId, method: 'tools/list', params: {} }),
+    }),
+  );
+  if (response.status !== 200) throw new Error(`tools/list answered ${String(response.status)}`);
+  return ((await response.json()) as { result: { tools: ListedTool[] } }).result.tools;
+}
+
+/** A machine token from the token endpoint, its grant from {@link grantStandIn}. */
+async function machineToken(): Promise<string> {
+  const response = await oauthCall(
+    new Request(`${OAUTH}/token`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: `Basic ${btoa(`${MACHINE_CREDENTIAL}:${MACHINE_KEY}`)}`,
+      },
+      body: new URLSearchParams({ resource: MCP_URL, grant_type: CLIENT_CREDENTIALS_GRANT }),
+    }),
+  );
+  if (response.status !== 200) throw new Error(`machine token refused: ${await response.text()}`);
+  return ((await response.json()) as { access_token: string }).access_token;
+}
+
 const projectNames = (text: string) =>
   (JSON.parse(text) as { projects: { name: string }[] }).projects.map((p) => p.name).toSorted();
 
@@ -391,18 +492,99 @@ describe('MCP organization delegation against a booted be-01', () => {
     expect(forged.text).toContain('does not declare an input named "organizationId"');
   });
 
-  test('a raw upstream Bearer with no delegation is refused', async () => {
+  test('a raw upstream Bearer is a reported fault while the markers disagree', async () => {
+    // This mcp-01's store is still at epoch 0 while be-01 is activated: the activation runbook
+    // was half run (`wbs-mcp-agent-surface` M13, "Markers disagree").
     const raw = await upstreamToken('auth0|dany', 900);
-    // Through mcp-01 as a direct upstream token: be-01 receives it unbound.
+    const before = faults.length;
     const viaMcp = await tool(raw, 'getApiProjects', {});
-    expect(viaMcp.isError).toBe(true);
-    expect(viaMcp.text).toContain('no_active_organization');
-    // And straight at be-01.
+    expect(viaMcp.status).toBe(502);
+    expect(faults.slice(before).map((fault) => fault.constructor)).toEqual([
+      ActivationMarkersDisagree,
+    ]);
+    // Straight at be-01 it is refused too.
     const direct = await fetch(`${beUrl}/api/projects`, {
       headers: { authorization: `Bearer ${raw}` },
     });
     expect(direct.status).toBe(403);
     expect(await direct.json()).toEqual({ error: 'no_active_organization' });
+  });
+
+  test('an Auth0 token on /mcp is 401 once both markers are set, and be-01 sees nothing', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mcp-activated-'));
+    const path = join(dir, 'sessions.sqlite');
+    try {
+      new McpSessionStore(path, [randomBytes(32)]).close();
+      // The operator's epoch step, as `credential-epoch.test.ts` stands for another writer.
+      const db = new Database(path);
+      db.run('UPDATE mcp_credential_epoch SET epoch = 1');
+      db.close();
+      const store = new McpSessionStore(path, [randomBytes(32)]);
+      const reached: string[] = [];
+      const counted = (input: string, init: Parameters<typeof fetch>[1]) => {
+        reached.push(input);
+        return fetch(input, init);
+      };
+      const activated = new McpOAuthServer(
+        config,
+        {
+          authorizationUrl: () => Promise.reject(new Error('no consent here')),
+          exchange: () => Promise.reject(new Error('no consent here')),
+          refresh: () => Promise.reject(new Error('no consent here')),
+          revoke: () => Promise.resolve(),
+        },
+        {
+          store,
+          groupPrefix: 'dev',
+          verifyUpstream: (token) => verifier.verify(token),
+          organizations: organizationAuthority(config, counted),
+          reportFault: (fault) => faults.push(fault),
+        },
+      );
+      const tools = toolsFromDocument(readDocument());
+      const activatedHandle = mcpFetchHandler(
+        () =>
+          createServer({
+            tools,
+            config,
+            fetchImpl: counted,
+            reportUnexpectedToolFailure: (cause) => {
+              throw cause instanceof Error ? cause : new Error(String(cause));
+            },
+            bearerFor: (sessionId, upstream, scopes) =>
+              activated.bearerFor(sessionId, upstream, scopes),
+          }),
+        config,
+        activated,
+        {},
+        activated,
+      );
+      const response = await activatedHandle(
+        new Request(MCP_URL, {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${await upstreamToken('auth0|dany', 900)}`,
+            'content-type': 'application/json',
+            accept: 'application/json, text/event-stream',
+          },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'tools/call',
+            params: { name: 'getApiProjects', arguments: {} },
+          }),
+        }),
+      );
+      // Proof: with the upstream fallback restored (the epoch refusal in `admitUpstream` and the
+      // throw in `bearerFor` removed), this answered 200 and be-01 was asked
+      // `/api/projects` with the Auth0 token; watched 2026-10-27.
+      expect(response.status).toBe(401);
+      expect(response.headers.get('www-authenticate')).toContain('error="invalid_token"');
+      expect(reached).toEqual([]);
+      store.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test('keeps the signed delegation through an upstream refresh retry', async () => {
@@ -453,9 +635,10 @@ describe('MCP organization delegation against a booted be-01', () => {
     }[];
     expect(claimed.length).toBeGreaterThan(0);
     expect(new Set(claimed.map((row) => row.personId))).toEqual(new Set(['claire']));
-    const members = await tool(claire.access, 'getApiOrganizationMembers', {});
-    expect(members.isError).toBe(true);
-    expect(members.text).toContain('insufficient_scope');
+    // The members routes are humanOnly (M8): no tool at all, not a refused one.
+    const listed = (await listTools(claire.access)).map(({ name }) => name);
+    expect(listed).toContain('getApiProjects');
+    expect(listed).not.toContain('getApiOrganizationMembers');
   });
 
   // `wbs-claim-own-person`: a claim naming no person is the consent's agent's.
@@ -515,6 +698,28 @@ describe('MCP organization delegation against a booted be-01', () => {
     expect(unnamed.isError).toBe(true);
     expect(unnamed.text).toContain('HTTP 400');
     expect(unnamed.text).toContain('person_required');
+  });
+
+  // Task 5.2: the tool list is the deployment's, never the principal's.
+  // Proof: with the `tools/list` handler (server.ts) hiding non-GET tools from a caller whose
+  // authInfo carries a machine caller, this failed on the machine list missing every write tool;
+  // watched 2026-10-28.
+  test('a consented human, a consented agent and a machine token list the same tools', async () => {
+    const human = await listTools(sessions['dany'] ?? '');
+    const agent = await listTools(claire.access);
+    const machine = await listTools(await machineToken());
+    expect(agent).toEqual(human);
+    expect(machine).toEqual(human);
+    // Non-vacuous: the shared list is the whole derived set, and no humanOnly shape is in it.
+    const derived = toolsFromDocument(readDocument());
+    expect(human.map(({ name, description }) => ({ name, description }))).toEqual(
+      derived.map((each) => ({ name: each.name, description: describeTool(each) })),
+    );
+    const names = new Set(human.map(({ name }) => name));
+    expect(HUMAN_ONLY_OPERATIONS.filter(({ operationId }) => names.has(operationId))).toEqual([]);
+    expect(
+      names.has('putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report'),
+    ).toBe(true);
   });
 
   test('a second consent for the same agent mints a second credential', async () => {
@@ -582,5 +787,107 @@ describe('MCP organization delegation against a booted be-01', () => {
     );
     expect(refreshed.status).toBe(400);
     expect(await refreshed.json()).toEqual({ error: 'invalid_grant' });
+  });
+
+  // Task 3.9 (M17): claude.ai's connector registers `client_secret_post`, because the metadata
+  // lists the machine grants' methods. The MCP SDK stands in for claude.ai at the token
+  // endpoint: it reads the method from the registration answer and sends the secret by it.
+  // It signs in as grace, whom no earlier test removes, and makes its own project, so it reads
+  // nothing an earlier test wrote.
+  // Proof: 2026-10-31, with registration accepting only `none` again (oauth.ts `register`) this
+  // failed at `registerClient` with the live `invalid_client_metadata`.
+  test('a claude.ai-shaped confidential connector consents, calls a tool and refreshes', async () => {
+    login.subject = 'auth0|grace';
+    login.lifetimeSeconds = 900;
+    const fetchFn = (input: string | URL, init?: RequestInit) => handle(new Request(input, init));
+    const metadata = await discoverAuthorizationServerMetadata(OAUTH, { fetchFn });
+    if (metadata === undefined) throw new Error('no authorization server metadata');
+    expect(metadata.token_endpoint_auth_methods_supported).toContain('client_secret_post');
+    const client = await registerClient(OAUTH, {
+      metadata,
+      clientMetadata: {
+        client_name: 'Claude',
+        redirect_uris: [CALLBACK],
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'client_secret_post',
+      },
+      fetchFn,
+    });
+    expect(client.token_endpoint_auth_method).toBe('client_secret_post');
+    if (client.client_secret === undefined) throw new Error('registration issued no secret');
+    const sent: Request[] = [];
+    const recording = (input: string | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      sent.push(request.clone());
+      return handle(request);
+    };
+    const tokens = await exchangeAuthorization(OAUTH, {
+      metadata,
+      clientInformation: client,
+      authorizationCode: await consentCode(client.client_id, undefined),
+      codeVerifier: VERIFIER,
+      redirectUri: CALLBACK,
+      fetchFn: recording,
+    });
+    const exchanged = new URLSearchParams(await sent[0]?.text());
+    expect(exchanged.get('client_secret')).toBe(client.client_secret);
+    expect(sent[0]?.headers.get('authorization')).toBeNull();
+    const created = await tool(tokens.access_token, 'postApiProjects', { name: 'Confidential' });
+    expect(created.isError).toBe(false);
+    const listed = await tool(tokens.access_token, 'getApiProjects', {});
+    expect(listed.isError).toBe(false);
+    expect(projectNames(listed.text)).toContain('Confidential');
+    const refreshed = await refreshAuthorization(OAUTH, {
+      metadata,
+      clientInformation: client,
+      refreshToken: tokens.refresh_token ?? '',
+      fetchFn,
+    });
+    expect((await tool(refreshed.access_token, 'getApiProjects', {})).isError).toBe(false);
+
+    // Without its secret, the same client is refused, and so is an API key on either grant.
+    const withoutSecret = await oauthCall(
+      new Request(`${OAUTH}/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: refreshed.refresh_token ?? '',
+          client_id: client.client_id,
+        }),
+      }),
+    );
+    expect(withoutSecret.status).toBe(401);
+    const asKey = await oauthCall(
+      new Request(`${OAUTH}/token`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          authorization: `Basic ${btoa(`${MACHINE_CREDENTIAL}:${MACHINE_KEY}`)}`,
+        },
+        body: new URLSearchParams({
+          code: await consentCode(client.client_id, undefined),
+          code_verifier: VERIFIER,
+          grant_type: 'authorization_code',
+          redirect_uri: CALLBACK,
+        }),
+      }),
+    );
+    expect(await asKey.json()).toEqual({ error: 'invalid_grant' });
+    const asMachine = await oauthCall(
+      new Request(`${OAUTH}/token`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: CLIENT_CREDENTIALS_GRANT,
+          resource: MCP_URL,
+          client_id: client.client_id,
+          client_secret: client.client_secret,
+        }),
+      }),
+    );
+    expect(asMachine.status).toBe(401);
+    expect(await asMachine.json()).toEqual({ error: 'invalid_client' });
   });
 });

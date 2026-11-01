@@ -22,6 +22,7 @@ import { UpstreamRejected } from './wbs-client';
 const CONFIG: McpConfig = {
   MCP_AUTH_MODE: 'standalone',
   MCP_PUBLIC_URL: 'https://dev.wbs.bulletpoints.club/mcp',
+  MCP_TRUSTED_PROXY_HOPS: 1,
   WBS_API_URL: 'https://dev.wbs.bulletpoints.club',
 };
 const BASE = 'https://dev.wbs.bulletpoints.club/mcp/oauth';
@@ -84,6 +85,7 @@ function server(
   consent?: ConsentOrganizations,
   upstream: Upstream = {},
   ends: { credentialId: string; familyId: string }[] = [],
+  config: McpConfig = CONFIG,
 ): McpOAuthServer {
   let counter = 0;
   const organizations: OrganizationAuthority | undefined =
@@ -105,7 +107,7 @@ function server(
             }),
         };
   return new McpOAuthServer(
-    CONFIG,
+    config,
     {
       authorizationUrl: (input) =>
         Promise.resolve(new URL(`https://idp.example/authorize?state=${input.state}`)),
@@ -133,7 +135,14 @@ function server(
               wbs_groups: ['dev:wbs:read', 'dev:wbs:write'],
             })
           : Promise.reject(new Error('not an upstream token')),
-      ...(organizations === undefined ? {} : { organizations }),
+      ...(organizations === undefined
+        ? {}
+        : {
+            organizations,
+            reportFault: (fault) => {
+              throw fault;
+            },
+          }),
     },
   );
 }
@@ -394,7 +403,7 @@ describe('credential epoch advance', () => {
       db.run('PRAGMA journal_mode = WAL');
       migrateMcpStore(db, true, MCP_STORE_MIGRATIONS.slice(0, 2));
     });
-    expect(() => advanceCredentialEpoch(path, 1_234, true)).toThrow(/applied 2 of 4 migrations/);
+    expect(() => advanceCredentialEpoch(path, 1_234, true)).toThrow(/applied 2 of 5 migrations/);
     expect(storeState(path).epoch).toBe(0);
   });
 
@@ -648,6 +657,41 @@ describe('pre-activation access, refresh and code refusal', () => {
       const { callback } = await consent(oauth);
       expect(callback.searchParams.get('error')).toBe('temporarily_unavailable');
       expect(callback.searchParams.get('code')).toBeNull();
+    } finally {
+      store.close();
+    }
+  });
+
+  it('never forwards a sessionless token after activation', async () => {
+    const path = storePath();
+    new McpSessionStore(path, [KEY]).close();
+    const store = new McpSessionStore(path, [KEY]);
+    try {
+      const before = server(store, ACTIVATED_ONE);
+      // Before activation a sessionless upstream caller keeps today's forwarding.
+      expect(await before.bearerFor(null, 'upstream-token', ['read'])).toBe('upstream-token');
+      raiseEpoch(path);
+      expect(await rejection(before.bearerFor(null, 'upstream-token', ['read']))).toBeInstanceOf(
+        Error,
+      );
+    } finally {
+      store.close();
+    }
+  });
+
+  it('keeps forwarding in gateway mode after activation', async () => {
+    const path = storePath();
+    new McpSessionStore(path, [KEY]).close();
+    raiseEpoch(path);
+    const store = new McpSessionStore(path, [KEY]);
+    try {
+      const gateway = server(store, ACTIVATED_ONE, {}, [], {
+        ...CONFIG,
+        MCP_AUTH_MODE: 'gateway',
+        MCP_TRUSTED_GATEWAY: 'true',
+      });
+      // The gateway verified the token; mcp-01 forwards it as before (M11, M13).
+      expect(await gateway.bearerFor(null, 'gateway-token', ['read'])).toBe('gateway-token');
     } finally {
       store.close();
     }

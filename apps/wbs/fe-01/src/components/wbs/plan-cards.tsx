@@ -25,6 +25,7 @@ import { type AttemptActions, AttemptsSection } from './attempts-section';
 import { CellInput } from './cell-input';
 import type { CellRef } from './cell-navigation';
 import { ClaimChip, type DrawnClaim } from './claim-chip';
+import { claimActions, type ClaimOffer } from './claim-offer';
 import { DEADLINE_EFFECT_HINT } from './column-hints';
 import {
   type PickableEntry,
@@ -86,6 +87,8 @@ export interface CardRow {
  */
 export interface CardAssignee {
   name: string;
+  /** The folded cell's mark for `name`, distinct among the plan's people (C22). */
+  initials: string;
   assumed: boolean;
   /**
    * Why this person is marked as assigned outside the team — the whole
@@ -484,6 +487,15 @@ export interface CardRowActionHandlers {
   chooseStatus: (rowId: string, status: SettableStatus) => void;
   /** The statuses the row's menu offers, the table's own {@link statusOffersOf}. */
   statusOffers: (row: TreeRow) => SettableStatus[];
+  /**
+   * The table's own Claim / Release my claim (`wbs-claim-display` 11.2);
+   * absent where the table was drawn for no account, as its ⋯ then offers none.
+   */
+  claims?: {
+    offerOf: (row: TreeRow) => ClaimOffer | null;
+    claim: (rowId: string, personId: string) => void;
+    release: (rowId: string, personId: string, delegated: number) => void;
+  };
 }
 
 /**
@@ -494,11 +506,26 @@ export interface CardRowActionHandlers {
  */
 const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): MenuAction[] => [
   // The same list the table's ⋯ offers (`plan-columns/actions.tsx`), in the
-  // same order: the status entries, Add child, Move under…, Duplicate, Measures…, Unfreeze where it
+  // same order: the status entries, Claim or Release my claim, Add child, Move under…, Duplicate, Measures…, Unfreeze where it
   // applies, and Delete last in the destructive tint.
   ...statusActions(handlers.statusOffers(row), (status) => {
     handlers.chooseStatus(row.id, status);
   }),
+  // Proof: dropping this arm made `offers the same Claim on a phone card` fail
+  // on `Unable to find … "menuitem" and name "Claim"`; watched 2026-10-27.
+  ...(handlers.claims === undefined
+    ? []
+    : (() => {
+        const { claims } = handlers;
+        return claimActions(claims.offerOf(row), {
+          claim: (personId) => {
+            claims.claim(row.id, personId);
+          },
+          release: (personId, delegated) => {
+            claims.release(row.id, personId, delegated);
+          },
+        });
+      })()),
   {
     id: 'add-child',
     label: 'Add child',

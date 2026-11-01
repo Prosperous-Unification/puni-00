@@ -32,7 +32,7 @@ export function receiptsContract(name: string, create: () => Promise<OutcomeFixt
       try {
         expect(typeof stores.runs.reconcileReceipt).toBe('function');
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     test('only exact command authority can remove outbox and become terminal', async () => {
@@ -92,7 +92,7 @@ export function receiptsContract(name: string, create: () => Promise<OutcomeFixt
         });
         expect(await runs.readRun(setup.run.runId)).toEqual(after);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
     test('claimed failed predecessors refuse retry while historical receipts retain original replies', async () => {
@@ -130,7 +130,7 @@ export function receiptsContract(name: string, create: () => Promise<OutcomeFixt
         expect(history.receipt?.reply).toEqual(terminal);
         expect(await runs.readRun(setup.run.runId)).toEqual(before);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
   });

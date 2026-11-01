@@ -1,6 +1,6 @@
 import type { CredentialPin } from '@wbs/contracts';
 
-export type { CredentialPair, CredentialPin } from '@wbs/contracts';
+export type { CredentialPin } from '@wbs/contracts';
 import type {
   Claim,
   LeaseReleaseReason,
@@ -170,14 +170,21 @@ export interface ClaimStore extends ClaimIdentity {
   /**
    * Moves every lease of `personId` that is in force, not revoked, and due
    * (`renewalAt`) to a fresh expiry, in every project (`wbs-claim-leases` L4,
-   * L5), and answers the person's standing after it. It reads `now` and the
+   * L5), and answers the person's standing after it. A `runId` scopes both to
+   * that person's leases of that run and the person's no-run leases (taken
+   * before it opted in; `wbs-mcp-agent-surface` M15, an assumption Dany may
+   * reverse); **null
+   * means every lease of the person, those of every run included**, never
+   * "`run_id IS NULL`": a caller with no run (a raw API key, a grant without
+   * `wbs_run`, a consent) keeps renewing what opted-in processes of its person
+   * hold. It reads `now` and the
    * due leases first, and takes the write turn only when one is due; inside
    * the turn it reads `now` again and decides against that instant, so a
    * heartbeat queued behind a long write never renews a lease that ran out
    * while it waited. The projects it answers are those whose leases that
    * decision moved.
    */
-  renewLeases(personId: string, now: () => number): Promise<LeaseRenewal>;
+  renewLeases(personId: string, runId: string | null, now: () => number): Promise<LeaseRenewal>;
   /**
    * The project's claims whose lease has run out at `at` (expiry at or before
    * it), in claim-id order, each with its reason: `credential_revoked` when
@@ -229,33 +236,34 @@ export interface ClaimIdentity {
    */
   boundAccountOf(personId: string): Promise<string | null>;
   /**
-   * The person the request's credential is pinned to: a machine credential's
-   * own person, or for an upstream pair `external_identity.person_id`; null
-   * for an unpinned one. A request with neither (a password or native
-   * session) is unpinned: pass null.
+   * The person the request's credential is pinned to: a machine or consent
+   * credential's own person; null for an unpinned request (pass null).
    */
   pinnedPersonOf(credential: CredentialPin | null): Promise<string | null>;
 }
 
 /**
- * The {@link ClaimIdentity} a directory answers: its binding and its pin reads
- * (`wbs-team-claims` D5, D6), so a claim reads the same rows `patchPerson`
- * and `link-credential-cli.ts` write.
- *
- * Proof: the pin read answering null made `refuses a pinned credential claiming
- * as another agent` (`claim-command.test.ts`, memory) and `claims as its
- * person and is refused as any other …` (`claim-identity.controller.db.test.ts`,
- * SQLite) accept the claim (watched 2026-10-20).
+ * The run a request's pin opted into (`wbs-mcp-agent-surface` M15): a machine
+ * grant's `wbs_run`, else null (a consent, a raw key, a grant without a run,
+ * or no pin).
  */
-export function claimIdentityOf(
-  directory: Pick<DirectoryStore, 'boundAccountOf' | 'credentialPinOf'>,
-): ClaimIdentity {
+export function pinnedRunOf(credential: CredentialPin | null): string | null {
+  return credential?.runId ?? null;
+}
+
+/**
+ * The {@link ClaimIdentity} a directory answers: its binding read
+ * (`wbs-team-claims` D5), so a claim reads the row `patchPerson` writes, and
+ * the credential's own pin.
+ *
+ * Proof: the pin answering null made `refuses a pinned credential claiming as
+ * another agent` (`claim-command.test.ts`, memory) and `claims as its person
+ * and is refused as any other …` (`machine-credential.controller.db.test.ts`,
+ * SQLite) accept the claim (watched 2026-10-25).
+ */
+export function claimIdentityOf(directory: Pick<DirectoryStore, 'boundAccountOf'>): ClaimIdentity {
   return {
     boundAccountOf: (personId) => directory.boundAccountOf(personId),
-    pinnedPersonOf: (credential) => {
-      if (credential === null) return Promise.resolve(null);
-      if ('personId' in credential) return Promise.resolve(credential.personId);
-      return directory.credentialPinOf(credential.issuer, credential.subject);
-    },
+    pinnedPersonOf: (credential) => Promise.resolve(credential?.personId ?? null),
   };
 }

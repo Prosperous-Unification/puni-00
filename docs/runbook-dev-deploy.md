@@ -28,7 +28,8 @@ git push && ./bin/dev-deploy.sh
 `git reset --hard` its checkout at `/home/puni1/wbs-dev/src`. That checkout is bind-mounted
 into one container, `wbs-dev-src`, running all three tiers via `bun run dev` — be-01 and
 gw-01 under `bun --watch`, fe-01 under Vite. **For application code the watchers are the
-deploy**; nothing is built, pushed or restarted.
+deploy**; nothing is built or pushed, and nothing restarts unless a watcher fails to reload
+(see [Which commit dev runs](#which-commit-dev-runs)).
 
 The public frontend remains Vite's source server, not a production build: keeping transforms
 on demand is what makes a source checkout deploy in seconds. Its public process deliberately
@@ -46,12 +47,55 @@ non-empty as well.
 Verified 2026-08-04: a pushed change appeared on dev with the container's `StartedAt`
 unchanged to the nanosecond.
 
+### Which commit dev runs
+
+be-01's `/health` answers two commits, and only one of them is the running code:
+
+- `commit` is **the checkout on disk**, read on every request.
+- `bootCommit` is **the code running**, read once when be-01 booted. The poller records a
+  commit as proven only when `bootCommit` equals it; an absent or `null` one is unproven.
+
+They differ whenever a watcher misses a reset. On 2026-10-26, after #758 merged as
+`3cd6e2751`, `commit` named it while be-01 still served the old `/api/openapi.json`:
+`bun --watch` had not reloaded after the poller's reset, and only
+`docker restart wbs-dev-src` fixed it.
+
+`tool-devsync` therefore waits after every reset for `bootCommit` to equal the new HEAD:
+30 s for a code-only reset, 120 s when the deploy itself restarted for a `RESTART_PATHS`
+change. If it does not converge, it restarts the container once, waits up to 120 s more, and
+then fails the deploy naming what be-01 reported (`convergeBootCommits` in
+`tools/tool-devsync/src/boot-convergence.ts`). A reset that changes nothing under `apps/`,
+`libs/` or `tools/` (docs only, say) reloads no watcher, so it restarts at once instead of
+waiting. gw-01 and mcp-01 report no boot commit; the restart covers them, but their staleness
+is not observed.
+
+`sync.ts` holds the deploy lock for the whole convergence, up to about 4.5 minutes, so a
+manual `bin/dev-deploy.sh` queues behind it on the poll lock. A deploy that fails this way
+exits 76: the poller records the commit as synced but unproven, and later ticks retry only the
+`bootCommit` proof — no reset back, no second restart. Repair by reading the tier log and
+restarting by hand.
+
+After a merge, verify the running code, not the disk:
+
+```sh
+ssh h2puni 'docker exec wbs-dev-src curl -s http://127.0.0.1:3100/health'
+# {"status":"ok","commit":"<sha>","bootCommit":"<sha>"} — bootCommit must be the merge
+```
+
+**The `bootCommit` proof and the exit-76 handling live in `bin/dev-poll.sh`, which does not
+update itself.** Each tick streams `bin/dev-poll-sync.sh` and `sync.ts` from the target commit,
+but `/home/puni1/wbs-dev/bin/poll.sh` is the copy installed by
+[Durable poller recovery](#durable-poller-recovery). Until that block is rerun with this
+commit's `bin/dev-poll.sh`, the installed poller still proves on `commit` and treats exit 76 as
+an incomplete sync: it resets back and re-syncs every tick, restarting the container each time.
+Reinstall the poller pair right after this change merges.
+
 **Not every change can reach a running process that way.** This is the constraint the
 design trades for its speed — know which row your change is in:
 
 | Change                                                          | What carries it                                                                                                                                                                                                                                                             |
 | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| App source under `apps/wbs/*/src`                               | The watchers. Nothing restarts.                                                                                                                                                                                                                                             |
+| App source under `apps/wbs/*/src`                               | The watchers. `tool-devsync` restarts the container only when be-01's `bootCommit` has not reached the new HEAD within 30 seconds.                                                                                                                                          |
 | `bun.lock`                                                      | `tool-devsync` restarts and runs `bun install`.                                                                                                                                                                                                                             |
 | A migration under `apps/wbs/mcp-01/drizzle`                     | mcp-01's watcher: the SQL is imported as text, so the process restarts and migrates its store at boot. A refused store keeps mcp-01 down with the reason in its log.                                                                                                        |
 | A migration under `apps/wbs/be-01/drizzle`                      | `tool-devsync` restarts; be-01 migrates at boot (`MIGRATE_ON_STARTUP=true`). Migrations are imported by no watched module, so nothing else would notice one arrive.                                                                                                         |
@@ -247,7 +291,7 @@ a tick; `sync.ts`'s deploy lock still serializes host work and checkout mutation
 throws before reset, the checkout stays put; a later fixed target supplies and executes its own
 repaired deployer on the next tick, against the contract it was written with rather than the
 checkout's. The target tool still performs every solver, restart, recreate, and post-reset HEAD
-check, while the outer poll lock and `/health` commit proof remain intact. Do not recover with a raw
+check, while the outer poll lock and `/health` `bootCommit` proof remain intact. Do not recover with a raw
 `git reset`; that bypasses the checks whose refusal is the reason the checkout did not move.
 
 **The candidate initially has no `node_modules`, and a tick that refuses with `the deployer's import graph does
@@ -332,6 +376,6 @@ Observed 2026-10-17: a gate in the dev source checkout started on `b1ce4e74` at
 07:39:10 UTC; the poller reset that checkout at 07:40:02 UTC. Prettier then reported
 `ENOENT` while reading the changing tree. That interrupted attempt cannot prove
 the requested commit. The dev backend recovered after a container restart, and
-`/health` reported `e8894d0`; that health response proves the running dev revision,
-not the interrupted gate's result. Use an isolated worktree for the replacement
-exact-SHA gate.
+`/health` reported `e8894d0`; that `commit` proves the checkout revision (only
+`bootCommit` names the running one), not the interrupted gate's result. Use an
+isolated worktree for the replacement exact-SHA gate.

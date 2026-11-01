@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppFaultBoundary } from '@/components/chrome/app-fault';
 import { checkClaimsRead } from '@/lib/wbs-api';
 import type { OpenProjectStream } from '@/modules/project/contract';
-import { claimedPlan } from '@/testing/claims-fixture';
+import { CLAIMED_AT, claimedPlan } from '@/testing/claims-fixture';
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { projectServicesOf } from '@/testing/project-services-of';
@@ -12,7 +12,7 @@ import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import { CLAIM_SLOT_PX } from './claim-chip';
 import { createLeaseClock, LEASE_TICK_MS } from './lease-clock';
-import { indexClaims } from './use-plan-claims';
+import { delegatedCounts, indexClaims, planInitialsOf } from './use-plan-claims';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -196,6 +196,117 @@ describe('a claimed step’s chip (wbs-claim-display 4.1)', () => {
     // Not a child of the picker's flex row: a line of its own beside it.
     expect(line?.parentElement?.contains(cell?.querySelector('input') ?? null)).toBe(true);
     expect((line?.parentElement as HTMLElement | null)?.style.display).not.toBe('flex');
+  });
+});
+
+describe('holders who share initials (wbs-claim-display 11.1, C22)', () => {
+  itDom('draws claude-code and claude-code-worker as two marks, in chips and slots', async () => {
+    // The dev by-eye check of 2026-10-26: both agents drew `CC`.
+    // Proof: the chip printing `initialsOf(holder.name)` again failed on
+    // `expected [ 'CC', 'CC' ] to deeply equal [ 'CC', 'CW' ]`, and the slot
+    // printing `initialsOf(doing.name)` on `expected '· CC' to be '· CW'`;
+    // watched 2026-10-27.
+    const { api, ids, extra } = await claimedPlan(['c-cc', 'c-ccw']);
+    const worker = await api.addPerson('claude-code-worker', []);
+    await api.addPerson('claude-code', []);
+    await api.assignPerson(ids.sand, 'step-dev', worker.id);
+    const holder = (name: string) => ({ personId: `person-${name}`, name });
+    extra.push(
+      {
+        claimId: 'c-cc',
+        workItemId: ids.sand,
+        stepId: 'step-dev',
+        holder: holder('claude-code'),
+        runId: 'r-1',
+        parentClaimId: null,
+        claimedAt: CLAIMED_AT,
+        leaseExpiresAt: null,
+        leaseRevokedAt: null,
+      },
+      {
+        claimId: 'c-ccw',
+        workItemId: ids.sand,
+        stepId: 'step-qa',
+        holder: holder('claude-code-worker'),
+        runId: 'r-2',
+        parentClaimId: null,
+        claimedAt: CLAIMED_AT,
+        leaseExpiresAt: null,
+        leaseRevokedAt: null,
+      },
+    );
+    drawTable(api);
+
+    await waitFor(() => {
+      expect(chipsIn(rowFor('020'))).toEqual(['CC', 'CW']);
+    });
+    expect(rowFor('020').querySelector('[data-folded-assignee="step-dev"]')?.textContent).toBe(
+      '· CW',
+    );
+    // The full name stays the chip's accessible name.
+    expect(
+      screen.getByRole('img', { name: /^Claimed by claude-code-worker since/ }),
+    ).toHaveAttribute('data-claim-chip', 'c-ccw');
+  });
+});
+
+describe('marks are per plan (wbs-claim-display C22, review of PR #763 B1)', () => {
+  it('marks only the people this plan prints', () => {
+    // Proof: the directory's every name passed beside the plan's made this
+    // fail on `expected 'W0' to be 'WW'`; watched 2026-10-27.
+    const directory = new Map([
+      ['p-walter', { name: 'Walter White 0' }],
+      ['p-wendy', { name: 'Wendy White' }],
+      ['p-will', { name: 'Will Wells' }],
+    ]);
+    const marks = planInitialsOf(
+      [{ assignees: { 'step-dev': 'p-walter' }, doesEveryStep: null }],
+      directory,
+      null,
+    );
+    expect(marks.get('Walter White 0')).toBe('WW');
+    expect(marks.has('Wendy White')).toBe(false);
+  });
+
+  it('counts every claim under a subtree claim, at any depth', () => {
+    const claim = (claimId: string, parentClaimId: string | null) => ({
+      claimId,
+      workItemId: 'w1',
+      number: '010',
+      numberIsFrozen: false,
+      name: 'Strip',
+      stepId: null,
+      holder: { personId: 'p', name: 'p' },
+      runId: null,
+      parentClaimId,
+      claimedAt: 0,
+      leaseExpiresAt: null,
+      leaseRevokedAt: null,
+    });
+    const counts = delegatedCounts({
+      readAt: 0,
+      installedAt: 0,
+      claims: [claim('top', null), claim('mid', 'top'), claim('leaf', 'mid')],
+    });
+    expect(counts.get('top')).toBe(2);
+    expect(counts.get('mid')).toBe(1);
+    expect(counts.has('leaf')).toBe(false);
+  });
+
+  itDom('prints an assignee the directory has not got as (unknown)', async () => {
+    // Review of PR #763, S3. Proof: `?? UNKNOWN_ASSIGNEE` dropped from
+    // `planInitialsOf` (the unknown id skipped) put the table in its fault,
+    // `no initials were assigned for "(unknown)"`; watched 2026-10-27.
+    const { api, ids } = await claimedPlan([]);
+    await api.assignPerson(ids.sand, 'step-dev', 'person-gone');
+    drawTable(api);
+
+    await waitFor(() => {
+      expect(rowFor('020').querySelector('[data-folded-assignee="step-dev"]')?.textContent).toBe(
+        '· UN',
+      );
+    });
+    expect(document.querySelector('[data-app-fault]')).toBeNull();
   });
 });
 
@@ -444,6 +555,7 @@ describe('a renewal and a refused read (wbs-claim-display 6.1, C12)', () => {
         [],
         null,
         createLeaseClock(),
+        new Map([['gil', 'GI']]),
       ),
     ).toThrow('claim c-orphan names parent c-gone, not in its read');
   });

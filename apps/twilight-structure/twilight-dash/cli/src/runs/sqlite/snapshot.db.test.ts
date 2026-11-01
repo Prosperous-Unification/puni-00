@@ -22,7 +22,7 @@ try {
  while(!existsSync(packet.go)) { if(Date.now()>deadline) throw new Error('snapshot go timed out'); await Bun.sleep(1); }
  reply=await stores.runs.admitAttempt(packet.guard,packet.admission);
  if(reply.kind!=='applied') throw new Error('snapshot writer admission '+JSON.stringify(reply));
-} finally {stores.close();}
+} finally {await stores.close();}
 writeFileSync(packet.committedTemporary,JSON.stringify(reply));
 renameSync(packet.committedTemporary,packet.committed);
 writeSync(1,JSON.stringify({phase:'committed',reply})+'\\n');
@@ -171,7 +171,7 @@ async function prepareSnapshotProcess() {
     const ownership = unwrapReply(await initial.runs.acquireOwnership(ownerId('owner'), 0));
     unwrapReply(await initial.runs.retainManifest(ownership, createManifest()));
     const run = unwrapReply(await initial.runs.createRun(ownership, createRun()));
-    initial.close();
+    await initial.close();
     stores = await openStores(configuration, clock);
     const admission = decodeAdmission({
       attemptId: 'competing',
@@ -200,19 +200,25 @@ async function prepareSnapshotProcess() {
     return { directory, stores, run, go, committed, child };
   } catch (cause) {
     try {
-      if (child !== undefined) await child.close();
-    } finally {
-      initial?.close();
-      stores?.close();
-      rmSync(directory, { recursive: true, force: true });
-      console.log(
-        JSON.stringify({
-          event: 'snapshot-fixture-closed',
-          directory,
-          exists: existsSync(directory),
-          at: new Date().toISOString(),
-        }),
-      );
+      try {
+        if (child !== undefined) await child.close();
+      } finally {
+        await initial?.close();
+        await stores?.close();
+        rmSync(directory, { recursive: true, force: true });
+        console.log(
+          JSON.stringify({
+            event: 'snapshot-fixture-closed',
+            directory,
+            exists: existsSync(directory),
+            at: new Date().toISOString(),
+          }),
+        );
+      }
+    } catch (cleanupCause) {
+      throw new AggregateError([cause, cleanupCause], 'store setup and cleanup failed', {
+        cause: cleanupCause,
+      });
     }
     throw cause;
   }
@@ -227,7 +233,7 @@ describe('snapshot process', () => {
     try {
       await prepared.child.close();
     } finally {
-      prepared.stores.close();
+      await prepared.stores.close();
       rmSync(prepared.directory, { recursive: true, force: true });
       console.log(
         JSON.stringify({

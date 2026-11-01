@@ -28,12 +28,15 @@ import { createProject } from './create-project';
  * which jsdom has none of.
  */
 
-/** A plan with a toolbar, which is where most of this app's hints live. */
+/** A plan with its tree-backed toolbar controls ready before pointer measurements. */
 async function aPlan(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
   await createProject(page);
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
+  // Proof: delaying the first tree read made `a toolbar control waits two seconds,
+  // and rings while it does` read Export's words without this wait (2026-10-27).
+  await expect(page.locator('details[data-export] > summary')).toBeVisible();
 }
 
 /**

@@ -47,15 +47,23 @@ export interface AuthenticatedUser {
  * caller: an upstream pair (a verified provider token, or the pair a
  * delegation carries), a first-party password session and when it was
  * issued, in epoch milliseconds, a WBS machine credential
- * (`wbs-machine-credentials` A10, A13) and the person it is pinned to, or an
- * MCP consent delegation (A8, A20): the human sign-in's upstream pair that
- * opened the family, which the credential rules keep judging (A10), and the
- * `mcp_consent` credential and agent person it acts as.
+ * (`wbs-machine-credentials` A10, A13), the person it is pinned to and, for a
+ * machine grant whose token opted in through `wbs_run`, its run
+ * (`wbs-mcp-agent-surface` M6, M15), or an MCP consent delegation (A8, A20):
+ * the human sign-in's upstream pair that opened the family, which the
+ * credential rules keep judging (A10), and the `mcp_consent` credential and
+ * agent person it acts as. A raw API key and a grant without a run carry no
+ * `runId`.
  */
 export type CredentialAuthentication =
   | { readonly kind: 'upstream'; readonly issuer: string; readonly subject: string }
   | { readonly kind: 'first_party'; readonly issuedAt: number }
-  | { readonly kind: 'machine'; readonly credentialId: string; readonly personId: string }
+  | {
+      readonly kind: 'machine';
+      readonly credentialId: string;
+      readonly personId: string;
+      readonly runId?: string;
+    }
   | {
       readonly kind: 'consent';
       readonly issuer: string;
@@ -65,43 +73,45 @@ export type CredentialAuthentication =
     };
 
 /**
- * The verified `(issuer, subject)` a request's credential carries: an upstream
- * token's, or the pair a delegation carries. Absent for a first-party session.
- * What a claim reads a credential pin by (`wbs-team-claims` D6).
+ * The person a request's credential is pinned to: a machine or consent
+ * credential's own person (`wbs-machine-credentials` A12, A20), with the run a
+ * machine grant opted into (`wbs-mcp-agent-surface` M15): `runId` present
+ * scopes the person's renewal, claims and release to that run; absent, they
+ * are the person's. An upstream pair pins nothing since the operator links
+ * retired (A18): its `external_identity.person_id` is read by no release.
  */
-export interface CredentialPair {
-  readonly issuer: string;
-  readonly subject: string;
+export interface CredentialPin {
+  readonly personId: string;
+  readonly runId?: string;
 }
 
 /**
- * What a claim reads a request's pin from: an upstream pair, whose pin is the
- * operator link's `external_identity.person_id` (`wbs-team-claims` D6), or a
- * machine or consent credential's own person (`wbs-machine-credentials` A12,
- * A20).
- */
-export type CredentialPin = CredentialPair | { readonly personId: string };
-
-/**
- * The pin source of `authentication`: the pair of an upstream one, the person
- * of a machine or consent credential, else null (unpinned). A consent
- * delegation is pinned by its credential's person, never by the human's pair.
+ * The pin of `authentication`: the person of a machine or consent credential
+ * (with a machine grant's run, when it has one), else null (unpinned: an
+ * upstream, first-party or absent one). A consent delegation is pinned by its
+ * credential's person, never by the human's pair, and carries no run.
  *
  * Proof: answering null for a machine credential made `claims as its person
  * and is refused as any other of its account's persons` in
  * `machine-credential.controller.db.test.ts` accept the claim as `codex`;
- * watched 2026-10-22. Answering null for a consent made `a consent session's
- * tool call claims as its agent, never with the human's reach` (mcp-01
+ * watched 2026-10-22. The same fault failed that case and `delegates under its
+ * own person's subtree claim` on the MCP path (`a key pinned to one person,
+ * through mcp-01`, a grant forwarded as mcp-01 sends it); watched 2026-10-29.
+ * Answering null for a consent made `a consent session's tool call claims
+ * as its agent, never with the human's reach` (mcp-01
  * `organization-delegation.boot.test.ts`) accept the claim as `codex`;
- * watched 2026-10-22.
+ * watched 2026-10-22. Dropping a machine grant's `runId` from the pin made six
+ * cases of `machine-grant-run.controller.db.test.ts` fail (the run not
+ * stamped, renewed or judged: 8 pass, 6 fail); watched 2026-10-27.
  */
 export function credentialPinOf(
   authentication: CredentialAuthentication | undefined,
 ): CredentialPin | null {
-  if (authentication?.kind === 'upstream')
-    return { issuer: authentication.issuer, subject: authentication.subject };
-  if (authentication?.kind === 'machine' || authentication?.kind === 'consent')
-    return { personId: authentication.personId };
+  if (authentication?.kind === 'machine')
+    return authentication.runId === undefined
+      ? { personId: authentication.personId }
+      : { personId: authentication.personId, runId: authentication.runId };
+  if (authentication?.kind === 'consent') return { personId: authentication.personId };
   return null;
 }
 

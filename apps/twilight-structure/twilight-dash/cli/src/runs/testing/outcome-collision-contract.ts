@@ -66,7 +66,7 @@ export function outcomeCollisionContract(name: string, create: () => Promise<Out
         ).toEqual({ kind: 'refused', reason: 'identity_conflict' });
         expect(await stores.runs.readRun(second.runId)).toEqual(before);
       } finally {
-        stores.close();
+        await stores.close();
       }
     });
   });

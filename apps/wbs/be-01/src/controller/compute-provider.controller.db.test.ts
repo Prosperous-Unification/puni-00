@@ -1,12 +1,21 @@
 import { readProjectResources, validateSchema } from '@wbs/contracts';
 import { computeProvidersOver } from '@wbs/store-sqlite';
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { generateKeyPair } from 'jose';
 
 import { openDrizzle } from '../repository/db';
 import { WriteCoordinator } from '../repository/gate';
-import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
-import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+import {
+  addAgentPerson,
+  issueApiKey,
+  MACHINE_BEARER_NOT_ACCEPTED,
+} from '../testing/machine-credential-fixture';
+import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
+import {
+  type Answer,
+  type HarnessMachineGrants,
+  OrganizationHarness,
+} from '../testing/organization-harness';
 import { delegationFor, mapUpstream } from '../testing/scim-fixture';
 
 /**
@@ -15,9 +24,16 @@ import { delegationFor, mapUpstream } from '../testing/scim-fixture';
  * the resource's provider reference through `patchResource`, the capacity
  * report a machine credential of an agent person puts, the resources read
  * beside it, and that nothing of it reaches a schedule or a claim.
+ *
+ * An agent's key reaches be-01 on the MCP path (`wbs-mcp-agent-surface` task
+ * 7.0): mcp-01 exchanges it for a grant and forwards each tool call with it
+ * ({@link callForwarded}), as Dash's `report-capacity` does since task 7.2. The
+ * key itself as a Bearer on `/api` is refused `machine_bearer_not_accepted`
+ * (M9, task 7.1).
  */
 const PATH = '/api/organization/compute-providers';
 
+let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
 let projectA: string;
 let leaf: string;
@@ -25,8 +41,12 @@ let ram: string;
 let staging: string;
 let ramOfB: string;
 
+beforeAll(async () => {
+  machineGrants = await forwardingMachineGrants();
+});
+
 beforeEach(async () => {
-  h = OrganizationHarness.openComposed();
+  h = OrganizationHarness.openComposedWith({ machineGrants });
   await setUp();
 });
 
@@ -95,13 +115,17 @@ function reference(username: string, resourceId: string, patch: Record<string, u
   });
 }
 
+const reportPath = (providerId: string, resourceId: string) =>
+  `/api/compute-providers/${providerId}/resources/${resourceId}/capacity-report`;
+
+/** A capacity report by the agent holding `key`, as the MCP tool call reaches be-01. */
 function report(key: string, providerId: string, resourceId: string, body: unknown) {
-  return h.callWith(
-    key,
-    'PUT',
-    `/api/compute-providers/${providerId}/resources/${resourceId}/capacity-report`,
-    body,
-  );
+  return callForwarded(h, key, 'PUT', reportPath(providerId, resourceId), body);
+}
+
+/** A capacity report bearing `bearer` itself on `/api`: a delegation, or a refused raw key. */
+function reportBearing(bearer: string, providerId: string, resourceId: string, body: unknown) {
+  return h.callWith(bearer, 'PUT', reportPath(providerId, resourceId), body);
 }
 
 const measured = (observedAt: number, capacityUnits = 15, usageUnits = 8) => ({
@@ -255,6 +279,8 @@ describe('provider instance administration', () => {
     expect(auditRows()).toHaveLength(1);
   });
 
+  // The routes are `humanOnly`, so mcp-01 lists no tool for them; be-01 still
+  // refuses a forwarded grant, and the raw key before any route (M9).
   it('refuses a machine key and an MCP delegation every route insufficient_scope', async () => {
     const id = await registered('dany', 'h4claw');
     const { agent } = await keys();
@@ -264,11 +290,13 @@ describe('provider instance administration', () => {
       ['PATCH', `${PATH}/${id}`, { name: 'k' }],
       ['DELETE', `${PATH}/${id}`, undefined],
     ] as const;
-    for (const [method, path, body] of routes)
-      expect(await h.callWith(agent, method, path, body)).toEqual({
+    for (const [method, path, body] of routes) {
+      expect(await callForwarded(h, agent, method, path, body)).toEqual({
         status: 403,
         body: { error: 'insufficient_scope' },
       });
+      expect(await h.callWith(agent, method, path, body)).toEqual(MACHINE_BEARER_NOT_ACCEPTED);
+    }
     h.close();
     const signing = await generateKeyPair('RS256');
     h = OrganizationHarness.open({ delegationKey: signing.publicKey });
@@ -295,7 +323,7 @@ describe('provider instance administration', () => {
 
   it('answers every route no_active_organization before activation', async () => {
     h.close();
-    h = OrganizationHarness.openComposed();
+    h = OrganizationHarness.openComposedWith({ machineGrants });
     await h.register('dany');
     h.organization('org-a');
     h.member('org-a', 'dany', 'super_admin');
@@ -563,10 +591,10 @@ describe("a resource's provider reference", () => {
     const { agent } = await keys();
     const command = { kind: 'deleteResource', resourceId: staging, cascade: true };
     expect(
-      await h.callWith(agent, 'POST', '/api/directory/commands', { commands: [command] }),
+      await callForwarded(h, agent, 'POST', '/api/directory/commands', { commands: [command] }),
     ).toEqual({ status: 403, body: { at: 0, kind: 'deleteResource', error: 'forbidden' } });
     expect(
-      await h.callWith(agent, 'POST', '/api/directory/commands', {
+      await callForwarded(h, agent, 'POST', '/api/directory/commands', {
         commands: [{ kind: 'patchResource', resourceId: staging, patch: { unitLabel: 'env' } }],
       }),
     ).toMatchObject({ status: 200 });
@@ -694,10 +722,18 @@ describe('a capacity report', () => {
     h.activate();
     mapUpstream(h, 'dany', 'sub-dany');
     const delegation = await delegationFor(h, signing.privateKey, 'dany', 'org-a', 'sub-dany');
-    expect(await report(delegation, 'any', 'any', measured(Date.now()))).toEqual({
+    expect(await reportBearing(delegation, 'any', 'any', measured(Date.now()))).toEqual({
       status: 403,
       body: { error: 'not_an_agent_principal', authentication: 'delegation' },
     });
+  });
+
+  // Dash's `report-capacity` before task 7.2: the key itself on `/api` (M9).
+  it('refuses a report bearing the key itself on /api machine_bearer_not_accepted, storing nothing', async () => {
+    expect(await reportBearing(agent, h4claw, ram, measured(Date.now() - 1000))).toEqual(
+      MACHINE_BEARER_NOT_ACCEPTED,
+    );
+    expect(reportCount()).toBe(0);
   });
 
   it("refuses a key pinned to a human's person, storing nothing", async () => {
@@ -710,7 +746,8 @@ describe('a capacity report', () => {
 
   // Proof: with the organization comparison removed from
   // `decideCapacityReport`, B's key stored a report on A's instance; watched
-  // 2026-10-22.
+  // 2026-10-22, and again with the key's grant forwarded as mcp-01 sends it,
+  // 2026-10-29.
   it("answers another tenant's Dash unknown_provider, naming nothing of A", async () => {
     const answer = await report(stranger, h4claw, ram, measured(Date.now()));
     expect(answer).toEqual({ status: 404, body: { error: 'unknown_provider' } });
@@ -780,7 +817,7 @@ describe('a capacity report', () => {
     expect(await h.call('dany', 'GET', `/api/projects/${projectA}/startable`)).toEqual(
       startableBefore,
     );
-    const claimed = await h.callWith(agent, 'POST', `/api/projects/${projectA}/commands`, {
+    const claimed = await callForwarded(h, agent, 'POST', `/api/projects/${projectA}/commands`, {
       commands: [
         {
           kind: 'claimWorkItem',

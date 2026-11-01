@@ -83,7 +83,16 @@ function limitsOnlyStore(): string {
   const root = mkdtempSync(join(tmpdir(), 'wbs-resource-provider-baseline-'));
   roots.push(root);
   cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
-  for (const name of [RESOURCE_PROVIDER, AUDIT_WIDENING, CLAIM_LEASE, ...MEASURES])
+  for (const name of [
+    RESOURCE_PROVIDER,
+    AUDIT_WIDENING,
+    CLAIM_LEASE,
+    ...MEASURES,
+    // The later audit widening rebuilds the same table, adding its indexes.
+    '20261026130000_widen_organization_audit_machine_tokens',
+    '20261028100000_add_agent_pool',
+    '20261028100100_widen_organization_audit_agent_pools',
+  ])
     rmSync(join(root, 'drizzle', name), { recursive: true });
   const dbPath = join(root, 'plan.db');
   runMigrations(dbPath, join(root, 'drizzle'));
@@ -186,7 +195,7 @@ describe(RESOURCE_PROVIDER, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: 20261026120000_add_command_journal_person, 20261025130000_add_resource_runtime, 20261025120000_add_resource_use, ${MEASURES.join(', ')}, ${CLAIM_LEASE}, ${AUDIT_WIDENING}, ${RESOURCE_PROVIDER}\n`,
+      `rolled back: 20261028100100_widen_organization_audit_agent_pools, 20261028100000_add_agent_pool, 20261026130000_widen_organization_audit_machine_tokens, 20261026120000_add_command_journal_person, 20261025130000_add_resource_runtime, 20261025120000_add_resource_use, ${MEASURES.join(', ')}, ${CLAIM_LEASE}, ${AUDIT_WIDENING}, ${RESOURCE_PROVIDER}\n`,
     );
     expect(columnsOf(dbPath, 'resource')).not.toContain('provider_id');
     expect(columnsOf(dbPath, 'compute_provider')).toEqual([]);

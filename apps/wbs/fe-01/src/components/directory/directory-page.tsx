@@ -2,6 +2,7 @@ import { Button, Card, CardContent, CardHeader, CardTitle, Input } from '@ui/saa
 import { type ReactNode, type SubmitEvent, useEffect, useRef, useState } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
+import type { BindingOf } from '@/components/organization/person-binding';
 import { CreatablePicker } from '@/components/wbs/creatable-picker';
 import {
   Modal,
@@ -44,6 +45,12 @@ export interface DirectoryPageProps {
    * carry none.
    */
   credentialsOf?: (person: PersonView) => ReactNode;
+  /**
+   * The account each person is bound to, and an admin's control to bind them
+   * (`wbs-claim-display` 11.5). The route supplies it in an organization; left
+   * out, rows carry no binding line.
+   */
+  bindingOf?: BindingOf;
 }
 
 export type { DirectoryKind };
@@ -197,6 +204,7 @@ export function DirectoryPage({
   account,
   loadOf,
   credentialsOf,
+  bindingOf,
 }: DirectoryPageProps) {
   const shown = useDirectoryManagement(management);
   const { people, teams, tags, services, workItemTypes, busy, problem } = shown;
@@ -584,6 +592,13 @@ export function DirectoryPage({
                         </span>
                       </div>
                       {loadOf?.(person)}
+                      {bindingOf?.(
+                        person,
+                        (accountId) => {
+                          management.bindAccount(person, accountId);
+                        },
+                        busy,
+                      )}
                       {credentialsOf?.(person)}
                     </li>
                   ))}
@@ -1094,11 +1109,10 @@ export function DirectoryPage({
                   </ul>
                 </div>
               )}
-              {/* Absent from an outgoing be-01 mid-swap, which counts no pins. */}
-              {(confirming.usage.pinnedCredentials ?? 0) > 0 && (
+              {(confirming.usage.machineCredentials ?? 0) > 0 && (
                 <p>
-                  {count(confirming.usage.pinnedCredentials ?? 0, 'fleet credential')} pinned to{' '}
-                  {confirming.name} {confirming.usage.pinnedCredentials === 1 ? 'is' : 'are'}{' '}
+                  {count(confirming.usage.machineCredentials ?? 0, 'machine credential')} of{' '}
+                  {confirming.name} {confirming.usage.machineCredentials === 1 ? 'is' : 'are'}{' '}
                   revoked.
                 </p>
               )}

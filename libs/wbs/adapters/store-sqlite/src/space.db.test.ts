@@ -123,6 +123,9 @@ describe('spaces', () => {
   describe('the rollback', () => {
     it('rolls back while no space exists', () => {
       expect(rollbackTo(path, FOLDER, BEFORE_SPACES)).toEqual([
+        '20261028100100_widen_organization_audit_agent_pools',
+        '20261028100000_add_agent_pool',
+        '20261026130000_widen_organization_audit_machine_tokens',
         '20261026120000_add_command_journal_person',
         '20261025130000_add_resource_runtime',
         '20261025120000_add_resource_use',

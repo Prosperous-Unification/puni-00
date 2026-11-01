@@ -1,6 +1,7 @@
 export * from './auth-methods';
 export * from './commands/definitions';
 export * from './errors';
+export * from './http/agent-pool-shapes';
 export * from './http/auth-oidc-shapes';
 export * from './http/auth-password-shapes';
 export * from './http/budget-headroom-shapes';
@@ -60,6 +61,7 @@ export * from './http/work-item-response';
 export * from './http/work-item-shapes';
 export * from './internal';
 export * from './logger';
+export * from './mcp-authorization-server';
 export * from './oidc-identity';
 export * from './plan-command-values';
 export * from './principal';

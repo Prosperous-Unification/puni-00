@@ -116,7 +116,10 @@ export function assertDigestPinnedRef(ref: string, tier: Tier): string {
  * - fe-01 (`apps/wbs/fe-01`) is a static `caddy:2-alpine` server with no
  *   `config.ts` at all. It needs, and gets, zero secrets.
  * - be-01 (`apps/wbs/be-01/src/config.ts`) reads `INTERNAL_AUTH_SECRET` plus the
- *   JWT signing key it uses to mint `/ws` tokens.
+ *   JWT signing key it uses to mint `/ws` tokens, and, once organizations are
+ *   activated, mcp-01's `MCP_BE_INTERNAL_SECRET` and the machine grant keys
+ *   (`wbs-mcp-agent-surface` M3, M14; required by an activated store's boot,
+ *   so optional here like `JWT_SIGNING_KEY_PREVIOUS` is for gw).
  * - gw-01 (`apps/wbs/gw-01/src/config.ts`) reads `INTERNAL_AUTH_SECRET` plus the
  *   JWT signing key(s) it verifies `/ws` tokens against.
  *
@@ -128,7 +131,13 @@ export function assertDigestPinnedRef(ref: string, tier: Tier): string {
  * registry. See `deriveTierSecrets`.
  */
 const SECRET_KEYS: Record<Tier, readonly string[]> = {
-  be: ['INTERNAL_AUTH_SECRET', 'JWT_SIGNING_KEY_CURRENT'],
+  be: [
+    'INTERNAL_AUTH_SECRET',
+    'JWT_SIGNING_KEY_CURRENT',
+    'MCP_BE_INTERNAL_SECRET',
+    'WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT',
+    'WBS_MACHINE_GRANT_SIGNING_KEY_PREVIOUS',
+  ],
   gw: ['INTERNAL_AUTH_SECRET', 'JWT_SIGNING_KEY_CURRENT', 'JWT_SIGNING_KEY_PREVIOUS'],
   fe: [],
 };
@@ -239,6 +248,12 @@ const APP_ENV_ALLOWED_KEYS: Record<Tier, readonly string[]> = {
     'SOLVER_BUDGET_MS',
     'SOLVER_SEARCH_WORKERS',
     'SOLVER_MEMORY_LIMIT_MB',
+    // mcp-01's authorization server (`wbs-mcp-agent-surface` M2): not a
+    // secret, so it travels in be-01.env; an activated store needs it to boot.
+    // Proof: deleting this entry made `passes be-01.env carrying the machine
+    // grant authorization server` (docker.test.ts) throw outside-tier-allowlist;
+    // watched 2026-10-26.
+    'WBS_MCP_AUTHORIZATION_SERVER',
   ],
   gw: ['PORT', 'LOG_LEVEL', 'BE_URL', 'AUTH_MODE'],
   fe: [],
@@ -440,6 +455,9 @@ const VALUE_RULES: Readonly<Partial<Record<string, (value: string) => string | n
   INTERNAL_AUTH_SECRET: atLeast32,
   JWT_SIGNING_KEY_CURRENT: atLeast32,
   JWT_SIGNING_KEY_PREVIOUS: atLeast32,
+  MCP_BE_INTERNAL_SECRET: atLeast32,
+  WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT: atLeast32,
+  WBS_MACHINE_GRANT_SIGNING_KEY_PREVIOUS: atLeast32,
   SOLVER_BUDGET_MS: positiveInteger,
   SOLVER_SEARCH_WORKERS: positiveInteger,
   SOLVER_MEMORY_LIMIT_MB: positiveInteger,

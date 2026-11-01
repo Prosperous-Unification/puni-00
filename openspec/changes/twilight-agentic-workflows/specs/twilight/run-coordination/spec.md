@@ -28,6 +28,60 @@ establishing turn authority or quiescence.
 - **WHEN** the old guard or a new current-owner guard retries the retained preparation command after takeover
 - **THEN** the old guard refuses owner_stale and the new guard refuses identity_conflict, with no extra open or capacity release
 
+### Requirement: Fresh turn dispatch observes exact claim and lease correspondence
+
+The host SHALL require direct ready, current attachment, current-epoch grant and submitted revisions before fresh staging. It SHALL match the pinned receiver grant and exact runtime claim with a lease-bearing project read. Revoked/expired claims SHALL refuse; null expiry SHALL mean unleased. Separate reads SHALL NOT imply an atomic fence, continued lease validity or physical stop.
+
+#### Scenario: An expired claim remains in runtime inventory
+
+- **WHEN** runtime inventory still contains the exact claim but the project read reports expiry at or before its server readAt, or revocation
+- **THEN** the host refuses before staging or calling turn, with no claim or capacity release
+- **AND** valid unleased claims remain distinguishable from observed live leases
+- **AND** timing is finite and full claim correspondence includes holder, work, step, parent and session run identity
+
+#### Scenario: Live executor identity changes during an awaited observation
+
+- **WHEN** the original opaque session's full locator or actual executor pin changes before dispatch
+- **THEN** the host does not invoke turn and preserves any already staged pending identity
+
+### Requirement: Turn replay never redispatches physical work
+
+The host SHALL delegate retained stage replay before fresh-ready predicates and return its original acknowledgement without receiver reads or turn. Only fresh applied staging MAY dispatch. It SHALL commit the full reply before reporting stored completion, without refreshing revisions. Stage SHALL NOT advance scope revision. Completed SHALL mean turn_returned, not business success or release. Uncertainty SHALL retain correlation and held capacity.
+
+#### Scenario: A duplicate arrives after turn completion or later execution facts
+
+- **WHEN** the same complete local stage command is submitted under valid current ownership
+- **THEN** the host returns its original historical pending acknowledgement without another turn
+- **AND** changed content or command family retains the store's identity refusal
+
+#### Scenario: Ownership expires during a held turn
+
+- **WHEN** the exact reply returns after local ownership expires or intervening facts invalidate its captured save revisions
+- **THEN** observation persistence refuses without refreshing authority or dispatching again, and the correlated failure preserves pending work
+- **AND** the captured save uses the submitted run revision advanced once and the stage attempt revision
+
+#### Scenario: An older observation ID is supplied for a new stage
+
+- **WHEN** a fresh stage would reuse an observation command already in verified local execution history
+- **THEN** the host refuses identity_conflict before staging or physical dispatch
+- **AND** an applied or duplicate observation reply for another staged attempt revision throws a correlated fault instead of reporting the new turn observed
+- **AND** an exact concurrent original acknowledgement for the same stage remains valid
+
+### Requirement: Receiver boot integration follows actual test dependencies
+
+Integration SHALL use a booted be-01 listener and separate Dash worker over authenticated loopback transport, bounded process phases and awaited cleanup, observing actual histories. Nx test inputs SHALL declare consumed Dash sources; CI selection SHALL include be-01 when they change. A controlled unleased test principal SHALL NOT certify machine heartbeat, business-attempt mapping, paid-provider execution or production readiness.
+
+#### Scenario: A Dash worker source changes
+
+- **WHEN** dispatch-turn, runtime-client or the boot worker changes
+- **THEN** actual Nx-backed CI selection includes the be-01 integration test target
+- **AND** removing its explicit Dash source inputs makes the selection regression fail
+
+#### Scenario: A controlled turn returns after an ordinary claim
+
+- **WHEN** the real boot flow retains a complete turn reply
+- **THEN** business state compared with the post-claim pre-turn baseline has no extra start/end, progress write, release or successor settlement
+
 ### Requirement: Persistence is abstract and providers satisfy semantic contracts
 
 Twilight Dash SHALL depend on RunStore and ArtifactStore ports independent of storage
@@ -82,28 +136,32 @@ SHALL pass current revision and state checks even when their facts match an olde
 
 ### Requirement: Coordination uses the unified hints API
 
-The coordinator SHALL rebuild CTT hints from versioned WBS facts and accepted outcomes.
-It SHALL defer unfinished work rather than return successful no-op visitors. It SHALL use
-ID-keyed summary and generation-checked settlement within the existing API, not require a
-second public graph format. Complete WBS topology SHALL be discovered and validated before
-admission; deferral SHALL NOT hide remaining vertices. Summary SHALL invoke no user code
-and SHALL state incomplete discovery for a partial lazy graph. Host wait/running/retry
-facts and WBS eligibility SHALL filter the kernel frontier before admission.
+The coordinator SHALL use CTT 0.12 native materialization, preparation and independent
+`createWorkSession({ completedWork })` sessions seeded only from accepted completion in versioned WBS facts.
+It SHALL use `advance()` work tickets and accepted-WBS-only `completeWork(ticket)` with
+`accepted`/`alreadyAccepted` receipts, without a second public graph format or interpreter.
+Complete declared topology, including disconnected components, SHALL be validated before
+admission. Unfinished work SHALL NOT satisfy dependencies; W/C milestones SHALL stay distinct.
+Callback-free summary SHALL inspect local state without claiming fresh WBS facts. Current
+WBS eligibility and durable wait/running/retry facts SHALL filter native readiness before
+atomic RunStore admission. Admission SHALL NOT complete traversal work. Rebuilt sessions
+SHALL reject old tickets and reconstruct from accepted WBS facts and durable attempt history.
 
 #### Scenario: Parallel join remains blocked
 
 - **WHEN** backend and frontend are ready and backend alone reports accepted success
 - **THEN** verification remains blocked until frontend also has accepted success
 
-#### Scenario: A parent is deferred during inspection
+#### Scenario: Unfinished work does not hide topology
 
-- **WHEN** its declared child or a disconnected cyclic component is not yet inspected
-- **THEN** discovery/validation continues independently and no incomplete summary authorizes work
+- **WHEN** a declared child or disconnected cyclic component remains unvalidated
+- **THEN** complete preparation continues independently of unfinished work and no partial summary authorizes admission
 
-#### Scenario: A stale settlement arrives
+#### Scenario: A stale ticket report arrives
 
-- **WHEN** a result belongs to an old runner or execution generation
-- **THEN** settlement is refused without publishing output or satisfying a dependency
+- **WHEN** a completion report uses a foreign, retargeted or pre-rebuild ticket
+- **THEN** completion is refused without publishing output or satisfying a dependency
+- **AND** an exact repeated accepted report returns `alreadyAccepted` without extra effects
 
 ### Requirement: Admission and outcomes preserve exact authority
 
@@ -462,3 +520,58 @@ Exact replay SHALL preserve context without comparing it to current retry revisi
 - **WHEN** a turn's retained scope prefix has a pending command, precedes its exact claim acceptance or moves backward from its attempt's prior scoped observation
 - **THEN** complete history reconstruction throws
 - **AND** coherent rewriting of context and all independent contradictory history remains outside this local consistency guarantee
+
+### Requirement: Provider bundle close has observed completion
+
+Provider bundles SHALL expose close(): Promise<void> outside semantic ports. Close SHALL fence new/queued work immediately, drain admitted work under existing rules, then release resources before fulfilling. Repeats SHALL share one disposal/outcome. Failure SHALL keep ports fenced and reject with its original cause on every close call without retry. Callers SHALL await completion before reopening, deleting storage or reporting graceful shutdown.
+
+#### Scenario: Close starts while a writer executes and another operation waits
+
+- **GIVEN** a real SQLite writer has passed the close fence and is blocked by an independent write lock, with another operation queued behind it
+- **WHEN** close is invoked and the independent writer releases its lock
+- **THEN** the executing operation may commit, the queued operation rejects as closed without starting a transaction, and close fulfills after drain and native disposal
+
+#### Scenario: Calls arrive immediately after close invocation
+
+- **WHEN** valid run and artifact operations are invoked after close starts but before it settles
+- **THEN** they reject through existing lifecycle checks and publish no changes
+
+#### Scenario: An admitted operation exhausts its contention budget
+
+- **WHEN** the independent write lock remains held after close begins until the existing retry budget is exhausted
+- **THEN** the operation preserves its contention failure, queued operations reject as closed and close disposes after drain
+
+#### Scenario: Repeated close overlaps delayed completion
+
+- **WHEN** close is called twice while admitted work is settling
+- **THEN** both calls share pending completion, native disposal happens once and fixture storage remains until successful completion
+
+#### Scenario: Native disposal fails
+
+- **WHEN** production adapter disposal throws a particular native error
+- **THEN** close rejects with that same error, both ports remain fenced, later close retains that rejection without another native attempt, and fixture storage is not removed
+
+#### Scenario: Memory owns no physical resource
+
+- **WHEN** a memory bundle closes
+- **THEN** synchronous publication and immediate fencing remain and every close returns successful Promise completion without requiring Promise object identity or claiming durability
+
+#### Scenario: Semantic ports stay independent
+
+- **WHEN** lifecycle-aware callers compile and portable-port import checks run
+- **THEN** RunStore and ArtifactStore gain no connection management method or vendor type
+
+#### Scenario: Existing guards remain effective throughout admitted drain
+
+- **WHEN** close starts during an already-admitted operation's busy wait
+- **THEN** that operation may finish before physical disposal under unchanged current-owner, fresh-clock and transaction checks, replacing the former immediate physical-close behavior without authorizing queued work
+
+#### Scenario: Close wrappers return different Promise objects
+
+- **WHEN** repeated close calls return different Promise objects representing the same disposal
+- **THEN** conformance depends on shared disposal and completion/failure outcome, not Promise object identity
+
+#### Scenario: A fixture close throws synchronously
+
+- **WHEN** a Promise-typed fixture close throws before returning and other fixtures remain open
+- **THEN** cleanup attempts every peer, awaits every settlement and reports all original causes without reporting failed disposal as successful release

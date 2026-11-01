@@ -59,8 +59,9 @@ type StoredClaim = Claim & {
  * not the stamp: an undo of a release puts the claim back as its claimant's,
  * whoever pressed the key, so `parent_claim_foreign` keeps meaning the same.
  *
- * The identity reads are the directory's: `person.account_id` and
- * `external_identity.person_id` (`wbs-team-claims` D5, D6).
+ * The binding read is the directory's `person.account_id` (`wbs-team-claims`
+ * D5); the pin is the request credential's own person
+ * (`wbs-machine-credentials` A12, A18).
  *
  * Each claim's occupancy rows (`claim_occupancy`, `wbs-resources` R3) are
  * written with it and go with it by cascade.
@@ -309,9 +310,28 @@ export class ClaimRepository implements ClaimStore {
     });
   }
 
-  async renewLeases(personId: string, now: () => number): Promise<LeaseRenewal> {
+  async renewLeases(
+    personId: string,
+    runId: string | null,
+    now: () => number,
+  ): Promise<LeaseRenewal> {
+    // A run scopes to its own leases and the person's no-run ones; no run
+    // means every lease of the person, never `run_id IS NULL` (the port's
+    // contract, M15).
+    // Proof: with `isNull(claim.runId)` for a null run, the SQLite
+    // certification failed `claims.lease:write-renew-expire` (its run-1
+    // leases left unrenewed); with the run filter dropped, it failed
+    // `claims.lease:run-scoped` (run b's lease renewed by run a); 83 pass,
+    // 1 fail each; watched 2026-10-27.
+    // Proof: with the no-run half dropped (`eq(claim.runId, runId)` alone),
+    // `claims.lease:run-scoped` failed (the pre-opt-in lease left at 10 000);
+    // watched 2026-10-27.
+    const ofHolder = () =>
+      runId === null
+        ? eq(claim.personId, personId)
+        : and(eq(claim.personId, personId), or(eq(claim.runId, runId), isNull(claim.runId)));
     const inForceAt = (at: number) =>
-      and(eq(claim.personId, personId), isNull(claim.leaseRevokedAt), gt(claim.leaseExpiresAt, at));
+      and(ofHolder(), isNull(claim.leaseRevokedAt), gt(claim.leaseExpiresAt, at));
     const dueAt = (at: number) =>
       and(inForceAt(at), lt(claim.leaseExpiresAt, renewalAt(at).dueBefore));
     let at = now();

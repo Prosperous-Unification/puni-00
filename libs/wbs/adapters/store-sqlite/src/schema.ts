@@ -3111,13 +3111,13 @@ export const externalIdentity = sqliteTable(
     issuer: text('issuer').notNull(),
     subject: text('subject').notNull(),
     /**
-     * The one person this credential may claim as (`wbs-team-claims` D6): a
-     * fleet credential linked to a human's account is pinned to that fleet's
-     * agent person, which must be bound to the same account. Null is an
-     * unpinned credential, as every browser login is. Written only by
-     * `link-credential-cli.ts`; added by
+     * Inert since the operator links retired (`wbs-machine-credentials` A18):
+     * the person the retired link CLI pinned a fleet credential to. No release
+     * reads it; removing the person deletes its rows, the column's only use,
+     * until a cleanup change drops it. Added by
      * `20261019130100_add_external_identity_person`, whose `down.sql` refuses
-     * while any credential is pinned.
+     * while any row is pinned (its message names the retired CLI; delete
+     * those rows instead).
      */
     personId: text('person_id').references(() => person.id),
     createdAt: integer('created_at').notNull(),
@@ -3507,7 +3507,11 @@ export const savedPlanOrganization = sqliteTable(
  * `20261022130100_widen_organization_audit_organization_limits` the
  * operator's limits changes; and
  * `20261022140100_widen_organization_audit_compute_providers` the compute
- * provider acts.
+ * provider acts; and `20261026130000_widen_organization_audit_machine_tokens`
+ * machine grant issuance, with the two partial unique indexes its targeted
+ * insert names (`MachineTokenAuditRepository`); and
+ * `20261028100100_widen_organization_audit_agent_pools` the agent pool acts,
+ * recreating those two indexes after its rebuild.
  */
 export const organizationAudit = sqliteTable(
   'organization_audit',
@@ -3526,13 +3530,23 @@ export const organizationAudit = sqliteTable(
   (t) => [
     check(
       'organization_audit_action',
-      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed', 'machine_credential_created', 'machine_credential_rotated', 'machine_credential_revoked', 'trusted_issuer_registered', 'trusted_issuer_removed', 'organization_limits_changed', 'compute_provider_registered', 'compute_provider_updated', 'compute_provider_removed')`,
+      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed', 'machine_credential_created', 'machine_credential_rotated', 'machine_credential_revoked', 'trusted_issuer_registered', 'trusted_issuer_removed', 'organization_limits_changed', 'compute_provider_registered', 'compute_provider_updated', 'compute_provider_removed', 'machine_token_issued', 'machine_token_issued_overflow', 'agent_pool_created', 'agent_pool_revoked', 'agent_pool_rekeyed')`,
     ),
     check(
       'organization_audit_subject_kind',
-      sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy', 'machine_credential', 'trusted_issuer', 'organization_limits', 'compute_provider')`,
+      sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy', 'machine_credential', 'trusted_issuer', 'organization_limits', 'compute_provider', 'agent_pool')`,
     ),
     index('organization_audit_organization_created').on(t.organizationId, t.createdAt),
+    uniqueIndex('organization_audit_machine_token_issued_run')
+      .on(
+        sql`json_extract(${t.detail}, '$.credentialId')`,
+        sql`${t.createdAt} / 86400000`,
+        sql`coalesce(json_extract(${t.detail}, '$.runId'), '')`,
+      )
+      .where(sql`${t.action} = 'machine_token_issued'`),
+    uniqueIndex('organization_audit_machine_token_issued_overflow_day')
+      .on(sql`json_extract(${t.detail}, '$.credentialId')`, sql`${t.createdAt} / 86400000`)
+      .where(sql`${t.action} = 'machine_token_issued_overflow'`),
   ],
 );
 
@@ -3648,7 +3662,8 @@ export const organizationTrustedIssuer = sqliteTable(
  * lowercase UUID because an API key carries it in the clear (A22), held to
  * that shape by `20261022110100_check_machine_credential_id`'s triggers. Added
  * by `20261022100000_add_machine_credential`, whose `down.sql` refuses while
- * any row exists.
+ * any row exists. `agent_pool_id` names the {@link agentPool} that issued it
+ * (`20261028100000_add_agent_pool`), null for a credential issued alone.
  */
 export const machineCredential = sqliteTable(
   'machine_credential',
@@ -3675,6 +3690,7 @@ export const machineCredential = sqliteTable(
     revokedAt: integer('revoked_at'),
     createdAt: integer('created_at').notNull(),
     ...auditColumnsBesidesCreatedAt(),
+    agentPoolId: text('agent_pool_id').references((): AnySQLiteColumn => agentPool.id),
   },
   (t) => [
     // One subject per trusted issuer row (A25,
@@ -3691,8 +3707,41 @@ export const machineCredential = sqliteTable(
       .where(sql`${t.revokedAt} IS NULL`),
     index('machine_credential_organization').on(t.organizationId),
     index('machine_credential_person').on(t.personId),
+    index('machine_credential_agent_pool').on(t.agentPoolId),
   ],
 );
+
+/**
+ * One **Agent pool** (`wbs-mcp-agent-surface` M7): the act that made `size`
+ * agent persons and one API key each, fixed after creation. `expires_at` is
+ * judged for every pool credential at admission; `revoked_at` is set once,
+ * when the pool is revoked as a unit, and frees the name. Added by
+ * `20261028100000_add_agent_pool`, whose `down.sql` refuses while any row
+ * exists.
+ */
+export const agentPool = sqliteTable(
+  'agent_pool',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    name: text('name').notNull(),
+    size: integer('size').notNull(),
+    expiresAt: integer('expires_at'),
+    revokedAt: integer('revoked_at'),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [
+    uniqueIndex('agent_pool_live_name')
+      .on(t.organizationId, t.name)
+      .where(sql`${t.revokedAt} IS NULL`),
+    index('agent_pool_organization').on(t.organizationId),
+  ],
+);
+
+export type AgentPoolRow = typeof agentPool.$inferSelect;
 
 export type MachineCredentialRow = typeof machineCredential.$inferSelect;
 

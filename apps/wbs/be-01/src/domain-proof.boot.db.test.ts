@@ -15,6 +15,7 @@ import { DnsUnavailableError } from './runtime/authoritative-dns/failures';
 import type { DnsTransport } from './runtime/authoritative-dns/resolver';
 import { DnsCleanupError } from './runtime/authoritative-dns/transport';
 import { startDomainProofWorker } from './runtime/domain-proof-worker';
+import { TEST_MCP_SERVICE_SETTINGS } from './testing/machine-grant-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
 import { startSmtpRelay } from './testing/smtp-relay';
 
@@ -41,6 +42,7 @@ beforeEach(() => {
     internalAuthSecret: 'internal-secret-with-at-least-32-characters',
     browserSessionAuthority: 'disabled',
     organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
+    mcpService: TEST_MCP_SERVICE_SETTINGS,
     organizationDnsResolvers: ['10.0.0.53'],
   };
 });

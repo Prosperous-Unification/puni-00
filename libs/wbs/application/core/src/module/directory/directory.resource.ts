@@ -960,8 +960,7 @@ export class DirectoryService {
         await this.opts.directory.usageOfPerson(personId),
         personId,
       );
-      if (seen.projects.length > 0 || seen.pinnedCredentials > 0)
-        return { ok: false, reason: 'in_use', usage: seen };
+      if (seen.projects.length > 0) return { ok: false, reason: 'in_use', usage: seen };
     }
     // Legacy access exists only before activation, when no machine
     // credential can have been created, so it reaches none.
@@ -1547,7 +1546,6 @@ export class DirectoryService {
             usage: {
               projects: [],
               members: [],
-              pinnedCredentials: 0,
               machineCredentials: written.machineCredentials,
             },
           };
@@ -1635,7 +1633,7 @@ export class DirectoryService {
       removal.usageIn(await this.localUsage(rows, scope), id);
     if (!cascade) {
       const seen = await shown(await removal.usageOf(id));
-      if (seen.projects.length > 0 || seen.members.length > 0 || seen.pinnedCredentials > 0) {
+      if (seen.projects.length > 0 || seen.members.length > 0) {
         return { ok: false, reason: 'in_use', usage: seen };
       }
     }

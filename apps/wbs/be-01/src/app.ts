@@ -30,6 +30,7 @@ import type {
   SpaceStore,
 } from '@wbs/core';
 import type {
+  AgentPools,
   CapacityReports,
   ComputeProviderAdministration,
   MachineCredentialAdministration,
@@ -40,10 +41,12 @@ import type {
 } from '@wbs/core';
 import {
   clockOf,
+  INACTIVE_AGENT_POOLS,
   INACTIVE_MACHINE_CREDENTIAL_ADMINISTRATION,
   INACTIVE_TRUSTED_ISSUER_ADMINISTRATION,
   NO_COMPUTE_PROVIDERS,
 } from '@wbs/core';
+import { agentPoolRoutes } from '@wbs/core/http/agent-pool.routes';
 import { capacityModeRoutes } from '@wbs/core/http/capacity-mode.routes';
 import { claimLeaseRoutes } from '@wbs/core/http/claim-lease.routes';
 import { computeProviderRoutes } from '@wbs/core/http/compute-provider.routes';
@@ -112,6 +115,7 @@ import { historyRoutes } from './controller/history.routes';
 import { importRoutes } from './controller/import.routes';
 import { infrastructureEndpoints } from './controller/infrastructure-endpoints';
 import { gatewayAccessRoutes, internalRoutes } from './controller/internal.routes';
+import { machineGrantRoutes } from './controller/machine-grant.routes';
 import { mcpDelegationRoutes } from './controller/mcp-delegation.routes';
 import type { OidcRouteOptions } from './controller/oidc-options';
 import { organizationSelectionRoutes } from './controller/organization-selection.routes';
@@ -126,13 +130,14 @@ import { mountEndpoints } from './http/elysia/mount';
 import { scimEndpoints } from './http/elysia/scim';
 import { createUnexpectedFailureReporter } from './http/elysia/unexpected-failure';
 import type { BoundEndpoint } from './http/endpoint';
-import { identityResolver } from './http/identity';
+import { identityResolver, type McpServiceIdentity, NO_MCP_SERVICE } from './http/identity';
 import type { OptimizationCoordinator } from './module/optimization/optimization.feature';
 import { openApiPlugin } from './openapi/openapi-plugin';
 import type { DatabaseHealth } from './repository/health-probe';
 import { type IssueBearerContext, REFUSE_BEARER_CONTEXT } from './runtime/bearer-context';
 import { nodeDigest } from './runtime/bun-runtime';
 import { type DelegationVerifier, REFUSE_DELEGATIONS } from './runtime/delegation';
+import { type MachineGrantAuthority, NO_MACHINE_GRANTS } from './runtime/machine-grant-authority';
 import { type McpDelegationAuthority, REFUSE_MCP_DELEGATION } from './runtime/mcp-delegation';
 import type { VerifiedCredentialOf } from './runtime/organization-credential';
 import {
@@ -251,6 +256,12 @@ export interface AppOptions {
    */
   machineCredentials?: MachineCredentialAdministration;
   /**
+   * Agent pools (`wbs-mcp-agent-surface` M7). Absent, every route answers as
+   * before activation; production and the organization harnesses wire the
+   * SQLite store (`boot.db.test.ts`).
+   */
+  agentPools?: AgentPools;
+  /**
    * The claim lease sweep (`wbs-claim-leases` L8): a revoke asks it for a tick
    * at once. Absent (an app built without boot), a revoked agent's claims go
    * on the next scheduled tick of whatever sweep runs, or not at all where
@@ -262,6 +273,14 @@ export interface AppOptions {
    * the one discovery fetch at registration, and the configured sign-in
    * issuer it refuses. Absent, every route answers as before activation.
    */
+  /**
+   * be-01's `WBS_MCP_AUTHORIZATION_SERVER` (`wbs-mcp-agent-surface` M2): the
+   * root every new trusted issuer registration's audience, and every `oidc`
+   * credential's narrowing, must equal or sit under after a `/`. Absent or
+   * null, an active organization's audience judgement throws: boot refuses an
+   * activated store without it.
+   */
+  mcpAuthorizationServer?: string | null;
   trustedIssuers?: {
     readonly administration: TrustedIssuerAdministration;
     readonly discovery: TrustedIssuerDiscovery;
@@ -379,6 +398,15 @@ export interface AppOptions {
    */
   mcpDelegation?: McpDelegationAuthority;
   /**
+   * mcp-01's dedicated secret and grant verifier (`wbs-mcp-agent-surface`
+   * M3, M14). Absent, nothing meets the `mcp-dedicated` policy and every
+   * machine grant is refused `internal_unauthorized`; `/internal/mcp/*`
+   * still admits `x-internal-auth` until the cutover's second release.
+   */
+  mcpService?: McpServiceIdentity;
+  /** Machine grant issuance; absent, a request past the secret is a server fault. */
+  machineGrants?: MachineGrantAuthority;
+  /**
    * Required for the same reason as `auth`, and for one more: the stub this
    * replaced answered every resume with `replaying, count: 0`, which no client
    * could distinguish from "you missed nothing". An optional service would let
@@ -448,6 +476,15 @@ export interface AppOptions {
    * for as long as the process happened to live.
    */
   deployedCommit?: () => string | null;
+  /**
+   * The commit the checkout was at when this process booted, read once.
+   *
+   * {@link deployedCommit} proves only what is on disk. A watcher that missed
+   * a reset leaves the old code serving while that moves on, so this is what
+   * `tools/tool-devsync` compares with the new HEAD. Null means the same as
+   * there: this deployment cannot tell.
+   */
+  bootCommit?: string | null;
   /** Overrides the process collector in tests while retaining the real shape boundary. */
   metricsScrape?: () => Promise<MetricsScrape>;
   version?: string;
@@ -548,6 +585,7 @@ export function mountedEndpoints(
       },
       probeDatabase: opts.probeDatabase,
       deployedCommit: opts.deployedCommit,
+      bootCommit: opts.bootCommit,
       logger: runtime.logger,
       scrapeMetrics: runtime.scrapeMetrics,
     }),
@@ -604,6 +642,15 @@ export function mountedEndpoints(
     ...machineCredentialRoutes(
       opts.organizations,
       opts.machineCredentials ?? INACTIVE_MACHINE_CREDENTIAL_ADMINISTRATION,
+      opts.mcpAuthorizationServer ?? null,
+      opts.clock,
+      () => opts.claimLeases?.requestSweep(),
+    ),
+    ...agentPoolRoutes(
+      opts.organizations,
+      opts.agentPools ?? INACTIVE_AGENT_POOLS,
+      commands,
+      opts.mcpAuthorizationServer ?? null,
       opts.clock,
       () => opts.claimLeases?.requestSweep(),
     ),
@@ -615,6 +662,7 @@ export function mountedEndpoints(
       opts.trustedIssuers?.administration ?? INACTIVE_TRUSTED_ISSUER_ADMINISTRATION,
       opts.trustedIssuers?.discovery ?? UNUSED_DISCOVERY,
       opts.trustedIssuers?.configuredIssuer ?? (() => Promise.resolve(null)),
+      opts.mcpAuthorizationServer ?? null,
       opts.clock,
     ),
     ...computeProviderRoutes(
@@ -751,11 +799,20 @@ export function mountedEndpoints(
     }),
     ...gatewayAccessRoutes(opts.projects, opts.organizations),
     ...mcpDelegationRoutes(opts.mcpDelegation ?? REFUSE_MCP_DELEGATION),
+    ...machineGrantRoutes(opts.machineGrants ?? NO_MACHINE_GRANTS),
   ] as const;
 }
 
 export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = createLogger) {
-  const secrets = [opts.internalAuthSecret];
+  const mcpService = opts.mcpService ?? NO_MCP_SERVICE;
+  // Proof: with the grant keys left out of this list, `redacts the mcp-01
+  // secret and the grant keys` (app.test.ts) saw a list without them; watched
+  // 2026-10-26.
+  const secrets = [
+    opts.internalAuthSecret,
+    ...(mcpService.secret === null ? [] : [mcpService.secret]),
+    ...mcpService.grantKeySecrets,
+  ];
   // Proof: on 2026-09-21, omitting `secrets` made “reports one redacted unexpected
   // production failure with its shared occurrence” receive undefined instead of the secret array.
   const logger = makeLogger({ service: 'be-01', version: opts.version, secrets });
@@ -812,6 +869,7 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
             opts.internalAuthSecret,
             opts.delegation ?? REFUSE_DELEGATIONS,
             opts.credentialEvidence,
+            opts.mcpService ?? NO_MCP_SERVICE,
           ),
           // Proof: on 2026-09-21, replacing this production callback with a no-op made
           // “reports one redacted unexpected production failure with its shared occurrence” receive

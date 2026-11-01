@@ -15,6 +15,7 @@ import {
 } from '../record-codecs';
 import type { OwnershipStatus } from '../records';
 import type { RunStore } from '../run-store';
+import { closeFixtures } from './close-fixtures';
 import type { FixtureClock } from './fixtures';
 import { createManifest, createRun, unwrapReply } from './fixtures';
 
@@ -22,14 +23,14 @@ export interface StoreFixture {
   readonly runs: RunStore;
   readonly ownership: OwnershipStatus;
   readonly clock: FixtureClock;
-  close(): void;
+  close(): Promise<void>;
 }
 /** Registers provider-independent admission, fencing and isolation observations. */
 export function runStoreContract(name: string, create: () => Promise<StoreFixture>): void {
   describe(name, () => {
     const opened: StoreFixture[] = [];
-    afterEach(() => {
-      for (const fixture of opened.splice(0)) fixture.close();
+    afterEach(async () => {
+      await closeFixtures(opened.splice(0));
     });
     async function createFixture() {
       const stores = await create();
@@ -482,8 +483,8 @@ export function runStoreContract(name: string, create: () => Promise<StoreFixtur
           fixture.admission,
         ),
       ).toEqual({ kind: 'refused', reason: 'owner_stale' });
-      stores.close();
-      stores.close();
+      const closing = stores.close();
+      const repeated = stores.close();
       const operations = [
         () => stores.runs.acquireOwnership(ownerId('owner'), 0),
         () => stores.runs.renewOwnership(fixture.ownership),
@@ -498,6 +499,8 @@ export function runStoreContract(name: string, create: () => Promise<StoreFixtur
           ),
       ];
       for (const operation of operations) await rejects(operation(), /closed/);
+      await closing;
+      await repeated;
     });
     test('missing trusted run and manifest throw on inspection', async () => {
       const fixture = await createFixture();

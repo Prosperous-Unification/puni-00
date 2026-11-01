@@ -33,14 +33,14 @@ The three [executor tasks](executor-tasks.md) implement [executor design](execut
 These parent gates stay open until that packet is accepted. They do not complete other
 adapters, durable coordinator dispatch, S0.08 recovery or S7a.
 
-- [ ] 2.1 Red/green: shared executor identities, immutable request/locator snapshots and
+- [x] 2.1 Red/green: shared executor identities, immutable request/locator snapshots and
       real accepted Burokrat selection against actual installed SDK registry capabilities.
       Session-to-WBS-agent-run persistence remains later host integration.
-- [ ] 2.2 Red/green: real SDK turns preserve per-step measured/unknown usage, distinct
+- [x] 2.2 Red/green: real SDK turns preserve per-step measured/unknown usage, distinct
       output/step limits, zero automatic retries and correlated uncertain/throwing outcomes.
       Bare model IDs fail at accepted-binding/registry boundaries; newly owned guards need
       isolated production fault proofs rather than masked duplicate prefix checks.
-- [ ] 2.3 Green: concrete API-model adapter with injected model registry/tools, owned local
+- [x] 2.3 Green: concrete API-model adapter with injected model registry/tools, owned local
       sessions, payload-bound retries, cancellation/listener lifecycle and honest unsupported
       durable recovery. No production provider factory or live command is enabled.
 
@@ -95,6 +95,11 @@ G2 is decided: [ADR 0061](../../../docs/adr/0061-execution-facts-survive-coordin
 Tasks 6a.1–6a.2 are expanded in [storage tasks](storage-tasks.md), implementing the
 [storage design](storage-design.md). Their checkboxes remain the parent acceptance gate.
 
+The S0 [provider lifecycle prerequisite](provider-lifecycle-tasks.md) prepares observed
+cleanup for another durable store. WBS030.04/030.12 require second-provider conformance
+during S0; the deployment choice and paused-writer transfer in6b.3 remain required before
+claiming portability. Neither prerequisite alone closes S0 or S7a.
+
 - [x] 6a.1 Red: shared RunStore/ArtifactStore conformance tests for atomic admission,
       capacity, revision and owner conflicts, immutable manifests, outcome/outbox atomicity,
       inbox deduplication and receipt reconciliation. No SQL or engine-specific schema in ports.
@@ -104,11 +109,16 @@ Tasks 6a.1–6a.2 are expanded in [storage tasks](storage-tasks.md), implementin
       versions, restart after working-tree edits, explicit revocation and provenance-aware re-pinning.
       Retained recovery is expanded in [binding recovery tasks](binding-recovery-tasks.md);
       that internal slice does not close revocation or provenance-aware re-pinning.
-- [ ] 6a.4 Red/green: unified CTT hints adapter over legacy step chains, completed-work seeds,
-      DEFER_READY, generation-checked settlement and callback-free summary. Require complete
-      discovery/validation and filter durable waits/running/retry state before admission.
-      Rebuild the frontier from WBS business facts and accepted execution facts after restart;
-      a running attempt is never admitted twice.
+- [ ] 6a.4 Red/green: native CTT 0.12 materialize/prepare adapter over legacy step chains,
+      independent `createWorkSession({ completedWork })`, `advance()` work tickets,
+      accepted-WBS-only `completeWork` (`accepted`/`alreadyAccepted`) and callback-free summary.
+      Require complete disconnected topology validation and preserve distinct W/C milestones.
+      Filter current WBS eligibility and durable waits/running/retry state before atomic
+      RunStore admission; admission never completes work. Reconstruct independent sessions
+      from accepted WBS facts and durable attempt history, rejecting old tickets and avoiding
+      duplicate running admission. The [native integration tasks](../ctt-work-session-integration/tasks.md)
+      track this bounded local component; exact remote claim, intent-before-launch ordering
+      and coordinator CLI composition remain open, so this full checkbox stays unchecked.
       The [execution-history tasks](execution-history-tasks.md) implement the bounded persistence
       foundation for6a.5. External dispatch ordering and exact outcome/write/release remain later
       phases and the parent checkbox stays open.
@@ -118,6 +128,9 @@ Tasks 6a.1–6a.2 are expanded in [storage tasks](storage-tasks.md), implementin
       The next production connection is [preparation dispatch](preparation-dispatch-tasks.md):
       verified intent precedes session creation and committed locator precedes live-session
       publication. This slice leaves claim transport, turn dispatch and exact outcome delivery open.
+      [Runtime dispatch](runtime-dispatch-tasks.md) then connects authority/claim receipt
+      delivery and one fresh turn through the existing ports. Its client capture does not
+      complete outcome/release, supported recovery or the coordinator.
 - [ ] 6a.6 Red: coordinator-only crash with worker surviving, effect-before-result-save,
       progress-before-ack/outcome-before-reply, duplicate signals, stale local owner, stale WBS
       claim and unresolved worker/effect state. Fault injection must catch bypassed local

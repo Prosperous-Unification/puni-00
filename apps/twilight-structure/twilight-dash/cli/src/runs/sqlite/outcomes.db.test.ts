@@ -33,12 +33,17 @@ async function create() {
     maxBusyAttempts: 2,
     busyDelayMilliseconds: 1,
   });
+  let closing: Promise<void> | undefined;
   return {
     ...stores,
     clock,
-    close() {
-      stores.close();
-      rmSync(directory, { recursive: true });
+    close(): Promise<void> {
+      if (closing !== undefined) return closing;
+      closing = (async () => {
+        await stores.close();
+        rmSync(directory, { recursive: true });
+      })();
+      return closing;
     },
   };
 }
@@ -65,8 +70,14 @@ async function durableFixture() {
     const setup = await prepareTurn({ ...stores, clock });
     return { ...setup, options, directory, stores };
   } catch (cause) {
-    if (stores !== undefined) stores.close();
-    rmSync(directory, { recursive: true });
+    try {
+      if (stores !== undefined) await stores.close();
+      rmSync(directory, { recursive: true });
+    } catch (cleanupCause) {
+      throw new AggregateError([cause, cleanupCause], 'store setup and cleanup failed', {
+        cause: cleanupCause,
+      });
+    }
     throw cause;
   }
 }
@@ -86,7 +97,7 @@ test('outbox abort rolls back outcome revisions and capacity before reopen then 
       recordOutcome(stores.runs, stores.artifacts, guard, completion),
       /injected outbox fault/,
     );
-    stores.close();
+    await stores.close();
     const reopening = openSqliteStores(setup.options);
     await doesNotReject(reopening);
     stores = await reopening;
@@ -104,7 +115,7 @@ test('outbox abort rolls back outcome revisions and capacity before reopen then 
       outcome: completion.outcome,
     });
     expect(after.capacity.reserved).toBe(0);
-    stores.close();
+    await stores.close();
     stores = await openSqliteStores(setup.options);
     expect(await stores.runs.readRun(setup.run.runId)).toEqual(after);
     expect(await stores.runs.commitOutcome(guard, completion)).toMatchObject({ kind: 'duplicate' });
@@ -114,7 +125,7 @@ test('outbox abort rolls back outcome revisions and capacity before reopen then 
     expect(await stores.runs.readRun(setup.run.runId)).toEqual(after);
   } finally {
     database.close();
-    stores.close();
+    await stores.close();
     rmSync(setup.directory, { recursive: true });
   }
 });
@@ -145,7 +156,7 @@ for (const operation of [
       database
         .query('UPDATE run_artifact SET content=? WHERE digest=?')
         .run(new TextEncoder().encode('corrupted'), bad.digest);
-      stores.close();
+      await stores.close();
       stores = await openSqliteStores(setup.options);
       if (operation.startsWith('manifest')) {
         const manifest = createManifest(
@@ -195,7 +206,7 @@ for (const operation of [
       expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
     } finally {
       database.close();
-      stores.close();
+      await stores.close();
       rmSync(setup.directory, { recursive: true });
     }
   });
@@ -208,6 +219,7 @@ import { openSqliteStores } from ${JSON.stringify(new URL('./open-stores.ts', im
 import { recordOutcome } from ${JSON.stringify(new URL('../record-outcome.ts', import.meta.url).pathname)};
 const packet=JSON.parse(process.env.RUN_OUTCOME_CHILD);
 const stores=await openSqliteStores({...packet.options,clock:{read:()=>1000}});
+try {
 writeSync(1,JSON.stringify({phase:'ready'})+'\\n');
 let startTimer;
 try {
@@ -238,6 +250,7 @@ if(packet.mode==='before') {
 const reply=await recordOutcome(stores.runs,stores.artifacts,packet.guard,packet.completion);
 writeSync(1,JSON.stringify({phase:'committed',reply})+'\\n');
 const deadline=Date.now()+10000;while(Date.now()<deadline) await Bun.sleep(5);throw new Error('after-commit kill barrier timed out');
+} finally { await stores.close(); }
 `;
 function spawnOutcomeChild(packet: unknown) {
   const child = Bun.spawn([process.execPath, '-e', childSource], {
@@ -316,15 +329,21 @@ async function prepareOutcomeProcess(mode: 'before' | 'after') {
     const guard = await setup.currentGuard();
     const completion = createCompletion(setup.claim, setup.quiescence);
     const before = await setup.stores.runs.readRun(setup.run.runId);
-    setup.stores.close();
+    await setup.stores.close();
     child = spawnOutcomeChild({ mode, options: setup.options, guard, completion });
     // Proof: F13 changed the real child phase to wrong-ready; this bounded hook failed, killed/awaited its exact child and removed its owned fixture. Restored before-COMMIT case passed.
     expect(await child.phase()).toEqual({ phase: 'ready' });
     return { setup, guard, completion, before, child };
   } catch (cause) {
-    if (child !== undefined) await child.close();
-    setup.stores.close();
-    rmSync(setup.directory, { recursive: true });
+    try {
+      if (child !== undefined) await child.close();
+      await setup.stores.close();
+      rmSync(setup.directory, { recursive: true });
+    } catch (cleanupCause) {
+      throw new AggregateError([cause, cleanupCause], 'store setup and cleanup failed', {
+        cause: cleanupCause,
+      });
+    }
     throw cause;
   }
 }
@@ -379,7 +398,7 @@ for (const mode of ['before', 'after'] as const)
           expect(await reopened.runs.readRun(setup.run.runId)).toEqual(snapshot);
         }
       } finally {
-        reopened.close();
+        await reopened.close();
       }
     });
   });
@@ -404,7 +423,7 @@ for (const fault of [
         completion,
       ),
     );
-    setup.stores.close();
+    await setup.stores.close();
     const database = new Database(setup.options.path);
     try {
       if (fault === 'missing outbox') database.run('DELETE FROM run_outbox');
@@ -431,7 +450,7 @@ for (const fault of [
 for (const kind of ['queued', 'turn_pending', 'reconciling', 'unresolved'] as const)
   test(`open rejects ${kind} recorded without held capacity even when reservation agrees`, async () => {
     const setup = await durableFixture();
-    setup.stores.close();
+    await setup.stores.close();
     const database = new Database(setup.options.path);
     try {
       const checkpoint = setup.checkpoint;
@@ -495,7 +514,7 @@ for (const kind of ['interrupted', 'waiting', 'outcome'] as const)
           ),
         ),
       );
-    setup.stores.close();
+    await setup.stores.close();
     const database = new Database(setup.options.path);
     try {
       database.run(
@@ -517,7 +536,7 @@ executionCommandContract('sqlite execution commands', create);
 for (const fault of ['command key', 'attempt key', 'run key'] as const)
   test(`open rejects immutable execution ${fault} corruption`, async () => {
     const setup = await durableFixture();
-    setup.stores.close();
+    await setup.stores.close();
     const database = new Database(setup.options.path);
     try {
       if (fault === 'command key')
@@ -551,7 +570,7 @@ test('open identifies a physically relabeled completion before treating it as an
       createCompletion(setup.claim, setup.quiescence),
     ),
   );
-  setup.stores.close();
+  await setup.stores.close();
   const database = new Database(setup.options.path);
   try {
     database.run("UPDATE run_completion SET command_id='relabeled'");

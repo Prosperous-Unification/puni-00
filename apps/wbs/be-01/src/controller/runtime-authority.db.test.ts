@@ -379,15 +379,15 @@ describe('runtime authorization and request detachment', () => {
       access: { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' } },
     };
     expect(await receiver.acquireRuntimeAuthority(admin, acquisition)).toMatchObject({ ok: true });
-    sqlite.db.run(
-      "INSERT INTO external_identity (id,user_id,issuer,subject,person_id,created_at) VALUES ('pin','ada','https://idp.test','fleet','foreign',1)",
-    );
+    // A machine credential's own person is the pin (`wbs-machine-credentials` A12, A18); a
+    // machine has no admin bypass of the binding, so the person is bound again first.
+    await source.stores.directory.patchPerson('agent', { accountId: 'ada' }, stamp);
     await check(
       {
         ...admin,
         actor: {
           ...actor,
-          authentication: { kind: 'upstream', issuer: 'https://idp.test', subject: 'fleet' },
+          authentication: { kind: 'machine', credentialId: 'key-1', personId: 'foreign' },
         },
       },
       'credential_not_for_person',
@@ -398,14 +398,11 @@ describe('runtime authorization and request detachment', () => {
     await check(context, 'forbidden');
   });
   it('retains original context and request bytes while a real transaction queues admission', async () => {
-    const { receiver, source, sqlite, acquisition, ledger } = await seeded();
+    const { receiver, source, acquisition, ledger } = await seeded();
     await source.stores.directory.addPerson(
       { id: 'missing', name: 'Other pin', kind: 'agent' },
       [],
       stamp,
-    );
-    sqlite.db.run(
-      "INSERT INTO external_identity (id,user_id,issuer,subject,person_id,created_at) VALUES ('pin','ada','https://idp.test','changed','missing',1)",
     );
     const mutable = {
       projectId: 'a1',
@@ -413,9 +410,9 @@ describe('runtime authorization and request detachment', () => {
       actor: {
         ...actor,
         authentication: {
-          kind: 'upstream' as const,
-          issuer: 'https://idp.test',
-          subject: 'original',
+          kind: 'machine' as const,
+          credentialId: 'key-1',
+          personId: 'agent',
         },
       },
       access: {
@@ -437,7 +434,7 @@ describe('runtime authorization and request detachment', () => {
     mutable.projectId = 'b1';
     mutable.personId = 'missing';
     mutable.actor.id = 'missing';
-    mutable.actor.authentication.subject = 'changed';
+    mutable.actor.authentication.personId = 'missing';
     mutable.access.scope.organizationId = 'org-b';
     request.commandId = 'changed';
     request.ownerId = 'changed';
@@ -914,7 +911,7 @@ describe('accepted runtime lifecycle', () => {
       receipts: sqlite.db.all('SELECT * FROM runtime_command_receipt ORDER BY rowid'),
     });
     const installed = readInstallation();
-    expect(installed.migrations.slice(-12)).toMatchObject([
+    expect(installed.migrations.slice(-15)).toMatchObject([
       { name: '20261022130000_add_organization_limits' },
       { name: '20261022130100_widen_organization_audit_organization_limits' },
       { name: '20261022140000_add_resource_provider' },
@@ -927,8 +924,14 @@ describe('accepted runtime lifecycle', () => {
       { name: '20261025120000_add_resource_use' },
       { name: '20261025130000_add_resource_runtime' },
       { name: '20261026120000_add_command_journal_person' },
+      { name: '20261026130000_widen_organization_audit_machine_tokens' },
+      { name: '20261028100000_add_agent_pool' },
+      { name: '20261028100100_widen_organization_audit_agent_pools' },
     ]);
     expect(rollbackTo(dbPath, migrations, '20261022121000_add_runtime_commands')).toEqual([
+      '20261028100100_widen_organization_audit_agent_pools',
+      '20261028100000_add_agent_pool',
+      '20261026130000_widen_organization_audit_machine_tokens',
       '20261026120000_add_command_journal_person',
       '20261025130000_add_resource_runtime',
       '20261025120000_add_resource_use',
@@ -943,7 +946,7 @@ describe('accepted runtime lifecycle', () => {
       '20261022130000_add_organization_limits',
     ]);
     const before = readInstallation();
-    expect(before.migrations).toEqual(installed.migrations.slice(0, -12));
+    expect(before.migrations).toEqual(installed.migrations.slice(0, -15));
     expect(() => rollbackTo(dbPath, migrations, '20261020130000_add_claim_occupancy')).toThrow(
       'runtime history',
     );

@@ -133,6 +133,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'mutation',
   },
   {
+    operationId: 'deleteApiOrganizationAgent-poolsById',
+    method: 'DELETE',
+    path: '/api/organization/agent-pools/:id',
+    kind: 'mutation',
+  },
+  {
     operationId: 'deleteApiOrganizationMachine-credentialsById',
     method: 'DELETE',
     path: '/api/organization/machine-credentials/:id',
@@ -255,6 +261,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'getApiOrganizationCompute-providers',
     method: 'GET',
     path: '/api/organization/compute-providers',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiOrganizationAgent-pools',
+    method: 'GET',
+    path: '/api/organization/agent-pools',
     kind: 'read',
   },
   {
@@ -587,6 +599,18 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'mutation',
   },
   {
+    operationId: 'postApiOrganizationAgent-pools',
+    method: 'POST',
+    path: '/api/organization/agent-pools',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'postApiOrganizationAgent-poolsByIdRekey',
+    method: 'POST',
+    path: '/api/organization/agent-pools/:id/rekey',
+    kind: 'mutation',
+  },
+  {
     operationId: 'postApiOrganizationMachine-credentials',
     method: 'POST',
     path: '/api/organization/machine-credentials',
@@ -732,6 +756,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'postInternalMcpDelegation',
     method: 'POST',
     path: '/internal/mcp/delegation',
+    kind: 'control',
+  },
+  {
+    operationId: 'postInternalMcpMachineGrants',
+    method: 'POST',
+    path: '/internal/mcp/machine-grants',
     kind: 'control',
   },
   {

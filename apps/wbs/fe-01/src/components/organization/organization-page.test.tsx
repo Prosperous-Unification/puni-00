@@ -118,6 +118,57 @@ describe('organization page', () => {
     expect(await within(panel).findByText('puni1@h4claw')).toBeDefined();
   });
 
+  it('composes the agent pools panel for an admin', async () => {
+    stubPage({
+      'GET /api/organization/invitations': [() => answer(200, { invitations: [] })],
+      'GET /api/organization/active': [
+        () => answer(200, { organizationId: 'org-a', name: 'Acme', role: 'admin' }),
+      ],
+      'GET /api/organization/limits': [
+        () =>
+          answer(200, {
+            source: 'default',
+            limits: {
+              maxAgentPersons: 8,
+              maxConcurrentClaims: 200,
+              maxCapacityUnitsPerResource: 64,
+            },
+            usage: { agentPersons: 2, concurrentClaims: 0, capacityUnits: [] },
+          }),
+      ],
+      'GET /api/organization/agent-pools': [
+        () =>
+          answer(200, {
+            pools: [
+              {
+                id: 'pool-1',
+                name: 'swarm-a',
+                size: 2,
+                expiresAt: null,
+                revokedAt: null,
+                createdAt: NOW,
+                createdBy: 'u1',
+                credentials: [],
+              },
+            ],
+          }),
+      ],
+    });
+    render(
+      <OrganizationResourcesProvider
+        scope={{
+          organization: { kind: 'active', organizationId: 'org-a' },
+          isCurrent: () => true,
+          refuse: () => undefined,
+        }}
+      >
+        <OrganizationPage nav={<nav />} account={<span />} userId="u1" />
+      </OrganizationResourcesProvider>,
+    );
+    const panel = await screen.findByRole('region', { name: 'Agent pools' });
+    expect(await within(panel).findByRole('listitem', { name: 'swarm-a' })).toBeDefined();
+  });
+
   it('composes company sign-in setup on the organization page', async () => {
     stubPage({ 'GET /api/organization/invitations': [() => answer(200, { invitations: [] })] });
     renderPage();
@@ -454,7 +505,9 @@ describe('machine credentials on the organization page', () => {
       'GET /api/organization/invitations': [() => answer(200, { invitations: [] })],
       'GET /api/organization/active': [() => answer(200, { organizationId, name: 'Acme', role })],
       'GET /api/organization/machine-credentials': [() => answer(200, { credentials: [] })],
-      'GET /api/organization/trusted-issuers': [() => answer(200, { trustedIssuers: [] })],
+      'GET /api/organization/trusted-issuers': [
+        () => answer(200, { trustedIssuers: [], audienceRoot: 'https://wbs.example/mcp/oauth' }),
+      ],
       'GET /api/people': [() => answer(200, { people: [] })],
     });
   }
@@ -505,7 +558,9 @@ describe('machine credentials on the organization page', () => {
         () => answer(200, { organizationId: 'org-a', name: 'Acme', role: 'admin' }),
       ],
       'GET /api/organization/machine-credentials': [() => answer(200, { credentials: [] })],
-      'GET /api/organization/trusted-issuers': [() => answer(200, { trustedIssuers: [] })],
+      'GET /api/organization/trusted-issuers': [
+        () => answer(200, { trustedIssuers: [], audienceRoot: 'https://wbs.example/mcp/oauth' }),
+      ],
       'GET /api/people': [() => answer(200, { people: [] })],
       'GET /api/organization/limits': [
         () =>

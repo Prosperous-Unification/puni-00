@@ -91,6 +91,10 @@ const ALLOWED_DASH_EDGES = [
   // The resources-only exact-alias ESLint regression pins this transport boundary.
   // Proof: omitting this pair reported twilight-dash -> wbs-contracts (2026-10-25).
   ['twilight-dash', 'wbs-contracts'],
+  // The coordination topology/facts exact-alias ESLint regression pins this boundary to
+  // `@wbs/domain` at three files. Proof: without this pair the real graph oracle reported
+  // twilight-dash -> wbs-domain (CI run 41244462158 and locally, 2026-11-01).
+  ['twilight-dash', 'wbs-domain'],
 ] as const;
 
 // Both suite apps' `no-ambient-clock.test.ts` apply the shared clock-read detector. Proof:

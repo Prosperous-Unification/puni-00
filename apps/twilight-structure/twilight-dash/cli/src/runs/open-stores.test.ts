@@ -1,5 +1,5 @@
 import { rejects } from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -7,10 +7,11 @@ import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 import ts from 'typescript';
 
-import { openStores, type SqliteConfiguration } from './open-stores';
+import { openStores as openSelected, type SqliteConfiguration } from './open-stores';
 import { organizationId, ownerId } from './record-codecs';
 import { acceptRuntimeReceipt } from './runtime-history';
-import { bootstrapSqliteStores } from './sqlite/open-stores';
+import { bootstrapSqliteStores as bootstrapStores } from './sqlite/open-stores';
+import { closeFixtures } from './testing/close-fixtures';
 import {
   createCompletion,
   createManifest,
@@ -26,15 +27,24 @@ import {
   runtimeScope,
 } from './testing/runtime-history-contract';
 import { prepareWait } from './testing/signals-contract';
+import { createStoreDirectory, findStoreDirectory } from './testing/store-directory';
 
-const directories: string[] = [];
-afterEach(() => {
-  for (const directory of directories.splice(0))
-    rmSync(directory, { recursive: true, force: true });
+const directories: ReturnType<typeof createStoreDirectory>[] = [];
+afterEach(async () => {
+  // Proof: I1-H1 bypassed this actual hook's provider disposal; its earlier-work-failure child failed STORE-DIRECTORY-I1-03. Exact restoration passed.
+  await closeFixtures(directories.splice(0));
 });
+async function bootstrapSqliteStores(...parameters: Parameters<typeof bootstrapStores>) {
+  const stores = await bootstrapStores(...parameters);
+  return findStoreDirectory(directories, parameters[0].path).retainStore(stores);
+}
+async function openStores(...parameters: Parameters<typeof openSelected>) {
+  const stores = await openSelected(...parameters);
+  return findStoreDirectory(directories, parameters[0].path).retainStore(stores);
+}
 function configuration(): SqliteConfiguration {
   const directory = mkdtempSync(join(tmpdir(), 'runs-production-'));
-  directories.push(directory);
+  directories.push(createStoreDirectory(directory, { recursive: true, force: true }));
   return {
     provider: 'sqlite',
     path: join(directory, 'runs.sqlite'),
@@ -54,25 +64,25 @@ test('production SQLite selection reopens persisted ports and ownership', async 
   unwrapReply(await initial.runs.createRun(ownership, createRun()));
   const retained = await initial.artifacts.retainArtifact(new Uint8Array([4, 2]), 'test/bytes');
   if (retained.kind !== 'retained') throw new Error('fixture artifact refused');
-  initial.close();
+  await initial.close();
   const stores = await openStores(settings, clock);
   try {
     expect(stores.ownership.owner).toEqual(ownership);
     expect((await stores.runs.readRun(createRun().runId)).run).toEqual(createRun());
     expect(await stores.artifacts.readArtifact(retained.reference)).toEqual(new Uint8Array([4, 2]));
   } finally {
-    stores.close();
+    await stores.close();
   }
 });
 for (const provider of ['memory', 'unknown', '', null, undefined, 1])
   test(`production selection rejects provider ${String(provider)}`, async () => {
     const settings = configuration();
     const clock = new FixtureClock();
-    (await bootstrapSqliteStores({ ...settings, clock })).close();
+    await (await bootstrapSqliteStores({ ...settings, clock })).close();
     expect(existsSync(settings.path)).toBe(true);
     await rejects(async () => {
       const stores = await openStores({ ...settings, provider } as SqliteConfiguration, clock);
-      stores.close();
+      await stores.close();
     }, /Validation failed/);
   });
 const malformed: readonly (readonly [string, unknown])[] = [
@@ -91,7 +101,7 @@ for (const [field, invalid] of malformed)
   test(`production configuration rejects malformed ${field} ${String(invalid)}`, async () => {
     const settings = configuration();
     const clock = new FixtureClock();
-    (await bootstrapSqliteStores({ ...settings, clock })).close();
+    await (await bootstrapSqliteStores({ ...settings, clock })).close();
     await rejects(openStores({ ...settings, [field]: invalid }, clock));
   });
 for (const field of [
@@ -105,14 +115,14 @@ for (const field of [
   test(`production configuration requires ${field}`, async () => {
     const settings = configuration();
     const clock = new FixtureClock();
-    (await bootstrapSqliteStores({ ...settings, clock })).close();
+    await (await bootstrapSqliteStores({ ...settings, clock })).close();
     const missing = Object.fromEntries(Object.entries(settings).filter(([name]) => name !== field));
     await rejects(openStores(missing as SqliteConfiguration, clock));
   });
 test('production configuration rejects nullish input and malformed clock', async () => {
   const settings = configuration();
   const clock = new FixtureClock();
-  (await bootstrapSqliteStores({ ...settings, clock })).close();
+  await (await bootstrapSqliteStores({ ...settings, clock })).close();
   for (const input of [null, undefined, 1])
     await rejects(openStores(input as unknown as SqliteConfiguration, clock));
   await rejects(openStores(settings, {} as FixtureClock));
@@ -130,14 +140,14 @@ for (const [field, changed] of [
   test(`production open refuses changed persisted ${field}`, async () => {
     const settings = configuration();
     const clock = new FixtureClock();
-    (await bootstrapSqliteStores({ ...settings, clock })).close();
+    await (await bootstrapSqliteStores({ ...settings, clock })).close();
     await rejects(openStores({ ...settings, [field]: changed }, clock), /configuration/);
   });
 
 test('production close is idempotent and every public operation refuses closed despite a retained connection', async () => {
   const settings = configuration();
   const clock = new FixtureClock();
-  (await bootstrapSqliteStores({ ...settings, clock })).close();
+  await (await bootstrapSqliteStores({ ...settings, clock })).close();
   const stores = await openStores(settings, clock);
   const setup = await prepareWait({ ...stores, clock });
   const { ownership, decision, claim, quiescence, command, admission, run } = setup;
@@ -249,15 +259,21 @@ test('production close is idempotent and every public operation refuses closed d
     },
   });
   try {
-    stores.close();
-    stores.close();
+    const closing = stores.close();
+    const repeated = stores.close();
     for (const [name, operation] of Object.entries(operations))
-      await rejects(operation(), /closed/, `${name} must refuse a closed store`);
+      await rejects(
+        operation(),
+        /closed/,
+        `SQLITE-LIFECYCLE-43: ${name} must refuse a closed store`,
+      );
+    await closing;
+    await repeated;
     expect(connections).toHaveLength(1);
   } finally {
+    await stores.close();
     Object.defineProperty(Database.prototype, 'close', descriptor);
     for (const connection of new Set(connections)) connection.close();
-    stores.close();
   }
 });
 

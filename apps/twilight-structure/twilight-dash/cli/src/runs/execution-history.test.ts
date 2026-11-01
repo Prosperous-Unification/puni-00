@@ -72,7 +72,7 @@ for (const route of ['renewOwnership', 'retainManifest', 'createRun'] as const) 
       expect(restored.value).toBeDefined();
     } finally {
       Map.prototype.set = originalSet;
-      stores.close();
+      await stores.close();
     }
   });
 }
@@ -129,7 +129,7 @@ for (const kind of ['stage_claim', 'accept_claim', 'stage_turn'] as const)
       expect((await invokeCoupledProvider(stores.runs, guard, command)).kind).toBe('applied');
     } finally {
       Map.prototype.set = originalSet;
-      stores.close();
+      await stores.close();
     }
   });
 
@@ -189,7 +189,7 @@ for (const kind of ['stage_claim', 'accept_claim', 'stage_turn'] as const)
         });
       } finally {
         Map.prototype.set = originalSet;
-        stores.close();
+        await stores.close();
       }
     },
   );
@@ -291,7 +291,7 @@ describe('local strict compositions', () => {
         acceptRecorded: accepted,
       };
     } finally {
-      stores.close();
+      await stores.close();
     }
   });
   const boundaries: {

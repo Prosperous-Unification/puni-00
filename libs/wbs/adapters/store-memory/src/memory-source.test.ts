@@ -1177,7 +1177,7 @@ describe('the memory claims renewal', () => {
       {} as Parameters<typeof inMemoryClaims>[5],
     );
     const refusal = await claims
-      .renewLeases('codex', () => 500)
+      .renewLeases('codex', null, () => 500)
       .then(
         () => '(renewed)',
         (error: unknown) => String(error),

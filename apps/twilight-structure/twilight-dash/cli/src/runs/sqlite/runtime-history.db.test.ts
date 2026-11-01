@@ -32,17 +32,20 @@ export async function createRuntimeDatabaseFixture() {
     busyDelayMilliseconds: 1,
   };
   const stores = await bootstrapSqliteStores(options);
+  let closing: Promise<void> | undefined;
   return {
     ...stores,
     options,
     directory,
     clock,
-    disconnect: () => {
-      stores.close();
-    },
-    close() {
-      stores.close();
-      rmSync(directory, { recursive: true, force: true });
+    disconnect: (): Promise<void> => stores.close(),
+    close(): Promise<void> {
+      if (closing !== undefined) return closing;
+      closing = (async () => {
+        await stores.close();
+        rmSync(directory, { recursive: true, force: true });
+      })();
+      return closing;
     },
   };
 }
@@ -140,16 +143,16 @@ test('runtime transaction abort preserves scope revision rows and retained marke
     expect(
       database.query('SELECT scope_count,intent_count,acceptance_count FROM run_format').get(),
     ).toEqual({ scope_count: 1, intent_count: 0, acceptance_count: 0 });
-    stores.disconnect();
+    await stores.disconnect();
     const reopened = await openSqliteStores(stores.options);
     try {
       expect(await reopened.runs.readRuntimeScope(runtimeScope)).toEqual(before);
     } finally {
-      reopened.close();
+      await reopened.close();
     }
   } finally {
     database.close();
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -235,11 +238,11 @@ for (const [fault, mutation] of Object.entries(runtimeFaults))
           authorityRequest('next', 1),
         ),
       );
-      stores.disconnect();
+      await stores.disconnect();
       await rejects(openSqliteStores(stores.options));
     } finally {
       database.close();
-      stores.close();
+      await stores.close();
     }
   });
 
@@ -254,11 +257,11 @@ for (const table of [
     const database = new Database(stores.options.path);
     try {
       database.run(`ALTER TABLE ${table} ADD COLUMN ignored TEXT`);
-      stores.disconnect();
+      await stores.disconnect();
       await rejects(openSqliteStores(stores.options), { failure: 'corrupt' });
     } finally {
       database.close();
-      stores.close();
+      await stores.close();
     }
   });
 
@@ -272,11 +275,11 @@ for (const fault of ['first forward hash', 'first down hash', 'complete bundle h
           ? "UPDATE run_format SET bundle_hash='changed'"
           : `UPDATE run_meta SET ${fault === 'first forward hash' ? 'migration_hash' : 'down_hash'}='changed'`,
       );
-      stores.disconnect();
+      await stores.disconnect();
       await rejects(openSqliteStores(stores.options), { failure: 'incompatible' });
     } finally {
       database.close();
-      stores.close();
+      await stores.close();
     }
   });
 
@@ -316,7 +319,7 @@ test('retained generation progression validates canonical bytes with their indep
     await rejects(stores.runs.readRuntimeScope(runtimeScope), /runtime generation progression/);
   } finally {
     database.close();
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -357,7 +360,7 @@ test('current owner fencing precedes corrupt retained runtime rows for all mutat
     await rejects(stores.runs.pinRuntimeScope(current, runtimePin));
   } finally {
     database.close();
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -406,7 +409,7 @@ test('unused new down restores exact original physical schema and old records', 
   } finally {
     reference.close();
     database.close();
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -483,7 +486,7 @@ for (const fault of [
       ).toHaveLength(4);
     } finally {
       database.close();
-      stores.close();
+      await stores.close();
     }
   });
 
@@ -578,7 +581,7 @@ test('trusted runtime second pending event refuses complete otherwise valid rows
     await rejects(stores.runs.readRuntimeScope(runtimeScope), /runtime pending command/);
   } finally {
     database.close();
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -649,18 +652,18 @@ test('verified SQLite receipt reads actual JSON artifacts before acceptance SQL 
         )
       ).kind,
     ).toBe('applied');
-    stores.disconnect();
+    await stores.disconnect();
     const reopened = await openSqliteStores(stores.options);
     try {
       expect(
         await readRuntimeHistory(reopened.runs, reopened.artifacts, runtimeScope),
       ).toMatchObject({ revision: 2, acceptances: [{ evidence: retained.reference }] });
     } finally {
-      reopened.close();
+      await reopened.close();
     }
   } finally {
     database.close();
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -686,7 +689,7 @@ test('bootstrap retains the complete named forward and down bundle identity', as
     });
   } finally {
     database.close();
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -750,11 +753,11 @@ for (const surface of ['read', 'mutation', 'reopen'] as const)
           /corrupt runtime local epoch progression/,
         );
       if (surface === 'reopen') {
-        stores.disconnect();
+        await stores.disconnect();
         await rejects(
           async () => {
             const reopened = await openSqliteStores(stores.options);
-            reopened.close();
+            await reopened.close();
           },
           (cause: unknown) => {
             expect(cause).toMatchObject({
@@ -768,7 +771,7 @@ for (const surface of ['read', 'mutation', 'reopen'] as const)
       expect(captureRuntimeDatabase(database)).toEqual(before);
     } finally {
       database.close();
-      stores.close();
+      await stores.close();
     }
   });
 
@@ -832,7 +835,7 @@ for (const fault of ['wrong bundle', 'altered empty schema'] as const)
       expect(captureRuntimeDatabase(database)).toEqual(before);
     } finally {
       database.close();
-      stores.close();
+      await stores.close();
     }
   });
 
@@ -869,7 +872,7 @@ test('validated down caller restores unused format1 declarations and all old rec
   } finally {
     reference.close();
     database.close();
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -886,7 +889,7 @@ test('validated down caller rolls back its guard when retained runtime use forbi
     expect(captureRuntimeDatabase(database)).toEqual(before);
   } finally {
     database.close();
-    stores.close();
+    await stores.close();
   }
 });
 
@@ -929,7 +932,7 @@ test('genuine format2 is incompatible before journal changes and preserves every
           maxBusyAttempts: 1,
           busyDelayMilliseconds: 0,
         });
-        opened.close();
+        await opened.close();
       },
       (cause: unknown) => {
         expect(cause).toMatchObject({ failure: 'incompatible' });
@@ -1001,7 +1004,7 @@ for (const history of ['generic run', 'authority pending', 'authority accepted']
         expect(database.inTransaction).toBe(false);
       } finally {
         database.close();
-        stores.close();
+        await stores.close();
       }
     },
   );
@@ -1030,7 +1033,7 @@ for (const history of ['queued attempt', 'prepared execution', 'accepted claim']
         expect(database.inTransaction).toBe(false);
       } finally {
         database.close();
-        stores.close();
+        await stores.close();
       }
     },
   );
@@ -1065,7 +1068,7 @@ for (const fault of [
         expect(database.inTransaction).toBe(false);
       } finally {
         database.close();
-        stores.close();
+        await stores.close();
       }
     },
   );
@@ -1097,6 +1100,6 @@ test('format3 down stops on metadata write failure and rolls back its already-cr
   } finally {
     Database.prototype.run = original;
     database.close();
-    stores.close();
+    await stores.close();
   }
 });

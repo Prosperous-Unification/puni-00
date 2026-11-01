@@ -245,6 +245,8 @@ const PROJECT_API_OPERATIONS = {
   freezeProject: 'postApiProjectsByIdCommands',
   unfreezeProject: 'postApiProjectsByIdCommands',
   unfreezeWorkItem: 'postApiProjectsByIdCommands',
+  claimWorkItem: 'postApiProjectsByIdCommands',
+  releaseWorkItem: 'postApiProjectsByIdCommands',
   addDependency: 'postApiProjectsByIdCommands',
   removeDependency: 'postApiProjectsByIdCommands',
   addTypedDependency: 'postApiProjectsByIdCommands',
@@ -1725,6 +1727,29 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
         FAKE_PROJECT_ID,
         { kind: 'unfreezeWorkItem', workItemId },
         (_normalizedProjectId, normalized) => unfreezeWorkItemAnswer(normalized.workItemId),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
+
+  const claimWorkItemAnswer = answers.claimWorkItem;
+  if (claimWorkItemAnswer !== undefined) {
+    checked.claimWorkItem = (workItemId, personId) =>
+      throughProjectCommand(
+        FAKE_PROJECT_ID,
+        { kind: 'claimWorkItem', workItemId, personId },
+        (_normalizedProjectId, normalized) => claimWorkItemAnswer(normalized.workItemId, personId),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
+
+  const releaseWorkItemAnswer = answers.releaseWorkItem;
+  if (releaseWorkItemAnswer !== undefined) {
+    checked.releaseWorkItem = (workItemId, personId) =>
+      throughProjectCommand(
+        FAKE_PROJECT_ID,
+        { kind: 'releaseWorkItem', workItemId, personId },
+        (_normalizedProjectId, normalized) =>
+          releaseWorkItemAnswer(normalized.workItemId, personId),
         () => VOID_COMMAND_RESULT,
       );
   }

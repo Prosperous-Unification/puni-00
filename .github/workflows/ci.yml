@@ -312,6 +312,9 @@ jobs:
     name: gate workspace
     needs: gate_mode
     if: ${{ needs.gate_mode.outputs.mode != 'docs' }}
+    # Keep pinned Python 3.14.4 on its supported Ubuntu 24.04 image.
+    # Proof: workspace job 124617218173 failed setup-python on 26.04;
+    # job 124582747681 installed 3.14.4 and passed on 24.04.
     runs-on: ubuntu-24.04
     # The original 20-minute box expired after the ordinary Nx phase and during Tool Wiki.
     # Forty-five minutes then expired too: run 35337661318 (2026-09-18, every project affected and
@@ -325,9 +328,12 @@ jobs:
     # 26m35s in the full-mode run 36473105834 (Nx step 22m21s; docs/findings/ci-gate-duration.md),
     # and sixty leaves more than double that. Run 38858776285 (PR #535, f6f867ec, 2026-10-16)
     # then spent 55m05s in Nx and was canceled in Gate head pinning at 07:01:03 UTC.
-    # Restore a finite ninety-minute allowance; remaining checks still require hosted proof.
-    # Evidence: openspec/changes/workspace-gate-time-budget/verify.md.
-    timeout-minutes: 90
+    # Ninety then expired twice in run 40959508633 (PR #787, b3b594da, 2026-10-30):
+    # attempt 1 was canceled in solver smoke after Nx passed; attempt 2 was canceled in lint
+    # after test/typecheck/build passed in 80m32s. Both annotations report a 1h30m0s maximum.
+    # Choose a finite 120-minute allowance; remaining checks still require hosted proof.
+    # Evidence: openspec/changes/workspace-gate-time-budget/verify.md#120-minute-repair-local-evidence.
+    timeout-minutes: 120
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and
       # nx falls back to a different file scope rather than failing. Since
@@ -357,7 +363,7 @@ jobs:
           cache-dependency-path: libs/wbs/adapters/solver-py/requirements.lock
 
       # `nx run-many -t build` shellchecks the deploy scripts and is no longer
-      # allowed to skip itself when shellcheck is absent. ubuntu-latest ships
+      # allowed to skip itself when shellcheck is absent. The 24.04 image ships
       # it, but assert rather than discovering the absence as a green build
       # that checked nothing.
       - name: Assert shellcheck present
