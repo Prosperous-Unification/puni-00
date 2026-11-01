@@ -134,8 +134,22 @@ if (insideLinuxNamespace(import.meta.path)) {
     });
 
     test('init refuses a budget above MemTotal and nproc, read from this host', () => {
-      const memory = hostPoolFixture({ ...scenarioPool, memoryGib: 1048576 });
-      const cores = hostPoolFixture({ ...scenarioPool, cpuCores: 1048576 });
+      // Each fixture exceeds this host in one dimension only, so neither refusal depends on
+      // the order of the checks or on the runner's size.
+      const memory = hostPoolFixture({
+        ...scenarioPool,
+        cpuCores: 1,
+        headroom: { cpuCores: 0, memoryGib: 0 },
+        memoryGib: 1048576,
+      });
+      const cores = hostPoolFixture({
+        ...scenarioPool,
+        memoryGib: 1,
+        headroom: { cpuCores: 0, memoryGib: 0 },
+        cpuCores: 1048576,
+      });
+      expect(linuxHostFacts.cpuCores()).toBeGreaterThanOrEqual(1);
+      expect(linuxHostFacts.memoryGib()).toBeGreaterThanOrEqual(1);
       fixtures.push(memory, cores);
       expect(() =>
         ResourceRuntime.initialize(loadResourceConfiguration(memory.config), clock, linuxHostFacts),
