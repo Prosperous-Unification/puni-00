@@ -1,12 +1,9 @@
 ## 0. Dany reads J1 to J18 and the placement
 
-- [ ] 0.1 Dany confirms or amends design.md, in particular J4 (the host pool is the existing
-      managed-resource ledger, with a host-local use kind that needs no WBS admission), J6
-      (oldest-fitting-first with a barrier of three younger admissions), J12 (fenced mode change,
-      Dash singleton holding the flock in concurrent mode) and J17 (`ops job …` now, the `dev`
-      migration its own change). Slices 1 and 2 may proceed on J1 to J6 and the placement; slice
-      3 waits for J7 and J8; slice 6 for J12 to J16. Codex's review and its disposition are in
-      design.md's last section.
+- [x] 0.1 Dany, 2026-11-01: "go with your assumptions for now". J1 to J18, J2' and the placement
+      stand as decided until he overturns one by id; slices proceed in order 1, 2, 3, 4, 5, 6,
+      one PR each into `plan/dash-host-jobs`, Fable review per slice, an h2puni gate before the
+      plan reaches main.
 
 ## 1. Catalogue and rule (static; no host change)
 
