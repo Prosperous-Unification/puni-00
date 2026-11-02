@@ -346,6 +346,7 @@ describe('the optimizer migration', () => {
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
         '20261101100000_widen_organization_audit_directory_capacity',
         '20261028100100_widen_organization_audit_agent_pools',
@@ -455,6 +456,7 @@ describe('the optimizer migration', () => {
             name !== 'resource_authority' &&
             name !== 'resource_cleanup_request' &&
             name !== 'resource_runtime_event' &&
+            name !== 'resource_host_job' &&
             name !== 'resource_runtime_use' &&
             name !== 'resource_use' &&
             name !== 'agent_pool' &&

@@ -48,6 +48,9 @@ export function renderObservationBundle(inputPath: string, outputDirectory: stri
   }
 }
 
+/** The one line `render-observation-units` refuses with when its grammar is wrong. */
+export const usage = 'Usage: render-observation-units <layout.json> <new-dir>';
+
 /**
  * `render-observation-units <layout.json> <new-dir>`: parses its whole grammar before reading the
  * layout or creating the directory, then prints the three written paths. A refusal's message names
@@ -67,7 +70,7 @@ export function renderObservationUnitsCommand(
     argv.length !== 2 ||
     argv.some((argument) => argument.length === 0 || argument.startsWith('--'))
   ) {
-    throw new Error('Usage: render-observation-units <layout.json> <new-dir>');
+    throw new Error(usage);
   }
   try {
     renderObservationBundle(layoutPath, outputDirectory);

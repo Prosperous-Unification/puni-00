@@ -364,3 +364,41 @@ checks and the complete root-migration report. The three cloned-checkout docs
 target regressions still require the normal commit, because their fixtures clone
 HEAD. Independent mechanical review found no Critical or Important issue; final
 source and release acceptance remain separate.
+
+The normal repair commit is `6a97c81a8498c36182e8e1a7b97fb79c59b897b6`;
+its normal hooks passed. The six cloned-checkout docs-target regressions then
+passed with 40 assertions, including all three that failed in the canonical
+run. The repaired full source is `06926b6c`, 12,755 entries. Original red/setup
+failures, green controls and independent review are retained under
+`.superpowers/artifacts/agentic-adr-repair-6a97c81a8-20261103/` (69 files).
+
+## Pinned current-main integration (2026-11-03)
+
+The next local merge consumes published main
+`75a78ff3b025eb6424ecf0e0d421f12c4ebe35e8`. Its only textual conflict is
+Dash's product policy: main's exact eight-line catalogue override is inserted
+alongside the complete existing policy. All 30 pre-existing overrides remain
+unchanged; the one added override is identical to main, including inherited
+options. The first private helper construction mishandled JavaScript replacement
+tokens and failed parsing before any source write; that setup failure is retained.
+The corrected callback construction passed parsing/loading and exact-parent
+insertion checks. No existing alias/path/helper fence or Proof comment changed.
+
+All 102,941 pre-install regular dependency files were private. The frozen Bun
+copyfile install passed, adding main's exact `@optique/core` and `@optique/run`
+1.3.6 pins. Actual Nx graph preparation found 55 projects. On merged source
+`6d85b3f5`, 12,835 entries, uncached Dash/Burokrat/Tool typechecks passed;
+effective-policy plus actual graph tests passed 109 tests/1,079 assertions;
+runtime-authority, runtime-command, rollback and host-job projection migration
+controls passed 73 tests/509 assertions. Uncached Dash and Tool lint passed with
+zero errors and two inherited unused-disable warnings. Full source and index
+fingerprints remained unchanged through those checks. OpenSpec validation passed
+all 321 entries (301 changes, 20 specs), with 704 warnings and zero errors.
+
+These are scoped combined-source controls. The normal integration commit,
+publication, new source-bound hosted CI and exact-SHA canonical gate remain
+required before merge. The old candidate's successful browser/Twilight results
+and failed canonical record are retained at their original scope; none certifies
+this merged source. The remaining adapters, second durable provider, business
+mapping, physical continuation and full S7a remain open. No operator-store
+migration or production action occurred.

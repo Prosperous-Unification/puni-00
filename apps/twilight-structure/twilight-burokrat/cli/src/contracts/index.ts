@@ -2,6 +2,7 @@ import { type } from '@shared/validation';
 
 export * from './canonical';
 export * from './decode-record';
+export * from './job-catalogue';
 export * from './navigator-records';
 export * from './plan-tasks';
 export * from './records';
