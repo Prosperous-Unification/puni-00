@@ -2620,3 +2620,35 @@ Local HOLD fixtures SHALL capture original acquisitions/delegation, helper/conte
 #### Scenario: Test retirement never becomes production settlement
 
 After production HOLD assertions, the fixture may perform the first actual native close only for known-never-delegated originals and separately close exact still-open fixture lock descriptions whose production finally remains permanently parked. It never retries after-delegation UNKNOWN. Only after every original has an accounted fixture outcome may it clear exact retained timer handles and end naturally. It emits distinct production-HOLD and fixture-originals-closed evidence without resolving/rejecting production HOLD, marking custody known or deleting production membership. Unknown fixture/child/reader/delegation outcomes preserve the helper and handles without kill, retry or keeper clearing; expiry and process exit never by themselves authorize abandonment, production HOLD release, signaling or timer retirement and never prove original closure, while remaining unattempted original cleanup must still run once after work expiry without deadline renewal and finite fixture first actual closes remain permitted only under the known-original conditions above.
+
+### Requirement: Explicit finite graph test composition
+
+The test-only launcher at `tools/tool-remote-scripts/test/run-tests.ts` SHALL own exact argv, cwd, executable and explicit admission before graph dispatch. Every invocation of `tools/tool-remote-scripts/src/lib/initial-handoff-graph.test.ts` SHALL validate the complete unchanged228 literal declaration census before selecting a disjoint202 ordinary,11 legacy or15 identity callback set. Full graph qualification SHALL require all three actual sets on one frozen source epoch, with11 fresh legacy classify=false helpers including multiple and14 separate identity helpers; no earlier receipt SHALL substitute for a current execution.
+
+For the legacy and identity invocations, native preflights and original joins SHALL complete before registration of timed callbacks and the deferred existing cleanup hook. Those timed callbacks SHALL assert their same-invocation records only, without fixture/build/spawn/native/timer/fallback work. The original byte programs, one-shot native accounting, assertion options and cleanup policy SHALL remain unchanged. Missing, malformed, mixed or unknown admission SHALL refuse before fixture/build/helper starts; public child argv SHALL NOT be treated as proof that Bun consumed no extra selection flags.
+
+#### Scenario: Canonical and rest qualify both graph and remainder
+
+- **GIVEN** the canonical or rest command, through `tools/tool-remote-scripts/project.json` and `tools/tool-remote-scripts/test/ci-leaf.ts`
+- **WHEN** the command dispatches its assigned graph composition and remainder
+- **THEN** success SHALL be reported only after its complete fresh graph composition and actual assigned remainder have each qualified
+- **AND** a failed, absent or incomplete graph phase SHALL stop later phases and cannot be masked by a successful remainder receipt
+- **AND** exactly one graph exclusion SHALL preserve near-name/elsewhere collisions and unchanged leaf ownership, with actual routing/union checks in `tools/tool-git-hooks/src/hooks/ci-remote-tests.test.ts`
+- **AND** the graph composite SHALL identify actual202/11/15 child receipts and source/census identity without synthesizing a Bun228-pass summary or substituting an inner summary for an outer receipt.
+
+#### Scenario: Native preflight precedes assertion and cleanup registration
+
+- **GIVEN** an admitted legacy or identity graph mode
+- **WHEN** its distinct actual preflight helpers execute under the original finite start allocation
+- **THEN** every actual native outcome and original process/reader join SHALL be known before timed callback and existing cleanup-hook registration
+- **AND** a known-closed nonzero result SHALL retain its failure attribution and stop later work, never count as a passing safety scenario
+- **AND** unknown fixture/child/reader outcomes SHALL retain the actual owner/keeper without retry, signal, later start or exit-based closure inference.
+
+#### Scenario: Finite CI qualification does not imply immunity to external termination
+
+- **GIVEN** expected production UNKNOWN exercised by a finite fixture with original native-entry/return and process/reader evidence
+- **WHEN** every fixture original is accounted under the existing permitted first-close and timer-retirement rules
+- **THEN** finite known-outcome execution may qualify only those actual fixture outcomes under unchanged budgets
+- **AND** unexpected actual UNKNOWN SHALL retain originals and fail without granting retry, release or PASS
+- **AND** external CI, OS or interpreter termination SHALL remain unqualified termination, never a closure or cleanup receipt or a claim of host-survival immunity
+- **AND** production UNKNOWN, one-shot native closure and cleanup after work expiry SHALL retain their existing meanings.
