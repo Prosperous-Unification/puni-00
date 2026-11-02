@@ -5,7 +5,7 @@ import { decodeAdmissionPacket } from '@twilight-burokrat/judge';
 import { type AuthorityClock, openAuthority } from './authority-store';
 import { submitPacket } from './submit';
 
-const usage =
+export const usage =
   'usage: twilight-dash submit-admission <repository> <packet-json> <staged|committed> <revision-or-base>';
 
 /** Reads the packet file, refusing unreadable, non-UTF-8 and malformed JSON with its path. */

@@ -7,7 +7,12 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { fakeCredential } from '../compute/testing/credential';
 import { scriptedTools } from '../mcp/testing/scripted-tools';
 import { type ToolAnswer, WbsUnreachable } from '../mcp/wbs-tools';
-import { loadResourceConfiguration, ResourceRuntime, ResourceWbsUnavailable } from './runtime';
+import {
+  linuxHostFacts,
+  loadResourceConfiguration,
+  ResourceRuntime,
+  ResourceWbsUnavailable,
+} from './runtime';
 
 /**
  * How the runtime reads WBS's answers to its tool calls (`wbs-mcp-agent-surface` tasks 7.1, 7.2):
@@ -29,7 +34,7 @@ function configurationFile(overrides: Record<string, unknown> = {}): string {
   writeFileSync(
     config,
     JSON.stringify({
-      schemaVersion: 2,
+      schemaVersion: 3,
       root,
       authorityId: 'runtime-one',
       epoch: 'epoch-one',
@@ -40,6 +45,11 @@ function configurationFile(overrides: Record<string, unknown> = {}): string {
       diskBudgetUnits: 1,
       workspaceSlots: 1,
       headroomBytes: 0,
+      cpuCores: 1,
+      memoryGib: 1,
+      headroom: { cpuCores: 0, memoryGib: 0 },
+      exclusiveUnits: {},
+      enrollmentId: 'enrollment-one',
       ...overrides,
     }),
     { mode: 0o600 },
@@ -48,9 +58,11 @@ function configurationFile(overrides: Record<string, unknown> = {}): string {
 }
 
 function emptyRuntime(): ResourceRuntime {
-  return ResourceRuntime.initialize(loadResourceConfiguration(configurationFile()), {
-    read: () => 1,
-  });
+  return ResourceRuntime.initialize(
+    loadResourceConfiguration(configurationFile()),
+    { read: () => 1 },
+    linuxHostFacts,
+  );
 }
 
 describe('loading a resource configuration', () => {
@@ -63,7 +75,7 @@ describe('loading a resource configuration', () => {
       credential,
     });
     expect(() => loadResourceConfiguration(config)).toThrow(
-      "resource configuration malformed: schemaVersion 1 is retired; write schemaVersion 2 with mcpResource (WBS's MCP endpoint) in place of wbsOrigin",
+      "resource configuration malformed: schemaVersion 1 is retired; write schemaVersion 3 with mcpResource (WBS's MCP endpoint) in place of wbsOrigin and the host pool fields",
     );
   });
 

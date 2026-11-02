@@ -291,6 +291,7 @@ describe('buildPackage', () => {
           { ruleId: 'F1', mode: 'observe' },
           { ruleId: 'F7', mode: 'observe' },
           { ruleId: 'INV-CLASSIFY', mode: 'observe' },
+          { ruleId: 'JOB-CATALOGUE', mode: 'observe' },
           { ruleId: 'K2', mode: 'observe' },
           { ruleId: 'K3', mode: 'observe' },
           { ruleId: 'K4', mode: 'observe' },
