@@ -3,7 +3,9 @@
 - [x] 0.1 Dany, 2026-11-01: "go with your assumptions for now". J1 to J18, J2' and the placement
       stand as decided until he overturns one by id; slices proceed in order 1, 2, 3, 4, 5, 6,
       one PR each into `plan/dash-host-jobs`, Fable review per slice, an h2puni gate before the
-      plan reaches main.
+      plan reaches main. Gate done 2026-11-02: `h2puni gate: running on 5061911cf…` (the content
+      of plan head 27f3205fa), `GATE-EXIT 0`, every step green including `wbs-be-01:solver-image-smoke`;
+      record in verify.md "Plan-head gate on h2puni".
 
 ## 1. Catalogue and rule (static; no host change)
 
