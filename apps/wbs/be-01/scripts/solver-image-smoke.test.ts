@@ -128,7 +128,13 @@ function writeCommand(directory: string, name: string, body: string): void {
 
 function runSmoke(
   fault?: SmokeFault,
-  options: { args?: string[]; supplied?: boolean; missing?: boolean; orphan?: boolean } = {},
+  options: {
+    args?: string[];
+    supplied?: boolean;
+    missing?: boolean;
+    orphan?: boolean;
+    jobId?: string;
+  } = {},
 ): SmokeRun {
   const commands = join(root, 'commands');
   const store = join(root, 'images');
@@ -170,6 +176,7 @@ function runSmoke(
         WBS_REAL_BUN: process.execPath,
         WBS_RUN_SOLVER_ORPHAN_PROC: options.orphan || !options.supplied ? '1' : '0',
         ...(fault === undefined ? {} : { WBS_FAKE_FAULT: fault }),
+        DASH_JOB_ID: options.jobId ?? '',
       },
       stdout: 'pipe',
       stderr: 'pipe',
@@ -185,6 +192,35 @@ function runSmoke(
 }
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+
+describe('solver-image-smoke container bounds (dash-host-jobs J16)', () => {
+  const catalogue = JSON.parse(
+    readFileSync(join(import.meta.dir, '../../../../infra/jobs/catalogue.json'), 'utf8'),
+  ) as { jobs: { id: string; containers: 'none' | { memoryGib: number; cpuCores: number } }[] };
+  const declared = catalogue.jobs.find((job) => job.id === 'gate')?.containers;
+
+  it('runs every container it starts bounded and labelled', () => {
+    if (declared === undefined || declared === 'none') throw new Error('gate declares no bound');
+    const bound = `--memory ${String(declared.memoryGib)}g --cpus ${String(declared.cpuCores)}`;
+    const smoke = runSmoke(undefined, { jobId: 'job-under-test' });
+    expect(smoke.exitCode).toBe(0);
+    const runs = smoke.dockerCalls.filter((call) => call.startsWith('run '));
+    // The solver run, the registry and the two clients.
+    expect(runs).toHaveLength(4);
+    for (const call of runs) expect(call).toContain(`${bound} --label puni.job=job-under-test `);
+  });
+
+  it('runs its containers bounded and unlabelled outside a Dash job', () => {
+    const smoke = runSmoke();
+    expect(smoke.exitCode).toBe(0);
+    const runs = smoke.dockerCalls.filter((call) => call.startsWith('run '));
+    expect(runs).toHaveLength(4);
+    for (const call of runs) {
+      expect(call).toContain('--memory 1g --cpus 1 ');
+      expect(call).not.toContain('puni.job');
+    }
+  });
+});
 
 describe('solver-image-smoke image lifecycle', () => {
   it('tags every image it builds uniquely per attempt and removes all of them after a pass', () => {

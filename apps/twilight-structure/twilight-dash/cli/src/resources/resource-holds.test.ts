@@ -1,0 +1,248 @@
+import { type ChildProcess, spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { once } from 'node:events';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { afterEach, describe, expect, test } from 'bun:test';
+
+import { fakeCredential } from '../compute/testing/credential';
+import { admitFixture } from './admission.test.fixture';
+import { ampleHost, hostPoolFixture } from './host-pool.test.fixture';
+import { type CreationRequest, loadResourceConfiguration, ResourceRuntime } from './runtime';
+
+/**
+ * `dash-host-jobs` decision J19, outside any namespace on purpose, as host-job-holds.test.ts is:
+ * every enrolled host runs same-user processes whose descriptors are unreadable (`(sd-pam)`,
+ * `sshd-session`), and managed-resource cleanup and the unit check at pool init must tell those
+ * apart from a holder. Every test here sees this host's real `/proc`.
+ */
+const NON_DUMPABLE = [
+  'import ctypes,os,sys,time',
+  // PR_SET_DUMPABLE (4) to 0: /proc/<pid>/fd becomes unreadable to this same user.
+  'assert ctypes.CDLL(None).prctl(4,0,0,0,0)==0',
+  "open(sys.argv[1]+'.part','w').write('ready')",
+  "os.rename(sys.argv[1]+'.part',sys.argv[1])",
+  'time.sleep(120)',
+].join('\n');
+
+const scopes = Bun.spawnSync(
+  ['systemd-run', '--user', '--scope', '--quiet', '--collect', '--', 'true'],
+  { stdout: 'pipe', stderr: 'pipe', timeout: 30000 },
+);
+const scopeReason =
+  scopes.exitCode === 0
+    ? ''
+    : ` (skipped: systemd-run --user --scope answered exit ${String(scopes.exitCode)}: ${scopes.stderr.toString().trim().split('\n')[0] ?? ''})`;
+
+const ENTRYPOINT = join(import.meta.dir, '..', 'entrypoint.ts');
+
+describe('uninspectable processes outside Dash-owned work (J19)', () => {
+  const cleanups: (() => void)[] = [];
+  const children: ChildProcess[] = [];
+  afterEach(async () => {
+    for (const child of children.splice(0)) {
+      if (child.exitCode === null && child.signalCode === null) {
+        child.kill('SIGKILL');
+        await once(child, 'exit');
+      }
+    }
+    for (const cleanup of cleanups.splice(0)) cleanup();
+  });
+  let now = 1800000000000;
+  const clock = { read: () => (now += 1000) };
+
+  function pool(gateTrees: number) {
+    const fixture = hostPoolFixture({
+      cpuCores: 1,
+      memoryGib: 1,
+      headroom: { cpuCores: 0, memoryGib: 0 },
+      gateTrees,
+      credential: fakeCredential(),
+    });
+    cleanups.push(fixture.remove);
+    return fixture;
+  }
+
+  /** Start a non-dumpable `python3` (inside user scope `unit` when given); resolve its pid. */
+  async function nonDumpable(base: string, unit?: string): Promise<number> {
+    const ready = join(base, `ready-${randomUUID()}`);
+    const argv = [
+      ...(unit === undefined
+        ? []
+        : ['systemd-run', '--user', '--scope', '--quiet', '--collect', '--unit', unit, '--']),
+      'python3',
+      '-c',
+      NON_DUMPABLE,
+      ready,
+    ];
+    const child = spawn(argv[0] ?? 'python3', argv.slice(1), { detached: true, stdio: 'ignore' });
+    children.push(child);
+    for (let attempt = 0; !existsSync(ready); attempt++) {
+      if (attempt > 3000 || child.exitCode !== null) throw new Error('holder did not start');
+      await Bun.sleep(5);
+    }
+    if (child.pid === undefined) throw new Error('holder has no pid');
+    // Under systemd-run the scope's payload is the same process, exec'd in place.
+    expect(() => readFileSync(`/proc/${String(child.pid)}/maps`)).toThrow('EACCES');
+    return child.pid;
+  }
+
+  const request = (kind: CreationRequest['kind']): CreationRequest => ({
+    projectId: 'project-one',
+    resourceId: 'disk-one',
+    workItemId: 'work-one',
+    agentRun: 'run-one',
+    responsiblePersonId: 'developer',
+    units: 1,
+    diskUnits: 1,
+    kind,
+  });
+
+  function runtimeOf(config: string): ResourceRuntime {
+    const runtime = ResourceRuntime.initialize(loadResourceConfiguration(config), clock, ampleHost);
+    cleanups.unshift(() => {
+      runtime.close();
+    });
+    return runtime;
+  }
+
+  /** Request cleanup of `id` and sweep until its state stops changing. */
+  function cleanedUp(runtime: ResourceRuntime, id: string) {
+    const use = runtime.inspect(id);
+    if (use.state !== 'pending' && use.state !== 'blocked' && use.state !== 'released')
+      runtime.requestCleanup(id, use.revision, use.incarnation, 'work ended');
+    runtime.sweep();
+    return runtime.inspect(id);
+  }
+
+  test('ops pool init succeeds beside a non-dumpable process that predates it', async () => {
+    const fixture = pool(1);
+    const pid = await nonDumpable(fixture.base);
+    // The production path: the CLI process is the Dash process the holder predates, and this
+    // host's own `(sd-pam)` and `sshd-session` processes predate it too.
+    const init = Bun.spawnSync(
+      [process.execPath, ENTRYPOINT, 'ops', 'pool', 'init', '--config', fixture.config],
+      { stdout: 'pipe', stderr: 'pipe', timeout: 60000 },
+    );
+    // Proof: see `checkHostFacts`; inspecting with no initializer scope made this exit 70,
+    // "host pool unit … is held: cannot inspect process PID" (2026-11-02, J19).
+    expect(init.stderr.toString()).toBe('');
+    expect(init.exitCode).toBe(0);
+    expect(JSON.parse(init.stdout.toString())).toMatchObject({ initialized: true });
+    expect(pid).toBeGreaterThan(0);
+  }, 60000);
+
+  test('pool init refuses beside a non-dumpable process started after it', async () => {
+    const fixture = pool(1);
+    const pid = await nonDumpable(fixture.base);
+    // This test process is the initializer here, and it predates the holder.
+    // Proof: with `outsideScope` always true this initialized (2026-11-02, J19).
+    expect(() =>
+      ResourceRuntime.initialize(loadResourceConfiguration(fixture.config), clock, ampleHost),
+    ).toThrow(
+      `host pool unit ${fixture.trees[0] ?? ''} is held: cannot inspect process PID ${String(pid)} (python3), which may hold unit ${fixture.trees[0] ?? ''}; end it, then initialize again`,
+    );
+  }, 60000);
+
+  test.skipIf(scopes.exitCode !== 0)(
+    `ops pool init refuses beside a non-dumpable process in a Dash job scope${scopeReason}`,
+    async () => {
+      const fixture = pool(1);
+      const pid = await nonDumpable(fixture.base, `dash-job-other-${randomUUID()}`);
+      const init = Bun.spawnSync(
+        [process.execPath, ENTRYPOINT, 'ops', 'pool', 'init', '--config', fixture.config],
+        { stdout: 'pipe', stderr: 'pipe', timeout: 60000 },
+      );
+      // Proof: dropping the owned-scope test in `outsideScope` made this exit 0 (2026-11-02, J19).
+      expect(init.exitCode).toBe(70);
+      expect(init.stderr.toString()).toContain(`cannot inspect process PID ${String(pid)}`);
+    },
+    60000,
+  );
+
+  test('cleanup releases a resource beside a non-dumpable process that predates its leader', async () => {
+    const fixture = pool(0);
+    const runtime = runtimeOf(fixture.config);
+    const pid = await nonDumpable(fixture.base);
+    const use = await runtime.create(request('temporary_directory'), admitFixture);
+    expect(await runtime.run(use.id, ['/bin/sh', '-c', 'printf finished > output'])).toBe(0);
+    const current = cleanedUp(runtime, use.id);
+    // Proof: inspecting with no use scope left this `blocked` "cannot inspect process PID"
+    // (2026-11-02, J19).
+    expect(current.state).toBe('released');
+    expect(current.reason).toStartWith(
+      'provider absence and file holds verified; uninspectable_outside_scope: ',
+    );
+    expect(current.reason).toContain(`${String(pid)} (python3)`);
+    expect(existsSync(use.locator)).toBe(false);
+  }, 60000);
+
+  test('cleanup keeps a resource charged beside a non-dumpable process started after its leader', async () => {
+    const fixture = pool(0);
+    const runtime = runtimeOf(fixture.config);
+    const use = await runtime.create(request('temporary_directory'), admitFixture);
+    const started = join(fixture.base, 'leader-started');
+    const release = join(fixture.base, 'leader-release');
+    const running = runtime.run(use.id, [
+      '/bin/sh',
+      '-c',
+      `: > ${started}; while [ ! -e ${release} ]; do sleep 0.05; done`,
+    ]);
+    for (let attempt = 0; !existsSync(started); attempt++) {
+      if (attempt > 3000) throw new Error('leader did not start');
+      await Bun.sleep(5);
+    }
+    const pid = await nonDumpable(fixture.base);
+    mkdirSync(release);
+    expect(await running).toBe(0);
+    const current = cleanedUp(runtime, use.id);
+    // Proof: with the start comparison dropped from `outsideScope` this was `released`
+    // (2026-11-02, J19).
+    expect(current.state).toBe('blocked');
+    expect(current.reason).toContain(
+      `cannot inspect process PID ${String(pid)} (python3), which may hold resource ${use.id}; end it, and cleanup retries`,
+    );
+    expect(existsSync(use.locator)).toBe(true);
+  }, 60000);
+
+  test("a non-dumpable process in another use's process group still holds a resource", async () => {
+    const fixture = pool(0);
+    const runtime = runtimeOf(fixture.config);
+    const other = await runtime.create(request('temporary_directory'), admitFixture);
+    const ready = join(fixture.base, `other-ready-${randomUUID()}`);
+    // The other use's leader is itself the non-dumpable process: its session is that use's.
+    const otherRun = runtime.run(other.id, ['python3', '-c', NON_DUMPABLE, ready]);
+    for (let attempt = 0; !existsSync(ready); attempt++) {
+      if (attempt > 3000) throw new Error('other leader did not start');
+      await Bun.sleep(5);
+    }
+    const otherPid = runtime.inspect(other.id).process?.pid;
+    if (otherPid === undefined) throw new Error('other use recorded no leader');
+    const use = await runtime.create(request('temporary_directory'), admitFixture);
+    expect(await runtime.run(use.id, ['/bin/sh', '-c', 'printf finished > output'])).toBe(0);
+    const current = cleanedUp(runtime, use.id);
+    // Proof: see `outsideScope`; without the session test this was `released` (2026-11-02, J19).
+    expect(current.state).toBe('blocked');
+    expect(current.reason).toContain(`cannot inspect process PID ${String(otherPid)} (python3)`);
+    process.kill(otherPid, 'SIGKILL');
+    await otherRun;
+  }, 60000);
+
+  test.skipIf(scopes.exitCode !== 0)(
+    `a non-dumpable process in a Dash job scope that predates the leader still holds${scopeReason}`,
+    async () => {
+      const fixture = pool(0);
+      const runtime = runtimeOf(fixture.config);
+      const pid = await nonDumpable(fixture.base, `dash-job-other-${randomUUID()}`);
+      const use = await runtime.create(request('temporary_directory'), admitFixture);
+      expect(await runtime.run(use.id, ['/bin/sh', '-c', 'printf finished > output'])).toBe(0);
+      const current = cleanedUp(runtime, use.id);
+      // Proof: dropping the owned-scope test in `outsideScope` made this `released`
+      // (2026-11-02, J19).
+      expect(current.state).toBe('blocked');
+      expect(current.reason).toContain(`cannot inspect process PID ${String(pid)}`);
+    },
+    60000,
+  );
+});

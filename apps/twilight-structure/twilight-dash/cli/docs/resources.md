@@ -313,9 +313,13 @@ workspace slots; a host job also reserves cores, memory and exclusive units.
   Any other uninspectable process is an unknown holder and keeps the entry `blocked`. A job
   begun before a reboot is therefore blocked by every uninspectable process of the new boot. A
   daemon the payload left inside the scope blocks until it ends. The refusal names the remedy,
-  `systemctl --user stop dash-job-<id>.scope`, after which settlement retries. Worktree cleanup
-  and the unit check at `ops pool init` have no scope to compare against, so they still refuse
-  (task 6.6).
+  `systemctl --user stop dash-job-<id>.scope`, after which settlement retries. Managed-resource
+  cleanup and the unit check at `ops pool init` (and `resources init`) apply the same rule (J19):
+  such a process holds nothing only if no Dash job scope contains it, its session is no unreleased
+  use's or host job's process group, **and** it started, in this boot, before the use's leader
+  (its creator when it never ran a command) or before the initializing Dash process. A released
+  use names those in its reason the same way; any other uninspectable process blocks with
+  `cannot inspect process PID <pid> (<comm>), which may hold …` and the remedy.
 
 ### `ops pool` and `ops job` (slice 3)
 

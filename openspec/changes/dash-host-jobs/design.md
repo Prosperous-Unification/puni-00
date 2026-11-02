@@ -265,6 +265,17 @@ cases; the admission queue gets an `fc.asyncModelRun` model with admissions, exi
 crossings, cancellation, simultaneous contenders, several barriers, calibration and crash
 recovery at each boundary, with sabotage proofs watched red before the slice lands.
 
+**J19. An uninspectable same-user process outside Dash-owned work, started before it, holds
+nothing (orchestrator, 2026-11-02).** The rule slice 3 introduced for host-job settlement (review
+F1, R1) generalises. A same-uid process whose `/proc/<pid>` entries are unreadable (non-dumpable:
+`(sd-pam)`, `sshd-session`, agents) is not a holder only when it is outside every Dash-owned scope
+or process group **and** its start ticks (`/proc/<pid>/stat`, same boot) precede the Dash-owned
+leader it is compared with: for a worktree or managed-resource cleanup, the use's owned
+process-group leader (its creator when it never ran a command); for `ops pool init`'s unit check,
+the Dash process itself. Otherwise it blocks, naming the pid, comm and the remedy. Host-job
+settlement keeps its own scope and leader. Reason: those processes exist on every enrolled host,
+so without the rule worktree cleanup and `ops pool init` refuse everywhere.
+
 ## Risks / Trade-offs
 
 - **An envelope lies and two jobs OOM.** `observe` throttles but does not kill. Mitigations:
