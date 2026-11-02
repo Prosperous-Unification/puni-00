@@ -57,7 +57,12 @@ if (insideLinuxNamespace(import.meta.path)) {
     jobType('calibration', 8, 13),
     { ...jobType('solver-image-publish', 1, 1), containers: { memoryGib: 1, cpuCores: 1 } },
     jobType('oversize', 4, 14),
+    // A real calibration (J9): admitted only on a drained pool, charging the whole
+    // `allocatable` vector and both gate trees, the units of the one id its type names.
+    jobType('gate', 2, 4, ['gate_tree']),
   ];
+  const CALIBRATION = 5;
+  const TREES = 2;
   const WAITS = [0, 5, 600] as const;
   const reached = {
     admitted: 0,
@@ -67,6 +72,8 @@ if (insideLinuxNamespace(import.meta.path)) {
     overtakes: 0,
     treeBound: 0,
     calibration: 0,
+    drainedCalibration: 0,
+    calibrationWaited: 0,
     reclaimed: 0,
     budgetRefused: 0,
     waitZeroRefused: 0,
@@ -138,6 +145,13 @@ if (insideLinuxNamespace(import.meta.path)) {
     const reserved = { cpuCores: 0, memoryGib: 0, workspaceSlots: 0, trees: 0 };
     for (const job of model.jobs) {
       if (job.released) continue;
+      if (job.type === CALIBRATION) {
+        reserved.cpuCores += ALLOCATABLE.cpuCores;
+        reserved.memoryGib += ALLOCATABLE.memoryGib;
+        reserved.workspaceSlots += ALLOCATABLE.workspaceSlots;
+        reserved.trees += TREES;
+        continue;
+      }
       const envelope = TYPES[job.type]?.envelope;
       reserved.cpuCores += envelope.cpuCores;
       reserved.memoryGib += envelope.memoryGib;
@@ -149,6 +163,8 @@ if (insideLinuxNamespace(import.meta.path)) {
   function modelFits(model: Model, type: number): boolean {
     const envelope = TYPES[type]?.envelope;
     const reserved = modelReserved(model);
+    // A calibration fits only a drained pool: nothing reserved, no tree held.
+    if (type === CALIBRATION) return Object.values(reserved).every((value) => value === 0);
     return (
       reserved.cpuCores + envelope.cpuCores <= ALLOCATABLE.cpuCores &&
       reserved.memoryGib + envelope.memoryGib <= ALLOCATABLE.memoryGib &&
@@ -173,6 +189,10 @@ if (insideLinuxNamespace(import.meta.path)) {
       for (const unit of job.units)
         if (unit.state !== 'released') holders.set(unit.path, (holders.get(unit.path) ?? 0) + 1);
     for (const count of holders.values()) expect(count).toBeLessThanOrEqual(1);
+    // Free units never go negative, and the real pool holds exactly the trees the model does.
+    expect(holders.size).toBeLessThanOrEqual(TREES);
+    expect(holders.size).toBe(modelReserved(model).trees);
+    expect(status.units.filter((unit) => unit.heldBy === null).length).toBe(TREES - holders.size);
     for (const job of real.runtimes[0].listHostJobs()) {
       if (job.compute.state !== 'released') continue;
       const modelled = model.jobs.find((candidate) => candidate.id === job.id);
@@ -238,7 +258,12 @@ if (insideLinuxNamespace(import.meta.path)) {
       const contender = model.contenders[at];
       const descriptor = TYPES[this.type];
       const outcome = runtimeFor(real, at).enqueueHostJob(
-        { descriptor, label: `c${String(at)}`, waitSeconds: this.wait },
+        {
+          descriptor,
+          label: `c${String(at)}`,
+          waitSeconds: this.wait,
+          ...(this.type === CALIBRATION ? { calibration: true as const } : {}),
+        },
         pid(contender.owner),
       );
       if (descriptor.id === 'oversize') {
@@ -311,6 +336,7 @@ if (insideLinuxNamespace(import.meta.path)) {
         if (barrier >= 0 && barrier < live.indexOf(mine) && modelFits(model, mine.type))
           reached.barrierHeld += 1;
       }
+      if (mine.type === CALIBRATION && expected === 'waiting') reached.calibrationWaited += 1;
       const outcome = runtimeFor(real, at).pollHostJob(mine.ticket, () => undefined);
       expect(outcome.kind).toBe(expected);
       if (outcome.kind !== 'waiting') {
@@ -320,6 +346,11 @@ if (insideLinuxNamespace(import.meta.path)) {
       if (outcome.kind === 'admitted') {
         reached.admitted += 1;
         if (TYPES[mine.type]?.id === 'calibration') reached.calibration += 1;
+        if (mine.type === CALIBRATION) {
+          reached.drainedCalibration += 1;
+          expect(outcome.job.calibration).toBe(true);
+          expect(outcome.job.units).toHaveLength(TREES);
+        }
         for (const older of ahead) {
           older.overtakes += 1;
           if (older.overtakes === 3) reached.barrierFormed += 1;
@@ -543,6 +574,7 @@ if (insideLinuxNamespace(import.meta.path)) {
       ),
     index.map((who) => new Arrive(who, 1, 600)),
     index.map((who) => new Arrive(who, 2, 600)),
+    index.map((who) => new Arrive(who, CALIBRATION, 600)),
     // Long-waiting gates and calibrations, and frequent polls, build barriers at random.
     index.map((who) => new Arrive(who, 0, 600)),
     index.map((who) => new Arrive(who, 0, 600)),
@@ -583,14 +615,18 @@ if (insideLinuxNamespace(import.meta.path)) {
   test('the admission queue and settlement follow the model under every interleaving', async () => {
     await fc.assert(
       fc.asyncProperty(drawRun, async (drawn) => {
-        const fixture = hostPoolFixture({
-          cpuCores: 8,
-          memoryGib: 15,
-          headroom: { cpuCores: 0, memoryGib: 2 },
-          gateTrees: 2,
-          workspaceSlots: 8,
-          credential: fakeCredential(),
-        });
+        const fixture = hostPoolFixture(
+          {
+            cpuCores: 8,
+            memoryGib: 15,
+            headroom: { cpuCores: 0, memoryGib: 2 },
+            gateTrees: 2,
+            workspaceSlots: 8,
+            credential: fakeCredential(),
+          },
+          // A small disk budget, so a calibration's whole-budget free-space check passes anywhere.
+          { diskBudgetUnits: 2 },
+        );
         const model: Model = { now: 1800000000000, tickets: [], jobs: [], contenders: [] };
         const clock = { read: () => model.now };
         const first = ResourceRuntime.initialize(
@@ -691,6 +727,29 @@ if (insideLinuxNamespace(import.meta.path)) {
               new Crash(0),
               new Settle(),
               new Advance(61000),
+              new Settle(),
+            ],
+          ],
+          // A calibration waits behind a build, holds the drained pool and both trees, and a
+          // gate waits behind it until it settles (slice 4 review A4).
+          [
+            [
+              new Arrive(0, 1, 600),
+              new Poll(0),
+              new Arrive(0, CALIBRATION, 600),
+              new Poll(0),
+              new Prepare(0),
+              new Launch(0),
+              new PayloadExit(0),
+              new Settle(),
+              new Poll(0),
+              new Arrive(0, 0, 600),
+              new Poll(0),
+              new Prepare(0),
+              new Launch(0),
+              new PayloadExit(0),
+              new Settle(),
+              new Poll(0),
               new Settle(),
             ],
           ],

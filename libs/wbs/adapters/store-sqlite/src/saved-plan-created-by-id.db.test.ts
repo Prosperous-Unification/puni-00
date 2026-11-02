@@ -179,6 +179,7 @@ describe('saved_plan.created_by_id', () => {
     expect(nullable()).toBe(0);
 
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      '20261101120000_add_host_job_projection',
       '20261028100100_widen_organization_audit_agent_pools',
       '20261028100000_add_agent_pool',
       '20261026130000_widen_organization_audit_machine_tokens',
@@ -325,6 +326,7 @@ describe('saved_plan.created_by_id', () => {
    */
   it('leaves a row written before the column reading null', () => {
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      '20261101120000_add_host_job_projection',
       '20261028100100_widen_organization_audit_agent_pools',
       '20261028100000_add_agent_pool',
       '20261026130000_widen_organization_audit_machine_tokens',

@@ -14,7 +14,8 @@ export function formatSpan(milliseconds: number): string {
 }
 
 /**
- * `ops job status` (`dash-host-jobs` J13): the pool line, each unreleased job (type, label, pid,
+ * `ops job status` (`dash-host-jobs` J13): the pool line, each unreleased job (`calibration`
+ * first for a calibration run, J9; type, label, pid,
  * age, envelope, peak so far, units held, settlement state), then each waiter oldest first (age,
  * budget left, overtake count). `peaks` maps a job id to the largest `memory.peak` its run
  * record sampled; a job with none reads `peak unmeasured`.
@@ -44,13 +45,13 @@ export function formatHostPoolStatus(
       ...job.units.map((unit) => `${unit.exclusiveId} ${unit.state}`),
     ].join(', ');
     lines.push(
-      `running ${job.descriptor.id} ${job.label} pid ${job.process === null ? '-' : String(job.process.pid)} age ${formatSpan(now - (job.startedAt ?? job.admittedAt))} envelope ${String(envelope.cpuCores)} cores ${String(envelope.memoryGib)} GiB ${String(envelope.tmpDiskGib)} GiB tmp peak ${peak === null ? 'unmeasured' : `${(peak / GIB).toFixed(1)} GiB`} units ${units} settlement ${job.state} (${entries})${job.launchFailure === undefined ? '' : `; ${job.launchFailure}`}`,
+      `running ${job.calibration === true ? 'calibration ' : ''}${job.descriptor.id} ${job.label} pid ${job.process === null ? '-' : String(job.process.pid)} age ${formatSpan(now - (job.startedAt ?? job.admittedAt))} envelope ${String(envelope.cpuCores)} cores ${String(envelope.memoryGib)} GiB ${String(envelope.tmpDiskGib)} GiB tmp peak ${peak === null ? 'unmeasured' : `${(peak / GIB).toFixed(1)} GiB`} units ${units} settlement ${job.state} (${entries})${job.launchFailure === undefined ? '' : `; ${job.launchFailure}`}`,
     );
   }
   if (status.waiters.length === 0) lines.push('waiting none');
   for (const waiter of status.waiters)
     lines.push(
-      `waiting ${waiter.type} ${waiter.label} pid ${String(waiter.pid)} age ${formatSpan(now - waiter.arrivedAt)} budget ${formatSpan(waiter.deadline - now)} overtakes ${String(waiter.overtakes)}`,
+      `waiting ${waiter.calibration ? 'calibration ' : ''}${waiter.type} ${waiter.label} pid ${String(waiter.pid)} age ${formatSpan(now - waiter.arrivedAt)} budget ${formatSpan(waiter.deadline - now)} overtakes ${String(waiter.overtakes)}`,
     );
   return lines;
 }

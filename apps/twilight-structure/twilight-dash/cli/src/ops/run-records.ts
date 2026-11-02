@@ -44,6 +44,13 @@ export interface RunStart {
   argumentProfile: string;
   argv: readonly string[];
   hostClass: string;
+  /**
+   * The payload's toolchain (`toolchainOf` in `catalogue.ts`); absent only on a record written before
+   * slice 4, which `propose` names and leaves out as not comparable.
+   */
+  toolchain?: string;
+  /** Present on a calibration record (`ops job calibrate`, J9); an ordinary run omits it. */
+  calibration?: true;
   unit: string;
   cgroup: string;
   tmpDirectory: string;
@@ -118,6 +125,8 @@ const StartShape = type({
   argumentProfile: 'string',
   argv: 'string[]',
   hostClass: 'string',
+  'toolchain?': 'string > 0',
+  'calibration?': 'true',
   unit: 'string',
   cgroup: 'string',
   tmpDirectory: 'string',
@@ -315,7 +324,23 @@ export class HostJobRunRecords {
         'SELECT start, outcome FROM runs WHERE job_id=?',
       )
       .get(jobId);
-    if (row === null) return null;
+    return row === null ? null : this.recordOf(jobId, row);
+  }
+
+  /**
+   * Every run record, oldest gate first: what `propose` and `audit` read (J9).
+   * @throws Error when a stored row is malformed: only this class writes the file.
+   */
+  list(): RunRecord[] {
+    return this.db
+      .query<{ job_id: string; start: string; outcome: string | null }, []>(
+        'SELECT job_id, start, outcome FROM runs ORDER BY rowid',
+      )
+      .all()
+      .map((row) => this.recordOf(row.job_id, row));
+  }
+
+  private recordOf(jobId: string, row: { start: string; outcome: string | null }): RunRecord {
     const start = StartShape.assert(JSON.parse(row.start));
     const outcome = row.outcome === null ? null : OutcomeShape.assert(JSON.parse(row.outcome));
     const samples = this.db

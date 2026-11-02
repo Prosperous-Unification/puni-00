@@ -749,6 +749,7 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      '20261101120000_add_host_job_projection',
       '20261028100100_widen_organization_audit_agent_pools',
       '20261028100000_add_agent_pool',
       '20261026130000_widen_organization_audit_machine_tokens',
@@ -839,6 +840,7 @@ describe('20260927120000_add_organization_records', () => {
           name !== 'resource_authority' &&
           name !== 'resource_cleanup_request' &&
           name !== 'resource_runtime_event' &&
+          name !== 'resource_host_job' &&
           name !== 'resource_runtime_use' &&
           name !== 'resource_use' &&
           name !== 'agent_pool' &&

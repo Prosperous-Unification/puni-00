@@ -79,30 +79,41 @@
 
 ## 4. Calibration, proposal, audit (needs 3)
 
-- [ ] 4.1 `ops job calibrate` (drain, whole `allocatable`, no `MemoryHigh`, calibration record)
+- [x] 4.1 `ops job calibrate` (drain, whole `allocatable`, no `MemoryHigh`, calibration record)
       and `ops job propose` (nearest-rank p95 per dimension over complete comparable records,
       throttled runs excluded from memory, three-calibration minimum, 1.25, record ids) — test:
       the spec scenarios; negative: lower the minimum to one and watch the refusal test fail;
-      include a throttled run and watch the proposal drop.
-- [ ] 4.2 `ops job audit` with the four drift kinds, overruns kept until superseded, and the
+      include a throttled run and watch the proposal drop. Calibration admission is a
+      `calibration` flag on the runtime's host-job request and use (`runtime.ts`: drain fit,
+      whole-vector reservation, every unit), not a second path; records gain `calibration` and
+      a `toolchain` (`bun <version>+<revision>`). `propose` prints the replacement entry, not a
+      JSON patch; duration is reported but has no catalogue field (verify.md Slice 4, S4-A1 to
+      S4-A7). Review fixes (#814): each host job persists its `reserved` vector, a
+      calibration holds every unit of its type's ids only (S4-A14), and the model generates
+      calibrations (J18). Follow-up after #811: slice 5's `hostJobDeclaration` reads
+      `job.reserved` and groups `job.units` by exclusive id.
+- [x] 4.2 `ops job audit` with the four drift kinds, overruns kept until superseded, and the
       weekly timer units rendered beside the observation units — test: one fixture per kind,
       `no drift` on a clean ledger; negative: age overruns out after five runs and the
-      eight-runs-later fixture passes.
+      eight-runs-later fixture passes. Units: `ops job render-audit-units` writes the systemd
+      user service and weekly timer; installing them is the operator step in
+      `docs/resources.md`. Nothing was installed on a host (S4-A8 to S4-A11).
 
 ## 5. WBS projection (needs 2; contracts, be-01, fe-01, Dash compute)
 
-- [ ] 5.1 `reservedUnits` on the capacity report (additive migration with `down.sql`), the
+- [x] 5.1 `reservedUnits` on the capacity report (additive migration with `down.sql`), the
       `host_pool` binding source in `report-capacity` reading the ledger, re-observed on the
       ledger's change notification — test: reporter test with a fixture ledger; a pre-change body
       still stored; negative: let reservations overwrite `usageUnits` and watch the
       reserved-beside-measured scenario fail.
-- [ ] 5.2 `resourceRuntimeUse` v2 with `kind: 'host_job'`, optional planning links, authority
+- [x] 5.2 `resourceRuntimeUse` v2 with `kind: 'host_job'`, optional planning links, authority
       ownership and reservation entries; `registered` from the outbox after admission,
       `release_verified` only with settlement evidence; deletion of a planning link keeps the use
       (J10) — test: the WBS-down scenario against a refusing fixture server; a v1 use still
       accepted; negative: require a planning link and watch a gate without one fail to register.
 - [ ] 5.3 fe-01: reserved units and job names beside the measured figure, states unchanged —
-      test: rendering states; eye review per the UI acceptance rule.
+      test: rendering states; eye review per the UI acceptance rule. Code and rendering tests
+      landed in slice 5 (verify.md Slice 5, S5-A16); open only for Dany's eye review.
 
 ## 6. Transition on the gate hosts (operator and code)
 
@@ -149,3 +160,13 @@
       refuses until this is done. Done by J19 (design.md): `resource-holds.test.ts` outside any
       namespace; `ops pool init` now succeeds beside this workstation's own `systemd --user`
       (PID 2327) and `(sd-pam)` (verify.md Slice 6a).
+- [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
+      `Restart=on-failure` (beside the observation units of 4.2), so a `watch` stopped by a
+      refusal past the host-job retry bound (S5-A20) or any other modelled stop comes back and
+      the outbox and cleanup-request pulls do not stall; the deploy order WBS before Dash is in
+      `apps/twilight-structure/twilight-dash/cli/docs/resources.md` — proof: kill the process,
+      watch systemd restart it; a converging `gate_host` apply reports `changed=0` the second time.
+- [ ] 6.8 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
+      (slice 3, #809) carries `descriptorDigest` and no durable locator, so this needs a locator
+      for the run record and a decision on which digest WBS keeps — test: a returned host job's
+      evidence names the run record; negative: send the ledger-row digest and watch WBS refuse it.

@@ -119,12 +119,27 @@ export function scopeUnitOf(jobId: string): string {
 
 /**
  * `systemd-run`'s arguments for a host job's scope (J7): a user scope named after the use,
- * collected even when it fails, `MemoryHigh` at the envelope and `MemoryMax` too for `cap`.
+ * collected even when it fails, `MemoryHigh` at the envelope and `MemoryMax` too for `cap`;
+ * a calibration run sets neither, so its peak is the job's own (J9).
  * `--expand-environment=no` keeps `$` in the payload's words literal: systemd 254 warns that it
  * will otherwise start expanding them.
  */
-export function scopeArguments(unit: string, descriptor: JobTypeDescriptor): string[] {
+export function scopeArguments(
+  unit: string,
+  descriptor: JobTypeDescriptor,
+  isCalibration: boolean,
+): string[] {
   const memory = `${String(descriptor.envelope.memoryGib)}G`;
+  // Proof: dropping the calibration branch failed `a calibration scope sets no memory bound …`
+  // (calibrate.test.ts, `MemoryHigh=6G`, `MemoryMax=6G`) and, on a real user manager,
+  // `a calibration runs with no MemoryHigh` (2026-11-02, Slice 4).
+  const bounds = isCalibration
+    ? []
+    : [
+        '-p',
+        `MemoryHigh=${memory}`,
+        ...(descriptor.enforcement === 'cap' ? ['-p', `MemoryMax=${memory}`] : []),
+      ];
   return [
     '--user',
     '--scope',
@@ -133,9 +148,7 @@ export function scopeArguments(unit: string, descriptor: JobTypeDescriptor): str
     '--expand-environment=no',
     '--unit',
     unit,
-    '-p',
-    `MemoryHigh=${memory}`,
-    ...(descriptor.enforcement === 'cap' ? ['-p', `MemoryMax=${memory}`] : []),
+    ...bounds,
   ];
 }
 
@@ -156,6 +169,7 @@ export function checkScopeAvailable(
   descriptor: JobTypeDescriptor,
   probeUnit: string,
   user: string,
+  isCalibration: boolean,
 ): string {
   const systemdRun = Bun.which('systemd-run', { PATH: environment['PATH'] ?? '' });
   // Proof: without it `refuses 70 before admission when systemd-run is absent`
@@ -166,7 +180,7 @@ export function checkScopeAvailable(
       `ops job run: systemd-run is not on PATH; host jobs run measured in a user scope (dash-host-jobs J8); install systemd and ${lingerFix(user)}`,
     );
   const probe = Bun.spawnSync(
-    [systemdRun, ...scopeArguments(probeUnit, descriptor), '--', 'true'],
+    [systemdRun, ...scopeArguments(probeUnit, descriptor, isCalibration), '--', 'true'],
     {
       env: { ...environment },
       stdin: 'ignore',

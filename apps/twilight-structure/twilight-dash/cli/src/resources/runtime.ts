@@ -29,6 +29,7 @@ import {
   resourceRuntimeAdmissionReceipt,
   type ResourceRuntimeEvent as ResourceEvent,
   resourceRuntimeEvent,
+  type ResourceRuntimeHostJobUse,
 } from '@wbs/contracts';
 import { Database } from 'bun:sqlite';
 
@@ -40,6 +41,7 @@ import {
   EXCLUSIVE_ID,
   type JobTypeDescriptor,
   jobTypeDescriptor,
+  POOL_DIMENSIONS,
   type PoolVector,
   TICKET_RECLAIM_AFTER_MS,
   vectorFits,
@@ -94,11 +96,30 @@ export class ResourceWbsUnavailable extends Error {
   }
 }
 
+/** WBS answered a runtime call with a refusal a retry cannot change by itself: `status` says which. */
+export class ResourceWbsRefusal extends Error {
+  public constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = 'ResourceWbsRefusal';
+  }
+}
+
+/**
+ * How long a host-job event refused `400` stays a retry (S5-A20): an outgoing WBS without the
+ * `resourceRuntimeUse` v2 union refuses it during a blue/green window, and every later outbox
+ * event waits behind it, so the refusal is retried this long before it stops `watch`.
+ */
+export const HOST_JOB_REFUSAL_RETRY_MS = 30 * 60_000;
+
 /**
  * The body of `tool`'s 2xx answer. `what` names the call in every refusal.
  * @throws ResourceWbsUnavailable when WBS did not answer, answered `429`, or mcp-01 left the call
- * uncompleted for a transient reason; a plain error for any other refusal, which a retry cannot
- * change, and for an answer that cannot be attributed.
+ * uncompleted for a transient reason; {@link ResourceWbsRefusal} for any other refused answer,
+ * which a retry cannot change by itself; a plain error for a refused credential and for an
+ * answer that cannot be attributed.
  */
 async function answeredBody(
   tools: WbsTools,
@@ -118,7 +139,7 @@ async function answeredBody(
   if (answer.kind === 'refused') {
     const message = `${what} HTTP ${String(answer.status)}${answer.error === null ? '' : ` ${answer.error}`}`;
     if (answer.status === 429) throw new ResourceWbsUnavailable(message);
-    throw new Error(message);
+    throw new ResourceWbsRefusal(message, answer.status);
   }
   // Proof: retrying every uncompleted call made `stops on a refused credential`
   // (runtime-wbs.test.ts) answer ResourceWbsUnavailable; watched 2026-10-29.
@@ -265,6 +286,20 @@ export interface HostJob {
   exitCode: number | null;
   /** Why the payload never ran though a launch was recorded; absent when it ran or is running. */
   launchFailure?: string;
+  /**
+   * Present on a calibration run (J9): it reserves the whole `allocatable` vector and every
+   * exclusive unit of the pool, not its envelope, until each entry settles.
+   */
+  calibration?: true;
+  /**
+   * What this job reserves while its entries are outstanding (J4, J9): cores and memory until
+   * `compute` settles, disk units and slots until `tmpDisk` settles. The envelope, its tmp disk
+   * and one slot for a run; the whole `allocatable` vector at admission for a calibration.
+   * A ledger row written before slice 4's review fix has none and reads it from its descriptor.
+   * `tmpDiskGib` is the disk charge in the GiB WBS is told (`resourceRuntimeUse` v2, S4-A18):
+   * the envelope's for a run, the whole disk budget rounded down to GiB for a calibration.
+   */
+  reserved: HostJobReservation;
   compute: HostJobEntry;
   tmpDisk: HostJobEntry;
   units: HostJobUnit[];
@@ -299,6 +334,14 @@ const HostJobShape = type({
   endedAt: 'number | null',
   exitCode: 'number.integer | null',
   'launchFailure?': 'string > 0',
+  'calibration?': 'true',
+  'reserved?': type({
+    cpuCores: 'number.integer >= 0',
+    memoryGib: 'number.integer >= 0',
+    diskUnits: 'number.integer >= 0',
+    workspaceSlots: 'number.integer >= 0',
+    tmpDiskGib: 'number.integer >= 0',
+  }).onUndeclaredKey('reject'),
   compute: HostJobEntryShape,
   tmpDisk: HostJobEntryShape,
   units: type({
@@ -317,11 +360,18 @@ export interface HostJobRequest {
   label: string;
   /** Seconds this caller waits for room; 0 refuses while any live ticket is ahead (J6). */
   waitSeconds: number;
+  /**
+   * A calibration run (J9): admitted only once the pool has drained (nothing reserved, no unit
+   * held, no starting or held host job), then holding the whole `allocatable` vector and every
+   * exclusive unit; the envelope's own size is not checked against `allocatable`.
+   */
+  calibration?: true;
 }
 const HostJobRequestShape = type({
   descriptor: jobTypeDescriptor,
   label: /^[ -~]{1,200}$/,
   waitSeconds: 'number.integer >= 0',
+  'calibration?': 'true',
 });
 /** A waiting ticket as `status` and refusals name it. */
 export interface HostJobTicket {
@@ -332,6 +382,8 @@ export interface HostJobTicket {
   arrivedAt: number;
   deadline: number;
   overtakes: number;
+  /** A calibration's ticket (J9), which waits for the pool to drain. */
+  calibration: boolean;
 }
 /**
  * One poll's outcome. `refused` carries the exit code the delivery command returns: 73 for an
@@ -372,6 +424,52 @@ export interface HostPoolStatus {
   units: { exclusiveId: string; path: string; heldBy: string | null }[];
   jobs: HostJob[];
   waiters: HostJobTicket[];
+}
+
+/** What one host job reserves (J4, J9): the pool vector, and its disk charge in GiB for WBS. */
+export interface HostJobReservation extends PoolVector {
+  tmpDiskGib: number;
+}
+
+/** The fields of a `host_job_events` row its move to the authority outbox reads. */
+const HostJobChangeShape = type({
+  jobId: Identifier,
+  revision: 'number.integer > 0',
+  kind: "'admitted'|'launched'|'settlement'",
+  observedAt: 'number.integer >= 0',
+  state: "'starting'|'held'|'unknown'|'blocked'|'released'",
+});
+
+/**
+ * A host job as WBS sees it (`resourceRuntimeUse` v2, J10): no planning link, since the pool
+ * admitted it alone; one reservation entry per dimension of the declared envelope, an exclusive
+ * id once per unit it names; the pool's enrollment as its host. The launcher records no payload
+ * checkout HEAD on the job yet, so `launcherSha` is null. Built from immutable fields, so `registered` and
+ * `release_verified` carry the same declaration.
+ */
+function hostJobDeclaration(job: HostJob, host: string): ResourceRuntimeHostJobUse {
+  // What the job reserved, persisted at admission, not its envelope: a calibration charges the
+  // whole pool and every unit of its type's ids (S4-A18). Both are immutable per job, so
+  // `registered` and `release_verified` still carry one declaration.
+  // Proof: reading the envelope here made `a calibration projects the whole allocatable
+  // vector` (host-job-publication.test.ts) declare the build's 2 cores (2026-11-02, Slice 4).
+  const { reserved } = job;
+  const exclusive = new Map<string, number>();
+  for (const unit of job.units)
+    exclusive.set(unit.exclusiveId, (exclusive.get(unit.exclusiveId) ?? 0) + 1);
+  return {
+    kind: 'host_job',
+    type: job.descriptor.id,
+    label: job.label,
+    host,
+    launcherSha: null,
+    reservations: [
+      { dimension: 'cpuCores', units: reserved.cpuCores },
+      { dimension: 'memoryGib', units: reserved.memoryGib },
+      { dimension: 'tmpDiskGib', units: reserved.tmpDiskGib },
+      ...[...exclusive].map(([dimension, units]) => ({ dimension, units })),
+    ],
+  };
 }
 
 /** What a settlement event reports: entries, state and the evidence identities. */
@@ -1017,6 +1115,12 @@ export class ResourceRuntime {
     private readonly clock: WallClock,
     private readonly rootIdentity: { dev: number; ino: number },
   ) {}
+  /**
+   * When WBS first refused each host-job event `400`, by event id (S5-A20). In-process only: a
+   * restarted `watch` starts the bound again, which the bound's purpose (outlasting a swap
+   * window) tolerates.
+   */
+  private readonly hostJobRefusals = new Map<string, number>();
 
   /** Explicit bootstrap refuses existing or nonempty roots; normal opens never recreate missing trusted state. */
   static initialize(
@@ -1285,7 +1389,7 @@ export class ResourceRuntime {
       .query('INSERT INTO events(sequence,event) VALUES (?,?)')
       .run(event.sequence, JSON.stringify(event));
   }
-  private declaration(use: ResourceUse): ResourceEvent['use'] {
+  private declaration(use: ResourceUse): ResourceRuntimeAdmission['use'] {
     const attribution = use.request;
     return {
       projectId: attribution.projectId,
@@ -2008,9 +2112,14 @@ export class ResourceRuntime {
     if (!cursor) throw new Error('resource request cursor missing');
     return cursor.value;
   }
-  /** Ordered publication retries exact bytes; request acceptance and cursor advancement share one SQLite transaction. */
+  /**
+   * Ordered publication retries exact bytes; request acceptance and cursor advancement share one
+   * SQLite transaction. Host-job changes join the outbox first ({@link moveHostJobEvents}), so a
+   * WBS that answers nothing only delays them and they publish in order on the next tick it does.
+   */
   async synchronize(tools: WbsTools): Promise<void> {
     const authorityId = this.configuration.authorityId;
+    this.moveHostJobEvents();
     let admissionFailure: Error | undefined;
     // Proof: recovering a live in-flight admission failed the watcher/creator race fixture (2026-10-25).
     for (const pending of this.list().filter(
@@ -2040,9 +2149,7 @@ export class ResourceRuntime {
         acceptedSequence: 'number.integer > 0',
         useId: 'string',
         revision: 'number.integer > 0',
-      }).assert(
-        await answeredBody(tools, EVENT_TOOL, { authorityId, ...event }, 'resource publication'),
-      );
+      }).assert(await this.publishEvent(tools, event));
       if (
         acknowledgment.acceptedSequence !== event.sequence ||
         acknowledgment.useId !== event.useId ||
@@ -2088,6 +2195,50 @@ export class ResourceRuntime {
     });
     if (admissionFailure !== undefined) throw admissionFailure;
   }
+  /**
+   * One outbox event through the events tool. A host-job event refused `400` is retried, named
+   * on stderr, for {@link HOST_JOB_REFUSAL_RETRY_MS} from its first refusal (bounded
+   * convergence, S5-A20): an outgoing WBS without v2 refuses it mid-swap.
+   * @throws ResourceWbsUnavailable while that bound lasts, so `watch` keeps the outbox; the
+   * refusal itself once it is spent, and every other refusal as {@link answeredBody} does.
+   */
+  private async publishEvent(tools: WbsTools, event: ResourceEvent): Promise<unknown> {
+    const input = { authorityId: this.configuration.authorityId, ...event };
+    try {
+      const body = await answeredBody(tools, EVENT_TOOL, input, 'resource publication');
+      this.hostJobRefusals.delete(event.eventId);
+      return body;
+    } catch (cause) {
+      if (
+        !(cause instanceof ResourceWbsRefusal) ||
+        cause.status !== 400 ||
+        event.use.kind !== 'host_job'
+      )
+        throw cause;
+      const now = this.clock.read();
+      const first = this.hostJobRefusals.get(event.eventId) ?? now;
+      this.hostJobRefusals.set(event.eventId, first);
+      // Proof: with the bound check made `true`, `a host-job event refused past the bound stops
+      // watch` (host-job-publication.test.ts) kept retrying, ResourceWbsUnavailable for the
+      // refusal (2026-11-02, verify.md Slice 5 review fixes).
+      if (now - first >= HOST_JOB_REFUSAL_RETRY_MS) throw cause;
+      process.stderr.write(
+        `resources: WBS refused host-job event ${event.eventId} (sequence ${String(event.sequence)}) with HTTP 400; retrying until ${new Date(first + HOST_JOB_REFUSAL_RETRY_MS).toISOString()}\n`,
+      );
+      // Proof: rethrowing the refusal here made `a host-job event refused 400 twice publishes in
+      // order once WBS accepts it` (host-job-publication.test.ts) stop at the first refusal
+      // (2026-11-02, verify.md Slice 5 review fixes).
+      throw new ResourceWbsUnavailable(`${cause.message}; retried as a host-job event`, { cause });
+    }
+  }
+  /** What a calibration reserves: all of `allocatable`, its disk budget also in whole GiB. */
+  private wholePool(): HostJobReservation {
+    const allocatable = this.allocatable();
+    return {
+      ...allocatable,
+      tmpDiskGib: Math.floor((allocatable.diskUnits * this.configuration.diskUnitBytes) / GIB),
+    };
+  }
   /** `allocatable[d] = budget[d] − headroom[d]` (J5); disk and slots have no headroom here. */
   private allocatable(): PoolVector {
     const configuration = this.configuration;
@@ -2113,13 +2264,17 @@ export class ResourceRuntime {
       vector.workspaceSlots += 1;
     }
     for (const job of this.listHostJobs()) {
+      // Each job charges what it persisted at admission; a calibration persisted `allocatable`.
+      // Proof: summing the envelope here made `a calibration holds the whole allocatable
+      // vector` (calibrate.test.ts) reserve the gate's 4 cores, not the 8 allocatable
+      // (2026-11-02, Slice 4 review A3).
       if (job.compute.state !== 'released') {
-        vector.cpuCores += job.descriptor.envelope.cpuCores;
-        vector.memoryGib += job.descriptor.envelope.memoryGib;
+        vector.cpuCores += job.reserved.cpuCores;
+        vector.memoryGib += job.reserved.memoryGib;
       }
       if (job.tmpDisk.state !== 'released') {
-        vector.diskUnits += job.diskUnits;
-        vector.workspaceSlots += 1;
+        vector.diskUnits += job.reserved.diskUnits;
+        vector.workspaceSlots += job.reserved.workspaceSlots;
       }
       for (const unit of job.units) if (unit.state !== 'released') units.set(unit.path, job.id);
     }
@@ -2127,11 +2282,37 @@ export class ResourceRuntime {
   }
   /** Measured free bytes cover every reservation growing to its full size, plus headroom. */
   private freeSpaceCovers(diskUnits: number): boolean {
+    return this.freeSpaceShortfall(diskUnits) === null;
+  }
+  /** Why measured free bytes do not cover `diskUnits` plus headroom, with both figures, or null. */
+  private freeSpaceShortfall(diskUnits: number): string | null {
     const available = statfsSync(this.configuration.root);
-    return (
-      diskUnits * this.configuration.diskUnitBytes + this.configuration.headroomBytes <=
-      available.bavail * available.bsize
-    );
+    const needed = diskUnits * this.configuration.diskUnitBytes + this.configuration.headroomBytes;
+    const free = available.bavail * available.bsize;
+    return needed <= free
+      ? null
+      : `free space ${String(free)} bytes under ${this.configuration.root} is below the ${String(needed)} needed (${String(diskUnits)} disk units plus ${String(this.configuration.headroomBytes)} bytes headroom)`;
+  }
+  /**
+   * A persisted host-job snapshot. Only this class writes the owner-only ledger, so malformed
+   * JSON throws rather than defaulting; a row from before `reserved` was persisted (slice 4
+   * review A3) reads it from its descriptor, as `reservations()` computed it then.
+   */
+  private hostJobOf(snapshot: string): HostJob {
+    const parsed = HostJobShape.assert(JSON.parse(snapshot));
+    // Proof: dropping the fallback made `a ledger row written before `reserved` was persisted
+    // reads it from its descriptor` (calibrate.test.ts) read no reservation (2026-11-02, A3).
+    if (parsed.reserved !== undefined) return { ...parsed, reserved: parsed.reserved };
+    const reserved = parsed.calibration
+      ? this.wholePool()
+      : {
+          cpuCores: parsed.descriptor.envelope.cpuCores,
+          memoryGib: parsed.descriptor.envelope.memoryGib,
+          diskUnits: parsed.diskUnits,
+          workspaceSlots: 1,
+          tmpDiskGib: parsed.descriptor.envelope.tmpDiskGib,
+        };
+    return { ...parsed, reserved };
   }
   private diskUnitsOf(descriptor: JobTypeDescriptor): number {
     return Math.ceil((descriptor.envelope.tmpDiskGib * GIB) / this.configuration.diskUnitBytes);
@@ -2142,15 +2323,14 @@ export class ResourceRuntime {
       .query<{ snapshot: string }, [string]>('SELECT snapshot FROM host_jobs WHERE id=?')
       .get(id);
     if (!row) throw new Error('host job not found');
-    // Only this class writes the owner-only ledger; malformed JSON throws rather than defaulting.
-    return HostJobShape.assert(JSON.parse(row.snapshot));
+    return this.hostJobOf(row.snapshot);
   }
   /** Every host job, released history included, oldest admission first. */
   listHostJobs(): HostJob[] {
     return this.db
       .query<{ snapshot: string }, []>('SELECT snapshot FROM host_jobs ORDER BY rowid')
       .all()
-      .map((row) => HostJobShape.assert(JSON.parse(row.snapshot)));
+      .map((row) => this.hostJobOf(row.snapshot));
   }
   /**
    * Record a host job's change with the reservation it leaves, in the caller's transaction:
@@ -2188,7 +2368,77 @@ export class ResourceRuntime {
       .query('UPDATE host_jobs SET snapshot=? WHERE id=?')
       .run(JSON.stringify(HostJobShape.assert(job)), job.id);
   }
-  /** Unpublished host-job events, oldest first: the payloads slice 5 maps to WBS. */
+  /**
+   * Moves the unmoved `host_job_events` rows into the authority outbox `events` as
+   * `resourceRuntimeUse` v2 (`dash-host-jobs` J10), oldest first and in one transaction, so they
+   * take the authority's one sequence beside the worktree uses' events: `admitted` becomes
+   * `registered`; the settlement that leaves every entry released becomes `release_verified`
+   * with its evidence (J2'): the SHA-256 of that ledger row, its durable locator and disposition
+   * `returned`. A launch, a partial settlement or a blocked retry stays local. A moved row is
+   * `published=1`; from there its delivery is the outbox's. The host pool admitted the job
+   * already, so nothing here waits on WBS.
+   * @throws when a row or its job is malformed: only this class writes the owner-only ledger.
+   */
+  private moveHostJobEvents(): void {
+    this.transaction(() => {
+      const rows = this.db
+        .query<{ sequence: number; event: string }, []>(
+          'SELECT sequence, event FROM host_job_events WHERE published=0 ORDER BY sequence',
+        )
+        .all();
+      // Proof: moving the rows newest first made `a gate run while WBS is down publishes
+      // registered then returned, in order` (host-job-publication.test.ts) find release_verified
+      // ahead of registered in the outbox (2026-11-01, verify.md Slice 5).
+      for (const row of rows) {
+        const change = HostJobChangeShape.assert(JSON.parse(row.event));
+        const kind =
+          change.kind === 'admitted'
+            ? 'registered'
+            : change.kind === 'settlement' && change.state === 'released'
+              ? 'release_verified'
+              : null;
+        if (kind !== null) {
+          const job = this.inspectHostJob(change.jobId);
+          const next = this.db
+            .query<{ sequence: number }, []>(
+              'SELECT COALESCE(MAX(sequence),0)+1 AS sequence FROM events',
+            )
+            .get();
+          if (!next) throw new Error('resource event sequence unavailable');
+          const event: ResourceEvent = {
+            eventId: randomUUID(),
+            epoch: this.configuration.epoch,
+            sequence: next.sequence,
+            useId: job.id,
+            incarnation: job.incarnation,
+            revision: kind === 'registered' ? 1 : 2,
+            kind,
+            observedAt: change.observedAt,
+            reason:
+              kind === 'registered'
+                ? `admitted by host pool ${this.configuration.enrollmentId}`
+                : 'every reservation entry returned on its terminal evidence',
+            use: hostJobDeclaration(job, this.configuration.enrollmentId),
+            ...(kind === 'release_verified'
+              ? {
+                  evidence: {
+                    digest: createHash('sha256').update(row.event).digest('hex'),
+                    locator: `dash-host-job://${this.configuration.authorityId}/${job.id}/${String(change.revision)}`,
+                    disposition: 'returned' as const,
+                    reclaimedBytes: null,
+                  },
+                }
+              : {}),
+          };
+          this.db
+            .query('INSERT INTO events(sequence,event) VALUES (?,?)')
+            .run(event.sequence, JSON.stringify(resourceRuntimeEvent.assert(event)));
+        }
+        this.db.query('UPDATE host_job_events SET published=1 WHERE sequence=?').run(row.sequence);
+      }
+    });
+  }
+  /** Host-job events not yet moved to the authority outbox, oldest first ({@link moveHostJobEvents}). */
   hostJobOutbox(): { sequence: number; event: unknown }[] {
     return this.db
       .query<{ sequence: number; event: string }, []>(
@@ -2209,6 +2459,7 @@ export class ResourceRuntime {
       arrivedAt: row.arrived_at,
       deadline: row.deadline,
       overtakes: row.overtakes,
+      calibration: this.ticketRequest(row).calibration === true,
     };
   }
   private ticketRequest(row: TicketRow): HostJobRequest {
@@ -2219,13 +2470,16 @@ export class ResourceRuntime {
    * The refusal for an envelope this pool can never hold (J5, exit 73), naming the dimension
    * and both figures, or null.
    */
-  private oversize(descriptor: JobTypeDescriptor): string | null {
+  private oversize(descriptor: JobTypeDescriptor, calibration: boolean): string | null {
     const allocatable = this.allocatable();
     const name = `host job ${descriptor.id} refused`;
-    for (const dimension of ['cpuCores', 'memoryGib'] as const)
-      if (descriptor.envelope[dimension] > allocatable[dimension])
-        return `${name}: ${dimension} ${String(descriptor.envelope[dimension])} exceeds allocatable ${String(allocatable[dimension])}`;
-    if (this.diskUnitsOf(descriptor) > allocatable.diskUnits)
+    // A calibration holds the whole vector whatever its envelope says: it is how an envelope
+    // too large for this pool is measured (slice 4 assumption S4-A3).
+    if (!calibration)
+      for (const dimension of ['cpuCores', 'memoryGib'] as const)
+        if (descriptor.envelope[dimension] > allocatable[dimension])
+          return `${name}: ${dimension} ${String(descriptor.envelope[dimension])} exceeds allocatable ${String(allocatable[dimension])}`;
+    if (!calibration && this.diskUnitsOf(descriptor) > allocatable.diskUnits)
       return `${name}: tmpDiskGib ${String(descriptor.envelope.tmpDiskGib)} exceeds allocatable ${String(Math.floor((allocatable.diskUnits * this.configuration.diskUnitBytes) / GIB))}`;
     for (const id of descriptor.envelope.exclusive)
       if ((this.configuration.exclusiveUnits[id] ?? []).length === 0)
@@ -2251,7 +2505,7 @@ export class ResourceRuntime {
     // queued a gate naming gate_tree twice (2026-11-01, verify.md Slice 2).
     if (new Set(exclusive).size !== exclusive.length)
       throw new Error(`host job ${request.descriptor.id} names an exclusive id twice`);
-    const oversize = this.oversize(request.descriptor);
+    const oversize = this.oversize(request.descriptor, request.calibration === true);
     // Proof: without it, `refuses an envelope larger than the host, exit 73 without a ticket`
     // (host-jobs.test.ts) queued the 14 GiB gate (2026-11-01, verify.md Slice 2).
     if (oversize !== null) return { kind: 'refused', exitCode: 73, reason: oversize };
@@ -2366,14 +2620,47 @@ export class ResourceRuntime {
         (this.configuration.exclusiveUnits[exclusiveId] ?? []).find(
           (path) => !held.has(path) && 'commit' in ready(path),
         );
+      const unitsOf = (descriptor: JobTypeDescriptor): string[] =>
+        descriptor.envelope.exclusive.flatMap((id) => this.configuration.exclusiveUnits[id] ?? []);
+      /** This waiter's free-space shortfall for its refusal, with both figures, or nothing. */
+      const shortfall = (): string => {
+        const own =
+          request.calibration === true
+            ? allocatable.diskUnits
+            : reserved.diskUnits + this.diskUnitsOf(request.descriptor);
+        const short = this.freeSpaceShortfall(own);
+        return short === null ? '' : `; ${short}`;
+      };
       const unavailable = (): string => {
         const named = [...readiness].flatMap(([path, verdict]) =>
           'reason' in verdict ? [`${path} (${verdict.reason})`] : [],
         );
         return named.length === 0 ? '' : `; units not free: ${named.join(', ')}`;
       };
+      /**
+       * Whether a calibration of `descriptor` may start: nothing reserved in any dimension, no
+       * starting or held host job, free space for the whole disk budget, and every unit of
+       * every id the type names neither held nor unready. Units of other ids are not its
+       * concern (S4-A14).
+       */
+      const drained = (descriptor: JobTypeDescriptor): boolean =>
+        POOL_DIMENSIONS.every((dimension) => reserved[dimension] === 0) &&
+        // Unreachable alone through the catalogue (every type has a core and a GiB, so every
+        // starting or held job reserves); kept for a zero-envelope descriptor (verify.md).
+        this.listHostJobs().every((job) => job.state !== 'starting' && job.state !== 'held') &&
+        // Proof: without it `a calibration waits for free space for the whole disk budget,
+        // naming the shortfall` (calibrate.test.ts) admitted it (2026-11-02, Slice 4 review A13).
+        this.freeSpaceCovers(allocatable.diskUnits) &&
+        // Proof: without the readiness check `a calibration waits while a unit of its type is
+        // dirty` (calibrate.test.ts) threw `host pool unit vanished during admission`; checking every unit of
+        // the pool made `… naming no unit holds none and ignores a dirty tree` refuse it 75
+        // (2026-11-02, review A5, A13).
+        unitsOf(descriptor).every((path) => !held.has(path) && 'commit' in ready(path));
       const fits = (row: TicketRow): boolean => {
-        const { descriptor } = this.ticketRequest(row);
+        const { descriptor, calibration } = this.ticketRequest(row);
+        // Proof: admitting a calibration on the envelope fit made `a calibration waits for
+        // the pool to drain` (calibrate.test.ts) admit it beside a held gate (2026-11-02, Slice 4).
+        if (calibration === true) return drained(descriptor);
         const diskUnits = this.diskUnitsOf(descriptor);
         return (
           vectorFits(
@@ -2396,7 +2683,7 @@ export class ResourceRuntime {
       if (chosen?.id !== ticket) {
         if (now >= mine.deadline)
           return refuse(
-            `${named}: no room within its wait budget of ${String(request.waitSeconds)}s; ahead: ${aheadText()}${unavailable()}`,
+            `${named}: no room within its wait budget of ${String(request.waitSeconds)}s; ahead: ${aheadText()}${unavailable()}${shortfall()}`,
           );
         return {
           kind: 'waiting',
@@ -2410,8 +2697,7 @@ export class ResourceRuntime {
         this.db.query('UPDATE host_job_tickets SET overtakes=overtakes+1 WHERE id=?').run(row.id);
       this.db.query('DELETE FROM host_job_tickets WHERE id=?').run(ticket);
       const id = randomUUID();
-      const units = request.descriptor.envelope.exclusive.map((exclusiveId): HostJobUnit => {
-        const path = freeUnit(exclusiveId);
+      const claim = (exclusiveId: string, path: string | undefined): HostJobUnit => {
         const verdict = path === undefined ? undefined : ready(path);
         if (path === undefined || verdict === undefined || !('commit' in verdict))
           throw new Error('host pool unit vanished during admission');
@@ -2423,7 +2709,22 @@ export class ResourceRuntime {
           state: 'held',
           reason: 'admitted',
         };
-      });
+      };
+      // A calibration holds every unit of each id its type names, in the pool's order (J9,
+      // S4-A14); units of other ids stay free.
+      // Proof: claiming none of its ids' units made `a calibration of a gate holds every gate
+      // tree` and `a calibration holds the whole allocatable vector` (calibrate.test.ts) see
+      // neither tree held (2026-11-02, Slice 4 review A5).
+      const units =
+        request.calibration === true
+          ? request.descriptor.envelope.exclusive.flatMap((exclusiveId) =>
+              (this.configuration.exclusiveUnits[exclusiveId] ?? []).map((path) =>
+                claim(exclusiveId, path),
+              ),
+            )
+          : request.descriptor.envelope.exclusive.map((exclusiveId) =>
+              claim(exclusiveId, freeUnit(exclusiveId)),
+            );
       const job: HostJob = {
         id,
         incarnation: randomUUID(),
@@ -2450,6 +2751,20 @@ export class ResourceRuntime {
         units,
         settleAttempts: 0,
         nextSettleAt: null,
+        // Proof: persisting the envelope for a calibration made `a calibration holds the whole
+        // allocatable vector` and `a calibration waits for the pool to drain` (calibrate.test.ts)
+        // persist the gate's envelope, not the 8 allocatable cores (2026-11-02, review A3).
+        reserved:
+          request.calibration === true
+            ? this.wholePool()
+            : {
+                cpuCores: request.descriptor.envelope.cpuCores,
+                memoryGib: request.descriptor.envelope.memoryGib,
+                diskUnits: this.diskUnitsOf(request.descriptor),
+                workspaceSlots: 1,
+                tmpDiskGib: request.descriptor.envelope.tmpDiskGib,
+              },
+        ...(request.calibration === true ? { calibration: true as const } : {}),
       };
       this.hostJobEvent(job, 'admitted');
       return { kind: 'admitted', job };

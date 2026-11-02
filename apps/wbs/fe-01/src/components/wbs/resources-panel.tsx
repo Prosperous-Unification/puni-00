@@ -1284,7 +1284,9 @@ export function ResourceRow({
   }, [removalStage]);
   const [capacity, setCapacity] = useState<string | null>(null);
   const reading =
-    resource.providerId === null ? null : readReport(resource.report, resource.unitLabel, now);
+    resource.providerId === null
+      ? null
+      : readReport(resource.report, resource.unitLabel, now, resource.hostJobs);
   const pickerId = `resource-provider-${resource.id}`;
   return (
     <li
