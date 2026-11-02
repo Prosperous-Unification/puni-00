@@ -792,13 +792,13 @@ const OUTSIDE_NAMED = 3;
  */
 function outsideNote(scope: JobScope): string {
   // Most recently started first: the one an operator asks about (pids wrap; start ticks do not).
-  const seen = [...new Map(scope.outside.map((process) => [process.pid, process])).values()].sort(
-    (left, right) => (right.start > left.start ? 1 : right.start < left.start ? -1 : 0),
-  );
+  const seen = [
+    ...new Map(scope.outside.map((uninspectable) => [uninspectable.pid, uninspectable])).values(),
+  ].sort((left, right) => (right.start > left.start ? 1 : right.start < left.start ? -1 : 0));
   if (seen.length === 0) return '';
   const named = seen
     .slice(0, OUTSIDE_NAMED)
-    .map((process) => `${String(process.pid)} (${process.comm})`)
+    .map((uninspectable) => `${String(uninspectable.pid)} (${uninspectable.comm})`)
     .join(', ');
   // Proof: listing every process here made `the outside-scope note names three and counts the
   // rest` (host-job-holds.test.ts) see eleven names on the workstation (2026-11-02, review R5).
