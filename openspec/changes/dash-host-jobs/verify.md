@@ -1206,7 +1206,9 @@ design.md after J18.
 - **S6-A2 Not enrolled yet.** J12's observe phase (Dash jobs under the legacy queue protocol) and
   the concurrent-mode singleton flock guard are not in this slice; they land with
   `ops pool switch-mode` after slice 4. Until both land no gate host may get a pool
-  configuration. tasks.md 6.1 and the inventory say so.
+  configuration. tasks.md 6.1 and the inventory say so. Both landed with slice 6b (merged
+  into it at `994512439`), which also moves the remaining precondition to task 6.7 (the `watch`
+  unit) before enrollment.
 - **S6-A3 Type required everywhere.** `run_heavy_job` refuses 64 without a catalogue-shaped
   `HEAVY_LOCK_JOB_TYPE` on unenrolled hosts too, so a launcher that forgets its type fails before
   any host enrolls. A prefix assignment (`HEAVY_LOCK_JOB_TYPE=gate run_heavy_job …`) is how every
@@ -1692,46 +1694,29 @@ Not provable alone, so stated rather than tested:
   unguarded mode (S6B-A14). The observe path through the production entrypoint is not
   exercised.
 
-### Follow-up for slice 6a (`launchers.test.ts`, not edited here)
+### Slice 6a's launcher suite on the combined tree (`launchers.test.ts`)
 
-Whichever of #816 and this PR merges second needs this change, or 6a's launcher suite fails
-to typecheck (`legacyLock` is a required `JobRunDependencies` field). Its two-gates and
-gate-beside-release cases would also serialise, because a fresh pool is in observe mode:
+6a's `src/ops/launchers.test.ts` was written against a pool that admitted host jobs side by
+side. Since 6b, a fresh pool is in observe mode and serialises every host job through the shell
+lock. Merged at `994512439`, three cases therefore timed out (exit 143): "two gates run at once",
+"a gate runs beside a release build" and "a failing enrolled gate's status". The merge applies
+this change to that file:
 
-```diff
---- a/apps/twilight-structure/twilight-dash/cli/src/ops/launchers.test.ts
-+++ b/apps/twilight-structure/twilight-dash/cli/src/ops/launchers.test.ts
-@@ FIXTURE_DASH
- import { runHostJob } from ${JSON.stringify(join(DASH_SOURCE, 'ops', 'job-run'))};
-+import { productionLegacyLock } from ${JSON.stringify(join(DASH_SOURCE, 'resources', 'legacy-lock'))};
-@@
-       user: 'puni1',
-+      // Inside the namespace /home/puni1/.cache is tmpfs, so the canonical lock is a fixture.
-+      legacyLock: productionLegacyLock(),
-     },
-@@ function writeConfig()
-         exclusiveUnits: { gate_tree: units },
-         enrollmentId: 'enrollment-one',
-+        launcherCheckouts: [checkout],
-+        concurrencyEligible: ['gate', 'release-build'],
-       }),
-@@ test('ops pool init enrolls the host at the fixed path', …)
-       expect(existsSync(LEDGER)).toBe(true);
-+      // Two jobs overlap only in concurrent mode; the guard needs a running `watch`, which
-+      // this suite does not start, so it is released at once (both through the entrypoint).
-+      for (const flags of [[], ['--release-guard']]) {
-+        const switched = Bun.spawnSync(
-+          [process.execPath, join(DASH_SOURCE, 'entrypoint.ts'), 'ops', 'pool', 'switch-mode',
-+           'concurrent', '--config', CONFIG, '--operator', 'launchers-test', ...flags],
-+          { stdout: 'pipe', stderr: 'pipe' },
-+        );
-+        expect(switched.exitCode, switched.stderr.toString()).toBe(0);
-+      }
-```
+1. The fixture Dash passes `legacyLock: productionLegacyLock()`. Inside the suite's namespace
+   `/home/puni1/.cache` is tmpfs, so the canonical lock is a fixture.
+2. The fixture catalogue's entrypoints are the real launchers: `bin/h2puni-gate.sh` for `gate`
+   and `bin/publish-release.sh` for `release-build`. `switch-mode` verifies that each calls
+   `run_heavy_job` (S6B-A20). The fixture default `bin/payload.sh` does not exist in this
+   checkout, so with it the switch refuses 70.
+3. `writeConfig` adds `launcherCheckouts: [checkout]` and
+   `concurrencyEligible: ['gate', 'release-build']`.
+4. Right after `ops pool init`, the init case runs `ops pool switch-mode concurrent --operator
+launchers-test` through the entrypoint, then the same with `--release-guard`, since the
+   suite runs no `watch`. Its timeout is now 120 s.
 
-The fixture checkout must hold a committed `bin/heavy-lock-lib.sh` defining `run_heavy_job`,
-which 6a's fixture checkout copies. Its catalogue must name `gate` and `release-build`. The
-unenrolled-host case before `ops pool init` is unaffected.
+The fixture checkout already satisfies the remaining launcher checks: a committed, clean `bin/`
+whose library defines `run_heavy_job`. With the change, the suite passes 10 of 10 on the
+combined tree (commands below).
 
 ### Review fixes (Fable, PR #818 at `0073937d1`, MERGE AFTER FIXES)
 
@@ -1972,6 +1957,44 @@ All with `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset.
 - **Not run, as asked:** the full `twilight-dash:test` target waits for the re-merge with
   #816.
 
+### Merge with slice 6a (`994512439`)
+
+Merged into `feat/dash-host-jobs-6b-transition` as a merge commit (`8964a3963`), not a rebase,
+on the coordinator's go.
+
+- **Conflicts:** only `tasks.md` and `verify.md`, both resolved by hand.
+  - In tasks.md, 6.1 keeps 6a's launcher text with its "no host may be enrolled" note struck,
+    since observe mode and the guard land here.
+  - 6.4 keeps 6a's container-measurement note.
+  - 6.5's eligibility wording is 6b's: 64 at init and at every open.
+  - 6.6 keeps 6a's J19 completion.
+  - 6.7 stays where 6b moved it.
+  - verify.md orders Slice 6a, then Slice 6b.
+- **Non-conflicting follow-ups:**
+  - `docs/infra/heavy-job-launchers.md` no longer says the observe phase is owed.
+  - S6-A2 notes it was resolved here.
+  - 6a's `launchers.test.ts` gains the fixture change described under "Slice 6a's launcher
+    suite on the combined tree".
+- **One fix the merged tree surfaced** (`e6c20afff`). Since K2 the holder counts as held once
+  the lock's own record names it. The library writes that record just before its `waited …`
+  line, so the real-scope `a gate is measured` missed the line in its report. Dash now gives
+  the log up to 20 more polls to show its own `held` marker. That changes diagnostics only, not
+  any decision, so there is no new check and no fault row.
+
+Commands (fresh, on `e6c20afff`, `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset):
+
+- **Targeted tests:** exit 0, 122 pass, 0 fail across 17 files (outer), every namespaced inner
+  run passing. The set was `src/ops` (with `launchers.test.ts`: 10 of 10), `src/resources/{legacy-lock,host-jobs,host-jobs.model,host-job-holds,host-job-publication,resource-holds}.test.ts`,
+  `src/compute/report-capacity.host-pool.test.ts`, `src/cli.test.ts` and
+  `src/no-ambient-clock.test.ts`.
+- **`bash bin/heavy-lock.test.sh`** (6a's cases included): exit 0, `all heavy-lock checks
+passed`.
+- **`twilight-dash:typecheck` and `:lint`** (`--skip-nx-cache`): exit 0 each.
+- **`bunx prettier --check`** on every touched `.ts`, `.md`, `.json` and `.yml` file: clean.
+- **`bunx openspec validate dash-host-jobs --json`:** `failed: 0`.
+- **`bunx nx run twilight-dash:test --skip-nx-cache`:** exit 0, 4247 pass, 0 fail, 138 files,
+  1853.92 s.
+
 ## Slice 6c (code) — `gate_host` role for the host pool (tasks 6.3, 6.7: code half)
 
 Branch `feat/dash-host-jobs-6c-role` from `feat/dash-host-jobs-6a-launchers` at `af8cdd003`, with
@@ -2049,13 +2072,15 @@ converging applies with `changed=0`, the restart proof and `ops pool init` all s
   template throws. Real Ansible rendering, the facts arithmetic of S6C-A5, the `systemd_service`
   and `wait_for` tasks and linger itself run only at the apply. `ops pool init` refuses a budget
   above the host's facts loudly.
-- **S6C-A14 A 6a × 6b conflict, not this slice's.** 6a's `launchers.test.ts` drives two enrolled
-  gates at once. 6b's observe mode queues every Dash job through the shell lock, so on the merged
-  tree the second gate queues behind the first. The cases "two gates run at once", "a gate runs
-  beside a release build" and "a failing enrolled gate's status" fail: the gate's stderr shows
-  `heavy lock:`, then exit 143 when the case times out. No file of this slice takes part. The
-  fix belongs to the merge of #818 after #816: switch the fixture pool to concurrent mode with
-  both types eligible, or expect serialisation. It is left to the owners of those slices.
+- **S6C-A14 The 6a × 6b launchers conflict, resolved by #818.** Before #818 landed, three of 6a's
+  concurrent-gate cases in `launchers.test.ts` failed on this branch's 6a + 6b tree: 6b's observe
+  mode queues every Dash job through the shell lock. The plan now carries #818's final
+  `9855c2343`, which patches the fixture, and this branch merged the plan at `b578beef9`. On the
+  merged tree `launchers.test.ts` ran three times. The first run was 9/10: "two gates run at
+  once …" saw the first gate's `gate_tree` unit `blocked: … cannot read the cgroup of
+uninspectable PID 662; watch settles it` where the test expects `released`. The next two runs
+  were 10/10. That is a settlement timing flake in 6a's fixture, which no 6c file takes part in.
+  It is recorded here and left to its owner.
 - **S6C-A15 Pinned fields stop the role (review Q1).** Once a ledger and a configuration both
   exist, the role renders the candidate configuration on the controller and passes it on stdin,
   never to disk. A `jq` probe compares it with the live file on the thirteen fields

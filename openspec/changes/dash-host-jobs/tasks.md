@@ -126,9 +126,10 @@
       let a variable choose the mechanism and watch the opt-out case fail. Done for the four
       launchers here (cases 40 to 45; verify.md Slice 6a); `puni-pr-00`'s `build-release.sh` is
       owed by that repository. Observe mode itself (a Dash job under the complete shell-lock
-      protocol, one wait budget) is Dash's side and landed in slice 6b: `ops job run` queues
-      through the library's own `with_heavy_lock` (verify.md Slice 6b, S6B-A1). The fixed pool
-      root `/home/puni1/.local/share/dash/host-pool` is what 6.3's role must write (S6-A1).
+      protocol, one wait budget) and the concurrent-mode singleton guard are Dash's side and
+      landed in slice 6b: `ops job run` queues through the library's own `with_heavy_lock`
+      (verify.md Slice 6b, S6B-A1). The fixed pool root `/home/puni1/.local/share/dash/host-pool`
+      is what 6.3's role must write (S6-A1).
 - [x] 6.2 Five-launcher conflict inventory (J3): canonical paths, ports, release artifacts,
       caches, build engines, cross-type pairs; each conflict isolated or an exclusive unit; the
       gate split into outer launcher and admitted payload reading `DASH_JOB_UNIT_GATE_TREE`
@@ -193,16 +194,12 @@
       with the singleton guard held; two-job concurrent validation recorded in `verify.md`
       (planned proofs apart from observed evidence); decide when a failing `JOB-CATALOGUE`
       blocks `ops job run`; update `docs/runbook-h2-heavy-lock-owner.md`,
-      `docs/infra/gate-hosts.md`, `AGENTS.md` Gate and `LLM_README.md`. Before the switch,
-      admission enforces a per-type concurrency flag (slice 6a review F3; slice 6b owns
-      `switch-mode` and implements it): `host-pool.json` gains
-      `"concurrencyEligible": ["<type id>", …]`, default `[]`. `ops pool init` and every pool
-      open refuse 70 for an id the admitting checkout's catalogue does not name. In concurrent
-      mode a job whose type is not listed is admitted only when no other host job is reserved,
-      and no other job is admitted beside it. Today serialisation rests only on no host having
-      switched mode, and after #814 on the audit's `attribution_incomplete` finding, which refuses
-      nothing; `gate` and `test-queued` stay unlisted until their J16 gaps and their shared
-      checkout `.nx` cache are covered (`docs/infra/heavy-job-launchers.md`).
+      `docs/infra/gate-hosts.md`, `AGENTS.md` Gate and `LLM_README.md`. The per-type
+      concurrency flag the switch relies on (slice 6a review F3) is implemented in slice 6b
+      (6.5a): `host-pool.json`'s `concurrencyEligible`, default `[]`, refused **64 at init and
+      at every open** for an id no launcher catalogue names (S6B-A17, S6B-A22). `gate` and
+      `test-queued` stay unlisted until their J16 gaps and their shared checkout `.nx` cache
+      are covered (`docs/infra/heavy-job-launchers.md`).
 - [x] 6.6 Uninspectable same-user processes outside host jobs (review F1): hold inspection
       refuses any same-user process whose `/proc/<pid>/fd` is access-denied. Host-job settlement
       now records such a process outside the job's scope as `uninspectable_outside_scope`, but
