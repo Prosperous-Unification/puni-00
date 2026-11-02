@@ -1137,3 +1137,44 @@ an exclusive id with no units is refused 73` (an example, not a new check).
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `bun test` `src/ops/propose`, `audit`, `audit-units`, `calibrate`, `status`, `job-run`, `src/cli`, `src/no-ambient-clock`, `src/resources/host-jobs`, `host-jobs.model`, `host-job-holds` | 8, 11, 3, 18 (namespace), 5, 44, 55, 2 pass; the namespaced `host-jobs`, `host-jobs.model`, `host-job-holds` wrappers pass (`host-job-holds` 5 pass); 0 fail |
 | `bunx nx run twilight-dash:typecheck --skip-nx-cache`, `:lint --skip-nx-cache`                                                                                                            | each `Successfully ran target`                                                                                                                               |
+
+#### After #811: the WBS mapping reads the persisted reservation (A3, second half)
+
+`plan/dash-host-jobs` at `b116cb40e` (#811 merged) was merged in with a merge commit. Only
+`verify.md` conflicted; its sections now run Slice 3, #809 fixes, Slice 5, #811 fixes, Slice 4,
+#814 fixes.
+
+- **S4-A18 WBS mapping.** `hostJobDeclaration` declares the job's persisted reservation, not
+  its envelope:
+  - `cpuCores`, `memoryGib` and `tmpDiskGib` come from `job.reserved`;
+  - each exclusive id is counted from `job.units` grouped by `exclusiveId`;
+  - a calibration of `website-dev-build` therefore declares 8 cores, 13 GiB and the 2 GiB disk
+    budget, and a gate calibration declares `gate_tree` 2.
+
+  `reserved` now also stores `tmpDiskGib`, set at admission: the envelope's figure for a run,
+  `⌊diskUnits × diskUnitBytes / GiB⌋` of the whole budget for a calibration. A stored GiB figure
+  keeps the ledger reader in `src/compute` free of the runtime configuration. `reserved` and
+  `units` never change after admission, so `registered` and `release_verified` still carry one
+  declaration (tested). `HostJobChangeShape` ignores undeclared keys, so event rows of jobs with
+  `reserved` and `calibration` publish (tested).
+
+- **The reporter's ledger port** (`openHostPoolLedger().reserved`) recomputed from the
+  envelope. It now sums `job.reserved`; a snapshot without one (written before slice 4's
+  review) charges its envelope, as before.
+
+| Fault injected                          | Test that went red                                                                              | Observed                         |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------- |
+| declaration reads the envelope          | `a calibration projects the whole allocatable vector` (host-job-publication.test.ts)            | units 2, 2, 0, expected 8, 13, 2 |
+| declaration counts `envelope.exclusive` | `a calibration of a gate declares every gate tree it holds`                                     | `gate_tree` 1, expected 2        |
+| ledger port sums the envelope           | `a calibration's ledger port reads the whole pool reserved` (report-capacity.host-pool.test.ts) | 2, 2, 0, 0, expected 8, 13, 2, 0 |
+
+Commands (fresh, `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset):
+
+- `bun test src/ops src/compute src/resources/{host-jobs,host-jobs.model,host-job-holds,host-job-publication,runtime-wbs}.test.ts src/cli.test.ts src/no-ambient-clock.test.ts`:
+  172 pass, 1 fail across 20 files.
+  - The failure is `report-capacity.test.ts` > `refuses a configuration readable by others
+before any request`, at its 5 s default timeout. It spawns the entrypoint, which takes 5.1 to
+    5.2 s on this workstation.
+  - It fails the same way on an untouched `b116cb40e` checkout (22 pass, 1 fail), so it predates
+    this branch. It is the import-cost follow-up of task 3.1 (review R6).
+- `twilight-dash:typecheck` and `:lint` (`--skip-nx-cache`) succeed.

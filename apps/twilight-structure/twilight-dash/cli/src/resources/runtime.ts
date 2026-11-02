@@ -296,8 +296,10 @@ export interface HostJob {
    * `compute` settles, disk units and slots until `tmpDisk` settles. The envelope, its tmp disk
    * and one slot for a run; the whole `allocatable` vector at admission for a calibration.
    * A ledger row written before slice 4's review fix has none and reads it from its descriptor.
+   * `tmpDiskGib` is the disk charge in the GiB WBS is told (`resourceRuntimeUse` v2, S4-A18):
+   * the envelope's for a run, the whole disk budget rounded down to GiB for a calibration.
    */
-  reserved: PoolVector;
+  reserved: HostJobReservation;
   compute: HostJobEntry;
   tmpDisk: HostJobEntry;
   units: HostJobUnit[];
@@ -338,6 +340,7 @@ const HostJobShape = type({
     memoryGib: 'number.integer >= 0',
     diskUnits: 'number.integer >= 0',
     workspaceSlots: 'number.integer >= 0',
+    tmpDiskGib: 'number.integer >= 0',
   }).onUndeclaredKey('reject'),
   compute: HostJobEntryShape,
   tmpDisk: HostJobEntryShape,
@@ -423,6 +426,11 @@ export interface HostPoolStatus {
   waiters: HostJobTicket[];
 }
 
+/** What one host job reserves (J4, J9): the pool vector, and its disk charge in GiB for WBS. */
+export interface HostJobReservation extends PoolVector {
+  tmpDiskGib: number;
+}
+
 /** The fields of a `host_job_events` row its move to the authority outbox reads. */
 const HostJobChangeShape = type({
   jobId: Identifier,
@@ -440,9 +448,15 @@ const HostJobChangeShape = type({
  * `release_verified` carry the same declaration.
  */
 function hostJobDeclaration(job: HostJob, host: string): ResourceRuntimeHostJobUse {
-  const { envelope } = job.descriptor;
+  // What the job reserved, persisted at admission, not its envelope: a calibration charges the
+  // whole pool and every unit of its type's ids (S4-A18). Both are immutable per job, so
+  // `registered` and `release_verified` still carry one declaration.
+  // Proof: reading the envelope here made `a calibration projects the whole allocatable
+  // vector` (host-job-publication.test.ts) declare the build's 2 cores (2026-11-02, Slice 4).
+  const { reserved } = job;
   const exclusive = new Map<string, number>();
-  for (const id of envelope.exclusive) exclusive.set(id, (exclusive.get(id) ?? 0) + 1);
+  for (const unit of job.units)
+    exclusive.set(unit.exclusiveId, (exclusive.get(unit.exclusiveId) ?? 0) + 1);
   return {
     kind: 'host_job',
     type: job.descriptor.id,
@@ -450,9 +464,9 @@ function hostJobDeclaration(job: HostJob, host: string): ResourceRuntimeHostJobU
     host,
     launcherSha: null,
     reservations: [
-      { dimension: 'cpuCores', units: envelope.cpuCores },
-      { dimension: 'memoryGib', units: envelope.memoryGib },
-      { dimension: 'tmpDiskGib', units: envelope.tmpDiskGib },
+      { dimension: 'cpuCores', units: reserved.cpuCores },
+      { dimension: 'memoryGib', units: reserved.memoryGib },
+      { dimension: 'tmpDiskGib', units: reserved.tmpDiskGib },
       ...[...exclusive].map(([dimension, units]) => ({ dimension, units })),
     ],
   };
@@ -2143,6 +2157,14 @@ export class ResourceRuntime {
       throw new ResourceWbsUnavailable(`${cause.message}; retried as a host-job event`, { cause });
     }
   }
+  /** What a calibration reserves: all of `allocatable`, its disk budget also in whole GiB. */
+  private wholePool(): HostJobReservation {
+    const allocatable = this.allocatable();
+    return {
+      ...allocatable,
+      tmpDiskGib: Math.floor((allocatable.diskUnits * this.configuration.diskUnitBytes) / GIB),
+    };
+  }
   /** `allocatable[d] = budget[d] − headroom[d]` (J5); disk and slots have no headroom here. */
   private allocatable(): PoolVector {
     const configuration = this.configuration;
@@ -2208,12 +2230,13 @@ export class ResourceRuntime {
     // reads it from its descriptor` (calibrate.test.ts) read no reservation (2026-11-02, A3).
     if (parsed.reserved !== undefined) return { ...parsed, reserved: parsed.reserved };
     const reserved = parsed.calibration
-      ? this.allocatable()
+      ? this.wholePool()
       : {
           cpuCores: parsed.descriptor.envelope.cpuCores,
           memoryGib: parsed.descriptor.envelope.memoryGib,
           diskUnits: parsed.diskUnits,
           workspaceSlots: 1,
+          tmpDiskGib: parsed.descriptor.envelope.tmpDiskGib,
         };
     return { ...parsed, reserved };
   }
@@ -2659,12 +2682,13 @@ export class ResourceRuntime {
         // persist the gate's envelope, not the 8 allocatable cores (2026-11-02, review A3).
         reserved:
           request.calibration === true
-            ? allocatable
+            ? this.wholePool()
             : {
                 cpuCores: request.descriptor.envelope.cpuCores,
                 memoryGib: request.descriptor.envelope.memoryGib,
                 diskUnits: this.diskUnitsOf(request.descriptor),
                 workspaceSlots: 1,
+                tmpDiskGib: request.descriptor.envelope.tmpDiskGib,
               },
         ...(request.calibration === true ? { calibration: true as const } : {}),
       };

@@ -147,7 +147,8 @@ if (insideOpsNamespace(import.meta.path)) {
       expect(runtime.inspectHostJob(running.id).state).toBe('released');
       const job = admitted(runtime, calibration);
       expect(job.calibration).toBe(true);
-      expect(job.reserved).toEqual(runtime.hostPoolStatus().allocatable);
+      // Two 1 GiB disk units: the whole budget is 2 GiB for WBS.
+      expect(job.reserved).toEqual({ ...runtime.hostPoolStatus().allocatable, tmpDiskGib: 2 });
     });
 
     test('a calibration of a gate holds every gate tree', () => {
@@ -273,6 +274,7 @@ if (insideOpsNamespace(import.meta.path)) {
         memoryGib: 6,
         diskUnits: 0,
         workspaceSlots: 1,
+        tmpDiskGib: 0,
       });
       expect(runtime.hostPoolStatus().reserved).toEqual({
         cpuCores: 4,
