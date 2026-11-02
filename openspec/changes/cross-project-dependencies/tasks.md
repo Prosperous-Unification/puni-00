@@ -1230,3 +1230,9 @@ The annotated inert diagnostic checkpoint additionally passed all scoped statics
 - [x] FRC4. Freeze exact source and ordinary/R5 receipts, run configured affected types/lint/format/OpenSpec, and obtain independent review. Keep historical inert18 evidence and all current full-CI/native/held scopes unchanged.
 
 The bounded FRC1–FRC4 private cleanup slice is accepted at its actual epochs: RED6/5, same11 GREEN11/0, four exact omission/restoration pairs8calls, adjacent Proof comments, configured statics and a falsifiable six-transform compiler bridge. See `verify-source-frontend-current-epoch.md`; metadata caveats and historical failures remain recorded. This checks only these four small fixture tasks. FEP5, inner-Vite original ownership, full native/CI/gates and dependency feature delivery remain open; no parent completion or architectural adoption follows.
+
+### Capable mounted incoming-v12 import acceptance — 2026-11-02
+
+- [x] 8.1-mounted-incoming. Preserve the historical synthetic rich roundtrip and exercise the same complete incoming/internal identity/remapping/history assertions through the actual capable mounted HTTP importer without a synthetic importer. Include existing two incapable controls; run the required actual OpenAPI prerequisite and four focused cases, configured types/lint/format, and independent review. Evidence: [mounted incoming acceptance](verify-import-compatibility.md#capable-mounted-incoming-v12-transaction-acceptance--2026-11-02).
+
+This submilestone passed4/0/109assertions after its actual uncached prerequisite; audit51e3a26e74f2c9acf9683c7ce1fe4ee86d4df6e11d1cbb661f23885089c4cfda. Parent8.1 and full production activation/participant safety, remaining compatibility/transport/rollback matrices and final CI/gates/delivery remain open. Fixture-seeded durable authority is explicitly not real activation proof.

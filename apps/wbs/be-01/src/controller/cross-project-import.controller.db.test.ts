@@ -1,3 +1,4 @@
+import { importSummary } from '@wbs/contracts';
 import { classifyPlanDocument } from '@wbs/core/module/plan-document/plan-document.resource';
 import { DrizzleEventLogStore } from '@wbs/store-sqlite';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from '@wbs/store-sqlite/testing/dependency-capability';
@@ -5,6 +6,7 @@ import { afterEach, expect, spyOn, test } from 'bun:test';
 // eslint-disable-next-line no-restricted-imports -- this test inspects the borrowed Drizzle transaction before its injected recording failure.
 import { sql } from 'drizzle-orm';
 
+import { BACKEND_DEPENDENCY_CAPABILITY } from '../runtime/dependency-support';
 import { connectedTransferFixture, transferSnapshot } from '../testing/connected-transfer-fixture';
 import { OrganizationHarness } from '../testing/organization-harness';
 
@@ -58,8 +60,16 @@ async function exported(projectId: string) {
   return { document, classified: classified.value };
 }
 
-test('downloaded successor-owned v12 content round trips through same-store synthetic transaction', async () => {
-  harness = OrganizationHarness.openComposedWith({ syntheticTransferImports: true });
+async function assertIncomingImportRoundTrip(
+  mode: 'synthetic' | 'mounted-production',
+): Promise<void> {
+  harness = OrganizationHarness.openComposedWith(
+    mode === 'synthetic'
+      ? { syntheticTransferImports: true }
+      : { dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY },
+  );
+  if (mode === 'mounted-production')
+    expect(() => harness.syntheticImports()).toThrow('synthetic transfer imports are absent');
   const { source, remote } = await connectedTransferFixture(harness);
   const remoteStep = remote.stepIds.at(0);
   if (remoteStep === undefined) throw new Error('fixture remote step missing');
@@ -88,22 +98,45 @@ test('downloaded successor-owned v12 content round trips through same-store synt
   const originalLocal = harness.sqlite.query('SELECT * FROM typed_dependency ORDER BY id').all();
   const histories = snapshotHistory();
   const principal = await harness.authenticatedCommandPrincipal('ada', '');
-  const admitted = await harness.syntheticImports().import(classified, {
-    kind: 'human',
-    principal,
-    expectedAccess: {
-      kind: 'scoped',
-      scope: { organizationId: 'org-a', userId: principal.id, role: 'member' },
-    },
-  });
-  expect(admitted.ok).toBe(true);
-  if (!admitted.ok) throw new Error(`fixture import refused: ${JSON.stringify(admitted)}`);
-  expect(admitted.projectId).not.toBe(source.projectId);
+  let importedProjectId: string;
+  if (mode === 'synthetic') {
+    const admitted = await harness.syntheticImports().import(classified, {
+      kind: 'human',
+      principal,
+      expectedAccess: {
+        kind: 'scoped',
+        scope: { organizationId: 'org-a', userId: principal.id, role: 'member' },
+      },
+    });
+    expect(admitted.ok).toBe(true);
+    if (!admitted.ok) throw new Error(`fixture import refused: ${JSON.stringify(admitted)}`);
+    importedProjectId = admitted.projectId;
+  } else {
+    const response = await harness.call('ada', 'POST', '/api/projects/import', document);
+    expect(response.status).toBe(201);
+    const summary = await importSummary.validator['~standard'].validate(response.body);
+    if (summary.issues !== undefined) throw new Error('mounted incoming import summary refused');
+    importedProjectId = summary.value.projectId;
+  }
+  expect(importedProjectId).not.toBe(source.projectId);
+  const sourceAbbreviation = harness.sqlite
+    .query<{ abbreviation: string }, [string]>(
+      'SELECT abbreviation FROM project_abbreviation WHERE project_id=?',
+    )
+    .get(source.projectId);
+  const destinationAbbreviation = harness.sqlite
+    .query<{ abbreviation: string }, [string]>(
+      'SELECT abbreviation FROM project_abbreviation WHERE project_id=?',
+    )
+    .get(importedProjectId);
+  if (sourceAbbreviation === null || destinationAbbreviation === null)
+    throw new Error('round-trip project abbreviation absent');
+  expect(destinationAbbreviation.abbreviation).not.toBe(sourceAbbreviation.abbreviation);
   const rows = harness.sqlite
     .query<{ id: string; name: string }, [string]>(
       'SELECT id,name FROM work_item WHERE project_id=? ORDER BY name',
     )
-    .all(admitted.projectId);
+    .all(importedProjectId);
   const sourceRows = harness.sqlite
     .query<{ id: string; name: string }, [string]>(
       'SELECT id,name FROM work_item WHERE project_id=? ORDER BY name',
@@ -115,7 +148,7 @@ test('downloaded successor-owned v12 content round trips through same-store synt
     .query<{ id: string; name: string }, [string]>(
       'SELECT id,name FROM step WHERE project_id=? ORDER BY position',
     )
-    .all(admitted.projectId);
+    .all(importedProjectId);
   expect(steps).toHaveLength(source.stepIds.length);
   for (const step of steps) expect(source.stepIds).not.toContain(step.id);
   const mappedRow = (oldId: string) => {
@@ -128,7 +161,7 @@ test('downloaded successor-owned v12 content round trips through same-store synt
     .query<Record<string, unknown>, [string]>(
       'SELECT * FROM external_dependency WHERE successor_project_id=? ORDER BY type,predecessor_scope,predecessor_step_id',
     )
-    .all(admitted.projectId);
+    .all(importedProjectId);
   const expectedIncoming = harness.sqlite
     .query<Record<string, unknown>, [string]>(
       'SELECT * FROM external_dependency WHERE successor_project_id=? ORDER BY type,predecessor_scope,predecessor_step_id',
@@ -142,7 +175,7 @@ test('downloaded successor-owned v12 content round trips through same-store synt
     expect(link).toMatchObject({
       ...original,
       id: stringMatcher,
-      successor_project_id: admitted.projectId,
+      successor_project_id: importedProjectId,
       successor_work_item_id: mappedRow(String(original['successor_work_item_id'])),
       successor_step_id: original['successor_step_id'] === null ? null : steps.at(0)?.id,
       created_at: numberMatcher,
@@ -153,10 +186,10 @@ test('downloaded successor-owned v12 content round trips through same-store synt
   }
   const local = harness.sqlite
     .query<Record<string, unknown>, [string]>('SELECT * FROM typed_dependency WHERE project_id=?')
-    .all(admitted.projectId);
+    .all(importedProjectId);
   expect(local).toHaveLength(1);
   expect(local[0]).toMatchObject({
-    project_id: admitted.projectId,
+    project_id: importedProjectId,
     predecessor_work_item_id: mappedRow(source.leafId),
     successor_work_item_id: mappedRow(source.tailId),
     predecessor_scope: 'node',
@@ -168,19 +201,27 @@ test('downloaded successor-owned v12 content round trips through same-store synt
   expect(
     harness.sqlite
       .query('SELECT predecessor_id,successor_id FROM dependency WHERE project_id=?')
-      .all(admitted.projectId),
+      .all(importedProjectId),
   ).toEqual([{ predecessor_id: mappedRow(source.leafId), successor_id: mappedRow(source.tailId) }]);
   expect(
     harness.sqlite
       .query('SELECT * FROM external_dependency WHERE successor_project_id<>? ORDER BY id')
-      .all(admitted.projectId),
+      .all(importedProjectId),
   ).toEqual(originals);
   expect(
     harness.sqlite
       .query('SELECT * FROM typed_dependency WHERE project_id<>? ORDER BY id')
-      .all(admitted.projectId),
+      .all(importedProjectId),
   ).toEqual(originalLocal);
   expect(snapshotHistory()).toEqual(histories);
+}
+
+test('downloaded successor-owned v12 content round trips through same-store synthetic transaction', async () => {
+  await assertIncomingImportRoundTrip('synthetic');
+});
+
+test('capable mounted incoming v12 import preserves stable external identities and owned remapping', async () => {
+  await assertIncomingImportRoundTrip('mounted-production');
 });
 
 for (const synthetic of [false, true])
