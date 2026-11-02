@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Usage } from '@optique/core';
+import type { Usage, UsageTerm } from '@optique/core';
 import { afterAll, describe, expect, test } from 'bun:test';
 
 import {
@@ -31,6 +31,8 @@ import { usage as reportCapacityUsage } from './compute/report-capacity';
 import { usage as accountOutcomesUsage } from './ledger/account-outcomes';
 import { USAGE as poolImportUsage } from './mcp/pool-import';
 import { USAGE as mcpTokenUsage } from './mcp/token-command';
+import { type OpsCommand, opsHandlers, runOps } from './ops/commands';
+import { linuxScopeTelemetry } from './ops/scope';
 import { progressUsage } from './progress/record-progress';
 import { runResources } from './resources/command';
 
@@ -429,6 +431,93 @@ function parserCommands(usage: Usage = dashParser.usage): string[][] {
 }
 
 const dispatched = [...Object.keys(dashHandlers), ...entrypointCommands].sort();
+
+/** Every command path under `ops` the parser declares, as its words after `ops`. */
+function opsParserWords(): string[] {
+  const paths = (terms: readonly UsageTerm[], prefix: readonly string[]): string[] => {
+    const first = terms.at(0);
+    const second = terms.at(1);
+    if (first?.type === 'exclusive') return first.terms.flatMap((branch) => paths(branch, prefix));
+    if (first?.type !== 'command') return [];
+    const words = [...prefix, first.name];
+    return second?.type === 'exclusive' ? paths([second], words) : [words.join(' ')];
+  };
+  const branches = dashParser.usage.flatMap((term) =>
+    term.type === 'exclusive' ? term.terms : [],
+  );
+  const ops = branches.find(([first]) => first.type === 'command' && first.name === 'ops');
+  if (ops === undefined) throw new Error('the parser declares no ops namespace');
+  return paths(ops.slice(1), []).sort();
+}
+
+describe('the ops namespace (dash-host-jobs J17)', () => {
+  test('every ops command the parser declares has a handler, and every handler a command', () => {
+    // Proof: adding `ops job audit` to the parser and not to `opsHandlers` failed this
+    // assertion with `+ "job audit"` (2026-11-01, Slice 3).
+    expect(opsParserWords()).toEqual(Object.keys(opsHandlers).sort());
+    expect(opsParserWords()).toEqual(['job run', 'job status', 'pool init', 'pool inspect']);
+  });
+
+  test('runOps refuses ops words no handler takes', async () => {
+    // A JavaScript caller bypassing the parser; the type admits only declared words.
+    const bypass = { command: 'ops', words: 'job audit', config: 'x' } as unknown as OpsCommand;
+    let refusal: unknown;
+    try {
+      await runOps(bypass, {
+        clock: FIXED_CLOCK,
+        monotonic: FIXED_MONOTONIC,
+        environment: {},
+        cwd: '/',
+        stdout: () => undefined,
+        stderr: () => undefined,
+        telemetry: linuxScopeTelemetry(),
+        host: { cpuCores: () => 1, memoryGib: () => 1 },
+        user: 'nobody',
+      });
+    } catch (cause) {
+      refusal = cause;
+    }
+    expect(refusal instanceof Error && refusal.message).toBe(
+      'Unsupported Dash command: ops job audit',
+    );
+  });
+
+  test('an ops usage refusal exits 64; other commands still exit 1', () => {
+    for (const [args, code] of [
+      [['ops', 'job', 'run', '--type', 'gate', '--', 'true'], 64],
+      [
+        [
+          'ops',
+          'job',
+          'run',
+          '--config',
+          'c',
+          '--type',
+          'gate',
+          '--poll-seconds',
+          '0',
+          '--',
+          'true',
+        ],
+        64,
+      ],
+      [['inspect-authority'], 1],
+    ] as const) {
+      const execution = Bun.spawnSync({
+        cmd: [process.execPath, join(import.meta.dir, 'entrypoint.ts'), ...args],
+        stderr: 'pipe',
+        stdout: 'pipe',
+      });
+      expect(execution.exitCode, args.join(' ')).toBe(code);
+      const stderr = execution.stderr.toString('utf8');
+      expect(stderr.split('\n').length, args.join(' ')).toBe(2);
+      expect(stderr, args.join(' ')).toStartWith('error: ');
+    }
+    // `inspect-authority` refuses in its own module after `cli.ts` loads every command module
+    // (about 5 s on a loaded host, mostly the resource runtime and the activation store): the
+    // three runs need more than the target's 60 s only under extreme load, so 90 s.
+  }, 90000);
+});
 
 describe('Dash help and completion', () => {
   test('help names every dispatched command and no other', () => {

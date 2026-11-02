@@ -380,6 +380,286 @@ review fixes.
 restored` (runtime.test.ts) failed once on the untouched base under this host's load (its
   readiness file did not appear within 6 s); see the test run below for its status here.
 
+## Slice 3 — measured runs, container bounds, status (tasks 3.1–3.3)
+
+Branch `feat/dash-host-jobs-3-run` from `plan/dash-host-jobs` at `056466709` (slices 1 and 2,
+the race-test fix, the Dash CLI on Optique), 2026-11-01, on the 24-core workstation (Linux 7.0,
+systemd 255, cgroup v2 delegating `cpu memory pids` to the user manager, Docker 29.7.2, another
+worker beside it). Code: `apps/twilight-structure/twilight-dash/cli/src/ops/` (`commands.ts`,
+`job-run.ts`, `scope.ts`, `containers.ts`, `run-records.ts`, `catalogue.ts`, `status.ts`,
+`refusal.ts`), the `ops` grammar in `src/cli-parser.ts`, its handler in `src/cli.ts`, exit 64
+for an `ops` usage refusal in `src/entrypoint.ts`. Tests: `src/ops/job-run.test.ts`,
+`src/ops/status.test.ts` (fixture `src/ops/ops.test.fixture.ts`) and three `ops` tests in
+`src/cli.test.ts`. Nothing in `src/compute`, `src/resources/runtime.ts`, `@wbs/contracts`,
+be-01, fe-01 or `bin/` changed.
+
+### Assumptions (open decisions taken per design.md; overrulable by id)
+
+- **S3-A1 Typed namespace.** `ops` is parsed whole by Optique (J17), as `plan-enrollment` is:
+  each leaf is `object({ command: 'ops', words: 'job run', … })`, and `src/ops/commands.ts`'s
+  `opsHandlers` is a mapped type over `words`, held equal to the parser by a test. `ops` sits in
+  the root `or` beside the delegated list, which is at Optique's fifteen-parser limit with 14.
+  `calibrate`, `propose`, `audit` and `switch-mode` are not declared: help would list commands
+  that cannot run; slices 4 and 6 add them.
+- **S3-A2 Checkout and revision.** The catalogue is the one in the checkout holding the
+  current directory, read with `git show HEAD:infra/jobs/catalogue.json`, never the working
+  tree; HEAD is the payload SHA the record pins. Schema 3's configuration is the runtime's
+  closed shape (`onUndeclaredKey('reject')`, `runtime.ts`), so it names no enrolled checkouts
+  yet; which checkout a launcher stands in is `run_heavy_job`'s and the `gate_host` role's
+  (6.1, 6.3). An absent catalogue, unknown type or argument mismatch is 64; a malformed
+  catalogue is 70.
+- **S3-A3 Payload words.** The words after `--` are the payload: the first is the program, the
+  rest must match the argument profile. The first word is not compared with the catalogue's
+  `entrypoint`: J15 splits the gate into outer launcher and payload in 6.2, and the spec's own
+  scenario runs `--type test-queued -- true`.
+- **S3-A4 Run records.** One owner-only SQLite file, `<root>/.dash/host-job-runs.sqlite`, with a
+  `runs` table (the start pinned at the gate, the outcome at exit) and a `samples` table (one
+  row per sample), not a JSON column: the ledger's job snapshot is the runtime's closed shape.
+  `ops pool init` creates it, as does the first run while the ledger holds no host job;
+  missing beside a ledger that has host jobs is 70, never recreated.
+- **S3-A5 Launch.** `ResourceRuntime.run` is bound to the worktree `uses` table and
+  `runtime.ts` belongs to slice 5's worker, so `src/ops/job-run.ts` reproduces its FD-gate
+  protocol over the host-job seams: `systemd-run` is spawned detached (its own session) and
+  execs `/bin/sh` reading `start` from fd 3; `recordHostJobLaunch` persists the leader's
+  identity right after spawn, then the scope is awaited in `/proc/<pid>/cgroup`, the counters
+  are read and the gate sample stored, and only then is `start` written. The gated shell stays
+  the session leader and runs the payload in the foreground, so its status is the payload's
+  own (128 + signal); it reports it on fd 4 and keeps the scope occupied until the launcher
+  writes `done` after the exit sample (the observation boundary). A no-op trap keeps the shell
+  alive through a forwarded SIGINT/SIGTERM/SIGHUP; the payload gets default dispositions.
+  Extracting one launcher for worktree uses and host jobs is follow-up work in `runtime.ts`.
+- **S3-A6 Refusals before and at the gate.** "No user manager" is found by a throwaway probe
+  scope (`dash-probe-<uuid>`, the job's memory properties, `true`) before the ticket, so it
+  reserves nothing. A refusal after admission (scope not started within 15 s, a counter
+  unreadable, the run record unwritable at the gate) closes the gate unopened: the shell exits
+  125 without running the payload, the exit is recorded and the job settles on its terminal
+  evidence (released in the test). `--expand-environment=no` and `--collect` need systemd 254
+  or later. h2puni and h4claw both report systemd 259 (259.5-0ubuntu3.4), as the Fable review
+  read on the hosts (corrected from "255", which was this workstation's version, review F12).
+- **S3-A7 Exit codes and flags.** An `ops` usage refusal exits 64 (the entrypoint keeps 1 for
+  every other command); an interrupted waiter 130 or 143 with its ticket withdrawn; an
+  unusable configuration or ledger 70. `--config` is required (no default path: J12's shim
+  passes the fixed one); `--wait-seconds` defaults to 0 and `--poll-seconds` to 5 within 1 to
+  30, as the shell lock; `--label` defaults to `unlabeled`.
+- **S3-A8 Record identity.** Host class `linux-<arch>-<nproc>c-<floor MemTotal GiB>g`;
+  descriptor digest the SHA-256 of the catalogue entry's JSON as parsed.
+- **S3-A9 Docker reading.** `src/compute/docker.ts`'s `parseContainerIds` and `sumLabelled`
+  are module-private and `src/compute` is slice 5's, so `src/ops/containers.ts` reads Docker
+  over `compute/execution.ts`'s exported `spawnClient` and `execute`: a `docker events` stream
+  of `create` events from the gate instant, each container judged at once by its labels and
+  `docker inspect`'s `HostConfig.Memory` and `NanoCpus` (only `--cpus` counts as a CPU bound),
+  a closing replay of the window for anything the stream had not delivered, and per sample
+  `docker ps --filter label=puni.job=<id>` plus `docker stats --no-stream`. Verdicts: `bounded`,
+  `unlabelled`, `unbounded`, `unverified` (gone before its bound was read, or the replay
+  failed); a container labelled with another job is that job's. Settlement's evidence is "no
+  running container carries the label".
+- **S3-A10 `watch` and containers.** `watch` still settles with `declaredContainersOnly`
+  (a `runtime.ts` change): a declared-bound job whose launcher died stays charged until an
+  operator settles it. Recorded in `docs/resources.md`.
+- **S3-A11 Fifth counter.** `memory.events` `high` is read with the four counters and required
+  at the gate like them: J9's proposal excludes throttled runs by it.
+- **S3-A12 Observe mode.** `ops job run` does not yet run under the shell lock's queue protocol
+  (J12); `run_heavy_job` brings that in 6.1, before any host is enrolled, and with it the
+  spec's `with-heavy-lock.sh status` half of "One running, one waiting". Nothing in `bin/`
+  changed, so that command's first line is untouched.
+- **S3-A13 Output and settlement.** The payload keeps stdout and stderr; Dash's own lines go to
+  stderr as `ops job: …`. The launcher settles for up to 30 seconds, then leaves what is still
+  charged to `watch`, one line per entry either way.
+- **S3-A14 Test isolation.** The tests run inside a private user and PID namespace that maps
+  this account to itself (`--map-user`), not to root: a mapped root's `CAP_DAC_OVERRIDE` would
+  read a mode-000 `memory.peak` anyway (checked). Real-scope tests skip, named with the probe's
+  diagnostic, where `systemd-run --user --scope` fails (a CI runner without a user manager);
+  container tests skip, named, without a local daemon holding `busybox:1.37.0-musl` (never
+  pulled). The wrapper prints the inner results so a skip stays visible.
+
+### Fault injection
+
+Each fault was applied by exact text replacement from a scratch script outside the repository,
+the named file run (`bun test`, CLAUDECODE unset; the namespace wrapper reruns the file
+inside), and the file restored byte for byte, its SHA-256 checked. All against the final code.
+
+| Fault injected                                                              | Test that went red                                                                           | Observed                                                             |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| scope probe result ignored (stub `systemd-run`: "Failed to connect to bus") | `refuses 70 when the user manager is unavailable, nothing reserved`                          | job admitted; refused only at launch, "launch identity … unrecorded" |
+| `systemd-run` absence unchecked                                             | `refuses 70 before admission when systemd-run is absent`                                     | `Executable not found in $PATH: "null"`, no 70                       |
+| gate-sample refusal skipped (`memory.peak` mode 000 in the real scope)      | `refuses 70 when memory.peak is unreadable at the gate, the payload never runs`              | no refusal: the payload ran unmeasured                               |
+| observation boundary dropped (`read done <&3` → `:`)                        | `a one-second job is still measured`, `a gate is measured`                                   | exit sample `scope … torn down before the exit sample`               |
+| container memory and cpu bound checks dropped                               | `an unbounded container makes the run's attribution incomplete`                              | `attributionIncomplete` false                                        |
+| `ops job audit` added to the parser, not to `opsHandlers`                   | `every ops command the parser declares has a handler, and every handler a command`           | `+ "job audit"`                                                      |
+| catalogue read from the working tree                                        | `reads the catalogue at HEAD, not the working tree`                                          | the uncommitted type was found, no refusal                           |
+| unknown-type check dropped                                                  | `an uncatalogued type exits 64 …`, `reads the catalogue at HEAD …`                           | `undefined is not an object (evaluating 'jobType.argumentProfile')`  |
+| run records recreated beside a ledger with host jobs                        | `refuses 70 run records missing beside a ledger with host jobs`                              | no refusal: records recreated and the job run                        |
+| `docker` absence unchecked for a declared bound                             | `refuses 70 before admission when docker is absent and a bound is declared`                  | `Executable not found in $PATH: "null"`                              |
+| `runOps` handler guard dropped                                              | `runOps refuses ops words no handler takes`                                                  | `handler is not a function`                                          |
+| entrypoint exits 1 for an `ops` usage refusal                               | `an ops usage refusal exits 64; other commands still exit 1`                                 | expected 64, received 1                                              |
+| status peak dropped                                                         | `one running, one waiting: the gate with its tree and peak, then the build`                  | running line read `peak unmeasured`                                  |
+| sample timer left uncleared                                                 | `the installed entrypoint runs a job and passes its status`                                  | 15.49 s for a payload that exits at once (bound 9.5 s)               |
+| exit sample's empty-scope check never refuses (scope torn down underneath)  | `a scope torn down early is a recorded telemetry failure; the status is still the payload s` | `telemetryFailure` null                                              |
+| ledger write failure rethrown (payload opens the managed root to 0755)      | `a ledger write failure is recorded apart; the status is still the payload's`                | rejected `resource root must be owner-only` instead of returning 4   |
+
+The negatives the brief named map to rows 1 (stub `systemd-run`), 3 (`memory.peak`), 15 (scope
+torn down early: the payload's 3 still returned), 5 (bound check) and 6 (parser without
+handler).
+
+### Commands
+
+Fresh on 2026-11-01/02, worktree root, final code (after the lint boundary fix); trimmed.
+
+| Command                                                                                                            | Result                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bunx nx run twilight-dash:test --skip-nx-cache`                       | exit 0, `Successfully ran target test for project twilight-dash` (28m26s): `4186 pass, 0 fail, Ran 4186 tests across 126 files`; `job-run.test.ts in a private Linux namespace` ✓ 25.5 s (24 inside), `status.test.ts …` ✓ 4.2 s (3 inside), `host-jobs.test.ts …` ✓ |
+| first run of the same target, before the lint fix                                                                  | exit 1: `4185 pass, 1 fail`, the slice-2 test `a replaced tmp directory or symlink stays charged and untouched` (see below); it passed 3 of 3 runs alone and in the rerun                                                                                            |
+| `bunx nx run twilight-dash:typecheck`                                                                              | `Successfully ran target typecheck`                                                                                                                                                                                                                                  |
+| `bunx nx run twilight-dash:lint`                                                                                   | `Successfully ran target lint` (it first failed `ops/catalogue.ts:4 Imports of apps are forbidden`; fixed by an exact entry in `twilight-dash/eslint.product.mjs`)                                                                                                   |
+| `bunx nx run twilight-dash:build`                                                                                  | `Successfully ran target build`                                                                                                                                                                                                                                      |
+| `bun test tools/tool-devsync/src/eslint-boundaries.test.ts src/lint-policy-cache.test.ts` (product policy changed) | `54 pass, 0 fail`                                                                                                                                                                                                                                                    |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                        | exit 0; no Burokrat index covers twilight-dash `src/ops`, as none covers `src/resources`; review debt listed is pre-existing (store-memory, plan-commands)                                                                                                           |
+| `TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test …/pilot-policy.test.ts`                                 | `24 pass, 0 fail, 430 expect() calls, Ran 24 tests across 1 file. [329.89s]`                                                                                                                                                                                         |
+| `bunx prettier --check` on the 20 touched files                                                                    | `All matched files use Prettier code style!`                                                                                                                                                                                                                         |
+| `./node_modules/.bin/openspec validate dash-host-jobs --json`                                                      | `passed: 1, failed: 0`                                                                                                                                                                                                                                               |
+| `systemd-run --user --scope -p MemoryHigh=100M …` reading its own counters (before writing code)                   | exit 0; `memory.peak 1417216`, `memory.high 104857600`, `cpu.stat usage_usec 8626`; also inside the test namespace                                                                                                                                                   |
+
+### Skipped or unverified
+
+- No real gate, release build or `test:queued` ran through `ops job run`; the payloads were
+  fixture scripts. Launchers move onto it in slice 6.
+- Real-scope and container tests ran on this laptop only (its user manager, Docker 29.7.2 with
+  `busybox:1.37.0-musl` already pulled). On a CI runner with no user manager or no such image
+  they skip, each naming its probe's diagnostic, so CI may not exercise them (S3-A14).
+- `--expand-environment=no` needs systemd 254 or later; both gate hosts run 259 (review F12).
+  Not run there by me. h4claw also refuses `unshare --user`, so these tests cannot run there.
+- Not done in this slice: `calibrate`, `propose`, `audit`, `switch-mode` (slices 4, 6); J12's
+  observe-mode queue protocol and the `with-heavy-lock.sh status` half of "One running, one
+  waiting" (6.1); `watch` reading Docker for declared-bound jobs (S3-A10); WBS publication
+  (slice 5).
+- Pre-existing race, not fixed (outside this slice's files): the `directory` case of
+  `a replaced tmp directory or symlink stays charged and untouched` (host-jobs.test.ts) does
+  `rmdirSync` then `mkdirSync` on the same path, and the file system may hand the new directory
+  the old inode number; the runtime then sees the recorded identity and removes it, so the test
+  sees `released`. It failed once in a full run, passed 3 of 3 alone and in the full rerun.
+- The h2puni gate is not run for a slice PR into `plan/dash-host-jobs` (task 0.1).
+
+### Review fixes (Fable, PR #809, MERGE AFTER FIXES)
+
+All of F1–F13 were applied on `feat/dash-host-jobs-3-run`. The plan head was still `056466709`, so no re-merge was needed. `runtime.ts` was in scope for F1 and F5.
+
+#### New assumptions (overrulable by id)
+
+- **S3-A15 (F1).** Rule for an uninspectable process: when reading a same-user process's `cwd`, `fd` or `maps` returns `EACCES` or `EPERM`, settlement reads that process's `/proc/<pid>/cgroup`.
+  - Outside the job's unit `dash-job-<id>.scope` (matched as a path segment) **and started before the job's leader** (amended by S3-A25): the process is not a holder. It is recorded in the entry's reason as `uninspectable_outside_scope: <pid> (<comm>)`. The entry shape is `{ state, reason }`, so the evidence stays in the text.
+  - Inside the unit, or with its cgroup unreadable: the entry stays `blocked`.
+  - The runtime knows the unit name from the job id. It knows no cgroup path.
+  - Worktree cleanup and `ops pool init`'s unit check are unchanged and still refuse (task 6.6). On h2puni this means `ops pool init` refuses until 6.6 is done.
+- **S3-A16 (F5).** `HostJob.launchFailure` is optional, so existing ledgers still parse. `recordHostJobLaunchFailure` records `payload did not run: <reason>`, and the exit code stays null. `ops job status` prints that reason.
+- **S3-A17 (F4).** A signal that arrives before the gate opens refuses at the gate: SIGHUP 129, SIGINT 130, SIGTERM 143. `awaitScope` returns at once, and a leader still in `systemd-run` 2 s after the gate closed is killed. After the gate opens, signals are forwarded as before.
+  - The synchronous work before the gate (gate sample, HEAD check, `records.begin`, watch start) is followed by an event-loop turn (review R2), so a signal received during it is acted on before `start`.
+  - What remains is unavoidable: a signal that lands after that last check and before `gate.write('start')` (a few synchronous statements, no I/O). It is dispatched at the next turn, after the payload started, and is then forwarded to the payload's session. The payload sees it, and the run records the payload's own status.
+- **S3-A18 (F9).** HEAD is checked again just before the gate opens, after the gate sample. If it moved, the job is refused 64 unrun and settled. `payloadSha` is renamed `launcherSha`.
+  - This narrows the gap; it guarantees nothing (review R3). HEAD can still move between the check and the payload's exec, and at any time during the run. `launcherSha` names the commit the catalogue was read at, not one the payload provably ran.
+- **S3-A19 (F3).** The fake scope seam: a fake `systemd-run` that execs its command (after the probe's `-- true`), plus `fakeScopeTelemetry`.
+  - The gated shell is "in" `/fake/dash-job-<id>.scope`.
+  - Counters are files under a scratch root, read by the production reader.
+  - Members are the live processes whose environment carries the job's `DASH_JOB_ID`.
+- **S3-A20 (F7).** `ops job status` opens the run records read-only. Missing records are 70 even on a jobless pool, and status never creates them.
+- **S3-A21 (F8).** A `puni.job` label naming no unreleased ledger job (a released job included) is `unlabelled`. A label naming a live job is that job's.
+- **S3-A22 (F11).** Watch failures fold into `unverified` verdicts:
+  - a rejected `docker events` iteration (id `stream`), including an event line over 1 MiB, which the reader now refuses;
+  - any judgement that throws.
+- **S3-A23 (F2c, F2d).** Two faults could not be injected by host state:
+  - The launch-identity test injects its fault through an environment getter. Once the job's tmp directory exists, it opens the managed root to 0755. The ledger's refusal is real; the trigger is synthetic.
+  - A run-records file owned by another account cannot be made without another account, so the uid branch is unverified.
+- **S3-A24 (F6).** The launcher settles once a second, not every 100 ms. Moving the Git and Docker reads out of the transaction is a follow-up note under task 3.1.
+
+#### Which tests use which seam
+
+| Seam                                                        | Where it runs                                  | Tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ----------------------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Fake (runs on every Linux host with `unshare`, CI included) | `job-run.test.ts`                              | - "a host job runs measured over the fake scope": gate measured (FD gate, environment, pipes, record, settlement lines), one-second, failure passthrough, 128 + signal, interval samples, `memory.peak` unreadable, scope torn down, ledger failure.<br>- "launch faults over the fake seam": scope never starts (F2a), `systemd-run` vanishes (F13), launch identity unrecorded (F2c), run record busy at the gate (F2b), checkout moved (F9), SIGINT while the scope starts (F4), the launcher process ends with its job (timer), `killSession` on a gone session (F10).<br>- 73/75 refusals, the run-records refusals (F2d) and the docker daemon refusal (F2e, needs only the CLI). |
+| Fake                                                        | `job-run.test.ts`, "declared container bounds" | Containers, which also need a local daemon with the image.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Real scope (skip, named, without a user manager)            | `job-run.test.ts`                              | The same measured set "over the real scope", plus `MemoryHigh`/`MemoryMax`/real-cgroup assertions, `cap`, and the installed entrypoint.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| None (runs everywhere)                                      | `containers.test.ts` (stub `docker`)           | Replay failure (F2f), labels of no live job (F8), stream failure (F11).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| None (outside any namespace)                                | `host-job-holds.test.ts`                       | Outside-scope predating process, later process outside the scope, note cap (run everywhere); later process in another scope and inside-scope (need a real scope).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| —                                                           | `status.test.ts`                               | Status refusal and launch-failure display (F7, F5).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+
+#### Fault injection (review fixes)
+
+Same method as above: exact replacement, the named file run, restore byte for byte with the digest checked.
+
+| Fault injected                                      | Test that went red                                                             | Observed                                                                                                              |
+| --------------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| scope branch dropped in `inspectHolds`              | `a non-dumpable process outside the job scope does not hold its tmp directory` | `blocked`; the inside test also saw this laptop's own `(sd-pam)` (PID 2327) refuse first, the real condition F1 named |
+| `outsideScope` always true                          | `… inside the job scope still holds its tmp directory`                         | `released`                                                                                                            |
+| interruption check before the gate dropped          | `a SIGINT while the scope starts refuses 130, the payload never runs`          | refused 70 "did not start scope", not 130                                                                             |
+| null-cgroup refusal dropped                         | `refuses 70 when the scope never starts, the payload never runs`               | misattributed `scope counters unreadable … "paths[1]" … got object`                                                   |
+| HEAD re-check dropped                               | `refuses 64 when the checkout moved while waiting`                             | no refusal: the payload ran                                                                                           |
+| `records.begin` failure rethrown                    | `refuses 70 when the run record cannot be written at the gate`                 | rejected after the 10 s busy timeout                                                                                  |
+| launch-identity failure rethrown                    | `refuses 70 when the launch identity cannot be recorded`                       | bare `resource root must be owner-only`                                                                               |
+| ESRCH rethrown in `killSession`                     | `killing a session already gone is not an error`                               | threw                                                                                                                 |
+| unstarted-leader check dropped                      | `refuses 70 when systemd-run vanishes before the launch`                       | `host job gate pipes unavailable`                                                                                     |
+| owner-only refusal removed                          | `refuses run records that are not an owner-only regular file`                  | the symlink opened (removing only the link test stayed green: `!isFile()` also refuses a link)                        |
+| schema-version check dropped                        | `refuses run records of another schema version`                                | version 7 opened                                                                                                      |
+| docker daemon check dropped (`DOCKER_HOST` nowhere) | `refuses 70 before admission when the docker daemon does not answer`           | no refusal                                                                                                            |
+| replay failure treated as empty                     | `a failed docker events replay is an unverified verdict`                       | no verdict                                                                                                            |
+| other labels never judged                           | `a container labelled with no live job is unlabelled …`                        | no verdict                                                                                                            |
+| stream rejection uncaught                           | `a failing docker events stream is an unverified verdict`                      | unhandled `an event line exceeds 1048576 bytes`                                                                       |
+| status opens records for writing                    | `status refuses 70 when the run records are missing, creating nothing`         | exit 0, records created                                                                                               |
+| `recordHostJobLaunchFailure` guard dropped          | `a job whose payload never ran says so`                                        | a second record accepted                                                                                              |
+
+#### Commands (fresh, review fixes; the full target was not rerun, CI carries it)
+
+| Command                                                                                       | Result                                                                                                                                                                   |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bun test src/ops src/resources/host-job-holds.test.ts` (CLAUDECODE unset, project directory) | `7 pass, 0 fail` outer; inside `job-run.test.ts` `43 pass, 0 fail`, inside `status.test.ts` `5 pass, 0 fail`; `containers.test.ts` 3 and `host-job-holds.test.ts` 2 pass |
+| `bun test src/cli.test.ts src/resources/host-jobs.test.ts`                                    | `56 pass, 0 fail`                                                                                                                                                        |
+| `bunx nx run twilight-dash:typecheck`, `:lint`                                                | `Successfully ran target …` each                                                                                                                                         |
+| `bunx prettier --check` on touched files, `openspec validate dash-host-jobs --json`           | see the PR body                                                                                                                                                          |
+
+#### Skipped or unverified (review fixes)
+
+- Worktree cleanup and `ops pool init` still throw `cannot inspect process PID` for a non-dumpable same-user process (task 6.6). On h2puni, with `(sd-pam)` running, `ops pool init` refuses. That blocks slice 6's enrollment until 6.6 is decided.
+- The real-host proof of F1 ran on this workstation (systemd 255, its own `(sd-pam)`), not on h2puni or h4claw (systemd 259).
+- A run-records file owned by another uid is unverified (S3-A23).
+
+### Second review pass (Fable on d4e31c709, MERGE AFTER FIXES)
+
+All of R1–R9 are applied. The plan head is still `056466709`.
+
+#### New assumptions (overrulable by id)
+
+- **S3-A25 (R1).** A different cgroup alone does not make a process "outside". The process must also have started, in this boot, before the job's leader. The comparison uses `/proc/<pid>/stat` start ticks, which are readable for non-dumpable processes; before a launch it compares against the launcher instead.
+  - Anything later blocks, whatever its cgroup.
+  - Consequence: a job begun before a reboot is blocked by every uninspectable process of the new boot, and an operator settles it.
+  - The reviewer's probe is now a negative: a later non-dumpable holder in `dash-job-other-<uuid>.scope`. So is a later one in no scope at all; that one runs everywhere.
+- **S3-A26 (R5).** The outside-scope note names the three most recently started processes (by start ticks; pids wrap, which happened on this workstation) and counts the rest as `and <n> more`.
+- **S3-A27 (R8).** An uninspectable process that blocks a host-job entry is named with its `comm`, together with the remedy: end it, or `systemctl --user stop dash-job-<id>.scope`.
+- **S3-A28 (R9).** The launcher settles at once, then after 250 ms, then once a second. The gated shell is usually still exiting on the first pass.
+- **S3-A29 (R6).** `cli.test.ts`'s exit-code test gets a 90 s budget.
+  - The 5 s is the import graph, not the refusal: `cli.ts` loads every command module before a delegated command refuses. Measured: `resources/command` 3082 ms (the runtime and `@wbs/contracts`) and `activation/observation-commands` 1863 ms. `inspect-authority` with no arguments took 5.22 s, while `apply` (refused by the parser) and an `ops` usage error took 0.08 s.
+  - Making `cli.ts`'s handlers import their modules lazily is a cross-cutting change with its own dispatcher proofs, so it is recorded as follow-up in tasks.md 3.1, not done here. `ops job run` pays the same roughly 3 s, because it opens the runtime.
+- **S3-A30 (R4).** The model's `LaunchFailure` command:
+  - is eligible on a launched job whose payload still runs;
+  - records the failure, then expects a later exit to be refused and the exit code to stay null;
+  - ends the leader, so the model then treats the job as exited.
+  - One fixed example runs it. Settlement still inspects holds after a launch failure; skipping that is not done, because it saves one pass and weakens nothing it proves.
+
+#### Seam note (R7)
+
+`scopeArguments` (`--user --scope --quiet --collect --expand-environment=no --unit …`, `-p MemoryHigh=…`, and `-p MemoryMax=…` for `cap`) is verified only by the real-scope tests (the cgroup path, `memory.high` and `memory.max` assertions, and `cap enforcement sets MemoryMax beside MemoryHigh`). The fake `systemd-run` discards every option before `--`, so the fake seam proves nothing about them. Where those tests skip, nothing checks those options.
+
+#### Fault injection (second pass)
+
+| Fault injected                                               | Test that went red                                                                                                                                             | Observed                                                |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| start comparison removed in `outsideScope`                   | `a non-dumpable process started after the job, outside its scope, still holds`; `a non-dumpable process that left for another scope after the job still holds` | both `released` with the file open                      |
+| event-loop yields before the last interruption check removed | `a SIGINT during the synchronous gate work refuses 130`                                                                                                        | no refusal: the payload ran and its status was returned |
+| outside-scope cap removed                                    | `the outside-scope note names three and counts the rest`                                                                                                       | 11 names                                                |
+| remedy dropped from the blocked message                      | `a non-dumpable process inside the job scope still holds its tmp directory`                                                                                    | no `systemctl --user stop …`                            |
+| `recordHostJobExit` accepts an exit after a launch failure   | `the admission queue and settlement follow the model under every interleaving` (model `LaunchFailure`)                                                         | exit accepted                                           |
+
+#### Commands (second pass, fresh; no full target)
+
+See the PR body for the trimmed outputs of the touched test files, `cli.test.ts`, typecheck, lint, prettier and `openspec validate`.
+
 ## Slice 5 — WBS projection (tasks 5.1–5.3)
 
 Branch `feat/dash-host-jobs-5-projection` from `plan/dash-host-jobs` at `056466709`, 2026-11-01.
@@ -442,7 +722,7 @@ parallel worker appends Slice 3 to this file.
   `dash-host-job://<authorityId>/<jobId>/<revision>`; disposition `returned`. WBS requires
   `returned` for a host job and refuses it for a v1 use. The run record of slice 3 (#809)
   carries `descriptorDigest` and no durable locator, so replacing the row digest with the run
-  record's is follow-up task 6.7, not part of slice 3 (review fix, 2026-11-02).
+  record's is follow-up task 6.8, not part of slice 3 (review fix, 2026-11-02).
 - **S5-A12** `host` is the pool's `enrollmentId`. `launcherSha` (renamed from `payloadSha`
   with #809's run-record field) is the HEAD of the checkout that launched the job; for a gate
   the tested SHA is in its argv, not here. Dash sends null until the launcher records the HEAD
@@ -488,7 +768,7 @@ reserved`. `stale`, `unreachable` and `No report yet` read as before (review fix
   then the refusal throws as before. The first-refusal instant is kept per event id in the
   process only: a restarted `watch` starts the bound again, which the bound's purpose (outlasting
   a swap) tolerates. A v1 event's `400` still stops `watch` at once. `answeredBody` now throws
-  `ResourceWbsRefusal` (status attached) for refused answers. Task 6.6 adds a restarting unit for
+  `ResourceWbsRefusal` (status attached) for refused answers. Task 6.7 adds a restarting unit for
   `watch`; `docs/resources.md` states the deploy order WBS before Dash.
 - **S5-A21** The reporter opens the host-pool ledger before any adapter and refuses an absent or
   unknown ledger `config_malformed` (naming `resources init`), so nothing is open when it fails;
@@ -563,7 +843,7 @@ exemption is listed there. `plan-refusal.ts`: no parser refusal code was added.
   tests send the same shapes through mcp-01's forwarded grant.
 - The h2puni gate (`bin/h2puni-gate.sh`) is not run for a slice PR into `plan/dash-host-jobs`;
   task 0.1 schedules it before the plan reaches main.
-- The settlement digest covers the ledger row, not the run record (S5-A11, task 6.7).
+- The settlement digest covers the ledger row, not the run record (S5-A11, task 6.8).
   `launcherSha` is null until the launcher records it (S5-A12).
 - The pre-existing flakes above (`runtime-dispatch.boot.db.test.ts`, `playwright-config.test.ts`,
   two Dash `src/runs` files) failed under the loaded full runs and passed alone. Nothing they
@@ -571,7 +851,7 @@ exemption is listed there. `plan-refusal.ts`: no parser refusal code was added.
 
 ### Review fixes (Fable, PR #811, MERGE AFTER FIXES)
 
-P1 bounded retry (S5-A20), P2 `reservedDimension` (S5-A16), P3 `launcherSha` (S5-A11, S5-A12),
+P1 bounded retry (S5-A20; tasks renumbered 6.7 and 6.8 when #809 landed its 6.6), P2 `reservedDimension` (S5-A16), P3 `launcherSha` (S5-A11, S5-A12),
 P4 host-job ingest refusals (S5-A22), P5 ledger before adapters, P6 unreleased-only scan, P7
 index order (S5-A21), P8 the no-holder sentence. Faults, each injected against the fixed code
 with the file restored and its SHA-256 checked:

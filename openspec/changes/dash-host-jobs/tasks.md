@@ -47,7 +47,7 @@
 
 ## 3. Measured runs (needs 2)
 
-- [ ] 3.1 `ops job run`: scope through the runtime's FD-gated launch, counters read and identity
+- [x] 3.1 `ops job run`: scope through the runtime's FD-gated launch, counters read and identity
       persisted before the gate opens, `MemoryHigh`/`MemoryMax`, private `TMPDIR`, the
       environment of J7, ten-second samples, observation boundary alive through the final
       sample and durable record, telemetry and ledger-write failures recorded apart, exit code
@@ -55,13 +55,27 @@
       `memory.peak`; a one-second payload; negative: stub `systemd-run` answering "Failed to
       connect to bus" and watch exit 70 before the payload (J8); make `memory.peak` unreadable
       at the gate and watch 70; tear the scope down early and watch the recording failure.
-- [ ] 3.2 Declared container bounds (J16): labelled and bounded containers sampled through the
+      Proven on the workstation and, through the fake scope seam, on any Linux runner; host-proven
+      only once slice 6 runs it on h2puni (the gate hosts run systemd 259 and the `(sd-pam)` and
+      `sshd-session` processes review F1 found). Follow-up: settlement still runs `git status`
+      and a synchronous `docker ps` inside the ledger's write lock; move those reads before the
+      transaction and re-check identities inside it (review F6; the launcher now polls once a
+      second). Follow-up: `cli.ts` loads every command module before dispatch, so a delegated
+      command's usage refusal and `ops job run` itself pay about 3 to 5 s of imports (the
+      resource runtime and `@wbs/contracts` about 3 s, the activation store about 2 s,
+      measured 2026-11-02); import each handler's module lazily, keeping the dispatcher
+      canaries (review R6).
+- [x] 3.2 Declared container bounds (J16): labelled and bounded containers sampled through the
       docker adapter's reading as advisory evidence; unlabelled or unbounded starts during the
       window recorded `attribution_incomplete` — test: a real short-lived bounded container and
       an unbounded one against a local daemon; negative: drop the bound check and the unbounded
-      run counts as complete.
-- [ ] 3.3 `ops job status` (J13) — test: the one-running-one-waiting scenario, exact lines,
-      settlement state shown.
+      run counts as complete. The reading is `src/ops/containers.ts` over the compute module's
+      exported client helpers: the docker adapter's parsers are module-private and
+      `src/compute` belonged to slice 5's worker (verify.md Slice 3, S3-A9). `watch` still
+      settles a declared-bound job with `declaredContainersOnly` (S3-A10).
+- [x] 3.3 `ops job status` (J13) — test: the one-running-one-waiting scenario, exact lines,
+      settlement state shown. The scenario's `with-heavy-lock.sh status` half needs J12's
+      observe-mode queue protocol, which lands with `run_heavy_job` in 6.1 (S3-A12).
 
 ## 4. Calibration, proposal, audit (needs 3)
 
@@ -115,13 +129,21 @@
       (planned proofs apart from observed evidence); decide when a failing `JOB-CATALOGUE`
       blocks `ops job run`; update `docs/runbook-h2-heavy-lock-owner.md`,
       `docs/infra/gate-hosts.md`, `AGENTS.md` Gate and `LLM_README.md`.
-- [ ] 6.6 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
+- [ ] 6.6 Uninspectable same-user processes outside host jobs (review F1): hold inspection
+      refuses any same-user process whose `/proc/<pid>/fd` is access-denied. Host-job settlement
+      now records such a process outside the job's scope as `uninspectable_outside_scope`, but
+      worktree cleanup and `ops pool init`'s unit check still throw `cannot inspect process PID`
+      on every host where `(sd-pam)` or `sshd-session` runs as the account, which is every host
+      with a user manager. Decide their rule (a worktree use has no scope to compare against),
+      then prove it outside a namespace before slice 6 enrolls h2puni: `ops pool init` there
+      refuses until this is done.
+- [ ] 6.7 A user-level systemd unit for `twilight-dash resources watch` on each gate host with
       `Restart=on-failure` (beside the observation units of 4.2), so a `watch` stopped by a
       refusal past the host-job retry bound (S5-A20) or any other modelled stop comes back and
       the outbox and cleanup-request pulls do not stall; the deploy order WBS before Dash is in
       `apps/twilight-structure/twilight-dash/cli/docs/resources.md` — proof: kill the process,
       watch systemd restart it; a converging `gate_host` apply reports `changed=0` the second time.
-- [ ] 6.7 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
+- [ ] 6.8 Replace S5-A11's ledger-row settlement digest with the run record's: the run record
       (slice 3, #809) carries `descriptorDigest` and no durable locator, so this needs a locator
       for the run record and a decision on which digest WBS keeps — test: a returned host job's
       evidence names the run record; negative: send the ledger-row digest and watch WBS refuse it.
