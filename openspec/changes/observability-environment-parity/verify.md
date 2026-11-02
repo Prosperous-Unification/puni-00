@@ -6102,3 +6102,94 @@ force typecheck compiled the source. No live Kubernetes/host/Docker/BuildKit/Sec
 publication, merge or push operation occurred. Suspended/unready dependencies, missing
 stack/material/capacity and runtime acceptance remain blockers. Task92 and all seven open
 canonical tasks remain open; this source proof does not close3.2 or advance live progress.
+
+## Existing-host native containment and inventory correction — 2026-11-02
+
+The selected local host has now demonstrated small native CPU/memory/PID/KVM
+capabilities. This is component evidence, not observability admission or acceptance.
+The reviewed v5 entrypoint was:
+
+```sh
+/bin/bash /tmp/puni-task92-probe/review-v5/run.sh 901cd1e2366c096e5df722c9329d7be4fb9ef7f4ec0a2a41c1962daf9d3a2181
+```
+
+It completed exit0. All eight sequential phase receipts reported accepted=true,
+cleanup_verified_empty=true and cleanup_uncertainty=false. Each unique owned
+service retained native InvocationID/ControlGroup acknowledgement and effective
+256 MiB memory, zero swap, 0.5 CPU, 64 PID and 20-second runtime bounds. Enabling
+child controllers touched only the acknowledged empty owned service subtree.
+
+| Native phase              | Observation                                                                    | Duration |
+| ------------------------- | ------------------------------------------------------------------------------ | -------- |
+| Paused QMP/KVM            | KVM enabled=true/present=true; exit0                                           | 0.596s   |
+| KVM disabled control      | enabled=false, exact kvm-disabled refusal; exit42                              | 0.397s   |
+| Nested 32 MiB memory cap  | worker SIGKILL; oom_kill 0 to 1; exit0                                         | 0.249s   |
+| Nested memory cap removed | allocation completed; oom_kill 0 to 0; exact memory-limit-event-absent; exit42 | 1.337s   |
+| Nested CPU quota          | nr_throttled 0 to 22; exit0                                                    | 2.538s   |
+| Nested CPU quota removed  | nr_throttled 0 to 0; exact cpu-limit-event-absent; exit42                      | 2.270s   |
+| Nested eight-PID cap      | EAGAIN after seven forks; pids.events max 0 to 1; exit0                        | 2.306s   |
+| Nested PID cap removed    | twelve forks completed; max 0 to 0; exact pids-limit-event-absent; exit42      | 2.303s   |
+
+Raw argv, streams, native bindings, cap/controller snapshots, host observations
+and cleanup receipts are retained in
+`/tmp/puni-task92-probe/review-v5/runs/281047ecff94841252415ec93520a726/`.
+Fault controls preserved the independent finite outer bounds. Earlier attempts
+remain retained: v3 refused before service creation on an incorrect native
+absence assumption; v4 created one bounded service but failed before QEMU or
+pressure because delegated controllers were available but initially disabled.
+The reviewed v5 correction and its logical RED/GREEN evidence are in
+`/tmp/puni-task92-probe/review-v5/`; scoped approval is
+`/tmp/puni-task92-probe-v5-review.md`. No passing phase was repeated.
+
+A fresh creator-bound reconciliation inspected all eight v5 units and the v4
+failed setup unit. Five empty failed-unit records were reset individually after
+matching InvocationID, MainPID=0 and absent native cgroup; all nine units were
+then explicitly unloaded/inactive with absent cgroups. Receipt:
+`/tmp/puni-task92-probe/owned-unit-reconciliation.json`. No shared unit or BuildKit
+was touched. Disk containment, guest OS/private Docker, complete coexistence,
+startup sufficiency and actual stack/recovery acceptance remain unverified.
+Task92 and the seven canonical tasks remain open.
+
+The initial default-account Kubernetes access conclusion was corrected by
+reusing the already authorized enrollment operator documented in this verify
+file's October26 inventory. Read-only safe metadata through that exact pinned
+route succeeded; no raw credentials were copied, grants changed or denied
+ordinary-account paths bypassed. Full correction, exact query receipts and
+remaining unknowns: `/tmp/puni-task93-live-inventory/prior-context.md`.
+The observed canonical marker/source UIDs matched historical identities;
+observability exists, observability-dev and Elastic/Prometheus CRDs are absent,
+and observability/alerts/backup remain suspended/unready. These reads are not a
+complete fresh admission receipt. TLS/material, effective access/network,
+coexistence and stored-signal acceptance remain unresolved.
+
+## Task94 independent acceptance and native-input corroboration — 2026-11-02
+
+Independent scoped review approved specification compliance and code quality
+with no actionable findings at immutable source commit
+`a51f0ed23749bb37712420565ccbb33a9f52b4d8`, parent
+`012082208899b02b1c625756f4197584b593043a`. Review:
+`/tmp/puni-task94-review.md`. Root verified all 71 retained evidence-manifest
+files. Task94 alone is closed; canonical3.2 remains open.
+
+The committed exported adapter then accepted all fourteen unchanged retained
+native Flux records, including the four actual observedGeneration=-1 values.
+It preserved their unready and stale-generation facts and three suspended
+states. This is historical-input corroboration, not a fresh live read, full
+preflight or readiness/admission certification. Exact command:
+
+```sh
+/home/df/.bun/bin/bun /tmp/puni-task93-live-inventory/task94-consumer.ts
+```
+
+Exit0 in0.560s; source SHA256
+`66d9121c147aafe5431f78d86309239ceeb33f38dba599a61be97459791b512f`.
+Input/output hashes, preserved native fields, source binding and receipt:
+`/tmp/puni-task93-live-inventory/task94-consumer.md`.
+
+The single covering214-test run loaded the test module before a later test-only
+lint correction; final focused9 tests, lint and typecheck covered the committed
+correction. Production source was unchanged between those stages. Hashes were
+captured after commit, so the evidence binding relies on the recorded edit
+sequence; no claim is made that the covering process reloaded final test bytes.
+This limitation was explicitly accepted by the scoped reviewer. No test suite,
+statics or passing native phase was replayed for review or metadata closure.
